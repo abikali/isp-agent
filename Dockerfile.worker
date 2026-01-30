@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1
+
+FROM node:24-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
+RUN apk add --no-cache libc6-compat openssl
+
+FROM base AS deps
+WORKDIR /app
+
+# Copy package files (all workspace packages for proper resolution)
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages/api/package.json packages/api/
+COPY packages/audit/package.json packages/audit/
+COPY packages/auth/package.json packages/auth/
+COPY packages/database/package.json packages/database/
+COPY packages/feature-flags/package.json packages/feature-flags/
+COPY packages/i18n/package.json packages/i18n/
+COPY packages/integrations/package.json packages/integrations/
+COPY packages/jobs/package.json packages/jobs/
+COPY packages/logs/package.json packages/logs/
+COPY packages/mail/package.json packages/mail/
+COPY packages/notifications/package.json packages/notifications/
+COPY packages/payments/package.json packages/payments/
+COPY packages/quotas/package.json packages/quotas/
+COPY packages/rate-limit/package.json packages/rate-limit/
+COPY packages/security/package.json packages/security/
+COPY packages/storage/package.json packages/storage/
+COPY packages/utils/package.json packages/utils/
+COPY packages/webhooks/package.json packages/webhooks/
+COPY tooling/tailwind/package.json tooling/tailwind/
+COPY tooling/typescript/package.json tooling/typescript/
+COPY config/package.json config/
+
+RUN pnpm install --frozen-lockfile
+
+FROM base AS builder
+WORKDIR /app
+
+# Copy all node_modules from deps stage (pnpm workspace structure)
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/tooling ./tooling
+COPY --from=deps /app/config ./config
+
+# Copy source files
+COPY . .
+
+# Set dummy DATABASE_URL for Prisma client generation
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+
+RUN pnpm --filter @repo/database generate
+
+FROM node:24-alpine AS runner
+WORKDIR /app
+
+# Install pnpm (needed for worker:prod script)
+RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
+RUN apk add --no-cache openssl
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 worker
+COPY --from=builder /app ./
+RUN chown -R worker:nodejs /app
+USER worker
+
+CMD ["pnpm", "--filter", "@repo/jobs", "worker:prod"]

@@ -1,0 +1,41 @@
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "migrate" to confirm'
+        required: true
+
+jobs:
+  migrate:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'migrate'
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host keys
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.APP_DROPLET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run migrations
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.APP_DROPLET_HOST }} << 'ENDSSH'
+            cd ~/libancom
+
+            # Run migrations using the web container
+            docker compose -f docker-compose.app.yml run --rm web \
+              pnpm --filter @repo/database migrate:deploy
+
+            echo "Migrations complete!"
+          ENDSSH

@@ -1,0 +1,11 @@
+{
+	"srcDirectory": "app",
+	"routesDirectory": "app/routes",
+	"generatedRouteTree": "app/routeTree.gen.ts",
+	"routeTreeFileHeader": [
+		"/* eslint-disable */",
+		"// noinspection JSUnusedGlobalSymbols"
+	],
+	"routeTreeFileFooter": [],
+	"quoteStyle": "double"
+}

@@ -1,0 +1,81 @@
+{
+	"name": "@repo/api",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./orpc/router": {
+			"types": "./orpc/router.ts",
+			"default": "./orpc/router.ts"
+		},
+		"./lib/membership": {
+			"types": "./lib/membership.ts",
+			"default": "./lib/membership.ts"
+		},
+		"./lib/permission": {
+			"types": "./lib/permission.ts",
+			"default": "./lib/permission.ts"
+		},
+		"./lib/validation": {
+			"types": "./lib/validation.ts",
+			"default": "./lib/validation.ts"
+		},
+		"./modules/webhooks/types": {
+			"types": "./modules/webhooks/types.ts",
+			"default": "./modules/webhooks/types.ts"
+		},
+		"./modules/api-keys/types": {
+			"types": "./modules/api-keys/types.ts",
+			"default": "./modules/api-keys/types.ts"
+		}
+	},
+	"scripts": {
+		"test": "vitest",
+		"test:run": "vitest run",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@orpc/client": "^1.12.2",
+		"@orpc/json-schema": "^1.12.2",
+		"@orpc/openapi": "^1.12.2",
+		"@orpc/server": "^1.12.2",
+		"@orpc/zod": "^1.12.2",
+		"@paralleldrive/cuid2": "3.0.6",
+		"@repo/audit": "workspace:*",
+		"@repo/auth": "workspace:*",
+		"@repo/config": "workspace:*",
+		"@repo/database": "workspace:*",
+		"@repo/feature-flags": "workspace:*",
+		"@repo/i18n": "workspace:*",
+		"@repo/integrations": "workspace:*",
+		"@repo/jobs": "workspace:*",
+		"@repo/logs": "workspace:*",
+		"@repo/mail": "workspace:*",
+		"@repo/notifications": "workspace:*",
+		"@repo/payments": "workspace:*",
+		"@repo/quotas": "workspace:*",
+		"@repo/rate-limit": "workspace:*",
+		"@repo/security": "workspace:*",
+		"@repo/storage": "workspace:*",
+		"@repo/utils": "workspace:*",
+		"@repo/webhooks": "workspace:*",
+		"@scalar/hono-api-reference": "^0.9.28",
+		"@sentry/node": "^10.30.0",
+		"@sindresorhus/slugify": "^3.0.0",
+		"franc-min": "^6.2.0",
+		"hono": "^4.10.8",
+		"ioredis": "^5.8.2",
+		"nanoid": "^5.1.6",
+		"xlsx": "^0.18.5",
+		"zod": "^4.1.13"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"typescript": "5.9.3",
+		"vitest": "^4.0.17"
+	}
+}

@@ -1,0 +1,526 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "./generated"
+  engineType      = "client"
+  previewFeatures = ["strictUndefinedChecks"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  expiresAt             DateTime?
+  password              String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime
+  updatedAt             DateTime
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model AccountLockout {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  lockedAt       DateTime  @default(now())
+  unlocksAt      DateTime
+  failedAttempts Int       @default(0)
+  reason         String?
+  unlockedAt     DateTime?
+  unlockedBy     String?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([unlocksAt])
+  @@map("account_lockout")
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  name           String
+  keyHash        String       @unique
+  keyPrefix      String
+  organizationId String
+  createdById    String
+  permissions    String[]
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([createdById])
+  @@index([keyHash])
+  @@index([organizationId])
+  @@map("api_key")
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  userId         String?
+  organizationId String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  metadata       Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([action])
+  @@index([createdAt])
+  @@index([organizationId])
+  @@index([resourceType])
+  @@index([userId])
+  @@map("audit_log")
+}
+
+model BulkOperation {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String // import_csv, duplicate_template, bulk_edit, bulk_delete, bulk_publish, bulk_export, bulk_duplicate, bulk_assign
+  status         String       @default("pending") // pending, processing, completed, failed, cancelled
+  totalItems     Int
+  processedItems Int          @default(0)
+  successCount   Int          @default(0)
+  errorCount     Int          @default(0)
+  errors         Json?
+  input          Json?
+  result         Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bulk_operation")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  enabled     Boolean  @default(false)
+  percentage  Int      @default(100)
+  targetUsers String[] @default([])
+  targetOrgs  String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@map("feature_flag")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime
+  inviterId      String
+  createdAt      DateTime     @default(now())
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([inviterId])
+  @@index([expiresAt])
+  @@map("invitation")
+}
+
+model KnownDevice {
+  id                String   @id @default(cuid())
+  userId            String
+  deviceFingerprint String
+  deviceName        String?
+  userAgent         String?
+  ipAddress         String?
+  lastSeenAt        DateTime @default(now())
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceFingerprint])
+  @@index([userId])
+  @@map("known_device")
+}
+
+model LoginAttempt {
+  id            String   @id @default(cuid())
+  userId        String?
+  email         String
+  ipAddress     String?
+  userAgent     String?
+  success       Boolean  @default(false)
+  failureReason String?
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id])
+
+  @@index([email, createdAt])
+  @@index([ipAddress])
+  @@index([userId])
+  @@map("login_attempt")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("member")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  category  String?  // "leads" | "team" | "analytics" | "security"
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId, read])
+  @@index([userId, category])
+  @@map("notification")
+}
+
+model NotificationPreference {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+
+  // Per-category in-app toggles
+  leadsInApp     Boolean @default(true)
+  teamInApp      Boolean @default(true)
+  analyticsInApp Boolean @default(true)
+  securityInApp  Boolean @default(true)
+
+  // Per-category email toggles
+  leadsEmail     Boolean @default(true)
+  teamEmail      Boolean @default(true)
+  analyticsEmail Boolean @default(false)
+  securityEmail  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preference")
+}
+
+model Organization {
+  id                   String             @id @default(cuid())
+  name                 String
+  slug                 String?            @unique
+  logo                 String?
+  createdAt            DateTime
+  metadata             Json?
+  paymentsCustomerId   String?
+  aiDefaultPersona     String?            @db.Text
+  aiDefaultGreeting    String?
+  aiProfileLimit       Int?               // Max credits per profile per month (null = no limit)
+  aiAllowedModels      String[]           @default([]) // LLM models whitelisted by org admin
+  apiKeys              ApiKey[]
+  auditLogs            AuditLog[]
+  bulkOperations       BulkOperation[]
+  integrationConnections IntegrationConnection[]
+  invitations          Invitation[]
+  members              Member[]
+  roles                OrganizationRole[]
+  purchases            Purchase[]
+  usageQuotas          UsageQuota[]
+  webhooks             Webhook[]
+
+  @@map("organization")
+}
+
+model OrganizationRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  role           String
+  permission     String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, role])
+  @@map("organization_role")
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  name         String?
+  publicKey    String
+  userId       String
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkey")
+}
+
+model Purchase {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String?
+  type           PurchaseType
+  customerId     String
+  subscriptionId String?       @unique
+  productId      String
+  status         String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([customerId])
+  @@map("purchase")
+}
+
+model Session {
+  id                   String   @id @default(cuid())
+  expiresAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  impersonatedBy       String?
+  activeOrganizationId String?
+  token                String   @unique
+  createdAt            DateTime
+  updatedAt            DateTime
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model TwoFactor {
+  id          String @id @default(cuid())
+  secret      String
+  backupCodes String
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factor")
+}
+
+model UsageQuota {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String?
+  quotaType      String
+  used           Int           @default(0)
+  limit          Int
+  resetAt        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, quotaType])
+  @@unique([userId, quotaType])
+  @@index([organizationId])
+  @@index([quotaType])
+  @@index([userId])
+  @@map("usage_quota")
+}
+
+model User {
+  id                  String          @id @default(cuid())
+  name                String
+  email               String          @unique
+  emailVerified       Boolean
+  image               String?
+  createdAt           DateTime
+  updatedAt           DateTime
+  username            String?         @unique
+  role                String?
+  banned              Boolean?
+  banReason           String?
+  banExpires          DateTime?
+  onboardingComplete  Boolean         @default(false)
+  paymentsCustomerId  String?
+  locale              String?
+  displayUsername     String?
+  twoFactorEnabled    Boolean?
+  deletionScheduledAt DateTime?
+  deletionReason      String?
+  accounts            Account[]
+  accountLockout      AccountLockout?
+  apiKeys             ApiKey[]
+  auditLogs           AuditLog[]
+  bulkOperations      BulkOperation[]
+  integrationConnections IntegrationConnection[]
+  invitations         Invitation[]
+  knownDevices        KnownDevice[]
+  loginAttempts       LoginAttempt[]
+  members             Member[]
+  notifications           Notification[]
+  notificationPreference  NotificationPreference?
+  passkeys                Passkey[]
+  purchases           Purchase[]
+  sessions            Session[]
+  twoFactors          TwoFactor[]
+  usageQuotas         UsageQuota[]
+
+  @@map("user")
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+model Webhook {
+  id             String            @id @default(cuid())
+  organizationId String
+  url            String
+  secret         String
+  events         String[]
+  enabled        Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries     WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhook")
+}
+
+model WebhookDelivery {
+  id          String    @id @default(cuid())
+  webhookId   String
+  event       String
+  payload     Json
+  statusCode  Int?
+  response    String?   @db.Text
+  attempts    Int       @default(0)
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  webhook     Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([webhookId])
+  @@map("webhook_delivery")
+}
+
+// ============================================================================
+// INTEGRATION MODELS (Third-party integrations via Nango)
+// ============================================================================
+
+model IntegrationConnection {
+  id                String   @id @default(cuid())
+  organizationId    String
+  createdById       String
+
+  // Nango identifiers
+  providerConfigKey String   // "hubspot", "salesforce", "slack"
+  connectionId      String   // Nango's unique connection ID
+
+  // Display
+  name              String?  // User-friendly name
+  providerName      String   // "HubSpot", "Salesforce"
+
+  // Sync configuration (user-configurable)
+  syncMode          String   @default("manual") // "manual" | "auto"
+  autoSyncEvents    String[] @default([])       // ["contact.created", "contact.updated"]
+
+  // Status
+  status            String   @default("connected") // connected, error, disconnected
+  lastSyncAt        DateTime?
+  lastError         String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User                    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  syncOperations    ContactSyncOperation[]
+
+  @@unique([organizationId, providerConfigKey])
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+  @@map("integration_connection")
+}
+
+model ContactSyncOperation {
+  id            String   @id @default(cuid())
+  connectionId  String
+
+  // Operation details
+  type          String   // "push_single", "push_bulk", "sync_all"
+  status        String   @default("pending") // pending, processing, completed, failed
+  trigger       String?  // "manual", "contact.created", "contact.updated"
+
+  // Counts
+  totalContacts Int
+  successCount  Int      @default(0)
+  errorCount    Int      @default(0)
+
+  // Results
+  errors        Json?    // Array of {contactId, error} objects
+  result        Json?    // Provider response data
+
+  // Timing
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("contact_sync_operation")
+}
+
+enum PurchaseType {
+  SUBSCRIPTION
+  ONE_TIME
+}
+

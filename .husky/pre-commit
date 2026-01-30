@@ -1,0 +1,12 @@
+# Run biome on staged files, ignoring exit code when no files are processed
+biome check --staged --write --error-on-warnings 2>&1 | tee /tmp/biome-output.txt
+BIOME_EXIT=${PIPESTATUS[0]}
+if [ $BIOME_EXIT -ne 0 ]; then
+  if grep -q "No files were processed" /tmp/biome-output.txt; then
+    # Ignore error when only non-JS/TS files are staged
+    true
+  else
+    exit $BIOME_EXIT
+  fi
+fi
+git update-index --again

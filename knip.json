@@ -1,0 +1,172 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"workspaces": {
+		".": {
+			"ignoreDependencies": ["husky"]
+		},
+		"apps/web": {
+			"entry": [
+				"app/client.tsx",
+				"app/ssr.tsx",
+				"app/routes/**/*.tsx",
+				"app/router.tsx",
+				"content-collections.ts",
+				"vite.config.ts",
+				"playwright.config.ts",
+				"tests/**/*.ts",
+				"tests/**/*.spec.ts",
+				"modules/saas/*/index.ts",
+				"modules/saas/*/index.client.ts"
+			],
+			"project": ["**/*.{ts,tsx}"],
+			"ignore": ["content/**/*.mdx", "app/routeTree.gen.ts"],
+			"paths": {
+				"~/*": ["./app/*"],
+				"@marketing/*": ["./modules/marketing/*"],
+				"@saas/*": ["./modules/saas/*"],
+				"@ui/*": ["./modules/ui/*"],
+				"@shared/*": ["./modules/shared/*"]
+			},
+			"ignoreDependencies": [
+				"@repo/tsconfig",
+				"@repo/tailwind-config",
+				"@tanstack/react-query-devtools",
+				"@tanstack/react-router-devtools",
+				"@shikijs/rehype",
+				"tailwindcss",
+				"@tailwindcss/postcss",
+				"localtunnel",
+				"mixpanel-browser",
+				"posthog-js",
+				"@vercel/analytics"
+			]
+		},
+		"packages/api": {
+			"entry": ["index.ts", "orpc/router.ts", "modules/*/router.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/auth": {
+			"entry": ["index.ts", "auth.ts", "client.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/database": {
+			"entry": ["index.ts", "scripts/*.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig", "prisma"]
+		},
+		"packages/jobs": {
+			"entry": [
+				"index.ts",
+				"worker.ts",
+				"integration-sync.ts",
+				"src/queues/index.ts",
+				"src/workers/index.ts",
+				"src/jobs/index.ts",
+				"vitest.config.ts"
+			],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/mail": {
+			"entry": ["index.ts", "src/provider/*.ts", "emails/*.tsx"],
+			"project": ["**/*.{ts,tsx}"],
+			"ignoreDependencies": [
+				"@repo/tsconfig",
+				"@react-email/preview-server",
+				"@tailwindcss/line-clamp"
+			]
+		},
+		"packages/payments": {
+			"entry": [
+				"index.ts",
+				"types.ts",
+				"src/lib/helper.ts",
+				"provider/*/index.ts"
+			],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/storage": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/security": {
+			"entry": ["index.ts", "src/**/*.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/rate-limit": {
+			"entry": ["index.ts", "vitest.config.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/webhooks": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/quotas": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/audit": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/notifications": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/feature-flags": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/integrations": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/logs": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/i18n": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"packages/utils": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"config": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"tooling/tailwind-config": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		}
+	},
+	"ignore": [
+		"**/node_modules/**",
+		"**/.output/**",
+		"**/dist/**",
+		"**/.vinxi/**"
+	],
+	"ignoreDependencies": ["@biomejs/biome", "typescript"],
+	"rules": {
+		"duplicates": "off"
+	}
+}

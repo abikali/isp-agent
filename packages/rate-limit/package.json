@@ -1,0 +1,27 @@
+{
+	"name": "@repo/rate-limit",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		}
+	},
+	"scripts": {
+		"type-check": "tsc --noEmit",
+		"test": "vitest",
+		"test:run": "vitest run"
+	},
+	"dependencies": {
+		"@repo/config": "workspace:*",
+		"@repo/logs": "workspace:*",
+		"ioredis": "^5.8.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "^25.0.9",
+		"vitest": "^4.0.17"
+	}
+}

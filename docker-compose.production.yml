@@ -1,0 +1,163 @@
+# Production Docker Compose Configuration
+# Usage:
+#   1. Copy .env.production.example to .env.production and fill in values
+#   2. Set up Cloudflare Origin CA certificates (see config/nginx/certs/README.md)
+#   3. docker compose -f docker-compose.production.yml up -d
+#
+# Services:
+#   - nginx: SSL-terminating reverse proxy (ports 80, 443)
+#   - postgres: PostgreSQL 16 (databases: libancom)
+#   - redis: Redis 7 for sessions, rate limiting, queues
+#   - web: TanStack Start application
+#   - worker: BullMQ job processor
+
+services:
+  # ========== Reverse Proxy ==========
+
+  nginx:
+    image: nginx:alpine
+    container_name: libancom-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - libancom-network
+
+  # ========== Core Infrastructure ==========
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: libancom-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-libancom}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - libancom-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: libancom-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - libancom-network
+
+  # ========== Application ==========
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SITE_URL: ${VITE_SITE_URL}
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
+        SITE_URL: ${SITE_URL}
+        AVATARS_BUCKET_NAME: ${AVATARS_BUCKET_NAME:-avatars}
+    container_name: libancom-web
+    restart: unless-stopped
+    # Port 3000 for direct access (local testing), nginx handles production traffic
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-libancom}
+      REDIS_URL: redis://redis:6379
+      BETTER_AUTH_URL: ${VITE_SITE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - libancom-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: libancom-worker
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-libancom}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks:
+      - libancom-network
+
+  # ========== Database Migrations (one-shot) ==========
+  # Run with: docker compose -f docker-compose.production.yml run --rm migrate
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: libancom-migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-libancom}
+    command: pnpm --filter @repo/database migrate:deploy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - libancom-network
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  libancom-network:
+    driver: bridge

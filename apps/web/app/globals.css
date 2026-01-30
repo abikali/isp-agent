@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "@repo/tailwind-config/theme.css";
+@import "@repo/tailwind-config/tailwind-animate.css";
+
+@source "../modules/**/*.tsx";
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+	button:not(:disabled),
+	[role="button"]:not(:disabled) {
+		cursor: pointer;
+	}
+}
+
+pre.shiki {
+	@apply mb-4 rounded-lg p-6;
+}
+
+#nd-sidebar {
+	@apply bg-card! top-[4.5rem] md:h-[calc(100dvh-4.5rem)]!;
+
+	button[data-search-full] {
+		@apply bg-transparent;
+	}
+}
+
+#nd-page .prose {
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		a {
+			@apply no-underline!;
+		}
+	}
+}
+
+div[role="tablist"].bg-secondary {
+	@apply bg-muted!;
+}
+
+input[cmdk-input] {
+	@apply border-none focus-visible:ring-0;
+}
+
+/* react-colorful color picker styles */
+.react-colorful {
+	width: 100% !important;
+	height: auto !important;
+}
+
+.react-colorful__saturation {
+	border-radius: 0.5rem 0.5rem 0 0;
+	height: 150px;
+}
+
+.react-colorful__hue {
+	height: 14px;
+	border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.react-colorful__saturation-pointer,
+.react-colorful__hue-pointer {
+	width: 18px;
+	height: 18px;
+	border-width: 3px;
+}
+
+/* NProgress navigation progress bar */
+#nprogress {
+	pointer-events: none;
+}
+
+#nprogress .bar {
+	background: hsl(var(--primary));
+	position: fixed;
+	z-index: 1031;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 3px;
+}
+
+#nprogress .peg {
+	display: block;
+	position: absolute;
+	right: 0;
+	width: 100px;
+	height: 100%;
+	box-shadow:
+		0 0 10px hsl(var(--primary)),
+		0 0 5px hsl(var(--primary));
+	opacity: 1;
+	transform: rotate(3deg) translate(0, -4px);
+}

@@ -1,0 +1,23 @@
+{
+	"name": "@repo/audit",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		}
+	},
+	"scripts": {
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@paralleldrive/cuid2": "3.0.6",
+		"@repo/database": "workspace:*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "^25.0.9"
+	}
+}

@@ -1,0 +1,26 @@
+{
+	"name": "@repo/webhooks",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		}
+	},
+	"scripts": {
+		"test": "vitest",
+		"test:run": "vitest run",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@paralleldrive/cuid2": "3.0.6",
+		"@repo/database": "workspace:*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "^25.0.9",
+		"vitest": "^4.0.17"
+	}
+}

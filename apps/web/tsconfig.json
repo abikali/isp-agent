@@ -1,0 +1,64 @@
+{
+	"extends": "@repo/tsconfig/base.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"exactOptionalPropertyTypes": false,
+		"noPropertyAccessFromIndexSignature": false,
+		"types": ["@testing-library/jest-dom"],
+		"paths": {
+			"~/*": ["./app/*"],
+			"@marketing/*": ["./modules/marketing/*"],
+			"@saas/auth/client": ["./modules/saas/auth/index.client.ts"],
+			"@saas/organizations/client": [
+				"./modules/saas/organizations/index.client.ts"
+			],
+			"@saas/payments/client": [
+				"./modules/saas/payments/index.client.ts"
+			],
+			"@saas/shared/client": ["./modules/saas/shared/index.client.ts"],
+			"@saas/settings/client": [
+				"./modules/saas/settings/index.client.ts"
+			],
+			"@saas/onboarding/client": [
+				"./modules/saas/onboarding/index.client.ts"
+			],
+			"@saas/admin/client": ["./modules/saas/admin/index.client.ts"],
+			"@saas/start/client": ["./modules/saas/start/index.client.ts"],
+			"@saas/dashboard/client": [
+				"./modules/saas/dashboard/index.client.ts"
+			],
+			"@saas/*": ["./modules/saas/*"],
+			"@ui/*": ["./modules/ui/*"],
+			"@shared/*": ["./modules/shared/*"],
+			"content-collections": ["./.content-collections/generated"]
+		}
+	},
+	"include": [
+		"env.d.ts",
+		"app/routes/**/*.ts",
+		"app/routes/**/*.tsx",
+		"app/client.tsx",
+		"app/ssr.tsx",
+		"app/router.tsx",
+		"app/routeTree.gen.ts",
+		"app/globals.css",
+		"app/server/**/*.ts",
+		"app/docs-source.ts",
+		"modules/**/*.ts",
+		"modules/**/*.tsx",
+		"content-collections.ts",
+		"**/*.cjs",
+		"**/*.mjs"
+	],
+	"exclude": ["node_modules"]
+}

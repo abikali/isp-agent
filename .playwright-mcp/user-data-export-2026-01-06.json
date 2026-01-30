@@ -1,0 +1,70 @@
+{
+	"exportedAt": "2026-01-06T00:47:57.189Z",
+	"user": {
+		"id": "ljdyh1ikcjgklk4fxt7el6eg",
+		"name": "Test User Updated",
+		"email": "test@example.com",
+		"emailVerified": true,
+		"image": null,
+		"createdAt": "2026-01-06T00:43:08.773Z",
+		"updatedAt": "2026-01-06T00:47:42.800Z",
+		"username": null,
+		"role": "user",
+		"onboardingComplete": true,
+		"locale": null,
+		"displayUsername": null,
+		"twoFactorEnabled": false
+	},
+	"sessions": [
+		{
+			"id": "j4c3cakt7ennteptnmadijcb",
+			"ipAddress": "127.0.0.1",
+			"userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+			"createdAt": "2026-01-06T00:46:33.329Z",
+			"expiresAt": "2026-02-05T00:46:33.329Z"
+		}
+	],
+	"memberships": [
+		{
+			"id": "mem_test_1767660249.910352",
+			"role": "owner",
+			"createdAt": "2026-01-06T00:44:09.910Z",
+			"organization": {
+				"id": "org_test_1767660249.910352",
+				"name": "Test Organization",
+				"slug": "test-organization"
+			}
+		}
+	],
+	"connectedAccounts": [
+		{
+			"id": "epkelj14h1lb2uido7a0r65t",
+			"providerId": "credential",
+			"accountId": "ljdyh1ikcjgklk4fxt7el6eg",
+			"createdAt": "2026-01-06T00:43:08.790Z"
+		}
+	],
+	"passkeys": [],
+	"purchases": [],
+	"auditLogs": [
+		{
+			"id": "qa2yy187ctk2jig4vzq7vce8",
+			"action": "auth.2fa_enabled",
+			"resourceType": "user",
+			"resourceId": "ljdyh1ikcjgklk4fxt7el6eg",
+			"metadata": null,
+			"createdAt": "2026-01-06T00:46:51.843Z"
+		},
+		{
+			"id": "d3bsyn1nk7lxekfr18rneic1",
+			"action": "auth.login",
+			"resourceType": "user",
+			"resourceId": "ljdyh1ikcjgklk4fxt7el6eg",
+			"metadata": {
+				"provider": "email"
+			},
+			"createdAt": "2026-01-06T00:43:46.275Z"
+		}
+	],
+	"invitationsSent": []
+}

@@ -1,0 +1,155 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  REGISTRY: ghcr.io
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/libancom-web
+  WORKER_IMAGE: ghcr.io/${{ github.repository_owner }}/libancom-worker
+
+jobs:
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Web image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.WEB_IMAGE }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VITE_SITE_URL=https://libancom.co
+            SITE_URL=https://libancom.co
+            AVATARS_BUCKET_NAME=libancom-dev
+
+      - name: Build and push Worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.WORKER_IMAGE }}:${{ steps.meta.outputs.version }}
+            ${{ env.WORKER_IMAGE }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add host keys to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.APP_DROPLET_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.DATA_DROPLET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to App Droplet
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          DATA_DROPLET_IP: ${{ secrets.DATA_DROPLET_PRIVATE_IP }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          # Pass GHCR token to droplet for authentication
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.APP_DROPLET_HOST }} "echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin"
+
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.APP_DROPLET_HOST }} << ENDSSH
+            cd ~/libancom
+
+            # Pull latest images
+            echo "Pulling latest images..."
+            docker pull ghcr.io/${{ github.repository_owner }}/libancom-web:${{ needs.build.outputs.image_tag }}
+            docker pull ghcr.io/${{ github.repository_owner }}/libancom-worker:${{ needs.build.outputs.image_tag }}
+
+            # Set environment variables for docker compose
+            export IMAGE_TAG=${{ needs.build.outputs.image_tag }}
+            export DATA_DROPLET_IP=${{ secrets.DATA_DROPLET_PRIVATE_IP }}
+            export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
+
+            # Stop existing containers
+            docker compose -f docker-compose.app.yml down || true
+
+            # Start services with new images
+            echo "Starting services..."
+            docker compose -f docker-compose.app.yml up -d
+
+            # Clean up old images
+            echo "Cleaning up old images..."
+            docker image prune -af --filter "until=24h"
+
+            echo "Deployment complete!"
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting for services to be healthy..."
+          sleep 30
+
+          # Check web health
+          curl -f https://libancom.co/api/health || exit 1
+
+          echo "Deployment verified successfully!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Check the logs above for details."
+          # Add Slack/Discord notification here if desired

@@ -1,0 +1,60 @@
+{
+	"name": "@repo/auth",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./index.ts",
+			"default": "./index.ts"
+		},
+		"./types": {
+			"types": "./types.ts",
+			"default": "./types.ts"
+		},
+		"./client": {
+			"types": "./client.ts",
+			"default": "./client.ts"
+		},
+		"./lib/helper": {
+			"types": "./lib/helper.ts",
+			"default": "./lib/helper.ts"
+		},
+		"./lib/audit": {
+			"types": "./lib/audit.ts",
+			"default": "./lib/audit.ts"
+		},
+		"./permissions": {
+			"types": "./permissions/index.ts",
+			"default": "./permissions/index.ts"
+		}
+	},
+	"scripts": {
+		"migrate": "dotenv -e ../../.env.local -- pnpm dlx @better-auth/cli@latest generate --config ./auth.ts --output ../database/prisma/schema.prisma",
+		"type-check": "tsc --noEmit",
+		"test": "vitest",
+		"test:run": "vitest run"
+	},
+	"dependencies": {
+		"@better-auth/passkey": "1.5.0-beta.2",
+		"@paralleldrive/cuid2": "3.0.6",
+		"ioredis": "^5.8.2",
+		"@repo/audit": "workspace:*",
+		"@repo/config": "workspace:*",
+		"@repo/database": "workspace:*",
+		"@repo/i18n": "workspace:*",
+		"@repo/logs": "workspace:*",
+		"@repo/mail": "workspace:*",
+		"@repo/notifications": "workspace:*",
+		"@repo/payments": "workspace:*",
+		"@repo/security": "workspace:*",
+		"@repo/utils": "workspace:*",
+		"better-auth": "https://pkg.pr.new/better-auth/better-auth@7096",
+		"cookie": "^1.1.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "^25.0.9",
+		"vitest": "^4.0.17"
+	}
+}

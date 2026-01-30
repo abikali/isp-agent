@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+.output
+**/dist
+**/.turbo
+
+# Development files
+.git
+.gitignore
+.env*.local
+.env.development
+.env.test
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+coverage
+**/coverage
+**/*.test.ts
+**/*.spec.ts
+**/tests
+**/playwright-report
+
+# Documentation
+*.md
+!README.md
+docs
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker files (don't need to copy themselves)
+Dockerfile*
+docker-compose*.yml
+.dockerignore

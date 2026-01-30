@@ -1,0 +1,47 @@
+{
+	"name": "libancom",
+	"private": true,
+	"scripts": {
+		"build": "dotenv -c -- turbo build",
+		"dev": "dotenv -c -- turbo dev --concurrency 15",
+		"type-check": "dotenv -c -- turbo type-check",
+		"start": "dotenv -c -- turbo start",
+		"worker": "dotenv -c -- turbo worker --filter=@repo/jobs",
+		"lint": "biome lint . ",
+		"check": "biome check",
+		"clean": "turbo clean",
+		"format": "biome format . --write",
+		"prepare": "husky",
+		"knip": "knip",
+		"knip:fix": "knip --fix"
+	},
+	"engines": {
+		"node": ">=24"
+	},
+	"packageManager": "pnpm@10.14.0",
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "^25.0.9",
+		"@vitest/coverage-v8": "^4.0.15",
+		"dotenv-cli": "^11.0.0",
+		"husky": "^9.1.7",
+		"knip": "^5.82.1",
+		"turbo": "^2.7.5",
+		"typescript": "5.9.3"
+	},
+	"pnpm": {
+		"overrides": {
+			"@types/react": "19.2.7",
+			"@types/react-dom": "19.2.3",
+			"next": "^16.1.3"
+		},
+		"onlyBuiltDependencies": [
+			"@prisma/client",
+			"@prisma/engines",
+			"@swc/core",
+			"prisma",
+			"sharp"
+		]
+	}
+}
