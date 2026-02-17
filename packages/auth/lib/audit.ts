@@ -781,6 +781,818 @@ export const webhookAudit = {
 };
 
 /**
+ * AI agent audit logging functions
+ */
+export const aiAgentAudit = {
+	created: (
+		agentId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string; model?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiAgent.created,
+					resourceType: RESOURCE_TYPES.aiAgent,
+				},
+				{
+					resourceId: agentId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		agentId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiAgent.updated,
+					resourceType: RESOURCE_TYPES.aiAgent,
+				},
+				{
+					resourceId: agentId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		agentId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiAgent.deleted,
+					resourceType: RESOURCE_TYPES.aiAgent,
+				},
+				{
+					resourceId: agentId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	webChatToggled: (
+		agentId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { enabled?: boolean },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiAgent.webChatToggled,
+					resourceType: RESOURCE_TYPES.aiAgent,
+				},
+				{
+					resourceId: agentId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Watcher audit logging functions
+ */
+export const watcherAudit = {
+	created: (
+		watcherId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string; type?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.watcher.created,
+					resourceType: RESOURCE_TYPES.watcher,
+				},
+				{
+					resourceId: watcherId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		watcherId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.watcher.updated,
+					resourceType: RESOURCE_TYPES.watcher,
+				},
+				{
+					resourceId: watcherId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		watcherId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.watcher.deleted,
+					resourceType: RESOURCE_TYPES.watcher,
+				},
+				{
+					resourceId: watcherId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	toggled: (
+		watcherId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { enabled?: boolean },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.watcher.toggled,
+					resourceType: RESOURCE_TYPES.watcher,
+				},
+				{
+					resourceId: watcherId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * AI agent channel audit logging functions
+ */
+export const aiChannelAudit = {
+	created: (
+		channelId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { provider?: string; name?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiChannel.created,
+					resourceType: RESOURCE_TYPES.aiChannel,
+				},
+				{
+					resourceId: channelId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		channelId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.aiChannel.deleted,
+					resourceType: RESOURCE_TYPES.aiChannel,
+				},
+				{
+					resourceId: channelId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Customer audit logging functions
+ */
+export const customerAudit = {
+	created: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { fullName?: string; accountNumber?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.created,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.updated,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.deleted,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	imported: (
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { count?: number; operationId?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.imported,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	exported: (
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { count?: number },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.exported,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	pinUpdated: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.pinUpdated,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	pinReset: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.pinReset,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	pinGenerated: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.pinGenerated,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Service plan audit logging functions
+ */
+export const servicePlanAudit = {
+	created: (
+		planId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.servicePlan.created,
+					resourceType: RESOURCE_TYPES.servicePlan,
+				},
+				{
+					resourceId: planId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		planId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.servicePlan.updated,
+					resourceType: RESOURCE_TYPES.servicePlan,
+				},
+				{
+					resourceId: planId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		planId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.servicePlan.deleted,
+					resourceType: RESOURCE_TYPES.servicePlan,
+				},
+				{
+					resourceId: planId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Station audit logging functions
+ */
+export const stationAudit = {
+	created: (
+		stationId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.station.created,
+					resourceType: RESOURCE_TYPES.station,
+				},
+				{
+					resourceId: stationId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		stationId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.station.updated,
+					resourceType: RESOURCE_TYPES.station,
+				},
+				{
+					resourceId: stationId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		stationId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.station.deleted,
+					resourceType: RESOURCE_TYPES.station,
+				},
+				{
+					resourceId: stationId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Employee audit logging functions
+ */
+export const employeeAudit = {
+	created: (
+		employeeId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string; employeeNumber?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.created,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					resourceId: employeeId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		employeeId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.updated,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					resourceId: employeeId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		employeeId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.deleted,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					resourceId: employeeId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	imported: (
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { count?: number },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.imported,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	exported: (
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { count?: number },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.exported,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	stationsAssigned: (
+		employeeId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { stationIds?: string[] },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.employee.stationsAssigned,
+					resourceType: RESOURCE_TYPES.employee,
+				},
+				{
+					resourceId: employeeId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
+ * Task audit logging functions
+ */
+export const taskAudit = {
+	created: (
+		taskId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { title?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.task.created,
+					resourceType: RESOURCE_TYPES.task,
+				},
+				{
+					resourceId: taskId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		taskId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.task.updated,
+					resourceType: RESOURCE_TYPES.task,
+				},
+				{
+					resourceId: taskId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		taskId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.task.deleted,
+					resourceType: RESOURCE_TYPES.task,
+				},
+				{
+					resourceId: taskId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	employeesAssigned: (
+		taskId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { employeeIds?: string[] },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.task.employeesAssigned,
+					resourceType: RESOURCE_TYPES.task,
+				},
+				{
+					resourceId: taskId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
  * Data export/deletion audit logging functions
  */
 export const dataAudit = {

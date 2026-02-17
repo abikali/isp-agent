@@ -11,6 +11,9 @@ const DEFAULT_LIMITS: PlanLimits = {
 	projects: 1,
 	apiCalls: 1000,
 	storage: 100,
+	aiMessages: 500,
+	watchers: 3,
+	customers: 50,
 };
 
 /**

@@ -6,7 +6,7 @@
 		"dev": "dotenv -c -- turbo dev --concurrency 15",
 		"type-check": "dotenv -c -- turbo type-check",
 		"start": "dotenv -c -- turbo start",
-		"worker": "dotenv -c -- turbo worker --filter=@repo/jobs",
+		"worker": "dotenv -c -- turbo worker --filter=@repo/worker",
 		"lint": "biome lint . ",
 		"check": "biome check",
 		"clean": "turbo clean",

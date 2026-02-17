@@ -140,6 +140,13 @@ export const projectsQuotaEnforce =
 	createQuotaEnforcementMiddleware("projects");
 export const apiCallsQuotaEnforce =
 	createQuotaEnforcementMiddleware("apiCalls");
+export const aiMessagesQuotaEnforce =
+	createQuotaEnforcementMiddleware("aiMessages");
+export const watchersQuotaEnforce =
+	createQuotaEnforcementMiddleware("watchers");
+export const customersQuotaCheck = createQuotaCheckMiddleware("customers");
+export const customersQuotaEnforce =
+	createQuotaEnforcementMiddleware("customers");
 
 /**
  * Storage quota enforcement with configurable size

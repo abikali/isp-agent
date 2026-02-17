@@ -55,6 +55,30 @@ export async function setupScheduledJobs(): Promise<void> {
 			data: { type: "quota-reset" },
 		},
 	);
+
+	// Watcher scheduler - dispatch due watcher checks every minute
+	await queue.upsertJobScheduler(
+		"watcher-scheduler",
+		{
+			pattern: "* * * * *", // Every minute
+		},
+		{
+			name: "watcher-scheduler",
+			data: { type: "watcher-scheduler" },
+		},
+	);
+
+	// Watcher cleanup - delete old execution records daily at 2:30 AM
+	await queue.upsertJobScheduler(
+		"watcher-cleanup",
+		{
+			pattern: "30 2 * * *", // Daily at 2:30 AM
+		},
+		{
+			name: "watcher-cleanup",
+			data: { type: "watcher-cleanup" },
+		},
+	);
 }
 
 export async function closeScheduledQueue(): Promise<void> {

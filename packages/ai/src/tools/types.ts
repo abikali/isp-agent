@@ -1,0 +1,42 @@
+import type { Tool } from "ai";
+
+export interface ToolContext {
+	organizationId: string;
+	agentId: string;
+	conversationId: string;
+	externalChatId: string;
+	contactName?: string | undefined;
+	toolConfig?: Record<string, unknown> | undefined;
+}
+
+export interface ToolMetadata {
+	id: string;
+	name: string;
+	description: string;
+	category:
+		| "networking"
+		| "scheduling"
+		| "enrichment"
+		| "crm"
+		| "diagnostics"
+		| "customer";
+	requiresConfig: boolean;
+	configFields?: ConfigField[] | undefined;
+}
+
+export interface ConfigField {
+	key: string;
+	label: string;
+	type: "text" | "password" | "select";
+	required: boolean;
+	placeholder?: string | undefined;
+	options?: Array<{ label: string; value: string }> | undefined;
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: Tool generic parameters vary per tool
+export type ToolFactory = (context: ToolContext) => Tool<any, any>;
+
+export interface RegisteredTool {
+	metadata: ToolMetadata;
+	factory: ToolFactory;
+}

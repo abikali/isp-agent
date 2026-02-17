@@ -32,6 +32,19 @@
 			"@saas/onboarding/client": [
 				"./modules/saas/onboarding/index.client.ts"
 			],
+			"@saas/ai-agents/client": [
+				"./modules/saas/ai-agents/index.client.ts"
+			],
+			"@saas/customers/client": [
+				"./modules/saas/customers/index.client.ts"
+			],
+			"@saas/employees/client": [
+				"./modules/saas/employees/index.client.ts"
+			],
+			"@saas/tasks/client": ["./modules/saas/tasks/index.client.ts"],
+			"@saas/watchers/client": [
+				"./modules/saas/watchers/index.client.ts"
+			],
 			"@saas/admin/client": ["./modules/saas/admin/index.client.ts"],
 			"@saas/start/client": ["./modules/saas/start/index.client.ts"],
 			"@saas/dashboard/client": [

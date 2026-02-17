@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-libancom}
     ports:
-      - "${POSTGRES_PORT:-5480}:5432"
+      - "${POSTGRES_PORT:-5483}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,7 +27,7 @@ services:
     container_name: libancom-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-6383}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -42,8 +42,8 @@ services:
     container_name: libancom-mailpit
     restart: unless-stopped
     ports:
-      - "8025:8025"   # Web UI
-      - "1025:1025"   # SMTP server
+      - "8029:8025"   # Web UI
+      - "1029:1025"   # SMTP server
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1

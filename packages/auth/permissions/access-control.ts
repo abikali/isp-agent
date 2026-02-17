@@ -22,6 +22,25 @@ export const permissionStatement = {
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
 	connections: ["create", "read", "update", "delete", "sync"],
 
+	// AI & Monitoring
+	aiAgents: ["create", "read", "update", "delete"],
+	watchers: ["create", "read", "update", "delete"],
+
+	// ISP Management
+	customers: ["create", "read", "update", "delete", "import", "export"],
+	servicePlans: ["create", "read", "update", "delete"],
+	stations: ["create", "read", "update", "delete"],
+	employees: [
+		"create",
+		"read",
+		"update",
+		"delete",
+		"import",
+		"export",
+		"assign",
+	],
+	tasks: ["create", "read", "update", "delete", "assign"],
+
 	// Insights
 	audit: ["view"],
 
@@ -98,6 +117,20 @@ export const PERMISSION_GROUPS = {
 	organization: {
 		resources: ["organization", "member", "invitation", "ac"] as const,
 		label: "Organization",
+	},
+	ispManagement: {
+		resources: [
+			"customers",
+			"servicePlans",
+			"stations",
+			"employees",
+			"tasks",
+		] as const,
+		label: "ISP Management",
+	},
+	aiMonitoring: {
+		resources: ["aiAgents", "watchers"] as const,
+		label: "AI & Monitoring",
 	},
 	integrations: {
 		resources: ["webhooks", "apiKeys", "connections"] as const,

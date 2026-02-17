@@ -3,3 +3,4 @@
 
 export { DashboardContent } from "./components/DashboardContent";
 export { DashboardSkeleton } from "./components/DashboardSkeleton";
+export { StatCards } from "./components/StatCards";

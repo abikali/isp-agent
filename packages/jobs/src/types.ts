@@ -26,7 +26,9 @@ export interface WebhookJobData {
 export type ScheduledJobType =
 	| "account-deletion"
 	| "quota-reset"
-	| "ai-credit-reset";
+	| "ai-credit-reset"
+	| "watcher-scheduler"
+	| "watcher-cleanup";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;
@@ -46,6 +48,18 @@ export interface WebhookJobResult {
 
 export interface ScheduledJobResult {
 	processedCount: number;
+}
+
+// AI chat job types
+export interface AiChatJobData {
+	conversationId: string;
+	channelId: string;
+	userMessageId?: string;
+}
+
+export interface AiChatJobResult {
+	success: boolean;
+	error?: string;
 }
 
 // Integration sync job types
@@ -72,4 +86,18 @@ export interface IntegrationSyncJobResult {
 	operationId: string;
 	successCount: number;
 	errorCount: number;
+}
+
+// Watcher check job types
+export interface WatcherCheckJobData {
+	watcherId: string;
+	type: string; // "ping" | "http" | "port" | "dns"
+	target: string;
+	config: Record<string, unknown> | null;
+}
+
+export interface WatcherCheckJobResult {
+	success: boolean;
+	latencyMs?: number | undefined;
+	message: string;
 }

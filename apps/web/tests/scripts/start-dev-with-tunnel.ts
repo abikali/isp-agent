@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { startTunnel } from "untun";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = 3030;
+const PORT = 5050;
 
 async function main() {
 	// biome-ignore lint/suspicious/noConsole: CLI script output

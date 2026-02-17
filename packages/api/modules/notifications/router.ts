@@ -159,6 +159,8 @@ const DEFAULT_PREFERENCES = {
 	analyticsEmail: false,
 	securityInApp: true,
 	securityEmail: true,
+	monitoringInApp: true,
+	monitoringEmail: true,
 };
 
 // Get notification preferences
@@ -187,6 +189,8 @@ const getPreferences = protectedProcedure
 			analyticsEmail: preferences.analyticsEmail,
 			securityInApp: preferences.securityInApp,
 			securityEmail: preferences.securityEmail,
+			monitoringInApp: preferences.monitoringInApp,
+			monitoringEmail: preferences.monitoringEmail,
 		};
 	});
 
@@ -208,6 +212,8 @@ const updatePreferences = protectedProcedure
 			analyticsEmail: z.boolean().optional(),
 			securityInApp: z.boolean().optional(),
 			securityEmail: z.boolean().optional(),
+			monitoringInApp: z.boolean().optional(),
+			monitoringEmail: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
@@ -236,6 +242,8 @@ const updatePreferences = protectedProcedure
 			analyticsEmail: preferences.analyticsEmail,
 			securityInApp: preferences.securityInApp,
 			securityEmail: preferences.securityEmail,
+			monitoringInApp: preferences.monitoringInApp,
+			monitoringEmail: preferences.monitoringEmail,
 		};
 	});
 

@@ -5,6 +5,11 @@ import { getBaseUrl } from "@repo/utils";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
+import { handleWebChatStream } from "./modules/ai-agents/lib/web-chat-stream-handler";
+import {
+	telegramWebhookHandler,
+	whatsappWebhookHandler,
+} from "./modules/ai-agents/lib/webhook-handlers";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export const app = new Hono()
@@ -27,6 +32,17 @@ export const app = new Hono()
 	.on(["POST", "GET"], "/auth/**", (c) => auth.handler(c.req.raw))
 	// Payments webhook handler
 	.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
+	// AI Chat webhook handlers
+	.post("/webhooks/chat/whatsapp/:webhookToken", (c) =>
+		whatsappWebhookHandler(c.req.raw, c.req.param("webhookToken")),
+	)
+	.post("/webhooks/chat/telegram/:webhookToken", (c) =>
+		telegramWebhookHandler(c.req.raw, c.req.param("webhookToken")),
+	)
+	// AI Chat streaming endpoint
+	.post("/ai-agents/web-chat/:token/stream", (c) =>
+		handleWebChatStream(c.req.raw, c.req.param("token")),
+	)
 	// Health check
 	.get("/health", (c) => c.text("OK"))
 	// oRPC handlers (for RPC and OpenAPI)
@@ -47,7 +63,7 @@ export const app = new Hono()
 		});
 
 		if (matched) {
-			return c.newResponse(response.body, response);
+			return response;
 		}
 
 		return next();

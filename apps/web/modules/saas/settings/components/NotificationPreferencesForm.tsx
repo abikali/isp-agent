@@ -7,6 +7,7 @@ import { Button } from "@ui/components/button";
 import { Label } from "@ui/components/label";
 import { Switch } from "@ui/components/switch";
 import {
+	ActivityIcon,
 	BarChart3Icon,
 	BellIcon,
 	LoaderIcon,
@@ -60,6 +61,15 @@ const categories: PreferenceCategory[] = [
 		inAppKey: "securityInApp",
 		emailKey: "securityEmail",
 	},
+	{
+		id: "monitoring",
+		label: "Monitoring Alerts",
+		description:
+			"Get notified when a watcher detects a service is down or recovers",
+		icon: <ActivityIcon className="size-5" />,
+		inAppKey: "monitoringInApp",
+		emailKey: "monitoringEmail",
+	},
 ];
 
 type PreferenceKey =
@@ -70,7 +80,9 @@ type PreferenceKey =
 	| "analyticsInApp"
 	| "analyticsEmail"
 	| "securityInApp"
-	| "securityEmail";
+	| "securityEmail"
+	| "monitoringInApp"
+	| "monitoringEmail";
 
 type Preferences = Record<PreferenceKey, boolean>;
 
@@ -83,6 +95,8 @@ const defaultPreferences: Preferences = {
 	analyticsEmail: false,
 	securityInApp: true,
 	securityEmail: true,
+	monitoringInApp: true,
+	monitoringEmail: true,
 };
 
 export function NotificationPreferencesForm() {

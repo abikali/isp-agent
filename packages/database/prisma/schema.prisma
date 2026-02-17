@@ -230,6 +230,10 @@ model NotificationPreference {
   analyticsEmail Boolean @default(false)
   securityEmail  Boolean @default(true)
 
+  // Monitoring
+  monitoringInApp Boolean @default(true)
+  monitoringEmail Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -249,6 +253,8 @@ model Organization {
   aiDefaultGreeting    String?
   aiProfileLimit       Int?               // Max credits per profile per month (null = no limit)
   aiAllowedModels      String[]           @default([]) // LLM models whitelisted by org admin
+  aiAgents             AiAgent[]
+  aiCapturedLeads      AiCapturedLead[]
   apiKeys              ApiKey[]
   auditLogs            AuditLog[]
   bulkOperations       BulkOperation[]
@@ -258,7 +264,13 @@ model Organization {
   roles                OrganizationRole[]
   purchases            Purchase[]
   usageQuotas          UsageQuota[]
+  watchers             Watcher[]
   webhooks             Webhook[]
+  customers            Customer[]
+  employees            Employee[]
+  servicePlans         ServicePlan[]
+  stations             Station[]
+  tasks                Task[]
 
   @@map("organization")
 }
@@ -385,6 +397,7 @@ model User {
   deletionReason      String?
   accounts            Account[]
   accountLockout      AccountLockout?
+  aiAgentsCreated     AiAgent[]      @relation("aiAgentCreator")
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
   bulkOperations      BulkOperation[]
@@ -400,6 +413,8 @@ model User {
   sessions            Session[]
   twoFactors          TwoFactor[]
   usageQuotas         UsageQuota[]
+  watchersCreated     Watcher[]          @relation("watcherCreator")
+  tasksCreated        Task[]             @relation("taskCreator")
 
   @@map("user")
 }
@@ -519,8 +534,442 @@ model ContactSyncOperation {
   @@map("contact_sync_operation")
 }
 
+// ============================================================================
+// AI AGENT MODELS (Chat agents for WhatsApp/Telegram)
+// ============================================================================
+
+model AiAgent {
+  id               String           @id @default(cuid())
+  organizationId   String
+  name             String
+  description      String?
+  systemPrompt     String           @db.Text
+  greetingMessage  String?
+  model            String           @default("gpt-4o-mini")
+  knowledgeBase    String?          @db.Text
+  enabled          Boolean          @default(true)
+  maxHistoryLength Int              @default(20)
+  temperature      Float            @default(0.7)
+  enabledTools     String[]         @default([])
+  webChatEnabled   Boolean          @default(false)
+  webChatToken     String?          @unique
+  createdById      String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("aiAgentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  channels       AiAgentChannel[]
+  conversations  AiConversation[]
+  toolConfigs    AiAgentToolConfig[]
+  capturedLeads  AiCapturedLead[]
+
+  @@index([organizationId])
+  @@map("ai_agent")
+}
+
+model AiAgentChannel {
+  id                String    @id @default(cuid())
+  agentId           String
+  provider          String    // "whatsapp" | "telegram"
+  name              String
+  webhookToken      String    @unique
+  webhookSecret     String?   // For Telegram secret_token verification
+  encryptedApiToken String    @db.Text
+  providerMetadata  Json?
+  enabled           Boolean   @default(true)
+  lastActivityAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  agent         AiAgent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversations AiConversation[]
+
+  @@index([agentId])
+  @@map("ai_agent_channel")
+}
+
+model AiConversation {
+  id                 String    @id @default(cuid())
+  agentId            String
+  channelId          String?
+  externalChatId     String
+  contactName        String?
+  contactId          String?
+  status             String    @default("active")
+  pinned             Boolean   @default(false)
+  messageCount       Int       @default(0)
+  lastMessageAt      DateTime?
+  verifiedCustomerId String?
+  pinAttempts        Int       @default(0)
+  pinLockedUntil     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  agent            AiAgent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  channel          AiAgentChannel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  verifiedCustomer Customer?        @relation(fields: [verifiedCustomerId], references: [id], onDelete: SetNull)
+  messages         AiMessage[]
+  capturedLeads    AiCapturedLead[]
+
+  @@unique([channelId, externalChatId])
+  @@index([agentId])
+  @@index([agentId, externalChatId])
+  @@index([channelId])
+  @@index([lastMessageAt])
+  @@map("ai_conversation")
+}
+
+model AiMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // "user" | "assistant"
+  content        String   @db.Text
+  externalMsgId  String?
+  tokenCount     Int?
+  latencyMs      Int?
+  error          String?
+  toolCalls      Json?    // Array of {toolName, args, result}
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_message")
+}
+
+model AiAgentToolConfig {
+  id        String   @id @default(cuid())
+  agentId   String
+  toolId    String
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, toolId])
+  @@index([agentId])
+  @@map("ai_agent_tool_config")
+}
+
+model AiCapturedLead {
+  id             String   @id @default(cuid())
+  organizationId String
+  agentId        String
+  conversationId String
+  externalChatId String
+  name           String
+  email          String?
+  phone          String?
+  company        String?
+  title          String?
+  notes          String?  @db.Text
+  source         String   @default("ai_agent")
+  exportedToCrm  Boolean  @default(false)
+  crmExportId    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent        AiAgent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([agentId])
+  @@index([conversationId])
+  @@map("ai_captured_lead")
+}
+
+// ============================================================================
+// WATCHER MODELS (Infrastructure monitoring)
+// ============================================================================
+
+model Watcher {
+  id               String    @id @default(cuid())
+  organizationId   String
+  createdById      String
+  name             String
+  type             String    // "ping" | "http" | "port" | "dns"
+  target           String    // hostname, URL, or IP
+  config           Json?     // type-specific: { port, expectedStatus, method, recordType, etc. }
+  intervalSeconds  Int       // 60, 300, 900, 1800, 3600
+  enabled          Boolean   @default(true)
+  status           String    @default("unknown") // "up" | "down" | "unknown"
+  lastCheckedAt    DateTime?
+  lastStatusChange DateTime?
+  nextRunAt        DateTime  @default(now())
+  notifiedDownAt     DateTime? // throttle: null = not notified yet for current incident
+  notificationConfig Json?
+  lastReminderAt     DateTime?
+  consecutiveFails Int       @default(0)
+  consecutiveOk    Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("watcherCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  executions   WatcherExecution[]
+
+  @@index([organizationId])
+  @@index([enabled, nextRunAt])
+  @@map("watcher")
+}
+
+model WatcherExecution {
+  id        String   @id @default(cuid())
+  watcherId String
+  status    String   // "up" | "down"
+  latencyMs Int?
+  message   String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  watcher Watcher @relation(fields: [watcherId], references: [id], onDelete: Cascade)
+
+  @@index([watcherId, createdAt])
+  @@map("watcher_execution")
+}
+
 enum PurchaseType {
   SUBSCRIPTION
   ONE_TIME
+}
+
+// ============================================================================
+// CUSTOMER MANAGEMENT MODELS (ISP subscriber management)
+// ============================================================================
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum ConnectionType {
+  FIBER
+  WIRELESS
+  DSL
+  CABLE
+  ETHERNET
+}
+
+enum StationStatus {
+  ACTIVE
+  MAINTENANCE
+  OFFLINE
+}
+
+model ServicePlan {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  downloadSpeed  Int // Mbps
+  uploadSpeed    Int // Mbps
+  monthlyPrice   Float
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customers    Customer[]
+
+  @@index([organizationId])
+  @@map("service_plan")
+}
+
+model Station {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  status         StationStatus @default(ACTIVE)
+  capacity       Int?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customers    Customer[]
+  employees    EmployeeStation[]
+  tasks        Task[]
+
+  @@index([organizationId])
+  @@map("station")
+}
+
+model Customer {
+  id             String          @id @default(cuid())
+  organizationId String
+  accountNumber  String
+  fullName       String
+  email          String?
+  phone          String?
+  address        String?
+  username       String?
+  planId         String?
+  stationId      String?
+  status         CustomerStatus  @default(ACTIVE)
+  connectionType ConnectionType?
+  ipAddress      String?
+  macAddress     String?
+  monthlyRate    Float?
+  billingDay     Int?
+  balance        Float           @default(0)
+  notes          String?         @db.Text
+  pin            String?
+  pinHash        String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan          ServicePlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  station       Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+
+  tasks         Task[]
+  conversations AiConversation[]
+
+  @@unique([organizationId, accountNumber])
+  @@index([organizationId])
+  @@index([planId])
+  @@index([stationId])
+  @@index([status])
+  @@index([organizationId, fullName])
+  @@map("customer")
+}
+
+// ============================================================================
+// EMPLOYEE & TASK MANAGEMENT MODELS
+// ============================================================================
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+enum EmployeeDepartment {
+  TECHNICAL
+  CUSTOMER_SERVICE
+  BILLING
+  MANAGEMENT
+  FIELD_OPS
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskCategory {
+  INSTALLATION
+  MAINTENANCE
+  REPAIR
+  SUPPORT
+  BILLING
+  GENERAL
+}
+
+model Employee {
+  id             String             @id @default(cuid())
+  organizationId String
+  employeeNumber String
+  name           String
+  email          String?
+  phone          String?
+  position       String?
+  department     EmployeeDepartment?
+  hireDate       DateTime?
+  status         EmployeeStatus     @default(ACTIVE)
+  notes          String?            @db.Text
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stations     EmployeeStation[]
+  taskAssignments TaskAssignment[]
+
+  @@unique([organizationId, employeeNumber])
+  @@index([organizationId])
+  @@index([status])
+  @@index([organizationId, name])
+  @@map("employee")
+}
+
+model EmployeeStation {
+  id         String   @id @default(cuid())
+  employeeId String
+  stationId  String
+  assignedAt DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  station  Station  @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, stationId])
+  @@index([employeeId])
+  @@index([stationId])
+  @@map("employee_station")
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?      @db.Text
+  priority       TaskPriority @default(MEDIUM)
+  status         TaskStatus   @default(OPEN)
+  category       TaskCategory @default(GENERAL)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  notes          String?      @db.Text
+  createdById    String
+  customerId     String?
+  stationId      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User             @relation("taskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  assignments  TaskAssignment[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdById])
+  @@index([customerId])
+  @@index([stationId])
+  @@index([dueDate])
+  @@map("task")
+}
+
+model TaskAssignment {
+  id         String   @id @default(cuid())
+  taskId     String
+  employeeId String
+  assignedAt DateTime @default(now())
+
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, employeeId])
+  @@index([taskId])
+  @@index([employeeId])
+  @@map("task_assignment")
 }
 

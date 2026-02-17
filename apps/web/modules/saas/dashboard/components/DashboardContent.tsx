@@ -3,6 +3,7 @@
 import { useSession } from "@saas/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { QuickActions } from "./QuickActions";
+import { StatCards } from "./StatCards";
 
 interface DashboardContentProps {
 	organizationSlug: string;
@@ -47,6 +48,9 @@ export function DashboardContent({
 					Welcome to {activeOrganization?.name ?? "your organization"}
 				</p>
 			</div>
+
+			{/* Stats */}
+			<StatCards />
 
 			{/* Quick Actions */}
 			<QuickActions organizationSlug={organizationSlug} />

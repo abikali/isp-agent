@@ -2,6 +2,28 @@ import type { Config } from "./types";
 
 export const config = {
 	appName: "LibanCom",
+	// AI Chat Agents
+	ai: {
+		enabled: true,
+		defaultModel: "gpt-4o-mini",
+		allowedModels: [
+			{ id: "gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openai" },
+			{ id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
+			{ id: "gpt-4o", label: "GPT-4o", provider: "openai" },
+			{ id: "gpt-5.2", label: "GPT-5.2", provider: "openai" },
+			{
+				id: "claude-sonnet",
+				label: "Claude Sonnet",
+				provider: "anthropic",
+			},
+		],
+		maxMessageLength: 4000,
+		maxHistoryLength: 20,
+		responseTimeoutMs: 12000,
+		rateLimits: {
+			messagesPerMinutePerChannel: 30,
+		},
+	},
 	// Rate Limiting
 	rateLimit: {
 		enabled: true,
@@ -183,6 +205,9 @@ export const config = {
 					projects: 1,
 					apiCalls: 1000,
 					storage: 100, // 100 MB
+					aiMessages: 500,
+					watchers: 3,
+					customers: 50,
 				},
 			},
 			pro: {
@@ -192,6 +217,9 @@ export const config = {
 					projects: 10,
 					apiCalls: 10000,
 					storage: 1000, // 1 GB
+					aiMessages: 10000,
+					watchers: 25,
+					customers: 500,
 				},
 				prices: [
 					{
@@ -222,6 +250,9 @@ export const config = {
 					projects: -1,
 					apiCalls: -1,
 					storage: 10000, // 10 GB
+					aiMessages: -1,
+					watchers: -1,
+					customers: -1,
 				},
 				prices: [
 					{
@@ -239,6 +270,9 @@ export const config = {
 					projects: -1,
 					apiCalls: -1,
 					storage: -1,
+					aiMessages: -1,
+					watchers: -1,
+					customers: -1,
 				},
 			},
 		},
@@ -246,6 +280,8 @@ export const config = {
 } as const satisfies Config;
 
 export type {
+	AiConfig,
+	AiModelConfig,
 	Config,
 	IntegrationsConfig,
 	JobsConfig,

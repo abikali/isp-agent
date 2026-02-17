@@ -4,7 +4,6 @@ import { useSession } from "@saas/auth/client";
 import { useOrganizationListQuery } from "@saas/organizations/lib/api";
 import { ActivePlanBadge } from "@saas/payments/client";
 import { UserAvatar } from "@shared/components/UserAvatar";
-import { useRouter } from "@shared/hooks/router";
 import { Link } from "@tanstack/react-router";
 import {
 	DropdownMenu,
@@ -17,6 +16,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
+import { Skeleton } from "@ui/components/skeleton";
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useActiveOrganization } from "../hooks/use-active-organization";
@@ -24,8 +24,7 @@ import { OrganizationLogo } from "./OrganizationLogo";
 
 export function OrganizationSelect({ className }: { className?: string }) {
 	const { user } = useSession();
-	const router = useRouter();
-	const { activeOrganization, setActiveOrganization } =
+	const { activeOrganization, setActiveOrganization, loaded } =
 		useActiveOrganization();
 	const { data: allOrganizations } = useOrganizationListQuery();
 
@@ -38,7 +37,12 @@ export function OrganizationSelect({ className }: { className?: string }) {
 			<DropdownMenu>
 				<DropdownMenuTrigger className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left outline-none focus-visible:bg-primary/10 focus-visible:ring-none">
 					<div className="flex flex-1 items-center justify-start gap-2 text-sm overflow-hidden">
-						{activeOrganization ? (
+						{!loaded ? (
+							<>
+								<Skeleton className="hidden size-6 rounded-full sm:block" />
+								<Skeleton className="h-4 w-24" />
+							</>
+						) : activeOrganization ? (
 							<>
 								<OrganizationLogo
 									name={activeOrganization.name}
@@ -78,9 +82,21 @@ export function OrganizationSelect({ className }: { className?: string }) {
 						<>
 							<DropdownMenuRadioGroup
 								value={activeOrganization?.id ?? user.id}
-								onValueChange={(value: string) => {
+								onValueChange={async (value: string) => {
 									if (value === user.id) {
-										router.replace("/app");
+										try {
+											await setActiveOrganization(null);
+										} catch (error) {
+											toast.error(
+												"Failed to switch account",
+												{
+													description:
+														error instanceof Error
+															? error.message
+															: "An unexpected error occurred",
+												},
+											);
+										}
 									}
 								}}
 							>

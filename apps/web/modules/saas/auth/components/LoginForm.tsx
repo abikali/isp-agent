@@ -408,8 +408,16 @@ export function LoginForm() {
 					</p>
 					<div className="flex gap-2">
 						{[
-							{ label: "Admin", email: "test@example.com", password: "TestPassword123!" },
-							{ label: "User 2", email: "test2@example.com", password: "TestPassword123!" },
+							{
+								label: "Admin",
+								email: "test@example.com",
+								password: "TestPassword123!",
+							},
+							{
+								label: "User 2",
+								email: "test2@example.com",
+								password: "TestPassword123!",
+							},
 						].map((account) => (
 							<Button
 								key={account.email}
@@ -420,7 +428,10 @@ export function LoginForm() {
 								onClick={() => {
 									form.setFieldValue("mode", "password");
 									form.setFieldValue("email", account.email);
-									form.setFieldValue("password", account.password);
+									form.setFieldValue(
+										"password",
+										account.password,
+									);
 									form.handleSubmit();
 								}}
 							>

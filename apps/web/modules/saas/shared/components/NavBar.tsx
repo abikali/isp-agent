@@ -4,15 +4,24 @@ import { useSession } from "@saas/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { Logo } from "@shared/components/Logo";
 import { Link, useLocation } from "@tanstack/react-router";
+import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import type { LucideIcon } from "lucide-react";
 import {
+	BotIcon,
 	ChevronRightIcon,
+	ClipboardListIcon,
+	EyeIcon,
+	HardHatIcon,
 	HeartIcon,
 	HomeIcon,
+	MessageSquareIcon,
+	PackageIcon,
+	RadioTowerIcon,
 	SettingsIcon,
 	ShieldIcon,
 	UserCog2Icon,
+	UsersIcon,
 } from "lucide-react";
 import { OrganizationSelect } from "../../organizations/components/OrganizationSelect";
 import { NotificationBell } from "./NotificationBell";
@@ -34,7 +43,7 @@ export function NavBar() {
 	const location = useLocation();
 	const pathname = location.pathname;
 	const { user } = useSession();
-	const { activeOrganization } = useActiveOrganization();
+	const { activeOrganization, loaded } = useActiveOrganization();
 	const { useSidebarLayout } = config.ui.saas;
 
 	const basePath = activeOrganization
@@ -52,8 +61,89 @@ export function NavBar() {
 					icon: HomeIcon,
 					isActive: pathname === basePath,
 				},
+				...(activeOrganization
+					? [
+							{
+								label: "AI Agents",
+								href: `${basePath}/ai-agents`,
+								icon: BotIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/ai-agents`,
+								),
+							},
+							{
+								label: "Conversations",
+								href: `${basePath}/conversations`,
+								icon: MessageSquareIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/conversations`,
+								),
+							},
+							{
+								label: "Watchers",
+								href: `${basePath}/watchers`,
+								icon: EyeIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/watchers`,
+								),
+							},
+						]
+					: []),
 			],
 		},
+		...(activeOrganization
+			? [
+					{
+						label: "ISP Management",
+						items: [
+							{
+								label: "Customers",
+								href: `${basePath}/customers`,
+								icon: UsersIcon,
+								isActive:
+									pathname === `${basePath}/customers` ||
+									(pathname.startsWith(
+										`${basePath}/customers/`,
+									) &&
+										!pathname.includes("/plans") &&
+										!pathname.includes("/stations")),
+							},
+							{
+								label: "Plans",
+								href: `${basePath}/customers/plans`,
+								icon: PackageIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/customers/plans`,
+								),
+							},
+							{
+								label: "Stations",
+								href: `${basePath}/customers/stations`,
+								icon: RadioTowerIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/customers/stations`,
+								),
+							},
+							{
+								label: "Employees",
+								href: `${basePath}/employees`,
+								icon: HardHatIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/employees`,
+								),
+							},
+							{
+								label: "Tasks",
+								href: `${basePath}/tasks`,
+								icon: ClipboardListIcon,
+								isActive: pathname.startsWith(
+									`${basePath}/tasks`,
+								),
+							},
+						],
+					},
+				]
+			: []),
 		{
 			label: "Settings",
 			items: [
@@ -189,6 +279,16 @@ export function NavBar() {
 							</Link>
 						</li>
 					))}
+					{!loaded && (
+						<>
+							<li>
+								<Skeleton className="h-9 w-24 rounded-md" />
+							</li>
+							<li>
+								<Skeleton className="h-9 w-28 rounded-md" />
+							</li>
+						</>
+					)}
 				</ul>
 
 				{/* Desktop: Grouped sidebar menu */}
@@ -228,6 +328,11 @@ export function NavBar() {
 											</Link>
 										</li>
 									))}
+									{!loaded && (
+										<li>
+											<Skeleton className="h-10 w-full rounded-lg" />
+										</li>
+									)}
 								</ul>
 							</div>
 						))}

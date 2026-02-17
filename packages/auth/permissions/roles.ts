@@ -11,6 +11,23 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		member: ["create", "update", "delete"],
 		invitation: ["create", "cancel"],
 		ac: ["create", "read", "update", "delete"],
+		// AI & Monitoring - full access
+		aiAgents: ["create", "read", "update", "delete"],
+		watchers: ["create", "read", "update", "delete"],
+		// ISP Management - full access
+		customers: ["create", "read", "update", "delete", "import", "export"],
+		servicePlans: ["create", "read", "update", "delete"],
+		stations: ["create", "read", "update", "delete"],
+		employees: [
+			"create",
+			"read",
+			"update",
+			"delete",
+			"import",
+			"export",
+			"assign",
+		],
+		tasks: ["create", "read", "update", "delete", "assign"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -26,6 +43,23 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		member: ["create", "update", "delete"],
 		invitation: ["create", "cancel"],
 		ac: ["create", "read", "update", "delete"],
+		// AI & Monitoring - full access
+		aiAgents: ["create", "read", "update", "delete"],
+		watchers: ["create", "read", "update", "delete"],
+		// ISP Management - full access
+		customers: ["create", "read", "update", "delete", "import", "export"],
+		servicePlans: ["create", "read", "update", "delete"],
+		stations: ["create", "read", "update", "delete"],
+		employees: [
+			"create",
+			"read",
+			"update",
+			"delete",
+			"import",
+			"export",
+			"assign",
+		],
+		tasks: ["create", "read", "update", "delete", "assign"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -36,6 +70,15 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		billing: ["view", "manage"],
 	},
 	member: {
+		// AI & Monitoring - read only
+		aiAgents: ["read"],
+		watchers: ["read"],
+		// ISP Management - read only
+		customers: ["read"],
+		servicePlans: ["read"],
+		stations: ["read"],
+		employees: ["read"],
+		tasks: ["read"],
 		// Integrations - read only own
 		apiKeys: ["read:own"],
 		connections: ["read"],
@@ -52,6 +95,23 @@ export const owner = ac.newRole({
 	member: ["create", "update", "delete"],
 	invitation: ["create", "cancel"],
 	ac: ["create", "read", "update", "delete"],
+	// AI & Monitoring - full access
+	aiAgents: ["create", "read", "update", "delete"],
+	watchers: ["create", "read", "update", "delete"],
+	// ISP Management - full access
+	customers: ["create", "read", "update", "delete", "import", "export"],
+	servicePlans: ["create", "read", "update", "delete"],
+	stations: ["create", "read", "update", "delete"],
+	employees: [
+		"create",
+		"read",
+		"update",
+		"delete",
+		"import",
+		"export",
+		"assign",
+	],
+	tasks: ["create", "read", "update", "delete", "assign"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -72,6 +132,23 @@ export const admin = ac.newRole({
 	member: ["create", "update", "delete"],
 	invitation: ["create", "cancel"],
 	ac: ["create", "read", "update", "delete"],
+	// AI & Monitoring - full access
+	aiAgents: ["create", "read", "update", "delete"],
+	watchers: ["create", "read", "update", "delete"],
+	// ISP Management - full access
+	customers: ["create", "read", "update", "delete", "import", "export"],
+	servicePlans: ["create", "read", "update", "delete"],
+	stations: ["create", "read", "update", "delete"],
+	employees: [
+		"create",
+		"read",
+		"update",
+		"delete",
+		"import",
+		"export",
+		"assign",
+	],
+	tasks: ["create", "read", "update", "delete", "assign"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -88,6 +165,15 @@ export const admin = ac.newRole({
  * via MEMBER_SCOPE_RESTRICTIONS for update/delete operations.
  */
 export const member = ac.newRole({
+	// AI & Monitoring - read only
+	aiAgents: ["read"],
+	watchers: ["read"],
+	// ISP Management - read only
+	customers: ["read"],
+	servicePlans: ["read"],
+	stations: ["read"],
+	employees: ["read"],
+	tasks: ["read"],
 	// Integrations - read only
 	apiKeys: ["read"],
 	connections: ["read"],

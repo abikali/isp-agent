@@ -49,6 +49,9 @@ export type PlanLimits = {
 	projects: number;
 	apiCalls: number;
 	storage: number; // in MB
+	aiMessages: number; // AI agent messages per period
+	watchers: number; // infrastructure watchers
+	customers: number; // ISP customers/subscribers
 };
 
 export type QuotaType = keyof PlanLimits;
@@ -62,8 +65,27 @@ export type IntegrationsConfig = {
 	};
 };
 
+export type AiModelConfig = {
+	id: string;
+	label: string;
+	provider: "openai" | "anthropic";
+};
+
+export type AiConfig = {
+	enabled: boolean;
+	defaultModel: string;
+	allowedModels: AiModelConfig[];
+	maxMessageLength: number;
+	maxHistoryLength: number;
+	responseTimeoutMs: number;
+	rateLimits: {
+		messagesPerMinutePerChannel: number;
+	};
+};
+
 export type Config = {
 	appName: string;
+	ai: AiConfig;
 	rateLimit: RateLimitConfig;
 	jobs: JobsConfig;
 	security: SecurityConfig;

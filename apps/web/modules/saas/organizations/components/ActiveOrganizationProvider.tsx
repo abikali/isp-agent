@@ -75,83 +75,106 @@ export function ActiveOrganizationProvider({
 		const { default: nProgress } = await import("nprogress");
 		nProgress.start();
 
-		// If clearing organization, pass null directly
-		if (!organizationSlug) {
-			const { error } = await authClient.organization.setActive({
-				organizationId: null,
+		try {
+			// If clearing organization, pass null directly
+			if (!organizationSlug) {
+				const { error } = await authClient.organization.setActive({
+					organizationId: null,
+				});
+				if (error) {
+					throw new Error(
+						error.message || "Failed to clear active organization",
+					);
+				}
+
+				// Clear activeOrganizationId from local session cache
+				queryClient.setQueryData(
+					authQueryKeys.session(),
+					(sessionData: Session | undefined) => {
+						if (!sessionData) {
+							return sessionData;
+						}
+						return {
+							...sessionData,
+							session: {
+								...sessionData.session,
+								activeOrganizationId: null,
+							},
+						};
+					},
+				);
+
+				router.push("/app");
+				return;
+			}
+
+			// Look up the organization ID from the slug first
+			const { data: orgData, error: orgError } =
+				await authClient.organization.getFullOrganization({
+					query: { organizationSlug },
+				});
+
+			if (orgError || !orgData) {
+				throw new Error(orgError?.message || "Organization not found");
+			}
+
+			// Now set active using the actual organization ID
+			const { data, error } = await authClient.organization.setActive({
+				organizationId: orgData.id,
 			});
-			nProgress.done();
+
 			if (error) {
 				throw new Error(
-					error.message || "Failed to clear active organization",
+					error.message || "Failed to set active organization",
 				);
 			}
-			return;
-		}
 
-		// Look up the organization ID from the slug first
-		const { data: orgData, error: orgError } =
-			await authClient.organization.getFullOrganization({
-				query: { organizationSlug },
-			});
+			// Cast the response to expected organization shape
+			const newActiveOrganization = data as
+				| { id: string; slug: string }
+				| null
+				| undefined;
 
-		if (orgError || !orgData) {
-			nProgress.done();
-			throw new Error(orgError?.message || "Organization not found");
-		}
+			if (!newActiveOrganization) {
+				return;
+			}
 
-		// Now set active using the actual organization ID
-		const { data, error } = await authClient.organization.setActive({
-			organizationId: orgData.id,
-		});
-
-		if (error) {
-			nProgress.done();
-			throw new Error(
-				error.message || "Failed to set active organization",
+			// Pre-populate cache for the new org (we already have the data from getFullOrganization)
+			queryClient.setQueryData(
+				organizationsQueryKeys.active(orgData.slug),
+				orgData,
 			);
-		}
 
-		// Cast the response to expected organization shape
-		const newActiveOrganization = data as
-			| { id: string; slug: string }
-			| null
-			| undefined;
+			if (config.organizations.enableBilling) {
+				await queryClient.prefetchQuery(
+					orpc.payments.listPurchases.queryOptions({
+						input: {
+							organizationId: newActiveOrganization.id,
+						},
+					}),
+				);
+			}
 
-		if (!newActiveOrganization) {
-			nProgress.done();
-			return;
-		}
-
-		await refetchActiveOrganization();
-
-		if (config.organizations.enableBilling) {
-			await queryClient.prefetchQuery(
-				orpc.payments.listPurchases.queryOptions({
-					input: {
-						organizationId: newActiveOrganization.id,
-					},
-				}),
+			queryClient.setQueryData(
+				authQueryKeys.session(),
+				(sessionData: Session | undefined) => {
+					if (!sessionData) {
+						return sessionData;
+					}
+					return {
+						...sessionData,
+						session: {
+							...sessionData.session,
+							activeOrganizationId: newActiveOrganization.id,
+						},
+					};
+				},
 			);
+
+			router.push(`/app/${newActiveOrganization.slug}`);
+		} finally {
+			nProgress.done();
 		}
-
-		await queryClient.setQueryData(
-			authQueryKeys.session(),
-			(sessionData: Session | undefined) => {
-				if (!sessionData) {
-					return sessionData;
-				}
-				return {
-					...sessionData,
-					session: {
-						...sessionData.session,
-						activeOrganizationId: newActiveOrganization.id,
-					},
-				};
-			},
-		);
-
-		router.push(`/app/${newActiveOrganization.slug}`);
 	};
 
 	const [loaded, setLoaded] = useState(activeOrganization !== undefined);

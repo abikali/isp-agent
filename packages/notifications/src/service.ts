@@ -3,7 +3,12 @@ import { db } from "@repo/database";
 import { queueSimpleEmail, queueTemplateEmail } from "@repo/jobs";
 import { logger } from "@repo/logs";
 
-export type NotificationCategory = "leads" | "team" | "analytics" | "security";
+export type NotificationCategory =
+	| "leads"
+	| "team"
+	| "analytics"
+	| "security"
+	| "monitoring";
 export type NotificationType = "info" | "success" | "warning" | "error";
 
 export interface NotificationPayload {
@@ -29,6 +34,8 @@ interface UserPreferences {
 	analyticsEmail: boolean;
 	securityInApp: boolean;
 	securityEmail: boolean;
+	monitoringInApp: boolean;
+	monitoringEmail: boolean;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -40,6 +47,8 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 	analyticsEmail: false,
 	securityInApp: true,
 	securityEmail: true,
+	monitoringInApp: true,
+	monitoringEmail: true,
 };
 
 async function getUserPreferences(userId: string): Promise<UserPreferences> {
@@ -60,6 +69,8 @@ async function getUserPreferences(userId: string): Promise<UserPreferences> {
 		analyticsEmail: prefs.analyticsEmail,
 		securityInApp: prefs.securityInApp,
 		securityEmail: prefs.securityEmail,
+		monitoringInApp: prefs.monitoringInApp,
+		monitoringEmail: prefs.monitoringEmail,
 	};
 }
 

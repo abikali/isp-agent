@@ -1,25 +1,42 @@
+import {
+	closeConnection,
+	createAiChatWorker,
+	createEmailWorker,
+	createIntegrationSyncWorker,
+	createScheduledWorker,
+	createWatcherCheckWorker,
+	createWebhookWorker,
+	setupScheduledJobs,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
-import { closeConnection } from "./src/connection";
-import { setupScheduledJobs } from "./src/queues/scheduled.queue";
-import { createEmailWorker } from "./src/workers/email.worker";
-import { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
-import { createScheduledWorker } from "./src/workers/scheduled.worker";
-import { createWebhookWorker } from "./src/workers/webhook.worker";
+import { sendOrganizationNotification } from "@repo/notifications";
 
 async function main() {
 	logger.info("Starting job workers...");
 
 	// Create workers
+	const aiChatWorker = createAiChatWorker();
 	const emailWorker = createEmailWorker();
 	const webhookWorker = createWebhookWorker();
 	const scheduledWorker = createScheduledWorker();
 	const integrationSyncWorker = createIntegrationSyncWorker();
+	const watcherCheckWorker = createWatcherCheckWorker({
+		sendOrganizationNotification: (organizationId, payload) =>
+			sendOrganizationNotification(organizationId, payload),
+	});
 
 	// Setup scheduled job definitions (cron jobs)
 	await setupScheduledJobs();
 
 	logger.info("All workers started successfully", {
-		workers: ["email", "webhook", "scheduled", "integration-sync"],
+		workers: [
+			"ai-chat",
+			"email",
+			"webhook",
+			"scheduled",
+			"integration-sync",
+			"watcher-check",
+		],
 	});
 
 	// Graceful shutdown
@@ -27,10 +44,12 @@ async function main() {
 		logger.info(`Received ${signal}, shutting down workers...`);
 
 		await Promise.all([
+			aiChatWorker.close(),
 			emailWorker.close(),
 			webhookWorker.close(),
 			scheduledWorker.close(),
 			integrationSyncWorker.close(),
+			watcherCheckWorker.close(),
 		]);
 
 		await closeConnection();

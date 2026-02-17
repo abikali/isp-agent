@@ -86,6 +86,13 @@ const trustedOrigins = [appUrl];
 if (appUrl.includes("localhost")) {
 	trustedOrigins.push(appUrl.replace("localhost", "127.0.0.1"));
 }
+// When using a tunnel, also trust the local dev origins
+if (!appUrl.includes("localhost")) {
+	trustedOrigins.push("http://localhost:5050");
+	trustedOrigins.push("http://127.0.0.1:5050");
+	trustedOrigins.push("http://localhost:3030");
+	trustedOrigins.push("http://127.0.0.1:3030");
+}
 
 export const auth = betterAuth({
 	baseURL: appUrl,

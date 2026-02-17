@@ -83,6 +83,70 @@ export const AUDIT_ACTIONS = {
 		revokedAll: "session.revoked_all",
 	},
 
+	// AI agent actions
+	aiAgent: {
+		created: "ai_agent.created",
+		updated: "ai_agent.updated",
+		deleted: "ai_agent.deleted",
+		webChatToggled: "ai_agent.web_chat_toggled",
+	},
+
+	// AI agent channel actions
+	aiChannel: {
+		created: "ai_channel.created",
+		deleted: "ai_channel.deleted",
+	},
+
+	// Watcher actions
+	watcher: {
+		created: "watcher.created",
+		updated: "watcher.updated",
+		deleted: "watcher.deleted",
+		toggled: "watcher.toggled",
+	},
+
+	// Customer management actions
+	customer: {
+		created: "customer.created",
+		updated: "customer.updated",
+		deleted: "customer.deleted",
+		imported: "customer.imported",
+		exported: "customer.exported",
+		pinUpdated: "customer.pin_updated",
+		pinReset: "customer.pin_reset",
+		pinGenerated: "customer.pin_generated",
+	},
+
+	servicePlan: {
+		created: "service_plan.created",
+		updated: "service_plan.updated",
+		deleted: "service_plan.deleted",
+	},
+
+	station: {
+		created: "station.created",
+		updated: "station.updated",
+		deleted: "station.deleted",
+	},
+
+	// Employee management actions
+	employee: {
+		created: "employee.created",
+		updated: "employee.updated",
+		deleted: "employee.deleted",
+		imported: "employee.imported",
+		exported: "employee.exported",
+		stationsAssigned: "employee.stations_assigned",
+	},
+
+	// Task management actions
+	task: {
+		created: "task.created",
+		updated: "task.updated",
+		deleted: "task.deleted",
+		employeesAssigned: "task.employees_assigned",
+	},
+
 	// Data export/deletion
 	data: {
 		exported: "data.exported",
@@ -104,6 +168,14 @@ export const RESOURCE_TYPES = {
 	apiKey: "api_key",
 	webhook: "webhook",
 	passkey: "passkey",
+	aiAgent: "ai_agent",
+	aiChannel: "ai_channel",
+	watcher: "watcher",
+	customer: "customer",
+	servicePlan: "service_plan",
+	station: "station",
+	employee: "employee",
+	task: "task",
 } as const;
 
 // Type helper to extract all values from a nested const object

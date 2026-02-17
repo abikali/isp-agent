@@ -22,9 +22,6 @@ export default defineConfig(({ mode }) => {
 		},
 		// Ensure consistent CSS between SSR and client builds
 		build: {
-			// Generate manifest for proper asset references
-			manifest: true,
-			// Ensure SSR and client builds use the same CSS
 			cssCodeSplit: false,
 			// Use fixed asset filenames to prevent SSR/client hash mismatch
 			rollupOptions: {
@@ -38,10 +35,6 @@ export default defineConfig(({ mode }) => {
 					},
 				},
 			},
-		},
-		esbuild: {
-			jsx: "automatic",
-			jsxImportSource: "react",
 		},
 		// Define env vars to be replaced at build time for @repo/config
 		define: {

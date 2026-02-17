@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as SplatRouteImport } from "./routes/$"
 import { Route as MarketingIndexRouteImport } from "./routes/_marketing/index"
 import { Route as ImageProxySplatRouteImport } from "./routes/image-proxy/$"
+import { Route as ChatTokenRouteImport } from "./routes/chat/$token"
 import { Route as ApiHealthRouteImport } from "./routes/api/health"
 import { Route as ApiSplatRouteImport } from "./routes/api/$"
 import { Route as SaasOnboardingRouteImport } from "./routes/_saas/onboarding"
@@ -48,8 +49,15 @@ import { Route as SaasAppAccountSettingsGeneralRouteImport } from "./routes/_saa
 import { Route as SaasAppAccountSettingsDangerZoneRouteImport } from "./routes/_saas/app/_account/settings/danger-zone"
 import { Route as SaasAppAccountAdminUsersRouteImport } from "./routes/_saas/app/_account/admin/users"
 import { Route as SaasAppAccountAdminFeatureFlagsRouteImport } from "./routes/_saas/app/_account/admin/feature-flags"
+import { Route as SaasAppOrgOrganizationSlugWatchersIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/watchers/index"
+import { Route as SaasAppOrgOrganizationSlugTasksIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/tasks/index"
 import { Route as SaasAppOrgOrganizationSlugSettingsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/index"
+import { Route as SaasAppOrgOrganizationSlugEmployeesIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/employees/index"
+import { Route as SaasAppOrgOrganizationSlugCustomersIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/index"
+import { Route as SaasAppOrgOrganizationSlugConversationsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/conversations/index"
+import { Route as SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/ai-agents/index"
 import { Route as SaasAppAccountAdminOrganizationsIndexRouteImport } from "./routes/_saas/app/_account/admin/organizations/index"
+import { Route as SaasAppOrgOrganizationSlugTasksTaskIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/tasks/$taskId"
 import { Route as SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/webhooks"
 import { Route as SaasAppOrgOrganizationSlugSettingsRolesRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/roles"
 import { Route as SaasAppOrgOrganizationSlugSettingsMembersRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/members"
@@ -59,7 +67,16 @@ import { Route as SaasAppOrgOrganizationSlugSettingsDangerZoneRouteImport } from
 import { Route as SaasAppOrgOrganizationSlugSettingsBillingRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/billing"
 import { Route as SaasAppOrgOrganizationSlugSettingsAuditRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/audit"
 import { Route as SaasAppOrgOrganizationSlugSettingsApiKeysRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/api-keys"
+import { Route as SaasAppOrgOrganizationSlugEmployeesEmployeeIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/employees/$employeeId"
+import { Route as SaasAppOrgOrganizationSlugCustomersStationsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/stations"
+import { Route as SaasAppOrgOrganizationSlugCustomersPlansRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/plans"
+import { Route as SaasAppOrgOrganizationSlugCustomersCustomerIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/$customerId"
+import { Route as SaasAppOrgOrganizationSlugConversationsConversationIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/conversations/$conversationId"
 import { Route as SaasAppAccountAdminOrganizationsIdRouteImport } from "./routes/_saas/app/_account/admin/organizations/$id"
+import { Route as SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/watchers/$watcherId/index"
+import { Route as SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/ai-agents/$agentId/index"
+import { Route as SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/ai-agents/$agentId/stats"
+import { Route as SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/ai-agents/$agentId/conversations.$conversationId"
 
 const SaasRoute = SaasRouteImport.update({
   id: "/_saas",
@@ -86,6 +103,11 @@ const MarketingIndexRoute = MarketingIndexRouteImport.update({
 const ImageProxySplatRoute = ImageProxySplatRouteImport.update({
   id: "/image-proxy/$",
   path: "/image-proxy/$",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatTokenRoute = ChatTokenRouteImport.update({
+  id: "/chat/$token",
+  path: "/chat/$token",
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -276,17 +298,59 @@ const SaasAppAccountAdminFeatureFlagsRoute =
     path: "/feature-flags",
     getParentRoute: () => SaasAppAccountAdminRoute,
   } as any)
+const SaasAppOrgOrganizationSlugWatchersIndexRoute =
+  SaasAppOrgOrganizationSlugWatchersIndexRouteImport.update({
+    id: "/watchers/",
+    path: "/watchers/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugTasksIndexRoute =
+  SaasAppOrgOrganizationSlugTasksIndexRouteImport.update({
+    id: "/tasks/",
+    path: "/tasks/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugSettingsIndexRoute =
   SaasAppOrgOrganizationSlugSettingsIndexRouteImport.update({
     id: "/",
     path: "/",
     getParentRoute: () => SaasAppOrgOrganizationSlugSettingsRoute,
   } as any)
+const SaasAppOrgOrganizationSlugEmployeesIndexRoute =
+  SaasAppOrgOrganizationSlugEmployeesIndexRouteImport.update({
+    id: "/employees/",
+    path: "/employees/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugCustomersIndexRoute =
+  SaasAppOrgOrganizationSlugCustomersIndexRouteImport.update({
+    id: "/customers/",
+    path: "/customers/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugConversationsIndexRoute =
+  SaasAppOrgOrganizationSlugConversationsIndexRouteImport.update({
+    id: "/conversations/",
+    path: "/conversations/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugAiAgentsIndexRoute =
+  SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport.update({
+    id: "/ai-agents/",
+    path: "/ai-agents/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppAccountAdminOrganizationsIndexRoute =
   SaasAppAccountAdminOrganizationsIndexRouteImport.update({
     id: "/organizations/",
     path: "/organizations/",
     getParentRoute: () => SaasAppAccountAdminRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugTasksTaskIdRoute =
+  SaasAppOrgOrganizationSlugTasksTaskIdRouteImport.update({
+    id: "/tasks/$taskId",
+    path: "/tasks/$taskId",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
 const SaasAppOrgOrganizationSlugSettingsWebhooksRoute =
   SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport.update({
@@ -342,12 +406,68 @@ const SaasAppOrgOrganizationSlugSettingsApiKeysRoute =
     path: "/api-keys",
     getParentRoute: () => SaasAppOrgOrganizationSlugSettingsRoute,
   } as any)
+const SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute =
+  SaasAppOrgOrganizationSlugEmployeesEmployeeIdRouteImport.update({
+    id: "/employees/$employeeId",
+    path: "/employees/$employeeId",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugCustomersStationsRoute =
+  SaasAppOrgOrganizationSlugCustomersStationsRouteImport.update({
+    id: "/customers/stations",
+    path: "/customers/stations",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugCustomersPlansRoute =
+  SaasAppOrgOrganizationSlugCustomersPlansRouteImport.update({
+    id: "/customers/plans",
+    path: "/customers/plans",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugCustomersCustomerIdRoute =
+  SaasAppOrgOrganizationSlugCustomersCustomerIdRouteImport.update({
+    id: "/customers/$customerId",
+    path: "/customers/$customerId",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugConversationsConversationIdRoute =
+  SaasAppOrgOrganizationSlugConversationsConversationIdRouteImport.update({
+    id: "/conversations/$conversationId",
+    path: "/conversations/$conversationId",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppAccountAdminOrganizationsIdRoute =
   SaasAppAccountAdminOrganizationsIdRouteImport.update({
     id: "/organizations/$id",
     path: "/organizations/$id",
     getParentRoute: () => SaasAppAccountAdminRoute,
   } as any)
+const SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute =
+  SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRouteImport.update({
+    id: "/watchers/$watcherId/",
+    path: "/watchers/$watcherId/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute =
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRouteImport.update({
+    id: "/ai-agents/$agentId/",
+    path: "/ai-agents/$agentId/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute =
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRouteImport.update({
+    id: "/ai-agents/$agentId/stats",
+    path: "/ai-agents/$agentId/stats",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute =
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRouteImport.update(
+    {
+      id: "/ai-agents/$agentId/conversations/$conversationId",
+      path: "/ai-agents/$agentId/conversations/$conversationId",
+      getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   "/$": typeof SplatRoute
@@ -364,6 +484,7 @@ export interface FileRoutesByFullPath {
   "/onboarding": typeof SaasOnboardingRoute
   "/api/$": typeof ApiSplatRoute
   "/api/health": typeof ApiHealthRoute
+  "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/": typeof MarketingIndexRoute
   "/blog/$": typeof MarketingBlogSplatRoute
@@ -387,6 +508,11 @@ export interface FileRoutesByFullPath {
   "/app/settings/": typeof SaasAppAccountSettingsIndexRoute
   "/app/$organizationSlug/": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/app/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
+  "/app/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
+  "/app/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
+  "/app/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/app/$organizationSlug/customers/stations": typeof SaasAppOrgOrganizationSlugCustomersStationsRoute
+  "/app/$organizationSlug/employees/$employeeId": typeof SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute
   "/app/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/app/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
   "/app/$organizationSlug/settings/billing": typeof SaasAppOrgOrganizationSlugSettingsBillingRoute
@@ -396,8 +522,19 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/app/$organizationSlug/tasks/$taskId": typeof SaasAppOrgOrganizationSlugTasksTaskIdRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
+  "/app/$organizationSlug/ai-agents": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
+  "/app/$organizationSlug/conversations": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
+  "/app/$organizationSlug/customers": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/settings/": typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
+  "/app/$organizationSlug/tasks": typeof SaasAppOrgOrganizationSlugTasksIndexRoute
+  "/app/$organizationSlug/watchers": typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
+  "/app/$organizationSlug/ai-agents/$agentId/stats": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute
+  "/app/$organizationSlug/ai-agents/$agentId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
+  "/app/$organizationSlug/watchers/$watcherId": typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
+  "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute
 }
 export interface FileRoutesByTo {
   "/$": typeof SplatRoute
@@ -414,6 +551,7 @@ export interface FileRoutesByTo {
   "/onboarding": typeof SaasOnboardingRoute
   "/api/$": typeof ApiSplatRoute
   "/api/health": typeof ApiHealthRoute
+  "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/": typeof MarketingIndexRoute
   "/blog/$": typeof MarketingBlogSplatRoute
@@ -432,6 +570,11 @@ export interface FileRoutesByTo {
   "/app/admin": typeof SaasAppAccountAdminIndexRoute
   "/app/settings": typeof SaasAppAccountSettingsIndexRoute
   "/app/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
+  "/app/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
+  "/app/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
+  "/app/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/app/$organizationSlug/customers/stations": typeof SaasAppOrgOrganizationSlugCustomersStationsRoute
+  "/app/$organizationSlug/employees/$employeeId": typeof SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute
   "/app/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/app/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
   "/app/$organizationSlug/settings/billing": typeof SaasAppOrgOrganizationSlugSettingsBillingRoute
@@ -441,8 +584,19 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/app/$organizationSlug/tasks/$taskId": typeof SaasAppOrgOrganizationSlugTasksTaskIdRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
+  "/app/$organizationSlug/ai-agents": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
+  "/app/$organizationSlug/conversations": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
+  "/app/$organizationSlug/customers": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/settings": typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
+  "/app/$organizationSlug/tasks": typeof SaasAppOrgOrganizationSlugTasksIndexRoute
+  "/app/$organizationSlug/watchers": typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
+  "/app/$organizationSlug/ai-agents/$agentId/stats": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute
+  "/app/$organizationSlug/ai-agents/$agentId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
+  "/app/$organizationSlug/watchers/$watcherId": typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
+  "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -463,6 +617,7 @@ export interface FileRoutesById {
   "/_saas/onboarding": typeof SaasOnboardingRoute
   "/api/$": typeof ApiSplatRoute
   "/api/health": typeof ApiHealthRoute
+  "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/_marketing/": typeof MarketingIndexRoute
   "/_marketing/blog/$": typeof MarketingBlogSplatRoute
@@ -488,6 +643,11 @@ export interface FileRoutesById {
   "/_saas/app/_account/settings/": typeof SaasAppAccountSettingsIndexRoute
   "/_saas/app/_org/$organizationSlug/": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/_saas/app/_account/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
+  "/_saas/app/_org/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
+  "/_saas/app/_org/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
+  "/_saas/app/_org/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/_saas/app/_org/$organizationSlug/customers/stations": typeof SaasAppOrgOrganizationSlugCustomersStationsRoute
+  "/_saas/app/_org/$organizationSlug/employees/$employeeId": typeof SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute
   "/_saas/app/_org/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/_saas/app/_org/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
   "/_saas/app/_org/$organizationSlug/settings/billing": typeof SaasAppOrgOrganizationSlugSettingsBillingRoute
@@ -497,8 +657,19 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/_saas/app/_org/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/_saas/app/_org/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/_saas/app/_org/$organizationSlug/tasks/$taskId": typeof SaasAppOrgOrganizationSlugTasksTaskIdRoute
   "/_saas/app/_account/admin/organizations/": typeof SaasAppAccountAdminOrganizationsIndexRoute
+  "/_saas/app/_org/$organizationSlug/ai-agents/": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
+  "/_saas/app/_org/$organizationSlug/conversations/": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
+  "/_saas/app/_org/$organizationSlug/customers/": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/_saas/app/_org/$organizationSlug/employees/": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/_saas/app/_org/$organizationSlug/settings/": typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
+  "/_saas/app/_org/$organizationSlug/tasks/": typeof SaasAppOrgOrganizationSlugTasksIndexRoute
+  "/_saas/app/_org/$organizationSlug/watchers/": typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
+  "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/stats": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute
+  "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
+  "/_saas/app/_org/$organizationSlug/watchers/$watcherId/": typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
+  "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -517,6 +688,7 @@ export interface FileRouteTypes {
     | "/onboarding"
     | "/api/$"
     | "/api/health"
+    | "/chat/$token"
     | "/image-proxy/$"
     | "/"
     | "/blog/$"
@@ -540,6 +712,11 @@ export interface FileRouteTypes {
     | "/app/settings/"
     | "/app/$organizationSlug/"
     | "/app/admin/organizations/$id"
+    | "/app/$organizationSlug/conversations/$conversationId"
+    | "/app/$organizationSlug/customers/$customerId"
+    | "/app/$organizationSlug/customers/plans"
+    | "/app/$organizationSlug/customers/stations"
+    | "/app/$organizationSlug/employees/$employeeId"
     | "/app/$organizationSlug/settings/api-keys"
     | "/app/$organizationSlug/settings/audit"
     | "/app/$organizationSlug/settings/billing"
@@ -549,8 +726,19 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/members"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
+    | "/app/$organizationSlug/tasks/$taskId"
     | "/app/admin/organizations"
+    | "/app/$organizationSlug/ai-agents"
+    | "/app/$organizationSlug/conversations"
+    | "/app/$organizationSlug/customers"
+    | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/settings/"
+    | "/app/$organizationSlug/tasks"
+    | "/app/$organizationSlug/watchers"
+    | "/app/$organizationSlug/ai-agents/$agentId/stats"
+    | "/app/$organizationSlug/ai-agents/$agentId"
+    | "/app/$organizationSlug/watchers/$watcherId"
+    | "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/$"
@@ -567,6 +755,7 @@ export interface FileRouteTypes {
     | "/onboarding"
     | "/api/$"
     | "/api/health"
+    | "/chat/$token"
     | "/image-proxy/$"
     | "/"
     | "/blog/$"
@@ -585,6 +774,11 @@ export interface FileRouteTypes {
     | "/app/admin"
     | "/app/settings"
     | "/app/admin/organizations/$id"
+    | "/app/$organizationSlug/conversations/$conversationId"
+    | "/app/$organizationSlug/customers/$customerId"
+    | "/app/$organizationSlug/customers/plans"
+    | "/app/$organizationSlug/customers/stations"
+    | "/app/$organizationSlug/employees/$employeeId"
     | "/app/$organizationSlug/settings/api-keys"
     | "/app/$organizationSlug/settings/audit"
     | "/app/$organizationSlug/settings/billing"
@@ -594,8 +788,19 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/members"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
+    | "/app/$organizationSlug/tasks/$taskId"
     | "/app/admin/organizations"
+    | "/app/$organizationSlug/ai-agents"
+    | "/app/$organizationSlug/conversations"
+    | "/app/$organizationSlug/customers"
+    | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/settings"
+    | "/app/$organizationSlug/tasks"
+    | "/app/$organizationSlug/watchers"
+    | "/app/$organizationSlug/ai-agents/$agentId/stats"
+    | "/app/$organizationSlug/ai-agents/$agentId"
+    | "/app/$organizationSlug/watchers/$watcherId"
+    | "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
   id:
     | "__root__"
     | "/$"
@@ -615,6 +820,7 @@ export interface FileRouteTypes {
     | "/_saas/onboarding"
     | "/api/$"
     | "/api/health"
+    | "/chat/$token"
     | "/image-proxy/$"
     | "/_marketing/"
     | "/_marketing/blog/$"
@@ -640,6 +846,11 @@ export interface FileRouteTypes {
     | "/_saas/app/_account/settings/"
     | "/_saas/app/_org/$organizationSlug/"
     | "/_saas/app/_account/admin/organizations/$id"
+    | "/_saas/app/_org/$organizationSlug/conversations/$conversationId"
+    | "/_saas/app/_org/$organizationSlug/customers/$customerId"
+    | "/_saas/app/_org/$organizationSlug/customers/plans"
+    | "/_saas/app/_org/$organizationSlug/customers/stations"
+    | "/_saas/app/_org/$organizationSlug/employees/$employeeId"
     | "/_saas/app/_org/$organizationSlug/settings/api-keys"
     | "/_saas/app/_org/$organizationSlug/settings/audit"
     | "/_saas/app/_org/$organizationSlug/settings/billing"
@@ -649,8 +860,19 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/settings/members"
     | "/_saas/app/_org/$organizationSlug/settings/roles"
     | "/_saas/app/_org/$organizationSlug/settings/webhooks"
+    | "/_saas/app/_org/$organizationSlug/tasks/$taskId"
     | "/_saas/app/_account/admin/organizations/"
+    | "/_saas/app/_org/$organizationSlug/ai-agents/"
+    | "/_saas/app/_org/$organizationSlug/conversations/"
+    | "/_saas/app/_org/$organizationSlug/customers/"
+    | "/_saas/app/_org/$organizationSlug/employees/"
     | "/_saas/app/_org/$organizationSlug/settings/"
+    | "/_saas/app/_org/$organizationSlug/tasks/"
+    | "/_saas/app/_org/$organizationSlug/watchers/"
+    | "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/stats"
+    | "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/"
+    | "/_saas/app/_org/$organizationSlug/watchers/$watcherId/"
+    | "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -660,6 +882,7 @@ export interface RootRouteChildren {
   SaasRoute: typeof SaasRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ChatTokenRoute: typeof ChatTokenRoute
   ImageProxySplatRoute: typeof ImageProxySplatRoute
 }
 
@@ -705,6 +928,13 @@ declare module "@tanstack/react-router" {
       path: "/image-proxy/$"
       fullPath: "/image-proxy/$"
       preLoaderRoute: typeof ImageProxySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/chat/$token": {
+      id: "/chat/$token"
+      path: "/chat/$token"
+      fullPath: "/chat/$token"
+      preLoaderRoute: typeof ChatTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/api/health": {
@@ -952,6 +1182,20 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppAccountAdminFeatureFlagsRouteImport
       parentRoute: typeof SaasAppAccountAdminRoute
     }
+    "/_saas/app/_org/$organizationSlug/watchers/": {
+      id: "/_saas/app/_org/$organizationSlug/watchers/"
+      path: "/watchers"
+      fullPath: "/app/$organizationSlug/watchers"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugWatchersIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/tasks/": {
+      id: "/_saas/app/_org/$organizationSlug/tasks/"
+      path: "/tasks"
+      fullPath: "/app/$organizationSlug/tasks"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugTasksIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
     "/_saas/app/_org/$organizationSlug/settings/": {
       id: "/_saas/app/_org/$organizationSlug/settings/"
       path: "/"
@@ -959,12 +1203,47 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugSettingsIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugSettingsRoute
     }
+    "/_saas/app/_org/$organizationSlug/employees/": {
+      id: "/_saas/app/_org/$organizationSlug/employees/"
+      path: "/employees"
+      fullPath: "/app/$organizationSlug/employees"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/customers/": {
+      id: "/_saas/app/_org/$organizationSlug/customers/"
+      path: "/customers"
+      fullPath: "/app/$organizationSlug/customers"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugCustomersIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/conversations/": {
+      id: "/_saas/app/_org/$organizationSlug/conversations/"
+      path: "/conversations"
+      fullPath: "/app/$organizationSlug/conversations"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugConversationsIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/ai-agents/": {
+      id: "/_saas/app/_org/$organizationSlug/ai-agents/"
+      path: "/ai-agents"
+      fullPath: "/app/$organizationSlug/ai-agents"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
     "/_saas/app/_account/admin/organizations/": {
       id: "/_saas/app/_account/admin/organizations/"
       path: "/organizations"
       fullPath: "/app/admin/organizations"
       preLoaderRoute: typeof SaasAppAccountAdminOrganizationsIndexRouteImport
       parentRoute: typeof SaasAppAccountAdminRoute
+    }
+    "/_saas/app/_org/$organizationSlug/tasks/$taskId": {
+      id: "/_saas/app/_org/$organizationSlug/tasks/$taskId"
+      path: "/tasks/$taskId"
+      fullPath: "/app/$organizationSlug/tasks/$taskId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugTasksTaskIdRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/settings/webhooks": {
       id: "/_saas/app/_org/$organizationSlug/settings/webhooks"
@@ -1029,12 +1308,75 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugSettingsApiKeysRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugSettingsRoute
     }
+    "/_saas/app/_org/$organizationSlug/employees/$employeeId": {
+      id: "/_saas/app/_org/$organizationSlug/employees/$employeeId"
+      path: "/employees/$employeeId"
+      fullPath: "/app/$organizationSlug/employees/$employeeId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugEmployeesEmployeeIdRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/customers/stations": {
+      id: "/_saas/app/_org/$organizationSlug/customers/stations"
+      path: "/customers/stations"
+      fullPath: "/app/$organizationSlug/customers/stations"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugCustomersStationsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/customers/plans": {
+      id: "/_saas/app/_org/$organizationSlug/customers/plans"
+      path: "/customers/plans"
+      fullPath: "/app/$organizationSlug/customers/plans"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugCustomersPlansRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/customers/$customerId": {
+      id: "/_saas/app/_org/$organizationSlug/customers/$customerId"
+      path: "/customers/$customerId"
+      fullPath: "/app/$organizationSlug/customers/$customerId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/conversations/$conversationId": {
+      id: "/_saas/app/_org/$organizationSlug/conversations/$conversationId"
+      path: "/conversations/$conversationId"
+      fullPath: "/app/$organizationSlug/conversations/$conversationId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugConversationsConversationIdRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
     "/_saas/app/_account/admin/organizations/$id": {
       id: "/_saas/app/_account/admin/organizations/$id"
       path: "/organizations/$id"
       fullPath: "/app/admin/organizations/$id"
       preLoaderRoute: typeof SaasAppAccountAdminOrganizationsIdRouteImport
       parentRoute: typeof SaasAppAccountAdminRoute
+    }
+    "/_saas/app/_org/$organizationSlug/watchers/$watcherId/": {
+      id: "/_saas/app/_org/$organizationSlug/watchers/$watcherId/"
+      path: "/watchers/$watcherId"
+      fullPath: "/app/$organizationSlug/watchers/$watcherId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/": {
+      id: "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/"
+      path: "/ai-agents/$agentId"
+      fullPath: "/app/$organizationSlug/ai-agents/$agentId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/stats": {
+      id: "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/stats"
+      path: "/ai-agents/$agentId/stats"
+      fullPath: "/app/$organizationSlug/ai-agents/$agentId/stats"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/conversations/$conversationId": {
+      id: "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
+      path: "/ai-agents/$agentId/conversations/$conversationId"
+      fullPath: "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
   }
 }
@@ -1189,6 +1531,22 @@ const SaasAppOrgOrganizationSlugSettingsRouteWithChildren =
 interface SaasAppOrgOrganizationSlugRouteChildren {
   SaasAppOrgOrganizationSlugSettingsRoute: typeof SaasAppOrgOrganizationSlugSettingsRouteWithChildren
   SaasAppOrgOrganizationSlugIndexRoute: typeof SaasAppOrgOrganizationSlugIndexRoute
+  SaasAppOrgOrganizationSlugConversationsConversationIdRoute: typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
+  SaasAppOrgOrganizationSlugCustomersCustomerIdRoute: typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
+  SaasAppOrgOrganizationSlugCustomersPlansRoute: typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  SaasAppOrgOrganizationSlugCustomersStationsRoute: typeof SaasAppOrgOrganizationSlugCustomersStationsRoute
+  SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute: typeof SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute
+  SaasAppOrgOrganizationSlugTasksTaskIdRoute: typeof SaasAppOrgOrganizationSlugTasksTaskIdRoute
+  SaasAppOrgOrganizationSlugAiAgentsIndexRoute: typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
+  SaasAppOrgOrganizationSlugConversationsIndexRoute: typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
+  SaasAppOrgOrganizationSlugCustomersIndexRoute: typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  SaasAppOrgOrganizationSlugEmployeesIndexRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
+  SaasAppOrgOrganizationSlugTasksIndexRoute: typeof SaasAppOrgOrganizationSlugTasksIndexRoute
+  SaasAppOrgOrganizationSlugWatchersIndexRoute: typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
+  SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute: typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
+  SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute
 }
 
 const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteChildren =
@@ -1196,6 +1554,38 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
     SaasAppOrgOrganizationSlugSettingsRoute:
       SaasAppOrgOrganizationSlugSettingsRouteWithChildren,
     SaasAppOrgOrganizationSlugIndexRoute: SaasAppOrgOrganizationSlugIndexRoute,
+    SaasAppOrgOrganizationSlugConversationsConversationIdRoute:
+      SaasAppOrgOrganizationSlugConversationsConversationIdRoute,
+    SaasAppOrgOrganizationSlugCustomersCustomerIdRoute:
+      SaasAppOrgOrganizationSlugCustomersCustomerIdRoute,
+    SaasAppOrgOrganizationSlugCustomersPlansRoute:
+      SaasAppOrgOrganizationSlugCustomersPlansRoute,
+    SaasAppOrgOrganizationSlugCustomersStationsRoute:
+      SaasAppOrgOrganizationSlugCustomersStationsRoute,
+    SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute:
+      SaasAppOrgOrganizationSlugEmployeesEmployeeIdRoute,
+    SaasAppOrgOrganizationSlugTasksTaskIdRoute:
+      SaasAppOrgOrganizationSlugTasksTaskIdRoute,
+    SaasAppOrgOrganizationSlugAiAgentsIndexRoute:
+      SaasAppOrgOrganizationSlugAiAgentsIndexRoute,
+    SaasAppOrgOrganizationSlugConversationsIndexRoute:
+      SaasAppOrgOrganizationSlugConversationsIndexRoute,
+    SaasAppOrgOrganizationSlugCustomersIndexRoute:
+      SaasAppOrgOrganizationSlugCustomersIndexRoute,
+    SaasAppOrgOrganizationSlugEmployeesIndexRoute:
+      SaasAppOrgOrganizationSlugEmployeesIndexRoute,
+    SaasAppOrgOrganizationSlugTasksIndexRoute:
+      SaasAppOrgOrganizationSlugTasksIndexRoute,
+    SaasAppOrgOrganizationSlugWatchersIndexRoute:
+      SaasAppOrgOrganizationSlugWatchersIndexRoute,
+    SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute:
+      SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute,
+    SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute:
+      SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute,
+    SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute:
+      SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute,
+    SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute:
+      SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute,
   }
 
 const SaasAppOrgOrganizationSlugRouteWithChildren =
@@ -1244,6 +1634,7 @@ const rootRouteChildren: RootRouteChildren = {
   SaasRoute: SaasRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ChatTokenRoute: ChatTokenRoute,
   ImageProxySplatRoute: ImageProxySplatRoute,
 }
 export const routeTree = rootRouteImport
