@@ -202,7 +202,7 @@ async function handleMessages(
 					knowledgeBase: channel.agent.knowledgeBase ?? undefined,
 					messages: historyMessages,
 					temperature: channel.agent.temperature,
-					abortSignal: controller.signal,
+					abortController: controller,
 					tools,
 					maxSteps: tools ? 5 : undefined,
 					onStepText: async (text) => {

@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { ServerTool } from "@tanstack/ai";
 import { contactEnrichment } from "./contact-enrichment";
 import { crmExport } from "./crm-export";
 import { customerInfo } from "./customer-info";
@@ -33,15 +33,17 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 };
 
 /**
- * Resolve enabled tool IDs into AI SDK CoreTool instances.
+ * Resolve enabled tool IDs into TanStack AI ServerTool instances.
  * @param toolConfigs - Map of toolId to per-tool config (from AiAgentToolConfig)
  */
 export function resolveTools(
 	enabledToolIds: string[],
 	context: ToolContext,
 	toolConfigs?: Record<string, Record<string, unknown>> | undefined,
-): ToolSet {
-	const tools: ToolSet = {};
+	// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
+): Array<ServerTool<any, any, string>> {
+	// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
+	const tools: Array<ServerTool<any, any, string>> = [];
 
 	for (const toolId of enabledToolIds) {
 		const registered = TOOL_REGISTRY[toolId];
@@ -50,7 +52,7 @@ export function resolveTools(
 				...context,
 				toolConfig: toolConfigs?.[toolId],
 			};
-			tools[toolId] = registered.factory(perToolContext);
+			tools.push(registered.factory(perToolContext));
 		}
 	}
 

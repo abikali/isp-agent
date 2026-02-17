@@ -1,5 +1,5 @@
 import net from "node:net";
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { validateHost } from "./lib/validate-host";
 import type { RegisteredTool } from "./types";
@@ -33,64 +33,65 @@ const KNOWN_SERVICES: Record<number, string> = {
 
 const MAX_PORTS = 20;
 
+const portScanDef = toolDefinition({
+	name: "port-scan",
+	description:
+		"Check if specific ports are open on a host. Supports custom port lists or presets (web, email, database, common). Useful for diagnosing connectivity and firewall issues.",
+	inputSchema: z
+		.object({
+			host: z.string().describe("Hostname or IPv4 address to scan"),
+			ports: z
+				.array(z.number().int().min(1).max(65535))
+				.max(MAX_PORTS)
+				.optional()
+				.describe("List of ports to check (max 20)"),
+			preset: z
+				.enum(["web", "email", "database", "common"])
+				.optional()
+				.describe(
+					"Port preset: web=[80,443], email=[25,143,465,587,993], database=[3306,5432,6379,27017], common=[21,22,80,443,3306,5432,8080]",
+				),
+		})
+		.refine((data) => data.ports || data.preset, {
+			message: "Either ports or preset must be provided",
+		}),
+});
+
 function createPortScanTool() {
-	return tool({
-		description:
-			"Check if specific ports are open on a host. Supports custom port lists or presets (web, email, database, common). Useful for diagnosing connectivity and firewall issues.",
-		inputSchema: z
-			.object({
-				host: z.string().describe("Hostname or IPv4 address to scan"),
-				ports: z
-					.array(z.number().int().min(1).max(65535))
-					.max(MAX_PORTS)
-					.optional()
-					.describe("List of ports to check (max 20)"),
-				preset: z
-					.enum(["web", "email", "database", "common"])
-					.optional()
-					.describe(
-						"Port preset: web=[80,443], email=[25,143,465,587,993], database=[3306,5432,6379,27017], common=[21,22,80,443,3306,5432,8080]",
-					),
-			})
-			.refine((data) => data.ports || data.preset, {
-				message: "Either ports or preset must be provided",
-			}),
-		execute: async (args) => {
-			const hostError = validateHost(args.host);
-			if (hostError) {
-				return { success: false, message: hostError };
-			}
+	return portScanDef.server(async (args) => {
+		const hostError = validateHost(args.host);
+		if (hostError) {
+			return { success: false, message: hostError };
+		}
 
-			const portsToScan =
-				args.ports ?? PORT_PRESETS[args.preset ?? ""] ?? [];
+		const portsToScan = args.ports ?? PORT_PRESETS[args.preset ?? ""] ?? [];
 
-			if (portsToScan.length === 0) {
-				return {
-					success: false,
-					message:
-						"No ports specified. Provide a ports array or a preset.",
-				};
-			}
-
-			if (portsToScan.length > MAX_PORTS) {
-				return {
-					success: false,
-					message: `Too many ports. Maximum is ${MAX_PORTS} per scan.`,
-				};
-			}
-
-			const results = await Promise.all(
-				portsToScan.map((port) => checkPort(args.host, port, 3000)),
-			);
-
-			const openCount = results.filter((r) => r.status === "open").length;
-
+		if (portsToScan.length === 0) {
 			return {
-				success: true,
-				message: `Port scan of ${args.host}: ${openCount}/${results.length} ports open`,
-				results,
+				success: false,
+				message:
+					"No ports specified. Provide a ports array or a preset.",
 			};
-		},
+		}
+
+		if (portsToScan.length > MAX_PORTS) {
+			return {
+				success: false,
+				message: `Too many ports. Maximum is ${MAX_PORTS} per scan.`,
+			};
+		}
+
+		const results = await Promise.all(
+			portsToScan.map((port) => checkPort(args.host, port, 3000)),
+		);
+
+		const openCount = results.filter((r) => r.status === "open").length;
+
+		return {
+			success: true,
+			message: `Port scan of ${args.host}: ${openCount}/${results.length} ports open`,
+			results,
+		};
 	});
 }
 

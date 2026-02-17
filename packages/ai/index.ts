@@ -1,11 +1,10 @@
 export { decryptToken, encryptToken } from "./src/encryption";
-export type { StreamAgentResponseResult } from "./src/generate";
 export {
+	createAgentStream,
 	generateAgentResponse,
-	streamAgentResponse,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "./src/generate";
-export { getModel, isValidModel } from "./src/model-registry";
+export { getAdapter, isValidModel } from "./src/model-registry";
 export {
 	parseWebhookPayload,
 	sendTextMessage,

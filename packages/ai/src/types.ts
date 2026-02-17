@@ -1,4 +1,4 @@
-import type { ToolSet } from "ai";
+import type { ServerTool } from "@tanstack/ai";
 
 export interface ParsedMessage {
 	chatId: string;
@@ -20,8 +20,9 @@ export interface GenerateResponseInput {
 	knowledgeBase?: string | undefined;
 	messages: Array<{ role: "user" | "assistant"; content: string }>;
 	temperature?: number | undefined;
-	abortSignal?: AbortSignal | undefined;
-	tools?: ToolSet | undefined;
+	abortController?: AbortController | undefined;
+	// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
+	tools?: Array<ServerTool<any, any, string>> | undefined;
 	maxSteps?: number | undefined;
 	/** Called with intermediate text when a step finishes with a tool call (for sending progress messages). */
 	onStepText?: ((text: string) => Promise<void>) | undefined;

@@ -1,6 +1,6 @@
 import net from "node:net";
 import tls from "node:tls";
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { validateHost } from "./lib/validate-host";
 import type { RegisteredTool } from "./types";
@@ -12,64 +12,64 @@ interface ConnectionResult {
 	tls: boolean;
 }
 
+const emailCheckDef = toolDefinition({
+	name: "email-check",
+	description:
+		"Check IMAP and SMTP server connectivity for an email host. Tests TLS and plaintext connections, reads server banners, and reports which ports are accepting connections. Useful for diagnosing email delivery and mailbox access issues.",
+	inputSchema: z.object({
+		host: z.string().describe("Email server hostname or IPv4 address"),
+		service: z
+			.enum(["imap", "smtp", "both"])
+			.default("both")
+			.describe(
+				"Which service to check: imap, smtp, or both (default: both)",
+			),
+	}),
+});
+
 function createEmailCheckTool() {
-	return tool({
-		description:
-			"Check IMAP and SMTP server connectivity for an email host. Tests TLS and plaintext connections, reads server banners, and reports which ports are accepting connections. Useful for diagnosing email delivery and mailbox access issues.",
-		inputSchema: z.object({
-			host: z.string().describe("Email server hostname or IPv4 address"),
-			service: z
-				.enum(["imap", "smtp", "both"])
-				.default("both")
-				.describe(
-					"Which service to check: imap, smtp, or both (default: both)",
-				),
-		}),
-		execute: async (args) => {
-			const hostError = validateHost(args.host);
-			if (hostError) {
-				return { success: false, message: hostError };
-			}
+	return emailCheckDef.server(async (args) => {
+		const hostError = validateHost(args.host);
+		if (hostError) {
+			return { success: false, message: hostError };
+		}
 
-			const results: {
-				imap?: ConnectionResult | undefined;
-				smtp?: ConnectionResult | undefined;
-			} = {};
+		const results: {
+			imap?: ConnectionResult | undefined;
+			smtp?: ConnectionResult | undefined;
+		} = {};
 
-			if (args.service === "imap" || args.service === "both") {
-				results.imap = await checkImap(args.host);
-			}
+		if (args.service === "imap" || args.service === "both") {
+			results.imap = await checkImap(args.host);
+		}
 
-			if (args.service === "smtp" || args.service === "both") {
-				results.smtp = await checkSmtp(args.host);
-			}
+		if (args.service === "smtp" || args.service === "both") {
+			results.smtp = await checkSmtp(args.host);
+		}
 
-			const parts: string[] = [];
-			if (results.imap) {
-				parts.push(
-					results.imap.connected
-						? `IMAP: connected on port ${results.imap.port}${results.imap.tls ? " (TLS)" : ""}`
-						: "IMAP: not reachable",
-				);
-			}
-			if (results.smtp) {
-				parts.push(
-					results.smtp.connected
-						? `SMTP: connected on port ${results.smtp.port}${results.smtp.tls ? " (TLS)" : ""}`
-						: "SMTP: not reachable",
-				);
-			}
-
-			const anyConnected = Object.values(results).some(
-				(r) => r?.connected,
+		const parts: string[] = [];
+		if (results.imap) {
+			parts.push(
+				results.imap.connected
+					? `IMAP: connected on port ${results.imap.port}${results.imap.tls ? " (TLS)" : ""}`
+					: "IMAP: not reachable",
 			);
+		}
+		if (results.smtp) {
+			parts.push(
+				results.smtp.connected
+					? `SMTP: connected on port ${results.smtp.port}${results.smtp.tls ? " (TLS)" : ""}`
+					: "SMTP: not reachable",
+			);
+		}
 
-			return {
-				success: anyConnected,
-				message: `Email check for ${args.host}: ${parts.join(", ")}`,
-				results,
-			};
-		},
+		const anyConnected = Object.values(results).some((r) => r?.connected);
+
+		return {
+			success: anyConnected,
+			message: `Email check for ${args.host}: ${parts.join(", ")}`,
+			results,
+		};
 	});
 }
 

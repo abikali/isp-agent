@@ -1,66 +1,64 @@
 import dns from "node:dns/promises";
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { validateHost } from "./lib/validate-host";
 import type { RegisteredTool } from "./types";
 
 const RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"] as const;
 
+const dnsLookupDef = toolDefinition({
+	name: "dns-lookup",
+	description:
+		"Perform DNS lookups for a domain to resolve A, AAAA, MX, NS, TXT, CNAME, or SOA records. Useful for diagnosing DNS configuration issues, verifying email setup, or checking domain records.",
+	inputSchema: z.object({
+		domain: z.string().describe("Domain name to look up"),
+		recordType: z
+			.enum(RECORD_TYPES)
+			.default("A")
+			.describe("DNS record type to query (default: A)"),
+	}),
+});
+
 function createDnsLookupTool() {
-	return tool({
-		description:
-			"Perform DNS lookups for a domain to resolve A, AAAA, MX, NS, TXT, CNAME, or SOA records. Useful for diagnosing DNS configuration issues, verifying email setup, or checking domain records.",
-		inputSchema: z.object({
-			domain: z.string().describe("Domain name to look up"),
-			recordType: z
-				.enum(RECORD_TYPES)
-				.default("A")
-				.describe("DNS record type to query (default: A)"),
-		}),
-		execute: async (args) => {
-			const hostError = validateHost(args.domain);
-			if (hostError) {
-				return { success: false, message: hostError };
-			}
+	return dnsLookupDef.server(async (args) => {
+		const domain = args.domain as string;
+		const recordType = (args.recordType as string) ?? "A";
 
-			try {
-				const records = await resolveWithTimeout(
-					args.domain,
-					args.recordType,
-					10000,
-				);
+		const hostError = validateHost(domain);
+		if (hostError) {
+			return { success: false, message: hostError };
+		}
 
-				if (
-					!records ||
-					(Array.isArray(records) && records.length === 0)
-				) {
-					return {
-						success: false,
-						message: `No ${args.recordType} records found for ${args.domain}`,
-					};
-				}
+		try {
+			const records = await resolveWithTimeout(domain, recordType, 10000);
 
-				const formatted = formatRecords(args.recordType, records);
-
-				return {
-					success: true,
-					message: `DNS ${args.recordType} lookup for ${args.domain}: ${formatted}`,
-					records,
-				};
-			} catch (error) {
-				const code = (error as NodeJS.ErrnoException).code;
-				if (code === "ENOTFOUND" || code === "ENODATA") {
-					return {
-						success: false,
-						message: `No ${args.recordType} records found for ${args.domain}`,
-					};
-				}
+			if (!records || (Array.isArray(records) && records.length === 0)) {
 				return {
 					success: false,
-					message: `DNS lookup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+					message: `No ${recordType} records found for ${domain}`,
 				};
 			}
-		},
+
+			const formatted = formatRecords(recordType, records);
+
+			return {
+				success: true,
+				message: `DNS ${recordType} lookup for ${domain}: ${formatted}`,
+				records,
+			};
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === "ENOTFOUND" || code === "ENODATA") {
+				return {
+					success: false,
+					message: `No ${recordType} records found for ${domain}`,
+				};
+			}
+			return {
+				success: false,
+				message: `DNS lookup failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+			};
+		}
 	});
 }
 
@@ -80,7 +78,7 @@ function resolveWithTimeout(
 				clearTimeout(timer);
 				resolve(result);
 			})
-			.catch((err) => {
+			.catch((err: unknown) => {
 				clearTimeout(timer);
 				reject(err);
 			});

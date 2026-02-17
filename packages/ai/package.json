@@ -12,17 +12,16 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^3.0.38",
-		"@ai-sdk/openai": "^3.0.26",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
-		"@tanstack/ai": "^0.2.2",
-		"ai": "^6.0.77",
+		"@tanstack/ai": "^0.5.0",
+		"@tanstack/ai-anthropic": "^0.5.0",
+		"@tanstack/ai-openai": "^0.5.0",
 		"grammy": "^1.39.2",
 		"nodejs-traceroute": "^2.0.1",
 		"speedtest-net": "^2.2.0",
-		"zod": "^4.1.13"
+		"zod": "^4.3.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",

@@ -132,7 +132,7 @@ export async function handleWebChatMessage(
 			knowledgeBase: agent.knowledgeBase ?? undefined,
 			messages: historyMessages,
 			temperature: agent.temperature,
-			abortSignal: controller.signal,
+			abortController: controller,
 			tools,
 			maxSteps: tools ? 5 : undefined,
 		});

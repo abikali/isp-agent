@@ -1,13 +1,14 @@
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
+	createAgentStream,
 	resolveTools,
-	streamAgentResponse,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
+import type { StreamChunk } from "@tanstack/ai";
 import { toServerSentEventsResponse } from "@tanstack/ai";
 
 const FALLBACK_MESSAGE =
@@ -176,46 +177,76 @@ export async function handleWebChatStream(
 	const timeoutMs = config.ai.responseTimeoutMs;
 	const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
-	const { stream, completion } = streamAgentResponse({
+	const stream = createAgentStream({
 		model: agent.model,
 		systemPrompt,
 		knowledgeBase: agent.knowledgeBase ?? undefined,
 		messages: historyMessages,
 		temperature: agent.temperature,
-		abortSignal: abortController.signal,
+		abortController,
 		tools,
 		maxSteps: tools ? 5 : undefined,
 	});
 
-	// Store assistant message fire-and-forget after stream completes
+	// Wrap stream to capture completion data for DB storage
 	const conversationId = conversation.id;
-	completion
-		.then(async (result) => {
+
+	async function* trackAndForward(): AsyncIterable<StreamChunk> {
+		let text = "";
+		let tokenCount = 0;
+		const toolResults: Array<{
+			toolName: string;
+			args: unknown;
+			result: unknown;
+		}> = [];
+		const start = Date.now();
+
+		try {
+			for await (const chunk of stream) {
+				if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+					text += chunk.delta;
+				} else if (chunk.type === "TOOL_CALL_END") {
+					toolResults.push({
+						toolName: chunk.toolName,
+						args: chunk.input,
+						result: chunk.result,
+					});
+				} else if (chunk.type === "RUN_FINISHED" && chunk.usage) {
+					tokenCount =
+						(chunk.usage.promptTokens ?? 0) +
+						(chunk.usage.completionTokens ?? 0);
+				}
+				yield chunk;
+			}
+
 			clearTimeout(timeout);
 
+			// Fire-and-forget: store result after stream ends
+			const latencyMs = Date.now() - start;
 			const messageData: Record<string, unknown> = {
 				conversationId,
 				role: "assistant",
-				content: result.text,
-				tokenCount: result.tokenCount,
-				latencyMs: result.latencyMs,
+				content: text,
+				tokenCount,
+				latencyMs,
 			};
-			if (result.toolResults) {
+			if (toolResults.length > 0) {
 				messageData["toolCalls"] = JSON.parse(
-					JSON.stringify(result.toolResults),
+					JSON.stringify(toolResults),
 				);
 			}
-			await db.aiMessage.create({ data: messageData as never });
 
-			await db.aiConversation.update({
-				where: { id: conversationId },
-				data: {
-					messageCount: { increment: 2 },
-					lastMessageAt: new Date(),
-				},
-			});
-		})
-		.catch((error) => {
+			db.aiMessage.create({ data: messageData as never }).catch(() => {});
+			db.aiConversation
+				.update({
+					where: { id: conversationId },
+					data: {
+						messageCount: { increment: 2 },
+						lastMessageAt: new Date(),
+					},
+				})
+				.catch(() => {});
+		} catch (error) {
 			clearTimeout(timeout);
 			logger.error("Web chat stream completion failed", {
 				error,
@@ -246,7 +277,8 @@ export async function handleWebChatStream(
 					},
 				})
 				.catch(() => {});
-		});
+		}
+	}
 
-	return toServerSentEventsResponse(stream, { abortController });
+	return toServerSentEventsResponse(trackAndForward(), { abortController });
 }
