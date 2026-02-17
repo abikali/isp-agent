@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Product Context
 
-LibanCom is a digital identity platform for creating shareable profiles with lead capture and analytics. Key features:
-- **Digital Profiles**: Customizable profiles shared via link or QR code
-- **Lead Capture**: Track networking interactions and export leads to CRM
-- **Teams/Organizations**: Enterprise features for managing team profiles
-- **Accessories**: Optional NFC cards and tags for faster in-person sharing
-- **Public Profile Pages**: Accessible at `/v/[slug]` without requiring an app
+LibanCom is an ISP (Internet Service Provider) management platform. Key features:
+- **Customer Management**: Track subscribers, service plans, connection types, account PINs
+- **Employee Management**: Manage ISP staff and their roles
+- **Stations**: Network infrastructure and station management
+- **Tasks & Watchers**: Task assignment and automated monitoring/alerts
+- **AI Agents**: Configurable AI chat agents with web chat channels
+- **Teams/Organizations**: Multi-tenant organization management with role-based access
+- **Integrations**: Third-party service connections via Nango
 
 ## Development Philosophy (CRITICAL - READ FIRST)
 
@@ -71,32 +73,14 @@ pnpm --filter @repo/web e2e:ci          # Run Playwright E2E tests in CI mode
 pnpm --filter @repo/web test path/to/file.test.ts
 ```
 
-**Note:** This project requires Node.js >= 24.
+**Note:** This project requires Node.js >= 24. Dev server runs on port **5050**.
 
 ## Storage (Cloudflare R2)
 
 File storage uses Cloudflare R2 (S3-compatible). Images are uploaded via signed URLs and served through an image-proxy route.
 
-### Configuration
-| Setting | Value |
-|---------|-------|
-| Bucket | `libancom-dev` |
-| Region | EU (European Union jurisdiction) |
-| Endpoint | `https://581c801a199c31769e38a08a85e8ea98.eu.r2.cloudflarestorage.com` |
-| Public URL | `https://pub-058248efda164a0faf24044b0ff3781b.r2.dev` |
-
-### Environment Variables
-```bash
-S3_ENDPOINT          # R2 S3-compatible endpoint
-S3_ACCESS_KEY_ID     # R2 API token access key
-S3_SECRET_ACCESS_KEY # R2 API token secret
-S3_REGION            # "auto" for R2
-AVATARS_BUCKET_NAME  # Bucket name (libancom-dev)
-S3_PUBLIC_URL        # Public r2.dev URL (optional)
-```
-
 ### How It Works
-1. **Upload**: Client requests signed upload URL via `orpc.profiles.createMediaUploadUrl`
+1. **Upload**: Client requests signed upload URL via oRPC procedure
 2. **Storage**: File uploaded directly to R2 via signed PUT URL
 3. **Display**: Images served via `/image-proxy/{bucket}/{path}` route which creates signed GET URLs
 
@@ -110,19 +94,22 @@ S3_PUBLIC_URL        # Public r2.dev URL (optional)
 ### Monorepo Structure
 
 - **apps/web**: TanStack Start frontend (file-based routing with SSR)
+- **apps/worker**: Background job workers (separate process from web, started via `pnpm worker`)
 - **packages/**: Backend logic and shared utilities
-  - `api`: oRPC procedures organized into modules (admin, users, organizations, payments, profiles, etc.)
-  - `auth`: Better Auth configuration with passkeys, invitations, organization management
+  - `api`: oRPC procedures organized into modules (admin, users, organizations, customers, employees, etc.)
+  - `ai`: AI model registry, providers, encryption, tools (using `@tanstack/ai`)
+  - `auth`: Better Auth configuration with passkeys, magic links, 2FA, organization management
   - `database`: Prisma client, schema, and query helpers
-  - `jobs`: BullMQ background workers (email, webhook, scheduled tasks)
+  - `integrations`: Nango integration helpers
+  - `jobs`: BullMQ background workers (email, webhook, AI chat, integration sync, watcher checks)
   - `mail`: Email providers and React Email templates
-  - `payments`: Payment provider integrations (Stripe, LemonSqueezy, etc.)
-  - `storage`: S3-compatible file storage
+  - `payments`: Payment provider integrations (Stripe)
+  - `storage`: S3-compatible file storage (Cloudflare R2)
   - `security`: Account lockout, device tracking, failed login handling
-  - `utils`: Shared utility functions
+  - `utils`: Shared utility functions (prefer `es-toolkit` over lodash for new code)
   - `webhooks`, `notifications`, `audit`, `quotas`, `feature-flags`, `rate-limit`, `i18n`, `logs`
 - **config/**: Central application configuration (plans, limits, features)
-- **tooling/**: Shared Tailwind config and theme variables
+- **tooling/**: Shared TypeScript config, Tailwind config, and theme variables
 
 ### Frontend Organization (apps/web)
 
@@ -132,25 +119,31 @@ TanStack Start uses file-based routing in `app/routes/`:
 - `app/routes/_marketing/`: Public marketing pages (home, blog, docs, legal)
 - `app/routes/_saas/`: Authenticated SaaS dashboard
   - `_saas/app/_account/`: User account pages (settings, admin)
-  - `_saas/app/_org/$organizationSlug/`: Organization-scoped pages
+  - `_saas/app/_org/$organizationSlug/`: Organization-scoped pages (customers, employees, tasks, watchers, ai-agents, etc.)
+  - `_saas/app/_fullbleed/`: Full-bleed layout pages
 - `app/routes/_auth/`: Authentication flows (login, signup, password reset)
-- `app/routes/v/$username.tsx`: Public-facing profile pages
-- `app/routes/api/`: API routes (auth, oRPC, webhooks)
+- `app/routes/api/`: API routes (oRPC handler at `$.ts`, health check, webhooks)
+- `app/routes/chat/`: AI chat routes
 
 - `modules/`: Feature modules containing components, hooks, and lib code
-  - `saas/profiles/`: Profile editor, link management, lead capture settings
-  - `saas/`: Other SaaS features (settings, organizations, admin)
+  - `saas/customers/`: Customer management (CRUD, bulk import/export, PINs)
+  - `saas/employees/`: Employee management
+  - `saas/ai-agents/`: AI agent configuration and conversations
+  - `saas/tasks/`: Task management
+  - `saas/watchers/`: Automated monitoring and alerts
+  - `saas/organizations/`: Organization settings, roles, API keys, webhooks
+  - `saas/payments/`, `saas/settings/`, `saas/admin/`, `saas/onboarding/`, `saas/dashboard/`, `saas/start/`
   - `shared/`: Cross-cutting components and utilities
   - `ui/`: Shadcn UI components
   - `marketing/`: Marketing page components
-  - `analytics/`: Analytics tracking components
 
 **Path Aliases:** Use these import aliases in the web app:
-- `@ui` → `modules/ui`
-- `@shared` → `modules/shared`
-- `@saas` → `modules/saas`
-- `@marketing` → `modules/marketing`
-- `@analytics` → `modules/analytics`
+- `@ui/*` → `modules/ui/*`
+- `@shared/*` → `modules/shared/*`
+- `@saas/*` → `modules/saas/*` (server-safe imports)
+- `@saas/module/client` → `modules/saas/module/index.client.ts` (client-only imports)
+- `@marketing/*` → `modules/marketing/*`
+- `~/` → `app/`
 
 ### TanStack Start Patterns
 
@@ -170,6 +163,8 @@ router.navigate({ to: "/dashboard" });
 ### SSR Data Fetching with React Query
 
 **IMPORTANT**: Use `ensureQueryData` + `useSuspenseQuery` + `AsyncBoundary` for SSR. Do NOT use `initialData` pattern - it doesn't properly populate the React Query cache.
+
+**Global query defaults** (set in `__root.tsx`): `staleTime: 60s`, `retry: false`, `placeholderData: keepPreviousData`. Pending queries are dehydrated for streaming SSR.
 
 **Route with SSR Data Prefetching:**
 ```typescript
@@ -225,8 +220,8 @@ function PageComponent() {
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 
 // Basic usage
-<AsyncBoundary fallback={<ProfilesSkeleton />}>
-  <ProfilesList />
+<AsyncBoundary fallback={<CustomersListSkeleton />}>
+  <CustomersList />
 </AsyncBoundary>
 
 // With SSR hydration (recommended)
@@ -299,10 +294,32 @@ export function useItemsQuery() {
 }
 ```
 
+**Mutation with cache invalidation:**
+```typescript
+"use client";
+import { orpc } from "@shared/lib/orpc";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+export function useCreateCustomer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    ...orpc.customers.create.mutationOptions(),
+    onSuccess: () => {
+      // Use .key() for partial matching invalidation (NOT .queryKey() which requires input args)
+      queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+    },
+  });
+}
+```
+
 **Key helpers:**
-- `getServerQueryClient()` - Creates per-request QueryClient for SSR
+- `getServerQueryClient()` - Creates per-request QueryClient for SSR (uses React `cache()`)
 - `disabledQuery(queryKey)` - Disabled query config when organizationId is null
+- `disabledInfiniteQuery(queryKey, emptyData)` - Same for infinite queries
 - `useOrganizationId()` - Gets active organization ID from context
+- `assertOrganizationId(id)` - Throws if null (use inside `queryFn` when `enabled` guards)
+- `hasOrganizationId(id)` - Type guard narrowing to `string`
 
 ### API Layer (oRPC)
 
@@ -311,18 +328,22 @@ export function useItemsQuery() {
 import { orpc, orpcClient } from "@shared/lib/orpc";
 
 // For React Query hooks - use orpc (TanStack Query utilities)
-const query = useQuery(orpc.profiles.list.queryOptions({ input: { organizationId } }));
-const mutation = useMutation(orpc.profiles.create.mutationOptions());
+const query = useQuery(orpc.customers.list.queryOptions({ input: { organizationId } }));
+const mutation = useMutation(orpc.customers.create.mutationOptions());
 
 // For direct calls (in server functions, mutations) - use orpcClient
-const result = await orpcClient.profiles.create({ organizationId, name: "..." });
+const result = await orpcClient.customers.create({ organizationId, fullName: "..." });
 ```
 
 **API Structure:**
 - Procedures in `packages/api/modules/*/procedures/*.ts`
 - Module routers in `packages/api/modules/*/router.ts`
 - Main router at `packages/api/orpc/router.ts`
+- Base procedures in `packages/api/orpc/procedures.ts`: `publicProcedure`, `protectedProcedure`, `adminProcedure`, `authProcedure`, `rateLimitedProcedure`
 - Use package exports (`@repo/api`) not deep imports
+
+**Available Router Modules:**
+`admin`, `aiAgents`, `auth`, `customers`, `employees`, `newsletter`, `integrations`, `organizations`, `users`, `payments`, `audit`, `apiKeys`, `webhooks`, `featureFlags`, `notifications`, `sessions`, `security`, `servicePlans`, `stations`, `tasks`, `watchers`
 
 ## Core Conventions
 
@@ -334,6 +355,11 @@ const result = await orpcClient.profiles.create({ organizationId, name: "..." })
 - Use `function` keyword for pure functions
 - Avoid enums; use maps/records or union literals
 - Directories: kebab-case; Components: PascalCase; Variables: camelCase
+- `noExplicitAny` is an **error** (use `unknown` + type narrowing instead)
+- `noConsole` is a **warn** (use `@repo/logs` for production logging)
+- `exactOptionalPropertyTypes` is enabled in backend packages but **disabled** in `apps/web`
+- `noUncheckedIndexedAccess` is enabled (indexed access returns `T | undefined`)
+- Prisma has `strictUndefinedChecks` preview feature enabled — explicitly pass `null` not `undefined` for nullable fields
 
 ### React & TanStack Start
 - Add `"use client"` only when necessary for client-side interactivity
@@ -463,13 +489,16 @@ pnpm --filter @repo/database generate
 
 **Configuration:**
 - `config/index.ts`: Central config (auth, payments, organizations, security, jobs)
-- `apps/web/vite.config.ts`: TanStack Start/Vite configuration
+- `apps/web/vite.config.ts`: TanStack Start/Vite configuration (Nitro with `node-cluster` preset for production)
 - `apps/web/app/router.tsx`: Router configuration
 - `apps/web/playwright.config.ts`: E2E test configuration
+- `biome.json`: Linter/formatter configuration
 
 **API & Database:**
 - `packages/api/orpc/router.ts`: Main API router
-- `packages/database/prisma/schema.prisma`: Database schema
+- `packages/api/orpc/procedures.ts`: Base procedures (public, protected, admin, rate-limited)
+- `packages/api/orpc/middleware/`: Rate limiting, quota enforcement, locale middleware
+- `packages/database/prisma/schema.prisma`: Database schema (PostgreSQL, Prisma client engine)
 
 **SSR & Data Fetching:**
 - `apps/web/modules/shared/lib/orpc.ts`: Isomorphic oRPC client (`orpc`, `orpcClient`)
@@ -478,12 +507,20 @@ pnpm --filter @repo/database generate
 - `apps/web/app/routes/__root.tsx`: Root layout with QueryClient provider
 
 **Reference Implementation:**
-- `apps/web/app/routes/_saas/app/_org/$organizationSlug/profiles/index.tsx`: SSR with AsyncBoundary
-- `apps/web/modules/saas/profiles/hooks/use-profiles.ts`: Both `useSuspenseQuery` and `useQuery` patterns
+- `apps/web/app/routes/_saas/app/_org/$organizationSlug/customers/index.tsx`: Route with AsyncBoundary
+- `apps/web/modules/saas/customers/hooks/use-customers.ts`: Full CRUD hooks (`useSuspenseQuery`, `useQuery`, mutations with cache invalidation)
+
+**Auth:**
+- `packages/auth/auth.ts`: Better Auth config (passkeys, magic links, 2FA, social login via Google/GitHub, organization plugin with dynamic access control)
+- `packages/auth/client.ts`: Auth client for frontend use (`@repo/auth/client`)
+- Sessions stored in Redis (not database)
 
 **Error Handling:**
 - `apps/web/modules/shared/components/AsyncBoundary.tsx`: Unified async boundary (ErrorBoundary + Suspense + HydrationBoundary)
 - `apps/web/modules/shared/components/ErrorBoundary.tsx`: Base error boundary with fallback variants
+
+**Monitoring:**
+- Sentry via `@sentry/tanstackstart-react` (enabled in production when `SENTRY_DSN` is set)
 
 ## E2E Testing (Playwright)
 
