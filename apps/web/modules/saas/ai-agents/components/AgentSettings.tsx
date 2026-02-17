@@ -41,11 +41,13 @@ import {
 	BotIcon,
 	BrainIcon,
 	HelpCircleIcon,
+	Loader2Icon,
 	SlidersHorizontalIcon,
+	SparklesIcon,
 	WrenchIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useUpdateAgent } from "../hooks/use-agents";
+import { useGenerateSystemPrompt, useUpdateAgent } from "../hooks/use-agents";
 import { useAvailableTools } from "../hooks/use-tools";
 import { AI_MODEL_OPTIONS } from "../lib/constants";
 import { ToolConfigDialog } from "./ToolConfigDialog";
@@ -128,6 +130,26 @@ export function AgentSettings({
 			});
 		},
 	});
+
+	const generatePrompt = useGenerateSystemPrompt();
+	const isGenerating = generatePrompt.isPending;
+
+	async function handleGeneratePrompt() {
+		const enabledTools = form.getFieldValue("enabledTools");
+		const currentPrompt = form.getFieldValue("systemPrompt");
+		const name = form.getFieldValue("name");
+		const description = form.getFieldValue("description");
+
+		const result = await generatePrompt.mutateAsync({
+			organizationId,
+			enabledToolIds: enabledTools,
+			currentPrompt: currentPrompt || undefined,
+			agentName: name || undefined,
+			agentDescription: description || undefined,
+		});
+
+		form.setFieldValue("systemPrompt", result.systemPrompt);
+	}
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
@@ -265,10 +287,30 @@ export function AgentSettings({
 									<form.Field name="systemPrompt">
 										{(field) => (
 											<Field>
-												<FieldLabel htmlFor="settings-prompt">
-													System Prompt
-													<FieldHint text="Instructions that define how the agent behaves. This is the core personality and rules for your agent." />
-												</FieldLabel>
+												<div className="flex items-center justify-between">
+													<FieldLabel htmlFor="settings-prompt">
+														System Prompt
+														<FieldHint text="Instructions that define how the agent behaves. This is the core personality and rules for your agent." />
+													</FieldLabel>
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														disabled={isGenerating}
+														onClick={
+															handleGeneratePrompt
+														}
+													>
+														{isGenerating ? (
+															<Loader2Icon className="size-3.5 animate-spin" />
+														) : (
+															<SparklesIcon className="size-3.5" />
+														)}
+														{isGenerating
+															? "Generating..."
+															: "Generate with AI"}
+													</Button>
+												</div>
 												<Textarea
 													id="settings-prompt"
 													value={field.state.value}

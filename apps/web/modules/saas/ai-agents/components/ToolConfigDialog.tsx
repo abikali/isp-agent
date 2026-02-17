@@ -26,6 +26,7 @@ interface ConfigField {
 	type: "text" | "password" | "select";
 	required: boolean;
 	placeholder?: string | undefined;
+	defaultValue?: string | undefined;
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 
@@ -55,7 +56,7 @@ export function ToolConfigDialog({
 	const defaultValues: Record<string, string> = {};
 	for (const field of configFields) {
 		defaultValues[field.key] =
-			(existingConfig?.[field.key] as string) ?? "";
+			(existingConfig?.[field.key] as string) ?? field.defaultValue ?? "";
 	}
 
 	const form = useForm({

@@ -1,4 +1,6 @@
 export { decryptToken, encryptToken } from "./src/encryption";
+export { generateSystemPrompt } from "./src/generate-system-prompt";
+export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export {
 	createAgentStream,
 	generateAgentResponse,

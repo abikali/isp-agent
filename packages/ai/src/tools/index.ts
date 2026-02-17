@@ -1,10 +1,13 @@
 import type { ServerTool } from "@tanstack/ai";
 import { contactEnrichment } from "./contact-enrichment";
 import { crmExport } from "./crm-export";
-import { customerInfo } from "./customer-info";
 import { dnsLookup } from "./dns-lookup";
 import { emailCheck } from "./email-check";
-import { identifyCustomer } from "./identify-customer";
+import { ispBandwidthStats } from "./isp-bandwidth-stats";
+import { ispMikrotikUsers } from "./isp-mikrotik-users";
+import { ispPingCustomer } from "./isp-ping-customer";
+import { ispPingIp } from "./isp-ping-ip";
+import { ispSearchCustomer } from "./isp-search-customer";
 import { leadCapture } from "./lead-capture";
 import { meetingScheduler } from "./meeting-scheduler";
 import { pingHost } from "./ping-host";
@@ -13,7 +16,6 @@ import { profileShare } from "./profile-share";
 import { speedTest } from "./speed-test";
 import { traceroute } from "./traceroute";
 import type { RegisteredTool, ToolContext, ToolMetadata } from "./types";
-import { verifyCustomerPin } from "./verify-customer-pin";
 
 const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 	"lead-capture": leadCapture,
@@ -27,9 +29,11 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 	"dns-lookup": dnsLookup,
 	"email-check": emailCheck,
 	"speed-test": speedTest,
-	"identify-customer": identifyCustomer,
-	"verify-customer-pin": verifyCustomerPin,
-	"customer-info": customerInfo,
+	"isp-search-customer": ispSearchCustomer,
+	"isp-bandwidth-stats": ispBandwidthStats,
+	"isp-mikrotik-users": ispMikrotikUsers,
+	"isp-ping-customer": ispPingCustomer,
+	"isp-ping-ip": ispPingIp,
 };
 
 /**

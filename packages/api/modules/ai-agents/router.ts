@@ -2,6 +2,7 @@ import { createAgent } from "./procedures/create-agent";
 import { createChannel } from "./procedures/create-channel";
 import { deleteAgent } from "./procedures/delete-agent";
 import { deleteChannel } from "./procedures/delete-channel";
+import { generateSystemPrompt } from "./procedures/generate-system-prompt";
 import { getAgent } from "./procedures/get-agent";
 import { getAgentStats } from "./procedures/get-agent-stats";
 import { getConversationMessages } from "./procedures/get-conversation-messages";
@@ -27,6 +28,7 @@ export const aiAgentsRouter = {
 	deleteAgent,
 	listAgents,
 	getAgent,
+	generateSystemPrompt,
 	createChannel,
 	updateChannel,
 	deleteChannel,

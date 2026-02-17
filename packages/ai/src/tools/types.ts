@@ -19,7 +19,8 @@ export interface ToolMetadata {
 		| "enrichment"
 		| "crm"
 		| "diagnostics"
-		| "customer";
+		| "customer"
+		| "isp";
 	requiresConfig: boolean;
 	configFields?: ConfigField[] | undefined;
 }
@@ -30,6 +31,7 @@ export interface ConfigField {
 	type: "text" | "password" | "select";
 	required: boolean;
 	placeholder?: string | undefined;
+	defaultValue?: string | undefined;
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 

@@ -76,3 +76,7 @@ export function useDeleteAgent() {
 		},
 	});
 }
+
+export function useGenerateSystemPrompt() {
+	return useMutation(orpc.aiAgents.generateSystemPrompt.mutationOptions());
+}
