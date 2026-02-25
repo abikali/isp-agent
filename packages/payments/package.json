@@ -24,13 +24,13 @@
 	},
 	"dependencies": {
 		"@lemonsqueezy/lemonsqueezy.js": "^4.0.0",
-		"@polar-sh/sdk": "^0.41.5",
+		"@polar-sh/sdk": "^0.45.0",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
-		"dodopayments": "^2.8.0",
-		"stripe": "^20.0.0",
-		"ufo": "^1.6.1"
+		"dodopayments": "^2.20.0",
+		"stripe": "^20.4.0",
+		"ufo": "^1.6.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",

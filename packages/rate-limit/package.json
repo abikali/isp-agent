@@ -16,7 +16,7 @@
 	"dependencies": {
 		"@repo/config": "workspace:*",
 		"@repo/logs": "workspace:*",
-		"ioredis": "^5.8.2"
+		"ioredis": "^5.9.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
