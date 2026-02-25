@@ -1,8 +1,8 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import {
-	getIspApiConfigFields,
 	cleanPhoneNumber,
+	getIspApiConfigFields,
 	ispGet,
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
@@ -18,8 +18,19 @@ interface BandwidthDataPoint {
 
 const ispBandwidthStatsDef = toolDefinition({
 	name: "isp-bandwidth-stats",
-	description:
-		"Get bandwidth usage statistics (time series) for an ISP customer. Returns upload/download speed limits and current usage over time in kbps.",
+	description: `Get bandwidth usage statistics (time series) for an ISP customer. Returns upload/download speed limits and actual usage over time in kbps.
+
+How to interpret:
+- Compare currentDown vs limitDown: if actual is consistently much lower than the limit, there's likely congestion, signal issues, or throttling (check fupMode from isp-search-customer).
+- Sudden drops to 0 indicate disconnections.
+- Speeds at exactly the limit are normal (the customer is getting their full plan speed).
+- Use this after isp-search-customer to investigate slow internet complaints.
+
+Response fields:
+- stats: Array of time-series data points, each with:
+  - date: Timestamp of the measurement.
+  - limitUp/limitDown: Upload/download speed limits in kbps.
+  - currentUp/currentDown: Actual upload/download speed at that time in kbps.`,
 	inputSchema: z.object({
 		query: z.string().describe("Customer phone number or ISP username"),
 	}),

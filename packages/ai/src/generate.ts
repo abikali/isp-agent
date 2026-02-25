@@ -7,8 +7,11 @@ import type {
 	ToolResult,
 } from "./types";
 
+export const ESCALATION_TOOL_INSTRUCTION =
+	"\n\nYou have an escalation tool (escalate-telegram) available. Use it when: (1) you cannot resolve the issue after running all available diagnostics, (2) the customer explicitly asks to speak to a human or requests escalation, (3) you confirm an infrastructure-wide outage via cross-check pings, (4) the issue involves billing, account changes, or hardware problems outside your tool scope. ALWAYS complete your full diagnostic chain BEFORE escalating — never escalate without investigating first. When the customer explicitly asks for a human, comply immediately but still include your diagnostic findings in the summary. Set priority: high for outages/critical, medium for unresolved technical issues, low for general human-assistance requests. After escalating, tell the customer their issue has been forwarded to the support team with all diagnostic details.";
+
 export const VERBOSE_TOOL_INSTRUCTION =
-	"\n\nWhen using tools, briefly explain what you're about to do before calling each tool. After receiving results, analyze and present them clearly.";
+	"\n\nWhen using tools, briefly explain what you're about to do before calling each tool. After receiving results, read the actual field values carefully before reporting them — never misstate what the data shows. IMPORTANT: After isp-search-customer, FIRST check if active is false, blocked is true, or expiryAccount is in the past. If so, that is the diagnosis — tell the customer directly. If the account is eligible, continue the full diagnostic chain (ping, bandwidth, cross-check AP users). Never stop after a single tool call. Do NOT ask the customer for permission to continue diagnosing. Do NOT call isp-search-customer twice for the same user — the accessPointUsers list is already in the first result.";
 
 /**
  * Create a streaming chat response using TanStack AI's chat() function.
@@ -25,6 +28,9 @@ export function createAgentStream(
 	if (input.knowledgeBase) {
 		systemPrompt = `${systemPrompt}\n\n--- Knowledge Base ---\n${input.knowledgeBase}`;
 	}
+
+	// Inject current time so the model can reason about dates/expiry/schedules
+	systemPrompt = `${systemPrompt}\n\nCurrent date and time: ${new Date().toISOString()}`;
 
 	return chat({
 		adapter,
@@ -73,6 +79,8 @@ export async function generateAgentResponse(
 		) {
 			// Fire intermediate text callback before tool execution
 			await input.onStepText(text);
+			// Reset so result.text only contains text after the last tool call
+			text = "";
 		}
 	}
 

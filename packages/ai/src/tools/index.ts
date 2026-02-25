@@ -3,6 +3,7 @@ import { contactEnrichment } from "./contact-enrichment";
 import { crmExport } from "./crm-export";
 import { dnsLookup } from "./dns-lookup";
 import { emailCheck } from "./email-check";
+import { escalateTelegram } from "./escalate-telegram";
 import { ispBandwidthStats } from "./isp-bandwidth-stats";
 import { ispMikrotikUsers } from "./isp-mikrotik-users";
 import { ispPingCustomer } from "./isp-ping-customer";
@@ -34,6 +35,7 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 	"isp-mikrotik-users": ispMikrotikUsers,
 	"isp-ping-customer": ispPingCustomer,
 	"isp-ping-ip": ispPingIp,
+	"escalate-telegram": escalateTelegram,
 };
 
 /**
@@ -44,10 +46,8 @@ export function resolveTools(
 	enabledToolIds: string[],
 	context: ToolContext,
 	toolConfigs?: Record<string, Record<string, unknown>> | undefined,
-	// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
-): Array<ServerTool<any, any, string>> {
-	// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
-	const tools: Array<ServerTool<any, any, string>> = [];
+): ServerTool[] {
+	const tools: ServerTool[] = [];
 
 	for (const toolId of enabledToolIds) {
 		const registered = TOOL_REGISTRY[toolId];

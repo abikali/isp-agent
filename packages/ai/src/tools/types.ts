@@ -35,10 +35,7 @@ export interface ConfigField {
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: Server tools have varying input/output types
-export type ToolFactory = (
-	context: ToolContext,
-) => ServerTool<any, any, string>;
+export type ToolFactory = (context: ToolContext) => ServerTool;
 
 export interface RegisteredTool {
 	metadata: ToolMetadata;

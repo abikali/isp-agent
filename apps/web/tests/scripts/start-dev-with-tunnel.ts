@@ -19,9 +19,52 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startTunnel } from "untun";
+import { decryptToken, whatsapp } from "../../../../packages/ai/index.js";
+import { db } from "../../../../packages/database/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 5050;
+
+async function refreshWhatsAppWebhooks(tunnelUrl: string) {
+	try {
+		const channels = await db.aiAgentChannel.findMany({
+			where: { provider: "whatsapp", enabled: true },
+			select: {
+				id: true,
+				name: true,
+				webhookToken: true,
+				encryptedApiToken: true,
+			},
+		});
+
+		if (channels.length === 0) {
+			// biome-ignore lint/suspicious/noConsole: CLI script output
+			console.log("📱 No WhatsApp channels to update\n");
+			return;
+		}
+
+		// biome-ignore lint/suspicious/noConsole: CLI script output
+		console.log(
+			`📱 Updating ${channels.length} WhatsApp channel webhook(s)...`,
+		);
+
+		for (const channel of channels) {
+			const webhookUrl = `${tunnelUrl}/api/webhooks/chat/whatsapp/${channel.webhookToken}`;
+			const apiToken = decryptToken(channel.encryptedApiToken);
+			const success = await whatsapp.setWebhook(apiToken, webhookUrl);
+			// biome-ignore lint/suspicious/noConsole: CLI script output
+			console.log(
+				`   ${success ? "✅" : "❌"} ${channel.name} (${channel.id})`,
+			);
+		}
+		// biome-ignore lint/suspicious/noConsole: CLI script output
+		console.log("");
+	} catch (error) {
+		// biome-ignore lint/suspicious/noConsole: CLI script output
+		console.error("⚠️  Failed to refresh WhatsApp webhooks:", error);
+		// Non-fatal — continue starting the dev server
+	}
+}
 
 async function main() {
 	// biome-ignore lint/suspicious/noConsole: CLI script output
@@ -49,6 +92,9 @@ async function main() {
 		console.log(
 			"   Use this URL for Firecrawl and other external services\n",
 		);
+
+		// Re-register all WhatsApp channel webhooks with the new tunnel URL
+		await refreshWhatsAppWebhooks(tunnelUrl);
 
 		// Set environment variables for the web server
 		const env = {

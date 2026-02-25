@@ -5,8 +5,11 @@ import type {
 } from "@repo/ai";
 import {
 	decryptToken,
+	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
+	markAsRead,
 	parseWebhookPayload,
+	processMedia,
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
@@ -15,6 +18,7 @@ import {
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
+import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 
@@ -22,6 +26,10 @@ const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
 const QUOTA_EXCEEDED_MESSAGE =
 	"This agent has reached its message limit. Please contact the organization administrator.";
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function handleMessages(
 	webhookToken: string,
@@ -78,8 +86,61 @@ async function handleMessages(
 
 	for (const msg of parsedMessages) {
 		try {
+			// Mark message as read (fire-and-forget)
+			markAsRead(provider, apiToken, msg.messageId).catch(() => {});
+
+			// Handle /clear command — delete conversation and messages
+			if (msg.text.trim().toLowerCase() === "/clear") {
+				const existing = await db.aiConversation.findUnique({
+					where: {
+						channelId_externalChatId: {
+							channelId: channel.id,
+							externalChatId: msg.chatId,
+						},
+					},
+				});
+				if (existing) {
+					await db.aiMessage.deleteMany({
+						where: { conversationId: existing.id },
+					});
+					await db.aiConversation.delete({
+						where: { id: existing.id },
+					});
+				}
+				await sendTextMessage(
+					provider,
+					apiToken,
+					msg.chatId,
+					"Conversation cleared. Send a message to start fresh.",
+				);
+				continue;
+			}
+
+			// Process media attachments (voice → transcription, image → description)
+			let messageText = msg.text;
+			if (msg.mediaId && msg.mediaType) {
+				const processed = await processMedia(
+					apiToken,
+					msg.mediaType,
+					msg.mediaId,
+					msg.mediaCaption,
+				);
+				if (processed) {
+					if (msg.mediaType === "voice") {
+						messageText = processed;
+					} else if (msg.mediaType === "image") {
+						messageText = msg.mediaCaption
+							? `[Image: ${processed}] ${msg.mediaCaption}`
+							: `[Image: ${processed}]`;
+					}
+				}
+			}
+
 			// Truncate incoming message
-			const truncatedText = msg.text.slice(0, config.ai.maxMessageLength);
+			const truncatedText = messageText.slice(
+				0,
+				config.ai.maxMessageLength,
+			);
 
 			// Find or create conversation
 			const conversation = await db.aiConversation.upsert({
@@ -104,7 +165,7 @@ async function handleMessages(
 				},
 			});
 
-			// Store user message
+			// Store user message in DB immediately
 			await db.aiMessage.create({
 				data: {
 					conversationId: conversation.id,
@@ -114,44 +175,20 @@ async function handleMessages(
 				},
 			});
 
-			// Check AI messages quota
-			const quotaResult = await checkAndIncrementQuota(
-				{
-					type: "organization",
-					organizationId: channel.agent.organizationId,
-				},
-				"aiMessages",
-			);
-			if (!quotaResult.allowed) {
-				await sendTextMessage(
-					provider,
-					apiToken,
-					msg.chatId,
-					QUOTA_EXCEEDED_MESSAGE,
-				);
+			// Buffer message text and try to acquire processing lock
+			const redis = getRedisConnection();
+			const bufferKey = `ai:buffer:${channel.id}:${msg.chatId}`;
+			const lockKey = `ai:lock:${channel.id}:${msg.chatId}`;
+
+			await redis.rpush(bufferKey, truncatedText);
+			const lockAcquired = await redis.set(lockKey, "1", "EX", 120, "NX");
+
+			if (!lockAcquired) {
+				// Active processor will pick up the buffered message
 				continue;
 			}
 
-			// Load conversation history
-			const history = await db.aiMessage.findMany({
-				where: { conversationId: conversation.id },
-				orderBy: { createdAt: "desc" },
-				take: channel.agent.maxHistoryLength,
-				select: {
-					role: true,
-					content: true,
-				},
-			});
-
-			// Reverse to chronological order
-			const historyMessages = history.reverse().map((m) => ({
-				role: (m.role === "admin" ? "assistant" : m.role) as
-					| "user"
-					| "assistant",
-				content: m.content,
-			}));
-
-			// Resolve tools if agent has any enabled
+			// Resolve tools once (same for all messages in this chat)
 			let tools: GenerateResponseInput["tools"];
 			if (channel.agent.enabledTools.length > 0) {
 				const agentToolConfigs = await db.aiAgentToolConfig.findMany({
@@ -182,136 +219,232 @@ async function handleMessages(
 				);
 			}
 
-			// Send typing indicator before generation
-			sendTypingIndicator(provider, apiToken, msg.chatId).catch(() => {});
+			// Build system prompt once
+			let systemPrompt = channel.agent.systemPrompt;
+			if (msg.contactName || msg.contactId) {
+				const parts: string[] = [];
+				if (msg.contactName) {
+					parts.push(`name: ${msg.contactName}`);
+				}
+				if (msg.contactId) {
+					parts.push(`phone: ${msg.contactId}`);
+				}
+				systemPrompt += `\n\nThe customer contacting you: ${parts.join(", ")}. Use this information to look up their account — do not ask them for their phone number.`;
+			}
+			if (tools) {
+				systemPrompt += VERBOSE_TOOL_INSTRUCTION;
+				if (channel.agent.enabledTools.includes("escalate-telegram")) {
+					systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+				}
+			}
 
-			// Enhance system prompt for verbose tool narration
-			const systemPrompt = tools
-				? channel.agent.systemPrompt + VERBOSE_TOOL_INSTRUCTION
-				: channel.agent.systemPrompt;
-
-			// Generate AI response with timeout
-			const timeoutMs = config.ai.responseTimeoutMs;
-			const controller = new AbortController();
-			const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
+			// Processing loop — handles buffered messages + any that arrive during generation
 			try {
-				const result = await generateAgentResponse({
-					model: channel.agent.model,
-					systemPrompt,
-					knowledgeBase: channel.agent.knowledgeBase ?? undefined,
-					messages: historyMessages,
-					temperature: channel.agent.temperature,
-					abortController: controller,
-					tools,
-					maxSteps: tools ? 5 : undefined,
-					onStepText: async (text) => {
+				while (true) {
+					// Wait for rapid messages to settle
+					await sleep(2000);
+
+					// Atomically drain the buffer
+					const multi = redis.multi();
+					multi.lrange(bufferKey, 0, -1);
+					multi.del(bufferKey);
+					const results = await multi.exec();
+					const bufferedTexts = (results?.[0]?.[1] ?? []) as string[];
+
+					if (bufferedTexts.length === 0) {
+						break;
+					}
+
+					// Check AI messages quota (1 per response)
+					const quotaResult = await checkAndIncrementQuota(
+						{
+							type: "organization",
+							organizationId: channel.agent.organizationId,
+						},
+						"aiMessages",
+					);
+					if (!quotaResult.allowed) {
 						await sendTextMessage(
 							provider,
 							apiToken,
 							msg.chatId,
-							text,
+							QUOTA_EXCEEDED_MESSAGE,
 						);
-						sendTypingIndicator(
+						break;
+					}
+
+					// Load full conversation history (includes all stored messages)
+					const history = await db.aiMessage.findMany({
+						where: {
+							conversationId: conversation.id,
+						},
+						orderBy: { createdAt: "desc" },
+						take: channel.agent.maxHistoryLength,
+						select: { role: true, content: true },
+					});
+					const historyMessages = history.reverse().map((m) => ({
+						role: (m.role === "admin" ? "assistant" : m.role) as
+							| "user"
+							| "assistant",
+						content: m.content,
+					}));
+
+					// Send typing indicator before generation
+					sendTypingIndicator(provider, apiToken, msg.chatId).catch(
+						() => {},
+					);
+
+					// Generate AI response with timeout
+					const timeoutMs = config.ai.responseTimeoutMs;
+					const controller = new AbortController();
+					const timeout = setTimeout(
+						() => controller.abort(),
+						timeoutMs,
+					);
+
+					try {
+						let sentInitial = false;
+						const result = await generateAgentResponse({
+							model: channel.agent.model,
+							systemPrompt,
+							knowledgeBase:
+								channel.agent.knowledgeBase ?? undefined,
+							messages: historyMessages,
+							temperature: channel.agent.temperature,
+							abortController: controller,
+							tools,
+							maxSteps: tools ? 10 : undefined,
+							onStepText: tools
+								? async (stepText) => {
+										if (sentInitial) {
+											return;
+										}
+										sentInitial = true;
+										await sendTextMessage(
+											provider,
+											apiToken,
+											msg.chatId,
+											stepText,
+										);
+										sendTypingIndicator(
+											provider,
+											apiToken,
+											msg.chatId,
+										).catch(() => {});
+									}
+								: undefined,
+						});
+
+						clearTimeout(timeout);
+
+						// Send reply
+						const sendResult = await sendTextMessage(
 							provider,
 							apiToken,
 							msg.chatId,
-						).catch(() => {});
-					},
-				});
+							result.text,
+						);
 
-				clearTimeout(timeout);
+						// Store assistant message
+						await db.aiMessage.create({
+							data: {
+								conversationId: conversation.id,
+								role: "assistant",
+								content: result.text,
+								externalMsgId: sendResult.messageId ?? null,
+								tokenCount: result.tokenCount,
+								latencyMs: result.latencyMs,
+								toolCalls: result.toolResults
+									? JSON.parse(
+											JSON.stringify(result.toolResults),
+										)
+									: null,
+							},
+						});
 
-				// Send reply
-				const sendResult = await sendTextMessage(
-					provider,
-					apiToken,
-					msg.chatId,
-					result.text,
-				);
+						// Update conversation counters
+						await db.aiConversation.update({
+							where: {
+								id: conversation.id,
+							},
+							data: {
+								messageCount: {
+									increment: bufferedTexts.length + 1,
+								},
+								lastMessageAt: new Date(),
+							},
+						});
+					} catch (error) {
+						clearTimeout(timeout);
 
-				// Store assistant message
-				await db.aiMessage.create({
-					data: {
-						conversationId: conversation.id,
-						role: "assistant",
-						content: result.text,
-						externalMsgId: sendResult.messageId ?? null,
-						tokenCount: result.tokenCount,
-						latencyMs: result.latencyMs,
-						toolCalls: result.toolResults
-							? JSON.parse(JSON.stringify(result.toolResults))
-							: undefined,
-					},
-				});
+						const errorName =
+							error instanceof Error ? error.name : "";
 
-				// Update conversation counters
-				await db.aiConversation.update({
-					where: { id: conversation.id },
-					data: {
-						messageCount: { increment: 2 },
-						lastMessageAt: new Date(),
-					},
-				});
-			} catch (error) {
-				clearTimeout(timeout);
+						if (errorName === "AI_InvalidToolInputError") {
+							const toolError = error as Error & {
+								toolName?: string;
+							};
+							logger.error("AI invalid tool input", {
+								toolName: toolError.toolName,
+								conversationId: conversation.id,
+								provider,
+							});
+						} else if (errorName === "AI_NoSuchToolError") {
+							const toolError = error as Error & {
+								toolName?: string;
+							};
+							logger.error("AI tool not found", {
+								toolName: toolError.toolName,
+								conversationId: conversation.id,
+								provider,
+							});
+						} else {
+							logger.error("AI generation failed", {
+								error,
+								conversationId: conversation.id,
+								provider,
+							});
+						}
 
-				const errorName = error instanceof Error ? error.name : "";
+						// Send fallback message
+						await sendTextMessage(
+							provider,
+							apiToken,
+							msg.chatId,
+							FALLBACK_MESSAGE,
+						);
 
-				if (errorName === "AI_InvalidToolInputError") {
-					const toolError = error as Error & {
-						toolName?: string;
-					};
-					logger.error("AI invalid tool input", {
-						toolName: toolError.toolName,
-						conversationId: conversation.id,
-						provider,
-					});
-				} else if (errorName === "AI_NoSuchToolError") {
-					const toolError = error as Error & {
-						toolName?: string;
-					};
-					logger.error("AI tool not found", {
-						toolName: toolError.toolName,
-						conversationId: conversation.id,
-						provider,
-					});
-				} else {
-					logger.error("AI generation failed", {
-						error,
-						conversationId: conversation.id,
-						provider,
-					});
+						// Store error message
+						await db.aiMessage.create({
+							data: {
+								conversationId: conversation.id,
+								role: "assistant",
+								content: FALLBACK_MESSAGE,
+								error:
+									error instanceof Error
+										? error.message
+										: "Unknown error",
+							},
+						});
+
+						await db.aiConversation.update({
+							where: {
+								id: conversation.id,
+							},
+							data: {
+								messageCount: {
+									increment: bufferedTexts.length + 1,
+								},
+								lastMessageAt: new Date(),
+							},
+						});
+
+						break;
+					}
 				}
-
-				// Send fallback message
-				await sendTextMessage(
-					provider,
-					apiToken,
-					msg.chatId,
-					FALLBACK_MESSAGE,
-				);
-
-				// Store error message
-				await db.aiMessage.create({
-					data: {
-						conversationId: conversation.id,
-						role: "assistant",
-						content: FALLBACK_MESSAGE,
-						error:
-							error instanceof Error
-								? error.message
-								: "Unknown error",
-					},
-				});
-
-				await db.aiConversation.update({
-					where: { id: conversation.id },
-					data: {
-						messageCount: { increment: 2 },
-						lastMessageAt: new Date(),
-					},
-				});
+			} finally {
+				// Always release the processing lock
+				await redis.del(lockKey);
 			}
 
 			// Update channel activity

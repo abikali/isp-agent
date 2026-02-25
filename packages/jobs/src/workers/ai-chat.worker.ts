@@ -5,6 +5,7 @@ import type {
 } from "@repo/ai";
 import {
 	decryptToken,
+	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
 	resolveTools,
 	sendTextMessage,
@@ -89,16 +90,25 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				);
 			}
 
+			// Enhance system prompt for escalation
+			let systemPrompt = conversation.agent.systemPrompt;
+			if (
+				tools &&
+				conversation.agent.enabledTools.includes("escalate-telegram")
+			) {
+				systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+			}
+
 			try {
 				const result = await generateAgentResponse({
 					model: conversation.agent.model,
-					systemPrompt: conversation.agent.systemPrompt,
+					systemPrompt,
 					knowledgeBase:
 						conversation.agent.knowledgeBase ?? undefined,
 					messages,
 					temperature: conversation.agent.temperature,
 					tools,
-					maxSteps: tools ? 5 : undefined,
+					maxSteps: tools ? 10 : undefined,
 				});
 
 				const sendResult = await sendTextMessage(

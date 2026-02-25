@@ -1,14 +1,17 @@
 export { decryptToken, encryptToken } from "./src/encryption";
-export { generateSystemPrompt } from "./src/generate-system-prompt";
-export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export {
 	createAgentStream,
+	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "./src/generate";
+export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
+export { generateSystemPrompt } from "./src/generate-system-prompt";
 export { getAdapter, isValidModel } from "./src/model-registry";
 export {
+	markAsRead,
 	parseWebhookPayload,
+	processMedia,
 	sendTextMessage,
 	sendTypingIndicator,
 	telegram,
@@ -29,6 +32,7 @@ export type {
 	GenerateResponseInput,
 	GenerateResponseResult,
 	ParsedMessage,
+	SendMessageOptions,
 	SendMessageResult,
 	ToolResult,
 } from "./src/types";

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { encryptToken, telegram } from "@repo/ai";
+import { encryptToken, telegram, whatsapp } from "@repo/ai";
 import { checkOrganizationAdmin } from "@repo/api/lib/membership";
 import {
 	aiChannelAudit,
@@ -87,11 +87,26 @@ export const createChannel = protectedProcedure
 				webhookSecret,
 			);
 			if (!success) {
-				// Clean up the created channel
 				await db.aiAgentChannel.delete({ where: { id: channel.id } });
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message:
 						"Failed to register Telegram webhook. Check your bot token.",
+				});
+			}
+		}
+
+		// For WhatsApp, register the webhook with Whapi API
+		if (input.provider === "whatsapp") {
+			const whatsappWebhookUrl = `${getBaseUrl()}/api/webhooks/chat/whatsapp/${webhookToken}`;
+			const success = await whatsapp.setWebhook(
+				input.apiToken,
+				whatsappWebhookUrl,
+			);
+			if (!success) {
+				await db.aiAgentChannel.delete({ where: { id: channel.id } });
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message:
+						"Failed to register WhatsApp webhook. Check your API token.",
 				});
 			}
 		}

@@ -1,6 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
-import { generateAgentResponse, resolveTools } from "@repo/ai";
+import {
+	ESCALATION_TOOL_INSTRUCTION,
+	generateAgentResponse,
+	resolveTools,
+} from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
@@ -120,6 +124,12 @@ export async function handleWebChatMessage(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
+	// Enhance system prompt for escalation
+	let systemPrompt = agent.systemPrompt;
+	if (tools && agent.enabledTools.includes("escalate-telegram")) {
+		systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+	}
+
 	// Generate AI response with timeout
 	const timeoutMs = config.ai.responseTimeoutMs;
 	const controller = new AbortController();
@@ -128,13 +138,13 @@ export async function handleWebChatMessage(
 	try {
 		const result = await generateAgentResponse({
 			model: agent.model,
-			systemPrompt: agent.systemPrompt,
+			systemPrompt,
 			knowledgeBase: agent.knowledgeBase ?? undefined,
 			messages: historyMessages,
 			temperature: agent.temperature,
 			abortController: controller,
 			tools,
-			maxSteps: tools ? 5 : undefined,
+			maxSteps: tools ? 10 : undefined,
 		});
 
 		clearTimeout(timeout);

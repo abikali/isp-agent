@@ -19,7 +19,7 @@ export const config = {
 		],
 		maxMessageLength: 4000,
 		maxHistoryLength: 20,
-		responseTimeoutMs: 12000,
+		responseTimeoutMs: 300000,
 		rateLimits: {
 			messagesPerMinutePerChannel: 30,
 		},

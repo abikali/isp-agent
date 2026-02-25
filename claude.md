@@ -355,8 +355,9 @@ const result = await orpcClient.customers.create({ organizationId, fullName: "..
 - Use `function` keyword for pure functions
 - Avoid enums; use maps/records or union literals
 - Directories: kebab-case; Components: PascalCase; Variables: camelCase
-- `noExplicitAny` is an **error** (use `unknown` + type narrowing instead)
+- `noExplicitAny` is an **error** (use `unknown` + type narrowing instead); relaxed in test files
 - `noConsole` is a **warn** (use `@repo/logs` for production logging)
+- `useBlockStatements` is a **warn** — always use braces for `if`/`else`/`for`/`while` (no single-line bodies)
 - `exactOptionalPropertyTypes` is enabled in backend packages but **disabled** in `apps/web`
 - `noUncheckedIndexedAccess` is enabled (indexed access returns `T | undefined`)
 - Prisma has `strictUndefinedChecks` preview feature enabled — explicitly pass `null` not `undefined` for nullable fields
@@ -521,6 +522,37 @@ pnpm --filter @repo/database generate
 
 **Monitoring:**
 - Sentry via `@sentry/tanstackstart-react` (enabled in production when `SENTRY_DSN` is set)
+
+### AI Agent & Tool System
+
+**Location**: `packages/ai/`
+
+Uses **TanStack AI v0.5.0** (`@tanstack/ai`, `@tanstack/ai-openai`, `@tanstack/ai-anthropic`).
+
+**Model Registry** (`src/model-registry.ts`): Maps short model IDs to adapters. Use short names like `claude-sonnet` (not versioned IDs like `claude-sonnet-4-20250514`).
+
+**Tool System** (`src/tools/`):
+- **Registry Pattern**: `TOOL_REGISTRY` maps tool IDs to `RegisteredTool` objects (metadata + factory function)
+- **ToolContext**: `{ organizationId, agentId, conversationId, externalChatId, contactName, toolConfig }`
+- **Factory Pattern**: Each tool is a factory `(context: ToolContext) => ServerTool` using `toolDefinition().server()`
+- **Categories**: networking, scheduling, enrichment, crm, diagnostics, customer, isp
+- **ISP Tools**: Do NOT use `outputSchema` — the ISP API returns inconsistent types (strings/booleans/nulls mixed). Put field documentation in the tool `description` instead.
+
+**Stream Events** (from `chat()`):
+- `TEXT_MESSAGE_CONTENT` → `.delta` (text chunk)
+- `TOOL_CALL_START` / `TOOL_CALL_END` → `.toolName`, `.input`, `.result`
+- `RUN_FINISHED` → `.usage` (token counts)
+
+**Encryption** (`src/encryption.ts`): AES-256-GCM for storing API tokens (WhatsApp, Telegram) in DB. Requires `AI_CHANNEL_ENCRYPTION_KEY` env var (32-byte hex string, 64 chars).
+
+### Background Jobs (BullMQ)
+
+**Location**: `packages/jobs/` (queue definitions, workers) + `apps/worker/` (worker process)
+
+- **Redis-based** BullMQ queues with `maxRetriesPerRequest: null` (required for BullMQ)
+- **Worker process** (`apps/worker/index.ts`): Separate from web server, started via `pnpm worker`. Creates all workers + sets up cron jobs. Graceful shutdown on SIGTERM/SIGINT.
+- **Job types**: email (concurrency: 5), webhook (10), scheduled (1), AI chat, integration sync, watcher checks
+- **AI Chat Worker flow**: Load conversation → decrypt API token → load message history (limited by `maxHistoryLength`) → resolve tools + per-tool configs → `generateAgentResponse()` → send via provider (WhatsApp/Telegram) → save to DB
 
 ## E2E Testing (Playwright)
 

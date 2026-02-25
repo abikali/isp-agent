@@ -100,7 +100,7 @@ function ToolResultDisplay({ content }: { content: string }) {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
-		<div className="rounded-lg border bg-muted/30 text-xs">
+		<div className="min-w-0 w-full overflow-hidden rounded-lg border bg-muted/30 text-xs">
 			<button
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
@@ -114,7 +114,7 @@ function ToolResultDisplay({ content }: { content: string }) {
 				<span>Tool result</span>
 			</button>
 			{isOpen && (
-				<pre className="max-h-40 overflow-auto border-t px-2.5 py-2 font-mono text-[11px] leading-relaxed">
+				<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all border-t px-2.5 py-2 font-mono text-[11px] leading-relaxed">
 					{content}
 				</pre>
 			)}
@@ -431,11 +431,12 @@ export function WebChatInterface({ token }: { token: string }) {
 		}),
 	);
 
-	const history = useQuery(
-		orpc.aiAgents.getWebChatHistory.queryOptions({
+	const history = useQuery({
+		...orpc.aiAgents.getWebChatHistory.queryOptions({
 			input: { token, sessionId },
 		}),
-	);
+		placeholderData: undefined,
+	});
 
 	const initialMessages = useMemo(() => {
 		if (history.data?.messages && history.data.messages.length > 0) {
@@ -535,7 +536,20 @@ export function WebChatInterface({ token }: { token: string }) {
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
-								onClick={() => setChatKey((k) => k + 1)}
+								onClick={() => {
+									queryClient.setQueryData(
+										orpc.aiAgents.getWebChatHistory.queryOptions(
+											{
+												input: {
+													token,
+													sessionId,
+												},
+											},
+										).queryKey,
+										{ messages: [] },
+									);
+									setChatKey((k) => k + 1);
+								}}
 								className="text-destructive focus:text-destructive"
 							>
 								<Trash2Icon className="mr-2 size-4" />

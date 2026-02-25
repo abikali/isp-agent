@@ -135,7 +135,7 @@ export async function ispGet<T>(
 	path: string,
 	params: Record<string, string>,
 ): Promise<T> {
-	const url = new URL(path, config.baseUrl);
+	const url = new URL(`${config.baseUrl}${path}`);
 	for (const [key, value] of Object.entries(params)) {
 		url.searchParams.set(key, value);
 	}

@@ -1,6 +1,7 @@
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
 	createAgentStream,
+	ESCALATION_TOOL_INSTRUCTION,
 	resolveTools,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "@repo/ai";
@@ -167,10 +168,14 @@ export async function handleWebChatStream(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
-	// Enhance system prompt for verbose tool narration
-	const systemPrompt = tools
-		? agent.systemPrompt + VERBOSE_TOOL_INSTRUCTION
-		: agent.systemPrompt;
+	// Enhance system prompt for verbose tool narration + escalation
+	let systemPrompt = agent.systemPrompt;
+	if (tools) {
+		systemPrompt += VERBOSE_TOOL_INSTRUCTION;
+		if (agent.enabledTools.includes("escalate-telegram")) {
+			systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+		}
+	}
 
 	// Stream the response
 	const abortController = new AbortController();
@@ -185,7 +190,7 @@ export async function handleWebChatStream(
 		temperature: agent.temperature,
 		abortController,
 		tools,
-		maxSteps: tools ? 5 : undefined,
+		maxSteps: tools ? 10 : undefined,
 	});
 
 	// Wrap stream to capture completion data for DB storage
