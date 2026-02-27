@@ -14,7 +14,7 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@paralleldrive/cuid2": "3.0.6",
+		"@paralleldrive/cuid2": "3.3.0",
 		"@repo/database": "workspace:*"
 	},
 	"devDependencies": {
