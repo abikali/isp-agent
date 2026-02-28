@@ -157,7 +157,8 @@ function createIspSearchCustomerTool(context: ToolContext) {
 
 				return {
 					success: true,
-					message: `Found ${filtered.length} customers matching "${args.query}".`,
+					multipleMatches: true,
+					message: `Found ${filtered.length} customers matching "${args.query}". Ask the customer which account is theirs by presenting the names/usernames so they can identify themselves.`,
 					customers: filtered,
 				};
 			},

@@ -67,7 +67,8 @@ export async function markAsRead(
 
 /**
  * Process media attachments (voice, image) into text.
- * Requires the Whapi API token to download media via GET /media/{id}.
+ * Prefers the direct media link (S3 URL) when available, otherwise
+ * falls back to downloading via GET /media/{id} with auth.
  * Returns the transcribed/described text, or null if processing fails.
  */
 export async function processMedia(
@@ -75,12 +76,25 @@ export async function processMedia(
 	mediaType: string,
 	mediaId: string,
 	mediaCaption?: string,
+	mediaLink?: string,
+	messageId?: string,
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
-			return whatsapp.transcribeAudio(whapiToken, mediaId);
+			return whatsapp.transcribeAudio(
+				whapiToken,
+				mediaId,
+				mediaLink,
+				messageId,
+			);
 		case "image":
-			return whatsapp.describeImage(whapiToken, mediaId, mediaCaption);
+			return whatsapp.describeImage(
+				whapiToken,
+				mediaId,
+				mediaCaption,
+				mediaLink,
+				messageId,
+			);
 		default:
 			return null;
 	}

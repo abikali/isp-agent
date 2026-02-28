@@ -103,7 +103,7 @@ async function handleMessages(
 					await db.aiMessage.deleteMany({
 						where: { conversationId: existing.id },
 					});
-					await db.aiConversation.delete({
+					await db.aiConversation.deleteMany({
 						where: { id: existing.id },
 					});
 				}
@@ -124,6 +124,8 @@ async function handleMessages(
 					msg.mediaType,
 					msg.mediaId,
 					msg.mediaCaption,
+					msg.mediaLink,
+					msg.messageId,
 				);
 				if (processed) {
 					if (msg.mediaType === "voice") {

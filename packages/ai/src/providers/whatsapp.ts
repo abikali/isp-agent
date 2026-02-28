@@ -67,6 +67,7 @@ interface WhapiSendResponse {
 interface ExtractedMessage {
 	text: string;
 	mediaId?: string | undefined;
+	mediaLink?: string | undefined;
 	mediaType?: string | undefined;
 	mediaCaption?: string | undefined;
 }
@@ -81,6 +82,7 @@ function extractMessage(msg: WhapiMessage): ExtractedMessage | null {
 					? `[Image] ${msg.image.caption}`
 					: "[Image received]",
 				mediaId: msg.image?.id ?? undefined,
+				mediaLink: msg.image?.link ?? undefined,
 				mediaType: "image",
 				mediaCaption: msg.image?.caption ?? undefined,
 			};
@@ -93,9 +95,11 @@ function extractMessage(msg: WhapiMessage): ExtractedMessage | null {
 		case "audio":
 		case "voice": {
 			const voiceId = msg.voice?.id ?? msg.audio?.id;
+			const voiceLink = msg.voice?.link ?? msg.audio?.link;
 			return {
 				text: "[Voice message received]",
 				mediaId: voiceId ?? undefined,
+				mediaLink: voiceLink ?? undefined,
 				mediaType: "voice",
 			};
 		}
@@ -145,6 +149,7 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				contactId: msg.from,
 				timestamp: msg.timestamp,
 				mediaId: extracted.mediaId,
+				mediaLink: extracted.mediaLink,
 				mediaType: extracted.mediaType,
 				mediaCaption: extracted.mediaCaption,
 			});
@@ -217,9 +222,61 @@ export async function sendTextMessage(
 }
 
 /**
- * Download a media file from Whapi using GET /media/{mediaId} with auth.
+ * Download a media file from Whapi.
+ *
+ * Strategy:
+ * 1. Direct S3 link from webhook (most reliable when auto_download is enabled).
+ * 2. GET /media/{id} with a short retry — handles async S3 upload timing.
+ * 3. Fetch message via GET /messages/{id} to find a download link.
+ *
+ * IMPORTANT: auto_download must be enabled in Whapi dashboard for voice, audio,
+ * and image types. It only applies to messages received AFTER being enabled.
  */
 async function downloadMedia(
+	apiToken: string,
+	mediaId: string,
+	mediaLink?: string,
+	messageId?: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+	// Try the direct S3 link first (auto_download provides this)
+	if (mediaLink) {
+		const fromLink = await fetchFromUrl(mediaLink);
+		if (fromLink) {
+			return fromLink;
+		}
+	}
+
+	// Try GET /media/{id} with a short retry for async upload timing
+	for (const delay of [0, 3000]) {
+		if (delay > 0) {
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
+		const fromApi = await fetchMediaById(apiToken, mediaId);
+		if (fromApi) {
+			return fromApi;
+		}
+	}
+
+	// Fallback: fetch the message metadata to find a download link
+	if (messageId) {
+		const fromMessage = await fetchMediaLinkFromMessage(
+			apiToken,
+			messageId,
+		);
+		if (fromMessage) {
+			return fromMessage;
+		}
+	}
+
+	logger.error("WhatsApp media download failed", {
+		mediaId,
+		messageId,
+		hint: "If this persists, restart the Whapi channel from the dashboard",
+	});
+	return null;
+}
+
+async function fetchMediaById(
 	apiToken: string,
 	mediaId: string,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
@@ -227,23 +284,81 @@ async function downloadMedia(
 		const response = await fetch(`${WHAPI_BASE_URL}/media/${mediaId}`, {
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
+				Accept: "application/octet-stream",
 			},
 		});
+
 		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("WhatsApp media download failed", {
-				status: response.status,
-				mediaId,
-				error: errorText,
-			});
 			return null;
 		}
+
 		const buffer = Buffer.from(await response.arrayBuffer());
+		if (buffer.length === 0) {
+			return null;
+		}
+
 		const contentType =
 			response.headers.get("content-type") ?? "application/octet-stream";
 		return { buffer, contentType };
-	} catch (error) {
-		logger.error("WhatsApp media download error", { error, mediaId });
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Fetch the message by ID and try to download from any media link found.
+ */
+async function fetchMediaLinkFromMessage(
+	apiToken: string,
+	messageId: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+	try {
+		const response = await fetch(
+			`${WHAPI_BASE_URL}/messages/${messageId}`,
+			{
+				headers: { Authorization: `Bearer ${apiToken}` },
+			},
+		);
+
+		if (!response.ok) {
+			return null;
+		}
+
+		const msg = (await response.json()) as Record<string, unknown>;
+		const mediaFields = ["voice", "audio", "image", "video", "document"];
+
+		for (const field of mediaFields) {
+			const media = msg[field] as Record<string, unknown> | undefined;
+			if (media && typeof media["link"] === "string" && media["link"]) {
+				const result = await fetchFromUrl(media["link"] as string);
+				if (result) {
+					return result;
+				}
+			}
+		}
+
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+async function fetchFromUrl(
+	url: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+	try {
+		const response = await fetch(url);
+		if (!response.ok) {
+			return null;
+		}
+		const buffer = Buffer.from(await response.arrayBuffer());
+		if (buffer.length === 0) {
+			return null;
+		}
+		const contentType =
+			response.headers.get("content-type") ?? "application/octet-stream";
+		return { buffer, contentType };
+	} catch {
 		return null;
 	}
 }
@@ -254,6 +369,8 @@ async function downloadMedia(
 export async function transcribeAudio(
 	whapiToken: string,
 	mediaId: string,
+	mediaLink?: string,
+	messageId?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -261,28 +378,55 @@ export async function transcribeAudio(
 		return null;
 	}
 
-	const media = await downloadMedia(whapiToken, mediaId);
+	const media = await downloadMedia(
+		whapiToken,
+		mediaId,
+		mediaLink,
+		messageId,
+	);
 	if (!media) {
 		return null;
 	}
 
 	try {
 		const form = new FormData();
-		// Use audio/ogg as the MIME type (strip codec params like "; codecs=opus")
+		// Strip codec params like "; codecs=opus" from content-type
 		const mimeType = media.contentType.split(";")[0]?.trim() ?? "audio/ogg";
+
 		// Map MIME type to Whisper-supported extension
 		const extMap: Record<string, string> = {
 			"audio/ogg": "ogg",
 			"audio/mpeg": "mp3",
+			"audio/mp3": "mp3",
 			"audio/mp4": "m4a",
+			"audio/x-m4a": "m4a",
+			"audio/m4a": "m4a",
 			"audio/wav": "wav",
+			"audio/x-wav": "wav",
 			"audio/webm": "webm",
 			"audio/flac": "flac",
+			"audio/x-flac": "flac",
 		};
-		const ext = extMap[mimeType] ?? "ogg";
+
+		// Resolve extension: use MIME map, detect from media ID prefix, or default to ogg
+		let ext = extMap[mimeType];
+		if (!ext) {
+			// Whapi media IDs are prefixed with format (e.g. "oga-...", "mp3-...")
+			if (mediaId.startsWith("oga-")) {
+				ext = "oga";
+			} else if (mediaId.startsWith("mp3-")) {
+				ext = "mp3";
+			} else if (mediaId.startsWith("m4a-")) {
+				ext = "m4a";
+			} else {
+				ext = "ogg";
+			}
+		}
+
+		const fileMime = extMap[mimeType] ? mimeType : "audio/ogg";
 		// Use File instead of Blob — Node's FormData needs a proper File with name
 		const file = new File([new Uint8Array(media.buffer)], `voice.${ext}`, {
-			type: mimeType,
+			type: fileMime,
 		});
 		form.append("file", file);
 		form.append("model", "whisper-1");
@@ -301,6 +445,10 @@ export async function transcribeAudio(
 			logger.error("Whisper transcription failed", {
 				status: response.status,
 				error: errorText,
+				contentType: media.contentType,
+				bufferSize: media.buffer.length,
+				fileExt: ext,
+				mediaId,
 			});
 			return null;
 		}
@@ -320,6 +468,8 @@ export async function describeImage(
 	whapiToken: string,
 	mediaId: string,
 	caption?: string,
+	mediaLink?: string,
+	messageId?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -327,7 +477,12 @@ export async function describeImage(
 		return null;
 	}
 
-	const media = await downloadMedia(whapiToken, mediaId);
+	const media = await downloadMedia(
+		whapiToken,
+		mediaId,
+		mediaLink,
+		messageId,
+	);
 	if (!media) {
 		return null;
 	}

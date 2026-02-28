@@ -5,7 +5,7 @@ import type { RegisteredTool, ToolContext } from "./types";
 const identifyCustomerDef = toolDefinition({
 	name: "identify-customer",
 	description:
-		"Look up a customer by account number, phone number, or email address. Returns limited public info only (first name, last 4 digits of account number, PIN status). Use this when a customer wants to identify themselves.",
+		"Look up a customer by account number, phone number, or email address. Returns limited public info only (first name, last 4 digits of account number, PIN status). Use this when a customer wants to identify themselves. IMPORTANT: If multiple customers share the same phone/email, the result will contain a list of matches. You MUST present the matches (names and last 4 digits of account numbers) and ask the customer to confirm which account is theirs before proceeding.",
 	inputSchema: z.object({
 		query: z
 			.string()
@@ -33,7 +33,7 @@ function createIdentifyCustomerTool(context: ToolContext) {
 				where["email"] = args.query;
 			}
 
-			const customer = await db.customer.findFirst({
+			const customers = await db.customer.findMany({
 				where,
 				select: {
 					id: true,
@@ -43,22 +43,39 @@ function createIdentifyCustomerTool(context: ToolContext) {
 				},
 			});
 
-			if (!customer) {
+			if (customers.length === 0) {
 				return {
 					found: false,
 					message: "No customer found with the provided information.",
 				};
 			}
 
-			const firstName = customer.fullName.split(" ")[0];
-			const accountLast4 = customer.accountNumber.slice(-4);
+			const customer = customers[0];
+			if (customers.length === 1 && customer) {
+				const firstName = customer.fullName.split(" ")[0];
+				const accountLast4 = customer.accountNumber.slice(-4);
 
+				return {
+					found: true,
+					customerId: customer.id,
+					name: firstName,
+					accountNumberLast4: accountLast4,
+					hasPin: customer.pinHash !== null,
+				};
+			}
+
+			// Multiple customers share the same identifier — return all matches
+			// so the AI can ask the user which account they mean
 			return {
 				found: true,
-				customerId: customer.id,
-				name: firstName,
-				accountNumberLast4: accountLast4,
-				hasPin: customer.pinHash !== null,
+				multipleMatches: true,
+				message: `Multiple customers (${customers.length}) share this ${args.queryType.replace("_", " ")}. Ask the customer which account is theirs.`,
+				customers: customers.map((c) => ({
+					customerId: c.id,
+					name: c.fullName.split(" ")[0],
+					accountNumberLast4: c.accountNumber.slice(-4),
+					hasPin: c.pinHash !== null,
+				})),
 			};
 		} catch (error) {
 			return {

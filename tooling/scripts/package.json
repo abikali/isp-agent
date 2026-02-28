@@ -15,6 +15,7 @@
 	"private": true,
 	"scripts": {
 		"create:user": "dotenv -c -e ../../.env -- tsx ./src/create-user.ts",
+		"debug:media": "dotenv -e ../../.env.local -- tsx ./src/debug-media-download.ts",
 		"type-check": "tsc --noEmit"
 	},
 	"version": "0.0.0"

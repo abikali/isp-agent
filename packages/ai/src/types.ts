@@ -9,6 +9,8 @@ export interface ParsedMessage {
 	timestamp?: number | undefined;
 	/** Whapi media ID for downloading via GET /media/{id} */
 	mediaId?: string | undefined;
+	/** Direct download URL for media (e.g. Whapi auto-download S3 link) */
+	mediaLink?: string | undefined;
 	/** Type of media: "voice", "image", etc. */
 	mediaType?: string | undefined;
 	/** Caption attached to image/video media */
