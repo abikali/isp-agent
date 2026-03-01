@@ -58,28 +58,62 @@ function escapeHtml(text: string): string {
 		.replace(/>/g, "&gt;");
 }
 
+interface CustomerDetails {
+	fullName: string;
+	phone: string | null;
+	email: string | null;
+	username: string | null;
+	address: string | null;
+	accountNumber: string;
+	status: string;
+	planName: string | null;
+	stationName: string | null;
+}
+
+function parseChatIds(raw: string): string[] {
+	return raw
+		.split(/[\n,]+/)
+		.map((id) => id.trim())
+		.filter((id) => id.length > 0);
+}
+
 function createEscalateTelegramTool(context: ToolContext) {
 	return escalateTelegramDef.server(async (args) => {
 		try {
 			const telegramBotToken = context.toolConfig?.["telegramBotToken"] as
 				| string
 				| undefined;
-			const telegramChatId = context.toolConfig?.["telegramChatId"] as
+			const telegramChatIds = context.toolConfig?.["telegramChatIds"] as
 				| string
 				| undefined;
 
-			if (!telegramBotToken || !telegramChatId) {
+			// Backwards compatibility: fall back to old single-value key
+			const rawChatIds =
+				telegramChatIds ??
+				(context.toolConfig?.["telegramChatId"] as string | undefined);
+
+			if (!telegramBotToken || !rawChatIds) {
 				return {
 					success: false,
 					message:
-						"Escalation is not configured. Please set up the Telegram Bot Token and Chat ID in the tool settings.",
+						"Escalation is not configured. Please set up the Telegram Bot Token and Chat IDs in the tool settings.",
 				};
 			}
 
-			// Load conversation and agent info for context
+			const chatIds = parseChatIds(rawChatIds);
+			if (chatIds.length === 0) {
+				return {
+					success: false,
+					message:
+						"No valid Telegram Chat IDs configured. Please add at least one Chat ID in the tool settings.",
+				};
+			}
+
+			// Load conversation, agent info, and verified customer details
 			let contactId: string | null = null;
 			let contactName: string | null = null;
 			let agentName = "Unknown Agent";
+			let customer: CustomerDetails | null = null;
 
 			try {
 				const { db } = await import("@repo/database");
@@ -87,7 +121,11 @@ function createEscalateTelegramTool(context: ToolContext) {
 				const [conversation, agent] = await Promise.all([
 					db.aiConversation.findUnique({
 						where: { id: context.conversationId },
-						select: { contactId: true, contactName: true },
+						select: {
+							contactId: true,
+							contactName: true,
+							verifiedCustomerId: true,
+						},
 					}),
 					db.aiAgent.findUnique({
 						where: { id: context.agentId },
@@ -98,6 +136,38 @@ function createEscalateTelegramTool(context: ToolContext) {
 				if (conversation) {
 					contactId = conversation.contactId;
 					contactName = conversation.contactName;
+
+					// Fetch verified customer details if available
+					if (conversation.verifiedCustomerId) {
+						const dbCustomer = await db.customer.findUnique({
+							where: { id: conversation.verifiedCustomerId },
+							select: {
+								fullName: true,
+								phone: true,
+								email: true,
+								username: true,
+								address: true,
+								accountNumber: true,
+								status: true,
+								plan: { select: { name: true } },
+								station: { select: { name: true } },
+							},
+						});
+
+						if (dbCustomer) {
+							customer = {
+								fullName: dbCustomer.fullName,
+								phone: dbCustomer.phone,
+								email: dbCustomer.email,
+								username: dbCustomer.username,
+								address: dbCustomer.address,
+								accountNumber: dbCustomer.accountNumber,
+								status: dbCustomer.status,
+								planName: dbCustomer.plan?.name ?? null,
+								stationName: dbCustomer.station?.name ?? null,
+							};
+						}
+					}
 				}
 				if (agent) {
 					agentName = agent.name;
@@ -114,6 +184,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 
 			const displayName =
 				args.customerName ??
+				customer?.fullName ??
 				contactName ??
 				context.contactName ??
 				"Unknown";
@@ -124,14 +195,47 @@ function createEscalateTelegramTool(context: ToolContext) {
 				`${priorityEmoji} <b>Escalation — ${args.priority.toUpperCase()}</b>`,
 				"",
 				`<b>Reason:</b> ${escapeHtml(args.reason)}`,
-				"",
-				`<b>Customer:</b> ${escapeHtml(displayName)}`,
 			];
 
-			if (args.customerUsername) {
+			// Customer details section
+			lines.push("", `<b>Customer:</b> ${escapeHtml(displayName)}`);
+
+			if (customer) {
 				lines.push(
-					`<b>ISP Username:</b> <code>${escapeHtml(args.customerUsername)}</code>`,
+					`<b>Account #:</b> <code>${escapeHtml(customer.accountNumber)}</code>`,
 				);
+				if (customer.username) {
+					lines.push(
+						`<b>ISP Username:</b> <code>${escapeHtml(customer.username)}</code>`,
+					);
+				}
+				if (customer.phone) {
+					lines.push(`<b>Phone:</b> ${escapeHtml(customer.phone)}`);
+				}
+				if (customer.email) {
+					lines.push(`<b>Email:</b> ${escapeHtml(customer.email)}`);
+				}
+				if (customer.address) {
+					lines.push(
+						`<b>Address:</b> ${escapeHtml(customer.address)}`,
+					);
+				}
+				if (customer.planName) {
+					lines.push(`<b>Plan:</b> ${escapeHtml(customer.planName)}`);
+				}
+				if (customer.stationName) {
+					lines.push(
+						`<b>Station:</b> ${escapeHtml(customer.stationName)}`,
+					);
+				}
+				lines.push(`<b>Status:</b> ${escapeHtml(customer.status)}`);
+			} else {
+				// Fall back to tool-provided username if no verified customer
+				if (args.customerUsername) {
+					lines.push(
+						`<b>ISP Username:</b> <code>${escapeHtml(args.customerUsername)}</code>`,
+					);
+				}
 			}
 
 			if (contactId) {
@@ -159,16 +263,61 @@ function createEscalateTelegramTool(context: ToolContext) {
 
 			const message = lines.join("\n");
 
-			// Send via grammy Api
+			// Send to all configured chat IDs
 			const { Api } = await import("grammy");
 			const api = new Api(telegramBotToken);
-			await api.sendMessage(Number(telegramChatId), message, {
-				parse_mode: "HTML",
-			});
+
+			const results: Array<{
+				chatId: string;
+				success: boolean;
+				error?: string;
+			}> = [];
+
+			await Promise.allSettled(
+				chatIds.map(async (chatId) => {
+					try {
+						await api.sendMessage(Number(chatId), message, {
+							parse_mode: "HTML",
+						});
+						results.push({ chatId, success: true });
+					} catch (error) {
+						const errorMsg =
+							error instanceof Error
+								? error.message
+								: "Unknown error";
+						logger.error(
+							`Telegram escalation failed for chat ${chatId}`,
+							{ error, conversationId: context.conversationId },
+						);
+						results.push({
+							chatId,
+							success: false,
+							error: errorMsg,
+						});
+					}
+				}),
+			);
+
+			const succeeded = results.filter((r) => r.success).length;
+			const failed = results.filter((r) => !r.success);
+
+			if (succeeded === 0) {
+				return {
+					success: false,
+					message: `Failed to send escalation alert to all ${chatIds.length} recipients. Errors: ${failed.map((f) => `${f.chatId}: ${f.error}`).join("; ")}`,
+				};
+			}
+
+			if (failed.length > 0) {
+				return {
+					success: true,
+					message: `Escalation alert sent to ${succeeded}/${chatIds.length} recipients with priority ${args.priority}. Failed: ${failed.map((f) => f.chatId).join(", ")}`,
+				};
+			}
 
 			return {
 				success: true,
-				message: `Escalation alert sent to the support team with priority ${args.priority}. The team has been notified with full diagnostic details.`,
+				message: `Escalation alert sent to ${succeeded} recipient${succeeded > 1 ? "s" : ""} with priority ${args.priority}. The team has been notified with full diagnostic details.`,
 			};
 		} catch (error) {
 			logger.error("Telegram escalation failed", {
@@ -200,11 +349,13 @@ export const escalateTelegram: RegisteredTool = {
 				placeholder: "123456:ABC-DEF...",
 			},
 			{
-				key: "telegramChatId",
-				label: "Telegram Chat ID",
-				type: "text",
+				key: "telegramChatIds",
+				label: "Telegram Chat IDs",
+				type: "textarea",
 				required: true,
-				placeholder: "-1001234567890 (group) or 123456789 (user)",
+				placeholder: "-1001234567890\n123456789\n-1009876543210",
+				description:
+					"One Chat ID per line. Supports group IDs (e.g. -1001234567890) and user IDs (e.g. 123456789).",
 			},
 		],
 	},

@@ -18,15 +18,17 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import { Textarea } from "@ui/components/textarea";
 import { useUpdateToolConfig } from "../hooks/use-tools";
 
 interface ConfigField {
 	key: string;
 	label: string;
-	type: "text" | "password" | "select";
+	type: "text" | "password" | "select" | "textarea";
 	required: boolean;
 	placeholder?: string | undefined;
 	defaultValue?: string | undefined;
+	description?: string | undefined;
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 
@@ -133,6 +135,21 @@ export function ToolConfigDialog({
 												))}
 											</SelectContent>
 										</Select>
+									) : field.type === "textarea" ? (
+										<Textarea
+											id={`config-${field.key}`}
+											rows={3}
+											value={formField.state.value}
+											onChange={(e) =>
+												formField.handleChange(
+													e.target.value,
+												)
+											}
+											onBlur={formField.handleBlur}
+											placeholder={
+												field.placeholder ?? ""
+											}
+										/>
 									) : (
 										<Input
 											id={`config-${field.key}`}
@@ -152,6 +169,11 @@ export function ToolConfigDialog({
 												field.placeholder ?? ""
 											}
 										/>
+									)}
+									{field.description && (
+										<p className="text-muted-foreground text-xs">
+											{field.description}
+										</p>
 									)}
 								</Field>
 							)}

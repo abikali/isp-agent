@@ -14,6 +14,7 @@ const WHITELISTED_FIELDS = [
 	"firstName",
 	"lastName",
 	"userName",
+	"address",
 	// Account status
 	"online",
 	"active",
@@ -93,6 +94,7 @@ THEN determine connection type:
 
 Field reference:
 - firstName, lastName, userName: Customer identity. userName is the PPPoE/Hotspot login.
+- address: Customer physical address/location (useful for distinguishing accounts when multiple match the same phone number).
 - online: Whether currently connected. false = disconnected, router off, or simply offline.
 - active: Whether account is enabled. Inactive accounts cannot connect.
 - blocked: Whether blocked by ISP (e.g. non-payment). Cannot connect even if active.
@@ -115,7 +117,7 @@ Field reference:
 - pingResult: Ping results from ISP network to customer device.
 - creationDate, lastLogin, lastLogOut: Account dates.
 
-Does NOT return billing amounts or personal contact info (phone/email/address are stripped).`,
+Does NOT return billing amounts or personal contact info (phone/email are stripped).`,
 	inputSchema: z.object({
 		query: z
 			.string()
@@ -158,7 +160,7 @@ function createIspSearchCustomerTool(context: ToolContext) {
 				return {
 					success: true,
 					multipleMatches: true,
-					message: `Found ${filtered.length} customers matching "${args.query}". Ask the customer which account is theirs by presenting the names/usernames so they can identify themselves.`,
+					message: `Found ${filtered.length} customers matching "${args.query}". Present ALL accounts with their full name, userName, and address (if available) so the customer can identify theirs. CRITICAL: When the customer picks one, you MUST use the exact "userName" value from this result list to call isp-search-customer again — do NOT use whatever the customer typed verbatim.`,
 					customers: filtered,
 				};
 			},

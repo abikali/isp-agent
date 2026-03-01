@@ -6,6 +6,7 @@ import {
 	generateAgentResponse,
 	LANGUAGE_MATCHING_INSTRUCTION,
 	MAINTENANCE_MODE_INSTRUCTION,
+	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	resolveTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -139,6 +140,7 @@ export async function handleWebChatMessage(
 		}
 		if (agent.enabledTools.includes("isp-search-customer")) {
 			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
+			systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
 		}
 	}
 

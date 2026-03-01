@@ -4,11 +4,13 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
+	CUSTOMER_IDENTIFICATION_INSTRUCTION,
 	decryptToken,
 	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
 	LANGUAGE_MATCHING_INSTRUCTION,
 	MAINTENANCE_MODE_INSTRUCTION,
+	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	resolveTools,
 	sendTextMessage,
 } from "@repo/ai";
@@ -108,6 +110,13 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				conversation.agent.enabledTools.includes("escalate-telegram")
 			) {
 				systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+			}
+			if (
+				tools &&
+				conversation.agent.enabledTools.includes("isp-search-customer")
+			) {
+				systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
+				systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
 			}
 
 			try {

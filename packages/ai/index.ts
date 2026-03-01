@@ -6,6 +6,7 @@ export {
 	generateAgentResponse,
 	LANGUAGE_MATCHING_INSTRUCTION,
 	MAINTENANCE_MODE_INSTRUCTION,
+	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";

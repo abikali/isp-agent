@@ -28,10 +28,11 @@ export interface ToolMetadata {
 export interface ConfigField {
 	key: string;
 	label: string;
-	type: "text" | "password" | "select";
+	type: "text" | "password" | "select" | "textarea";
 	required: boolean;
 	placeholder?: string | undefined;
 	defaultValue?: string | undefined;
+	description?: string | undefined;
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 

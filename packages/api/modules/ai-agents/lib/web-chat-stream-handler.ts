@@ -5,6 +5,7 @@ import {
 	ESCALATION_TOOL_INSTRUCTION,
 	LANGUAGE_MATCHING_INSTRUCTION,
 	MAINTENANCE_MODE_INSTRUCTION,
+	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	resolveTools,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "@repo/ai";
@@ -184,6 +185,7 @@ export async function handleWebChatStream(
 		}
 		if (agent.enabledTools.includes("isp-search-customer")) {
 			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
+			systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
 		}
 	}
 
