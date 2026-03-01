@@ -231,7 +231,7 @@ async function handleMessages(
 				if (msg.contactId) {
 					parts.push(`phone: ${msg.contactId}`);
 				}
-				systemPrompt += `\n\nThe customer contacting you: ${parts.join(", ")}. Use this information to look up their account — do not ask them for their phone number.`;
+				systemPrompt += `\n\nThe customer contacting you via WhatsApp: ${parts.join(", ")}. Use this as the default to look up their account, but if the customer explicitly provides a different phone number, name, or account number in their message, use that instead.`;
 			}
 			if (tools) {
 				systemPrompt += VERBOSE_TOOL_INSTRUCTION;
