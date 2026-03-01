@@ -1,7 +1,10 @@
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
+	CUSTOMER_IDENTIFICATION_INSTRUCTION,
 	createAgentStream,
 	ESCALATION_TOOL_INSTRUCTION,
+	LANGUAGE_MATCHING_INSTRUCTION,
+	MAINTENANCE_MODE_INSTRUCTION,
 	resolveTools,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "@repo/ai";
@@ -170,10 +173,17 @@ export async function handleWebChatStream(
 
 	// Enhance system prompt for verbose tool narration + escalation
 	let systemPrompt = agent.systemPrompt;
+	if (agent.maintenanceMode && agent.maintenanceMessage) {
+		systemPrompt += MAINTENANCE_MODE_INSTRUCTION(agent.maintenanceMessage);
+	}
+	systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
 	if (tools) {
 		systemPrompt += VERBOSE_TOOL_INSTRUCTION;
 		if (agent.enabledTools.includes("escalate-telegram")) {
 			systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+		}
+		if (agent.enabledTools.includes("isp-search-customer")) {
+			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
 		}
 	}
 

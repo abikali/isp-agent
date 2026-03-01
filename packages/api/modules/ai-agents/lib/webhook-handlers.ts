@@ -4,9 +4,12 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
+	CUSTOMER_IDENTIFICATION_INSTRUCTION,
 	decryptToken,
 	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
+	LANGUAGE_MATCHING_INSTRUCTION,
+	MAINTENANCE_MODE_INSTRUCTION,
 	markAsRead,
 	parseWebhookPayload,
 	processMedia,
@@ -223,6 +226,14 @@ async function handleMessages(
 
 			// Build system prompt once
 			let systemPrompt = channel.agent.systemPrompt;
+			if (
+				channel.agent.maintenanceMode &&
+				channel.agent.maintenanceMessage
+			) {
+				systemPrompt += MAINTENANCE_MODE_INSTRUCTION(
+					channel.agent.maintenanceMessage,
+				);
+			}
 			if (msg.contactName || msg.contactId) {
 				const parts: string[] = [];
 				if (msg.contactName) {
@@ -233,10 +244,16 @@ async function handleMessages(
 				}
 				systemPrompt += `\n\nThe customer contacting you via WhatsApp: ${parts.join(", ")}. Use this as the default to look up their account, but if the customer explicitly provides a different phone number, name, or account number in their message, use that instead.`;
 			}
+			systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
 			if (tools) {
 				systemPrompt += VERBOSE_TOOL_INSTRUCTION;
 				if (channel.agent.enabledTools.includes("escalate-telegram")) {
 					systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+				}
+				if (
+					channel.agent.enabledTools.includes("isp-search-customer")
+				) {
+					systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
 				}
 			}
 

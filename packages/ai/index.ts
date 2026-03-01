@@ -1,13 +1,17 @@
 export { decryptToken, encryptToken } from "./src/encryption";
 export {
+	CUSTOMER_IDENTIFICATION_INSTRUCTION,
 	createAgentStream,
 	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
+	LANGUAGE_MATCHING_INSTRUCTION,
+	MAINTENANCE_MODE_INSTRUCTION,
 	VERBOSE_TOOL_INSTRUCTION,
 } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
 export { getAdapter, isValidModel } from "./src/model-registry";
+export { hashPin } from "./src/pin";
 export {
 	markAsRead,
 	parseWebhookPayload,
@@ -26,7 +30,6 @@ export type {
 	ToolContext,
 	ToolMetadata,
 } from "./src/tools/types";
-export { hashPin } from "./src/tools/verify-customer-pin";
 export type {
 	ChannelProvider,
 	GenerateResponseInput,

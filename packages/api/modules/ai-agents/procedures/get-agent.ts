@@ -42,6 +42,8 @@ export const getAgent = protectedProcedure
 				model: true,
 				knowledgeBase: true,
 				enabled: true,
+				maintenanceMode: true,
+				maintenanceMessage: true,
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,

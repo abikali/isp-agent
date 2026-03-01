@@ -9,7 +9,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@ui/components/card";
-import { BotIcon, MessageSquareIcon, PlusIcon, RadioIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	BotIcon,
+	MessageSquareIcon,
+	PlusIcon,
+	RadioIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { useAgents } from "../hooks/use-agents";
 import { CreateAgentDialog } from "./CreateAgentDialog";
@@ -65,17 +71,28 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 										<CardTitle className="text-base">
 											{agent.name}
 										</CardTitle>
-										<Badge
-											variant={
-												agent.enabled
-													? "default"
-													: "secondary"
-											}
-										>
-											{agent.enabled
-												? "Active"
-												: "Disabled"}
-										</Badge>
+										<div className="flex items-center gap-1.5">
+											{agent.maintenanceMode && (
+												<Badge
+													variant="outline"
+													className="border-amber-500/50 text-amber-600 dark:text-amber-400"
+												>
+													<AlertTriangleIcon className="mr-1 size-3" />
+													Maintenance
+												</Badge>
+											)}
+											<Badge
+												variant={
+													agent.enabled
+														? "default"
+														: "secondary"
+												}
+											>
+												{agent.enabled
+													? "Active"
+													: "Disabled"}
+											</Badge>
+										</div>
 									</div>
 									{agent.description && (
 										<CardDescription className="line-clamp-2">

@@ -7,6 +7,8 @@ import {
 	decryptToken,
 	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
+	LANGUAGE_MATCHING_INSTRUCTION,
+	MAINTENANCE_MODE_INSTRUCTION,
 	resolveTools,
 	sendTextMessage,
 } from "@repo/ai";
@@ -90,8 +92,17 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				);
 			}
 
-			// Enhance system prompt for escalation
+			// Enhance system prompt
 			let systemPrompt = conversation.agent.systemPrompt;
+			if (
+				conversation.agent.maintenanceMode &&
+				conversation.agent.maintenanceMessage
+			) {
+				systemPrompt += MAINTENANCE_MODE_INSTRUCTION(
+					conversation.agent.maintenanceMessage,
+				);
+			}
+			systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
 			if (
 				tools &&
 				conversation.agent.enabledTools.includes("escalate-telegram")

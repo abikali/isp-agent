@@ -38,6 +38,7 @@ import {
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import {
+	AlertTriangleIcon,
 	BotIcon,
 	BrainIcon,
 	HelpCircleIcon,
@@ -109,6 +110,8 @@ export function AgentSettings({
 			model: agent.model,
 			knowledgeBase: agent.knowledgeBase ?? "",
 			enabled: agent.enabled,
+			maintenanceMode: agent.maintenanceMode,
+			maintenanceMessage: agent.maintenanceMessage ?? "",
 			maxHistoryLength: agent.maxHistoryLength,
 			temperature: agent.temperature,
 			enabledTools: agent.enabledTools as string[],
@@ -124,6 +127,8 @@ export function AgentSettings({
 				model: value.model,
 				knowledgeBase: value.knowledgeBase || undefined,
 				enabled: value.enabled,
+				maintenanceMode: value.maintenanceMode,
+				maintenanceMessage: value.maintenanceMessage || undefined,
 				maxHistoryLength: value.maxHistoryLength,
 				temperature: value.temperature,
 				enabledTools: value.enabledTools,
@@ -204,6 +209,82 @@ export function AgentSettings({
 						</div>
 					</CardHeader>
 				</Card>
+
+				{/* Maintenance Mode */}
+				<form.Field name="maintenanceMode">
+					{(modeField) => (
+						<Card
+							className={`mb-6 ${modeField.state.value ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
+						>
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-3">
+										<div
+											className={`flex size-10 items-center justify-center rounded-lg ${modeField.state.value ? "bg-amber-100 dark:bg-amber-900/50" : "bg-muted"}`}
+										>
+											<AlertTriangleIcon
+												className={`size-5 ${modeField.state.value ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+											/>
+										</div>
+										<div>
+											<CardTitle className="text-lg">
+												Maintenance Mode
+											</CardTitle>
+											<CardDescription>
+												Inform customers about known
+												issues or outages
+											</CardDescription>
+										</div>
+									</div>
+									<div className="flex items-center gap-2">
+										<Badge
+											variant={
+												modeField.state.value
+													? "destructive"
+													: "secondary"
+											}
+										>
+											{modeField.state.value
+												? "Active"
+												: "Off"}
+										</Badge>
+										<Switch
+											checked={modeField.state.value}
+											onCheckedChange={
+												modeField.handleChange
+											}
+										/>
+									</div>
+								</div>
+								{modeField.state.value && (
+									<form.Field name="maintenanceMessage">
+										{(msgField) => (
+											<div className="mt-4">
+												<FieldLabel htmlFor="maintenance-message">
+													What should the agent know?
+													<FieldHint text="Describe the issue internally. The agent will rephrase this naturally — it won't be shown verbatim to customers." />
+												</FieldLabel>
+												<Textarea
+													id="maintenance-message"
+													value={msgField.state.value}
+													onChange={(e) =>
+														msgField.handleChange(
+															e.target.value,
+														)
+													}
+													onBlur={msgField.handleBlur}
+													rows={3}
+													placeholder="e.g. Fiber cut in downtown area affecting ~200 customers. Repair crew dispatched, ETA 4 hours."
+													className="mt-1.5"
+												/>
+											</div>
+										)}
+									</form.Field>
+								)}
+							</CardHeader>
+						</Card>
+					)}
+				</form.Field>
 
 				{/* Accordion sections */}
 				<Accordion

@@ -1,6 +1,4 @@
 import type { ServerTool } from "@tanstack/ai";
-import { contactEnrichment } from "./contact-enrichment";
-import { crmExport } from "./crm-export";
 import { dnsLookup } from "./dns-lookup";
 import { emailCheck } from "./email-check";
 import { escalateTelegram } from "./escalate-telegram";
@@ -9,21 +7,13 @@ import { ispMikrotikUsers } from "./isp-mikrotik-users";
 import { ispPingCustomer } from "./isp-ping-customer";
 import { ispPingIp } from "./isp-ping-ip";
 import { ispSearchCustomer } from "./isp-search-customer";
-import { leadCapture } from "./lead-capture";
-import { meetingScheduler } from "./meeting-scheduler";
 import { pingHost } from "./ping-host";
 import { portScan } from "./port-scan";
-import { profileShare } from "./profile-share";
 import { speedTest } from "./speed-test";
 import { traceroute } from "./traceroute";
 import type { RegisteredTool, ToolContext, ToolMetadata } from "./types";
 
 const TOOL_REGISTRY: Record<string, RegisteredTool> = {
-	"lead-capture": leadCapture,
-	"profile-share": profileShare,
-	"meeting-scheduler": meetingScheduler,
-	"contact-enrichment": contactEnrichment,
-	"crm-export": crmExport,
 	"ping-host": pingHost,
 	"port-scan": portScan,
 	traceroute: traceroute,

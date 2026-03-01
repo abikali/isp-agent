@@ -1,8 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
+	CUSTOMER_IDENTIFICATION_INSTRUCTION,
 	ESCALATION_TOOL_INSTRUCTION,
 	generateAgentResponse,
+	LANGUAGE_MATCHING_INSTRUCTION,
+	MAINTENANCE_MODE_INSTRUCTION,
 	resolveTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -124,10 +127,19 @@ export async function handleWebChatMessage(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
-	// Enhance system prompt for escalation
+	// Enhance system prompt
 	let systemPrompt = agent.systemPrompt;
-	if (tools && agent.enabledTools.includes("escalate-telegram")) {
-		systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+	if (agent.maintenanceMode && agent.maintenanceMessage) {
+		systemPrompt += MAINTENANCE_MODE_INSTRUCTION(agent.maintenanceMessage);
+	}
+	systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
+	if (tools) {
+		if (agent.enabledTools.includes("escalate-telegram")) {
+			systemPrompt += ESCALATION_TOOL_INSTRUCTION;
+		}
+		if (agent.enabledTools.includes("isp-search-customer")) {
+			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
+		}
 	}
 
 	// Generate AI response with timeout

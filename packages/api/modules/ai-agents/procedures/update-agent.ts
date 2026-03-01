@@ -23,6 +23,8 @@ export const updateAgent = protectedProcedure
 			model: z.string().optional(),
 			knowledgeBase: z.string().max(50000).optional(),
 			enabled: z.boolean().optional(),
+			maintenanceMode: z.boolean().optional(),
+			maintenanceMessage: z.string().max(2000).optional(),
 			maxHistoryLength: z.number().int().min(1).max(50).optional(),
 			temperature: z.number().min(0).max(2).optional(),
 			enabledTools: z.array(z.string()).optional(),
@@ -46,6 +48,18 @@ export const updateAgent = protectedProcedure
 			throw new ORPCError("NOT_FOUND", {
 				message: "Agent not found",
 			});
+		}
+
+		// Validate: maintenanceMessage required when enabling maintenanceMode
+		if (input.maintenanceMode === true) {
+			const message =
+				input.maintenanceMessage ?? existing.maintenanceMessage;
+			if (!message) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"A maintenance message is required when enabling maintenance mode",
+				});
+			}
 		}
 
 		const { agentId, organizationId, ...rest } = input;
@@ -73,6 +87,12 @@ export const updateAgent = protectedProcedure
 		if (rest.enabled !== undefined) {
 			updateData["enabled"] = rest.enabled;
 		}
+		if (rest.maintenanceMode !== undefined) {
+			updateData["maintenanceMode"] = rest.maintenanceMode;
+		}
+		if (rest.maintenanceMessage !== undefined) {
+			updateData["maintenanceMessage"] = rest.maintenanceMessage ?? null;
+		}
 		if (rest.maxHistoryLength !== undefined) {
 			updateData["maxHistoryLength"] = rest.maxHistoryLength;
 		}
@@ -95,6 +115,8 @@ export const updateAgent = protectedProcedure
 				model: true,
 				knowledgeBase: true,
 				enabled: true,
+				maintenanceMode: true,
+				maintenanceMessage: true,
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,
