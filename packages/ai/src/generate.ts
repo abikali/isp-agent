@@ -18,13 +18,13 @@ export function createAgentStream(
 ): AsyncIterable<StreamChunk> {
 	const adapter = getAdapter(input.model);
 
-	let systemPrompt = input.systemPrompt;
+	// Inject current time at the top so the model can reason about dates/expiry/schedules
+	let systemPrompt = `Current date and time: ${new Date().toISOString()}\n\n${input.systemPrompt}`;
+
+	// Knowledge base goes after all instructions (reference material, not behavioral rules)
 	if (input.knowledgeBase) {
 		systemPrompt = `${systemPrompt}\n\n--- Knowledge Base ---\n${input.knowledgeBase}`;
 	}
-
-	// Inject current time so the model can reason about dates/expiry/schedules
-	systemPrompt = `${systemPrompt}\n\nCurrent date and time: ${new Date().toISOString()}`;
 
 	return chat({
 		adapter,
@@ -34,7 +34,7 @@ export function createAgentStream(
 		agentLoopStrategy: input.maxSteps
 			? maxIterations(input.maxSteps)
 			: undefined,
-		temperature: input.temperature ?? 0.7,
+		temperature: input.temperature ?? 0.3,
 		abortController: input.abortController,
 	});
 }

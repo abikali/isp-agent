@@ -51,7 +51,20 @@ function createIspBandwidthStatsTool(context: ToolContext) {
 				const latest = data[data.length - 1];
 				let summary = `${data.length} data points.`;
 				if (latest) {
-					summary += ` Latest reading (${latest.date}): ↓ ${latest.currentDown} kbps / ↑ ${latest.currentUp} kbps (limits: ↓ ${latest.limitDown} kbps / ↑ ${latest.limitUp} kbps).`;
+					const percentDown =
+						latest.limitDown > 0
+							? Math.round(
+									(latest.currentDown / latest.limitDown) *
+										100,
+								)
+							: 0;
+					const percentUp =
+						latest.limitUp > 0
+							? Math.round(
+									(latest.currentUp / latest.limitUp) * 100,
+								)
+							: 0;
+					summary += ` Latest reading (${latest.date}): download at ${percentDown}% of plan limit, upload at ${percentUp}% of plan limit.`;
 				}
 
 				return {

@@ -551,7 +551,7 @@ model AiAgent {
   maintenanceMode     Boolean          @default(false)
   maintenanceMessage  String?          @db.Text
   maxHistoryLength Int              @default(20)
-  temperature      Float            @default(0.7)
+  temperature      Float            @default(0.3)
   enabledTools     String[]         @default([])
   webChatEnabled   Boolean          @default(false)
   webChatToken     String?          @unique
