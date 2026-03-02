@@ -18,8 +18,8 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"@paralleldrive/cuid2": "3.0.6",
-		"@react-email/render": "^2.0.0",
+		"@paralleldrive/cuid2": "3.3.0",
+		"@react-email/render": "^2.0.4",
 		"@repo/ai": "workspace:*",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
@@ -27,8 +27,8 @@
 		"@repo/logs": "workspace:*",
 		"@repo/mail": "workspace:*",
 		"@repo/storage": "workspace:*",
-		"bullmq": "^5.65.1",
-		"ioredis": "^5.8.2"
+		"bullmq": "^5.70.1",
+		"ioredis": "^5.10.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",

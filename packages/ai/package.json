@@ -14,15 +14,15 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"@ai-sdk/openai": "^3.0.0",
+		"@ai-sdk/openai": "^3.0.37",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
-		"@tanstack/ai": "^0.5.0",
-		"@tanstack/ai-anthropic": "^0.5.0",
-		"@tanstack/ai-openai": "^0.5.0",
-		"ai": "^6.0.0",
-		"grammy": "^1.39.2",
+		"@tanstack/ai": "^0.6.1",
+		"@tanstack/ai-anthropic": "^0.6.0",
+		"@tanstack/ai-openai": "^0.6.0",
+		"ai": "^6.0.105",
+		"grammy": "^1.41.0",
 		"nodejs-traceroute": "^2.0.1",
 		"speedtest-net": "^2.2.0",
 		"zod": "^4.3.0"
