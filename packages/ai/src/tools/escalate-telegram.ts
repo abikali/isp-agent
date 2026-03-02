@@ -27,7 +27,7 @@ const escalateTelegramDef = toolDefinition({
 		summary: z
 			.string()
 			.describe(
-				"All context for the team: customer name, phone number, what they need, location, and any diagnostic findings",
+				"A concise summary of the entire conversation for the team: what the customer wanted or reported, what you did (diagnostics, lookups, actions taken), the current status, and why this is being escalated. Include customer name, phone number, location, and any diagnostic findings.",
 			),
 		customerName: z.string().optional().describe("Customer name if known"),
 		customerUsername: z
