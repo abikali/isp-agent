@@ -12,10 +12,11 @@ export default defineConfig(({ mode }) => {
 	return {
 		server: {
 			port: 5050,
-			// Allow tunnel domains for webhook testing in E2E
+			// Allow tunnel domains for webhook testing
+			// .ngrok-free.dev = ngrok (recommended by Wasender)
 			// .trycloudflare.com = Cloudflare Quick Tunnels (untun)
 			// .loca.lt = LocalTunnel (fallback)
-			allowedHosts: [".trycloudflare.com", ".loca.lt"],
+			allowedHosts: [".ngrok-free.dev", ".trycloudflare.com", ".loca.lt"],
 		},
 		preview: {
 			port: 5050,

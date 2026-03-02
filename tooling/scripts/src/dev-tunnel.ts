@@ -1,24 +1,59 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { decryptToken, telegram, whatsapp } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { startTunnel } from "untun";
 
-async function main() {
-	// 1. Start Cloudflare tunnel
-	logger.info("Starting Cloudflare tunnel to localhost:5050...");
-	const maybeTunnel = await startTunnel({
-		port: 5050,
-		acceptCloudflareNotice: true,
+function startNgrokTunnel(
+	port: number,
+): Promise<{ url: string; process: ChildProcess }> {
+	return new Promise((resolve, reject) => {
+		const ngrok = spawn(
+			"ngrok",
+			["http", String(port), "--log", "stdout", "--log-format", "json"],
+			{
+				stdio: ["ignore", "pipe", "pipe"],
+			},
+		);
+
+		let resolved = false;
+
+		ngrok.stdout?.on("data", (data: Buffer) => {
+			const lines = data.toString().split("\n").filter(Boolean);
+			for (const line of lines) {
+				try {
+					const log = JSON.parse(line);
+					if (log.url?.startsWith("https://") && !resolved) {
+						resolved = true;
+						resolve({ url: log.url, process: ngrok });
+					}
+				} catch {
+					// not JSON, ignore
+				}
+			}
+		});
+
+		ngrok.on("error", (err) => {
+			if (!resolved) {
+				reject(new Error(`Failed to start ngrok: ${err.message}`));
+			}
+		});
+
+		ngrok.on("exit", (code) => {
+			if (!resolved) {
+				reject(new Error(`ngrok exited with code ${code}`));
+			}
+		});
+
+		setTimeout(() => {
+			if (!resolved) {
+				ngrok.kill();
+				reject(new Error("ngrok tunnel timed out after 15s"));
+			}
+		}, 15_000);
 	});
-	if (!maybeTunnel) {
-		throw new Error("Failed to start tunnel");
-	}
-	const tunnel = maybeTunnel;
-	const tunnelUrl = await tunnel.getURL();
-	logger.success(`Tunnel ready: ${tunnelUrl}`);
+}
 
-	// 2. Load all enabled channels
+async function updateWebhooks(tunnelUrl: string) {
 	const channels = await db.aiAgentChannel.findMany({
 		where: { enabled: true },
 		select: {
@@ -33,7 +68,6 @@ async function main() {
 
 	logger.info(`Found ${channels.length} enabled channel(s)`);
 
-	// 3. Update webhooks for each channel
 	for (const channel of channels) {
 		if (channel.provider === "whatsapp") {
 			const metadata = channel.providerMetadata as Record<
@@ -88,31 +122,41 @@ async function main() {
 			}
 		}
 	}
+}
 
-	// 4. Start dev server with tunnel URL as site URL
+async function main() {
+	// 1. Start ngrok tunnel (trycloudflare.com is blocked by Wasender)
+	logger.info("Starting ngrok tunnel to localhost:5050...");
+	const tunnel = await startNgrokTunnel(5050);
+	logger.success(`Tunnel ready: ${tunnel.url}`);
+
+	// 2. Update webhooks (ngrok domains are immediately resolvable)
+	await updateWebhooks(tunnel.url);
+
+	// 3. Start dev server
 	logger.info("Starting dev server...");
 	const child = spawn("pnpm", ["dev"], {
 		cwd: process.cwd().replace(/tooling\/scripts$/, ""),
 		stdio: "inherit",
 		env: {
 			...process.env,
-			VITE_SITE_URL: tunnelUrl,
-			BETTER_AUTH_URL: tunnelUrl,
+			VITE_SITE_URL: tunnel.url,
+			BETTER_AUTH_URL: tunnel.url,
 		},
 	});
 
-	// 5. Cleanup on exit
+	// 4. Cleanup on exit
 	function cleanup() {
 		logger.info("Shutting down...");
 		child.kill("SIGTERM");
-		tunnel.close();
+		tunnel.process.kill("SIGTERM");
 		process.exit(0);
 	}
 
 	process.on("SIGINT", cleanup);
 	process.on("SIGTERM", cleanup);
 	child.on("exit", (code) => {
-		tunnel.close();
+		tunnel.process.kill("SIGTERM");
 		process.exit(code ?? 0);
 	});
 }
