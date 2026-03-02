@@ -1,4 +1,4 @@
-.PHONY: help up down logs ps dev build start worker lint format type-check check db-generate db-push db-migrate db-studio test test-ui e2e e2e-ci clean install setup tunnel dev-tunnel whapi-webhook
+.PHONY: help up down logs ps dev build start worker lint format type-check check db-generate db-push db-migrate db-studio test test-ui e2e e2e-ci clean install setup tunnel dev-tunnel
 
 # Default target
 help:
@@ -40,9 +40,6 @@ help:
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make install     - Install dependencies"
 	@echo "  make setup       - Full setup (Docker + install + db)"
-	@echo ""
-	@echo "Whapi (WhatsApp):"
-	@echo "  make whapi-webhook WHAPI_TOKEN=xxx WEBHOOK_URL=https://... - Set Whapi webhook URL"
 
 # Docker
 up:
@@ -76,7 +73,7 @@ tunnel:
 	npx untun tunnel http://localhost:3030
 
 dev-tunnel:
-	pnpm exec dotenv -c -- pnpm --filter @repo/web exec tsx tests/scripts/start-dev-with-tunnel.ts
+	pnpm exec dotenv -c -- pnpm --filter @repo/scripts exec tsx src/dev-tunnel.ts
 
 # Code Quality
 lint:
@@ -126,13 +123,3 @@ install:
 
 setup: up install db-generate db-push
 	@echo "Setup complete! Run 'make dev' to start development."
-
-# Whapi (WhatsApp)
-whapi-webhook:
-	@if [ -z "$(WHAPI_TOKEN)" ]; then echo "Error: WHAPI_TOKEN is required"; exit 1; fi
-	@if [ -z "$(WEBHOOK_URL)" ]; then echo "Error: WEBHOOK_URL is required"; exit 1; fi
-	@echo "Setting Whapi webhook to $(WEBHOOK_URL)..."
-	@curl -s -X PATCH https://gate.whapi.cloud/settings \
-		-H "Authorization: Bearer $(WHAPI_TOKEN)" \
-		-H "Content-Type: application/json" \
-		-d '{"webhooks":[{"mode":"body","url":"$(WEBHOOK_URL)","events":[{"type":"messages","method":"post"}]}]}' | jq .

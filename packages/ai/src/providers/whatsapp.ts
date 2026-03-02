@@ -1,67 +1,71 @@
 import { logger } from "@repo/logs";
+import { createWasender } from "wasenderapi";
 import type {
 	ParsedMessage,
 	SendMessageOptions,
 	SendMessageResult,
 } from "../types";
 
-const WHAPI_BASE_URL = "https://gate.whapi.cloud";
-
-interface WhapiMediaContent {
-	id?: string | undefined;
-	caption?: string | undefined;
-	link?: string | undefined;
+/**
+ * Create a WaSender SDK client instance.
+ * We create instances per-call since our provider abstraction passes
+ * apiToken as a parameter (not held in module-level state).
+ */
+function createClient(apiToken?: string, personalAccessToken?: string) {
+	return createWasender(apiToken, personalAccessToken ?? "");
 }
 
-interface WhapiVoice {
-	id?: string | undefined;
-	link?: string | undefined;
-	seconds?: number | undefined;
-}
+// ─── Webhook Payload Types (kept custom — SDK's webhook handler needs a
+//     request adapter and returns a different format than our ParsedMessage) ───
 
-interface WhapiDocument extends WhapiMediaContent {
-	filename?: string | undefined;
-}
-
-interface WhapiLocation {
-	latitude?: number | undefined;
-	longitude?: number | undefined;
-}
-
-interface WhapiMessage {
+interface WaSenderMessageKey {
 	id: string;
-	type: string;
-	text?: { body: string };
-	image?: WhapiMediaContent | undefined;
-	video?: WhapiMediaContent | undefined;
-	audio?: WhapiMediaContent | undefined;
-	voice?: WhapiVoice | undefined;
-	document?: WhapiDocument | undefined;
-	sticker?: unknown | undefined;
-	location?: WhapiLocation | undefined;
-	contact_message?: unknown | undefined;
-	from: string;
-	from_me: boolean;
-	from_name?: string;
-	source?: string | undefined;
-	chat_id: string;
-	timestamp: number;
+	fromMe: boolean;
+	remoteJid: string;
+	cleanedSenderPn?: string | undefined;
+	senderPn?: string | undefined;
 }
 
-interface WhapiEvent {
-	type: string;
+interface WaSenderMediaMessage {
+	url?: string | undefined;
+	mediaKey?: string | undefined;
+	mimetype?: string | undefined;
+	fileSha256?: string | undefined;
+	fileLength?: string | number | undefined;
+	caption?: string | undefined;
+	fileName?: string | undefined;
+}
+
+interface WaSenderMessageContent {
+	conversation?: string | undefined;
+	imageMessage?: WaSenderMediaMessage | undefined;
+	audioMessage?: WaSenderMediaMessage | undefined;
+	videoMessage?: WaSenderMediaMessage | undefined;
+	documentMessage?: WaSenderMediaMessage | undefined;
+	stickerMessage?: WaSenderMediaMessage | undefined;
+	contactMessage?: unknown | undefined;
+	locationMessage?:
+		| {
+				degreesLatitude?: number | undefined;
+				degreesLongitude?: number | undefined;
+		  }
+		| undefined;
+}
+
+interface WaSenderMessage {
+	key: WaSenderMessageKey;
+	messageBody?: string | undefined;
+	message?: WaSenderMessageContent | undefined;
+	pushName?: string | undefined;
+	messageTimestamp?: number | string | undefined;
+}
+
+interface WaSenderWebhookPayload {
 	event: string;
-}
-
-interface WhapiWebhookPayload {
-	messages?: WhapiMessage[];
-	event?: WhapiEvent | undefined;
-	channel_id?: string | undefined;
-}
-
-interface WhapiSendResponse {
-	sent?: boolean | undefined;
-	message?: { id?: string | undefined } | undefined;
+	timestamp?: number | string | undefined;
+	data?: {
+		messages?: WaSenderMessage | WaSenderMessage[] | undefined;
+	};
 }
 
 interface ExtractedMessage {
@@ -72,82 +76,128 @@ interface ExtractedMessage {
 	mediaCaption?: string | undefined;
 }
 
-function extractMessage(msg: WhapiMessage): ExtractedMessage | null {
-	switch (msg.type) {
-		case "text":
-			return msg.text?.body ? { text: msg.text.body } : null;
-		case "image":
-			return {
-				text: msg.image?.caption
-					? `[Image] ${msg.image.caption}`
-					: "[Image received]",
-				mediaId: msg.image?.id ?? undefined,
-				mediaLink: msg.image?.link ?? undefined,
-				mediaType: "image",
-				mediaCaption: msg.image?.caption ?? undefined,
-			};
-		case "video":
-			return {
-				text: msg.video?.caption
-					? `[Video] ${msg.video.caption}`
-					: "[Video received]",
-			};
-		case "audio":
-		case "voice": {
-			const voiceId = msg.voice?.id ?? msg.audio?.id;
-			const voiceLink = msg.voice?.link ?? msg.audio?.link;
-			return {
-				text: "[Voice message received]",
-				mediaId: voiceId ?? undefined,
-				mediaLink: voiceLink ?? undefined,
-				mediaType: "voice",
-			};
+function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
+	const content = msg.message;
+
+	// Text message (conversation field)
+	if (msg.messageBody || content?.conversation) {
+		const text = msg.messageBody ?? content?.conversation ?? "";
+		if (text) {
+			return { text };
 		}
-		case "document":
-			return {
-				text: msg.document?.filename
-					? `[Document: ${msg.document.filename}]`
-					: "[Document received]",
-			};
-		case "sticker":
-			return { text: "[Sticker received]" };
-		case "location":
-			if (
-				msg.location?.latitude != null &&
-				msg.location.longitude != null
-			) {
-				return {
-					text: `[Location: ${msg.location.latitude}, ${msg.location.longitude}]`,
-				};
-			}
-			return { text: "[Location received]" };
-		case "contact":
-			return { text: "[Contact shared]" };
-		default:
-			return null;
 	}
+
+	// Image
+	if (content?.imageMessage) {
+		return {
+			text: content.imageMessage.caption
+				? `[Image] ${content.imageMessage.caption}`
+				: "[Image received]",
+			mediaId: msg.key.id,
+			mediaLink: JSON.stringify({
+				messages: {
+					key: { id: msg.key.id },
+					message: { imageMessage: content.imageMessage },
+				},
+			}),
+			mediaType: "image",
+			mediaCaption: content.imageMessage.caption ?? undefined,
+		};
+	}
+
+	// Audio / Voice
+	if (content?.audioMessage) {
+		return {
+			text: "[Voice message received]",
+			mediaId: msg.key.id,
+			mediaLink: JSON.stringify({
+				messages: {
+					key: { id: msg.key.id },
+					message: { audioMessage: content.audioMessage },
+				},
+			}),
+			mediaType: "voice",
+		};
+	}
+
+	// Video
+	if (content?.videoMessage) {
+		return {
+			text: content.videoMessage.caption
+				? `[Video] ${content.videoMessage.caption}`
+				: "[Video received]",
+		};
+	}
+
+	// Document
+	if (content?.documentMessage) {
+		return {
+			text: content.documentMessage.fileName
+				? `[Document: ${content.documentMessage.fileName}]`
+				: "[Document received]",
+		};
+	}
+
+	// Sticker
+	if (content?.stickerMessage) {
+		return { text: "[Sticker received]" };
+	}
+
+	// Location
+	if (content?.locationMessage) {
+		const lat = content.locationMessage.degreesLatitude;
+		const lng = content.locationMessage.degreesLongitude;
+		if (lat != null && lng != null) {
+			return { text: `[Location: ${lat}, ${lng}]` };
+		}
+		return { text: "[Location received]" };
+	}
+
+	// Contact
+	if (content?.contactMessage) {
+		return { text: "[Contact shared]" };
+	}
+
+	return null;
 }
 
 export function parseWebhookPayload(body: unknown): ParsedMessage[] {
-	const payload = body as WhapiWebhookPayload;
-	if (!payload.messages || !Array.isArray(payload.messages)) {
+	const payload = body as WaSenderWebhookPayload;
+
+	// Only handle message events
+	if (!payload.event || !payload.event.startsWith("messages.")) {
 		return [];
 	}
 
+	// Normalize messages to array (messages.received = single object, messages.upsert = array)
+	const rawMessages = payload.data?.messages;
+	if (!rawMessages) {
+		return [];
+	}
+	const messages: WaSenderMessage[] = Array.isArray(rawMessages)
+		? rawMessages
+		: [rawMessages];
+
 	const results: ParsedMessage[] = [];
-	for (const msg of payload.messages) {
-		if (msg.from_me) {
+	for (const msg of messages) {
+		// Skip outgoing messages
+		if (msg.key.fromMe) {
 			continue;
 		}
 		const extracted = extractMessage(msg);
 		if (extracted) {
+			const timestamp =
+				typeof msg.messageTimestamp === "string"
+					? Number.parseInt(msg.messageTimestamp, 10)
+					: msg.messageTimestamp;
+
 			results.push({
-				chatId: msg.chat_id,
-				messageId: msg.id,
+				chatId: msg.key.remoteJid,
+				messageId: msg.key.id,
 				text: extracted.text,
-				contactName: msg.from_name ?? undefined,
-				contactId: msg.from,
-				timestamp: msg.timestamp,
+				contactName: msg.pushName ?? undefined,
+				contactId: msg.key.cleanedSenderPn ?? undefined,
+				timestamp: timestamp ?? undefined,
 				mediaId: extracted.mediaId,
 				mediaLink: extracted.mediaLink,
 				mediaType: extracted.mediaType,
@@ -163,14 +213,8 @@ export async function sendTypingIndicator(
 	chatId: string,
 ): Promise<void> {
 	try {
-		await fetch(`${WHAPI_BASE_URL}/presences/${chatId}`, {
-			method: "PUT",
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ status: "typing" }),
-		});
+		const client = createClient(apiToken);
+		await client.sendPresenceUpdate(chatId, "composing");
 	} catch (error) {
 		logger.error("WhatsApp typing indicator error", { error });
 	}
@@ -180,41 +224,21 @@ export async function sendTextMessage(
 	apiToken: string,
 	chatId: string,
 	text: string,
-	options?: SendMessageOptions,
+	_options?: SendMessageOptions,
 ): Promise<SendMessageResult> {
 	try {
-		const body: Record<string, unknown> = {
-			to: chatId,
-			body: text,
-		};
-		if (options?.quoted) {
-			body["quoted"] = options.quoted;
-		}
-		if (options?.typingTime != null) {
-			body["typing_time"] = options.typingTime;
-		}
-
-		const response = await fetch(`${WHAPI_BASE_URL}/messages/text`, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(body),
-		});
-
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("WhatsApp send failed", {
-				status: response.status,
-				error: errorText,
-			});
-			return { success: false };
-		}
-
-		const data = (await response.json()) as WhapiSendResponse;
-		const messageId = data.message?.id ?? undefined;
-		return { success: data.sent !== false, messageId };
+		const client = createClient(apiToken);
+		const result = await client.sendText({ to: chatId, text });
+		// The SDK response body may include additional fields beyond the typed interface
+		const responseData = result.response as unknown as Record<
+			string,
+			unknown
+		>;
+		const data = responseData["data"] as
+			| { msgId?: string | number }
+			| undefined;
+		const messageId = data?.msgId != null ? String(data.msgId) : undefined;
+		return { success: true, messageId };
 	} catch (error) {
 		logger.error("WhatsApp send error", { error });
 		return { success: false };
@@ -222,123 +246,73 @@ export async function sendTextMessage(
 }
 
 /**
- * Download a media file from Whapi.
+ * Download a media file from WaSender.
  *
  * Strategy:
- * 1. Direct S3 link from webhook (most reliable when auto_download is enabled).
- * 2. GET /media/{id} with a short retry — handles async S3 upload timing.
- * 3. Fetch message via GET /messages/{id} to find a download link.
- *
- * IMPORTANT: auto_download must be enabled in Whapi dashboard for voice, audio,
- * and image types. It only applies to messages received AFTER being enabled.
+ * 1. Parse the raw media payload (full message object from webhook).
+ * 2. Call /api/decrypt-media directly to get a public URL.
+ * 3. Download the binary from the public URL.
  */
 async function downloadMedia(
 	apiToken: string,
-	mediaId: string,
-	mediaLink?: string,
-	messageId?: string,
+	_mediaId: string,
+	rawMediaPayload?: string,
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
-	// Try the direct S3 link first (auto_download provides this)
-	if (mediaLink) {
-		const fromLink = await fetchFromUrl(mediaLink);
-		if (fromLink) {
-			return fromLink;
-		}
+	if (!rawMediaPayload) {
+		logger.error("WhatsApp media download failed: no media payload");
+		return null;
 	}
 
-	// Try GET /media/{id} with a short retry for async upload timing
-	for (const delay of [0, 3000]) {
-		if (delay > 0) {
-			await new Promise((resolve) => setTimeout(resolve, delay));
-		}
-		const fromApi = await fetchMediaById(apiToken, mediaId);
-		if (fromApi) {
-			return fromApi;
-		}
-	}
-
-	// Fallback: fetch the message metadata to find a download link
-	if (messageId) {
-		const fromMessage = await fetchMediaLinkFromMessage(
-			apiToken,
-			messageId,
-		);
-		if (fromMessage) {
-			return fromMessage;
-		}
-	}
-
-	logger.error("WhatsApp media download failed", {
-		mediaId,
-		messageId,
-		hint: "If this persists, restart the Whapi channel from the dashboard",
-	});
-	return null;
-}
-
-async function fetchMediaById(
-	apiToken: string,
-	mediaId: string,
-): Promise<{ buffer: Buffer; contentType: string } | null> {
 	try {
-		const response = await fetch(`${WHAPI_BASE_URL}/media/${mediaId}`, {
+		const messageObject = JSON.parse(rawMediaPayload) as Record<
+			string,
+			unknown
+		>;
+
+		// Call decrypt-media API directly (bypass SDK to control exact payload)
+		const response = await fetch(`${WASENDER_BASE_URL}/decrypt-media`, {
+			method: "POST",
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
-				Accept: "application/octet-stream",
+				"Content-Type": "application/json",
 			},
+			body: JSON.stringify({ data: messageObject }),
 		});
 
 		if (!response.ok) {
+			const errorText = await response.text();
+			logger.error("WaSender decrypt-media failed", {
+				status: response.status,
+				error: errorText,
+			});
 			return null;
 		}
 
-		const buffer = Buffer.from(await response.arrayBuffer());
-		if (buffer.length === 0) {
+		const data = (await response.json()) as Record<string, unknown>;
+		const publicUrl = data["publicUrl"] as string | undefined;
+		if (!publicUrl) {
+			logger.error("WaSender decrypt-media returned no publicUrl", {
+				response: data,
+			});
 			return null;
 		}
 
-		const contentType =
-			response.headers.get("content-type") ?? "application/octet-stream";
-		return { buffer, contentType };
-	} catch {
-		return null;
-	}
-}
-
-/**
- * Fetch the message by ID and try to download from any media link found.
- */
-async function fetchMediaLinkFromMessage(
-	apiToken: string,
-	messageId: string,
-): Promise<{ buffer: Buffer; contentType: string } | null> {
-	try {
-		const response = await fetch(
-			`${WHAPI_BASE_URL}/messages/${messageId}`,
-			{
-				headers: { Authorization: `Bearer ${apiToken}` },
-			},
-		);
-
-		if (!response.ok) {
-			return null;
-		}
-
-		const msg = (await response.json()) as Record<string, unknown>;
-		const mediaFields = ["voice", "audio", "image", "video", "document"];
-
-		for (const field of mediaFields) {
-			const media = msg[field] as Record<string, unknown> | undefined;
-			if (media && typeof media["link"] === "string" && media["link"]) {
-				const result = await fetchFromUrl(media["link"] as string);
-				if (result) {
-					return result;
-				}
+		// Download the decrypted media file (retry — Wasender may still be processing)
+		for (let attempt = 0; attempt < 4; attempt++) {
+			if (attempt > 0) {
+				await new Promise((r) => setTimeout(r, 1500 * attempt));
+			}
+			const media = await fetchFromUrl(publicUrl);
+			if (media) {
+				return media;
 			}
 		}
-
+		logger.error("WaSender media download failed after retries", {
+			publicUrl,
+		});
 		return null;
-	} catch {
+	} catch (error) {
+		logger.error("WhatsApp media download error", { error });
 		return null;
 	}
 }
@@ -367,10 +341,9 @@ async function fetchFromUrl(
  * Transcribe a voice message using OpenAI Whisper API.
  */
 export async function transcribeAudio(
-	whapiToken: string,
+	apiToken: string,
 	mediaId: string,
-	mediaLink?: string,
-	messageId?: string,
+	rawMediaPayload?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -378,12 +351,7 @@ export async function transcribeAudio(
 		return null;
 	}
 
-	const media = await downloadMedia(
-		whapiToken,
-		mediaId,
-		mediaLink,
-		messageId,
-	);
+	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
 	}
@@ -408,21 +376,7 @@ export async function transcribeAudio(
 			"audio/x-flac": "flac",
 		};
 
-		// Resolve extension: use MIME map, detect from media ID prefix, or default to ogg
-		let ext = extMap[mimeType];
-		if (!ext) {
-			// Whapi media IDs are prefixed with format (e.g. "oga-...", "mp3-...")
-			if (mediaId.startsWith("oga-")) {
-				ext = "oga";
-			} else if (mediaId.startsWith("mp3-")) {
-				ext = "mp3";
-			} else if (mediaId.startsWith("m4a-")) {
-				ext = "m4a";
-			} else {
-				ext = "ogg";
-			}
-		}
-
+		const ext = extMap[mimeType] ?? "ogg";
 		const fileMime = extMap[mimeType] ? mimeType : "audio/ogg";
 		// Use File instead of Blob — Node's FormData needs a proper File with name
 		const file = new File([new Uint8Array(media.buffer)], `voice.${ext}`, {
@@ -465,11 +419,10 @@ export async function transcribeAudio(
  * Describe an image using OpenAI GPT-4o-mini vision.
  */
 export async function describeImage(
-	whapiToken: string,
+	apiToken: string,
 	mediaId: string,
 	caption?: string,
-	mediaLink?: string,
-	messageId?: string,
+	rawMediaPayload?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -477,12 +430,7 @@ export async function describeImage(
 		return null;
 	}
 
-	const media = await downloadMedia(
-		whapiToken,
-		mediaId,
-		mediaLink,
-		messageId,
-	);
+	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
 	}
@@ -539,18 +487,29 @@ export async function describeImage(
 	}
 }
 
+const WASENDER_BASE_URL = "https://www.wasenderapi.com/api";
+
+/**
+ * Mark a message as read. Kept as raw fetch — the SDK has no method for this.
+ */
 export async function markAsRead(
 	apiToken: string,
 	messageId: string,
+	chatId?: string,
 ): Promise<void> {
+	if (!chatId) {
+		return;
+	}
 	try {
-		await fetch(`${WHAPI_BASE_URL}/messages/${messageId}`, {
-			method: "PUT",
+		await fetch(`${WASENDER_BASE_URL}/messages/read`, {
+			method: "POST",
 			headers: {
 				Authorization: `Bearer ${apiToken}`,
 				"Content-Type": "application/json",
 			},
-			body: JSON.stringify({ status: "read" }),
+			body: JSON.stringify({
+				key: { id: messageId, remoteJid: chatId, fromMe: false },
+			}),
 		});
 	} catch (error) {
 		logger.error("WhatsApp markAsRead error", { error });
@@ -558,34 +517,17 @@ export async function markAsRead(
 }
 
 export async function setWebhook(
-	apiToken: string,
+	personalAccessToken: string,
+	sessionId: string,
 	webhookUrl: string,
 ): Promise<boolean> {
 	try {
-		const response = await fetch(`${WHAPI_BASE_URL}/settings`, {
-			method: "PATCH",
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				webhooks: [
-					{
-						mode: "body",
-						url: webhookUrl,
-						events: [{ type: "messages", method: "post" }],
-					},
-				],
-			}),
+		const client = createClient(undefined, personalAccessToken);
+		await client.updateWhatsAppSession(Number.parseInt(sessionId, 10), {
+			webhook_url: webhookUrl,
+			webhook_enabled: true,
+			webhook_events: ["messages.received"],
 		});
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("WhatsApp setWebhook failed", {
-				status: response.status,
-				error: errorText,
-			});
-			return false;
-		}
 		return true;
 	} catch (error) {
 		logger.error("WhatsApp setWebhook error", { error });
@@ -593,24 +535,16 @@ export async function setWebhook(
 	}
 }
 
-export async function deleteWebhook(apiToken: string): Promise<boolean> {
+export async function deleteWebhook(
+	personalAccessToken: string,
+	sessionId: string,
+): Promise<boolean> {
 	try {
-		const response = await fetch(`${WHAPI_BASE_URL}/settings`, {
-			method: "PATCH",
-			headers: {
-				Authorization: `Bearer ${apiToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ webhooks: [] }),
+		const client = createClient(undefined, personalAccessToken);
+		await client.updateWhatsAppSession(Number.parseInt(sessionId, 10), {
+			webhook_url: null,
+			webhook_enabled: false,
 		});
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("WhatsApp deleteWebhook failed", {
-				status: response.status,
-				error: errorText,
-			});
-			return false;
-		}
 		return true;
 	} catch (error) {
 		logger.error("WhatsApp deleteWebhook error", { error });

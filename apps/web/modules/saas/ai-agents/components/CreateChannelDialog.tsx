@@ -30,9 +30,9 @@ const PROVIDER_TOKEN_CONFIG = {
 		placeholder: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
 	},
 	whatsapp: {
-		label: "Whapi.Cloud API Token",
-		helpText: "Get your API token from your Whapi.Cloud dashboard",
-		placeholder: "Your Whapi.Cloud API token",
+		label: "WaSender Session API Key",
+		helpText: "Get your Session API Key from your WaSender dashboard",
+		placeholder: "Your WaSender Session API Key",
 	},
 } as const;
 
@@ -54,6 +54,8 @@ export function CreateChannelDialog({
 			provider: "whatsapp" as "whatsapp" | "telegram",
 			name: "",
 			apiToken: "",
+			personalAccessToken: "",
+			sessionId: "",
 		},
 		onSubmit: async ({ value }) => {
 			await createChannel.mutateAsync({
@@ -62,6 +64,12 @@ export function CreateChannelDialog({
 				provider: value.provider,
 				name: value.name,
 				apiToken: value.apiToken,
+				personalAccessToken:
+					value.provider === "whatsapp"
+						? value.personalAccessToken
+						: undefined,
+				sessionId:
+					value.provider === "whatsapp" ? value.sessionId : undefined,
 			});
 			onOpenChange(false);
 		},
@@ -161,6 +169,61 @@ export function CreateChannelDialog({
 								</Field>
 							)}
 						</form.Field>
+
+						{selectedProvider === "whatsapp" && (
+							<>
+								<form.Field name="personalAccessToken">
+									{(field) => (
+										<Field>
+											<FieldLabel htmlFor="channel-pat">
+												WaSender Personal Access Token
+											</FieldLabel>
+											<Input
+												id="channel-pat"
+												type="password"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={field.handleBlur}
+												placeholder="Your Personal Access Token"
+											/>
+											<FieldDescription>
+												Generate from WaSender Settings
+												page
+											</FieldDescription>
+										</Field>
+									)}
+								</form.Field>
+
+								<form.Field name="sessionId">
+									{(field) => (
+										<Field>
+											<FieldLabel htmlFor="channel-session-id">
+												WaSender Session ID
+											</FieldLabel>
+											<Input
+												id="channel-session-id"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={field.handleBlur}
+												placeholder="Your WaSender Session ID"
+											/>
+											<FieldDescription>
+												Found in your WaSender session
+												details
+											</FieldDescription>
+										</Field>
+									)}
+								</form.Field>
+							</>
+						)}
 					</div>
 
 					<DialogFooter>

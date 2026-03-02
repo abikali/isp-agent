@@ -25,6 +25,8 @@ export const createChannel = protectedProcedure
 			provider: z.enum(["whatsapp", "telegram"]),
 			name: z.string().min(1).max(100),
 			apiToken: z.string().min(1),
+			personalAccessToken: z.string().optional(),
+			sessionId: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -95,18 +97,39 @@ export const createChannel = protectedProcedure
 			}
 		}
 
-		// For WhatsApp, register the webhook with Whapi API
+		// For WhatsApp, register the webhook with WaSender API
 		if (input.provider === "whatsapp") {
+			if (!input.personalAccessToken || !input.sessionId) {
+				await db.aiAgentChannel.delete({ where: { id: channel.id } });
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Personal Access Token and Session ID are required for WhatsApp channels.",
+				});
+			}
+
+			// Persist WhatsApp credentials for webhook re-registration (e.g. dev-tunnel)
+			await db.aiAgentChannel.update({
+				where: { id: channel.id },
+				data: {
+					providerMetadata: {
+						sessionId: input.sessionId,
+						encryptedPersonalAccessToken: encryptToken(
+							input.personalAccessToken,
+						),
+					},
+				},
+			});
 			const whatsappWebhookUrl = `${getBaseUrl()}/api/webhooks/chat/whatsapp/${webhookToken}`;
 			const success = await whatsapp.setWebhook(
-				input.apiToken,
+				input.personalAccessToken,
+				input.sessionId,
 				whatsappWebhookUrl,
 			);
 			if (!success) {
 				await db.aiAgentChannel.delete({ where: { id: channel.id } });
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message:
-						"Failed to register WhatsApp webhook. Check your API token.",
+						"Failed to register WhatsApp webhook. Check your Personal Access Token and Session ID.",
 				});
 			}
 		}

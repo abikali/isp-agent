@@ -36,7 +36,13 @@ export function useConversationMessages(
 		...orpc.aiAgents.getConversationMessages.queryOptions({
 			input: { conversationId, organizationId },
 		}),
-		refetchInterval: 3000, // Poll every 3s for real-time feel
+		refetchInterval: (query) => {
+			// Stop polling if conversation was deleted (e.g. via /clear command)
+			if (query.state.error) {
+				return false;
+			}
+			return 3000;
+		},
 	});
 
 	return {

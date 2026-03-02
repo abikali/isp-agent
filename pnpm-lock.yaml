@@ -465,6 +465,9 @@ importers:
       speedtest-net:
         specifier: ^2.2.0
         version: 2.2.0
+      wasenderapi:
+        specifier: ^0.4.0
+        version: 0.4.0
       zod:
         specifier: ^4.3.0
         version: 4.3.6
@@ -1119,6 +1122,9 @@ importers:
 
   tooling/scripts:
     dependencies:
+      '@repo/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -1128,6 +1134,9 @@ importers:
       '@repo/logs':
         specifier: workspace:*
         version: link:../../packages/logs
+      untun:
+        specifier: ^0.1.3
+        version: 0.1.3
     devDependencies:
       '@biomejs/biome':
         specifier: 2.3.11
@@ -9133,6 +9142,9 @@ packages:
   walk-up-path@4.0.0:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
     engines: {node: 20 || >=22}
+
+  wasenderapi@0.4.0:
+    resolution: {integrity: sha512-JyZc6Tes7gLGRK/jXF5FTpZDutVFaD43YkUlfXXrp38BeIaW8edLOc2kq7T14ZN+wkqRCbhRR+njnt48pgY5ZA==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -18273,6 +18285,10 @@ snapshots:
       xml-name-validator: 5.0.0
 
   walk-up-path@4.0.0: {}
+
+  wasenderapi@0.4.0:
+    dependencies:
+      dotenv: 16.6.1
 
   webidl-conversions@3.0.1: {}
 

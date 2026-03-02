@@ -15,6 +15,7 @@ import { listTools } from "./procedures/list-tools";
 import { searchConversationMessages } from "./procedures/search-conversation-messages";
 import { sendAdminMessage } from "./procedures/send-admin-message";
 import { sendWebChatMessage } from "./procedures/send-web-chat-message";
+import { testTelegramConfig } from "./procedures/test-telegram-config";
 import { togglePinConversation } from "./procedures/toggle-pin-conversation";
 import { toggleWebChat } from "./procedures/toggle-web-chat";
 import { updateAgent } from "./procedures/update-agent";
@@ -42,6 +43,7 @@ export const aiAgentsRouter = {
 	getAgentStats,
 	listTools,
 	updateToolConfig,
+	testTelegramConfig,
 	webChatInfo,
 	sendWebChatMessage,
 	getWebChatHistory,

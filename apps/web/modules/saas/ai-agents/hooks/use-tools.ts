@@ -24,3 +24,7 @@ export function useUpdateToolConfig() {
 		},
 	});
 }
+
+export function useTestTelegramConfig() {
+	return useMutation(orpc.aiAgents.testTelegramConfig.mutationOptions());
+}

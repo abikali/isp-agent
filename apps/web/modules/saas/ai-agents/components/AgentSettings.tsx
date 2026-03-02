@@ -89,7 +89,7 @@ export function AgentSettings({
 		configFields: Array<{
 			key: string;
 			label: string;
-			type: "text" | "password" | "select" | "textarea";
+			type: "text" | "password" | "select" | "textarea" | "repeater";
 			required: boolean;
 			placeholder?: string | undefined;
 			description?: string | undefined;

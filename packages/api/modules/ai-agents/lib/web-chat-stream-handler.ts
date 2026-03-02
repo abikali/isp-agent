@@ -1,13 +1,9 @@
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
-	CUSTOMER_IDENTIFICATION_INSTRUCTION,
+	buildSystemPrompt,
 	createAgentStream,
-	ESCALATION_TOOL_INSTRUCTION,
-	LANGUAGE_MATCHING_INSTRUCTION,
-	MAINTENANCE_MODE_INSTRUCTION,
-	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
+	executeEscalationGuard,
 	resolveTools,
-	VERBOSE_TOOL_INSTRUCTION,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
@@ -172,22 +168,13 @@ export async function handleWebChatStream(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
-	// Enhance system prompt for verbose tool narration + escalation
-	let systemPrompt = agent.systemPrompt;
-	if (agent.maintenanceMode && agent.maintenanceMessage) {
-		systemPrompt += MAINTENANCE_MODE_INSTRUCTION(agent.maintenanceMessage);
-	}
-	systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
-	if (tools) {
-		systemPrompt += VERBOSE_TOOL_INSTRUCTION;
-		if (agent.enabledTools.includes("escalate-telegram")) {
-			systemPrompt += ESCALATION_TOOL_INSTRUCTION;
-		}
-		if (agent.enabledTools.includes("isp-search-customer")) {
-			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
-			systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
-		}
-	}
+	// Build system prompt (streaming web chat needs verbose tool narration)
+	const systemPrompt = buildSystemPrompt({
+		basePrompt: agent.systemPrompt,
+		enabledTools: agent.enabledTools,
+		maintenanceMode: agent.maintenanceMode,
+		maintenanceMessage: agent.maintenanceMessage ?? undefined,
+	});
 
 	// Stream the response
 	const abortController = new AbortController();
@@ -237,6 +224,29 @@ export async function handleWebChatStream(
 			}
 
 			clearTimeout(timeout);
+
+			// Escalation safety net: sends Telegram if model forgot to call the tool
+			if (
+				tools &&
+				agent &&
+				agent.enabledTools.includes("escalate-telegram")
+			) {
+				try {
+					const guardResult = await executeEscalationGuard({
+						tools,
+						responseText: text,
+						toolResults:
+							toolResults.length > 0 ? toolResults : undefined,
+						conversationMessages: historyMessages,
+						conversationId,
+					});
+					if (guardResult) {
+						toolResults.push(guardResult);
+					}
+				} catch {
+					// Guard failure should not affect DB storage
+				}
+			}
 
 			// Fire-and-forget: store result after stream ends
 			const latencyMs = Date.now() - start;

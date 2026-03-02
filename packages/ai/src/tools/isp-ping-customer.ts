@@ -10,17 +10,8 @@ import type { RegisteredTool, ToolContext } from "./types";
 
 const ispPingCustomerDef = toolDefinition({
 	name: "isp-ping-customer",
-	description: `Ping an ISP customer's device from the ISP network. Resolves the customer's IP and sends ICMP pings to check reachability and latency.
-
-How to interpret:
-- Successful ping with low latency (<20ms): Connection is healthy.
-- Successful but high latency (>100ms): Possible congestion or signal issues.
-- Packet loss: Intermittent connectivity, often caused by poor signal or interference.
-- Timeout/unreachable: Customer device is offline, router is down, or there's a routing issue.
-- Use this after isp-search-customer to verify if a customer's connection is actually reachable.
-
-Response fields:
-- pingResult: Raw ping output including packet loss percentage, round-trip times (min/avg/max in ms), and number of packets sent/received.`,
+	description:
+		"Ping a customer's device from the ISP network. Returns packet loss percentage and round-trip times (min/avg/max ms).",
 	inputSchema: z.object({
 		query: z.string().describe("Customer phone number or ISP username"),
 	}),

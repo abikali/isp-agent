@@ -1,14 +1,9 @@
+export type { BuildSystemPromptOptions } from "./src/build-system-prompt";
+export { buildSystemPrompt } from "./src/build-system-prompt";
+export { classifyText } from "./src/classify";
 export { decryptToken, encryptToken } from "./src/encryption";
-export {
-	CUSTOMER_IDENTIFICATION_INSTRUCTION,
-	createAgentStream,
-	ESCALATION_TOOL_INSTRUCTION,
-	generateAgentResponse,
-	LANGUAGE_MATCHING_INSTRUCTION,
-	MAINTENANCE_MODE_INSTRUCTION,
-	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
-	VERBOSE_TOOL_INSTRUCTION,
-} from "./src/generate";
+export { executeEscalationGuard } from "./src/escalation-guard";
+export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
 export { getAdapter, isValidModel } from "./src/model-registry";
@@ -27,10 +22,14 @@ export {
 	isValidToolId,
 	resolveTools,
 } from "./src/tools";
+export type { TelegramTestResult } from "./src/tools/test-telegram-config";
+export { testTelegramConfig } from "./src/tools/test-telegram-config";
 export type {
 	ToolContext,
 	ToolMetadata,
 } from "./src/tools/types";
+export type { TriageInput, TriageResult } from "./src/triage";
+export { triageBufferedMessages } from "./src/triage";
 export type {
 	ChannelProvider,
 	GenerateResponseInput,

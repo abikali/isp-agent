@@ -12,34 +12,24 @@ const PRIORITY_EMOJI: Record<string, string> = {
 const escalateTelegramDef = toolDefinition({
 	name: "escalate-telegram",
 	description:
-		"Send an escalation alert to the support team via Telegram when an issue cannot be resolved with available tools. " +
-		"Use this when: (1) the issue cannot be resolved after running all available diagnostics, " +
-		"(2) the customer explicitly requests to speak with a human, " +
-		"(3) an infrastructure-wide outage is confirmed via cross-check pings, " +
-		"(4) the issue involves billing, account changes, or hardware problems outside tool scope. " +
-		"IMPORTANT: Always run full diagnostics FIRST before escalating — never escalate prematurely. " +
-		"Include a thorough summary of all findings in the summary field. " +
-		"Set priority: high for outages or critical account issues, medium for unresolved technical issues after full diagnosis, low for general requests the customer wants handled by a human.",
+		"Send a real Telegram message to the support/sales team. Returns success/failure status.",
 	inputSchema: z.object({
 		reason: z
 			.string()
 			.describe(
-				"Why escalation is needed — the specific issue that cannot be resolved",
+				"Brief reason — e.g. 'New subscription request', 'Service relocation', 'Unresolved connectivity issue'",
 			),
 		priority: z
 			.enum(["low", "medium", "high"])
 			.describe(
-				"low = general requests, medium = unresolved technical issues, high = outages or critical problems",
+				"low = general inquiries, medium = sales leads and unresolved technical issues, high = outages or critical problems",
 			),
 		summary: z
 			.string()
 			.describe(
-				"Full summary of what was investigated, tools used, and findings so far",
+				"All context for the team: customer name, phone number, what they need, location, and any diagnostic findings",
 			),
-		customerName: z
-			.string()
-			.optional()
-			.describe("Customer name if known from conversation"),
+		customerName: z.string().optional().describe("Customer name if known"),
 		customerUsername: z
 			.string()
 			.optional()
@@ -47,7 +37,9 @@ const escalateTelegramDef = toolDefinition({
 		actionRequired: z
 			.string()
 			.optional()
-			.describe("Specific action the support team should take"),
+			.describe(
+				"What the team should do — e.g. 'Call customer to discuss subscription plans', 'Check coverage in Dekwane area'",
+			),
 	}),
 });
 
@@ -70,7 +62,10 @@ interface CustomerDetails {
 	stationName: string | null;
 }
 
-function parseChatIds(raw: string): string[] {
+function parseChatIds(raw: string | string[]): string[] {
+	if (Array.isArray(raw)) {
+		return raw.map((id) => String(id).trim()).filter((id) => id.length > 0);
+	}
 	return raw
 		.split(/[\n,]+/)
 		.map((id) => id.trim())
@@ -85,6 +80,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 				| undefined;
 			const telegramChatIds = context.toolConfig?.["telegramChatIds"] as
 				| string
+				| string[]
 				| undefined;
 
 			// Backwards compatibility: fall back to old single-value key
@@ -264,7 +260,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 			const message = lines.join("\n");
 
 			// Send to all configured chat IDs
-			const { Api } = await import("grammy");
+			const { Api, GrammyError, HttpError } = await import("grammy");
 			const api = new Api(telegramBotToken);
 
 			const results: Array<{
@@ -281,12 +277,22 @@ function createEscalateTelegramTool(context: ToolContext) {
 						});
 						results.push({ chatId, success: true });
 					} catch (error) {
-						const errorMsg =
-							error instanceof Error
-								? error.message
-								: "Unknown error";
+						let errorMsg = "Unknown error";
+						if (error instanceof GrammyError) {
+							if (error.error_code === 403) {
+								errorMsg = `Bot blocked or user hasn't started chat (403)`;
+							} else if (error.error_code === 400) {
+								errorMsg = "Chat not found (400)";
+							} else {
+								errorMsg = error.description;
+							}
+						} else if (error instanceof HttpError) {
+							errorMsg = "Network error reaching Telegram";
+						} else if (error instanceof Error) {
+							errorMsg = error.message;
+						}
 						logger.error(
-							`Telegram escalation failed for chat ${chatId}`,
+							`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
 							{ error, conversationId: context.conversationId },
 						);
 						results.push({
@@ -311,13 +317,13 @@ function createEscalateTelegramTool(context: ToolContext) {
 			if (failed.length > 0) {
 				return {
 					success: true,
-					message: `Escalation alert sent to ${succeeded}/${chatIds.length} recipients with priority ${args.priority}. Failed: ${failed.map((f) => f.chatId).join(", ")}`,
+					message: `Escalation sent to ${succeeded}/${chatIds.length} recipients (priority: ${args.priority}). Failed: ${failed.map((f) => f.chatId).join(", ")}. You can now confirm to the customer that their request has been forwarded.`,
 				};
 			}
 
 			return {
 				success: true,
-				message: `Escalation alert sent to ${succeeded} recipient${succeeded > 1 ? "s" : ""} with priority ${args.priority}. The team has been notified with full diagnostic details.`,
+				message: `Escalation sent successfully to ${succeeded} recipient${succeeded > 1 ? "s" : ""} (priority: ${args.priority}). You can now confirm to the customer that their request has been forwarded.`,
 			};
 		} catch (error) {
 			logger.error("Telegram escalation failed", {
@@ -337,7 +343,7 @@ export const escalateTelegram: RegisteredTool = {
 		id: "escalate-telegram",
 		name: "Escalate to Telegram",
 		description:
-			"Send an escalation alert with full context to a Telegram support group or person",
+			"Notify the team via Telegram — for sales leads, support escalations, and any human follow-up",
 		category: "customer",
 		requiresConfig: true,
 		configFields: [
@@ -351,11 +357,11 @@ export const escalateTelegram: RegisteredTool = {
 			{
 				key: "telegramChatIds",
 				label: "Telegram Chat IDs",
-				type: "textarea",
+				type: "repeater",
 				required: true,
-				placeholder: "-1001234567890\n123456789\n-1009876543210",
+				placeholder: "e.g. 123456789 or -1001234567890",
 				description:
-					"One Chat ID per line. Supports group IDs (e.g. -1001234567890) and user IDs (e.g. 123456789).",
+					"Supports group IDs (e.g. -1001234567890) and user IDs (e.g. 123456789). Each recipient must have started a conversation with the bot.",
 			},
 		],
 	},

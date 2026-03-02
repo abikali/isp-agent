@@ -55,10 +55,11 @@ export async function markAsRead(
 	provider: ChannelProvider,
 	apiToken: string,
 	messageId: string,
+	chatId?: string,
 ): Promise<void> {
 	switch (provider) {
 		case "whatsapp":
-			return whatsapp.markAsRead(apiToken, messageId);
+			return whatsapp.markAsRead(apiToken, messageId, chatId);
 		case "telegram":
 			// Telegram auto-reads in bot API, no-op
 			return;
@@ -67,33 +68,25 @@ export async function markAsRead(
 
 /**
  * Process media attachments (voice, image) into text.
- * Prefers the direct media link (S3 URL) when available, otherwise
- * falls back to downloading via GET /media/{id} with auth.
+ * Uses the serialized media payload for provider-specific download/decryption.
  * Returns the transcribed/described text, or null if processing fails.
  */
 export async function processMedia(
-	whapiToken: string,
+	apiToken: string,
 	mediaType: string,
 	mediaId: string,
 	mediaCaption?: string,
 	mediaLink?: string,
-	messageId?: string,
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
-			return whatsapp.transcribeAudio(
-				whapiToken,
-				mediaId,
-				mediaLink,
-				messageId,
-			);
+			return whatsapp.transcribeAudio(apiToken, mediaId, mediaLink);
 		case "image":
 			return whatsapp.describeImage(
-				whapiToken,
+				apiToken,
 				mediaId,
 				mediaCaption,
 				mediaLink,
-				messageId,
 			);
 		default:
 			return null;

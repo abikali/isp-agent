@@ -4,12 +4,10 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
-	CUSTOMER_IDENTIFICATION_INSTRUCTION,
+	buildSystemPrompt,
 	decryptToken,
-	ESCALATION_TOOL_INSTRUCTION,
+	executeEscalationGuard,
 	generateAgentResponse,
-	LANGUAGE_MATCHING_INSTRUCTION,
-	MAINTENANCE_MODE_INSTRUCTION,
 	markAsRead,
 	parseWebhookPayload,
 	processMedia,
@@ -17,7 +15,7 @@ import {
 	sendTextMessage,
 	sendTypingIndicator,
 	telegram,
-	VERBOSE_TOOL_INSTRUCTION,
+	triageBufferedMessages,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
@@ -90,26 +88,56 @@ async function handleMessages(
 	for (const msg of parsedMessages) {
 		try {
 			// Mark message as read (fire-and-forget)
-			markAsRead(provider, apiToken, msg.messageId).catch(() => {});
+			markAsRead(provider, apiToken, msg.messageId, msg.chatId).catch(
+				() => {},
+			);
 
-			// Handle /clear command — delete conversation and messages
+			// Handle /clear command \u2014 delete conversation and messages
 			if (msg.text.trim().toLowerCase() === "/clear") {
-				const existing = await db.aiConversation.findUnique({
-					where: {
-						channelId_externalChatId: {
-							channelId: channel.id,
-							externalChatId: msg.chatId,
-						},
-					},
-				});
-				if (existing) {
-					await db.aiMessage.deleteMany({
-						where: { conversationId: existing.id },
-					});
-					await db.aiConversation.deleteMany({
-						where: { id: existing.id },
-					});
+				const redis = getRedisConnection();
+				const lockKey = `ai:lock:${channel.id}:${msg.chatId}`;
+				const bufferKey = `ai:buffer:${channel.id}:${msg.chatId}`;
+
+				// Acquire the processing lock so we don't delete mid-generation
+				let clearLockAcquired = false;
+				for (let i = 0; i < 60; i++) {
+					clearLockAcquired = !!(await redis.set(
+						lockKey,
+						"clear",
+						"EX",
+						10,
+						"NX",
+					));
+					if (clearLockAcquired) {
+						break;
+					}
+					await sleep(1000);
 				}
+
+				try {
+					// Drain any buffered messages
+					await redis.del(bufferKey);
+
+					const existing = await db.aiConversation.findUnique({
+						where: {
+							channelId_externalChatId: {
+								channelId: channel.id,
+								externalChatId: msg.chatId,
+							},
+						},
+					});
+					if (existing) {
+						await db.aiMessage.deleteMany({
+							where: { conversationId: existing.id },
+						});
+						await db.aiConversation.deleteMany({
+							where: { id: existing.id },
+						});
+					}
+				} finally {
+					await redis.del(lockKey);
+				}
+
 				await sendTextMessage(
 					provider,
 					apiToken,
@@ -119,7 +147,7 @@ async function handleMessages(
 				continue;
 			}
 
-			// Process media attachments (voice → transcription, image → description)
+			// Process media attachments (voice \u2192 transcription, image \u2192 description)
 			let messageText = msg.text;
 			if (msg.mediaId && msg.mediaType) {
 				const processed = await processMedia(
@@ -128,7 +156,6 @@ async function handleMessages(
 					msg.mediaId,
 					msg.mediaCaption,
 					msg.mediaLink,
-					msg.messageId,
 				);
 				if (processed) {
 					if (msg.mediaType === "voice") {
@@ -225,43 +252,26 @@ async function handleMessages(
 			}
 
 			// Build system prompt once
-			let systemPrompt = channel.agent.systemPrompt;
-			if (
-				channel.agent.maintenanceMode &&
-				channel.agent.maintenanceMessage
-			) {
-				systemPrompt += MAINTENANCE_MODE_INSTRUCTION(
-					channel.agent.maintenanceMessage,
-				);
-			}
-			if (msg.contactName || msg.contactId) {
-				const parts: string[] = [];
-				if (msg.contactName) {
-					parts.push(`name: ${msg.contactName}`);
-				}
-				if (msg.contactId) {
-					parts.push(`phone: ${msg.contactId}`);
-				}
-				systemPrompt += `\n\nThe customer contacting you via WhatsApp: ${parts.join(", ")}. Use this as the default to look up their account, but if the customer explicitly provides a different phone number, name, or account number in their message, use that instead.`;
-			}
-			systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
-			if (tools) {
-				systemPrompt += VERBOSE_TOOL_INSTRUCTION;
-				if (channel.agent.enabledTools.includes("escalate-telegram")) {
-					systemPrompt += ESCALATION_TOOL_INSTRUCTION;
-				}
-				if (
-					channel.agent.enabledTools.includes("isp-search-customer")
-				) {
-					systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
-				}
-			}
+			const systemPrompt = buildSystemPrompt({
+				basePrompt: channel.agent.systemPrompt,
+				enabledTools: channel.agent.enabledTools,
+				contactName: msg.contactName ?? undefined,
+				contactPhone: msg.contactId ?? undefined,
+				maintenanceMode: channel.agent.maintenanceMode,
+				maintenanceMessage:
+					channel.agent.maintenanceMessage ?? undefined,
+				provider,
+			});
 
-			// Processing loop — handles buffered messages + any that arrive during generation
+			// Processing loop \u2014 handles buffered messages + any that arrive during generation
+			let isFirstIteration = true;
+			let lastAssistantText = "";
+			const lastUserMessage = truncatedText;
+
 			try {
 				while (true) {
 					// Wait for rapid messages to settle
-					await sleep(2000);
+					await sleep(3000);
 
 					// Atomically drain the buffer
 					const multi = redis.multi();
@@ -272,6 +282,79 @@ async function handleMessages(
 
 					if (bufferedTexts.length === 0) {
 						break;
+					}
+
+					// Triage buffered messages on second+ iterations
+					if (!isFirstIteration && lastAssistantText) {
+						const triageResult = await triageBufferedMessages({
+							lastAssistantResponse: lastAssistantText,
+							bufferedMessages: bufferedTexts,
+							recentUserMessage: lastUserMessage,
+						});
+
+						logger.info("Buffer triage result", {
+							decision: triageResult.decision,
+							bufferedCount: bufferedTexts.length,
+							conversationId: conversation.id,
+							provider,
+						});
+
+						if (triageResult.decision === "skip") {
+							// Messages are noise \u2014 update counts but don't generate
+							await db.aiConversation.update({
+								where: { id: conversation.id },
+								data: {
+									messageCount: {
+										increment: bufferedTexts.length,
+									},
+									lastMessageAt: new Date(),
+								},
+							});
+							continue;
+						}
+
+						if (triageResult.decision === "acknowledge") {
+							// Send brief acknowledgment without full generation
+							const ackMessage =
+								triageResult.message ??
+								"Understood, let me know if you need anything else.";
+
+							await sendTextMessage(
+								provider,
+								apiToken,
+								msg.chatId,
+								ackMessage,
+							);
+
+							const conversationExists =
+								await db.aiConversation.findUnique({
+									where: { id: conversation.id },
+									select: { id: true },
+								});
+
+							if (conversationExists) {
+								await db.aiMessage.create({
+									data: {
+										conversationId: conversation.id,
+										role: "assistant",
+										content: ackMessage,
+									},
+								});
+
+								await db.aiConversation.update({
+									where: { id: conversation.id },
+									data: {
+										messageCount: {
+											increment: bufferedTexts.length + 1,
+										},
+										lastMessageAt: new Date(),
+									},
+								});
+							}
+							continue;
+						}
+
+						// decision === "respond" \u2014 fall through to normal generation
 					}
 
 					// Check AI messages quota (1 per response)
@@ -308,6 +391,33 @@ async function handleMessages(
 						content: m.content,
 					}));
 
+					// Merge consecutive trailing user messages into one
+					// (rapid-fire messages get stored separately but should be read as one thought)
+					if (
+						bufferedTexts.length > 1 &&
+						historyMessages.length > 1
+					) {
+						let i = historyMessages.length - 1;
+						const trailingParts: string[] = [];
+						while (i >= 0 && historyMessages[i]?.role === "user") {
+							trailingParts.unshift(
+								historyMessages[i]?.content ?? "",
+							);
+							i--;
+						}
+						if (trailingParts.length > 1) {
+							// Remove the individual trailing user messages
+							historyMessages.splice(
+								i + 1,
+								trailingParts.length,
+								{
+									role: "user",
+									content: trailingParts.join(" "),
+								},
+							);
+						}
+					}
+
 					// Send typing indicator before generation
 					sendTypingIndicator(provider, apiToken, msg.chatId).catch(
 						() => {},
@@ -333,6 +443,13 @@ async function handleMessages(
 							abortController: controller,
 							tools,
 							maxSteps: tools ? 10 : undefined,
+							onToolActivity: () => {
+								sendTypingIndicator(
+									provider,
+									apiToken,
+									msg.chatId,
+								).catch(() => {});
+							},
 							onStepText: tools
 								? async (stepText) => {
 										if (sentInitial) {
@@ -345,16 +462,35 @@ async function handleMessages(
 											msg.chatId,
 											stepText,
 										);
-										sendTypingIndicator(
-											provider,
-											apiToken,
-											msg.chatId,
-										).catch(() => {});
 									}
 								: undefined,
 						});
 
 						clearTimeout(timeout);
+
+						// Escalation safety net: if model said it would escalate but didn't call the tool, do it now
+						if (
+							tools &&
+							channel.agent.enabledTools.includes(
+								"escalate-telegram",
+							)
+						) {
+							const guardResult = await executeEscalationGuard({
+								tools,
+								responseText: result.text,
+								toolResults: result.toolResults,
+								customerName: msg.contactName ?? undefined,
+								customerPhone: msg.contactId ?? undefined,
+								conversationMessages: historyMessages,
+								conversationId: conversation.id,
+							});
+							if (guardResult) {
+								if (!result.toolResults) {
+									result.toolResults = [];
+								}
+								result.toolResults.push(guardResult);
+							}
+						}
 
 						// Send reply
 						const sendResult = await sendTextMessage(
@@ -364,35 +500,49 @@ async function handleMessages(
 							result.text,
 						);
 
-						// Store assistant message
-						await db.aiMessage.create({
-							data: {
-								conversationId: conversation.id,
-								role: "assistant",
-								content: result.text,
-								externalMsgId: sendResult.messageId ?? null,
-								tokenCount: result.tokenCount,
-								latencyMs: result.latencyMs,
-								toolCalls: result.toolResults
-									? JSON.parse(
-											JSON.stringify(result.toolResults),
-										)
-									: null,
-							},
-						});
+						// Store assistant message (conversation may have been cleared concurrently)
+						const conversationExists =
+							await db.aiConversation.findUnique({
+								where: { id: conversation.id },
+								select: { id: true },
+							});
 
-						// Update conversation counters
-						await db.aiConversation.update({
-							where: {
-								id: conversation.id,
-							},
-							data: {
-								messageCount: {
-									increment: bufferedTexts.length + 1,
+						if (conversationExists) {
+							await db.aiMessage.create({
+								data: {
+									conversationId: conversation.id,
+									role: "assistant",
+									content: result.text,
+									externalMsgId: sendResult.messageId ?? null,
+									tokenCount: result.tokenCount,
+									latencyMs: result.latencyMs,
+									toolCalls: result.toolResults
+										? JSON.parse(
+												JSON.stringify(
+													result.toolResults,
+												),
+											)
+										: null,
 								},
-								lastMessageAt: new Date(),
-							},
-						});
+							});
+
+							// Update conversation counters
+							await db.aiConversation.update({
+								where: {
+									id: conversation.id,
+								},
+								data: {
+									messageCount: {
+										increment: bufferedTexts.length + 1,
+									},
+									lastMessageAt: new Date(),
+								},
+							});
+						}
+
+						// Track for triage on subsequent iterations
+						lastAssistantText = result.text;
+						isFirstIteration = false;
 					} catch (error) {
 						clearTimeout(timeout);
 
@@ -433,30 +583,38 @@ async function handleMessages(
 							FALLBACK_MESSAGE,
 						);
 
-						// Store error message
-						await db.aiMessage.create({
-							data: {
-								conversationId: conversation.id,
-								role: "assistant",
-								content: FALLBACK_MESSAGE,
-								error:
-									error instanceof Error
-										? error.message
-										: "Unknown error",
-							},
-						});
+						// Store error message (conversation may have been cleared concurrently)
+						const conversationExists =
+							await db.aiConversation.findUnique({
+								where: { id: conversation.id },
+								select: { id: true },
+							});
 
-						await db.aiConversation.update({
-							where: {
-								id: conversation.id,
-							},
-							data: {
-								messageCount: {
-									increment: bufferedTexts.length + 1,
+						if (conversationExists) {
+							await db.aiMessage.create({
+								data: {
+									conversationId: conversation.id,
+									role: "assistant",
+									content: FALLBACK_MESSAGE,
+									error:
+										error instanceof Error
+											? error.message
+											: "Unknown error",
 								},
-								lastMessageAt: new Date(),
-							},
-						});
+							});
+
+							await db.aiConversation.update({
+								where: {
+									id: conversation.id,
+								},
+								data: {
+									messageCount: {
+										increment: bufferedTexts.length + 1,
+									},
+									lastMessageAt: new Date(),
+								},
+							});
+						}
 
 						break;
 					}

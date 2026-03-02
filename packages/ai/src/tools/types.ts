@@ -28,7 +28,7 @@ export interface ToolMetadata {
 export interface ConfigField {
 	key: string;
 	label: string;
-	type: "text" | "password" | "select" | "textarea";
+	type: "text" | "password" | "select" | "textarea" | "repeater";
 	required: boolean;
 	placeholder?: string | undefined;
 	defaultValue?: string | undefined;

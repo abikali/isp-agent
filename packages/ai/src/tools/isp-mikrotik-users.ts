@@ -14,11 +14,8 @@ interface MikrotikUser {
 
 const ispMikrotikUsersDef = toolDefinition({
 	name: "isp-mikrotik-users",
-	description: `List all users sharing a MikroTik interface. Returns usernames and online/offline status for every customer on that interface.
-
-WHEN TO USE: For wired/fiber customers (mikrotikInterface contains "ether", "base", or "olt"), accessPointUsers will be empty. Use this tool instead — pass the customer's full mikrotikInterface value to find other users sharing the same interface. Then you can ping those users with isp-ping-customer to determine if the issue is customer-specific or interface-wide.
-
-This is the fiber/ether equivalent of accessPointUsers for wireless customers.`,
+	description:
+		"List all users on a MikroTik interface. Returns [{userName, online}] for every customer sharing that interface.",
 	inputSchema: z.object({
 		mikrotikInterface: z
 			.string()

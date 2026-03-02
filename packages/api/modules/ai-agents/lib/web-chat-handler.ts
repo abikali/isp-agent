@@ -1,12 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import type { GenerateResponseInput, ToolContext } from "@repo/ai";
 import {
-	CUSTOMER_IDENTIFICATION_INSTRUCTION,
-	ESCALATION_TOOL_INSTRUCTION,
+	buildSystemPrompt,
+	executeEscalationGuard,
 	generateAgentResponse,
-	LANGUAGE_MATCHING_INSTRUCTION,
-	MAINTENANCE_MODE_INSTRUCTION,
-	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	resolveTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -128,21 +125,14 @@ export async function handleWebChatMessage(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
-	// Enhance system prompt
-	let systemPrompt = agent.systemPrompt;
-	if (agent.maintenanceMode && agent.maintenanceMessage) {
-		systemPrompt += MAINTENANCE_MODE_INSTRUCTION(agent.maintenanceMessage);
-	}
-	systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
-	if (tools) {
-		if (agent.enabledTools.includes("escalate-telegram")) {
-			systemPrompt += ESCALATION_TOOL_INSTRUCTION;
-		}
-		if (agent.enabledTools.includes("isp-search-customer")) {
-			systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
-			systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
-		}
-	}
+	// Build system prompt
+	const systemPrompt = buildSystemPrompt({
+		basePrompt: agent.systemPrompt,
+		enabledTools: agent.enabledTools,
+		maintenanceMode: agent.maintenanceMode,
+		maintenanceMessage: agent.maintenanceMessage ?? undefined,
+		isWebChat: true,
+	});
 
 	// Generate AI response with timeout
 	const timeoutMs = config.ai.responseTimeoutMs;
@@ -162,6 +152,23 @@ export async function handleWebChatMessage(
 		});
 
 		clearTimeout(timeout);
+
+		// Escalation safety net
+		if (tools && agent.enabledTools.includes("escalate-telegram")) {
+			const guardResult = await executeEscalationGuard({
+				tools,
+				responseText: result.text,
+				toolResults: result.toolResults,
+				conversationMessages: historyMessages,
+				conversationId: conversation.id,
+			});
+			if (guardResult) {
+				if (!result.toolResults) {
+					result.toolResults = [];
+				}
+				result.toolResults.push(guardResult);
+			}
+		}
 
 		// Store assistant message
 		const messageData: Record<string, unknown> = {

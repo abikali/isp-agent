@@ -7,9 +7,9 @@ export interface ParsedMessage {
 	contactName?: string | undefined;
 	contactId?: string | undefined;
 	timestamp?: number | undefined;
-	/** Whapi media ID for downloading via GET /media/{id} */
+	/** Provider-specific media identifier */
 	mediaId?: string | undefined;
-	/** Direct download URL for media (e.g. Whapi auto-download S3 link) */
+	/** Serialized media payload for provider-specific download (e.g. WaSender decrypt data) */
 	mediaLink?: string | undefined;
 	/** Type of media: "voice", "image", etc. */
 	mediaType?: string | undefined;
@@ -38,6 +38,8 @@ export interface GenerateResponseInput {
 	maxSteps?: number | undefined;
 	/** Called with intermediate text when a step finishes with a tool call (for sending progress messages). */
 	onStepText?: ((text: string) => Promise<void>) | undefined;
+	/** Called on TOOL_CALL_START and TOOL_CALL_END events. Use to re-send typing indicators during long tool chains. */
+	onToolActivity?: (() => void) | undefined;
 }
 
 export interface ToolResult {

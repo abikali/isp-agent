@@ -4,15 +4,13 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
-	CUSTOMER_IDENTIFICATION_INSTRUCTION,
+	buildSystemPrompt,
 	decryptToken,
-	ESCALATION_TOOL_INSTRUCTION,
+	executeEscalationGuard,
 	generateAgentResponse,
-	LANGUAGE_MATCHING_INSTRUCTION,
-	MAINTENANCE_MODE_INSTRUCTION,
-	MULTI_ACCOUNT_SELECTION_INSTRUCTION,
 	resolveTools,
 	sendTextMessage,
+	sendTypingIndicator,
 } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
@@ -94,32 +92,26 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				);
 			}
 
-			// Enhance system prompt
-			let systemPrompt = conversation.agent.systemPrompt;
-			if (
-				conversation.agent.maintenanceMode &&
-				conversation.agent.maintenanceMessage
-			) {
-				systemPrompt += MAINTENANCE_MODE_INSTRUCTION(
-					conversation.agent.maintenanceMessage,
-				);
-			}
-			systemPrompt += LANGUAGE_MATCHING_INSTRUCTION;
-			if (
-				tools &&
-				conversation.agent.enabledTools.includes("escalate-telegram")
-			) {
-				systemPrompt += ESCALATION_TOOL_INSTRUCTION;
-			}
-			if (
-				tools &&
-				conversation.agent.enabledTools.includes("isp-search-customer")
-			) {
-				systemPrompt += CUSTOMER_IDENTIFICATION_INSTRUCTION;
-				systemPrompt += MULTI_ACCOUNT_SELECTION_INSTRUCTION;
-			}
+			// Build system prompt
+			const systemPrompt = buildSystemPrompt({
+				basePrompt: conversation.agent.systemPrompt,
+				enabledTools: conversation.agent.enabledTools,
+				contactName: conversation.contactName ?? undefined,
+				contactPhone: conversation.contactId ?? undefined,
+				maintenanceMode: conversation.agent.maintenanceMode,
+				maintenanceMessage:
+					conversation.agent.maintenanceMessage ?? undefined,
+				provider: conversation.channel?.provider ?? "messaging",
+			});
 
 			try {
+				const provider = conversation.channel
+					.provider as ChannelProvider;
+				const chatId = conversation.externalChatId;
+
+				// Send typing indicator before generation
+				sendTypingIndicator(provider, apiToken, chatId).catch(() => {});
+
 				const result = await generateAgentResponse({
 					model: conversation.agent.model,
 					systemPrompt,
@@ -129,12 +121,41 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					temperature: conversation.agent.temperature,
 					tools,
 					maxSteps: tools ? 10 : undefined,
+					onToolActivity: () => {
+						sendTypingIndicator(provider, apiToken, chatId).catch(
+							() => {},
+						);
+					},
 				});
 
+				// Escalation safety net
+				if (
+					tools &&
+					conversation.agent.enabledTools.includes(
+						"escalate-telegram",
+					)
+				) {
+					const guardResult = await executeEscalationGuard({
+						tools,
+						responseText: result.text,
+						toolResults: result.toolResults,
+						customerName: conversation.contactName ?? undefined,
+						customerPhone: conversation.contactId ?? undefined,
+						conversationMessages: messages,
+						conversationId,
+					});
+					if (guardResult) {
+						if (!result.toolResults) {
+							result.toolResults = [];
+						}
+						result.toolResults.push(guardResult);
+					}
+				}
+
 				const sendResult = await sendTextMessage(
-					conversation.channel.provider as ChannelProvider,
+					provider,
 					apiToken,
-					conversation.externalChatId,
+					chatId,
 					result.text,
 				);
 
