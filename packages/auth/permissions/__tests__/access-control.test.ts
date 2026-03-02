@@ -89,6 +89,13 @@ describe("permissionStatement", () => {
 			"webhooks",
 			"apiKeys",
 			"connections",
+			"aiAgents",
+			"watchers",
+			"customers",
+			"servicePlans",
+			"stations",
+			"employees",
+			"tasks",
 			"audit",
 			"billing",
 		];
@@ -143,6 +150,8 @@ describe("PERMISSION_GROUPS", () => {
 	it("covers all resources in permission statement", () => {
 		const groupedResources = [
 			...PERMISSION_GROUPS.organization.resources,
+			...PERMISSION_GROUPS.ispManagement.resources,
+			...PERMISSION_GROUPS.aiMonitoring.resources,
 			...PERMISSION_GROUPS.integrations.resources,
 			...PERMISSION_GROUPS.insights.resources,
 			...PERMISSION_GROUPS.billing.resources,

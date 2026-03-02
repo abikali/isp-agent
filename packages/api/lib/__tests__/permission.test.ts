@@ -327,55 +327,26 @@ describe("getActionScope", () => {
 			memberRole: "member",
 		};
 
-		it("returns 'own' for profiles restricted actions", () => {
+		it("returns 'all' for unrestricted resources (profiles, contacts)", () => {
+			// profiles and contacts are not in MEMBER_SCOPE_RESTRICTIONS
 			expect(getActionScope(memberContext, "profiles", "update")).toBe(
-				"own",
+				"all",
 			);
-			expect(getActionScope(memberContext, "profiles", "delete")).toBe(
-				"own",
+			expect(getActionScope(memberContext, "profiles", "read")).toBe(
+				"all",
 			);
-			expect(
-				getActionScope(memberContext, "profiles", "manage-links"),
-			).toBe("own");
-			expect(
-				getActionScope(memberContext, "profiles", "manage-leads"),
-			).toBe("own");
-		});
-
-		it("returns 'all' for profiles/create (only non-restricted action)", () => {
 			expect(getActionScope(memberContext, "profiles", "create")).toBe(
 				"all",
 			);
-		});
-
-		it("returns 'own' for profiles/read (restricted)", () => {
-			expect(getActionScope(memberContext, "profiles", "read")).toBe(
-				"own",
+			expect(getActionScope(memberContext, "contacts", "read")).toBe(
+				"all",
 			);
-		});
-
-		it("returns 'own' for contacts restricted actions", () => {
 			expect(getActionScope(memberContext, "contacts", "update")).toBe(
-				"own",
-			);
-			expect(getActionScope(memberContext, "contacts", "delete")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'all' for contacts/create (only non-restricted action)", () => {
-			expect(getActionScope(memberContext, "contacts", "create")).toBe(
 				"all",
 			);
 		});
 
-		it("returns 'own' for contacts/read (restricted)", () => {
-			expect(getActionScope(memberContext, "contacts", "read")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'own' for apiKeys/read", () => {
+		it("returns 'own' for apiKeys/read (only restricted action)", () => {
 			expect(getActionScope(memberContext, "apiKeys", "read")).toBe(
 				"own",
 			);
@@ -539,13 +510,8 @@ describe("hasPermission", () => {
 				memberRole: "member",
 			};
 
-			// Member has 'own' scope for profiles/update
-			expect(hasPermission(memberContext, "profiles", "update")).toBe(
-				false,
-			);
-			expect(hasPermission(memberContext, "profiles", "delete")).toBe(
-				false,
-			);
+			// Member has 'own' scope for apiKeys/read (the only restricted action)
+			expect(hasPermission(memberContext, "apiKeys", "read")).toBe(false);
 		});
 	});
 
@@ -572,7 +538,7 @@ describe("hasPermission", () => {
 			};
 
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: "user-123",
 				}),
 			).toBe(true);
@@ -586,7 +552,7 @@ describe("hasPermission", () => {
 			};
 
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: "other-user",
 				}),
 			).toBe(false);
@@ -600,7 +566,7 @@ describe("hasPermission", () => {
 			};
 
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: null,
 				}),
 			).toBe(false);
@@ -614,7 +580,7 @@ describe("hasPermission", () => {
 			};
 
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: undefined,
 				}),
 			).toBe(false);
@@ -661,7 +627,7 @@ describe("hasPermission", () => {
 			);
 		});
 
-		it("member with own scope needs ownership check", () => {
+		it("member with own scope needs ownership check (apiKeys/read)", () => {
 			const memberContext: PermissionContext = {
 				userId: "user-123",
 				organizationId: "org-456",
@@ -669,20 +635,18 @@ describe("hasPermission", () => {
 			};
 
 			// Without ownership - fails
-			expect(hasPermission(memberContext, "profiles", "update")).toBe(
-				false,
-			);
+			expect(hasPermission(memberContext, "apiKeys", "read")).toBe(false);
 
 			// With matching ownership - succeeds
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: "user-123",
 				}),
 			).toBe(true);
 
 			// With non-matching ownership - fails
 			expect(
-				hasPermission(memberContext, "profiles", "update", {
+				hasPermission(memberContext, "apiKeys", "read", {
 					resourceCreatedById: "other-user",
 				}),
 			).toBe(false);
@@ -738,38 +702,18 @@ describe("hasPermission", () => {
 	});
 
 	describe("edge cases", () => {
-		it("member cannot read all profiles (read is restricted to own)", () => {
+		it("member cannot read all apiKeys (read is restricted to own)", () => {
 			const memberContext: PermissionContext = {
 				userId: "user-123",
 				organizationId: "org-456",
 				memberRole: "member",
 			};
 
-			// Read without ownership info returns false (scope is "own")
-			expect(hasPermission(memberContext, "profiles", "read")).toBe(
-				false,
-			);
-			// Create is not restricted
-			expect(hasPermission(memberContext, "profiles", "create")).toBe(
-				true,
-			);
-		});
-
-		it("member cannot read all contacts (read is restricted to own)", () => {
-			const memberContext: PermissionContext = {
-				userId: "user-123",
-				organizationId: "org-456",
-				memberRole: "member",
-			};
-
-			// Read without ownership info returns false (scope is "own")
-			expect(hasPermission(memberContext, "contacts", "read")).toBe(
-				false,
-			);
-			// Create is not restricted
-			expect(hasPermission(memberContext, "contacts", "create")).toBe(
-				true,
-			);
+			// apiKeys/read without ownership info returns false (scope is "own")
+			expect(hasPermission(memberContext, "apiKeys", "read")).toBe(false);
+			// Unrestricted resources return true
+			expect(hasPermission(memberContext, "profiles", "read")).toBe(true);
+			expect(hasPermission(memberContext, "contacts", "read")).toBe(true);
 		});
 
 		it("custom role without any permissions is denied all access", () => {
@@ -859,12 +803,13 @@ describe("verifyPermission", () => {
 			memberRole: "member",
 		};
 
+		// apiKeys/read is "own" scope, so fails without ownership
 		expect(() => {
-			verifyPermission(memberContext, "profiles", "update");
+			verifyPermission(memberContext, "apiKeys", "read");
 		}).toThrow(ORPCError);
 
 		try {
-			verifyPermission(memberContext, "profiles", "update");
+			verifyPermission(memberContext, "apiKeys", "read");
 		} catch (error) {
 			expect(error).toBeInstanceOf(ORPCError);
 			expect((error as ORPCError).code).toBe("FORBIDDEN");
@@ -879,10 +824,10 @@ describe("verifyPermission", () => {
 		};
 
 		try {
-			verifyPermission(memberContext, "profiles", "delete");
+			verifyPermission(memberContext, "apiKeys", "read");
 		} catch (error) {
-			expect((error as ORPCError).message).toContain("delete");
-			expect((error as ORPCError).message).toContain("profiles");
+			expect((error as ORPCError).message).toContain("read");
+			expect((error as ORPCError).message).toContain("apiKeys");
 		}
 	});
 
@@ -893,16 +838,16 @@ describe("verifyPermission", () => {
 			memberRole: "member",
 		};
 
-		// Should not throw when ownership matches
+		// Should not throw when ownership matches (apiKeys/read is "own" scope)
 		expect(() => {
-			verifyPermission(memberContext, "profiles", "update", {
+			verifyPermission(memberContext, "apiKeys", "read", {
 				resourceCreatedById: "user-123",
 			});
 		}).not.toThrow();
 
 		// Should throw when ownership does not match
 		expect(() => {
-			verifyPermission(memberContext, "profiles", "update", {
+			verifyPermission(memberContext, "apiKeys", "read", {
 				resourceCreatedById: "other-user",
 			});
 		}).toThrow(ORPCError);
@@ -1004,20 +949,22 @@ describe("getOwnershipFilter", () => {
 			).toBeUndefined();
 		});
 
-		it("for member with 'all' scope action (create only)", () => {
+		it("for member with 'all' scope action (unrestricted resources)", () => {
 			const memberContext: PermissionContext = {
 				userId: "user-123",
 				organizationId: "org-456",
 				memberRole: "member",
 			};
 
-			// profiles/create has 'all' scope for member
+			// profiles and contacts are not restricted for member
 			expect(
-				getOwnershipFilter(memberContext, "profiles", "create"),
+				getOwnershipFilter(memberContext, "profiles", "read"),
 			).toBeUndefined();
-			// contacts/create has 'all' scope for member
 			expect(
-				getOwnershipFilter(memberContext, "contacts", "create"),
+				getOwnershipFilter(memberContext, "contacts", "read"),
+			).toBeUndefined();
+			expect(
+				getOwnershipFilter(memberContext, "apiKeys", "create"),
 			).toBeUndefined();
 		});
 
@@ -1048,21 +995,9 @@ describe("getOwnershipFilter", () => {
 				memberRole: "member",
 			};
 
-			// profiles/update has 'own' scope for member
+			// apiKeys/read has 'own' scope for member
 			expect(
-				getOwnershipFilter(memberContext, "profiles", "update"),
-			).toEqual({
-				createdById: "user-123",
-			});
-
-			expect(
-				getOwnershipFilter(memberContext, "profiles", "delete"),
-			).toEqual({
-				createdById: "user-123",
-			});
-
-			expect(
-				getOwnershipFilter(memberContext, "profiles", "manage-links"),
+				getOwnershipFilter(memberContext, "apiKeys", "read"),
 			).toEqual({
 				createdById: "user-123",
 			});
@@ -1097,17 +1032,6 @@ describe("getOwnershipFilter", () => {
 				organizationId: "org-456",
 				memberRole: "member",
 			};
-
-			expect(
-				getOwnershipFilter(
-					memberContext,
-					"profiles",
-					"update",
-					"ownerId",
-				),
-			).toEqual({
-				ownerId: "user-123",
-			});
 
 			expect(
 				getOwnershipFilter(memberContext, "apiKeys", "read", "userId"),
@@ -1146,38 +1070,23 @@ describe("getOwnershipFilter", () => {
 	});
 
 	describe("contacts specific cases", () => {
-		it("member has 'own' scope for contacts/update and contacts/delete", () => {
+		it("member has 'all' scope for contacts (no restrictions)", () => {
 			const memberContext: PermissionContext = {
 				userId: "user-123",
 				organizationId: "org-456",
 				memberRole: "member",
 			};
 
-			expect(
-				getOwnershipFilter(memberContext, "contacts", "update"),
-			).toEqual({
-				createdById: "user-123",
-			});
-
-			expect(
-				getOwnershipFilter(memberContext, "contacts", "delete"),
-			).toEqual({
-				createdById: "user-123",
-			});
-		});
-
-		it("member has 'own' scope for contacts/read", () => {
-			const memberContext: PermissionContext = {
-				userId: "user-123",
-				organizationId: "org-456",
-				memberRole: "member",
-			};
-
+			// contacts is not in MEMBER_SCOPE_RESTRICTIONS, so all actions are "all" scope
 			expect(
 				getOwnershipFilter(memberContext, "contacts", "read"),
-			).toEqual({
-				createdById: "user-123",
-			});
+			).toBeUndefined();
+			expect(
+				getOwnershipFilter(memberContext, "contacts", "update"),
+			).toBeUndefined();
+			expect(
+				getOwnershipFilter(memberContext, "contacts", "delete"),
+			).toBeUndefined();
 		});
 	});
 

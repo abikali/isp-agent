@@ -21,7 +21,7 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: [],
 		});
-		expect(result).toContain("LANGUAGE MATCHING");
+		expect(result).toContain("## Language");
 		expect(result).toContain("Arabizi");
 	});
 
@@ -30,9 +30,10 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: ["escalate-telegram"],
 		});
-		const sections = result.split("\n\n");
-		const lastSection = sections[sections.length - 1] ?? "";
-		expect(lastSection).toContain("LANGUAGE MATCHING");
+		// Language section is the last major section — ends with the translate line
+		expect(result).toMatch(
+			/always translate when presenting to customer\.\s*$/,
+		);
 	});
 
 	// -----------------------------------------------------------------------
@@ -44,10 +45,10 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: ["escalate-telegram"],
 		});
-		expect(result).toContain("ESCALATION");
+		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("REAL Telegram message");
 		expect(result).toContain("MUST call the tool");
-		expect(result).toContain("collect info");
+		expect(result).toContain("Collect all relevant info");
 	});
 
 	it("does NOT include escalation section when escalate-telegram is not enabled", () => {
@@ -80,8 +81,8 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("Account Status Gate");
 		expect(result).toContain("Connection Type Detection");
 		expect(result).toContain("Field Reference");
-		expect(result).toContain("CUSTOMER IDENTIFICATION");
-		expect(result).toContain("MULTIPLE ACCOUNTS");
+		expect(result).toContain("## Customer Not Found");
+		expect(result).toContain("## Multiple Account Matches");
 	});
 
 	it("does NOT include diagnostics when isp-search-customer is not enabled", () => {
@@ -90,7 +91,7 @@ describe("buildSystemPrompt", () => {
 			enabledTools: ["escalate-telegram"],
 		});
 		expect(result).not.toContain("Diagnostics Reference");
-		expect(result).not.toContain("CUSTOMER IDENTIFICATION");
+		expect(result).not.toContain("## Customer Not Found");
 	});
 
 	// -----------------------------------------------------------------------
@@ -102,11 +103,11 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: ["isp-search-customer", "escalate-telegram"],
 		});
-		expect(result).toContain("ESCALATION");
+		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("Diagnostics Reference");
-		expect(result).toContain("CUSTOMER IDENTIFICATION");
-		expect(result).toContain("MULTIPLE ACCOUNTS");
-		expect(result).toContain("LANGUAGE MATCHING");
+		expect(result).toContain("## Customer Not Found");
+		expect(result).toContain("## Multiple Account Matches");
+		expect(result).toContain("## Language");
 	});
 
 	// -----------------------------------------------------------------------
@@ -118,7 +119,7 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: ["isp-search-customer"],
 		});
-		expect(result).toContain("briefly explain what you're about to do");
+		expect(result).toContain("## Tool Usage Rules");
 		expect(result).toContain("Never stop after a single tool call");
 	});
 
@@ -128,7 +129,7 @@ describe("buildSystemPrompt", () => {
 			enabledTools: ["isp-search-customer"],
 			isWebChat: true,
 		});
-		expect(result).not.toContain("briefly explain what you're about to do");
+		expect(result).not.toContain("## Tool Usage Rules");
 	});
 
 	it("excludes verbose tool section when no tools are enabled", () => {
@@ -136,7 +137,7 @@ describe("buildSystemPrompt", () => {
 			basePrompt: BASE_PROMPT,
 			enabledTools: [],
 		});
-		expect(result).not.toContain("briefly explain what you're about to do");
+		expect(result).not.toContain("## Tool Usage Rules");
 	});
 
 	// -----------------------------------------------------------------------
@@ -257,19 +258,19 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("Ahmad Khoury");
 		expect(result).toContain("+96171234567");
 		expect(result).toContain("telegram");
-		expect(result).toContain("briefly explain"); // verbose
+		expect(result).toContain("## Tool Usage Rules"); // verbose
 		expect(result).toContain("Diagnostics Reference");
-		expect(result).toContain("CUSTOMER IDENTIFICATION");
-		expect(result).toContain("MULTIPLE ACCOUNTS");
-		expect(result).toContain("ESCALATION");
-		expect(result).toContain("LANGUAGE MATCHING");
+		expect(result).toContain("## Customer Not Found");
+		expect(result).toContain("## Multiple Account Matches");
+		expect(result).toContain("## Escalation via Telegram");
+		expect(result).toContain("## Language");
 
 		// Section ordering: base → maintenance → contact → tools → language
 		const maintenanceIdx = result.indexOf("MAINTENANCE MODE");
 		const contactIdx = result.indexOf("CUSTOMER CONTACT INFO");
 		const diagnosticsIdx = result.indexOf("Diagnostics Reference");
-		const escalationIdx = result.indexOf("ESCALATION:");
-		const languageIdx = result.indexOf("LANGUAGE MATCHING");
+		const escalationIdx = result.indexOf("## Escalation via Telegram");
+		const languageIdx = result.indexOf("## Language");
 
 		expect(maintenanceIdx).toBeLessThan(contactIdx);
 		expect(contactIdx).toBeLessThan(diagnosticsIdx);
@@ -285,9 +286,9 @@ describe("buildSystemPrompt", () => {
 		});
 
 		expect(result).not.toContain("CUSTOMER CONTACT INFO");
-		expect(result).not.toContain("briefly explain");
-		expect(result).toContain("ESCALATION");
+		expect(result).not.toContain("## Tool Usage Rules");
+		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("Diagnostics Reference");
-		expect(result).toContain("LANGUAGE MATCHING");
+		expect(result).toContain("## Language");
 	});
 });

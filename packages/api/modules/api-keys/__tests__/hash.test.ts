@@ -20,8 +20,8 @@ describe("generateApiKey", () => {
 	it("generates a plainKey with expected format and length", () => {
 		const { plainKey } = generateApiKey();
 
-		// libancom_ (6 chars) + 32 bytes in base64url (43 chars) = 49 chars
-		expect(plainKey.length).toBe(49);
+		// libancom_ (9 chars) + 32 bytes in base64url (43 chars) = 52 chars
+		expect(plainKey.length).toBe(52);
 		expect(isValidApiKeyFormat(plainKey)).toBe(true);
 	});
 

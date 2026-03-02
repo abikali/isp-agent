@@ -378,7 +378,7 @@ describe("Stripe webhookHandler", () => {
 	});
 
 	describe("error handling", () => {
-		it("returns 400 when processing throws an error", async () => {
+		it("returns 500 for transient errors so Stripe retries", async () => {
 			mockConstructEventAsync.mockResolvedValue({
 				type: "customer.subscription.created",
 				data: {
@@ -399,8 +399,35 @@ describe("Stripe webhookHandler", () => {
 			const req = createMockRequest("{}", "valid_sig");
 			const response = await webhookHandler(req);
 
-			expect(response.status).toBe(400);
+			expect(response.status).toBe(500);
 			expect(await response.text()).toBe("Webhook error: Database error");
+		});
+
+		it("returns 400 for permanent failures so Stripe does not retry", async () => {
+			mockConstructEventAsync.mockResolvedValue({
+				type: "customer.subscription.created",
+				data: {
+					object: {
+						id: "sub_123",
+						metadata: {},
+						customer: "cus_789",
+						items: { data: [{ price: { id: "price_abc" } }] },
+						status: "active",
+					},
+				},
+			});
+
+			vi.mocked(createPurchase).mockRejectedValue(
+				new Error("Invalid subscription state"),
+			);
+
+			const req = createMockRequest("{}", "valid_sig");
+			const response = await webhookHandler(req);
+
+			expect(response.status).toBe(400);
+			expect(await response.text()).toBe(
+				"Webhook error: Invalid subscription state",
+			);
 		});
 	});
 });

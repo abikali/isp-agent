@@ -9,55 +9,19 @@ import {
 import { getSystemRoleScope, MEMBER_SCOPE_RESTRICTIONS } from "../roles";
 
 describe("isActionScoped", () => {
-	describe("profiles resource", () => {
-		it("returns true for read action (scoped)", () => {
-			expect(isActionScoped("profiles", "read")).toBe(true);
-		});
-
-		it("returns true for update action (scoped)", () => {
-			expect(isActionScoped("profiles", "update")).toBe(true);
-		});
-
-		it("returns true for delete action (scoped)", () => {
-			expect(isActionScoped("profiles", "delete")).toBe(true);
-		});
-
-		it("returns true for manage-links action (scoped)", () => {
-			expect(isActionScoped("profiles", "manage-links")).toBe(true);
-		});
-
-		it("returns true for manage-leads action (scoped)", () => {
-			expect(isActionScoped("profiles", "manage-leads")).toBe(true);
-		});
-
-		it("returns false for create action (not scoped)", () => {
+	describe("non-ownership resources (profiles, contacts)", () => {
+		it("returns false for profiles actions (not an ownership resource)", () => {
+			expect(isActionScoped("profiles", "read")).toBe(false);
+			expect(isActionScoped("profiles", "update")).toBe(false);
+			expect(isActionScoped("profiles", "delete")).toBe(false);
 			expect(isActionScoped("profiles", "create")).toBe(false);
 		});
-	});
 
-	describe("contacts resource", () => {
-		it("returns true for read action (scoped)", () => {
-			expect(isActionScoped("contacts", "read")).toBe(true);
-		});
-
-		it("returns true for update action (scoped)", () => {
-			expect(isActionScoped("contacts", "update")).toBe(true);
-		});
-
-		it("returns true for delete action (scoped)", () => {
-			expect(isActionScoped("contacts", "delete")).toBe(true);
-		});
-
-		it("returns false for create action (not scoped)", () => {
+		it("returns false for contacts actions (not an ownership resource)", () => {
+			expect(isActionScoped("contacts", "read")).toBe(false);
+			expect(isActionScoped("contacts", "update")).toBe(false);
+			expect(isActionScoped("contacts", "delete")).toBe(false);
 			expect(isActionScoped("contacts", "create")).toBe(false);
-		});
-
-		it("returns false for import action (not scoped)", () => {
-			expect(isActionScoped("contacts", "import")).toBe(false);
-		});
-
-		it("returns false for export action (not scoped)", () => {
-			expect(isActionScoped("contacts", "export")).toBe(false);
 		});
 	});
 
@@ -522,103 +486,49 @@ describe("getSystemRoleScope", () => {
 	});
 
 	describe("member role - restricted actions", () => {
-		it("returns 'own' for profiles/update", () => {
-			expect(getSystemRoleScope("member", "profiles", "update")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'own' for profiles/delete", () => {
-			expect(getSystemRoleScope("member", "profiles", "delete")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'own' for profiles/manage-links", () => {
-			expect(
-				getSystemRoleScope("member", "profiles", "manage-links"),
-			).toBe("own");
-		});
-
-		it("returns 'own' for profiles/manage-leads", () => {
-			expect(
-				getSystemRoleScope("member", "profiles", "manage-leads"),
-			).toBe("own");
-		});
-
-		it("returns 'own' for contacts/update", () => {
-			expect(getSystemRoleScope("member", "contacts", "update")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'own' for contacts/delete", () => {
-			expect(getSystemRoleScope("member", "contacts", "delete")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'own' for apiKeys/read", () => {
+		it("returns 'own' for apiKeys/read (only restricted action)", () => {
 			expect(getSystemRoleScope("member", "apiKeys", "read")).toBe("own");
 		});
 	});
 
 	describe("member role - non-restricted actions", () => {
-		it("returns 'all' for profiles/create", () => {
+		it("returns 'all' for profiles actions (not restricted)", () => {
+			expect(getSystemRoleScope("member", "profiles", "read")).toBe(
+				"all",
+			);
+			expect(getSystemRoleScope("member", "profiles", "update")).toBe(
+				"all",
+			);
 			expect(getSystemRoleScope("member", "profiles", "create")).toBe(
 				"all",
 			);
 		});
 
-		it("returns 'own' for profiles/read", () => {
-			expect(getSystemRoleScope("member", "profiles", "read")).toBe(
-				"own",
+		it("returns 'all' for contacts actions (not restricted)", () => {
+			expect(getSystemRoleScope("member", "contacts", "read")).toBe(
+				"all",
 			);
-		});
-
-		it("returns 'all' for contacts/create", () => {
+			expect(getSystemRoleScope("member", "contacts", "update")).toBe(
+				"all",
+			);
 			expect(getSystemRoleScope("member", "contacts", "create")).toBe(
 				"all",
 			);
 		});
 
-		it("returns 'own' for contacts/read", () => {
-			expect(getSystemRoleScope("member", "contacts", "read")).toBe(
-				"own",
-			);
-		});
-
-		it("returns 'all' for contacts/import", () => {
-			expect(getSystemRoleScope("member", "contacts", "import")).toBe(
-				"all",
-			);
-		});
-
-		it("returns 'all' for contacts/export", () => {
-			expect(getSystemRoleScope("member", "contacts", "export")).toBe(
-				"all",
-			);
-		});
-
-		it("returns 'all' for apiKeys/create", () => {
+		it("returns 'all' for apiKeys/create and apiKeys/delete", () => {
 			expect(getSystemRoleScope("member", "apiKeys", "create")).toBe(
 				"all",
 			);
-		});
-
-		it("returns 'all' for apiKeys/delete", () => {
 			expect(getSystemRoleScope("member", "apiKeys", "delete")).toBe(
 				"all",
 			);
 		});
 
-		it("returns 'all' for analytics/read", () => {
+		it("returns 'all' for other resources", () => {
 			expect(getSystemRoleScope("member", "analytics", "read")).toBe(
 				"all",
 			);
-		});
-
-		it("returns 'all' for products/read", () => {
 			expect(getSystemRoleScope("member", "products", "read")).toBe(
 				"all",
 			);
@@ -644,35 +554,15 @@ describe("getSystemRoleScope", () => {
 	});
 
 	describe("MEMBER_SCOPE_RESTRICTIONS completeness", () => {
-		it("profiles has all expected restrictions", () => {
-			expect(MEMBER_SCOPE_RESTRICTIONS["profiles"]).toEqual({
-				read: "own",
-				update: "own",
-				delete: "own",
-				"manage-links": "own",
-				"manage-leads": "own",
-			});
-		});
-
-		it("contacts has all expected restrictions", () => {
-			expect(MEMBER_SCOPE_RESTRICTIONS["contacts"]).toEqual({
-				read: "own",
-				update: "own",
-				delete: "own",
-			});
-		});
-
 		it("apiKeys has all expected restrictions", () => {
 			expect(MEMBER_SCOPE_RESTRICTIONS["apiKeys"]).toEqual({
 				read: "own",
 			});
 		});
 
-		it("only profiles, contacts, and apiKeys have restrictions", () => {
+		it("only apiKeys has restrictions", () => {
 			const restrictedResources = Object.keys(MEMBER_SCOPE_RESTRICTIONS);
-			expect(restrictedResources.sort()).toEqual(
-				["profiles", "contacts", "apiKeys"].sort(),
-			);
+			expect(restrictedResources).toEqual(["apiKeys"]);
 		});
 	});
 });
