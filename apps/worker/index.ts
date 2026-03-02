@@ -1,3 +1,4 @@
+import { initRateLimiter } from "@repo/ai";
 import {
 	closeConnection,
 	createAiChatWorker,
@@ -6,6 +7,7 @@ import {
 	createScheduledWorker,
 	createWatcherCheckWorker,
 	createWebhookWorker,
+	getRedisConnection,
 	setupScheduledJobs,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -13,6 +15,9 @@ import { sendOrganizationNotification } from "@repo/notifications";
 
 async function main() {
 	logger.info("Starting job workers...");
+
+	// Initialize WhatsApp send rate limiter with the shared Redis connection
+	initRateLimiter(getRedisConnection());
 
 	// Create workers
 	const aiChatWorker = createAiChatWorker();

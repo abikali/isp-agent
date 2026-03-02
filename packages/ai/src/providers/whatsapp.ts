@@ -5,6 +5,7 @@ import type {
 	SendMessageOptions,
 	SendMessageResult,
 } from "../types";
+import { acquireSendSlot, trySendSlot } from "./rate-limiter";
 
 /**
  * Create a WaSender SDK client instance.
@@ -28,6 +29,7 @@ interface WaSenderMessageKey {
 
 interface WaSenderMediaMessage {
 	url?: string | undefined;
+	directPath?: string | undefined;
 	mediaKey?: string | undefined;
 	mimetype?: string | undefined;
 	fileSha256?: string | undefined;
@@ -213,6 +215,10 @@ export async function sendTypingIndicator(
 	chatId: string,
 ): Promise<void> {
 	try {
+		const slotAvailable = await trySendSlot(apiToken);
+		if (!slotAvailable) {
+			return; // Skip typing indicator rather than block
+		}
 		const client = createClient(apiToken);
 		await client.sendPresenceUpdate(chatId, "composing");
 	} catch (error) {
@@ -226,23 +232,67 @@ export async function sendTextMessage(
 	text: string,
 	_options?: SendMessageOptions,
 ): Promise<SendMessageResult> {
+	await acquireSendSlot(apiToken);
+
 	try {
-		const client = createClient(apiToken);
-		const result = await client.sendText({ to: chatId, text });
-		// The SDK response body may include additional fields beyond the typed interface
-		const responseData = result.response as unknown as Record<
-			string,
-			unknown
-		>;
-		const data = responseData["data"] as
-			| { msgId?: string | number }
-			| undefined;
-		const messageId = data?.msgId != null ? String(data.msgId) : undefined;
-		return { success: true, messageId };
+		return await attemptSend(apiToken, chatId, text);
 	} catch (error) {
+		// Safety net: retry once on 429
+		if (is429Error(error)) {
+			const retryAfter = get429RetryAfter(error);
+			logger.warn("WhatsApp 429 rate limit, retrying", { retryAfter });
+			await new Promise((r) => setTimeout(r, retryAfter * 1000));
+
+			try {
+				return await attemptSend(apiToken, chatId, text);
+			} catch (retryError) {
+				logger.error("WhatsApp send error after 429 retry", {
+					error: retryError,
+				});
+				return { success: false };
+			}
+		}
+
 		logger.error("WhatsApp send error", { error });
 		return { success: false };
 	}
+}
+
+async function attemptSend(
+	apiToken: string,
+	chatId: string,
+	text: string,
+): Promise<SendMessageResult> {
+	const client = createClient(apiToken);
+	const result = await client.sendText({ to: chatId, text });
+	const responseData = result.response as unknown as Record<string, unknown>;
+	const data = responseData["data"] as
+		| { msgId?: string | number }
+		| undefined;
+	const messageId = data?.msgId != null ? String(data.msgId) : undefined;
+	return { success: true, messageId };
+}
+
+function is429Error(error: unknown): boolean {
+	if (error instanceof Error) {
+		return error.message.includes("429");
+	}
+	if (typeof error === "object" && error !== null) {
+		const obj = error as Record<string, unknown>;
+		return obj["status"] === 429 || obj["statusCode"] === 429;
+	}
+	return false;
+}
+
+function get429RetryAfter(error: unknown): number {
+	if (typeof error === "object" && error !== null) {
+		const obj = error as Record<string, unknown>;
+		const retryAfter = obj["retryAfter"];
+		if (typeof retryAfter === "number" && retryAfter > 0) {
+			return retryAfter;
+		}
+	}
+	return 3; // Default from WaSender docs
 }
 
 /**
@@ -269,6 +319,21 @@ async function downloadMedia(
 			unknown
 		>;
 
+		// Log payload keys to verify directPath is included
+		const messages = messageObject["messages"] as
+			| Record<string, unknown>
+			| undefined;
+		const message = messages?.["message"] as
+			| Record<string, unknown>
+			| undefined;
+		const mediaMsg = message
+			? (Object.values(message)[0] as Record<string, unknown> | undefined)
+			: undefined;
+		logger.info("WaSender decrypt-media request payload keys", {
+			hasDirectPath: mediaMsg ? "directPath" in mediaMsg : false,
+			mediaKeys: mediaMsg ? Object.keys(mediaMsg) : [],
+		});
+
 		// Call decrypt-media API directly (bypass SDK to control exact payload)
 		const response = await fetch(`${WASENDER_BASE_URL}/decrypt-media`, {
 			method: "POST",
@@ -289,6 +354,7 @@ async function downloadMedia(
 		}
 
 		const data = (await response.json()) as Record<string, unknown>;
+		logger.info("WaSender decrypt-media response", { data });
 		const publicUrl = data["publicUrl"] as string | undefined;
 		if (!publicUrl) {
 			logger.error("WaSender decrypt-media returned no publicUrl", {
@@ -297,15 +363,25 @@ async function downloadMedia(
 			return null;
 		}
 
-		// Download the decrypted media file (retry — Wasender may still be processing)
-		for (let attempt = 0; attempt < 4; attempt++) {
+		// Download the decrypted media file (retry with exponential backoff —
+		// WaSender decryption is async, the publicUrl may not be ready immediately)
+		const maxAttempts = 5;
+		for (let attempt = 0; attempt < maxAttempts; attempt++) {
 			if (attempt > 0) {
-				await new Promise((r) => setTimeout(r, 1500 * attempt));
+				await new Promise((r) =>
+					setTimeout(r, 2000 * 2 ** (attempt - 1)),
+				);
 			}
-			const media = await fetchFromUrl(publicUrl);
-			if (media) {
-				return media;
+			const result = await fetchFromUrl(publicUrl);
+			if (result.media) {
+				return result.media;
 			}
+			logger.warn("WaSender media download attempt failed", {
+				attempt: attempt + 1,
+				maxAttempts,
+				status: result.status,
+				publicUrl,
+			});
 		}
 		logger.error("WaSender media download failed after retries", {
 			publicUrl,
@@ -317,23 +393,31 @@ async function downloadMedia(
 	}
 }
 
-async function fetchFromUrl(
-	url: string,
-): Promise<{ buffer: Buffer; contentType: string } | null> {
+interface FetchResult {
+	media: { buffer: Buffer; contentType: string } | null;
+	status: string;
+}
+
+async function fetchFromUrl(url: string): Promise<FetchResult> {
 	try {
 		const response = await fetch(url);
 		if (!response.ok) {
-			return null;
+			return { media: null, status: `http_${response.status}` };
 		}
 		const buffer = Buffer.from(await response.arrayBuffer());
 		if (buffer.length === 0) {
-			return null;
+			return {
+				media: null,
+				status: `empty_body(content-type=${response.headers.get("content-type")},content-length=${response.headers.get("content-length")})`,
+			};
 		}
 		const contentType =
 			response.headers.get("content-type") ?? "application/octet-stream";
-		return { buffer, contentType };
-	} catch {
-		return null;
+		return { media: { buffer, contentType }, status: "ok" };
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "unknown_error";
+		return { media: null, status: message };
 	}
 }
 

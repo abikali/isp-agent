@@ -17,6 +17,7 @@ export {
 	telegram,
 	whatsapp,
 } from "./src/providers";
+export { initRateLimiter } from "./src/providers/rate-limiter";
 export {
 	getAvailableTools,
 	isValidToolId,
