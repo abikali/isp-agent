@@ -647,7 +647,15 @@ export async function whatsappWebhookHandler(
 ): Promise<Response> {
 	try {
 		const body = await request.json();
-		return handleMessages(webhookToken, "whatsapp", body);
+		// Respond immediately — WhatsApp only needs a 200 OK acknowledgment.
+		// Actual message processing (media transcription, AI generation, sending replies)
+		// happens in the background via the WaSender API.
+		handleMessages(webhookToken, "whatsapp", body).catch((error) => {
+			logger.error("WhatsApp webhook background processing failed", {
+				error,
+			});
+		});
+		return new Response("OK", { status: 200 });
 	} catch (error) {
 		logger.error("WhatsApp webhook error", { error });
 		return new Response("OK", { status: 200 });
@@ -663,7 +671,16 @@ export async function telegramWebhookHandler(
 		const secretHeader = request.headers.get(
 			"x-telegram-bot-api-secret-token",
 		);
-		return handleMessages(webhookToken, "telegram", body, secretHeader);
+		// Respond immediately — Telegram only needs a 200 OK acknowledgment.
+		// Actual message processing happens in the background via the Bot API.
+		handleMessages(webhookToken, "telegram", body, secretHeader).catch(
+			(error) => {
+				logger.error("Telegram webhook background processing failed", {
+					error,
+				});
+			},
+		);
+		return new Response("OK", { status: 200 });
 	} catch (error) {
 		logger.error("Telegram webhook error", { error });
 		return new Response("OK", { status: 200 });
