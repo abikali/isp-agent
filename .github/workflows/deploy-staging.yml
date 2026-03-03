@@ -1,0 +1,85 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: "pnpm"
+
+      - name: Cache Prisma client
+        uses: actions/cache@v4
+        with:
+          path: packages/database/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('packages/database/prisma/schema.prisma') }}
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-staging-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-staging-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter database generate
+        env:
+          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+
+      - name: Build
+        run: pnpm build
+        env:
+          VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
+          AVATARS_BUCKET_NAME: ${{ vars.AVATARS_BUCKET_NAME }}
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VITE_NANGO_PUBLIC_KEY: ${{ vars.VITE_NANGO_PUBLIC_KEY }}
+          VITE_NANGO_HOST: ${{ vars.VITE_NANGO_HOST }}
+
+      - name: Package build artifact
+        run: tar czf /tmp/staging-build.tar.gz -C apps/web .output
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Add staging host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload build artifact to staging server
+        run: scp /tmp/staging-build.tar.gz ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/tmp/staging-build.tar.gz
+
+      - name: Trigger VitoDeploy deployment
+        run: |
+          curl -sf -k -X POST \
+            "${{ secrets.VITO_URL }}/api/projects/${{ secrets.VITO_PROJECT_ID }}/servers/${{ secrets.VITO_SERVER_ID }}/sites/${{ secrets.VITO_SITE_ID }}/deployments" \
+            -H "Authorization: Bearer ${{ secrets.VITO_API_KEY }}" \
+            -H "Accept: application/json"
