@@ -369,6 +369,9 @@ export function NavBar() {
 								abiroot.com
 							</a>
 						</p>
+						<p className="mt-1 text-center text-[10px] text-muted-foreground/40">
+							v1.0.0
+						</p>
 					</div>
 				</div>
 			</div>
