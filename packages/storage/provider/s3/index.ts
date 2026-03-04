@@ -91,6 +91,25 @@ export const getSignedUrl: GetSignedUrlHander = async (
 };
 
 /**
+ * Upload a buffer directly to S3/R2 (server-side upload, no signed URL needed).
+ */
+export async function uploadBuffer(
+	path: string,
+	buffer: Buffer,
+	options: { bucket: string; contentType?: string },
+): Promise<void> {
+	const client = getS3Client();
+	await client.send(
+		new PutObjectCommand({
+			Bucket: options.bucket,
+			Key: path,
+			Body: buffer,
+			ContentType: options.contentType ?? "application/octet-stream",
+		}),
+	);
+}
+
+/**
  * List all objects with a given prefix in a bucket
  */
 export async function listObjects(
