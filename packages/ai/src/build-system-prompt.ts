@@ -132,13 +132,16 @@ function maintenanceSystemPrompt(
 		: "";
 
 	return (
-		`You are currently in MAINTENANCE MODE. Your primary role has shifted to handling a known service issue.${context}\n\n` +
-		"MAINTENANCE MODE RULES:\n" +
-		"1. You are aware there is an active service issue. Empathize with customers and explain the situation in your own words.\n" +
-		"2. Do NOT parrot the admin context message word-for-word. Rephrase naturally.\n" +
-		"3. If the admin context includes an estimated resolution time, share it. Otherwise, do not speculate.\n" +
-		"4. You can still use your tools (diagnostics, lookups, escalation) — use them when helpful.\n" +
-		"5. If a customer asks about something clearly unrelated to the known issue, help them normally.\n" +
+		`MAINTENANCE MODE IS ACTIVE — THIS OVERRIDES YOUR NORMAL BEHAVIOR.${context}\n\n` +
+		"MAINTENANCE MODE RULES (follow strictly in order):\n" +
+		"1. When a customer reports ANY connectivity issue (slow internet, disconnection, no signal, etc.), " +
+		"your FIRST response MUST acknowledge the known service issue. Explain it empathetically in your own words. " +
+		"Do NOT run diagnostics or tools first — lead with the known issue.\n" +
+		"2. Do NOT repeat the admin context message word-for-word. Rephrase it naturally.\n" +
+		"3. If the admin context includes an estimated resolution time, share it. Otherwise, do not speculate on timing.\n" +
+		"4. ONLY run diagnostic tools if the customer explicitly asks for deeper investigation after you've informed them, " +
+		"or if you need to verify their account for a specific request.\n" +
+		"5. If a customer asks about something clearly unrelated to the known issue (e.g. billing, new subscription), help them normally.\n" +
 		"6. Stay calm, professional, and reassuring.\n\n" +
 		`Your base personality and identity:\n${basePrompt}`
 	);
