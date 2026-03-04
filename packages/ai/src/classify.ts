@@ -1,4 +1,3 @@
-import { logger } from "@repo/logs";
 import type { InferSchemaType, SchemaInput } from "@tanstack/ai";
 import { chat } from "@tanstack/ai";
 import { getAdapter } from "./model-registry";
@@ -39,7 +38,8 @@ export async function classifyText<T extends SchemaInput>(
 
 		return result as InferSchemaType<T>;
 	} catch (error) {
-		logger.warn("classifyText failed, returning null", {
+		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
+		console.warn("classifyText failed, returning null", {
 			model,
 			error: error instanceof Error ? error.message : String(error),
 		});
