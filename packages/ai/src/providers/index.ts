@@ -78,6 +78,7 @@ export async function processMedia(
 	mediaCaption?: string,
 	mediaLink?: string,
 	fileName?: string,
+	userLanguageHint?: string,
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
@@ -88,6 +89,7 @@ export async function processMedia(
 				mediaId,
 				mediaCaption,
 				mediaLink,
+				userLanguageHint,
 			);
 		case "document":
 			return whatsapp.describeDocument(
@@ -95,6 +97,7 @@ export async function processMedia(
 				mediaId,
 				fileName,
 				mediaLink,
+				userLanguageHint,
 			);
 		default:
 			return null;

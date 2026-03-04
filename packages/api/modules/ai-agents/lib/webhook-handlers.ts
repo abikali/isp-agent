@@ -26,9 +26,29 @@ import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
+import { uploadBuffer } from "@repo/storage";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
+
+const MIME_TO_EXT: Record<string, string> = {
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/webp": "webp",
+	"image/gif": "gif",
+	"audio/ogg": "ogg",
+	"audio/mpeg": "mp3",
+	"audio/webm": "webm",
+	"audio/wav": "wav",
+	"video/mp4": "mp4",
+	"video/webm": "webm",
+	"application/pdf": "pdf",
+	"application/ogg": "ogg",
+};
+
+function getExtFromMime(contentType: string): string {
+	return MIME_TO_EXT[contentType] ?? contentType.split("/")[1] ?? "bin";
+}
 const QUOTA_EXCEEDED_MESSAGE =
 	"This agent has reached its message limit. Please contact the organization administrator.";
 
@@ -146,6 +166,27 @@ async function handleMessages(
 			// Process media attachments (voice → transcription, image → description, document → extraction)
 			let messageText = msg.text;
 			if (msg.mediaId && msg.mediaType) {
+				// Use caption as language hint; if absent, fetch last user message from conversation
+				let languageHint = msg.mediaCaption;
+				if (!languageHint) {
+					const lastMsg = await db.aiMessage.findFirst({
+						where: {
+							conversation: {
+								channelId: channel.id,
+								externalChatId: msg.chatId,
+								status: "active",
+							},
+							role: "user",
+						},
+						orderBy: { createdAt: "desc" },
+						select: { content: true },
+					});
+					if (lastMsg?.content) {
+						// Use a short snippet — enough for language detection
+						languageHint = lastMsg.content.slice(0, 100);
+					}
+				}
+
 				const processed = await processMedia(
 					apiToken,
 					msg.mediaType,
@@ -153,6 +194,7 @@ async function handleMessages(
 					msg.mediaCaption,
 					msg.mediaLink,
 					msg.mediaFileName,
+					languageHint ?? undefined,
 				);
 				if (processed) {
 					if (msg.mediaType === "voice") {
@@ -204,6 +246,45 @@ async function handleMessages(
 				});
 			}
 
+			// Upload incoming media to R2 for display in dashboard
+			let attachmentData: Record<string, unknown> = {};
+			if (msg.mediaId && msg.mediaType) {
+				try {
+					const media = await whatsapp.downloadMedia(
+						apiToken,
+						msg.mediaId,
+						msg.mediaLink,
+					);
+					if (media) {
+						const { createId } = await import(
+							"@paralleldrive/cuid2"
+						);
+						const ext = getExtFromMime(media.contentType);
+						const storagePath = `chat-attachments/${channel.agent.organizationId}/${conversation.id}/${createId()}.${ext}`;
+						const bucket =
+							process.env["AVATARS_BUCKET_NAME"] ??
+							"libancom-dev";
+						await uploadBuffer(storagePath, media.buffer, {
+							bucket,
+							contentType: media.contentType,
+						});
+						attachmentData = {
+							attachmentType: msg.mediaType,
+							attachmentUrl: storagePath,
+							attachmentFilename: msg.mediaFileName ?? null,
+							attachmentMimeType: media.contentType,
+							attachmentSize: media.buffer.length,
+						};
+					}
+				} catch (error) {
+					logger.error("Failed to upload incoming media to R2", {
+						error,
+						mediaType: msg.mediaType,
+						conversationId: conversation.id,
+					});
+				}
+			}
+
 			// Store user message in DB immediately
 			await db.aiMessage.create({
 				data: {
@@ -211,7 +292,8 @@ async function handleMessages(
 					role: "user",
 					content: truncatedText,
 					externalMsgId: msg.messageId,
-				},
+					...attachmentData,
+				} as never,
 			});
 
 			// Send typing indicator immediately so user sees activity

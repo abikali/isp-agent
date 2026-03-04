@@ -315,7 +315,7 @@ function get429RetryAfter(error: unknown): number {
  * 2. Call /api/decrypt-media directly to get a public URL.
  * 3. Download the binary from the public URL.
  */
-async function downloadMedia(
+export async function downloadMedia(
 	apiToken: string,
 	_mediaId: string,
 	rawMediaPayload?: string,
@@ -521,6 +521,7 @@ export async function describeImage(
 	mediaId: string,
 	caption?: string,
 	rawMediaPayload?: string,
+	userLanguageHint?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -537,9 +538,14 @@ export async function describeImage(
 		const base64 = media.buffer.toString("base64");
 		const dataUrl = `data:${media.contentType};base64,${base64}`;
 
+		const languageInstruction = userLanguageHint
+			? `IMPORTANT: Respond in the same language as this text: "${userLanguageHint}". `
+			: "";
+
 		const systemPrompt =
 			"You are a vision assistant for an ISP (Internet Service Provider) customer support agent. " +
 			"Your job is to describe images so a text-only assistant can understand and respond to the customer. " +
+			`${languageInstruction}` +
 			"If the image contains text (bills, invoices, receipts, contracts, error messages, router screens), " +
 			"extract the text VERBATIM — especially amounts, dates, account/reference numbers, plan names, and due dates. " +
 			"If the image shows network equipment, router status pages, speed tests, or error screens, describe the status and any readings. " +
@@ -608,6 +614,7 @@ export async function describeDocument(
 	mediaId: string,
 	fileName?: string,
 	rawMediaPayload?: string,
+	userLanguageHint?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -641,9 +648,14 @@ export async function describeDocument(
 		const base64 = media.buffer.toString("base64");
 		const dataUrl = `data:application/pdf;base64,${base64}`;
 
+		const languageInstruction = userLanguageHint
+			? `IMPORTANT: Respond in the same language as this text: "${userLanguageHint}". `
+			: "";
+
 		const systemPrompt =
 			"You are a document analysis assistant for an ISP (Internet Service Provider) customer support agent. " +
 			"Your job is to extract and summarize document content so a text-only assistant can understand and respond. " +
+			`${languageInstruction}` +
 			"Extract ALL text verbatim from the document — especially amounts, dates, account/reference numbers, plan names, " +
 			"due dates, payment details, and any terms or conditions. " +
 			"Organize the extracted information in a clear, structured format. Be thorough but concise.";
