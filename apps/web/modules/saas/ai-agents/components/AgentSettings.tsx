@@ -41,8 +41,10 @@ import {
 	AlertTriangleIcon,
 	BotIcon,
 	BrainIcon,
+	FileTextIcon,
 	HelpCircleIcon,
 	Loader2Icon,
+	RotateCcwIcon,
 	SlidersHorizontalIcon,
 	SparklesIcon,
 	WrenchIcon,
@@ -50,7 +52,11 @@ import {
 import { useState } from "react";
 import { useGenerateSystemPrompt, useUpdateAgent } from "../hooks/use-agents";
 import { useAvailableTools } from "../hooks/use-tools";
-import { AI_MODEL_OPTIONS } from "../lib/constants";
+import {
+	AI_MODEL_OPTIONS,
+	DEFAULT_PROMPT_SECTIONS,
+	type PromptSection,
+} from "../lib/constants";
 import { ToolConfigDialog } from "./ToolConfigDialog";
 
 function FieldHint({ text }: { text: string }) {
@@ -95,12 +101,22 @@ export function AgentSettings({
 			description?: string | undefined;
 			options?: Array<{ label: string; value: string }> | undefined;
 		}>;
+		defaultPromptSection?: string | undefined;
 	} | null>(null);
 
 	const toolConfigMap: Record<string, Record<string, unknown>> = {};
+	const toolPromptSectionMap: Record<string, string | null> = {};
 	for (const tc of agent.toolConfigs) {
 		toolConfigMap[tc.toolId] = tc.config as Record<string, unknown>;
+		toolPromptSectionMap[tc.toolId] = tc.promptSection ?? null;
 	}
+
+	const agentPromptSections = (
+		Array.isArray(agent.promptSections) &&
+		(agent.promptSections as unknown as PromptSection[]).length > 0
+			? agent.promptSections
+			: DEFAULT_PROMPT_SECTIONS
+	) as PromptSection[];
 
 	const form = useForm({
 		defaultValues: {
@@ -116,6 +132,7 @@ export function AgentSettings({
 			maxHistoryLength: agent.maxHistoryLength,
 			temperature: agent.temperature,
 			enabledTools: agent.enabledTools as string[],
+			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
 			await updateAgent.mutateAsync({
@@ -133,6 +150,7 @@ export function AgentSettings({
 				maxHistoryLength: value.maxHistoryLength,
 				temperature: value.temperature,
 				enabledTools: value.enabledTools,
+				promptSections: value.promptSections,
 			});
 		},
 	});
@@ -463,6 +481,168 @@ export function AgentSettings({
 						</AccordionItem>
 					</Card>
 
+					{/* Prompt Sections */}
+					<Card>
+						<AccordionItem
+							value="prompt-sections"
+							className="border-b-0"
+						>
+							<AccordionTrigger className="px-6 py-4 hover:no-underline">
+								<div className="flex items-center gap-2.5">
+									<FileTextIcon className="size-4 text-muted-foreground" />
+									<span className="font-semibold">
+										Prompt Sections
+									</span>
+									<Badge variant="secondary" className="ml-1">
+										{agentPromptSections.length}
+									</Badge>
+								</div>
+							</AccordionTrigger>
+							<AccordionContent className="px-6 pb-6">
+								<p className="mb-4 text-sm text-muted-foreground">
+									Configurable instruction blocks injected
+									into the system prompt. Toggle, edit, or
+									reset each section.
+								</p>
+								<form.Field name="promptSections">
+									{(field) => (
+										<div className="space-y-4">
+											{field.state.value.map(
+												(
+													section: PromptSection,
+													index: number,
+												) => {
+													const defaultSection =
+														DEFAULT_PROMPT_SECTIONS.find(
+															(d) =>
+																d.id ===
+																section.id,
+														);
+													const isModified =
+														defaultSection &&
+														section.content !==
+															defaultSection.content;
+													return (
+														<div
+															key={section.id}
+															className="rounded-lg border p-4 space-y-3"
+														>
+															<div className="flex items-center justify-between">
+																<div className="flex items-center gap-2">
+																	<Switch
+																		checked={
+																			section.enabled
+																		}
+																		onCheckedChange={(
+																			checked,
+																		) => {
+																			const updated =
+																				[
+																					...field
+																						.state
+																						.value,
+																				];
+																			updated[
+																				index
+																			] =
+																				{
+																					...section,
+																					enabled:
+																						checked,
+																				};
+																			field.handleChange(
+																				updated,
+																			);
+																		}}
+																	/>
+																	<span className="text-sm font-medium">
+																		{
+																			section.label
+																		}
+																	</span>
+																	{section.condition && (
+																		<Badge
+																			variant="outline"
+																			className="text-[10px]"
+																		>
+																			{
+																				section.condition
+																			}
+																		</Badge>
+																	)}
+																</div>
+																{isModified && (
+																	<Button
+																		type="button"
+																		variant="ghost"
+																		size="sm"
+																		onClick={() => {
+																			const updated =
+																				[
+																					...field
+																						.state
+																						.value,
+																				];
+																			updated[
+																				index
+																			] =
+																				{
+																					...section,
+																					content:
+																						defaultSection.content,
+																				};
+																			field.handleChange(
+																				updated,
+																			);
+																		}}
+																	>
+																		<RotateCcwIcon className="size-3.5 mr-1" />
+																		Reset
+																	</Button>
+																)}
+															</div>
+															{section.enabled && (
+																<Textarea
+																	value={
+																		section.content
+																	}
+																	onChange={(
+																		e,
+																	) => {
+																		const updated =
+																			[
+																				...field
+																					.state
+																					.value,
+																			];
+																		updated[
+																			index
+																		] = {
+																			...section,
+																			content:
+																				e
+																					.target
+																					.value,
+																		};
+																		field.handleChange(
+																			updated,
+																		);
+																	}}
+																	rows={6}
+																	className="font-mono text-xs"
+																/>
+															)}
+														</div>
+													);
+												},
+											)}
+										</div>
+									)}
+								</form.Field>
+							</AccordionContent>
+						</AccordionItem>
+					</Card>
+
 					{/* Model Configuration Section */}
 					<Card>
 						<AccordionItem value="model" className="border-b-0">
@@ -712,6 +892,8 @@ export function AgentSettings({
 																				configFields:
 																					tool.configFields ??
 																					[],
+																				defaultPromptSection:
+																					tool.defaultPromptSection,
 																			},
 																		)
 																	}
@@ -758,6 +940,10 @@ export function AgentSettings({
 					toolName={configDialog.toolName}
 					configFields={configDialog.configFields}
 					existingConfig={toolConfigMap[configDialog.toolId]}
+					existingPromptSection={
+						toolPromptSectionMap[configDialog.toolId]
+					}
+					defaultPromptSection={configDialog.defaultPromptSection}
 				/>
 			)}
 		</TooltipProvider>

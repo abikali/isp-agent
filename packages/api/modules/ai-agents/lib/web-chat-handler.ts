@@ -1,8 +1,13 @@
 import { ORPCError } from "@orpc/server";
-import type { GenerateResponseInput, ToolContext } from "@repo/ai";
+import type {
+	GenerateResponseInput,
+	PromptSection,
+	ToolContext,
+} from "@repo/ai";
 import {
 	buildSystemPrompt,
 	executeEscalationGuard,
+	extractToolPromptOverrides,
 	generateAgentResponse,
 	resolveTools,
 } from "@repo/ai";
@@ -107,10 +112,14 @@ export async function handleWebChatMessage(
 
 	// Resolve tools if agent has any enabled
 	let tools: GenerateResponseInput["tools"];
+	const agentToolConfigs =
+		agent.enabledTools.length > 0
+			? await db.aiAgentToolConfig.findMany({
+					where: { agentId: agent.id },
+				})
+			: [];
+
 	if (agent.enabledTools.length > 0) {
-		const agentToolConfigs = await db.aiAgentToolConfig.findMany({
-			where: { agentId: agent.id },
-		});
 		const perToolConfigs: Record<string, Record<string, unknown>> = {};
 		for (const tc of agentToolConfigs) {
 			perToolConfigs[tc.toolId] = tc.config as Record<string, unknown>;
@@ -132,6 +141,8 @@ export async function handleWebChatMessage(
 		maintenanceMode: agent.maintenanceMode,
 		maintenanceMessage: agent.maintenanceMessage ?? undefined,
 		isWebChat: true,
+		promptSections: agent.promptSections as unknown as PromptSection[],
+		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 	});
 
 	// Generate AI response with timeout

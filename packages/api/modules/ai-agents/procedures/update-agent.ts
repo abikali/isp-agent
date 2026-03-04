@@ -28,6 +28,23 @@ export const updateAgent = protectedProcedure
 			maxHistoryLength: z.number().int().min(1).max(50).optional(),
 			temperature: z.number().min(0).max(2).optional(),
 			enabledTools: z.array(z.string()).optional(),
+			promptSections: z
+				.array(
+					z.object({
+						id: z.string(),
+						label: z.string(),
+						content: z.string(),
+						enabled: z.boolean(),
+						condition: z
+							.enum([
+								"always",
+								"has-tools",
+								"has-tools-non-webchat",
+							])
+							.optional(),
+					}),
+				)
+				.optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -102,6 +119,11 @@ export const updateAgent = protectedProcedure
 		if (rest.enabledTools !== undefined) {
 			updateData["enabledTools"] = rest.enabledTools;
 		}
+		if (rest.promptSections !== undefined) {
+			updateData["promptSections"] = JSON.parse(
+				JSON.stringify(rest.promptSections),
+			);
+		}
 
 		const agent = await db.aiAgent.update({
 			where: { id: agentId },
@@ -120,6 +142,7 @@ export const updateAgent = protectedProcedure
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,
+				promptSections: true,
 				updatedAt: true,
 			},
 		});

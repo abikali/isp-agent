@@ -553,6 +553,7 @@ model AiAgent {
   maxHistoryLength Int              @default(20)
   temperature      Float            @default(0.3)
   enabledTools     String[]         @default([])
+  promptSections   Json             @default("[]")
   webChatEnabled   Boolean          @default(false)
   webChatToken     String?          @unique
   createdById      String
@@ -641,12 +642,13 @@ model AiMessage {
 }
 
 model AiAgentToolConfig {
-  id        String   @id @default(cuid())
-  agentId   String
-  toolId    String
-  config    Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  agentId       String
+  toolId        String
+  config        Json
+  promptSection String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 

@@ -52,6 +52,8 @@ interface ToolConfigDialogProps {
 	toolName: string;
 	configFields: ConfigField[];
 	existingConfig?: Record<string, unknown> | undefined;
+	existingPromptSection?: string | null | undefined;
+	defaultPromptSection?: string | undefined;
 }
 
 /**
@@ -87,6 +89,8 @@ export function ToolConfigDialog({
 	toolName,
 	configFields,
 	existingConfig,
+	existingPromptSection,
+	defaultPromptSection,
 }: ToolConfigDialogProps) {
 	const updateToolConfig = useUpdateToolConfig();
 	const testTelegram = useTestTelegramConfig();
@@ -110,6 +114,9 @@ export function ToolConfigDialog({
 	}
 
 	const [repeaterValues, setRepeaterValues] = useState(initialRepeaterState);
+	const [promptSectionValue, setPromptSectionValue] = useState(
+		existingPromptSection ?? "",
+	);
 	const [testResult, setTestResult] = useState<TestResult | null>(null);
 
 	const isTelegramTool = toolId === "escalate-telegram";
@@ -189,6 +196,7 @@ export function ToolConfigDialog({
 				organizationId,
 				toolId,
 				config,
+				promptSection: promptSectionValue || undefined,
 			});
 			onOpenChange(false);
 		},
@@ -367,6 +375,49 @@ export function ToolConfigDialog({
 							</form.Field>
 						);
 					})}
+
+					{defaultPromptSection && (
+						<>
+							<Separator />
+							<Field>
+								<div className="flex items-center justify-between">
+									<FieldLabel htmlFor="tool-prompt-section">
+										Prompt Instructions
+									</FieldLabel>
+									{promptSectionValue &&
+										promptSectionValue !==
+											defaultPromptSection && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPromptSectionValue(
+														defaultPromptSection,
+													)
+												}
+											>
+												Reset to default
+											</Button>
+										)}
+								</div>
+								<Textarea
+									id="tool-prompt-section"
+									rows={6}
+									value={promptSectionValue}
+									onChange={(e) =>
+										setPromptSectionValue(e.target.value)
+									}
+									placeholder={defaultPromptSection}
+								/>
+								<p className="text-muted-foreground text-xs">
+									Behavioral instructions injected into the
+									system prompt when this tool is enabled.
+									Leave empty to use the default.
+								</p>
+							</Field>
+						</>
+					)}
 
 					{isTelegramTool && (
 						<>

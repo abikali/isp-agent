@@ -1,28 +1,9 @@
-export const AI_MODEL_OPTIONS = [
-	{ id: "gpt-4.1", label: "GPT-4.1", provider: "openai" },
-	{ id: "gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openai" },
-	{ id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
-	{ id: "gpt-4o", label: "GPT-4o", provider: "openai" },
-	{ id: "gpt-5.2", label: "GPT-5.2", provider: "openai" },
-	{ id: "claude-haiku", label: "Claude Haiku 4.5", provider: "anthropic" },
-	{ id: "claude-sonnet", label: "Claude Sonnet", provider: "anthropic" },
-] as const;
-
-export const PROVIDER_OPTIONS = [
-	{ id: "whatsapp", label: "WhatsApp" },
-	{ id: "telegram", label: "Telegram" },
-] as const;
-
-/**
- * Prompt section type — mirrors @repo/ai PromptSection.
- * Defined here so the frontend doesn't depend on the server-side @repo/ai package.
- */
 export interface PromptSection {
 	id: string;
 	label: string;
 	content: string;
 	enabled: boolean;
-	condition?: "always" | "has-tools" | "has-tools-non-webchat";
+	condition?: "always" | "has-tools" | "has-tools-non-webchat" | undefined;
 }
 
 export const DEFAULT_PROMPT_SECTIONS: PromptSection[] = [

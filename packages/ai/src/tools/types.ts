@@ -41,4 +41,5 @@ export type ToolFactory = (context: ToolContext) => ServerTool;
 export interface RegisteredTool {
 	metadata: ToolMetadata;
 	factory: ToolFactory;
+	defaultPromptSection?: string | undefined;
 }

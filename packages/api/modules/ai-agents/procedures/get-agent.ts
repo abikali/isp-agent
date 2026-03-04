@@ -47,6 +47,7 @@ export const getAgent = protectedProcedure
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,
+				promptSections: true,
 				webChatEnabled: true,
 				webChatToken: true,
 				createdAt: true,
@@ -63,6 +64,7 @@ export const getAgent = protectedProcedure
 						id: true,
 						toolId: true,
 						config: true,
+						promptSection: true,
 					},
 				},
 				channels: {

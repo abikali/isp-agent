@@ -1,12 +1,14 @@
 import type {
 	ChannelProvider,
 	GenerateResponseInput,
+	PromptSection,
 	ToolContext,
 } from "@repo/ai";
 import {
 	buildSystemPrompt,
 	decryptToken,
 	executeEscalationGuard,
+	extractToolPromptOverrides,
 	generateAgentResponse,
 	resolveTools,
 	sendTextMessage,
@@ -63,10 +65,14 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 
 			// Resolve tools if agent has any enabled
 			let tools: GenerateResponseInput["tools"];
+			const agentToolConfigs =
+				conversation.agent.enabledTools.length > 0
+					? await db.aiAgentToolConfig.findMany({
+							where: { agentId: conversation.agent.id },
+						})
+					: [];
+
 			if (conversation.agent.enabledTools.length > 0) {
-				const agentToolConfigs = await db.aiAgentToolConfig.findMany({
-					where: { agentId: conversation.agent.id },
-				});
 				const perToolConfigs: Record<
 					string,
 					Record<string, unknown>
@@ -102,6 +108,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				maintenanceMessage:
 					conversation.agent.maintenanceMessage ?? undefined,
 				provider: conversation.channel?.provider ?? "messaging",
+				promptSections: conversation.agent
+					.promptSections as unknown as PromptSection[],
+				toolPromptOverrides:
+					extractToolPromptOverrides(agentToolConfigs),
 			});
 
 			try {

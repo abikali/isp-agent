@@ -55,9 +55,22 @@ export function resolveTools(
 
 /**
  * Get metadata for all available tools (for UI listing).
+ * Includes defaultPromptSection so the UI can show defaults.
  */
-export function getAvailableTools(): ToolMetadata[] {
-	return Object.values(TOOL_REGISTRY).map((t) => t.metadata);
+export function getAvailableTools(): Array<
+	ToolMetadata & { defaultPromptSection?: string | undefined }
+> {
+	return Object.values(TOOL_REGISTRY).map((t) => ({
+		...t.metadata,
+		defaultPromptSection: t.defaultPromptSection,
+	}));
+}
+
+/**
+ * Get the full tool registry for internal use (e.g. buildSystemPrompt).
+ */
+export function getToolRegistry(): Record<string, RegisteredTool> {
+	return TOOL_REGISTRY;
 }
 
 /**

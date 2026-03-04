@@ -1,12 +1,14 @@
 import type {
 	ChannelProvider,
 	GenerateResponseInput,
+	PromptSection,
 	ToolContext,
 } from "@repo/ai";
 import {
 	buildSystemPrompt,
 	decryptToken,
 	executeEscalationGuard,
+	extractToolPromptOverrides,
 	generateAgentResponse,
 	markAsRead,
 	parseWebhookPayload,
@@ -222,10 +224,14 @@ async function handleMessages(
 
 			// Resolve tools once (same for all messages in this chat)
 			let tools: GenerateResponseInput["tools"];
+			const agentToolConfigs =
+				channel.agent.enabledTools.length > 0
+					? await db.aiAgentToolConfig.findMany({
+							where: { agentId: channel.agent.id },
+						})
+					: [];
+
 			if (channel.agent.enabledTools.length > 0) {
-				const agentToolConfigs = await db.aiAgentToolConfig.findMany({
-					where: { agentId: channel.agent.id },
-				});
 				const perToolConfigs: Record<
 					string,
 					Record<string, unknown>
@@ -261,6 +267,10 @@ async function handleMessages(
 				maintenanceMessage:
 					channel.agent.maintenanceMessage ?? undefined,
 				provider,
+				promptSections: channel.agent
+					.promptSections as unknown as PromptSection[],
+				toolPromptOverrides:
+					extractToolPromptOverrides(agentToolConfigs),
 			});
 
 			// Processing loop \u2014 handles buffered messages + any that arrive during generation

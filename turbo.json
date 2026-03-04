@@ -25,7 +25,8 @@
 		"dev": {
 			"cache": false,
 			"dependsOn": ["^generate"],
-			"persistent": true
+			"persistent": true,
+			"passThroughEnv": ["*"]
 		},
 		"export": {
 			"outputs": ["out/**"]
@@ -33,12 +34,14 @@
 		"start": {
 			"cache": false,
 			"dependsOn": ["^generate", "^build"],
-			"persistent": true
+			"persistent": true,
+			"passThroughEnv": ["*"]
 		},
 		"worker": {
 			"cache": false,
 			"dependsOn": ["^generate"],
-			"persistent": true
+			"persistent": true,
+			"passThroughEnv": ["*"]
 		}
 	}
 }

@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { DEFAULT_PROMPT_SECTIONS } from "@repo/ai";
 import { checkOrganizationAdmin } from "@repo/api/lib/membership";
 import { aiAgentAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
@@ -49,6 +50,9 @@ export const createAgent = protectedProcedure
 				maxHistoryLength: input.maxHistoryLength,
 				temperature: input.temperature,
 				enabledTools: input.enabledTools,
+				promptSections: JSON.parse(
+					JSON.stringify(DEFAULT_PROMPT_SECTIONS),
+				),
 				createdById: user.id,
 			},
 			select: {

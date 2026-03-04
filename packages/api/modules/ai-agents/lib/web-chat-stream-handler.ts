@@ -1,8 +1,13 @@
-import type { GenerateResponseInput, ToolContext } from "@repo/ai";
+import type {
+	GenerateResponseInput,
+	PromptSection,
+	ToolContext,
+} from "@repo/ai";
 import {
 	buildSystemPrompt,
 	createAgentStream,
 	executeEscalationGuard,
+	extractToolPromptOverrides,
 	resolveTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -150,10 +155,14 @@ export async function handleWebChatStream(
 
 	// Resolve tools
 	let tools: GenerateResponseInput["tools"];
+	const agentToolConfigs =
+		agent.enabledTools.length > 0
+			? await db.aiAgentToolConfig.findMany({
+					where: { agentId: agent.id },
+				})
+			: [];
+
 	if (agent.enabledTools.length > 0) {
-		const agentToolConfigs = await db.aiAgentToolConfig.findMany({
-			where: { agentId: agent.id },
-		});
 		const perToolConfigs: Record<string, Record<string, unknown>> = {};
 		for (const tc of agentToolConfigs) {
 			perToolConfigs[tc.toolId] = tc.config as Record<string, unknown>;
@@ -174,6 +183,8 @@ export async function handleWebChatStream(
 		enabledTools: agent.enabledTools,
 		maintenanceMode: agent.maintenanceMode,
 		maintenanceMessage: agent.maintenanceMessage ?? undefined,
+		promptSections: agent.promptSections as unknown as PromptSection[],
+		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 	});
 
 	// Stream the response

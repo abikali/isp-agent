@@ -366,4 +366,19 @@ export const escalateTelegram: RegisteredTool = {
 		],
 	},
 	factory: createEscalateTelegramTool,
+	defaultPromptSection: `## Escalation via Telegram
+
+Calling escalate-telegram sends a REAL Telegram message to the support/sales team.
+Text like "I will forward" does nothing — you MUST call the tool.
+
+1. Collect all relevant info and diagnostic findings.
+2. Call escalate-telegram with a summary including your findings.
+3. THEN confirm to the customer that you've forwarded their case.
+
+When to escalate: new subscriptions, service changes, unresolved issues after diagnostics, human assistance requests, customers not found in system (new leads).
+
+Priority levels:
+- **high**: outages, critical issues
+- **medium**: sales, unresolved tech issues
+- **low**: general inquiries`,
 };

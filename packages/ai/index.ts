@@ -1,6 +1,11 @@
 export type { BuildSystemPromptOptions } from "./src/build-system-prompt";
-export { buildSystemPrompt } from "./src/build-system-prompt";
+export {
+	buildSystemPrompt,
+	extractToolPromptOverrides,
+} from "./src/build-system-prompt";
 export { classifyText } from "./src/classify";
+export type { PromptSection } from "./src/default-prompt-sections";
+export { DEFAULT_PROMPT_SECTIONS } from "./src/default-prompt-sections";
 export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
@@ -20,6 +25,7 @@ export {
 export { initRateLimiter } from "./src/providers/rate-limiter";
 export {
 	getAvailableTools,
+	getToolRegistry,
 	isValidToolId,
 	resolveTools,
 } from "./src/tools";

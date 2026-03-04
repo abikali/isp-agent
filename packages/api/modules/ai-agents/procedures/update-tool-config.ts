@@ -18,6 +18,7 @@ export const updateToolConfig = protectedProcedure
 			organizationId: z.string(),
 			toolId: z.string(),
 			config: z.record(z.string(), z.unknown()),
+			promptSection: z.string().max(10000).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -53,6 +54,11 @@ export const updateToolConfig = protectedProcedure
 		// Serialize config to ensure Prisma-compatible JSON
 		const configJson = JSON.parse(JSON.stringify(input.config));
 
+		const promptSection =
+			input.promptSection !== undefined
+				? input.promptSection || null
+				: undefined;
+
 		const toolConfig = await db.aiAgentToolConfig.upsert({
 			where: {
 				agentId_toolId: {
@@ -64,9 +70,11 @@ export const updateToolConfig = protectedProcedure
 				agentId: input.agentId,
 				toolId: input.toolId,
 				config: configJson,
+				promptSection: promptSection ?? null,
 			},
 			update: {
 				config: configJson,
+				...(promptSection !== undefined ? { promptSection } : {}),
 			},
 		});
 
