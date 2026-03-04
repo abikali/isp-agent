@@ -434,12 +434,13 @@ async function fetchFromUrl(url: string): Promise<FetchResult> {
 }
 
 /**
- * Transcribe a voice message using OpenAI Whisper API.
+ * Transcribe a voice message using OpenAI gpt-4o-transcribe.
  */
 export async function transcribeAudio(
 	apiToken: string,
 	mediaId: string,
 	rawMediaPayload?: string,
+	languageHint?: string,
 ): Promise<string | null> {
 	const apiKey = process.env["OPENAI_API_KEY"];
 	if (!apiKey) {
@@ -479,7 +480,10 @@ export async function transcribeAudio(
 			type: fileMime,
 		});
 		form.append("file", file);
-		form.append("model", "whisper-1");
+		form.append("model", "gpt-4o-transcribe");
+		if (languageHint) {
+			form.append("language", languageHint);
+		}
 
 		const response = await fetch(
 			"https://api.openai.com/v1/audio/transcriptions",
@@ -492,7 +496,7 @@ export async function transcribeAudio(
 
 		if (!response.ok) {
 			const errorText = await response.text();
-			logger.error("Whisper transcription failed", {
+			logger.error("Transcription failed", {
 				status: response.status,
 				error: errorText,
 				contentType: media.contentType,
@@ -506,7 +510,7 @@ export async function transcribeAudio(
 		const data = (await response.json()) as { text?: string };
 		return data.text ?? null;
 	} catch (error) {
-		logger.error("Whisper transcription error", { error });
+		logger.error("Transcription error", { error });
 		return null;
 	}
 }
