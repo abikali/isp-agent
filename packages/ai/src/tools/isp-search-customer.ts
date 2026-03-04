@@ -162,9 +162,15 @@ If the customer is offline (online: false), FUP is NOT the cause. Diagnose the o
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
 Report ALL issues found — never stop at the first finding. Multiple problems can exist simultaneously.
 
-Offline (online: false): check accessPointOnline and stationOnline for equipment issues -> ping customer -> find peers (accessPointUsers for wireless, isp-mikrotik-users for fiber) -> ping peers to confirm scope. If equipment is off, tell the customer to check their device/antenna power.
-Slow internet (online: true): check fupMode ("1" = throttled) -> check interface rates ("10Mbps" = cabling issue) -> bandwidth stats -> ping -> cross-check peers
-Always cross-check: when a ping fails, ping at least one other user on the same infrastructure before concluding.
+Offline (online: false): check accessPointOnline and stationOnline for equipment issues -> ping customer -> check accessPointUsers for peer status.
+Slow internet (online: true): check fupMode ("1" = throttled) -> check interface rates ("10Mbps" = cabling issue) -> bandwidth stats -> ping -> check accessPointUsers for peer status.
+
+### Peer Cross-Check (CRITICAL — use ISP data, not ping)
+The "online" field in accessPointUsers is the SOURCE OF TRUTH for whether a peer is connected. Do NOT override it with ping results.
+- If accessPointUsers shows peers as online: true but YOUR customer is offline → the issue is ISOLATED to this customer, not infrastructure-wide.
+- If accessPointUsers shows ALL peers as offline → likely infrastructure/AP issue.
+- Ping timeouts do NOT mean a user is offline. Timeouts can be caused by firewalls, NAT, or routing. Never say "all users are offline" based on ping timeouts when the ISP data shows them as online.
+Only ping peers as a supplementary check. Always state what the ISP data shows, not what you infer from ping.
 
 ### Bandwidth Interpretation (CRITICAL — never dump raw numbers)
 When you get bandwidth stats, COMPARE currentDown vs limitDown:
@@ -182,7 +188,7 @@ NEVER present raw kbps/Mbps numbers to the customer. Translate into simple langu
 - accessPointOnline: true = AP reachable, false = AP is down/powered off
 - stationOnline: true = station reachable, false = station is down
 - accessPointSignal: dBm. -50 to -60 excellent, -60 to -70 good, -70 to -80 fair, below -80 poor
-- accessPointUsers: [{userName, online}] on same AP — use with isp-ping-customer to cross-check
+- accessPointUsers: [{userName, online}] on same AP — the "online" field here is the authoritative connectivity status. Use it to determine if the issue is isolated or widespread. Ping is optional supplementary data only.
 - interface rate: "100Mbps"/"1Gbps" = normal. "10Mbps" = cabling/hardware issue bottlenecking all users
 - basicSpeedUp/Down: limits in kbps. dailyQuota/monthlyQuota: in MB, "0" = unlimited
 

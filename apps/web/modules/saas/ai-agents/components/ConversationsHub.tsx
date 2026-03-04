@@ -78,9 +78,9 @@ export function ConversationsHub({
 	);
 
 	return (
-		<div className="flex h-[calc(100vh-200px)] overflow-hidden rounded-lg border border-border">
+		<div className="flex h-[calc(100vh-130px)] overflow-hidden">
 			{/* List panel - desktop: click to select; mobile: links */}
-			<div className="w-full border-r border-border md:w-[350px] md:shrink-0">
+			<div className="w-full border-r border-border md:w-[400px] md:shrink-0">
 				{/* Desktop */}
 				<div className="hidden h-full md:block">
 					<ConversationsListPanel

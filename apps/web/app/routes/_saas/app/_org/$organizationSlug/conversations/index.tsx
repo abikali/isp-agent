@@ -20,12 +20,9 @@ function ConversationsPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<div>
-			<h1 className="mb-6 text-2xl font-bold">Conversations</h1>
-			<ConversationsHub
-				organizationId={organizationId}
-				organizationSlug={organizationSlug}
-			/>
-		</div>
+		<ConversationsHub
+			organizationId={organizationId}
+			organizationSlug={organizationSlug}
+		/>
 	);
 }

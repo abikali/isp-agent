@@ -1,7 +1,12 @@
 "use client";
 
-import { Badge } from "@ui/components/badge";
+import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@ui/components/popover";
 import {
 	Select,
 	SelectContent,
@@ -10,10 +15,21 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { cn } from "@ui/lib";
-import { BotIcon, MessageSquareIcon, PinIcon, SearchIcon } from "lucide-react";
+import {
+	FilterIcon,
+	GlobeIcon,
+	MessageSquareIcon,
+	PinIcon,
+	SearchIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useAgentsQuery } from "../hooks/use-agents";
+import {
+	formatListTimestamp,
+	getAvatarColor,
+	getContactInitials,
+} from "../lib/chat-utils";
 
 export interface ConversationItem {
 	id: string;
@@ -38,6 +54,40 @@ interface Filters {
 	channelType: string;
 	status: string;
 	sortBy: string;
+}
+
+function ChannelDot({ provider }: { provider: string | undefined }) {
+	if (provider === "whatsapp") {
+		return (
+			<span
+				className="size-2 shrink-0 rounded-full bg-emerald-500"
+				title="WhatsApp"
+			/>
+		);
+	}
+	if (provider === "telegram") {
+		return (
+			<span
+				className="size-2 shrink-0 rounded-full bg-blue-400"
+				title="Telegram"
+			/>
+		);
+	}
+	return (
+		<span title="Web Chat">
+			<GlobeIcon className="size-3 shrink-0 text-muted-foreground/60" />
+		</span>
+	);
+}
+
+function getRolePrefix(role: string): string {
+	if (role === "admin") {
+		return "Admin: ";
+	}
+	if (role === "assistant") {
+		return "Bot: ";
+	}
+	return "";
 }
 
 export function ConversationsListPanel({
@@ -77,6 +127,8 @@ export function ConversationsListPanel({
 		[filters, onFiltersChange],
 	);
 
+	const hasActiveFilters = !!(filters.agentId || filters.channelType);
+
 	// Sort: pinned first
 	const sorted = [...conversations].sort((a, b) => {
 		if (a.pinned && !b.pinned) {
@@ -88,70 +140,65 @@ export function ConversationsListPanel({
 		return 0;
 	});
 
-	function getChannelLabel(channel: ConversationItem["channel"]): string {
-		if (!channel) {
-			return "Web Chat";
-		}
-		return channel.provider === "whatsapp" ? "WhatsApp" : "Telegram";
-	}
-
-	function getRoleLabel(role: string): string {
-		if (role === "admin") {
-			return "Admin: ";
-		}
-		if (role === "assistant") {
-			return "Bot: ";
-		}
-		return "User: ";
-	}
-
 	function renderCard(conv: ConversationItem) {
+		const initials = getContactInitials(conv.contactName);
+		const avatarColor = getAvatarColor(conv.contactName);
+		const channelProvider = conv.channel?.provider;
+
 		return (
-			<div
-				className={cn(
-					"flex w-full items-start gap-3 px-3 py-3 text-left",
-				)}
-			>
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-2">
-						{conv.pinned && (
-							<PinIcon className="size-3 shrink-0 text-primary" />
+			<div className="flex w-full items-center gap-3 px-3 py-3 text-left">
+				{/* Avatar */}
+				<div className="relative shrink-0">
+					<div
+						className={cn(
+							"flex size-10 items-center justify-center rounded-full text-sm font-semibold text-white",
+							avatarColor,
 						)}
-						<span className="truncate text-sm font-medium">
-							{conv.contactName || "Unknown Contact"}
-						</span>
-						<Badge
-							variant="outline"
-							className="shrink-0 text-[10px]"
-						>
-							{getChannelLabel(conv.channel)}
-						</Badge>
+					>
+						{initials}
 					</div>
-					<div className="mt-0.5 flex items-center gap-1.5">
-						<BotIcon className="size-3 shrink-0 text-muted-foreground/60" />
-						<span className="truncate text-xs text-muted-foreground/60">
-							{conv.agent.name}
-						</span>
+					{/* Channel indicator ring */}
+					<div className="absolute -bottom-0.5 -right-0.5">
+						<ChannelDot provider={channelProvider} />
 					</div>
-					{conv.lastMessage && (
-						<p className="mt-1 truncate text-xs text-muted-foreground">
-							<span className="font-medium">
-								{getRoleLabel(conv.lastMessage.role)}
-							</span>
-							{conv.lastMessage.content}
-						</p>
-					)}
 				</div>
-				<div className="shrink-0 text-right">
-					<p className="text-[10px] text-muted-foreground">
-						{conv.messageCount} msg
-						{conv.messageCount !== 1 ? "s" : ""}
-					</p>
-					{conv.lastMessageAt && (
-						<p className="text-[10px] text-muted-foreground">
-							{new Date(conv.lastMessageAt).toLocaleDateString()}
+
+				{/* Content */}
+				<div className="min-w-0 flex-1">
+					<div className="flex items-center justify-between gap-2">
+						<div className="flex min-w-0 items-center gap-1.5">
+							{conv.pinned && (
+								<PinIcon className="size-3 shrink-0 text-primary" />
+							)}
+							<span className="truncate text-sm font-medium">
+								{conv.contactName || "Unknown Contact"}
+							</span>
+						</div>
+						{conv.lastMessageAt && (
+							<span className="shrink-0 text-[11px] text-muted-foreground">
+								{formatListTimestamp(conv.lastMessageAt)}
+							</span>
+						)}
+					</div>
+					<div className="mt-0.5 flex items-center justify-between gap-2">
+						<p className="min-w-0 truncate text-xs text-muted-foreground">
+							{conv.lastMessage ? (
+								<>
+									<span className="font-medium">
+										{getRolePrefix(conv.lastMessage.role)}
+									</span>
+									{conv.lastMessage.content}
+								</>
+							) : (
+								<span className="italic">No messages yet</span>
+							)}
 						</p>
-					)}
+						{conv.messageCount > 0 && !conv.lastMessage && (
+							<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+								{conv.messageCount}
+							</span>
+						)}
+					</div>
 				</div>
 			</div>
 		);
@@ -159,56 +206,91 @@ export function ConversationsListPanel({
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Search */}
-			<div className="border-b p-3">
-				<div className="relative">
+			{/* Header with search and filter */}
+			<div className="flex items-center gap-2 border-b px-3 py-2">
+				<div className="relative flex-1">
 					<SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder="Search contacts..."
 						value={searchInput}
 						onChange={(e) => setSearchInput(e.target.value)}
-						className="pl-9"
+						className="h-9 pl-9"
 					/>
 				</div>
-			</div>
-
-			{/* Filters */}
-			<div className="flex gap-2 border-b px-3 py-2">
-				<Select
-					value={filters.agentId || "all"}
-					onValueChange={(v) =>
-						updateFilter("agentId", v === "all" ? "" : v)
-					}
-				>
-					<SelectTrigger className="h-8 flex-1 text-xs">
-						<SelectValue placeholder="All agents" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All agents</SelectItem>
-						{agents.map((a) => (
-							<SelectItem key={a.id} value={a.id}>
-								{a.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-
-				<Select
-					value={filters.channelType || "all"}
-					onValueChange={(v) =>
-						updateFilter("channelType", v === "all" ? "" : v)
-					}
-				>
-					<SelectTrigger className="h-8 w-28 text-xs">
-						<SelectValue placeholder="All channels" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All</SelectItem>
-						<SelectItem value="web">Web Chat</SelectItem>
-						<SelectItem value="whatsapp">WhatsApp</SelectItem>
-						<SelectItem value="telegram">Telegram</SelectItem>
-					</SelectContent>
-				</Select>
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button
+							variant="ghost"
+							size="icon"
+							className={cn(
+								"size-9 shrink-0",
+								hasActiveFilters && "text-primary",
+							)}
+						>
+							<FilterIcon className="size-4" />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="end" className="w-56 space-y-3 p-3">
+						<div>
+							<span className="mb-1 block text-xs font-medium text-muted-foreground">
+								Agent
+							</span>
+							<Select
+								value={filters.agentId || "all"}
+								onValueChange={(v) =>
+									updateFilter(
+										"agentId",
+										v === "all" ? "" : v,
+									)
+								}
+							>
+								<SelectTrigger className="h-8 text-xs">
+									<SelectValue placeholder="All agents" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">
+										All agents
+									</SelectItem>
+									{agents.map((a) => (
+										<SelectItem key={a.id} value={a.id}>
+											{a.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<span className="mb-1 block text-xs font-medium text-muted-foreground">
+								Channel
+							</span>
+							<Select
+								value={filters.channelType || "all"}
+								onValueChange={(v) =>
+									updateFilter(
+										"channelType",
+										v === "all" ? "" : v,
+									)
+								}
+							>
+								<SelectTrigger className="h-8 text-xs">
+									<SelectValue placeholder="All channels" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All</SelectItem>
+									<SelectItem value="web">
+										Web Chat
+									</SelectItem>
+									<SelectItem value="whatsapp">
+										WhatsApp
+									</SelectItem>
+									<SelectItem value="telegram">
+										Telegram
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</PopoverContent>
+				</Popover>
 			</div>
 
 			{/* Conversation list */}

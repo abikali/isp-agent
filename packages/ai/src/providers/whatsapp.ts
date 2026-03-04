@@ -137,6 +137,15 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 			text: content.documentMessage.fileName
 				? `[Document: ${content.documentMessage.fileName}]`
 				: "[Document received]",
+			mediaId: msg.key.id,
+			mediaLink: JSON.stringify({
+				messages: {
+					key: { id: msg.key.id },
+					message: { documentMessage: content.documentMessage },
+				},
+			}),
+			mediaType: "document",
+			mediaCaption: content.documentMessage.caption ?? undefined,
 		};
 	}
 
@@ -500,7 +509,9 @@ export async function transcribeAudio(
 }
 
 /**
- * Describe an image using OpenAI GPT-4o-mini vision.
+ * Describe an image using OpenAI GPT-4.1-mini vision.
+ * Optimized for ISP-related content: bills, invoices, receipts, network diagrams,
+ * router screenshots, and general customer photos.
  */
 export async function describeImage(
 	apiToken: string,
@@ -523,6 +534,18 @@ export async function describeImage(
 		const base64 = media.buffer.toString("base64");
 		const dataUrl = `data:${media.contentType};base64,${base64}`;
 
+		const systemPrompt =
+			"You are a vision assistant for an ISP (Internet Service Provider) customer support agent. " +
+			"Your job is to describe images so a text-only assistant can understand and respond to the customer. " +
+			"If the image contains text (bills, invoices, receipts, contracts, error messages, router screens), " +
+			"extract the text VERBATIM — especially amounts, dates, account/reference numbers, plan names, and due dates. " +
+			"If the image shows network equipment, router status pages, speed tests, or error screens, describe the status and any readings. " +
+			"For general photos, describe concisely. Always be factual and structured.";
+
+		const userPrompt = caption
+			? `The customer sent this image with caption: "${caption}". Analyze it following your instructions.`
+			: "The customer sent this image. Analyze it following your instructions.";
+
 		const userContent: Array<Record<string, unknown>> = [
 			{
 				type: "image_url",
@@ -530,9 +553,7 @@ export async function describeImage(
 			},
 			{
 				type: "text",
-				text: caption
-					? `The user sent this image with caption: "${caption}". Describe what you see concisely so a text-only assistant can understand and respond.`
-					: "The user sent this image. Describe what you see concisely so a text-only assistant can understand and respond.",
+				text: userPrompt,
 			},
 		];
 
@@ -545,9 +566,12 @@ export async function describeImage(
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "gpt-4o-mini",
-					messages: [{ role: "user", content: userContent }],
-					max_tokens: 300,
+					model: "gpt-4.1-mini",
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{ role: "user", content: userContent },
+					],
+					max_tokens: 800,
 				}),
 			},
 		);
@@ -600,6 +624,154 @@ export async function markAsRead(
 	}
 }
 
+// ─── Webhook Event Parsing (Receipts, Reactions, Deletions) ───
+
+export interface ReceiptUpdate {
+	messageId: string;
+	chatId: string;
+	status: "delivered" | "read";
+}
+
+export interface ReactionEvent {
+	messageId: string;
+	chatId: string;
+	emoji: string;
+	contactId?: string | undefined;
+	isRemoval: boolean;
+}
+
+export interface DeleteEvent {
+	messageId: string;
+	chatId: string;
+}
+
+/**
+ * Parse receipt update events from WaSender webhook.
+ * Event: "message-receipt-update"
+ */
+export function parseReceiptUpdate(body: unknown): ReceiptUpdate[] {
+	const payload = body as WaSenderWebhookPayload;
+	if (
+		payload.event !== "message-receipt-update" &&
+		payload.event !== "messages.update"
+	) {
+		return [];
+	}
+
+	const data = payload.data as Record<string, unknown> | undefined;
+	if (!data) {
+		return [];
+	}
+
+	const results: ReceiptUpdate[] = [];
+
+	// WaSender receipt format varies; handle common shapes
+	const updates = (data["updates"] ?? data["messages"]) as
+		| Array<Record<string, unknown>>
+		| undefined;
+	if (Array.isArray(updates)) {
+		for (const update of updates) {
+			const key = update["key"] as WaSenderMessageKey | undefined;
+			const status = update["status"] as string | number | undefined;
+			if (key?.id && key.remoteJid) {
+				let deliveryStatus: "delivered" | "read" | null = null;
+				// WaSender uses numeric status: 3 = delivered, 4 = read
+				if (status === 3 || status === "delivered") {
+					deliveryStatus = "delivered";
+				} else if (status === 4 || status === "read") {
+					deliveryStatus = "read";
+				}
+				if (deliveryStatus) {
+					results.push({
+						messageId: key.id,
+						chatId: key.remoteJid,
+						status: deliveryStatus,
+					});
+				}
+			}
+		}
+	}
+
+	return results;
+}
+
+/**
+ * Parse reaction events from WaSender webhook.
+ * Event: "messages.reaction"
+ */
+export function parseReactionEvent(body: unknown): ReactionEvent[] {
+	const payload = body as WaSenderWebhookPayload;
+	if (payload.event !== "messages.reaction") {
+		return [];
+	}
+
+	const data = payload.data as Record<string, unknown> | undefined;
+	if (!data) {
+		return [];
+	}
+
+	const results: ReactionEvent[] = [];
+	const reactions = (data["reactions"] ?? (data["messages"] ? [data] : [])) as
+		| Array<Record<string, unknown>>
+		| undefined;
+
+	if (Array.isArray(reactions)) {
+		for (const reaction of reactions) {
+			const key = reaction["key"] as WaSenderMessageKey | undefined;
+			const reactionData = reaction["reaction"] as
+				| Record<string, unknown>
+				| undefined;
+			if (key?.id && key.remoteJid && reactionData) {
+				const emoji = (reactionData["text"] ?? "") as string;
+				results.push({
+					messageId: key.id,
+					chatId: key.remoteJid,
+					emoji,
+					contactId: key.cleanedSenderPn ?? key.senderPn,
+					isRemoval: !emoji,
+				});
+			}
+		}
+	}
+
+	return results;
+}
+
+/**
+ * Parse message deletion events from WaSender webhook.
+ * Event: "messages.delete"
+ */
+export function parseDeleteEvent(body: unknown): DeleteEvent[] {
+	const payload = body as WaSenderWebhookPayload;
+	if (payload.event !== "messages.delete") {
+		return [];
+	}
+
+	const data = payload.data as Record<string, unknown> | undefined;
+	if (!data) {
+		return [];
+	}
+
+	const results: DeleteEvent[] = [];
+	const deletions = (data["messages"] ?? [data]) as
+		| Array<Record<string, unknown>>
+		| undefined;
+
+	if (Array.isArray(deletions)) {
+		for (const deletion of deletions) {
+			const key = deletion["key"] as WaSenderMessageKey | undefined;
+			if (key?.id && key.remoteJid) {
+				results.push({
+					messageId: key.id,
+					chatId: key.remoteJid,
+				});
+			}
+		}
+	}
+
+	return results;
+}
+
 export async function setWebhook(
 	personalAccessToken: string,
 	sessionId: string,
@@ -610,7 +782,12 @@ export async function setWebhook(
 		await client.updateWhatsAppSession(Number.parseInt(sessionId, 10), {
 			webhook_url: webhookUrl,
 			webhook_enabled: true,
-			webhook_events: ["messages.received"],
+			webhook_events: [
+				"messages.received",
+				"message-receipt-update",
+				"messages.reaction",
+				"messages.delete",
+			],
 		});
 		return true;
 	} catch (error) {

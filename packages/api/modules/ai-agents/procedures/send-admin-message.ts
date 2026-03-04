@@ -19,6 +19,7 @@ export const sendAdminMessage = protectedProcedure
 			conversationId: z.string(),
 			organizationId: z.string(),
 			message: z.string().min(1).max(4000),
+			replyToId: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -55,6 +56,7 @@ export const sendAdminMessage = protectedProcedure
 			conversationId: conversation.id,
 			role: "admin",
 			content: input.message,
+			replyToId: input.replyToId ?? null,
 		};
 
 		// For channel conversations (WhatsApp/Telegram), send the message externally

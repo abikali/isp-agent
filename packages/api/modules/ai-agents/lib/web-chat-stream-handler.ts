@@ -8,6 +8,7 @@ import {
 	createAgentStream,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	formatHistoryMessage,
 	resolveTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -143,15 +144,11 @@ export async function handleWebChatStream(
 		select: {
 			role: true,
 			content: true,
+			toolCalls: true,
 		},
 	});
 
-	const historyMessages = history.reverse().map((m) => ({
-		role: (m.role === "admin" ? "assistant" : m.role) as
-			| "user"
-			| "assistant",
-		content: m.content,
-	}));
+	const historyMessages = history.reverse().map(formatHistoryMessage);
 
 	// Resolve tools
 	let tools: GenerateResponseInput["tools"];

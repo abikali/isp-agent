@@ -8,6 +8,7 @@ import {
 	buildSystemPrompt,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	formatHistoryMessage,
 	generateAgentResponse,
 	resolveTools,
 } from "@repo/ai";
@@ -99,16 +100,12 @@ export async function handleWebChatMessage(
 		select: {
 			role: true,
 			content: true,
+			toolCalls: true,
 		},
 	});
 
 	// Reverse to chronological order
-	const historyMessages = history.reverse().map((m) => ({
-		role: (m.role === "admin" ? "assistant" : m.role) as
-			| "user"
-			| "assistant",
-		content: m.content,
-	}));
+	const historyMessages = history.reverse().map(formatHistoryMessage);
 
 	// Resolve tools if agent has any enabled
 	let tools: GenerateResponseInput["tools"];

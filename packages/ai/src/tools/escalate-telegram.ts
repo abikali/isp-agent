@@ -410,18 +410,24 @@ export const escalateTelegram: RegisteredTool = {
 Calling escalate-telegram sends a REAL Telegram message to the support/sales team.
 Text like "I will forward" does nothing — you MUST call the tool.
 
-1. Collect whatever info you have (even if incomplete — the team can follow up).
-2. Call escalate-telegram with a summary including your findings.
-3. ONLY confirm to the customer AFTER the tool returns success=true.
-4. If the tool returns success=false, DO NOT tell the customer you forwarded their request. Instead apologize and ask them to call support directly.
+### How to escalate
 
-MANDATORY ESCALATION — call the tool immediately when:
+1. For URGENT cases (outages, explicit "transfer me" requests, frustrated customers) — escalate IMMEDIATELY with whatever info you have.
+2. For NON-URGENT cases (subscriptions, sales, plan changes, general inquiries) — first ask the customer for key details (location, what they need, contact info) so the team gets a complete picture. Then escalate once you have a reasonable amount of info. Do NOT ask more than 2-3 questions — avoid interrogating the customer.
+3. Call escalate-telegram with a summary including your findings.
+4. ONLY confirm to the customer AFTER the tool returns success=true.
+5. If the tool returns success=false, DO NOT tell the customer you forwarded their request. Instead apologize and ask them to call support directly.
+
+### When you MUST escalate (call the tool — do not just say you will):
 - Customer explicitly asks for human help or to be transferred
 - Customer wants to cancel, stop, or change their service
 - Customer is not found in the system (potential new lead or unregistered number)
 - Customer is frustrated and you cannot resolve their issue
 - New subscription or sales inquiry requiring human follow-up
 - Any request you cannot fulfill yourself (plan changes, billing, cancellations)
+
+### Re-escalation with updated info
+If you already escalated earlier in the conversation but the customer later provides important NEW information (e.g. location, phone number, specific plan preference), call escalate-telegram AGAIN with an updated summary that includes the new details. The team benefits from having the latest info. Do NOT skip re-escalation just because you escalated before — each call sends a separate message to the team.
 
 IMPORTANT: Do NOT refuse to escalate because you lack account details. The team can look up and verify the customer themselves. Missing info is NEVER a reason to block escalation. Include whatever you have (name, phone number from the chat, the customer's own description) and let the team handle the rest.
 

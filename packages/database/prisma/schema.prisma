@@ -624,21 +624,51 @@ model AiConversation {
 }
 
 model AiMessage {
-  id             String   @id @default(cuid())
-  conversationId String
-  role           String   // "user" | "assistant"
-  content        String   @db.Text
-  externalMsgId  String?
-  tokenCount     Int?
-  latencyMs      Int?
-  error          String?
-  toolCalls      Json?    // Array of {toolName, args, result}
-  createdAt      DateTime @default(now())
+  id                 String    @id @default(cuid())
+  conversationId     String
+  role               String    // "user" | "assistant" | "admin"
+  content            String    @db.Text
+  externalMsgId      String?
+  tokenCount         Int?
+  latencyMs          Int?
+  error              String?
+  toolCalls          Json?     // Array of {toolName, args, result}
+  replyToId          String?
+  deliveryStatus     String?   // "sent" | "delivered" | "read"
+  editedAt           DateTime?
+  deletedAt          DateTime?
+  attachmentType     String?   // "image" | "video" | "audio" | "document" | "location" | "sticker"
+  attachmentUrl      String?
+  attachmentFilename String?
+  attachmentMimeType String?
+  attachmentSize     Int?
+  attachmentMeta     Json?     // { width, height, duration, lat, lng, etc. }
+  createdAt          DateTime  @default(now())
 
   conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo      AiMessage?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      AiMessage[]    @relation("MessageReplies")
+  reactions    AiMessageReaction[]
 
   @@index([conversationId, createdAt])
+  @@index([externalMsgId])
   @@map("ai_message")
+}
+
+model AiMessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  emoji     String
+  userId    String?
+  contactId String?
+  createdAt DateTime @default(now())
+
+  message AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@unique([messageId, contactId])
+  @@index([messageId])
+  @@map("ai_message_reaction")
 }
 
 model AiAgentToolConfig {

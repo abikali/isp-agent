@@ -26,6 +26,19 @@ export function getRedisConnection(): IORedis {
 
 		connection.on("connect", () => {
 			logger.info("Redis connected for job queue");
+
+			// Clear stale AI locks/buffers from previous process (e.g. after deploy restart)
+			connection
+				?.keys("ai:lock:*")
+				.then(async (keys) => {
+					if (keys.length > 0) {
+						await connection?.del(...keys);
+						logger.info(
+							`Cleared ${keys.length} stale AI lock(s) from previous process`,
+						);
+					}
+				})
+				.catch(() => {});
 		});
 	}
 

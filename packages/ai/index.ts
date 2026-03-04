@@ -11,6 +11,7 @@ export { executeEscalationGuard } from "./src/escalation-guard";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
+export { formatHistoryMessage } from "./src/history";
 export { getAdapter, isValidModel } from "./src/model-registry";
 export { hashPin } from "./src/pin";
 export {
@@ -23,6 +24,11 @@ export {
 	whatsapp,
 } from "./src/providers";
 export { initRateLimiter } from "./src/providers/rate-limiter";
+export type {
+	DeleteEvent,
+	ReactionEvent,
+	ReceiptUpdate,
+} from "./src/providers/whatsapp";
 export {
 	getAvailableTools,
 	getToolRegistry,

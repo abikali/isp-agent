@@ -9,6 +9,7 @@ import {
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	formatHistoryMessage,
 	generateAgentResponse,
 	resolveTools,
 	sendTextMessage,
@@ -53,15 +54,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				where: { conversationId },
 				orderBy: { createdAt: "desc" },
 				take: conversation.agent.maxHistoryLength,
-				select: { role: true, content: true },
+				select: { role: true, content: true, toolCalls: true },
 			});
 
-			const messages = history.reverse().map((m) => ({
-				role: (m.role === "admin" ? "assistant" : m.role) as
-					| "user"
-					| "assistant",
-				content: m.content,
-			}));
+			const messages = history.reverse().map(formatHistoryMessage);
 
 			// Resolve tools if agent has any enabled
 			let tools: GenerateResponseInput["tools"];

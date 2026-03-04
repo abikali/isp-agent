@@ -9,6 +9,7 @@ import {
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	formatHistoryMessage,
 	generateAgentResponse,
 	markAsRead,
 	parseWebhookPayload,
@@ -18,6 +19,7 @@ import {
 	sendTypingIndicator,
 	telegram,
 	triageBufferedMessages,
+	whatsapp,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
@@ -395,14 +397,11 @@ async function handleMessages(
 						},
 						orderBy: { createdAt: "desc" },
 						take: channel.agent.maxHistoryLength,
-						select: { role: true, content: true },
+						select: { role: true, content: true, toolCalls: true },
 					});
-					const historyMessages = history.reverse().map((m) => ({
-						role: (m.role === "admin" ? "assistant" : m.role) as
-							| "user"
-							| "assistant",
-						content: m.content,
-					}));
+					const historyMessages = history
+						.reverse()
+						.map(formatHistoryMessage);
 
 					// Merge consecutive trailing user messages into one
 					// (rapid-fire messages get stored separately but should be read as one thought)
@@ -663,6 +662,100 @@ async function handleMessages(
 	return new Response("OK", { status: 200 });
 }
 
+// ─── Incoming Webhook Event Handlers (receipts, reactions, deletions) ───
+
+async function handleReceiptEvents(body: unknown): Promise<void> {
+	const receipts = whatsapp.parseReceiptUpdate(body);
+	for (const receipt of receipts) {
+		try {
+			await db.aiMessage.updateMany({
+				where: { externalMsgId: receipt.messageId },
+				data: { deliveryStatus: receipt.status },
+			});
+		} catch (error) {
+			logger.error("Failed to update delivery status", {
+				error,
+				messageId: receipt.messageId,
+			});
+		}
+	}
+}
+
+async function handleReactionEvents(body: unknown): Promise<void> {
+	const reactions = whatsapp.parseReactionEvent(body);
+	for (const reaction of reactions) {
+		try {
+			const message = await db.aiMessage.findFirst({
+				where: { externalMsgId: reaction.messageId },
+				select: { id: true },
+			});
+			if (!message) {
+				continue;
+			}
+
+			if (reaction.isRemoval) {
+				// Remove reaction by contactId
+				if (reaction.contactId) {
+					await db.aiMessageReaction.deleteMany({
+						where: {
+							messageId: message.id,
+							contactId: reaction.contactId,
+						},
+					});
+				}
+			} else {
+				// Upsert reaction
+				if (reaction.contactId) {
+					const existing = await db.aiMessageReaction.findUnique({
+						where: {
+							messageId_contactId: {
+								messageId: message.id,
+								contactId: reaction.contactId,
+							},
+						},
+					});
+					if (existing) {
+						await db.aiMessageReaction.update({
+							where: { id: existing.id },
+							data: { emoji: reaction.emoji },
+						});
+					} else {
+						await db.aiMessageReaction.create({
+							data: {
+								messageId: message.id,
+								emoji: reaction.emoji,
+								contactId: reaction.contactId,
+							},
+						});
+					}
+				}
+			}
+		} catch (error) {
+			logger.error("Failed to handle reaction event", {
+				error,
+				messageId: reaction.messageId,
+			});
+		}
+	}
+}
+
+async function handleDeleteEvents(body: unknown): Promise<void> {
+	const deletions = whatsapp.parseDeleteEvent(body);
+	for (const deletion of deletions) {
+		try {
+			await db.aiMessage.updateMany({
+				where: { externalMsgId: deletion.messageId },
+				data: { deletedAt: new Date() },
+			});
+		} catch (error) {
+			logger.error("Failed to handle delete event", {
+				error,
+				messageId: deletion.messageId,
+			});
+		}
+	}
+}
+
 export async function whatsappWebhookHandler(
 	request: Request,
 	webhookToken: string,
@@ -677,6 +770,12 @@ export async function whatsappWebhookHandler(
 				error,
 			});
 		});
+
+		// Process non-message events (receipts, reactions, deletions) in background
+		handleReceiptEvents(body).catch(() => {});
+		handleReactionEvents(body).catch(() => {});
+		handleDeleteEvents(body).catch(() => {});
+
 		return new Response("OK", { status: 200 });
 	} catch (error) {
 		logger.error("WhatsApp webhook error", { error });

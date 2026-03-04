@@ -22,7 +22,7 @@ function ConversationDetailPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<div className="h-[calc(100vh-200px)]">
+		<div className="h-[calc(100vh-130px)]">
 			<AsyncBoundary
 				fallback={
 					<div className="space-y-4 p-4">

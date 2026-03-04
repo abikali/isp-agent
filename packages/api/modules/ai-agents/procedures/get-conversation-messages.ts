@@ -67,10 +67,42 @@ export const getConversationMessages = protectedProcedure
 				tokenCount: true,
 				latencyMs: true,
 				error: true,
+				replyToId: true,
+				deliveryStatus: true,
+				editedAt: true,
+				deletedAt: true,
+				attachmentType: true,
+				attachmentUrl: true,
+				attachmentFilename: true,
+				attachmentMimeType: true,
+				attachmentSize: true,
+				attachmentMeta: true,
 				createdAt: true,
+				replyTo: {
+					select: {
+						id: true,
+						role: true,
+						content: true,
+					},
+				},
+				reactions: {
+					select: {
+						id: true,
+						emoji: true,
+						userId: true,
+						contactId: true,
+					},
+				},
 			},
 			orderBy: { createdAt: "asc" },
 		});
+
+		// Replace deleted message content
+		for (const msg of messages) {
+			if (msg.deletedAt) {
+				msg.content = "This message was deleted";
+			}
+		}
 
 		const hasMore = messages.length > input.limit;
 		const items = hasMore ? messages.slice(0, input.limit) : messages;
