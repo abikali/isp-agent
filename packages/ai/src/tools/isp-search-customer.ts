@@ -70,6 +70,27 @@ function filterCustomerData(
 	return filtered;
 }
 
+/** Matches interfaces that need mikrotik API for peer data (fiber/wired/cable). */
+const MIKROTIK_PEER_IFACE = /\bOLT\d*\b|\bether\d*\b|\bbase\d*\b/i;
+
+function detectConnectionType(
+	customer: Record<string, unknown>,
+): "wireless" | "fiber" | "wired" {
+	const iface = customer["mikrotikInterface"] as string | undefined;
+	if (iface && MIKROTIK_PEER_IFACE.test(iface)) {
+		return iface.toUpperCase().includes("OLT") ? "fiber" : "wired";
+	}
+	if (customer["accessPointName"] != null) {
+		return "wireless";
+	}
+	return "wired"; // fallback
+}
+
+function needsMikrotikPeers(customer: Record<string, unknown>): boolean {
+	const iface = customer["mikrotikInterface"] as string | undefined;
+	return !!iface && MIKROTIK_PEER_IFACE.test(iface);
+}
+
 const ispSearchCustomerDef = toolDefinition({
 	name: "isp-search-customer",
 	description:
@@ -108,9 +129,53 @@ function createIspSearchCustomerTool(context: ToolContext) {
 
 				const first = filtered[0];
 				if (filtered.length === 1 && first) {
+					const connectionType = detectConnectionType(first);
+					let peerUsers: { userName: string; online: boolean }[] = [];
+
+					if (needsMikrotikPeers(first)) {
+						// Fiber/wired: fetch from mikrotik API
+						const iface = first["mikrotikInterface"] as string;
+						try {
+							const mikrotikData = await ispGet<
+								{ userName: string; online: boolean }[]
+							>(config, "/mikrotik-user-list", {
+								mikrotikInterface: iface,
+							});
+							if (Array.isArray(mikrotikData)) {
+								peerUsers = mikrotikData.filter(
+									(u) => u.userName !== first["userName"],
+								);
+							}
+						} catch {
+							// Non-fatal — peer data is supplementary
+						}
+					} else {
+						// Wireless: use accessPointUsers from search result
+						const apUsers = first["accessPointUsers"] as
+							| { userName: string; online: boolean }[]
+							| undefined;
+						if (Array.isArray(apUsers)) {
+							peerUsers = apUsers.filter(
+								(u) => u.userName !== first["userName"],
+							);
+						}
+					}
+
+					const onlineCount = peerUsers.filter(
+						(u) => u.online,
+					).length;
+					const offlineCount = peerUsers.length - onlineCount;
+					const peerSummary =
+						peerUsers.length === 0
+							? "No other users on this connection (dedicated)"
+							: `${peerUsers.length} peers: ${onlineCount} online, ${offlineCount} offline`;
+
 					return {
 						success: true,
 						message: `Found customer "${first["userName"] ?? args.query}".`,
+						connectionType,
+						peerUsers,
+						peerSummary,
 						customer: first,
 					};
 				}
@@ -154,11 +219,21 @@ After confirming the account is active/unblocked/unexpired, check these fields a
 IMPORTANT: fupMode "1" (throttled) only SLOWS speed — it does NOT cause disconnection or offline status.
 If the customer is offline (online: false), FUP is NOT the cause. Diagnose the offline issue first.
 
-### Connection Type Detection
-- WIRELESS: accessPointName is NOT null -> use AP diagnostic chain (accessPointUsers from the FIRST search result)
-- FIBER/WIRED: accessPointName IS null, mikrotikInterface contains "ether"/"base"/"olt"
-  -> AP fields being null is normal, use isp-mikrotik-users with the EXACT mikrotikInterface value from the search result
-IMPORTANT: Do NOT call isp-mikrotik-users for wireless customers. Do NOT fabricate or guess interface names — always use the EXACT value from the search result.
+### Connection Type & Peers
+The search result includes:
+- connectionType: "wireless", "fiber", or "wired" (detected automatically)
+- peerUsers: [{userName, online}] — other customers on the same infrastructure, excluding the searched customer
+- peerSummary: human-readable summary (e.g., "5 peers: 4 online, 1 offline")
+
+Peer data is fetched automatically by the tool. Do NOT call isp-mikrotik-users for peer checking.
+
+Interpreting peerUsers:
+- Empty (dedicated connection) → no peers to cross-check. Focus on equipment and station status.
+- Other peers online but customer offline → issue is ISOLATED to this customer
+- All peers offline → likely infrastructure/AP problem
+- The "online" field is the SOURCE OF TRUTH. Ping timeouts do NOT mean offline (firewalls/NAT can cause them).
+
+Never claim "neighbors have internet" unless peerUsers actually shows other users online.
 
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
 Stop as soon as you have a clear diagnosis. Only continue to the next step if the cause is still unclear.
@@ -166,23 +241,14 @@ Stop as soon as you have a clear diagnosis. Only continue to the next step if th
 Offline (online: false):
 1. Check accessPointOnline and stationOnline → if equipment is off, that's the diagnosis. Tell the customer.
 2. If equipment is online but customer is offline → ping customer to confirm.
-3. If cause is still unclear → check accessPointUsers for peer status to determine if isolated or widespread.
+3. If cause is still unclear → check peerUsers to determine if isolated or widespread.
 
 Slow internet (online: true):
 1. Check fupMode → if "1", that's the diagnosis. Tell the customer their speed is reduced due to FUP. Stop here.
 2. If not FUP → check interface rates ("10Mbps" = cabling issue).
-3. If cause is still unclear → get bandwidth stats, then check peers.
+3. If cause is still unclear → get bandwidth stats, then check peerUsers.
 
 Do NOT run the full chain when the first step already answers the question.
-
-### Peer Cross-Check (use ISP data, not ping)
-The "online" field in accessPointUsers is the SOURCE OF TRUTH for whether a peer is connected. Do NOT override it with ping results.
-- If accessPointUsers contains ONLY the customer themselves → there are no peers to cross-check. The customer has a dedicated AP. Do NOT say "neighbors are online" — there are no neighbors on this AP. Focus on equipment and station status instead.
-- If accessPointUsers shows OTHER peers as online: true but YOUR customer is offline → the issue is ISOLATED to this customer, not infrastructure-wide.
-- If accessPointUsers shows ALL peers (including others) as offline → likely infrastructure/AP issue.
-- Ping timeouts do NOT mean a user is offline. Timeouts can be caused by firewalls, NAT, or routing. Never say "all users are offline" based on ping timeouts when the ISP data shows them as online.
-Only ping peers as a supplementary check. Always state what the ISP data shows, not what you infer from ping.
-IMPORTANT: Never claim "neighbors have internet" unless you have ACTUAL peer data from the customer's OWN access point showing other users online.
 
 ### Bandwidth Interpretation (never dump raw numbers)
 When you get bandwidth stats, COMPARE currentDown vs limitDown:
@@ -200,7 +266,7 @@ NEVER present raw kbps/Mbps numbers to the customer. Translate into simple langu
 - accessPointOnline: true = AP reachable, false = AP is down/powered off
 - stationOnline: true = station reachable, false = station is down
 - accessPointSignal: dBm. -50 to -60 excellent, -60 to -70 good, -70 to -80 fair, below -80 poor
-- accessPointUsers: [{userName, online}] on same AP — the "online" field here is the authoritative connectivity status. Use it to determine if the issue is isolated or widespread. Ping is optional supplementary data only.
+- peerUsers: [{userName, online}] — auto-fetched peers on the same infrastructure (AP or mikrotik interface), excluding the searched customer. The "online" field is authoritative. Ping is optional supplementary data only.
 - interface rate: "100Mbps"/"1Gbps" = normal. "10Mbps" = cabling/hardware issue bottlenecking all users
 - basicSpeedUp/Down: limits in kbps. dailyQuota/monthlyQuota: in MB, "0" = unlimited
 
