@@ -615,7 +615,7 @@ model AiConversation {
   messages         AiMessage[]
   capturedLeads    AiCapturedLead[]
 
-  @@unique([channelId, externalChatId])
+  @@index([channelId, externalChatId, status])
   @@index([agentId])
   @@index([agentId, externalChatId])
   @@index([channelId])

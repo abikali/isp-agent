@@ -17,7 +17,7 @@ export const listAllConversations = protectedProcedure
 			agentId: z.string().optional(),
 			search: z.string().optional(),
 			channelType: z.enum(["web", "whatsapp", "telegram"]).optional(),
-			status: z.enum(["active", "archived"]).optional(),
+			status: z.enum(["active", "archived", "cleared"]).optional(),
 			pinned: z.boolean().optional(),
 			sortBy: z
 				.enum(["lastMessageAt", "messageCount", "createdAt"])

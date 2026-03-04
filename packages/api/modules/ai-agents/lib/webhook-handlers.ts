@@ -94,7 +94,7 @@ async function handleMessages(
 				() => {},
 			);
 
-			// Handle /clear command \u2014 delete conversation and messages
+			// Handle /clear command \u2014 mark conversation as cleared, preserving history
 			if (msg.text.trim().toLowerCase() === "/clear") {
 				const redis = getRedisConnection();
 				const lockKey = `ai:lock:${channel.id}:${msg.chatId}`;
@@ -120,22 +120,14 @@ async function handleMessages(
 					// Drain any buffered messages
 					await redis.del(bufferKey);
 
-					const existing = await db.aiConversation.findUnique({
+					await db.aiConversation.updateMany({
 						where: {
-							channelId_externalChatId: {
-								channelId: channel.id,
-								externalChatId: msg.chatId,
-							},
+							channelId: channel.id,
+							externalChatId: msg.chatId,
+							status: "active",
 						},
+						data: { status: "cleared" },
 					});
-					if (existing) {
-						await db.aiMessage.deleteMany({
-							where: { conversationId: existing.id },
-						});
-						await db.aiConversation.deleteMany({
-							where: { id: existing.id },
-						});
-					}
 				} finally {
 					await redis.del(lockKey);
 				}
@@ -176,28 +168,36 @@ async function handleMessages(
 				config.ai.maxMessageLength,
 			);
 
-			// Find or create conversation
-			const conversation = await db.aiConversation.upsert({
+			// Find or create active conversation
+			let conversation = await db.aiConversation.findFirst({
 				where: {
-					channelId_externalChatId: {
-						channelId: channel.id,
-						externalChatId: msg.chatId,
-					},
-				},
-				create: {
-					agentId: channel.agent.id,
 					channelId: channel.id,
 					externalChatId: msg.chatId,
-					contactName: msg.contactName ?? null,
-					contactId: msg.contactId ?? null,
-					lastMessageAt: new Date(),
-					messageCount: 0,
+					status: "active",
 				},
-				update: {
-					contactName: msg.contactName ?? null,
-					lastMessageAt: new Date(),
-				},
+				orderBy: { createdAt: "desc" },
 			});
+			if (conversation) {
+				conversation = await db.aiConversation.update({
+					where: { id: conversation.id },
+					data: {
+						contactName: msg.contactName ?? null,
+						lastMessageAt: new Date(),
+					},
+				});
+			} else {
+				conversation = await db.aiConversation.create({
+					data: {
+						agentId: channel.agent.id,
+						channelId: channel.id,
+						externalChatId: msg.chatId,
+						contactName: msg.contactName ?? null,
+						contactId: msg.contactId ?? null,
+						lastMessageAt: new Date(),
+						messageCount: 0,
+					},
+				});
+			}
 
 			// Store user message in DB immediately
 			await db.aiMessage.create({

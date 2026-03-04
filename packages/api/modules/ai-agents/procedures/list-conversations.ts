@@ -16,7 +16,7 @@ export const listConversations = protectedProcedure
 			agentId: z.string(),
 			organizationId: z.string(),
 			channelId: z.string().optional(),
-			status: z.enum(["active", "archived"]).optional(),
+			status: z.enum(["active", "archived", "cleared"]).optional(),
 			cursor: z.string().optional(),
 			limit: z.number().int().min(1).max(50).default(20),
 		}),
