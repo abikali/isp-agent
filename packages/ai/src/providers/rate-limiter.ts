@@ -93,7 +93,6 @@ export async function acquireSendSlot(apiToken: string): Promise<void> {
 /**
  * Try to acquire a send slot without blocking.
  * Returns true if slot was acquired, false if unavailable.
- * Used for typing indicators — skip rather than wait.
  */
 export async function trySendSlot(apiToken: string): Promise<boolean> {
 	if (!redis) {
@@ -107,6 +106,41 @@ export async function trySendSlot(apiToken: string): Promise<boolean> {
 			"1",
 			"PX",
 			SEND_INTERVAL_MS,
+			"NX",
+		);
+		return acquired === "OK";
+	} catch {
+		return true; // Fail open
+	}
+}
+
+/**
+ * Try to acquire a typing indicator slot for a specific chat.
+ * Uses a SEPARATE key prefix from message sending so typing never
+ * blocks or gets blocked by actual message sends.
+ * Returns true if slot was acquired, false if too recent.
+ */
+const TYPING_INTERVAL_MS = 3000;
+
+export async function tryTypingSlot(
+	apiToken: string,
+	chatId: string,
+): Promise<boolean> {
+	if (!redis) {
+		return true; // Fail open
+	}
+
+	try {
+		const hash = createHash("sha256")
+			.update(apiToken)
+			.digest("hex")
+			.slice(0, 16);
+		const key = `wa:typing:${hash}:${chatId}`;
+		const acquired = await redis.set(
+			key,
+			"1",
+			"PX",
+			TYPING_INTERVAL_MS,
 			"NX",
 		);
 		return acquired === "OK";

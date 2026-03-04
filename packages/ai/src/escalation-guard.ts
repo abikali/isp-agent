@@ -105,6 +105,25 @@ export async function executeEscalationGuard(
 		);
 
 		const result = await escalateTool.execute(args);
+
+		// Log whether the forced escalation actually succeeded
+		const toolResult = result as
+			| { success?: boolean; message?: string }
+			| undefined;
+		if (toolResult && !toolResult.success) {
+			logger.error(
+				"Escalation guard: forced tool call returned failure — Telegram message was NOT sent",
+				{
+					conversationId: opts.conversationId,
+					toolMessage: toolResult.message,
+				},
+			);
+		} else {
+			logger.info("Escalation guard: forced escalation succeeded", {
+				conversationId: opts.conversationId,
+			});
+		}
+
 		return {
 			toolName: "escalate-telegram",
 			args,

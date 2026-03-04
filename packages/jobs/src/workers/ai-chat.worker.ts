@@ -119,24 +119,36 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					.provider as ChannelProvider;
 				const chatId = conversation.externalChatId;
 
-				// Send typing indicator before generation
+				// Send typing indicator before generation + refresh periodically
 				sendTypingIndicator(provider, apiToken, chatId).catch(() => {});
+				const typingInterval = setInterval(() => {
+					sendTypingIndicator(provider, apiToken, chatId).catch(
+						() => {},
+					);
+				}, 8000);
 
-				const result = await generateAgentResponse({
-					model: conversation.agent.model,
-					systemPrompt,
-					knowledgeBase:
-						conversation.agent.knowledgeBase ?? undefined,
-					messages,
-					temperature: conversation.agent.temperature,
-					tools,
-					maxSteps: tools ? 10 : undefined,
-					onToolActivity: () => {
-						sendTypingIndicator(provider, apiToken, chatId).catch(
-							() => {},
-						);
-					},
-				});
+				let result: Awaited<ReturnType<typeof generateAgentResponse>>;
+				try {
+					result = await generateAgentResponse({
+						model: conversation.agent.model,
+						systemPrompt,
+						knowledgeBase:
+							conversation.agent.knowledgeBase ?? undefined,
+						messages,
+						temperature: conversation.agent.temperature,
+						tools,
+						maxSteps: tools ? 10 : undefined,
+						onToolActivity: () => {
+							sendTypingIndicator(
+								provider,
+								apiToken,
+								chatId,
+							).catch(() => {});
+						},
+					});
+				} finally {
+					clearInterval(typingInterval);
+				}
 
 				// Escalation safety net
 				if (

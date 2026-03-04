@@ -209,6 +209,9 @@ async function handleMessages(
 				},
 			});
 
+			// Send typing indicator immediately so user sees activity
+			sendTypingIndicator(provider, apiToken, msg.chatId).catch(() => {});
+
 			// Buffer message text and try to acquire processing lock
 			const redis = getRedisConnection();
 			const bufferKey = `ai:buffer:${channel.id}:${msg.chatId}`;
@@ -428,10 +431,17 @@ async function handleMessages(
 						}
 					}
 
-					// Send typing indicator before generation
+					// Send typing indicator before generation + refresh periodically
 					sendTypingIndicator(provider, apiToken, msg.chatId).catch(
 						() => {},
 					);
+					const typingInterval = setInterval(() => {
+						sendTypingIndicator(
+							provider,
+							apiToken,
+							msg.chatId,
+						).catch(() => {});
+					}, 8000);
 
 					// Generate AI response with timeout
 					const timeoutMs = config.ai.responseTimeoutMs;
@@ -477,6 +487,7 @@ async function handleMessages(
 						});
 
 						clearTimeout(timeout);
+						clearInterval(typingInterval);
 
 						// Escalation safety net: if model said it would escalate but didn't call the tool, do it now
 						if (
@@ -555,6 +566,7 @@ async function handleMessages(
 						isFirstIteration = false;
 					} catch (error) {
 						clearTimeout(timeout);
+						clearInterval(typingInterval);
 
 						const errorName =
 							error instanceof Error ? error.name : "";

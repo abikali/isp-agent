@@ -5,7 +5,7 @@ import type {
 	SendMessageOptions,
 	SendMessageResult,
 } from "../types";
-import { acquireSendSlot, trySendSlot } from "./rate-limiter";
+import { acquireSendSlot, tryTypingSlot } from "./rate-limiter";
 
 /**
  * Create a WaSender SDK client instance.
@@ -215,9 +215,9 @@ export async function sendTypingIndicator(
 	chatId: string,
 ): Promise<void> {
 	try {
-		const slotAvailable = await trySendSlot(apiToken);
+		const slotAvailable = await tryTypingSlot(apiToken, chatId);
 		if (!slotAvailable) {
-			return; // Skip typing indicator rather than block
+			return; // Skip if we sent one recently for this chat
 		}
 		const client = createClient(apiToken);
 		await client.sendPresenceUpdate(chatId, "composing");

@@ -89,19 +89,36 @@ function createEscalateTelegramTool(context: ToolContext) {
 				(context.toolConfig?.["telegramChatId"] as string | undefined);
 
 			if (!telegramBotToken || !rawChatIds) {
+				logger.error(
+					"escalate-telegram: Missing bot token or chat IDs — escalation CANNOT be sent",
+					{
+						hasBotToken: !!telegramBotToken,
+						hasChatIds: !!rawChatIds,
+						agentId: context.agentId,
+						conversationId: context.conversationId,
+					},
+				);
 				return {
 					success: false,
 					message:
-						"Escalation is not configured. Please set up the Telegram Bot Token and Chat IDs in the tool settings.",
+						"ESCALATION FAILED — Telegram is not configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
 				};
 			}
 
 			const chatIds = parseChatIds(rawChatIds);
 			if (chatIds.length === 0) {
+				logger.error(
+					"escalate-telegram: No valid chat IDs after parsing — escalation CANNOT be sent",
+					{
+						rawChatIds,
+						agentId: context.agentId,
+						conversationId: context.conversationId,
+					},
+				);
 				return {
 					success: false,
 					message:
-						"No valid Telegram Chat IDs configured. Please add at least one Chat ID in the tool settings.",
+						"ESCALATION FAILED — no valid Telegram Chat IDs configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
 				};
 			}
 
@@ -260,8 +277,8 @@ function createEscalateTelegramTool(context: ToolContext) {
 			const message = lines.join("\n");
 
 			// Send to all configured chat IDs
-			const { Api, GrammyError, HttpError } = await import("grammy");
-			const api = new Api(telegramBotToken);
+			const chatIdNum = chatIds.map((id) => Number(id));
+			const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
 
 			const results: Array<{
 				chatId: string;
@@ -270,33 +287,55 @@ function createEscalateTelegramTool(context: ToolContext) {
 			}> = [];
 
 			await Promise.allSettled(
-				chatIds.map(async (chatId) => {
+				chatIdNum.map(async (chatId, idx) => {
 					try {
-						await api.sendMessage(Number(chatId), message, {
-							parse_mode: "HTML",
+						const response = await fetch(url, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								chat_id: chatId,
+								text: message,
+								parse_mode: "HTML",
+							}),
 						});
-						results.push({ chatId, success: true });
-					} catch (error) {
-						let errorMsg = "Unknown error";
-						if (error instanceof GrammyError) {
-							if (error.error_code === 403) {
-								errorMsg = `Bot blocked or user hasn't started chat (403)`;
-							} else if (error.error_code === 400) {
-								errorMsg = "Chat not found (400)";
-							} else {
-								errorMsg = error.description;
-							}
-						} else if (error instanceof HttpError) {
-							errorMsg = "Network error reaching Telegram";
-						} else if (error instanceof Error) {
-							errorMsg = error.message;
+
+						const data = (await response.json()) as {
+							ok: boolean;
+							description?: string;
+						};
+
+						if (!data.ok) {
+							const errorMsg =
+								data.description ?? `HTTP ${response.status}`;
+							logger.error(
+								`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
+								{
+									chatId,
+									conversationId: context.conversationId,
+								},
+							);
+							results.push({
+								chatId: chatIds[idx] ?? String(chatId),
+								success: false,
+								error: errorMsg,
+							});
+						} else {
+							results.push({
+								chatId: chatIds[idx] ?? String(chatId),
+								success: true,
+							});
 						}
+					} catch (error) {
+						const errorMsg =
+							error instanceof Error
+								? error.message
+								: "Unknown error";
 						logger.error(
 							`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
 							{ error, conversationId: context.conversationId },
 						);
 						results.push({
-							chatId,
+							chatId: chatIds[idx] ?? String(chatId),
 							success: false,
 							error: errorMsg,
 						});
@@ -310,7 +349,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 			if (succeeded === 0) {
 				return {
 					success: false,
-					message: `Failed to send escalation alert to all ${chatIds.length} recipients. Errors: ${failed.map((f) => `${f.chatId}: ${f.error}`).join("; ")}`,
+					message: `ESCALATION FAILED — could not send to any of ${chatIds.length} recipients. Errors: ${failed.map((f) => `${f.chatId}: ${f.error}`).join("; ")}. DO NOT tell the customer their request was forwarded.`,
 				};
 			}
 
@@ -332,7 +371,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 			});
 			return {
 				success: false,
-				message: `Failed to send escalation alert: ${error instanceof Error ? error.message : "Unknown error"}`,
+				message: `ESCALATION FAILED: ${error instanceof Error ? error.message : "Unknown error"}. DO NOT tell the customer their request was forwarded.`,
 			};
 		}
 	});
@@ -373,7 +412,8 @@ Text like "I will forward" does nothing — you MUST call the tool.
 
 1. Collect all relevant info and diagnostic findings.
 2. Call escalate-telegram with a summary including your findings.
-3. THEN confirm to the customer that you've forwarded their case.
+3. ONLY confirm to the customer AFTER the tool returns success=true.
+4. If the tool returns success=false, DO NOT tell the customer you forwarded their request. Instead apologize and ask them to call support directly.
 
 When to escalate: new subscriptions, service changes, unresolved issues after diagnostics, human assistance requests, customers not found in system (new leads).
 
