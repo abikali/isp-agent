@@ -1,9 +1,16 @@
 "use client";
 
 import { Button } from "@ui/components/button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "@ui/components/popover";
 import { cn } from "@ui/lib";
 import {
 	CheckIcon,
+	FileTextIcon,
+	ImageIcon,
 	LoaderIcon,
 	MicIcon,
 	PaperclipIcon,
@@ -12,6 +19,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSendAdminMessage } from "../hooks/use-all-conversations";
+import { useAttachmentUpload } from "../hooks/use-attachment-upload";
 import { EmojiPicker } from "./EmojiPicker";
 import { VoiceRecorder } from "./VoiceRecorder";
 
@@ -24,6 +32,21 @@ interface ReplyTarget {
 interface EditingMessage {
 	id: string;
 	content: string;
+}
+
+function getAttachmentType(
+	mimeType: string,
+): "image" | "video" | "audio" | "document" {
+	if (mimeType.startsWith("image/")) {
+		return "image";
+	}
+	if (mimeType.startsWith("video/")) {
+		return "video";
+	}
+	if (mimeType.startsWith("audio/")) {
+		return "audio";
+	}
+	return "document";
 }
 
 export function AdminChatInput({
@@ -45,8 +68,12 @@ export function AdminChatInput({
 }) {
 	const [value, setValue] = useState("");
 	const [isRecording, setIsRecording] = useState(false);
+	const [attachPopoverOpen, setAttachPopoverOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const imageInputRef = useRef<HTMLInputElement>(null);
+	const docInputRef = useRef<HTMLInputElement>(null);
 	const mutation = useSendAdminMessage();
+	const { upload, isUploading } = useAttachmentUpload();
 
 	// Pre-populate when entering edit mode
 	useEffect(() => {
@@ -103,6 +130,56 @@ export function AdminChatInput({
 		);
 	}
 
+	async function handleVoiceComplete(blob: Blob) {
+		setIsRecording(false);
+
+		const file = new File([blob], "voice-note.webm", { type: blob.type });
+		try {
+			const { storagePath } = await upload(
+				file,
+				conversationId,
+				organizationId,
+			);
+			mutation.mutate({
+				conversationId,
+				organizationId,
+				message: "Voice note",
+				attachmentType: "audio",
+				attachmentUrl: storagePath,
+				attachmentFilename: "voice-note.webm",
+				attachmentMimeType: blob.type,
+				attachmentSize: blob.size,
+			});
+		} catch {
+			// Upload failed — user stays in chat, can retry
+		}
+	}
+
+	async function handleFileSelected(file: File) {
+		setAttachPopoverOpen(false);
+
+		try {
+			const { storagePath } = await upload(
+				file,
+				conversationId,
+				organizationId,
+			);
+			const type = getAttachmentType(file.type);
+			mutation.mutate({
+				conversationId,
+				organizationId,
+				message: file.name,
+				attachmentType: type,
+				attachmentUrl: storagePath,
+				attachmentFilename: file.name,
+				attachmentMimeType: file.type,
+				attachmentSize: file.size,
+			});
+		} catch {
+			// Upload failed
+		}
+	}
+
 	function handleCancel() {
 		if (editingMessage) {
 			onCancelEdit?.();
@@ -124,6 +201,7 @@ export function AdminChatInput({
 
 	const hasText = value.trim().length > 0;
 	const isEditing = !!editingMessage;
+	const isBusy = mutation.isPending || isUploading;
 
 	return (
 		<div className="border-t bg-background">
@@ -171,15 +249,22 @@ export function AdminChatInput({
 				</div>
 			)}
 
+			{/* Upload progress */}
+			{isUploading && (
+				<div className="flex items-center gap-2 border-b px-3 py-1.5">
+					<LoaderIcon className="size-3.5 animate-spin text-primary" />
+					<span className="text-xs text-muted-foreground">
+						Uploading...
+					</span>
+				</div>
+			)}
+
 			<div className="flex items-end gap-1.5 px-3 py-2">
 				{/* Voice recorder overlay */}
 				{isRecording ? (
 					<div className="flex-1">
 						<VoiceRecorder
-							onRecordingComplete={() => {
-								// TODO: upload audio blob and send as attachment
-								setIsRecording(false);
-							}}
+							onRecordingComplete={handleVoiceComplete}
 							onCancel={() => setIsRecording(false)}
 						/>
 					</div>
@@ -195,18 +280,78 @@ export function AdminChatInput({
 							/>
 						)}
 
-						{/* Attachment placeholder */}
+						{/* Attachment picker */}
 						{!isEditing && (
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-9 shrink-0 text-muted-foreground"
-								disabled
-								title="Attach file (coming soon)"
+							<Popover
+								open={attachPopoverOpen}
+								onOpenChange={setAttachPopoverOpen}
 							>
-								<PaperclipIcon className="size-5" />
-							</Button>
+								<PopoverTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="size-9 shrink-0 text-muted-foreground"
+										disabled={isBusy}
+									>
+										<PaperclipIcon className="size-5" />
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									align="start"
+									className="w-40 p-1"
+								>
+									<button
+										type="button"
+										className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+										onClick={() =>
+											imageInputRef.current?.click()
+										}
+									>
+										<ImageIcon className="size-4" />
+										Photo / Video
+									</button>
+									<button
+										type="button"
+										className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+										onClick={() =>
+											docInputRef.current?.click()
+										}
+									>
+										<FileTextIcon className="size-4" />
+										Document
+									</button>
+								</PopoverContent>
+							</Popover>
 						)}
+
+						{/* Hidden file inputs */}
+						<input
+							ref={imageInputRef}
+							type="file"
+							accept="image/*,video/*"
+							className="hidden"
+							onChange={(e) => {
+								const file = e.target.files?.[0];
+								if (file) {
+									handleFileSelected(file);
+								}
+								e.target.value = "";
+							}}
+						/>
+						<input
+							ref={docInputRef}
+							type="file"
+							accept=".pdf,.doc,.docx,.txt"
+							className="hidden"
+							onChange={(e) => {
+								const file = e.target.files?.[0];
+								if (file) {
+									handleFileSelected(file);
+								}
+								e.target.value = "";
+							}}
+						/>
 
 						{/* Text input */}
 						<div className="relative flex-1">
@@ -223,7 +368,7 @@ export function AdminChatInput({
 										? "Edit message..."
 										: "Type a message"
 								}
-								disabled={mutation.isPending}
+								disabled={isBusy}
 								rows={1}
 								className={cn(
 									"flex w-full resize-none rounded-2xl border border-input bg-muted/40 px-4 py-2 text-sm leading-relaxed",
@@ -246,14 +391,14 @@ export function AdminChatInput({
 								<CheckIcon className="size-4" />
 								<span className="sr-only">Save edit</span>
 							</Button>
-						) : hasText || mutation.isPending ? (
+						) : hasText || isBusy ? (
 							<Button
 								onClick={handleSend}
-								disabled={!hasText || mutation.isPending}
+								disabled={!hasText || isBusy}
 								size="icon"
 								className="size-9 shrink-0 rounded-full"
 							>
-								{mutation.isPending ? (
+								{isBusy ? (
 									<LoaderIcon className="size-4 animate-spin" />
 								) : (
 									<SendIcon className="size-4" />

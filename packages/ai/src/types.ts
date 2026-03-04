@@ -15,6 +15,8 @@ export interface ParsedMessage {
 	mediaType?: string | undefined;
 	/** Caption attached to image/video media */
 	mediaCaption?: string | undefined;
+	/** Original filename for document attachments */
+	mediaFileName?: string | undefined;
 }
 
 export interface SendMessageResult {

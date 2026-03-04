@@ -76,6 +76,7 @@ interface ExtractedMessage {
 	mediaLink?: string | undefined;
 	mediaType?: string | undefined;
 	mediaCaption?: string | undefined;
+	mediaFileName?: string | undefined;
 }
 
 function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
@@ -146,6 +147,7 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 			}),
 			mediaType: "document",
 			mediaCaption: content.documentMessage.caption ?? undefined,
+			mediaFileName: content.documentMessage.fileName ?? undefined,
 		};
 	}
 
@@ -213,6 +215,7 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				mediaLink: extracted.mediaLink,
 				mediaType: extracted.mediaType,
 				mediaCaption: extracted.mediaCaption,
+				mediaFileName: extracted.mediaFileName,
 			});
 		}
 	}
@@ -591,6 +594,108 @@ export async function describeImage(
 		return data.choices?.[0]?.message?.content ?? null;
 	} catch (error) {
 		logger.error("Image description error", { error });
+		return null;
+	}
+}
+
+/**
+ * Describe a document (PDF) using OpenAI GPT-4o-mini vision.
+ * GPT-4o-mini has native PDF support via base64 data URLs, extracting both
+ * text and page images automatically. Limited to 100 pages / 32MB.
+ */
+export async function describeDocument(
+	apiToken: string,
+	mediaId: string,
+	fileName?: string,
+	rawMediaPayload?: string,
+): Promise<string | null> {
+	const apiKey = process.env["OPENAI_API_KEY"];
+	if (!apiKey) {
+		logger.error("OPENAI_API_KEY not set, cannot describe document");
+		return null;
+	}
+
+	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
+	if (!media) {
+		return null;
+	}
+
+	// Only process PDFs — other document types are not supported by vision
+	const isPdf =
+		media.contentType.includes("pdf") ||
+		(fileName?.toLowerCase().endsWith(".pdf") ?? false);
+	if (!isPdf) {
+		return `[Document: ${fileName ?? "unknown file"}] (non-PDF document — content not extracted)`;
+	}
+
+	// Reject files larger than 30MB (API limit is 32MB across all inputs)
+	if (media.buffer.length > 30 * 1024 * 1024) {
+		logger.warn("PDF too large for vision API", {
+			size: media.buffer.length,
+			fileName,
+		});
+		return `[Document: ${fileName ?? "PDF"}] (file too large to process — ${Math.round(media.buffer.length / 1024 / 1024)}MB)`;
+	}
+
+	try {
+		const base64 = media.buffer.toString("base64");
+		const dataUrl = `data:application/pdf;base64,${base64}`;
+
+		const systemPrompt =
+			"You are a document analysis assistant for an ISP (Internet Service Provider) customer support agent. " +
+			"Your job is to extract and summarize document content so a text-only assistant can understand and respond. " +
+			"Extract ALL text verbatim from the document — especially amounts, dates, account/reference numbers, plan names, " +
+			"due dates, payment details, and any terms or conditions. " +
+			"Organize the extracted information in a clear, structured format. Be thorough but concise.";
+
+		const userContent: Array<Record<string, unknown>> = [
+			{
+				type: "image_url",
+				image_url: { url: dataUrl },
+			},
+			{
+				type: "text",
+				text: fileName
+					? `The customer sent a PDF document: "${fileName}". Extract and summarize its contents following your instructions.`
+					: "The customer sent a PDF document. Extract and summarize its contents following your instructions.",
+			},
+		];
+
+		const response = await fetch(
+			"https://api.openai.com/v1/chat/completions",
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-4o-mini",
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{ role: "user", content: userContent },
+					],
+					max_tokens: 1500,
+				}),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			logger.error("Document description failed", {
+				status: response.status,
+				error: errorText,
+				fileName,
+			});
+			return null;
+		}
+
+		const data = (await response.json()) as {
+			choices?: Array<{ message?: { content?: string } }>;
+		};
+		return data.choices?.[0]?.message?.content ?? null;
+	} catch (error) {
+		logger.error("Document description error", { error });
 		return null;
 	}
 }

@@ -143,7 +143,7 @@ async function handleMessages(
 				continue;
 			}
 
-			// Process media attachments (voice \u2192 transcription, image \u2192 description)
+			// Process media attachments (voice → transcription, image → description, document → extraction)
 			let messageText = msg.text;
 			if (msg.mediaId && msg.mediaType) {
 				const processed = await processMedia(
@@ -152,6 +152,7 @@ async function handleMessages(
 					msg.mediaId,
 					msg.mediaCaption,
 					msg.mediaLink,
+					msg.mediaFileName,
 				);
 				if (processed) {
 					if (msg.mediaType === "voice") {
@@ -160,6 +161,8 @@ async function handleMessages(
 						messageText = msg.mediaCaption
 							? `[Image: ${processed}] ${msg.mediaCaption}`
 							: `[Image: ${processed}]`;
+					} else if (msg.mediaType === "document") {
+						messageText = `[Document: ${msg.mediaFileName ?? "file"}]\n${processed}`;
 					}
 				}
 			}

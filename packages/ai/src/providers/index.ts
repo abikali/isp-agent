@@ -67,7 +67,7 @@ export async function markAsRead(
 }
 
 /**
- * Process media attachments (voice, image) into text.
+ * Process media attachments (voice, image, document) into text.
  * Uses the serialized media payload for provider-specific download/decryption.
  * Returns the transcribed/described text, or null if processing fails.
  */
@@ -77,6 +77,7 @@ export async function processMedia(
 	mediaId: string,
 	mediaCaption?: string,
 	mediaLink?: string,
+	fileName?: string,
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
@@ -86,6 +87,13 @@ export async function processMedia(
 				apiToken,
 				mediaId,
 				mediaCaption,
+				mediaLink,
+			);
+		case "document":
+			return whatsapp.describeDocument(
+				apiToken,
+				mediaId,
+				fileName,
 				mediaLink,
 			);
 		default:

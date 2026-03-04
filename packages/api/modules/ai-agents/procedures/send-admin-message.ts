@@ -20,6 +20,20 @@ export const sendAdminMessage = protectedProcedure
 			organizationId: z.string(),
 			message: z.string().min(1).max(4000),
 			replyToId: z.string().optional(),
+			attachmentType: z
+				.enum([
+					"image",
+					"video",
+					"audio",
+					"document",
+					"location",
+					"sticker",
+				])
+				.optional(),
+			attachmentUrl: z.string().optional(),
+			attachmentFilename: z.string().optional(),
+			attachmentMimeType: z.string().optional(),
+			attachmentSize: z.number().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -57,6 +71,11 @@ export const sendAdminMessage = protectedProcedure
 			role: "admin",
 			content: input.message,
 			replyToId: input.replyToId ?? null,
+			attachmentType: input.attachmentType ?? null,
+			attachmentUrl: input.attachmentUrl ?? null,
+			attachmentFilename: input.attachmentFilename ?? null,
+			attachmentMimeType: input.attachmentMimeType ?? null,
+			attachmentSize: input.attachmentSize ?? null,
 		};
 
 		// For channel conversations (WhatsApp/Telegram), send the message externally
