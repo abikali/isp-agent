@@ -170,6 +170,27 @@ function createIspSearchCustomerTool(context: ToolContext) {
 							? "No other users on this connection (dedicated)"
 							: `${peerUsers.length} peers: ${onlineCount} online, ${offlineCount} offline`;
 
+					// Strip wireless-only fields for fiber/wired customers (they're null/irrelevant noise)
+					if (connectionType !== "wireless") {
+						for (const key of [
+							"accessPointOnline",
+							"accessPointName",
+							"accessPointBoardName",
+							"accessPointIpAddress",
+							"accessPointUpTime",
+							"accessPointSignal",
+							"accessPointInterfaceStats",
+							"accessPointUsers",
+							"stationOnline",
+							"stationName",
+							"stationIpAddress",
+							"stationUpTime",
+							"stationInterfaceStats",
+						]) {
+							delete first[key];
+						}
+					}
+
 					return {
 						success: true,
 						message: `Found customer "${first["userName"] ?? args.query}".`,
