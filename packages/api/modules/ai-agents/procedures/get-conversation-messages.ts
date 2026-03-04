@@ -67,6 +67,7 @@ export const getConversationMessages = protectedProcedure
 				tokenCount: true,
 				latencyMs: true,
 				error: true,
+				toolCalls: true,
 				replyToId: true,
 				deliveryStatus: true,
 				editedAt: true,

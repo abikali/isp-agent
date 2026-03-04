@@ -1,7 +1,15 @@
 "use client";
 
+import { getStorageImageUrl } from "@shared/lib/image-utils";
 import { cn } from "@ui/lib";
-import { BotIcon, CheckCheckIcon, CheckIcon } from "lucide-react";
+import {
+	BotIcon,
+	CheckCheckIcon,
+	CheckIcon,
+	ChevronDownIcon,
+	WrenchIcon,
+} from "lucide-react";
+import { useState } from "react";
 import { formatMessageTime } from "../lib/chat-utils";
 import { AudioBubble } from "./AudioBubble";
 import { DocumentBubble } from "./DocumentBubble";
@@ -20,6 +28,12 @@ interface Reaction {
 	emoji: string;
 	userId: string | null;
 	contactId: string | null;
+}
+
+interface ToolCallData {
+	toolName: string;
+	args: unknown;
+	result: unknown;
 }
 
 interface MessageBubbleProps {
@@ -41,6 +55,7 @@ interface MessageBubbleProps {
 	attachmentMimeType?: string | null | undefined;
 	attachmentSize?: number | null | undefined;
 	attachmentMeta?: Record<string, unknown> | null | undefined;
+	toolCalls?: ToolCallData[] | null | undefined;
 	onReply?: (() => void) | undefined;
 	onReact?: ((emoji: string) => void) | undefined;
 	onEdit?: (() => void) | undefined;
@@ -66,6 +81,7 @@ export function MessageBubble({
 	attachmentMimeType,
 	attachmentSize,
 	attachmentMeta,
+	toolCalls,
 	onReply,
 	onReact,
 	onEdit,
@@ -202,6 +218,18 @@ export function MessageBubble({
 						/>
 					)}
 
+					{/* Tool calls */}
+					{toolCalls && toolCalls.length > 0 && (
+						<div className="mb-1 space-y-1">
+							{toolCalls.map((tc, i) => (
+								<ToolCallPill
+									key={`${tc.toolName}-${i}`}
+									toolCall={tc}
+								/>
+							))}
+						</div>
+					)}
+
 					{/* Content */}
 					{content && (
 						<p className="whitespace-pre-wrap text-sm leading-relaxed">
@@ -253,7 +281,7 @@ export function MessageBubble({
 
 function AttachmentContent({
 	type,
-	url,
+	url: rawUrl,
 	filename,
 	mimeType,
 	size,
@@ -266,6 +294,9 @@ function AttachmentContent({
 	size?: number | null | undefined;
 	meta?: Record<string, unknown> | null | undefined;
 }) {
+	// Convert R2 storage paths to image-proxy URLs
+	const url = getStorageImageUrl(rawUrl) ?? rawUrl;
+
 	if (type === "image") {
 		return (
 			<ImageBubble
@@ -350,6 +381,68 @@ function DeliveryTicks({ status }: { status: string | null | undefined }) {
 		return <CheckCheckIcon className="size-3 text-blue-500" />;
 	}
 	return null;
+}
+
+function formatToolResult(result: unknown): string {
+	if (typeof result === "string") {
+		return result;
+	}
+	return JSON.stringify(result, null, 2);
+}
+
+/** Collapsible pill showing a tool call with its input and result. */
+function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
+	const [isOpen, setIsOpen] = useState(false);
+
+	const displayName = toolCall.toolName
+		.replace(/-/g, " ")
+		.replace(/\b\w/g, (c) => c.toUpperCase());
+
+	return (
+		<div className="rounded-md border bg-background/50 text-xs">
+			<button
+				type="button"
+				onClick={() => setIsOpen(!isOpen)}
+				className="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-muted/50"
+			>
+				<WrenchIcon className="size-3 shrink-0 text-muted-foreground" />
+				<span className="flex-1 truncate font-medium">
+					{displayName}
+				</span>
+				<ChevronDownIcon
+					className={cn(
+						"size-3 shrink-0 text-muted-foreground transition-transform",
+						isOpen && "rotate-180",
+					)}
+				/>
+			</button>
+			{isOpen && (
+				<div className="space-y-1.5 border-t px-2 py-1.5">
+					{toolCall.args != null &&
+						Object.keys(toolCall.args as object).length > 0 && (
+							<div>
+								<span className="font-medium text-muted-foreground">
+									Input
+								</span>
+								<pre className="mt-0.5 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-[10px]">
+									{JSON.stringify(toolCall.args, null, 2)}
+								</pre>
+							</div>
+						)}
+					{toolCall.result != null && (
+						<div>
+							<span className="font-medium text-muted-foreground">
+								Result
+							</span>
+							<pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-[10px]">
+								{formatToolResult(toolCall.result)}
+							</pre>
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	);
 }
 
 /** Animated typing dots displayed while bot is composing. */

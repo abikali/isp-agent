@@ -336,6 +336,16 @@ export function ConversationDetailPanel({
 													| null
 													| undefined
 											}
+											toolCalls={
+												m.toolCalls as
+													| {
+															toolName: string;
+															args: unknown;
+															result: unknown;
+													  }[]
+													| null
+													| undefined
+											}
 											onReply={() =>
 												setReplyTo({
 													id: msg.id,
