@@ -82,12 +82,7 @@ export async function processMedia(
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
-			return whatsapp.transcribeAudio(
-				apiToken,
-				mediaId,
-				mediaLink,
-				userLanguageHint,
-			);
+			return whatsapp.transcribeAudio(apiToken, mediaId, mediaLink);
 		case "image":
 			return whatsapp.describeImage(
 				apiToken,
