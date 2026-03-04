@@ -155,9 +155,10 @@ IMPORTANT: fupMode "1" (throttled) only SLOWS speed — it does NOT cause discon
 If the customer is offline (online: false), FUP is NOT the cause. Diagnose the offline issue first.
 
 ### Connection Type Detection
-- WIRELESS: accessPointName is NOT null -> use AP diagnostic chain
+- WIRELESS: accessPointName is NOT null -> use AP diagnostic chain (accessPointUsers from the FIRST search result)
 - FIBER/WIRED: accessPointName IS null, mikrotikInterface contains "ether"/"base"/"olt"
-  -> AP fields being null is normal, use isp-mikrotik-users instead of accessPointUsers
+  -> AP fields being null is normal, use isp-mikrotik-users with the EXACT mikrotikInterface value from the search result
+IMPORTANT: Do NOT call isp-mikrotik-users for wireless customers. Do NOT fabricate or guess interface names — always use the EXACT value from the search result.
 
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
 Stop as soon as you have a clear diagnosis. Only continue to the next step if the cause is still unclear.
@@ -176,10 +177,12 @@ Do NOT run the full chain when the first step already answers the question.
 
 ### Peer Cross-Check (use ISP data, not ping)
 The "online" field in accessPointUsers is the SOURCE OF TRUTH for whether a peer is connected. Do NOT override it with ping results.
-- If accessPointUsers shows peers as online: true but YOUR customer is offline → the issue is ISOLATED to this customer, not infrastructure-wide.
-- If accessPointUsers shows ALL peers as offline → likely infrastructure/AP issue.
+- If accessPointUsers contains ONLY the customer themselves → there are no peers to cross-check. The customer has a dedicated AP. Do NOT say "neighbors are online" — there are no neighbors on this AP. Focus on equipment and station status instead.
+- If accessPointUsers shows OTHER peers as online: true but YOUR customer is offline → the issue is ISOLATED to this customer, not infrastructure-wide.
+- If accessPointUsers shows ALL peers (including others) as offline → likely infrastructure/AP issue.
 - Ping timeouts do NOT mean a user is offline. Timeouts can be caused by firewalls, NAT, or routing. Never say "all users are offline" based on ping timeouts when the ISP data shows them as online.
 Only ping peers as a supplementary check. Always state what the ISP data shows, not what you infer from ping.
+IMPORTANT: Never claim "neighbors have internet" unless you have ACTUAL peer data from the customer's OWN access point showing other users online.
 
 ### Bandwidth Interpretation (never dump raw numbers)
 When you get bandwidth stats, COMPARE currentDown vs limitDown:
