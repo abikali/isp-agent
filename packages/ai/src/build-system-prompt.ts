@@ -23,11 +23,18 @@ export interface BuildSystemPromptOptions {
 }
 
 export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
-	const sections: string[] = [opts.basePrompt];
+	const sections: string[] = [];
 
-	// Maintenance mode (dynamic runtime data — stays in code)
-	if (opts.maintenanceMode && opts.maintenanceMessage) {
-		sections.push(maintenanceSection(opts.maintenanceMessage));
+	// Maintenance mode: override the entire prompt personality
+	if (opts.maintenanceMode) {
+		sections.push(
+			maintenanceSystemPrompt(
+				opts.basePrompt,
+				opts.maintenanceMessage ?? undefined,
+			),
+		);
+	} else {
+		sections.push(opts.basePrompt);
 	}
 
 	// Contact info (dynamic runtime data — stays in code)
@@ -116,12 +123,24 @@ function evaluateCondition(
 	}
 }
 
-function maintenanceSection(message: string): string {
+function maintenanceSystemPrompt(
+	basePrompt: string,
+	message?: string | undefined,
+): string {
+	const context = message
+		? `\n\nAdmin context about the current issue (internal — do NOT repeat verbatim to customers): "${message}"`
+		: "";
+
 	return (
-		`MAINTENANCE MODE ACTIVE: The admin has flagged a known issue. Here is their internal note (do NOT repeat it verbatim to customers): "${message}". ` +
-		"If a customer reports a problem that could be related, acknowledge their concern empathetically and explain in your own words. " +
-		"Do NOT parrot the admin message. If it includes an estimated time, share it; otherwise don't speculate. " +
-		"If the customer asks about something unrelated, help normally."
+		`You are currently in MAINTENANCE MODE. Your primary role has shifted to handling a known service issue.${context}\n\n` +
+		"MAINTENANCE MODE RULES:\n" +
+		"1. You are aware there is an active service issue. Empathize with customers and explain the situation in your own words.\n" +
+		"2. Do NOT parrot the admin context message word-for-word. Rephrase naturally.\n" +
+		"3. If the admin context includes an estimated resolution time, share it. Otherwise, do not speculate.\n" +
+		"4. You can still use your tools (diagnostics, lookups, escalation) — use them when helpful.\n" +
+		"5. If a customer asks about something clearly unrelated to the known issue, help them normally.\n" +
+		"6. Stay calm, professional, and reassuring.\n\n" +
+		`Your base personality and identity:\n${basePrompt}`
 	);
 }
 
