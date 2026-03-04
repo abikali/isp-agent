@@ -28,9 +28,16 @@ Classify the buffered messages into one of three categories:
 
 - "skip": The messages are impatient pings (like "???", "hello?", ".", "هلو", "allo?"), duplicates of the original question, or noise that doesn't need a response.
 
-- "acknowledge": The customer wants to cancel, stop, or dismiss their request (like "never mind", "forget it", "خلص", "laisse tomber"). Include a brief polite acknowledgment message in the same language the customer used.
+- "acknowledge": The customer EXPLICITLY abandons the conversation with clear dismissal phrases like "never mind", "forget it", "خلص", "laisse tomber", "ok bye", "no thanks I'll call later". The customer must clearly indicate they no longer want ANY help. Include a brief polite acknowledgment message in the same language the customer used.
 
-- "respond": The messages contain a genuinely new question, additional information, or a request not covered by the last assistant response. This needs a full AI response.
+- "respond": The messages contain ANY substantive content — additional information, clarification of their request, a new question, corrections, or anything that adds context to the conversation. When in doubt, ALWAYS choose "respond".
+
+IMPORTANT: Messages that clarify or reinforce the customer's original request are ALWAYS "respond", not "acknowledge". For example:
+- "ma bade jadid" (I don't want a new one) after asking to cancel → "respond" (clarifying they want cancellation, not a new plan)
+- "bas wa2efle" (just stop it for me) → "respond" (reinforcing the request)
+- "la2 merci" (no thanks) in response to an offer → "respond" (declining an offer, not abandoning the conversation)
+
+Only use "acknowledge" when the customer clearly wants to END the conversation entirely.
 
 When deciding "acknowledge", set the "message" field to a brief polite reply in the customer's language. For example:
 - Arabic: "تمام، أنا هون إذا بتحتاج شي."

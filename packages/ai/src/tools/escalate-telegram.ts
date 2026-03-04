@@ -410,15 +410,23 @@ export const escalateTelegram: RegisteredTool = {
 Calling escalate-telegram sends a REAL Telegram message to the support/sales team.
 Text like "I will forward" does nothing — you MUST call the tool.
 
-1. Collect all relevant info and diagnostic findings.
+1. Collect whatever info you have (even if incomplete — the team can follow up).
 2. Call escalate-telegram with a summary including your findings.
 3. ONLY confirm to the customer AFTER the tool returns success=true.
 4. If the tool returns success=false, DO NOT tell the customer you forwarded their request. Instead apologize and ask them to call support directly.
 
-When to escalate: new subscriptions, service changes, unresolved issues after diagnostics, human assistance requests, customers not found in system (new leads).
+MANDATORY ESCALATION — call the tool immediately when:
+- Customer explicitly asks for human help or to be transferred
+- Customer wants to cancel, stop, or change their service
+- Customer is not found in the system (potential new lead or unregistered number)
+- Customer is frustrated and you cannot resolve their issue
+- New subscription or sales inquiry requiring human follow-up
+- Any request you cannot fulfill yourself (plan changes, billing, cancellations)
+
+IMPORTANT: Do NOT refuse to escalate because you lack account details. The team can look up and verify the customer themselves. Missing info is NEVER a reason to block escalation. Include whatever you have (name, phone number from the chat, the customer's own description) and let the team handle the rest.
 
 Priority levels:
 - **high**: outages, critical issues
-- **medium**: sales, unresolved tech issues
+- **medium**: sales, cancellations, unresolved tech issues
 - **low**: general inquiries`,
 };
