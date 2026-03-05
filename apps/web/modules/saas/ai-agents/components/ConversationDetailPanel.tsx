@@ -81,13 +81,17 @@ export function ConversationDetailPanel({
 
 	const searchMatchIds = new Set(searchResults.map((m) => m.id));
 
-	// Auto-scroll to bottom when new messages arrive
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
+	// Auto-scroll to bottom only when new messages actually arrive
+	const lastMessageId = messages[messages.length - 1]?.id;
+	const prevLastMessageIdRef = useRef<string | undefined>(undefined);
 	useEffect(() => {
-		if (scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		if (lastMessageId !== prevLastMessageIdRef.current) {
+			prevLastMessageIdRef.current = lastMessageId;
+			if (scrollRef.current) {
+				scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+			}
 		}
-	}, [messages]);
+	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
 	const isAwaitingResponse =
