@@ -480,6 +480,7 @@ export async function transcribeAudio(
 		});
 		form.append("file", file);
 		form.append("model", "gpt-4o-transcribe");
+		form.append("language", "ar");
 
 		const response = await fetch(
 			"https://api.openai.com/v1/audio/transcriptions",
