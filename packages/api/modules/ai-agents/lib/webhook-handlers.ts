@@ -151,7 +151,11 @@ async function handleMessages(
 						data: { status: "cleared" },
 					});
 				} finally {
-					await redis.del(lockKey);
+					// Only release the lock if we acquired it — otherwise we'd
+					// delete the active processor's lock causing concurrency issues
+					if (clearLockAcquired) {
+						await redis.del(lockKey);
+					}
 				}
 
 				await sendTextMessage(
@@ -312,6 +316,17 @@ async function handleMessages(
 				continue;
 			}
 
+			// Re-check conversation status — it may have been cleared between
+			// the initial lookup and lock acquisition (race with /clear)
+			const preCheckStatus = await db.aiConversation.findUnique({
+				where: { id: conversation.id },
+				select: { status: true },
+			});
+			if (preCheckStatus?.status !== "active") {
+				await redis.del(lockKey);
+				continue;
+			}
+
 			// Resolve tools once (same for all messages in this chat)
 			let tools: GenerateResponseInput["tools"];
 			const agentToolConfigs =
@@ -370,6 +385,15 @@ async function handleMessages(
 
 			try {
 				while (true) {
+					// Bail out if conversation was cleared while we were processing
+					const freshStatus = await db.aiConversation.findUnique({
+						where: { id: conversation.id },
+						select: { status: true },
+					});
+					if (freshStatus?.status !== "active") {
+						break;
+					}
+
 					// Wait for rapid messages to settle
 					await sleep(3000);
 
