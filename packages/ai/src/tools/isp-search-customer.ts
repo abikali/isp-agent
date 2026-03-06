@@ -264,19 +264,20 @@ Interpreting peerUsers:
 Never claim "neighbors have internet" unless peerUsers actually shows other users online.
 
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
-Stop as soon as you have a clear diagnosis. Only continue to the next step if the cause is still unclear.
 
 Offline (online: false):
-1. Check accessPointOnline and stationOnline → if equipment is off, that's the diagnosis. Tell the customer.
-2. If equipment is online but customer is offline → ping customer to confirm.
-3. If cause is still unclear → check peerUsers to determine if isolated or widespread.
+1. Check accessPointOnline and stationOnline — report any equipment that is off.
+2. Ping the customer (isp-ping-customer) to check reachability and latency.
+3. Check peerUsers to determine if isolated or widespread.
+4. Report all findings together: equipment status + ping result + peer status.
 
 Slow internet (online: true):
 1. Check fupMode → if "1", that's the diagnosis. Tell the customer their speed is reduced due to FUP. Stop here.
-2. If not FUP → check interface rates ("10Mbps" = cabling issue).
-3. If cause is still unclear → get bandwidth stats, then check peerUsers.
+2. If not FUP → ping the customer to check latency and packet loss.
+3. Check bandwidth stats and interface rates ("10Mbps" = cabling issue).
+4. Report findings: ping quality + bandwidth + any issues found.
 
-Do NOT run the full chain when the first step already answers the question.
+For wireless customers, always mention the signal strength (accessPointSignal) if available.
 
 ### Bandwidth Interpretation (CRITICAL — read carefully)
 isp-bandwidth-stats shows CURRENT real-time usage, NOT maximum capacity or speed.
@@ -298,7 +299,7 @@ What to do:
 - accessPointOnline: true = AP reachable, false = AP is down/powered off
 - stationOnline: true = station reachable, false = station is down
 - accessPointSignal: dBm. -50 to -60 excellent, -60 to -70 good, -70 to -80 fair, below -80 poor
-- peerUsers: [{userName, online}] — auto-fetched peers on the same infrastructure (AP or mikrotik interface), excluding the searched customer. The "online" field is authoritative. Ping is optional supplementary data only.
+- peerUsers: [{userName, online}] — auto-fetched peers on the same infrastructure (AP or mikrotik interface), excluding the searched customer. The "online" field is authoritative.
 - interface rate: "100Mbps"/"1Gbps" = normal. "10Mbps" = cabling/hardware issue bottlenecking all users
 - basicSpeedUp/Down: limits in kbps. dailyQuota/monthlyQuota: in MB, "0" = unlimited
 
