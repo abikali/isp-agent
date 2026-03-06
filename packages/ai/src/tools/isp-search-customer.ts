@@ -115,7 +115,14 @@ function createIspSearchCustomerTool(context: ToolContext) {
 					Record<string, unknown> | Record<string, unknown>[]
 				>(config, "/user-info", { mobile: query });
 
-				// API may return a single object or an array
+				// API may return null (empty response), a single object, or an array
+				if (!data) {
+					return {
+						success: false,
+						message: `No customer found for "${args.query}".`,
+					};
+				}
+
 				const customers = Array.isArray(data) ? data : [data];
 
 				if (customers.length === 0) {
@@ -271,15 +278,19 @@ Slow internet (online: true):
 
 Do NOT run the full chain when the first step already answers the question.
 
-### Bandwidth Interpretation (never dump raw numbers)
-When you get bandwidth stats, COMPARE currentDown vs limitDown:
-- currentDown < 50% of limitDown -> there IS a real problem. Do NOT say "no issues detected." Investigate further.
-- currentDown < 10% of limitDown -> SEVERE issue. Escalate or continue diagnostics.
-- currentDown close to limitDown -> speed is healthy.
-NEVER present raw kbps/Mbps numbers to the customer. Translate into simple language:
-- Instead of "11 kbps download with 3.4 Mbps limit", say "your connection is currently running much slower than it should be."
-- Tell the customer what the PROBLEM is and what ACTIONS to take, not technical measurements.
-- Do NOT blame the customer's devices or usage when the data shows a clear network-side speed issue.
+### Bandwidth Interpretation (CRITICAL — read carefully)
+isp-bandwidth-stats shows CURRENT real-time usage, NOT maximum capacity or speed.
+- A reading of 1% means the customer is currently USING 1% of their plan — NOT that their speed is capped at 1%.
+- Low readings (below ~80%) are INCONCLUSIVE. They just mean the line is idle or lightly used right now.
+- Only readings ABOVE ~80% are diagnostic: the line is saturated and something on their network is consuming most bandwidth.
+- 0% usage does NOT mean the connection is broken — it means no data is flowing right now.
+
+What to do:
+- If bandwidth is above ~80% of limit -> line is saturated. Tell customer something on their network is using all the bandwidth.
+- If bandwidth is below ~80% -> this tells you NOTHING about whether speed is actually slow. Ask the customer to run a speed test at http://172.20.2.225:8989/ and send a screenshot, then re-check bandwidth while they test.
+- NEVER tell a customer "your speed is much lower than it should be" based on low current usage. That is a misdiagnosis.
+- NEVER present raw kbps/Mbps numbers to the customer. Use simple language.
+- Do NOT blame the customer's devices or usage unless bandwidth is clearly saturated (above ~80%).
 
 ### Field Reference
 - online: true = connected, false = disconnected (NOT caused by FUP)

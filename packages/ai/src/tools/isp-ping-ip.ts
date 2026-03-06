@@ -24,6 +24,13 @@ function createIspPingIpTool(context: ToolContext) {
 				ipAddress: ip,
 			});
 
+			if (!data) {
+				return {
+					success: false,
+					message: `No ping data returned for ${ip}.`,
+				};
+			}
+
 			return {
 				success: true,
 				message: `Ping result for ${ip}:`,

@@ -160,7 +160,12 @@ export async function ispGet<T>(
 		);
 	}
 
-	return (await res.json()) as T;
+	const text = await res.text();
+	if (!text) {
+		return null as T;
+	}
+
+	return JSON.parse(text) as T;
 }
 
 /**
