@@ -16,8 +16,8 @@
 		"@repo/database": "workspace:*"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.3.11",
+		"@biomejs/biome": "2.4.6",
 		"@repo/tsconfig": "workspace:*",
-		"@types/node": "^25.0.9"
+		"@types/node": "^25.3.5"
 	}
 }
