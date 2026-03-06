@@ -50,6 +50,9 @@ function getSessionKey(token: string) {
 }
 
 function getOrCreateSessionId(token: string): string {
+	if (typeof window === "undefined") {
+		return crypto.randomUUID();
+	}
 	const key = getSessionKey(token);
 	const existing = sessionStorage.getItem(key);
 	if (existing) {

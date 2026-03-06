@@ -28,6 +28,9 @@ export async function sendTextMessage(
 	text: string,
 	options?: SendMessageOptions,
 ): Promise<SendMessageResult> {
+	if (!text.trim()) {
+		return { success: true };
+	}
 	switch (provider) {
 		case "whatsapp":
 			return whatsapp.sendTextMessage(apiToken, chatId, text, options);
