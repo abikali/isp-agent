@@ -12,7 +12,11 @@ export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
-export { buildContextGapNote, formatHistoryMessage } from "./src/history";
+export {
+	buildContextGapNote,
+	formatHistoryMessage,
+	stripToolAnnotation,
+} from "./src/history";
 export { getModel, isValidModel } from "./src/model-registry";
 export { hashPin } from "./src/pin";
 export {

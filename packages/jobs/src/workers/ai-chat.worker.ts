@@ -15,6 +15,7 @@ import {
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
+	stripToolAnnotation,
 } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
@@ -205,6 +206,9 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				} finally {
 					clearInterval(typingInterval);
 				}
+
+				// Strip tool annotations the model may have mimicked from history
+				result.text = stripToolAnnotation(result.text);
 
 				// Escalation safety net
 				if (

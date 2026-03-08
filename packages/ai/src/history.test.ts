@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildContextGapNote, formatHistoryMessage } from "./history";
+import {
+	buildContextGapNote,
+	formatHistoryMessage,
+	stripToolAnnotation,
+} from "./history";
 
 // ---------------------------------------------------------------------------
 // Helper: replicates the exact injection logic used in all 4 handlers
@@ -341,5 +345,99 @@ describe("real scenario: custom threshold (1 hour for urgent support)", () => {
 		injectGapNote(historyMessages, fortyFiveMinutesAgo, 60);
 
 		expect(historyMessages).toHaveLength(3);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for stripToolAnnotation
+// ---------------------------------------------------------------------------
+describe("stripToolAnnotation", () => {
+	it("strips tool annotation from model output", () => {
+		const text =
+			'Here is your answer.\n\n[Tools used in this response]\n- escalate-telegram: {"reason":"test"}';
+		expect(stripToolAnnotation(text)).toBe("Here is your answer.");
+	});
+
+	it("strips annotation with multiple tools", () => {
+		const text =
+			'Checked your account.\n\n[Tools used in this response]\n- isp-search-customer: {"query":"123"}\n- isp-ping-customer: {"query":"123"}';
+		expect(stripToolAnnotation(text)).toBe("Checked your account.");
+	});
+
+	it("returns text unchanged when no annotation present", () => {
+		const text = "Just a normal response with no tools.";
+		expect(stripToolAnnotation(text)).toBe(text);
+	});
+
+	it("returns empty string for annotation-only text", () => {
+		const text =
+			'[Tools used in this response]\n- escalate-telegram: {"reason":"test"}';
+		expect(stripToolAnnotation(text)).toBe("");
+	});
+
+	it("handles Arabic text before annotation", () => {
+		const text =
+			'أهلاً بك! رح مرق طلبك للفريق.\n\n[Tools used in this response]\n- escalate-telegram: {"priority":"medium"}';
+		expect(stripToolAnnotation(text)).toBe("أهلاً بك! رح مرق طلبك للفريق.");
+	});
+
+	it("does not strip text that merely contains the word 'tools'", () => {
+		const text = "I used some tools to check your account.";
+		expect(stripToolAnnotation(text)).toBe(text);
+	});
+
+	it("handles extra newlines before annotation", () => {
+		const text =
+			'Done.\n\n\n\n[Tools used in this response]\n- ping-host: {"host":"1.1.1.1"}';
+		expect(stripToolAnnotation(text)).toBe("Done.");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Smoke test: full flow — model mimics annotation, strip before send
+// ---------------------------------------------------------------------------
+describe("real scenario: model mimics tool annotation in output", () => {
+	it("stripToolAnnotation removes mimicked annotation before sending to customer", () => {
+		// This is the exact scenario from production: Gemini saw the annotation
+		// pattern in history and reproduced it in its own response text
+		const modelOutput =
+			"أهلاً بك! كرمال تشترك معنا، فيك تشوف كل الخطط والأسعار المتوفرة على موقعنا: https://libancom.abiroot.dev\n\n" +
+			"أنا موجود هون كرمال ساعدك، بس الفريق المختص هو اللي بيتواصل معك ليخلص المعاملة.\n\n" +
+			'[Tools used in this response]\n- escalate-telegram: {"actionRequired":"Contact customer","category":"installation","customerName":"Ayman","priority":"medium","reason":"New subscription inquiry","summary":"Customer Ayman wants to subscribe."}';
+
+		const cleaned = stripToolAnnotation(modelOutput);
+
+		// The annotation is gone
+		expect(cleaned).not.toContain("[Tools used in this response]");
+		expect(cleaned).not.toContain("escalate-telegram");
+
+		// The actual customer-facing text is preserved
+		expect(cleaned).toContain("أهلاً بك!");
+		expect(cleaned).toContain("https://libancom.abiroot.dev");
+		expect(cleaned).toContain("الفريق المختص");
+	});
+
+	it("formatHistoryMessage still adds annotation for history context", () => {
+		// After stripping and saving, the DB has clean content + separate toolCalls
+		const dbRow = {
+			role: "assistant",
+			content: "أهلاً بك! رح مرق طلبك للفريق.",
+			toolCalls: [
+				{
+					toolName: "escalate-telegram",
+					args: { reason: "New subscription" },
+					result: { success: true },
+				},
+			],
+		};
+
+		// formatHistoryMessage should still append annotation for model context
+		const historyMsg = formatHistoryMessage(dbRow);
+		expect(historyMsg.content).toContain("[Tools used in this response]");
+		expect(historyMsg.content).toContain("escalate-telegram");
+
+		// But if we strip it, we get back the clean text
+		const cleaned = stripToolAnnotation(historyMsg.content);
+		expect(cleaned).toBe("أهلاً بك! رح مرق طلبك للفريق.");
 	});
 });

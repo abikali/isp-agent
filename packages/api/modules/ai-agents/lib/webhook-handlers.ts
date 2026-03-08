@@ -18,6 +18,7 @@ import {
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
+	stripToolAnnotation,
 	telegram,
 	triageBufferedMessages,
 	whatsapp,
@@ -666,6 +667,9 @@ async function handleMessages(
 
 						clearTimeout(timeout);
 						clearInterval(typingInterval);
+
+						// Strip tool annotations the model may have mimicked from history
+						result.text = stripToolAnnotation(result.text);
 
 						// Escalation safety net: if model said it would escalate but didn't call the tool, do it now
 						if (

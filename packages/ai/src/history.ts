@@ -116,3 +116,16 @@ function stringify(value: unknown): string {
 		return String(value);
 	}
 }
+
+/**
+ * Strip `[Tools used in this response]` annotations from model output.
+ *
+ * Models sometimes mimic the annotation pattern they see in conversation
+ * history and include it in their own response text. This must be stripped
+ * before sending to the customer or saving to the database.
+ */
+const TOOL_ANNOTATION_RE = /\n*\[Tools used in this response\][\s\S]*$/;
+
+export function stripToolAnnotation(text: string): string {
+	return text.replace(TOOL_ANNOTATION_RE, "");
+}
