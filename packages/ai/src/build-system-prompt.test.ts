@@ -53,7 +53,7 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("REAL Telegram message");
 		expect(result).toContain("MUST call the tool");
-		expect(result).toContain("Collect all relevant info");
+		expect(result).toContain("How to escalate");
 	});
 
 	it("does NOT include escalation section when escalate-telegram is not enabled", () => {
@@ -84,7 +84,7 @@ describe("buildSystemPrompt", () => {
 		});
 		expect(result).toContain("Diagnostics Reference");
 		expect(result).toContain("Account Status Gate");
-		expect(result).toContain("Connection Type Detection");
+		expect(result).toContain("Connection Type & Peers");
 		expect(result).toContain("Field Reference");
 		expect(result).toContain("## Customer Not Found");
 		expect(result).toContain("## Multiple Account Matches");
@@ -156,7 +156,7 @@ describe("buildSystemPrompt", () => {
 			maintenanceMode: true,
 			maintenanceMessage: "Fiber outage in Dekwane area, ETA 2 hours",
 		});
-		expect(result).toContain("MAINTENANCE MODE ACTIVE");
+		expect(result).toContain("MAINTENANCE MODE IS ACTIVE");
 		expect(result).toContain("Fiber outage in Dekwane area, ETA 2 hours");
 	});
 
@@ -170,14 +170,16 @@ describe("buildSystemPrompt", () => {
 		expect(result).not.toContain("MAINTENANCE MODE");
 	});
 
-	it("does NOT include maintenance section when message is undefined", () => {
+	it("includes maintenance section even when message is undefined", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,
 			enabledTools: [],
 			maintenanceMode: true,
 			maintenanceMessage: undefined,
 		});
-		expect(result).not.toContain("MAINTENANCE MODE");
+		expect(result).toContain("MAINTENANCE MODE IS ACTIVE");
+		// No admin context line when message is undefined
+		expect(result).not.toContain("Admin context");
 	});
 
 	// -----------------------------------------------------------------------
@@ -443,7 +445,7 @@ describe("buildSystemPrompt", () => {
 
 		// All sections should be present
 		expect(result).toContain("LibanBot");
-		expect(result).toContain("MAINTENANCE MODE ACTIVE");
+		expect(result).toContain("MAINTENANCE MODE IS ACTIVE");
 		expect(result).toContain("Jounieh");
 		expect(result).toContain("Ahmad Khoury");
 		expect(result).toContain("+96171234567");
