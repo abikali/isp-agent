@@ -1,4 +1,4 @@
-import { toolDefinition } from "@tanstack/ai";
+import { tool } from "ai";
 import { z } from "zod";
 import {
 	cleanPhoneNumber,
@@ -91,131 +91,132 @@ function needsMikrotikPeers(customer: Record<string, unknown>): boolean {
 	return !!iface && MIKROTIK_PEER_IFACE.test(iface);
 }
 
-const ispSearchCustomerDef = toolDefinition({
-	name: "isp-search-customer",
-	description:
-		"Search for an ISP customer by phone number or username. Returns account status (active, blocked, expiryAccount), " +
-		"connection details (fupMode, speeds, quotas), network topology (station, access point, mikrotikInterface), " +
-		"and accessPointUsers (peers on the same AP for cross-checking). Does NOT return billing or personal contact info.",
-	inputSchema: z.object({
-		query: z
-			.string()
-			.describe("Customer phone number or ISP username to search for"),
-	}),
-});
-
 function createIspSearchCustomerTool(context: ToolContext) {
-	return ispSearchCustomerDef.server(async (args) => {
-		return withIspErrorHandling(
-			context,
-			"isp-search-customer",
-			async (config) => {
-				const query = cleanPhoneNumber(args.query as string);
-				const data = await ispGet<
-					Record<string, unknown> | Record<string, unknown>[]
-				>(config, "/user-info", { mobile: query });
+	return tool({
+		description:
+			"Search for an ISP customer by phone number or username. Returns account status (active, blocked, expiryAccount), " +
+			"connection details (fupMode, speeds, quotas), network topology (station, access point, mikrotikInterface), " +
+			"and accessPointUsers (peers on the same AP for cross-checking). Does NOT return billing or personal contact info.",
+		inputSchema: z.object({
+			query: z
+				.string()
+				.describe(
+					"Customer phone number or ISP username to search for",
+				),
+		}),
+		execute: async (args) => {
+			return withIspErrorHandling(
+				context,
+				"isp-search-customer",
+				async (config) => {
+					const query = cleanPhoneNumber(args.query);
+					const data = await ispGet<
+						Record<string, unknown> | Record<string, unknown>[]
+					>(config, "/user-info", { mobile: query });
 
-				// API may return null (empty response), a single object, or an array
-				if (!data) {
-					return {
-						success: false,
-						message: `No customer found for "${args.query}".`,
-					};
-				}
+					// API may return null (empty response), a single object, or an array
+					if (!data) {
+						return {
+							success: false,
+							message: `No customer found for "${args.query}".`,
+						};
+					}
 
-				const customers = Array.isArray(data) ? data : [data];
+					const customers = Array.isArray(data) ? data : [data];
 
-				if (customers.length === 0) {
-					return {
-						success: false,
-						message: `No customer found for "${args.query}".`,
-					};
-				}
+					if (customers.length === 0) {
+						return {
+							success: false,
+							message: `No customer found for "${args.query}".`,
+						};
+					}
 
-				const filtered = customers.map(filterCustomerData);
+					const filtered = customers.map(filterCustomerData);
 
-				const first = filtered[0];
-				if (filtered.length === 1 && first) {
-					const connectionType = detectConnectionType(first);
-					let peerUsers: { userName: string; online: boolean }[] = [];
+					const first = filtered[0];
+					if (filtered.length === 1 && first) {
+						const connectionType = detectConnectionType(first);
+						let peerUsers: { userName: string; online: boolean }[] =
+							[];
 
-					if (needsMikrotikPeers(first)) {
-						// Fiber/wired: fetch from mikrotik API
-						const iface = first["mikrotikInterface"] as string;
-						try {
-							const mikrotikData = await ispGet<
-								{ userName: string; online: boolean }[]
-							>(config, "/mikrotik-user-list", {
-								mikrotikInterface: iface,
-							});
-							if (Array.isArray(mikrotikData)) {
-								peerUsers = mikrotikData.filter(
+						if (needsMikrotikPeers(first)) {
+							// Fiber/wired: fetch from mikrotik API
+							const iface = first["mikrotikInterface"] as string;
+							try {
+								const mikrotikData = await ispGet<
+									{ userName: string; online: boolean }[]
+								>(config, "/mikrotik-user-list", {
+									mikrotikInterface: iface,
+								});
+								if (Array.isArray(mikrotikData)) {
+									peerUsers = mikrotikData.filter(
+										(u) => u.userName !== first["userName"],
+									);
+								}
+							} catch {
+								// Non-fatal — peer data is supplementary
+							}
+						} else {
+							// Wireless: use accessPointUsers from search result
+							const apUsers = first["accessPointUsers"] as
+								| { userName: string; online: boolean }[]
+								| undefined;
+							if (Array.isArray(apUsers)) {
+								peerUsers = apUsers.filter(
 									(u) => u.userName !== first["userName"],
 								);
 							}
-						} catch {
-							// Non-fatal — peer data is supplementary
 						}
-					} else {
-						// Wireless: use accessPointUsers from search result
-						const apUsers = first["accessPointUsers"] as
-							| { userName: string; online: boolean }[]
-							| undefined;
-						if (Array.isArray(apUsers)) {
-							peerUsers = apUsers.filter(
-								(u) => u.userName !== first["userName"],
-							);
-						}
-					}
 
-					const onlineCount = peerUsers.filter(
-						(u) => u.online,
-					).length;
-					const offlineCount = peerUsers.length - onlineCount;
-					const peerSummary =
-						peerUsers.length === 0
-							? "No other users on this connection (dedicated)"
-							: `${peerUsers.length} peers: ${onlineCount} online, ${offlineCount} offline`;
+						const onlineCount = peerUsers.filter(
+							(u) => u.online,
+						).length;
+						const offlineCount = peerUsers.length - onlineCount;
+						const peerSummary =
+							peerUsers.length === 0
+								? "No other users on this connection (dedicated)"
+								: `${peerUsers.length} peers: ${onlineCount} online, ${offlineCount} offline`;
 
-					// Strip wireless-only fields for fiber/wired customers (they're null/irrelevant noise)
-					if (connectionType !== "wireless") {
-						for (const key of [
-							"accessPointOnline",
-							"accessPointName",
-							"accessPointBoardName",
-							"accessPointIpAddress",
-							"accessPointUpTime",
-							"accessPointSignal",
-							"accessPointInterfaceStats",
-							"accessPointUsers",
-							"stationOnline",
-							"stationName",
-							"stationIpAddress",
-							"stationUpTime",
-							"stationInterfaceStats",
-						]) {
-							delete first[key];
+						// Strip wireless-only fields for fiber/wired customers (they're null/irrelevant noise)
+						if (connectionType !== "wireless") {
+							for (const key of [
+								"accessPointOnline",
+								"accessPointName",
+								"accessPointBoardName",
+								"accessPointIpAddress",
+								"accessPointUpTime",
+								"accessPointSignal",
+								"accessPointInterfaceStats",
+								"accessPointUsers",
+								"stationOnline",
+								"stationName",
+								"stationIpAddress",
+								"stationUpTime",
+								"stationInterfaceStats",
+							]) {
+								delete first[key];
+							}
 						}
+
+						return {
+							success: true,
+							message: `Found customer "${first["userName"] ?? args.query}".`,
+							connectionType,
+							peerUsers,
+							peerSummary,
+							customer: first,
+						};
 					}
 
 					return {
 						success: true,
-						message: `Found customer "${first["userName"] ?? args.query}".`,
-						connectionType,
-						peerUsers,
-						peerSummary,
-						customer: first,
+						multipleMatches: true,
+						message: `Found ${filtered.length} customers matching "${args.query}". Present ALL accounts with their userName (PPPoE/Hotspot login) and address (if available) so the customer can identify theirs. Do NOT show the plan/subscription name. CRITICAL: When the customer picks one, you MUST use the exact "userName" value from this result list to call isp-search-customer again — do NOT use whatever the customer typed verbatim.`,
+						customers: filtered,
 					};
-				}
-
-				return {
-					success: true,
-					multipleMatches: true,
-					message: `Found ${filtered.length} customers matching "${args.query}". Present ALL accounts with their userName (PPPoE/Hotspot login) and address (if available) so the customer can identify theirs. Do NOT show the plan/subscription name. CRITICAL: When the customer picks one, you MUST use the exact "userName" value from this result list to call isp-search-customer again — do NOT use whatever the customer typed verbatim.`,
-					customers: filtered,
-				};
-			},
-		);
+				},
+			);
+		},
 	});
 }
 

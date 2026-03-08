@@ -1,4 +1,4 @@
-import { toolDefinition } from "@tanstack/ai";
+import { tool } from "ai";
 import { z } from "zod";
 import {
 	getIspApiConfigFields,
@@ -7,36 +7,38 @@ import {
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
-const ispPingIpDef = toolDefinition({
-	name: "isp-ping-ip",
-	description:
-		"Ping any IP address from the ISP network. Useful for diagnosing network connectivity issues to specific hosts or infrastructure.",
-	inputSchema: z.object({
-		ipAddress: z.string().describe("IP address to ping"),
-	}),
-});
-
 function createIspPingIpTool(context: ToolContext) {
-	return ispPingIpDef.server(async (args) => {
-		return withIspErrorHandling(context, "isp-ping-ip", async (config) => {
-			const ip = args.ipAddress as string;
-			const data = await ispGet<unknown>(config, "/ping", {
-				ipAddress: ip,
-			});
+	return tool({
+		description:
+			"Ping any IP address from the ISP network. Useful for diagnosing network connectivity issues to specific hosts or infrastructure.",
+		inputSchema: z.object({
+			ipAddress: z.string().describe("IP address to ping"),
+		}),
+		execute: async ({ ipAddress }) => {
+			return withIspErrorHandling(
+				context,
+				"isp-ping-ip",
+				async (config) => {
+					const ip = ipAddress;
+					const data = await ispGet<unknown>(config, "/ping", {
+						ipAddress: ip,
+					});
 
-			if (!data) {
-				return {
-					success: false,
-					message: `No ping data returned for ${ip}.`,
-				};
-			}
+					if (!data) {
+						return {
+							success: false,
+							message: `No ping data returned for ${ip}.`,
+						};
+					}
 
-			return {
-				success: true,
-				message: `Ping result for ${ip}:`,
-				pingResult: data,
-			};
-		});
+					return {
+						success: true,
+						message: `Ping result for ${ip}:`,
+						pingResult: data,
+					};
+				},
+			);
+		},
 	});
 }
 

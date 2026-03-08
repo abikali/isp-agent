@@ -41,6 +41,18 @@ export const getTask = protectedProcedure
 						email: true,
 					},
 				},
+				conversation: {
+					select: {
+						id: true,
+						contactName: true,
+						agent: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
+					},
+				},
 				customer: {
 					select: {
 						id: true,

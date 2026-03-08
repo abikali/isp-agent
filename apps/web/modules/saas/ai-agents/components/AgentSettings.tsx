@@ -1,5 +1,6 @@
 "use client";
 
+import { usePlansQuery } from "@saas/customers/client";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -88,6 +89,8 @@ export function AgentSettings({
 	const agent = data.agent;
 	const updateAgent = useUpdateAgent();
 	const { tools: availableTools } = useAvailableTools();
+	const { plans: servicePlans, isLoading: isLoadingPlans } = usePlansQuery();
+	const activePlans = servicePlans.filter((p) => !p.archived);
 
 	const [configDialog, setConfigDialog] = useState<{
 		toolId: string;
@@ -127,11 +130,13 @@ export function AgentSettings({
 			model: agent.model,
 			knowledgeBase: agent.knowledgeBase ?? "",
 			enabled: agent.enabled,
+			servicePlansEnabled: agent.servicePlansEnabled,
 			maintenanceMode: agent.maintenanceMode,
 			maintenanceMessage: agent.maintenanceMessage ?? "",
 			maxHistoryLength: agent.maxHistoryLength,
 			temperature: agent.temperature,
 			enabledTools: agent.enabledTools as string[],
+			contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
 			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
@@ -145,11 +150,13 @@ export function AgentSettings({
 				model: value.model,
 				knowledgeBase: value.knowledgeBase || undefined,
 				enabled: value.enabled,
+				servicePlansEnabled: value.servicePlansEnabled,
 				maintenanceMode: value.maintenanceMode,
 				maintenanceMessage: value.maintenanceMessage || undefined,
 				maxHistoryLength: value.maxHistoryLength,
 				temperature: value.temperature,
 				enabledTools: value.enabledTools,
+				contextGapThresholdMinutes: value.contextGapThresholdMinutes,
 				promptSections: value.promptSections,
 			});
 		},
@@ -476,6 +483,110 @@ export function AgentSettings({
 											</Field>
 										)}
 									</form.Field>
+
+									<Separator />
+
+									<form.Field name="servicePlansEnabled">
+										{(field) => (
+											<div className="rounded-lg border p-4 space-y-3">
+												<div className="flex items-center justify-between">
+													<div className="space-y-0.5">
+														<FieldLabel htmlFor="settings-service-plans">
+															Service Plans
+															Awareness
+															<FieldHint text="When enabled, the agent can see your organization's service plans and answer questions about pricing, speeds, and packages." />
+														</FieldLabel>
+														<p className="text-xs text-muted-foreground">
+															Let the agent answer
+															questions about your
+															plans and pricing
+														</p>
+													</div>
+													<Switch
+														id="settings-service-plans"
+														checked={
+															field.state.value
+														}
+														onCheckedChange={
+															field.handleChange
+														}
+													/>
+												</div>
+												{field.state.value && (
+													<div className="mt-2 space-y-2">
+														{isLoadingPlans ? (
+															<p className="text-xs text-muted-foreground">
+																Loading plans...
+															</p>
+														) : activePlans.length ===
+															0 ? (
+															<p className="text-xs text-muted-foreground">
+																No active
+																service plans
+																found. Add plans
+																in the Service
+																Plans page for
+																the agent to
+																reference.
+															</p>
+														) : (
+															<>
+																<p className="text-xs font-medium text-muted-foreground">
+																	The agent
+																	will see
+																	these{" "}
+																	{
+																		activePlans.length
+																	}{" "}
+																	plan
+																	{activePlans.length !==
+																	1
+																		? "s"
+																		: ""}
+																	:
+																</p>
+																<div className="grid gap-1.5">
+																	{activePlans.map(
+																		(
+																			plan,
+																		) => (
+																			<div
+																				key={
+																					plan.id
+																				}
+																				className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5 text-xs"
+																			>
+																				<span className="font-medium">
+																					{
+																						plan.name
+																					}
+																				</span>
+																				<span className="text-muted-foreground">
+																					{
+																						plan.downloadSpeed
+																					}
+																					/
+																					{
+																						plan.uploadSpeed
+																					}{" "}
+																					Mbps
+																					&middot;{" "}
+																					{
+																						plan.monthlyPrice
+																					}
+																					/mo
+																				</span>
+																			</div>
+																		),
+																	)}
+																</div>
+															</>
+														)}
+													</div>
+												)}
+											</div>
+										)}
+									</form.Field>
 								</div>
 							</AccordionContent>
 						</AccordionItem>
@@ -782,6 +893,51 @@ export function AgentSettings({
 											)}
 										</form.Field>
 									</div>
+
+									<form.Field name="contextGapThresholdMinutes">
+										{(field) => {
+											const hours =
+												field.state.value / 60;
+											const label =
+												hours >= 1
+													? `${hours}h`
+													: `${field.state.value}m`;
+											return (
+												<Field>
+													<FieldLabel>
+														Session gap threshold:{" "}
+														<span className="font-mono text-primary">
+															{label}
+														</span>
+														<FieldHint text="After this period of inactivity, the agent is reminded that time has passed — so it won't assume the customer is continuing the same topic." />
+													</FieldLabel>
+													<Slider
+														value={[
+															field.state.value,
+														]}
+														onValueChange={([
+															v,
+														]) => {
+															if (
+																v !== undefined
+															) {
+																field.handleChange(
+																	v,
+																);
+															}
+														}}
+														min={60}
+														max={1440}
+														step={30}
+													/>
+													<div className="flex justify-between text-[10px] text-muted-foreground">
+														<span>1 hour</span>
+														<span>24 hours</span>
+													</div>
+												</Field>
+											);
+										}}
+									</form.Field>
 								</div>
 							</AccordionContent>
 						</AccordionItem>

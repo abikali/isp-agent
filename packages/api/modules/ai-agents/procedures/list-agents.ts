@@ -36,6 +36,7 @@ export const listAgents = protectedProcedure
 				model: true,
 				enabled: true,
 				maintenanceMode: true,
+				servicePlansEnabled: true,
 				createdAt: true,
 				_count: {
 					select: {

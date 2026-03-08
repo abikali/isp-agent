@@ -1,4 +1,4 @@
-import { toolDefinition } from "@tanstack/ai";
+import { tool } from "ai";
 import { z } from "zod";
 import {
 	cleanPhoneNumber,
@@ -7,17 +7,6 @@ import {
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
-
-const ispPingCustomerDef = toolDefinition({
-	name: "isp-ping-customer",
-	description:
-		"Ping a customer's device from the ISP network. Returns packet loss percentage and round-trip times (min/avg/max ms). " +
-		"High packet loss (>50%) or all timeouts usually means the customer's device is unreachable (firewall, NAT, or truly offline). " +
-		"Low packet loss with good RTT (<50ms) means the link to the customer is healthy.",
-	inputSchema: z.object({
-		query: z.string().describe("Customer phone number or ISP username"),
-	}),
-});
 
 interface ParsedPingResult {
 	packetsSent: number;
@@ -92,44 +81,53 @@ function parsePingOutput(raw: unknown): ParsedPingResult | null {
 }
 
 function createIspPingCustomerTool(context: ToolContext) {
-	return ispPingCustomerDef.server(async (args) => {
-		return withIspErrorHandling(
-			context,
-			"isp-ping-customer",
-			async (config) => {
-				const query = cleanPhoneNumber(args.query as string);
-				const data = await ispGet<unknown>(config, "/user-ping", {
-					mobile: query,
-				});
+	return tool({
+		description:
+			"Ping a customer's device from the ISP network. Returns packet loss percentage and round-trip times (min/avg/max ms). " +
+			"High packet loss (>50%) or all timeouts usually means the customer's device is unreachable (firewall, NAT, or truly offline). " +
+			"Low packet loss with good RTT (<50ms) means the link to the customer is healthy.",
+		inputSchema: z.object({
+			query: z.string().describe("Customer phone number or ISP username"),
+		}),
+		execute: async (args) => {
+			return withIspErrorHandling(
+				context,
+				"isp-ping-customer",
+				async (config) => {
+					const query = cleanPhoneNumber(args.query);
+					const data = await ispGet<unknown>(config, "/user-ping", {
+						mobile: query,
+					});
 
-				if (!data) {
-					return {
-						success: false,
-						message: `No ping data returned for "${args.query}". The customer may not exist in the ISP system.`,
-					};
-				}
+					if (!data) {
+						return {
+							success: false,
+							message: `No ping data returned for "${args.query}". The customer may not exist in the ISP system.`,
+						};
+					}
 
-				const parsed = parsePingOutput(data);
-				if (parsed) {
+					const parsed = parsePingOutput(data);
+					if (parsed) {
+						return {
+							success: true,
+							message: parsed.summary,
+							packetLossPercent: parsed.packetLossPercent,
+							rttMin: parsed.rttMin,
+							rttAvg: parsed.rttAvg,
+							rttMax: parsed.rttMax,
+							packetsSent: parsed.packetsSent,
+							packetsReceived: parsed.packetsReceived,
+						};
+					}
+
 					return {
 						success: true,
-						message: parsed.summary,
-						packetLossPercent: parsed.packetLossPercent,
-						rttMin: parsed.rttMin,
-						rttAvg: parsed.rttAvg,
-						rttMax: parsed.rttMax,
-						packetsSent: parsed.packetsSent,
-						packetsReceived: parsed.packetsReceived,
+						message: `Ping result for "${args.query}":`,
+						pingResult: data,
 					};
-				}
-
-				return {
-					success: true,
-					message: `Ping result for "${args.query}":`,
-					pingResult: data,
-				};
-			},
-		);
+				},
+			);
+		},
 	});
 }
 

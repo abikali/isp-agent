@@ -16,6 +16,8 @@ export interface BuildSystemPromptOptions {
 	provider?: string | undefined;
 	/** Web chat doesn't need verbose tool narration */
 	isWebChat?: boolean | undefined;
+	/** Pre-formatted service plans section to inject into the prompt. */
+	servicePlans?: string | undefined;
 	/** Agent-level configurable prompt sections (from DB). Empty array = use defaults. */
 	promptSections?: PromptSection[] | undefined;
 	/** Per-tool prompt overrides keyed by toolId (from AiAgentToolConfig.promptSection). */
@@ -40,6 +42,11 @@ export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
 	// Contact info (dynamic runtime data — stays in code)
 	if (opts.contactName || opts.contactPhone) {
 		sections.push(contactInfoSection(opts));
+	}
+
+	// Service plans (injected when toggle is enabled)
+	if (opts.servicePlans) {
+		sections.push(opts.servicePlans);
 	}
 
 	// Tool-owned prompt sections — for each enabled tool, include its prompt

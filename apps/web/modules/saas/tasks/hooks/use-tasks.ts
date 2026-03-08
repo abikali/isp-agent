@@ -8,84 +8,21 @@ import {
 	useSuspenseQuery,
 } from "@tanstack/react-query";
 
-interface TaskListInput {
-	search?: string | undefined;
-	status?:
-		| "OPEN"
-		| "IN_PROGRESS"
-		| "ON_HOLD"
-		| "COMPLETED"
-		| "CANCELLED"
-		| undefined;
-	priority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT" | undefined;
-	category?:
-		| "INSTALLATION"
-		| "MAINTENANCE"
-		| "REPAIR"
-		| "SUPPORT"
-		| "BILLING"
-		| "GENERAL"
-		| undefined;
-	employeeId?: string | undefined;
-	customerId?: string | undefined;
-	stationId?: string | undefined;
-	page?: number | undefined;
-	pageSize?: number | undefined;
-	sortBy?:
-		| "title"
-		| "createdAt"
-		| "dueDate"
-		| "priority"
-		| "status"
-		| undefined;
-	sortOrder?: "asc" | "desc" | undefined;
-}
+type ListTasksInput = Parameters<
+	typeof orpc.tasks.list.queryOptions
+>[0]["input"];
 
-export function useTasks(filters: TaskListInput = {}) {
+type TaskFilters = Omit<ListTasksInput, "organizationId">;
+
+export function useTasks(filters: TaskFilters = {}) {
 	const organizationId = useOrganizationId();
-
-	const input: Record<string, unknown> = {
-		organizationId: organizationId ?? "",
-	};
-	if (filters.search) {
-		input["search"] = filters.search;
-	}
-	if (filters.status) {
-		input["status"] = filters.status;
-	}
-	if (filters.priority) {
-		input["priority"] = filters.priority;
-	}
-	if (filters.category) {
-		input["category"] = filters.category;
-	}
-	if (filters.employeeId) {
-		input["employeeId"] = filters.employeeId;
-	}
-	if (filters.customerId) {
-		input["customerId"] = filters.customerId;
-	}
-	if (filters.stationId) {
-		input["stationId"] = filters.stationId;
-	}
-	if (filters.page) {
-		input["page"] = filters.page;
-	}
-	if (filters.pageSize) {
-		input["pageSize"] = filters.pageSize;
-	}
-	if (filters.sortBy) {
-		input["sortBy"] = filters.sortBy;
-	}
-	if (filters.sortOrder) {
-		input["sortOrder"] = filters.sortOrder;
-	}
 
 	const query = useSuspenseQuery(
 		orpc.tasks.list.queryOptions({
-			input: input as Parameters<
-				typeof orpc.tasks.list.queryOptions
-			>[0]["input"],
+			input: {
+				organizationId: organizationId ?? "",
+				...filters,
+			},
 		}),
 	);
 
@@ -101,13 +38,11 @@ export function useTasks(filters: TaskListInput = {}) {
 export function useTaskStats() {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
+	return useSuspenseQuery(
 		orpc.tasks.stats.queryOptions({
 			input: { organizationId: organizationId ?? "" },
 		}),
-	);
-
-	return query.data;
+	).data;
 }
 
 export function useCreateTask() {

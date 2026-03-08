@@ -5,6 +5,7 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, useParams } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
@@ -18,13 +19,20 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
-import { PlusIcon } from "lucide-react";
+import {
+	BotIcon,
+	ExternalLinkIcon,
+	MessageSquareIcon,
+	PlusIcon,
+	UserIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { useDeleteTask, useUpdateTask } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_OPTIONS,
 	TASK_PRIORITY_LABELS,
 	TASK_PRIORITY_OPTIONS,
+	TASK_SOURCE_LABELS,
 	TASK_STATUS_LABELS,
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
@@ -32,6 +40,7 @@ import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 
 export function TaskDetail({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
+	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
 	const deleteTask = useDeleteTask();
 	const { stations } = useStationsQuery();
@@ -47,6 +56,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 	);
 
 	const task = data.task;
+	const isAiEscalation = task.source === "AI_ESCALATION";
 
 	const form = useForm({
 		defaultValues: {
@@ -102,7 +112,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-bold">{task.title}</h1>
-					<div className="flex items-center gap-3 mt-1">
+					<div className="flex flex-wrap items-center gap-3 mt-1">
 						<Badge>
 							{TASK_STATUS_LABELS[task.status] ?? task.status}
 						</Badge>
@@ -110,11 +120,19 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 							{TASK_PRIORITY_LABELS[task.priority] ??
 								task.priority}
 						</Badge>
-						{task.createdBy && (
-							<span className="text-sm text-muted-foreground">
-								Created by {task.createdBy.name}
-							</span>
+						{isAiEscalation && (
+							<Badge variant="secondary" className="gap-1">
+								<BotIcon className="size-3" />
+								{TASK_SOURCE_LABELS[task.source]}
+							</Badge>
 						)}
+						<span className="text-sm text-muted-foreground">
+							{task.createdBy
+								? `Created by ${task.createdBy.name}`
+								: isAiEscalation
+									? "Created by AI Agent"
+									: "Unknown creator"}
+						</span>
 					</div>
 				</div>
 			</div>
@@ -293,14 +311,48 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							{task.customer && (
-								<div className="space-y-2">
+								<div className="space-y-1">
 									<Label>Customer</Label>
-									<p className="text-sm">
-										{task.customer.fullName}{" "}
+									<Link
+										to="/app/$organizationSlug/customers/$customerId"
+										params={{
+											organizationSlug:
+												organizationSlug ?? "",
+											customerId: task.customer.id,
+										}}
+										className="flex items-center gap-2 text-sm text-primary hover:underline"
+										preload="intent"
+									>
+										<UserIcon className="size-3.5" />
+										{task.customer.fullName}
 										<span className="text-muted-foreground">
 											({task.customer.accountNumber})
 										</span>
-									</p>
+										<ExternalLinkIcon className="size-3" />
+									</Link>
+								</div>
+							)}
+							{task.conversation && (
+								<div className="space-y-1">
+									<Label>AI Conversation</Label>
+									<Link
+										to="/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
+										params={{
+											organizationSlug:
+												organizationSlug ?? "",
+											agentId: task.conversation.agent.id,
+											conversationId:
+												task.conversation.id,
+										}}
+										className="flex items-center gap-2 text-sm text-primary hover:underline"
+										preload="intent"
+									>
+										<MessageSquareIcon className="size-3.5" />
+										{task.conversation.contactName ??
+											"Unknown contact"}{" "}
+										via {task.conversation.agent.name}
+										<ExternalLinkIcon className="size-3" />
+									</Link>
 								</div>
 							)}
 							<form.Field name="stationId">

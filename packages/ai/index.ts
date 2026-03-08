@@ -8,11 +8,12 @@ export type { PromptSection } from "./src/default-prompt-sections";
 export { DEFAULT_PROMPT_SECTIONS } from "./src/default-prompt-sections";
 export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
+export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
-export { formatHistoryMessage } from "./src/history";
-export { getAdapter, isValidModel } from "./src/model-registry";
+export { buildContextGapNote, formatHistoryMessage } from "./src/history";
+export { getModel, isValidModel } from "./src/model-registry";
 export { hashPin } from "./src/pin";
 export {
 	markAsRead,
@@ -50,5 +51,6 @@ export type {
 	ParsedMessage,
 	SendMessageOptions,
 	SendMessageResult,
+	ToolRecord,
 	ToolResult,
 } from "./src/types";

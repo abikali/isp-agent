@@ -527,21 +527,27 @@ pnpm --filter @repo/database generate
 
 **Location**: `packages/ai/`
 
-Uses **TanStack AI v0.5.0** (`@tanstack/ai`, `@tanstack/ai-openai`, `@tanstack/ai-anthropic`).
+Uses **AI SDK v6** (`ai@^6.0.116`) with **OpenRouter** via `@ai-sdk/openai-compatible`. Frontend uses `@ai-sdk/react@^3.0.118`.
 
-**Model Registry** (`src/model-registry.ts`): Maps short model IDs to adapters. Use short names like `claude-sonnet` (not versioned IDs like `claude-sonnet-4-20250514`).
+**Model Registry** (`src/model-registry.ts`): Maps short model IDs to OpenRouter model paths. All models routed through OpenRouter (no direct provider SDKs). Use short names like `gpt-4.1`, `claude-sonnet`, `gemini-3-flash`. Requires `OPENROUTER_API_KEY` env var.
 
 **Tool System** (`src/tools/`):
 - **Registry Pattern**: `TOOL_REGISTRY` maps tool IDs to `RegisteredTool` objects (metadata + factory function)
 - **ToolContext**: `{ organizationId, agentId, conversationId, externalChatId, contactName, toolConfig }`
-- **Factory Pattern**: Each tool is a factory `(context: ToolContext) => ServerTool` using `toolDefinition().server()`
+- **Factory Pattern**: Each tool is a factory `(context: ToolContext) => Tool<any, any>` using `tool({ description, inputSchema, execute })`
+- **Types**: `ToolSet` (record of tools, aliased as `ToolRecord`), `Tool` (individual tool), `LanguageModel` (model)
 - **Categories**: networking, scheduling, enrichment, crm, diagnostics, customer, isp
 - **ISP Tools**: Do NOT use `outputSchema` — the ISP API returns inconsistent types (strings/booleans/nulls mixed). Put field documentation in the tool `description` instead.
 
-**Stream Events** (from `chat()`):
-- `TEXT_MESSAGE_CONTENT` → `.delta` (text chunk)
-- `TOOL_CALL_START` / `TOOL_CALL_END` → `.toolName`, `.input`, `.result`
-- `RUN_FINISHED` → `.usage` (token counts)
+**Streaming** (from `streamText()`):
+- `createAgentStream()` returns `AgentStreamResult` (= `ReturnType<typeof streamText>`)
+- Stream chunks: `text-delta` (`.text`), `tool-result` (`.input`/`.output`), `finish` (`.totalUsage.inputTokens`/`.outputTokens`)
+- Web chat streaming: `toUIMessageStreamResponse()` for frontend, `consumeStream()` for fire-and-forget DB storage
+
+**Frontend Chat** (`@ai-sdk/react`):
+- `useChat({ transport, messages })` — uses `DefaultChatTransport` with API URL
+- `UIMessage` has `id`, `role`, `parts` (no `createdAt`)
+- Use `isToolUIPart()` and `getToolName()` from `ai` for type-safe tool part rendering
 
 **Encryption** (`src/encryption.ts`): AES-256-GCM for storing API tokens (WhatsApp, Telegram) in DB. Requires `AI_CHANNEL_ENCRYPTION_KEY` env var (32-byte hex string, 64 chars).
 

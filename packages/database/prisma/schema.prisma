@@ -554,6 +554,8 @@ model AiAgent {
   temperature      Float            @default(0.3)
   enabledTools     String[]         @default([])
   promptSections   Json             @default("[]")
+  servicePlansEnabled        Boolean       @default(false)
+  contextGapThresholdMinutes Int           @default(240)
   webChatEnabled   Boolean          @default(false)
   webChatToken     String?          @unique
   createdById      String
@@ -614,6 +616,7 @@ model AiConversation {
   verifiedCustomer Customer?        @relation(fields: [verifiedCustomerId], references: [id], onDelete: SetNull)
   messages         AiMessage[]
   capturedLeads    AiCapturedLead[]
+  tasks            Task[]
 
   @@index([channelId, externalChatId, status])
   @@index([agentId])
@@ -918,6 +921,13 @@ enum TaskCategory {
   GENERAL
 }
 
+enum TaskSource {
+  MANUAL
+  AI_ESCALATION
+
+  @@map("task_source")
+}
+
 model Employee {
   id             String             @id @default(cuid())
   organizationId String
@@ -967,19 +977,22 @@ model Task {
   priority       TaskPriority @default(MEDIUM)
   status         TaskStatus   @default(OPEN)
   category       TaskCategory @default(GENERAL)
+  source         TaskSource   @default(MANUAL)
   dueDate        DateTime?
   completedAt    DateTime?
   notes          String?      @db.Text
-  createdById    String
+  createdById    String?
   customerId     String?
   stationId      String?
+  conversationId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User             @relation("taskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy    User?            @relation("taskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   assignments  TaskAssignment[]
 
   @@index([organizationId])
@@ -988,6 +1001,7 @@ model Task {
   @@index([createdById])
   @@index([customerId])
   @@index([stationId])
+  @@index([conversationId])
   @@index([dueDate])
   @@map("task")
 }

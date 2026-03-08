@@ -1,4 +1,42 @@
 /**
+ * Builds a context gap note to inject into message history when there's been
+ * a significant time gap between messages. Returns null if no gap or below threshold.
+ */
+export function buildContextGapNote(
+	lastMessageAt: Date | null,
+	thresholdMinutes: number,
+): string | null {
+	if (!lastMessageAt) {
+		return null;
+	}
+
+	const gapMs = Date.now() - lastMessageAt.getTime();
+	const gapMinutes = gapMs / 60_000;
+
+	if (gapMinutes < thresholdMinutes) {
+		return null;
+	}
+
+	const duration = formatGapDuration(gapMs);
+	return `[Context Notice: ${duration} have passed since the last message. The customer may be following up or raising a new issue. Do not assume continuity — let their message guide you.]`;
+}
+
+function formatGapDuration(ms: number): string {
+	const totalMinutes = Math.floor(ms / 60_000);
+	const hours = Math.floor(totalMinutes / 60);
+	const days = Math.floor(hours / 24);
+	const remainingHours = hours % 24;
+
+	if (days > 0 && remainingHours > 0) {
+		return `${days} day${days > 1 ? "s" : ""} and ${remainingHours} hour${remainingHours > 1 ? "s" : ""}`;
+	}
+	if (days > 0) {
+		return `${days} day${days > 1 ? "s" : ""}`;
+	}
+	return `${hours} hour${hours > 1 ? "s" : ""}`;
+}
+
+/**
  * Formats a DB message row into a model-facing history message.
  *
  * For assistant messages that have `toolCalls`, a text annotation is appended

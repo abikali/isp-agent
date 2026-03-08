@@ -5,6 +5,7 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
+	buildContextGapNote,
 	buildSystemPrompt,
 	decryptToken,
 	executeEscalationGuard,
@@ -27,6 +28,7 @@ import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { uploadBuffer } from "@repo/storage";
+import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
@@ -228,6 +230,7 @@ async function handleMessages(
 				},
 				orderBy: { createdAt: "desc" },
 			});
+			const previousLastMessageAt = conversation?.lastMessageAt ?? null;
 			if (conversation) {
 				conversation = await db.aiConversation.update({
 					where: { id: conversation.id },
@@ -362,6 +365,12 @@ async function handleMessages(
 				);
 			}
 
+			// Fetch service plans section (if enabled)
+			const servicePlans = await fetchServicePlansSection(
+				channel.agent.organizationId,
+				channel.agent.servicePlansEnabled,
+			);
+
 			// Build system prompt once
 			const systemPrompt = buildSystemPrompt({
 				basePrompt: channel.agent.systemPrompt,
@@ -372,6 +381,7 @@ async function handleMessages(
 				maintenanceMessage:
 					channel.agent.maintenanceMessage ?? undefined,
 				provider,
+				servicePlans,
 				promptSections: channel.agent
 					.promptSections as unknown as PromptSection[],
 				toolPromptOverrides:
@@ -512,6 +522,26 @@ async function handleMessages(
 						.reverse()
 						.map(formatHistoryMessage);
 
+					// Inject context gap note if significant time has passed
+					const gapNote = buildContextGapNote(
+						previousLastMessageAt,
+						channel.agent.contextGapThresholdMinutes,
+					);
+					if (gapNote && historyMessages.length > 0) {
+						// Insert just before the final user message(s)
+						let insertIdx = historyMessages.length - 1;
+						while (
+							insertIdx > 0 &&
+							historyMessages[insertIdx - 1]?.role === "user"
+						) {
+							insertIdx--;
+						}
+						historyMessages.splice(insertIdx, 0, {
+							role: "user",
+							content: gapNote,
+						});
+					}
+
 					// Merge consecutive trailing user messages into one
 					// (rapid-fire messages get stored separately but should be read as one thought)
 					if (
@@ -568,7 +598,7 @@ async function handleMessages(
 								channel.agent.knowledgeBase ?? undefined,
 							messages: historyMessages,
 							temperature: channel.agent.temperature,
-							abortController: controller,
+							abortSignal: controller.signal,
 							tools,
 							maxSteps: tools ? 10 : undefined,
 							onToolActivity: () => {

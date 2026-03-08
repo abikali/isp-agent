@@ -5,6 +5,7 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
+	buildContextGapNote,
 	buildSystemPrompt,
 	decryptToken,
 	executeEscalationGuard,
@@ -59,6 +60,25 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 
 			const messages = history.reverse().map(formatHistoryMessage);
 
+			// Inject context gap note if significant time has passed
+			const gapNote = buildContextGapNote(
+				conversation.lastMessageAt,
+				conversation.agent.contextGapThresholdMinutes,
+			);
+			if (gapNote && messages.length > 0) {
+				let insertIdx = messages.length - 1;
+				while (
+					insertIdx > 0 &&
+					messages[insertIdx - 1]?.role === "user"
+				) {
+					insertIdx--;
+				}
+				messages.splice(insertIdx, 0, {
+					role: "user",
+					content: gapNote,
+				});
+			}
+
 			// Resolve tools if agent has any enabled
 			let tools: GenerateResponseInput["tools"];
 			const agentToolConfigs =
@@ -94,6 +114,45 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				);
 			}
 
+			// Fetch service plans section (if enabled)
+			let servicePlans: string | undefined;
+			if (conversation.agent.servicePlansEnabled) {
+				const plans = await db.servicePlan.findMany({
+					where: {
+						organizationId: conversation.agent.organizationId,
+						archived: false,
+					},
+					orderBy: { monthlyPrice: "asc" },
+					select: {
+						name: true,
+						description: true,
+						downloadSpeed: true,
+						uploadSpeed: true,
+						monthlyPrice: true,
+					},
+				});
+				if (plans.length > 0) {
+					const planLines = plans.map((plan, i) => {
+						const lines = [
+							`${i + 1}. ${plan.name}`,
+							`   Download: ${plan.downloadSpeed} Mbps | Upload: ${plan.uploadSpeed} Mbps`,
+							`   Price: ${plan.monthlyPrice}/month`,
+						];
+						if (plan.description) {
+							lines.push(`   ${plan.description}`);
+						}
+						return lines.join("\n");
+					});
+					servicePlans = [
+						"SERVICE PLANS (use this to answer customer questions about plans, pricing, and speeds):",
+						"",
+						...planLines,
+						"",
+						"When discussing plans, use ONLY the information above. Do not invent details.",
+					].join("\n");
+				}
+			}
+
 			// Build system prompt
 			const systemPrompt = buildSystemPrompt({
 				basePrompt: conversation.agent.systemPrompt,
@@ -104,6 +163,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				maintenanceMessage:
 					conversation.agent.maintenanceMessage ?? undefined,
 				provider: conversation.channel?.provider ?? "messaging",
+				servicePlans,
 				promptSections: conversation.agent
 					.promptSections as unknown as PromptSection[],
 				toolPromptOverrides:

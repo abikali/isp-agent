@@ -1,4 +1,4 @@
-import type { ServerTool } from "@tanstack/ai";
+import type { Tool } from "ai";
 
 export interface ToolContext {
 	organizationId: string;
@@ -36,7 +36,8 @@ export interface ConfigField {
 	options?: Array<{ label: string; value: string }> | undefined;
 }
 
-export type ToolFactory = (context: ToolContext) => ServerTool;
+// biome-ignore lint/suspicious/noExplicitAny: Tool generic params vary per tool
+export type ToolFactory = (context: ToolContext) => Tool<any, any>;
 
 export interface RegisteredTool {
 	metadata: ToolMetadata;

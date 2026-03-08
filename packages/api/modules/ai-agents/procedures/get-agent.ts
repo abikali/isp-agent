@@ -47,6 +47,8 @@ export const getAgent = protectedProcedure
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,
+				servicePlansEnabled: true,
+				contextGapThresholdMinutes: true,
 				promptSections: true,
 				webChatEnabled: true,
 				webChatToken: true,

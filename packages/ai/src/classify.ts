@@ -1,8 +1,8 @@
-import type { InferSchemaType, SchemaInput } from "@tanstack/ai";
-import { chat } from "@tanstack/ai";
-import { getAdapter } from "./model-registry";
+import { generateText, Output } from "ai";
+import type { z } from "zod";
+import { getModel } from "./model-registry";
 
-interface ClassifyOptions<T extends SchemaInput> {
+interface ClassifyOptions<T extends z.ZodType> {
 	systemPrompt: string;
 	userPrompt: string;
 	schema: T;
@@ -12,14 +12,14 @@ interface ClassifyOptions<T extends SchemaInput> {
 
 /**
  * Lightweight LLM classification helper.
- * Uses chat() + outputSchema for structured output — the provider handles
+ * Uses generateText() + Output.object() for structured output — the provider handles
  * JSON mode and the SDK validates against the schema automatically.
  *
  * Returns null on any failure (timeout, validation, API error) — never throws.
  */
-export async function classifyText<T extends SchemaInput>(
+export async function classifyText<T extends z.ZodType>(
 	opts: ClassifyOptions<T>,
-): Promise<InferSchemaType<T> | null> {
+): Promise<z.infer<T> | null> {
 	const model = opts.model ?? "gpt-4.1-mini";
 	const timeoutMs = opts.timeoutMs ?? 5000;
 
@@ -27,16 +27,16 @@ export async function classifyText<T extends SchemaInput>(
 	const timer = setTimeout(() => abortController.abort(), timeoutMs);
 
 	try {
-		const result = await chat({
-			adapter: getAdapter(model),
+		const result = await generateText({
+			model: getModel(model),
+			system: opts.systemPrompt,
 			messages: [{ role: "user", content: opts.userPrompt }],
-			systemPrompts: [opts.systemPrompt],
-			outputSchema: opts.schema,
+			output: Output.object({ schema: opts.schema }),
 			temperature: 0,
-			abortController,
+			abortSignal: abortController.signal,
 		});
 
-		return result as InferSchemaType<T>;
+		return (result.output ?? null) as z.infer<T> | null;
 	} catch (error) {
 		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
 		console.warn("classifyText failed, returning null", {

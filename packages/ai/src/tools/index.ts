@@ -1,4 +1,4 @@
-import type { ServerTool } from "@tanstack/ai";
+import type { ToolRecord } from "../types";
 import { dnsLookup } from "./dns-lookup";
 import { emailCheck } from "./email-check";
 import { escalateTelegram } from "./escalate-telegram";
@@ -29,15 +29,15 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 };
 
 /**
- * Resolve enabled tool IDs into TanStack AI ServerTool instances.
+ * Resolve enabled tool IDs into an AI SDK tool record.
  * @param toolConfigs - Map of toolId to per-tool config (from AiAgentToolConfig)
  */
 export function resolveTools(
 	enabledToolIds: string[],
 	context: ToolContext,
 	toolConfigs?: Record<string, Record<string, unknown>> | undefined,
-): ServerTool[] {
-	const tools: ServerTool[] = [];
+): ToolRecord {
+	const tools: ToolRecord = {};
 
 	for (const toolId of enabledToolIds) {
 		const registered = TOOL_REGISTRY[toolId];
@@ -46,7 +46,7 @@ export function resolveTools(
 				...context,
 				toolConfig: toolConfigs?.[toolId],
 			};
-			tools.push(registered.factory(perToolContext));
+			tools[toolId] = registered.factory(perToolContext);
 		}
 	}
 

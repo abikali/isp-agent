@@ -35,6 +35,7 @@ export const listTasks = protectedProcedure
 					"GENERAL",
 				])
 				.optional(),
+			source: z.enum(["MANUAL", "AI_ESCALATION"]).optional(),
 			employeeId: z.string().optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
@@ -76,6 +77,9 @@ export const listTasks = protectedProcedure
 		if (input.stationId) {
 			where["stationId"] = input.stationId;
 		}
+		if (input.source) {
+			where["source"] = input.source;
+		}
 		if (input.employeeId) {
 			where["assignments"] = {
 				some: { employeeId: input.employeeId },
@@ -99,12 +103,20 @@ export const listTasks = protectedProcedure
 				select: {
 					id: true,
 					title: true,
+					description: true,
 					status: true,
 					priority: true,
 					category: true,
+					source: true,
 					dueDate: true,
 					completedAt: true,
 					createdAt: true,
+					createdBy: {
+						select: {
+							id: true,
+							name: true,
+						},
+					},
 					customer: {
 						select: {
 							id: true,

@@ -1,4 +1,4 @@
-import type { ServerTool } from "@tanstack/ai";
+import type { ToolSet } from "ai";
 
 export interface ParsedMessage {
 	chatId: string;
@@ -29,18 +29,21 @@ export interface SendMessageOptions {
 	typingTime?: number | undefined;
 }
 
+/** A tool record as accepted by streamText/generateText. */
+export type ToolRecord = ToolSet;
+
 export interface GenerateResponseInput {
 	model: string;
 	systemPrompt: string;
 	knowledgeBase?: string | undefined;
 	messages: Array<{ role: "user" | "assistant"; content: string }>;
 	temperature?: number | undefined;
-	abortController?: AbortController | undefined;
-	tools?: ServerTool[] | undefined;
+	abortSignal?: AbortSignal | undefined;
+	tools?: ToolRecord | undefined;
 	maxSteps?: number | undefined;
 	/** Called with intermediate text when a step finishes with a tool call (for sending progress messages). */
 	onStepText?: ((text: string) => Promise<void>) | undefined;
-	/** Called on TOOL_CALL_START and TOOL_CALL_END events. Use to re-send typing indicators during long tool chains. */
+	/** Called on tool call start/end events. Use to re-send typing indicators during long tool chains. */
 	onToolActivity?: (() => void) | undefined;
 }
 

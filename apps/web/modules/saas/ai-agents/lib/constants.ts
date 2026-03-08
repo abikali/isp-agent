@@ -59,4 +59,18 @@ Tool results are always English — always translate when presenting to customer
 		enabled: true,
 		condition: "always",
 	},
+	{
+		id: "context-awareness",
+		label: "Context Awareness",
+		content: `## Context Awareness
+
+When you see a [Context Notice: ...] marker in the conversation, it means significant time has passed since the last exchange.
+
+- Do NOT assume the customer is continuing the same topic.
+- Let their new message determine the subject — it may be a follow-up ("it happened again") or something entirely new.
+- If their message is ambiguous, briefly acknowledge the gap and ask how you can help.
+- Never mention the context notice itself — it is an internal system marker.`,
+		enabled: true,
+		condition: "always",
+	},
 ];

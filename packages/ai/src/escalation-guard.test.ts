@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import {
 	detectMissedEscalation,
 	executeEscalationGuard,
@@ -572,9 +573,8 @@ describe("detectMissedEscalation", () => {
 
 describe("executeEscalationGuard", () => {
 	const baseTool = {
-		name: "escalate-telegram",
 		description: "Escalate to Telegram",
-		__toolSide: "server" as const,
+		inputSchema: z.object({ reason: z.string() }),
 	};
 
 	const baseOpts = {
@@ -598,7 +598,7 @@ describe("executeEscalationGuard", () => {
 		mockEscalation(false);
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: vi.fn() }],
+			tools: { "escalate-telegram": { ...baseTool, execute: vi.fn() } },
 			responseText: "Your internet speed is 50 Mbps.",
 		});
 		expect(result).toBeNull();
@@ -607,7 +607,7 @@ describe("executeEscalationGuard", () => {
 	it("returns null when escalate-telegram was already called", async () => {
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: vi.fn() }],
+			tools: { "escalate-telegram": { ...baseTool, execute: vi.fn() } },
 			responseText: "I've forwarded your request to the team.",
 			toolResults: [
 				{
@@ -621,18 +621,17 @@ describe("executeEscalationGuard", () => {
 		expect(mockClassifyText).not.toHaveBeenCalled();
 	});
 
-	it("returns null when escalate-telegram tool not in tools array", async () => {
+	it("returns null when escalate-telegram tool not in tools record", async () => {
 		mockEscalation(true);
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [
-				{
-					name: "isp-search-customer",
+			tools: {
+				"isp-search-customer": {
 					description: "Search",
-					__toolSide: "server" as const,
+					inputSchema: z.object({}),
 					execute: vi.fn(),
 				},
-			],
+			},
 			responseText: "I've forwarded your request to the team.",
 		});
 		expect(result).toBeNull();
@@ -642,7 +641,7 @@ describe("executeEscalationGuard", () => {
 		mockEscalation(true);
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool }],
+			tools: { "escalate-telegram": { ...baseTool } },
 			responseText: "I've forwarded your request to the team.",
 		});
 		expect(result).toBeNull();
@@ -657,7 +656,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText:
 				"I've forwarded your request to the team. Someone will reach out to you shortly.",
 		});
@@ -689,7 +690,9 @@ describe("executeEscalationGuard", () => {
 
 		await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "I've sent your details to the team for follow up.",
 		});
 
@@ -709,7 +712,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "I've forwarded your request to the team.",
 		});
 
@@ -728,7 +733,9 @@ describe("executeEscalationGuard", () => {
 			conversationMessages: [
 				{ role: "user", content: "I need internet" },
 			],
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "Someone from our team will contact you soon.",
 		});
 
@@ -750,7 +757,9 @@ describe("executeEscalationGuard", () => {
 
 		await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: longResponse,
 		});
 
@@ -770,7 +779,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText:
 				"سأقوم بتحويل طلبك إلى الفريق المختص. سيتواصل معك أحد زملائنا قريباً.",
 		});
@@ -785,7 +796,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText:
 				"I found your account. Your plan is 50 Mbps and your connection is active.",
 			toolResults: [
@@ -814,7 +827,9 @@ describe("executeEscalationGuard", () => {
 			customerName: "Ali",
 			customerPhone: "+961999888",
 			conversationMessages: [],
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "I've escalated your issue to the team.",
 		});
 
@@ -841,7 +856,9 @@ describe("executeEscalationGuard", () => {
 			conversationId: "conv-long",
 			customerName: "Test",
 			conversationMessages: manyMessages,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "Someone from our team will reach out to you.",
 		});
 
@@ -861,27 +878,24 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [
-				{
-					name: "isp-search-customer",
+			tools: {
+				"isp-search-customer": {
 					description: "Search",
-					__toolSide: "server" as const,
+					inputSchema: z.object({}),
 					execute: vi.fn(),
 				},
-				{
-					name: "isp-ping-customer",
+				"isp-ping-customer": {
 					description: "Ping",
-					__toolSide: "server" as const,
+					inputSchema: z.object({}),
 					execute: vi.fn(),
 				},
-				{ ...baseTool, execute: mockExecute },
-				{
-					name: "isp-bandwidth-stats",
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+				"isp-bandwidth-stats": {
 					description: "Bandwidth",
-					__toolSide: "server" as const,
+					inputSchema: z.object({}),
 					execute: vi.fn(),
 				},
-			],
+			},
 			responseText: "I've forwarded your request to the support team.",
 		});
 
@@ -894,7 +908,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "I've forwarded your request to the team.",
 			toolResults: [
 				{
@@ -916,7 +932,9 @@ describe("executeEscalationGuard", () => {
 
 		await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText:
 				"I've forwarded your request to the technical team. They will check the coverage in your area.",
 		});
@@ -936,7 +954,9 @@ describe("executeEscalationGuard", () => {
 
 		const result = await executeEscalationGuard({
 			...baseOpts,
-			tools: [{ ...baseTool, execute: mockExecute }],
+			tools: {
+				"escalate-telegram": { ...baseTool, execute: mockExecute },
+			},
 			responseText: "I've forwarded your request to the team.",
 		});
 

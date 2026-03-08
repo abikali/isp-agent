@@ -1,8 +1,12 @@
 import { logger } from "@repo/logs";
-import type { ServerTool } from "@tanstack/ai";
 import { z } from "zod";
 import { classifyText } from "./classify";
-import type { ToolResult } from "./types";
+import type { ToolRecord, ToolResult } from "./types";
+
+interface EscalationToolOutput {
+	success: boolean;
+	message: string;
+}
 
 const escalationSchema = z.object({
 	promisedEscalation: z.boolean(),
@@ -48,7 +52,7 @@ export async function detectMissedEscalation(
 }
 
 interface EscalationGuardOptions {
-	tools: ServerTool[];
+	tools: ToolRecord;
 	responseText: string;
 	toolResults?: ToolResult[] | undefined;
 	customerName?: string | undefined;
@@ -70,7 +74,7 @@ export async function executeEscalationGuard(
 		return null;
 	}
 
-	const escalateTool = opts.tools.find((t) => t.name === "escalate-telegram");
+	const escalateTool = opts.tools["escalate-telegram"];
 	if (!escalateTool?.execute) {
 		return null;
 	}
@@ -104,18 +108,18 @@ export async function executeEscalationGuard(
 			},
 		);
 
-		const result = await escalateTool.execute(args);
+		const result = (await escalateTool.execute(args, {
+			toolCallId: `guard-${opts.conversationId}`,
+			messages: [],
+			abortSignal: AbortSignal.timeout(30000),
+		})) as EscalationToolOutput;
 
-		// Log whether the forced escalation actually succeeded
-		const toolResult = result as
-			| { success?: boolean; message?: string }
-			| undefined;
-		if (toolResult && !toolResult.success) {
+		if (!result.success) {
 			logger.error(
 				"Escalation guard: forced tool call returned failure — Telegram message was NOT sent",
 				{
 					conversationId: opts.conversationId,
-					toolMessage: toolResult.message,
+					toolMessage: result.message,
 				},
 			);
 		} else {

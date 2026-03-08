@@ -1,5 +1,5 @@
 import { logger } from "@repo/logs";
-import { toolDefinition } from "@tanstack/ai";
+import { tool } from "ai";
 import { z } from "zod";
 import type { RegisteredTool, ToolContext } from "./types";
 
@@ -8,40 +8,6 @@ const PRIORITY_EMOJI: Record<string, string> = {
 	medium: "🟡",
 	low: "🟢",
 };
-
-const escalateTelegramDef = toolDefinition({
-	name: "escalate-telegram",
-	description:
-		"Send a real Telegram message to the support/sales team. Returns success/failure status.",
-	inputSchema: z.object({
-		reason: z
-			.string()
-			.describe(
-				"Brief reason — e.g. 'New subscription request', 'Service relocation', 'Unresolved connectivity issue'",
-			),
-		priority: z
-			.enum(["low", "medium", "high"])
-			.describe(
-				"low = general inquiries, medium = sales leads and unresolved technical issues, high = outages or critical problems",
-			),
-		summary: z
-			.string()
-			.describe(
-				"A concise summary of the entire conversation for the team: what the customer wanted or reported, what you did (diagnostics, lookups, actions taken), the current status, and why this is being escalated. Include customer name, phone number, location, and any diagnostic findings.",
-			),
-		customerName: z.string().optional().describe("Customer name if known"),
-		customerUsername: z
-			.string()
-			.optional()
-			.describe("ISP username if found via search"),
-		actionRequired: z
-			.string()
-			.optional()
-			.describe(
-				"What the team should do — e.g. 'Call customer to discuss subscription plans', 'Check coverage in Dekwane area'",
-			),
-	}),
-});
 
 function escapeHtml(text: string): string {
 	return text
@@ -73,244 +39,312 @@ function parseChatIds(raw: string | string[]): string[] {
 }
 
 function createEscalateTelegramTool(context: ToolContext) {
-	return escalateTelegramDef.server(async (args) => {
-		try {
-			const telegramBotToken = context.toolConfig?.["telegramBotToken"] as
-				| string
-				| undefined;
-			const telegramChatIds = context.toolConfig?.["telegramChatIds"] as
-				| string
-				| string[]
-				| undefined;
-
-			// Backwards compatibility: fall back to old single-value key
-			const rawChatIds =
-				telegramChatIds ??
-				(context.toolConfig?.["telegramChatId"] as string | undefined);
-
-			if (!telegramBotToken || !rawChatIds) {
-				logger.error(
-					"escalate-telegram: Missing bot token or chat IDs — escalation CANNOT be sent",
-					{
-						hasBotToken: !!telegramBotToken,
-						hasChatIds: !!rawChatIds,
-						agentId: context.agentId,
-						conversationId: context.conversationId,
-					},
-				);
-				return {
-					success: false,
-					message:
-						"ESCALATION FAILED — Telegram is not configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
-				};
-			}
-
-			const chatIds = parseChatIds(rawChatIds);
-			if (chatIds.length === 0) {
-				logger.error(
-					"escalate-telegram: No valid chat IDs after parsing — escalation CANNOT be sent",
-					{
-						rawChatIds,
-						agentId: context.agentId,
-						conversationId: context.conversationId,
-					},
-				);
-				return {
-					success: false,
-					message:
-						"ESCALATION FAILED — no valid Telegram Chat IDs configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
-				};
-			}
-
-			// Load conversation, agent info, and verified customer details
-			let contactId: string | null = null;
-			let contactName: string | null = null;
-			let agentName = "Unknown Agent";
-			let customer: CustomerDetails | null = null;
-
+	return tool({
+		description:
+			"Send a real Telegram message to the support/sales team. Returns success/failure status.",
+		inputSchema: z.object({
+			reason: z
+				.string()
+				.describe(
+					"Brief reason — e.g. 'New subscription request', 'Service relocation', 'Unresolved connectivity issue'",
+				),
+			priority: z
+				.enum(["low", "medium", "high"])
+				.describe(
+					"low = general inquiries, medium = sales leads and unresolved technical issues, high = outages or critical problems",
+				),
+			summary: z
+				.string()
+				.describe(
+					"A concise summary of the entire conversation for the team: what the customer wanted or reported, what you did (diagnostics, lookups, actions taken), the current status, and why this is being escalated. Include customer name, phone number, location, and any diagnostic findings.",
+				),
+			customerName: z
+				.string()
+				.optional()
+				.describe("Customer name if known"),
+			customerUsername: z
+				.string()
+				.optional()
+				.describe("ISP username if found via search"),
+			actionRequired: z
+				.string()
+				.optional()
+				.describe(
+					"What the team should do — e.g. 'Call customer to discuss subscription plans', 'Check coverage in Dekwane area'",
+				),
+		}),
+		execute: async (args) => {
 			try {
-				const { db } = await import("@repo/database");
+				const telegramBotToken = context.toolConfig?.[
+					"telegramBotToken"
+				] as string | undefined;
+				const telegramChatIds = context.toolConfig?.[
+					"telegramChatIds"
+				] as string | string[] | undefined;
 
-				const [conversation, agent] = await Promise.all([
-					db.aiConversation.findUnique({
-						where: { id: context.conversationId },
-						select: {
-							contactId: true,
-							contactName: true,
-							verifiedCustomerId: true,
+				// Backwards compatibility: fall back to old single-value key
+				const rawChatIds =
+					telegramChatIds ??
+					(context.toolConfig?.["telegramChatId"] as
+						| string
+						| undefined);
+
+				if (!telegramBotToken || !rawChatIds) {
+					logger.error(
+						"escalate-telegram: Missing bot token or chat IDs — escalation CANNOT be sent",
+						{
+							hasBotToken: !!telegramBotToken,
+							hasChatIds: !!rawChatIds,
+							agentId: context.agentId,
+							conversationId: context.conversationId,
 						},
-					}),
-					db.aiAgent.findUnique({
-						where: { id: context.agentId },
-						select: { name: true },
-					}),
-				]);
+					);
+					return {
+						success: false,
+						message:
+							"ESCALATION FAILED — Telegram is not configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
+					};
+				}
 
-				if (conversation) {
-					contactId = conversation.contactId;
-					contactName = conversation.contactName;
+				const chatIds = parseChatIds(rawChatIds);
+				if (chatIds.length === 0) {
+					logger.error(
+						"escalate-telegram: No valid chat IDs after parsing — escalation CANNOT be sent",
+						{
+							rawChatIds,
+							agentId: context.agentId,
+							conversationId: context.conversationId,
+						},
+					);
+					return {
+						success: false,
+						message:
+							"ESCALATION FAILED — no valid Telegram Chat IDs configured. DO NOT tell the customer their request was forwarded. Instead, apologize and ask them to contact support directly.",
+					};
+				}
 
-					// Fetch verified customer details if available
-					if (conversation.verifiedCustomerId) {
-						const dbCustomer = await db.customer.findUnique({
-							where: { id: conversation.verifiedCustomerId },
+				// Load conversation, agent info, and verified customer details
+				let contactId: string | null = null;
+				let contactName: string | null = null;
+				let agentName = "Unknown Agent";
+				let customer: CustomerDetails | null = null;
+				let verifiedCustomerId: string | null = null;
+
+				try {
+					const { db } = await import("@repo/database");
+
+					const [conversation, agent] = await Promise.all([
+						db.aiConversation.findUnique({
+							where: { id: context.conversationId },
 							select: {
-								fullName: true,
-								phone: true,
-								email: true,
-								username: true,
-								address: true,
-								accountNumber: true,
-								status: true,
-								plan: { select: { name: true } },
-								station: { select: { name: true } },
+								contactId: true,
+								contactName: true,
+								verifiedCustomerId: true,
 							},
-						});
+						}),
+						db.aiAgent.findUnique({
+							where: { id: context.agentId },
+							select: { name: true },
+						}),
+					]);
 
-						if (dbCustomer) {
-							customer = {
-								fullName: dbCustomer.fullName,
-								phone: dbCustomer.phone,
-								email: dbCustomer.email,
-								username: dbCustomer.username,
-								address: dbCustomer.address,
-								accountNumber: dbCustomer.accountNumber,
-								status: dbCustomer.status,
-								planName: dbCustomer.plan?.name ?? null,
-								stationName: dbCustomer.station?.name ?? null,
-							};
+					if (conversation) {
+						contactId = conversation.contactId;
+						contactName = conversation.contactName;
+						verifiedCustomerId = conversation.verifiedCustomerId;
+
+						// Fetch verified customer details if available
+						if (conversation.verifiedCustomerId) {
+							const dbCustomer = await db.customer.findUnique({
+								where: { id: conversation.verifiedCustomerId },
+								select: {
+									fullName: true,
+									phone: true,
+									email: true,
+									username: true,
+									address: true,
+									accountNumber: true,
+									status: true,
+									plan: { select: { name: true } },
+									station: { select: { name: true } },
+								},
+							});
+
+							if (dbCustomer) {
+								customer = {
+									fullName: dbCustomer.fullName,
+									phone: dbCustomer.phone,
+									email: dbCustomer.email,
+									username: dbCustomer.username,
+									address: dbCustomer.address,
+									accountNumber: dbCustomer.accountNumber,
+									status: dbCustomer.status,
+									planName: dbCustomer.plan?.name ?? null,
+									stationName:
+										dbCustomer.station?.name ?? null,
+								};
+							}
 						}
 					}
-				}
-				if (agent) {
-					agentName = agent.name;
-				}
-			} catch (error) {
-				logger.error(
-					"Failed to load conversation/agent info for escalation",
-					{
-						error,
-						conversationId: context.conversationId,
-					},
-				);
-			}
-
-			const displayName =
-				args.customerName ??
-				customer?.fullName ??
-				contactName ??
-				context.contactName ??
-				"Unknown";
-			const priorityEmoji = PRIORITY_EMOJI[args.priority] ?? "⚪";
-
-			// Build HTML message
-			const lines: string[] = [
-				`${priorityEmoji} <b>Escalation — ${args.priority.toUpperCase()}</b>`,
-				"",
-				`<b>Reason:</b> ${escapeHtml(args.reason)}`,
-			];
-
-			// Customer details section
-			lines.push("", `<b>Customer:</b> ${escapeHtml(displayName)}`);
-
-			if (customer) {
-				lines.push(
-					`<b>Account #:</b> <code>${escapeHtml(customer.accountNumber)}</code>`,
-				);
-				if (customer.username) {
-					lines.push(
-						`<b>ISP Username:</b> <code>${escapeHtml(customer.username)}</code>`,
+					if (agent) {
+						agentName = agent.name;
+					}
+				} catch (error) {
+					logger.error(
+						"Failed to load conversation/agent info for escalation",
+						{
+							error,
+							conversationId: context.conversationId,
+						},
 					);
 				}
-				if (customer.phone) {
-					lines.push(`<b>Phone:</b> ${escapeHtml(customer.phone)}`);
-				}
-				if (customer.email) {
-					lines.push(`<b>Email:</b> ${escapeHtml(customer.email)}`);
-				}
-				if (customer.address) {
+
+				const displayName =
+					args.customerName ??
+					customer?.fullName ??
+					contactName ??
+					context.contactName ??
+					"Unknown";
+				const priorityEmoji = PRIORITY_EMOJI[args.priority] ?? "⚪";
+
+				// Build HTML message
+				const lines: string[] = [
+					`${priorityEmoji} <b>Escalation — ${args.priority.toUpperCase()}</b>`,
+					"",
+					`<b>Reason:</b> ${escapeHtml(args.reason)}`,
+				];
+
+				// Customer details section
+				lines.push("", `<b>Customer:</b> ${escapeHtml(displayName)}`);
+
+				if (customer) {
 					lines.push(
-						`<b>Address:</b> ${escapeHtml(customer.address)}`,
+						`<b>Account #:</b> <code>${escapeHtml(customer.accountNumber)}</code>`,
+					);
+					if (customer.username) {
+						lines.push(
+							`<b>ISP Username:</b> <code>${escapeHtml(customer.username)}</code>`,
+						);
+					}
+					if (customer.phone) {
+						lines.push(
+							`<b>Phone:</b> ${escapeHtml(customer.phone)}`,
+						);
+					}
+					if (customer.email) {
+						lines.push(
+							`<b>Email:</b> ${escapeHtml(customer.email)}`,
+						);
+					}
+					if (customer.address) {
+						lines.push(
+							`<b>Address:</b> ${escapeHtml(customer.address)}`,
+						);
+					}
+					if (customer.planName) {
+						lines.push(
+							`<b>Plan:</b> ${escapeHtml(customer.planName)}`,
+						);
+					}
+					if (customer.stationName) {
+						lines.push(
+							`<b>Station:</b> ${escapeHtml(customer.stationName)}`,
+						);
+					}
+					lines.push(`<b>Status:</b> ${escapeHtml(customer.status)}`);
+				} else {
+					// Fall back to tool-provided username if no verified customer
+					if (args.customerUsername) {
+						lines.push(
+							`<b>ISP Username:</b> <code>${escapeHtml(args.customerUsername)}</code>`,
+						);
+					}
+				}
+
+				if (contactId) {
+					const linkName = escapeHtml(displayName);
+					lines.push(
+						`<b>Telegram:</b> <a href="tg://user?id=${escapeHtml(contactId)}">${linkName}</a>`,
 					);
 				}
-				if (customer.planName) {
-					lines.push(`<b>Plan:</b> ${escapeHtml(customer.planName)}`);
-				}
-				if (customer.stationName) {
+
+				lines.push("", "<b>Summary of Investigation:</b>");
+				lines.push(escapeHtml(args.summary));
+
+				if (args.actionRequired) {
 					lines.push(
-						`<b>Station:</b> ${escapeHtml(customer.stationName)}`,
+						"",
+						`<b>Action Required:</b> ${escapeHtml(args.actionRequired)}`,
 					);
 				}
-				lines.push(`<b>Status:</b> ${escapeHtml(customer.status)}`);
-			} else {
-				// Fall back to tool-provided username if no verified customer
-				if (args.customerUsername) {
-					lines.push(
-						`<b>ISP Username:</b> <code>${escapeHtml(args.customerUsername)}</code>`,
-					);
-				}
-			}
 
-			if (contactId) {
-				const linkName = escapeHtml(displayName);
-				lines.push(
-					`<b>Telegram:</b> <a href="tg://user?id=${escapeHtml(contactId)}">${linkName}</a>`,
-				);
-			}
-
-			lines.push("", "<b>Summary of Investigation:</b>");
-			lines.push(escapeHtml(args.summary));
-
-			if (args.actionRequired) {
 				lines.push(
 					"",
-					`<b>Action Required:</b> ${escapeHtml(args.actionRequired)}`,
+					`<b>Agent:</b> ${escapeHtml(agentName)}`,
+					`<b>Conversation:</b> <code>${escapeHtml(context.conversationId)}</code>`,
 				);
-			}
 
-			lines.push(
-				"",
-				`<b>Agent:</b> ${escapeHtml(agentName)}`,
-				`<b>Conversation:</b> <code>${escapeHtml(context.conversationId)}</code>`,
-			);
+				const message = lines.join("\n");
 
-			const message = lines.join("\n");
+				// Send to all configured chat IDs
+				const chatIdNum = chatIds.map((id) => Number(id));
+				const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
 
-			// Send to all configured chat IDs
-			const chatIdNum = chatIds.map((id) => Number(id));
-			const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+				const results: Array<{
+					chatId: string;
+					success: boolean;
+					error?: string;
+				}> = [];
 
-			const results: Array<{
-				chatId: string;
-				success: boolean;
-				error?: string;
-			}> = [];
+				await Promise.allSettled(
+					chatIdNum.map(async (chatId, idx) => {
+						try {
+							const response = await fetch(url, {
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({
+									chat_id: chatId,
+									text: message,
+									parse_mode: "HTML",
+								}),
+							});
 
-			await Promise.allSettled(
-				chatIdNum.map(async (chatId, idx) => {
-					try {
-						const response = await fetch(url, {
-							method: "POST",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({
-								chat_id: chatId,
-								text: message,
-								parse_mode: "HTML",
-							}),
-						});
+							const data = (await response.json()) as {
+								ok: boolean;
+								description?: string;
+							};
 
-						const data = (await response.json()) as {
-							ok: boolean;
-							description?: string;
-						};
-
-						if (!data.ok) {
+							if (!data.ok) {
+								const errorMsg =
+									data.description ??
+									`HTTP ${response.status}`;
+								logger.error(
+									`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
+									{
+										chatId,
+										conversationId: context.conversationId,
+									},
+								);
+								results.push({
+									chatId: chatIds[idx] ?? String(chatId),
+									success: false,
+									error: errorMsg,
+								});
+							} else {
+								results.push({
+									chatId: chatIds[idx] ?? String(chatId),
+									success: true,
+								});
+							}
+						} catch (error) {
 							const errorMsg =
-								data.description ?? `HTTP ${response.status}`;
+								error instanceof Error
+									? error.message
+									: "Unknown error";
 							logger.error(
 								`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
 								{
-									chatId,
+									error,
 									conversationId: context.conversationId,
 								},
 							);
@@ -319,62 +353,132 @@ function createEscalateTelegramTool(context: ToolContext) {
 								success: false,
 								error: errorMsg,
 							});
-						} else {
-							results.push({
-								chatId: chatIds[idx] ?? String(chatId),
-								success: true,
-							});
 						}
-					} catch (error) {
-						const errorMsg =
-							error instanceof Error
-								? error.message
-								: "Unknown error";
+					}),
+				);
+
+				const succeeded = results.filter((r) => r.success).length;
+				const failed = results.filter((r) => !r.success);
+
+				// Fire-and-forget: create/update escalation task in the dashboard
+				if (succeeded > 0) {
+					createOrUpdateEscalationTask(
+						context,
+						args,
+						verifiedCustomerId,
+					).catch((err) =>
 						logger.error(
-							`Telegram escalation failed for chat ${chatId}: ${errorMsg}`,
-							{ error, conversationId: context.conversationId },
-						);
-						results.push({
-							chatId: chatIds[idx] ?? String(chatId),
-							success: false,
-							error: errorMsg,
-						});
-					}
-				}),
-			);
+							"Failed to create/update escalation task",
+							{
+								error: err,
+							},
+						),
+					);
+				}
 
-			const succeeded = results.filter((r) => r.success).length;
-			const failed = results.filter((r) => !r.success);
+				if (succeeded === 0) {
+					return {
+						success: false,
+						message: `ESCALATION FAILED — could not send to any of ${chatIds.length} recipients. Errors: ${failed.map((f) => `${f.chatId}: ${f.error}`).join("; ")}. DO NOT tell the customer their request was forwarded.`,
+					};
+				}
 
-			if (succeeded === 0) {
-				return {
-					success: false,
-					message: `ESCALATION FAILED — could not send to any of ${chatIds.length} recipients. Errors: ${failed.map((f) => `${f.chatId}: ${f.error}`).join("; ")}. DO NOT tell the customer their request was forwarded.`,
-				};
-			}
+				if (failed.length > 0) {
+					return {
+						success: true,
+						message: `Escalation sent to ${succeeded}/${chatIds.length} recipients (priority: ${args.priority}). Failed: ${failed.map((f) => f.chatId).join(", ")}. You can now confirm to the customer that their request has been forwarded.`,
+					};
+				}
 
-			if (failed.length > 0) {
 				return {
 					success: true,
-					message: `Escalation sent to ${succeeded}/${chatIds.length} recipients (priority: ${args.priority}). Failed: ${failed.map((f) => f.chatId).join(", ")}. You can now confirm to the customer that their request has been forwarded.`,
+					message: `Escalation sent successfully to ${succeeded} recipient${succeeded > 1 ? "s" : ""} (priority: ${args.priority}). You can now confirm to the customer that their request has been forwarded.`,
+				};
+			} catch (error) {
+				logger.error("Telegram escalation failed", {
+					error,
+					conversationId: context.conversationId,
+				});
+				return {
+					success: false,
+					message: `ESCALATION FAILED: ${error instanceof Error ? error.message : "Unknown error"}. DO NOT tell the customer their request was forwarded.`,
 				};
 			}
-
-			return {
-				success: true,
-				message: `Escalation sent successfully to ${succeeded} recipient${succeeded > 1 ? "s" : ""} (priority: ${args.priority}). You can now confirm to the customer that their request has been forwarded.`,
-			};
-		} catch (error) {
-			logger.error("Telegram escalation failed", {
-				error,
-				conversationId: context.conversationId,
-			});
-			return {
-				success: false,
-				message: `ESCALATION FAILED: ${error instanceof Error ? error.message : "Unknown error"}. DO NOT tell the customer their request was forwarded.`,
-			};
-		}
+		},
 	});
+}
+
+const PRIORITY_MAP: Record<string, string> = {
+	low: "LOW",
+	medium: "MEDIUM",
+	high: "URGENT",
+};
+
+async function createOrUpdateEscalationTask(
+	context: ToolContext,
+	args: {
+		reason: string;
+		priority: string;
+		summary: string;
+		actionRequired?: string | undefined;
+	},
+	verifiedCustomerId: string | null,
+) {
+	const { db } = await import("@repo/database");
+
+	// Find the agent's organizationId
+	const agent = await db.aiAgent.findUnique({
+		where: { id: context.agentId },
+		select: { organizationId: true },
+	});
+	if (!agent) {
+		return;
+	}
+
+	const title = `AI Escalation: ${args.reason}`.slice(0, 500);
+	const descriptionParts = [args.summary];
+	if (args.actionRequired) {
+		descriptionParts.push(`\nAction Required: ${args.actionRequired}`);
+	}
+	const description = descriptionParts.join("\n").slice(0, 5000);
+	const priority = PRIORITY_MAP[args.priority] ?? "MEDIUM";
+
+	// Dedup: look for an existing open escalation task for this conversation within the last hour
+	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+	const existingTask = await db.task.findFirst({
+		where: {
+			conversationId: context.conversationId,
+			status: { in: ["OPEN", "IN_PROGRESS"] },
+			createdAt: { gte: oneHourAgo },
+		},
+		select: { id: true },
+	});
+
+	if (existingTask) {
+		await db.task.update({
+			where: { id: existingTask.id },
+			data: {
+				title,
+				description,
+				priority: priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+			},
+		});
+	} else {
+		await db.task.create({
+			data: {
+				organizationId: agent.organizationId,
+				title,
+				description,
+				priority: priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+				status: "OPEN",
+				category: "SUPPORT",
+				source: "AI_ESCALATION",
+				createdById: null,
+				customerId: verifiedCustomerId,
+				conversationId: context.conversationId,
+			},
+		});
+	}
 }
 
 export const escalateTelegram: RegisteredTool = {

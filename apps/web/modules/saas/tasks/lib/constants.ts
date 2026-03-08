@@ -45,3 +45,13 @@ export const TASK_CATEGORY_OPTIONS = [
 	{ value: "BILLING", label: "Billing" },
 	{ value: "GENERAL", label: "General" },
 ] as const;
+
+export const TASK_SOURCE_LABELS: Record<string, string> = {
+	MANUAL: "Manual",
+	AI_ESCALATION: "AI Escalation",
+};
+
+export const TASK_SOURCE_OPTIONS = [
+	{ value: "MANUAL", label: "Manual" },
+	{ value: "AI_ESCALATION", label: "AI Escalation" },
+] as const;

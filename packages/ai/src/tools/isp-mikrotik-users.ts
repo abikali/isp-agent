@@ -1,4 +1,4 @@
-import { toolDefinition } from "@tanstack/ai";
+import { tool } from "ai";
 import { z } from "zod";
 import {
 	getIspApiConfigFields,
@@ -12,49 +12,47 @@ interface MikrotikUser {
 	online: boolean;
 }
 
-const ispMikrotikUsersDef = toolDefinition({
-	name: "isp-mikrotik-users",
-	description:
-		"List all users on a MikroTik interface. Returns [{userName, online}] for every customer sharing that interface.",
-	inputSchema: z.object({
-		mikrotikInterface: z
-			.string()
-			.describe(
-				"The full mikrotikInterface value from isp-search-customer (e.g. 'ether3-OutToCRS-BsabaHome', '(VM-PPPoe4)-vlan1607-zone4-OLT1-eliehajjarb1')",
-			),
-	}),
-});
-
 function createIspMikrotikUsersTool(context: ToolContext) {
-	return ispMikrotikUsersDef.server(async (args) => {
-		return withIspErrorHandling(
-			context,
-			"isp-mikrotik-users",
-			async (config) => {
-				const iface = args.mikrotikInterface as string;
-				const data = await ispGet<MikrotikUser[]>(
-					config,
-					"/mikrotik-user-list",
-					{ mikrotikInterface: iface },
-				);
+	return tool({
+		description:
+			"List all users on a MikroTik interface. Returns [{userName, online}] for every customer sharing that interface.",
+		inputSchema: z.object({
+			mikrotikInterface: z
+				.string()
+				.describe(
+					"The full mikrotikInterface value from isp-search-customer (e.g. 'ether3-OutToCRS-BsabaHome', '(VM-PPPoe4)-vlan1607-zone4-OLT1-eliehajjarb1')",
+				),
+		}),
+		execute: async ({ mikrotikInterface }) => {
+			return withIspErrorHandling(
+				context,
+				"isp-mikrotik-users",
+				async (config) => {
+					const iface = mikrotikInterface;
+					const data = await ispGet<MikrotikUser[]>(
+						config,
+						"/mikrotik-user-list",
+						{ mikrotikInterface: iface },
+					);
 
-				if (!Array.isArray(data) || data.length === 0) {
+					if (!Array.isArray(data) || data.length === 0) {
+						return {
+							success: false,
+							message: `No users found on interface "${iface}".`,
+						};
+					}
+
+					const onlineCount = data.filter((u) => u.online).length;
+					const offlineCount = data.length - onlineCount;
+
 					return {
-						success: false,
-						message: `No users found on interface "${iface}".`,
+						success: true,
+						message: `${data.length} users on "${iface}": ${onlineCount} online, ${offlineCount} offline.`,
+						users: data,
 					};
-				}
-
-				const onlineCount = data.filter((u) => u.online).length;
-				const offlineCount = data.length - onlineCount;
-
-				return {
-					success: true,
-					message: `${data.length} users on "${iface}": ${onlineCount} online, ${offlineCount} offline.`,
-					users: data,
-				};
-			},
-		);
+				},
+			);
+		},
 	});
 }
 

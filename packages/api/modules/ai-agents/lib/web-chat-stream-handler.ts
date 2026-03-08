@@ -2,8 +2,10 @@ import type {
 	GenerateResponseInput,
 	PromptSection,
 	ToolContext,
+	ToolResult,
 } from "@repo/ai";
 import {
+	buildContextGapNote,
 	buildSystemPrompt,
 	createAgentStream,
 	executeEscalationGuard,
@@ -15,8 +17,7 @@ import { config } from "@repo/config";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
-import type { StreamChunk } from "@tanstack/ai";
-import { toServerSentEventsResponse } from "@tanstack/ai";
+import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
@@ -25,7 +26,7 @@ export async function handleWebChatStream(
 	request: Request,
 	token: string,
 ): Promise<Response> {
-	// Parse request body — TanStack AI client sends { messages, data, ...body }
+	// Parse request body — AI SDK client sends { messages, data, ...body }
 	let body: Record<string, unknown>;
 	try {
 		body = await request.json();
@@ -33,7 +34,7 @@ export async function handleWebChatStream(
 		return new Response("Invalid request body", { status: 400 });
 	}
 
-	// sessionId is sent at the top level of the body by fetchServerSentEvents
+	// sessionId is sent at the top level of the body by the client
 	const rawSessionId = body["sessionId"];
 	const sessionId =
 		typeof rawSessionId === "string" ? rawSessionId : crypto.randomUUID();
@@ -96,6 +97,7 @@ export async function handleWebChatStream(
 		},
 	});
 
+	const previousLastMessageAt = conversation?.lastMessageAt ?? null;
 	if (conversation) {
 		conversation = await db.aiConversation.update({
 			where: { id: conversation.id },
@@ -150,6 +152,25 @@ export async function handleWebChatStream(
 
 	const historyMessages = history.reverse().map(formatHistoryMessage);
 
+	// Inject context gap note if significant time has passed
+	const gapNote = buildContextGapNote(
+		previousLastMessageAt,
+		agent.contextGapThresholdMinutes,
+	);
+	if (gapNote && historyMessages.length > 0) {
+		let insertIdx = historyMessages.length - 1;
+		while (
+			insertIdx > 0 &&
+			historyMessages[insertIdx - 1]?.role === "user"
+		) {
+			insertIdx--;
+		}
+		historyMessages.splice(insertIdx, 0, {
+			role: "user",
+			content: gapNote,
+		});
+	}
+
 	// Resolve tools
 	let tools: GenerateResponseInput["tools"];
 	const agentToolConfigs =
@@ -174,12 +195,19 @@ export async function handleWebChatStream(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
+	// Fetch service plans section (if enabled)
+	const servicePlans = await fetchServicePlansSection(
+		agent.organizationId,
+		agent.servicePlansEnabled,
+	);
+
 	// Build system prompt (streaming web chat needs verbose tool narration)
 	const systemPrompt = buildSystemPrompt({
 		basePrompt: agent.systemPrompt,
 		enabledTools: agent.enabledTools,
 		maintenanceMode: agent.maintenanceMode,
 		maintenanceMessage: agent.maintenanceMessage ?? undefined,
+		servicePlans,
 		promptSections: agent.promptSections as unknown as PromptSection[],
 		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 	});
@@ -189,131 +217,124 @@ export async function handleWebChatStream(
 	const timeoutMs = config.ai.responseTimeoutMs;
 	const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
-	const stream = createAgentStream({
+	const streamResult = createAgentStream({
 		model: agent.model,
 		systemPrompt,
 		knowledgeBase: agent.knowledgeBase ?? undefined,
 		messages: historyMessages,
 		temperature: agent.temperature,
-		abortController,
+		abortSignal: abortController.signal,
 		tools,
 		maxSteps: tools ? 10 : undefined,
 	});
 
-	// Wrap stream to capture completion data for DB storage
+	// Fire-and-forget: track completion data from the stream for DB storage
 	const conversationId = conversation.id;
+	const streamStartTime = Date.now();
 
-	async function* trackAndForward(): AsyncIterable<StreamChunk> {
-		let text = "";
-		let tokenCount = 0;
-		const toolResults: Array<{
-			toolName: string;
-			args: unknown;
-			result: unknown;
-		}> = [];
-		const start = Date.now();
-
-		try {
-			for await (const chunk of stream) {
-				if (chunk.type === "TEXT_MESSAGE_CONTENT") {
-					text += chunk.delta;
-				} else if (chunk.type === "TOOL_CALL_END") {
-					toolResults.push({
-						toolName: chunk.toolName,
-						args: chunk.input,
-						result: chunk.result,
-					});
-				} else if (chunk.type === "RUN_FINISHED" && chunk.usage) {
-					tokenCount =
-						(chunk.usage.promptTokens ?? 0) +
-						(chunk.usage.completionTokens ?? 0);
-				}
-				yield chunk;
-			}
-
+	Promise.resolve(streamResult.consumeStream())
+		.then(async () => {
 			clearTimeout(timeout);
 
-			// Escalation safety net: sends Telegram if model forgot to call the tool
-			if (
-				tools &&
-				agent &&
-				agent.enabledTools.includes("escalate-telegram")
-			) {
-				try {
-					const guardResult = await executeEscalationGuard({
-						tools,
-						responseText: text,
-						toolResults:
-							toolResults.length > 0 ? toolResults : undefined,
-						conversationMessages: historyMessages,
-						conversationId,
-					});
-					if (guardResult) {
-						toolResults.push(guardResult);
+			try {
+				const [fullText, usage, toolResultsRaw] = await Promise.all([
+					streamResult.text,
+					streamResult.usage,
+					streamResult.toolResults,
+				]);
+
+				const tokenCount =
+					(usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+
+				const toolResults: ToolResult[] = Array.isArray(toolResultsRaw)
+					? toolResultsRaw.map((tr) => ({
+							toolName: tr.toolName,
+							args: tr.input,
+							result: tr.output,
+						}))
+					: [];
+
+				// Escalation safety net
+				if (tools && agent.enabledTools.includes("escalate-telegram")) {
+					try {
+						const guardResult = await executeEscalationGuard({
+							tools,
+							responseText: fullText,
+							toolResults:
+								toolResults.length > 0
+									? toolResults
+									: undefined,
+							conversationMessages: historyMessages,
+							conversationId,
+						});
+						if (guardResult) {
+							toolResults.push(guardResult);
+						}
+					} catch {
+						// Guard failure should not affect DB storage
 					}
-				} catch {
-					// Guard failure should not affect DB storage
 				}
-			}
 
-			// Fire-and-forget: store result after stream ends
-			const latencyMs = Date.now() - start;
-			const messageData: Record<string, unknown> = {
-				conversationId,
-				role: "assistant",
-				content: text,
-				tokenCount,
-				latencyMs,
-			};
-			if (toolResults.length > 0) {
-				messageData["toolCalls"] = JSON.parse(
-					JSON.stringify(toolResults),
-				);
-			}
+				// Store assistant message
+				const messageData: Record<string, unknown> = {
+					conversationId,
+					role: "assistant",
+					content: fullText,
+					tokenCount,
+					latencyMs: Date.now() - streamStartTime,
+				};
+				if (toolResults.length > 0) {
+					messageData["toolCalls"] = JSON.parse(
+						JSON.stringify(toolResults),
+					);
+				}
 
-			db.aiMessage.create({ data: messageData as never }).catch(() => {});
-			db.aiConversation
-				.update({
-					where: { id: conversationId },
-					data: {
-						messageCount: { increment: 2 },
-						lastMessageAt: new Date(),
-					},
-				})
-				.catch(() => {});
-		} catch (error) {
+				await db.aiMessage
+					.create({ data: messageData as never })
+					.catch(() => {});
+				await db.aiConversation
+					.update({
+						where: { id: conversationId },
+						data: {
+							messageCount: { increment: 2 },
+							lastMessageAt: new Date(),
+						},
+					})
+					.catch(() => {});
+			} catch (error) {
+				logger.error("Web chat stream completion failed", {
+					error,
+					conversationId,
+				});
+
+				db.aiMessage
+					.create({
+						data: {
+							conversationId,
+							role: "assistant",
+							content: FALLBACK_MESSAGE,
+							error:
+								error instanceof Error
+									? error.message
+									: "Unknown error",
+						},
+					})
+					.catch(() => {});
+
+				db.aiConversation
+					.update({
+						where: { id: conversationId },
+						data: {
+							messageCount: { increment: 2 },
+							lastMessageAt: new Date(),
+						},
+					})
+					.catch(() => {});
+			}
+		})
+		.catch(() => {
 			clearTimeout(timeout);
-			logger.error("Web chat stream completion failed", {
-				error,
-				conversationId,
-			});
+		});
 
-			// Store error message
-			db.aiMessage
-				.create({
-					data: {
-						conversationId,
-						role: "assistant",
-						content: FALLBACK_MESSAGE,
-						error:
-							error instanceof Error
-								? error.message
-								: "Unknown error",
-					},
-				})
-				.catch(() => {});
-
-			db.aiConversation
-				.update({
-					where: { id: conversationId },
-					data: {
-						messageCount: { increment: 2 },
-						lastMessageAt: new Date(),
-					},
-				})
-				.catch(() => {});
-		}
-	}
-
-	return toServerSentEventsResponse(trackAndForward(), { abortController });
+	return streamResult.toUIMessageStreamResponse();
 }

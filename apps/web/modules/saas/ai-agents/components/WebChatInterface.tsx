@@ -1,11 +1,7 @@
 "use client";
 
+import { useChat } from "@ai-sdk/react";
 import { orpc } from "@shared/lib/orpc";
-import {
-	fetchServerSentEvents,
-	type UIMessage,
-	useChat,
-} from "@tanstack/ai-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback } from "@ui/components/avatar";
 import { Button } from "@ui/components/button";
@@ -23,6 +19,12 @@ import {
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
+import {
+	DefaultChatTransport,
+	getToolName,
+	isToolUIPart,
+	type UIMessage,
+} from "ai";
 import {
 	ArrowUpIcon,
 	BotIcon,
@@ -73,16 +75,6 @@ function TypingDots() {
 	);
 }
 
-function formatTime(date: Date | undefined) {
-	if (!date) {
-		return "";
-	}
-	return date.toLocaleTimeString([], {
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
-
 function ToolCallIndicator({
 	name,
 	isComplete,
@@ -131,8 +123,7 @@ function convertHistoryToUIMessages(
 	return history.map((msg, i) => ({
 		id: `history-${i}`,
 		role: msg.role as "user" | "assistant",
-		parts: [{ type: "text" as const, content: msg.content }],
-		createdAt: new Date(msg.createdAt),
+		parts: [{ type: "text" as const, text: msg.content }],
 	}));
 }
 
@@ -156,21 +147,21 @@ function WebChatInner({
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const bottomRef = useRef<HTMLDivElement>(null);
 
-	const connection = useMemo(
+	const transport = useMemo(
 		() =>
-			fetchServerSentEvents(
-				`/api/ai-agents/web-chat/${token}/stream`,
-				() => ({
-					body: { sessionId },
-				}),
-			),
+			new DefaultChatTransport({
+				api: `/api/ai-agents/web-chat/${token}/stream`,
+				body: { sessionId },
+			}),
 		[token, sessionId],
 	);
 
-	const { messages, sendMessage, isLoading } = useChat({
-		connection,
-		initialMessages,
+	const { messages, sendMessage, status } = useChat({
+		transport,
+		messages: initialMessages,
 	});
+
+	const isLoading = status === "streaming" || status === "submitted";
 
 	// Scroll to bottom
 	const scrollToBottom = useCallback(() => {
@@ -202,7 +193,7 @@ function WebChatInner({
 			textareaRef.current.style.height = "auto";
 		}
 
-		sendMessage(text);
+		sendMessage({ text });
 	}
 
 	function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -271,7 +262,7 @@ function WebChatInner({
 									>
 										{msg.parts.map((part, pi) => {
 											if (part.type === "text") {
-												if (!part.content) {
+												if (!part.text) {
 													return null;
 												}
 												return (
@@ -286,40 +277,54 @@ function WebChatInner({
 													>
 														{isUser ? (
 															<p className="whitespace-pre-wrap text-[14px] leading-relaxed">
-																{part.content}
+																{part.text}
 															</p>
 														) : (
 															<ChatMarkdown
 																content={
-																	part.content
+																	part.text
 																}
 															/>
 														)}
 													</div>
 												);
 											}
-											if (part.type === "tool-call") {
+											if (isToolUIPart(part)) {
+												const toolName =
+													getToolName(part);
+												const isResult =
+													"output" in part &&
+													part.output !== undefined;
 												return (
-													<ToolCallIndicator
+													<div
 														key={`${msg.id}-tc-${pi}`}
-														name={part.name}
-														isComplete={
-															part.state ===
-															"input-complete"
-														}
-													/>
+														className="flex flex-col gap-1.5"
+													>
+														<ToolCallIndicator
+															name={toolName}
+															isComplete={
+																isResult
+															}
+														/>
+														{isResult && (
+															<ToolResultDisplay
+																content={
+																	typeof part.output ===
+																	"string"
+																		? part.output
+																		: JSON.stringify(
+																				part.output,
+																				null,
+																				2,
+																			)
+																}
+															/>
+														)}
+													</div>
 												);
 											}
-											if (part.type === "tool-result") {
-												return (
-													<ToolResultDisplay
-														key={`${msg.id}-tr-${pi}`}
-														content={part.content}
-													/>
-												);
-											}
-											if (part.type === "thinking") {
-												if (!part.content) {
+											if (part.type === "reasoning") {
+												if (!part.text) {
 													return null;
 												}
 												return (
@@ -327,22 +332,12 @@ function WebChatInner({
 														key={`${msg.id}-th-${pi}`}
 														className="max-w-full rounded-lg bg-muted/40 px-3 py-2 text-xs italic text-muted-foreground"
 													>
-														{part.content}
+														{part.text}
 													</div>
 												);
 											}
 											return null;
 										})}
-										<span
-											className={cn(
-												"mt-0.5 px-1 text-[10px] text-muted-foreground/50",
-												isUser
-													? "text-right"
-													: "text-left",
-											)}
-										>
-											{formatTime(msg.createdAt)}
-										</span>
 									</div>
 								</div>
 							);

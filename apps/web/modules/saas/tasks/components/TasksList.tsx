@@ -11,7 +11,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
+import {
+	BotIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	PlusIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { useTasks } from "../hooks/use-tasks";
 import {
@@ -22,77 +27,48 @@ import {
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { TaskFilters } from "./TaskFilters";
 
+const STATUS_VARIANTS: Record<
+	string,
+	"outline" | "default" | "secondary" | "destructive"
+> = {
+	OPEN: "outline",
+	IN_PROGRESS: "default",
+	ON_HOLD: "secondary",
+	COMPLETED: "default",
+	CANCELLED: "destructive",
+};
+
+const PRIORITY_VARIANTS: Record<
+	string,
+	"outline" | "default" | "secondary" | "destructive"
+> = {
+	URGENT: "destructive",
+	HIGH: "default",
+	MEDIUM: "secondary",
+	LOW: "outline",
+};
+
 export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [search, setSearch] = useState("");
 	const [status, setStatus] = useState("all");
 	const [priority, setPriority] = useState("all");
 	const [category, setCategory] = useState("all");
+	const [source, setSource] = useState("all");
 	const [employeeId, setEmployeeId] = useState("all");
 	const [page, setPage] = useState(1);
 	const [showCreate, setShowCreate] = useState(false);
 
-	const filters = {
+	const resetPage = () => setPage(1);
+
+	const { tasks, total, totalPages } = useTasks({
 		search: search || undefined,
-		status:
-			status !== "all"
-				? (status as
-						| "OPEN"
-						| "IN_PROGRESS"
-						| "ON_HOLD"
-						| "COMPLETED"
-						| "CANCELLED")
-				: undefined,
-		priority:
-			priority !== "all"
-				? (priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT")
-				: undefined,
-		category:
-			category !== "all"
-				? (category as
-						| "INSTALLATION"
-						| "MAINTENANCE"
-						| "REPAIR"
-						| "SUPPORT"
-						| "BILLING"
-						| "GENERAL")
-				: undefined,
+		status: status !== "all" ? (status as "OPEN") : undefined,
+		priority: priority !== "all" ? (priority as "LOW") : undefined,
+		category: category !== "all" ? (category as "GENERAL") : undefined,
+		source: source !== "all" ? (source as "MANUAL") : undefined,
 		employeeId: employeeId !== "all" ? employeeId : undefined,
 		page,
-	};
-
-	const { tasks, total, totalPages } = useTasks(filters);
-
-	function getStatusVariant(s: string) {
-		switch (s) {
-			case "OPEN":
-				return "outline" as const;
-			case "IN_PROGRESS":
-				return "default" as const;
-			case "ON_HOLD":
-				return "secondary" as const;
-			case "COMPLETED":
-				return "default" as const;
-			case "CANCELLED":
-				return "destructive" as const;
-			default:
-				return "secondary" as const;
-		}
-	}
-
-	function getPriorityVariant(p: string) {
-		switch (p) {
-			case "URGENT":
-				return "destructive" as const;
-			case "HIGH":
-				return "default" as const;
-			case "MEDIUM":
-				return "secondary" as const;
-			case "LOW":
-				return "outline" as const;
-			default:
-				return "secondary" as const;
-		}
-	}
+	});
 
 	return (
 		<div>
@@ -109,27 +85,32 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 					search={search}
 					onSearchChange={(v) => {
 						setSearch(v);
-						setPage(1);
+						resetPage();
 					}}
 					status={status}
 					onStatusChange={(v) => {
 						setStatus(v);
-						setPage(1);
+						resetPage();
 					}}
 					priority={priority}
 					onPriorityChange={(v) => {
 						setPriority(v);
-						setPage(1);
+						resetPage();
 					}}
 					category={category}
 					onCategoryChange={(v) => {
 						setCategory(v);
-						setPage(1);
+						resetPage();
+					}}
+					source={source}
+					onSourceChange={(v) => {
+						setSource(v);
+						resetPage();
 					}}
 					employeeId={employeeId}
 					onEmployeeIdChange={(v) => {
 						setEmployeeId(v);
-						setPage(1);
+						resetPage();
 					}}
 				/>
 			</div>
@@ -161,6 +142,9 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 									<TableHead>Status</TableHead>
 									<TableHead>Priority</TableHead>
 									<TableHead className="hidden md:table-cell">
+										Customer
+									</TableHead>
+									<TableHead className="hidden md:table-cell">
 										Assignee(s)
 									</TableHead>
 									<TableHead className="hidden lg:table-cell">
@@ -175,23 +159,42 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 								{tasks.map((task) => (
 									<TableRow key={task.id}>
 										<TableCell>
-											<Link
-												to="/app/$organizationSlug/tasks/$taskId"
-												params={{
-													organizationSlug,
-													taskId: task.id,
-												}}
-												className="font-medium hover:underline"
-												preload="intent"
-											>
-												{task.title}
-											</Link>
+											<div className="flex items-center gap-2">
+												<Link
+													to="/app/$organizationSlug/tasks/$taskId"
+													params={{
+														organizationSlug,
+														taskId: task.id,
+													}}
+													className="font-medium hover:underline"
+													preload="intent"
+												>
+													{task.title}
+												</Link>
+												{task.source ===
+													"AI_ESCALATION" && (
+													<Badge
+														variant="secondary"
+														className="gap-1 text-xs"
+													>
+														<BotIcon className="size-3" />
+														AI
+													</Badge>
+												)}
+											</div>
+											{task.description && (
+												<p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+													{task.description}
+												</p>
+											)}
 										</TableCell>
 										<TableCell>
 											<Badge
-												variant={getStatusVariant(
-													task.status,
-												)}
+												variant={
+													STATUS_VARIANTS[
+														task.status
+													] ?? "secondary"
+												}
 											>
 												{TASK_STATUS_LABELS[
 													task.status
@@ -200,14 +203,36 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 										</TableCell>
 										<TableCell>
 											<Badge
-												variant={getPriorityVariant(
-													task.priority,
-												)}
+												variant={
+													PRIORITY_VARIANTS[
+														task.priority
+													] ?? "secondary"
+												}
 											>
 												{TASK_PRIORITY_LABELS[
 													task.priority
 												] ?? task.priority}
 											</Badge>
+										</TableCell>
+										<TableCell className="hidden md:table-cell">
+											{task.customer ? (
+												<Link
+													to="/app/$organizationSlug/customers/$customerId"
+													params={{
+														organizationSlug,
+														customerId:
+															task.customer.id,
+													}}
+													className="text-sm hover:underline"
+													preload="intent"
+												>
+													{task.customer.fullName}
+												</Link>
+											) : (
+												<span className="text-muted-foreground">
+													—
+												</span>
+											)}
 										</TableCell>
 										<TableCell className="hidden md:table-cell">
 											{task.assignments.length > 0 ? (
@@ -227,7 +252,7 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 												).toLocaleDateString()
 											) : (
 												<span className="text-muted-foreground">
-													-
+													—
 												</span>
 											)}
 										</TableCell>

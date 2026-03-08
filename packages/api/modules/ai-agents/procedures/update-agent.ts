@@ -28,6 +28,13 @@ export const updateAgent = protectedProcedure
 			maxHistoryLength: z.number().int().min(1).max(50).optional(),
 			temperature: z.number().min(0).max(2).optional(),
 			enabledTools: z.array(z.string()).optional(),
+			servicePlansEnabled: z.boolean().optional(),
+			contextGapThresholdMinutes: z
+				.number()
+				.int()
+				.min(60)
+				.max(1440)
+				.optional(),
 			promptSections: z
 				.array(
 					z.object({
@@ -119,6 +126,13 @@ export const updateAgent = protectedProcedure
 		if (rest.enabledTools !== undefined) {
 			updateData["enabledTools"] = rest.enabledTools;
 		}
+		if (rest.servicePlansEnabled !== undefined) {
+			updateData["servicePlansEnabled"] = rest.servicePlansEnabled;
+		}
+		if (rest.contextGapThresholdMinutes !== undefined) {
+			updateData["contextGapThresholdMinutes"] =
+				rest.contextGapThresholdMinutes;
+		}
 		if (rest.promptSections !== undefined) {
 			updateData["promptSections"] = JSON.parse(
 				JSON.stringify(rest.promptSections),
@@ -142,6 +156,8 @@ export const updateAgent = protectedProcedure
 				maxHistoryLength: true,
 				temperature: true,
 				enabledTools: true,
+				servicePlansEnabled: true,
+				contextGapThresholdMinutes: true,
 				promptSections: true,
 				updatedAt: true,
 			},

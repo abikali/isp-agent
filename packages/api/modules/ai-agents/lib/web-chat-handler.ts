@@ -5,6 +5,7 @@ import type {
 	ToolContext,
 } from "@repo/ai";
 import {
+	buildContextGapNote,
 	buildSystemPrompt,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
@@ -16,6 +17,7 @@ import { config } from "@repo/config";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
+import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
@@ -52,6 +54,7 @@ export async function handleWebChatMessage(
 		},
 	});
 
+	const previousLastMessageAt = conversation?.lastMessageAt ?? null;
 	if (conversation) {
 		conversation = await db.aiConversation.update({
 			where: { id: conversation.id },
@@ -107,6 +110,25 @@ export async function handleWebChatMessage(
 	// Reverse to chronological order
 	const historyMessages = history.reverse().map(formatHistoryMessage);
 
+	// Inject context gap note if significant time has passed
+	const gapNote = buildContextGapNote(
+		previousLastMessageAt,
+		agent.contextGapThresholdMinutes,
+	);
+	if (gapNote && historyMessages.length > 0) {
+		let insertIdx = historyMessages.length - 1;
+		while (
+			insertIdx > 0 &&
+			historyMessages[insertIdx - 1]?.role === "user"
+		) {
+			insertIdx--;
+		}
+		historyMessages.splice(insertIdx, 0, {
+			role: "user",
+			content: gapNote,
+		});
+	}
+
 	// Resolve tools if agent has any enabled
 	let tools: GenerateResponseInput["tools"];
 	const agentToolConfigs =
@@ -131,6 +153,12 @@ export async function handleWebChatMessage(
 		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
 	}
 
+	// Fetch service plans section (if enabled)
+	const servicePlans = await fetchServicePlansSection(
+		agent.organizationId,
+		agent.servicePlansEnabled,
+	);
+
 	// Build system prompt
 	const systemPrompt = buildSystemPrompt({
 		basePrompt: agent.systemPrompt,
@@ -138,6 +166,7 @@ export async function handleWebChatMessage(
 		maintenanceMode: agent.maintenanceMode,
 		maintenanceMessage: agent.maintenanceMessage ?? undefined,
 		isWebChat: true,
+		servicePlans,
 		promptSections: agent.promptSections as unknown as PromptSection[],
 		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 	});
@@ -154,7 +183,7 @@ export async function handleWebChatMessage(
 			knowledgeBase: agent.knowledgeBase ?? undefined,
 			messages: historyMessages,
 			temperature: agent.temperature,
-			abortController: controller,
+			abortSignal: controller.signal,
 			tools,
 			maxSteps: tools ? 10 : undefined,
 		});
