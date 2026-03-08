@@ -462,11 +462,8 @@ export async function transcribeAudio(
 
 	try {
 		const base64Audio = media.buffer.toString("base64");
-		// Use a format OpenRouter accepts (e.g. "ogg" from "audio/ogg; codecs=opus")
-		const format =
-			media.contentType.split(";")[0]?.trim().replace("audio/", "") ??
-			"ogg";
 
+		// Use Gemini Flash Lite via OpenRouter — supports OGG natively, very cheap
 		const response = await fetch(
 			"https://openrouter.ai/api/v1/chat/completions",
 			{
@@ -476,15 +473,8 @@ export async function transcribeAudio(
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "openai/gpt-audio-mini",
+					model: "google/gemini-2.0-flash-lite-001",
 					messages: [
-						{
-							role: "system",
-							content:
-								"You are a transcription assistant. Transcribe the audio exactly as spoken. " +
-								"Output ONLY the transcribed text, nothing else. " +
-								"The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
-						},
 						{
 							role: "user",
 							content: [
@@ -492,12 +482,12 @@ export async function transcribeAudio(
 									type: "input_audio",
 									input_audio: {
 										data: base64Audio,
-										format,
+										format: "ogg",
 									},
 								},
 								{
 									type: "text",
-									text: "Transcribe this audio message exactly as spoken.",
+									text: "Transcribe the audio exactly as spoken. Output ONLY the transcribed text, nothing else. The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
 								},
 							],
 						},
