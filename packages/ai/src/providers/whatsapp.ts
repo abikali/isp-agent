@@ -379,12 +379,16 @@ export async function downloadMedia(
 
 		// Download the decrypted media file (retry with exponential backoff —
 		// WaSender decryption is async, the publicUrl may not be ready immediately)
-		const maxAttempts = 5;
+		const maxAttempts = 7;
 		for (let attempt = 0; attempt < maxAttempts; attempt++) {
+			// Start with 3s delay, then 3s, 6s, 12s, 24s, 48s (total ~96s)
 			if (attempt > 0) {
 				await new Promise((r) =>
-					setTimeout(r, 2000 * 2 ** (attempt - 1)),
+					setTimeout(r, 3000 * 2 ** (attempt - 1)),
 				);
+			} else {
+				// Even the first attempt needs a short delay — WaSender needs time to decrypt
+				await new Promise((r) => setTimeout(r, 3000));
 			}
 			const result = await fetchFromUrl(publicUrl);
 			if (result.media) {
@@ -472,7 +476,7 @@ export async function transcribeAudio(
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "openai/gpt-4o-mini-audio-preview",
+					model: "openai/gpt-4o-audio-preview",
 					messages: [
 						{
 							role: "system",
@@ -515,6 +519,16 @@ export async function transcribeAudio(
 			choices?: Array<{ message?: { content?: string } }>;
 		};
 		const text = data.choices?.[0]?.message?.content?.trim();
+		if (text) {
+			logger.info("Audio transcription succeeded", {
+				length: text.length,
+				preview: text.slice(0, 80),
+			});
+		} else {
+			logger.warn("Audio transcription returned empty text", {
+				choices: data.choices?.length ?? 0,
+			});
+		}
 		return text || null;
 	} catch (error) {
 		logger.error("Transcription error", { error });
