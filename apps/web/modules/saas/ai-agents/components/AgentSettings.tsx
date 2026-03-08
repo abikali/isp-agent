@@ -866,6 +866,11 @@ export function AgentSettings({
 																			tool.name
 																		}
 																	</label>
+																	<code className="text-[10px] text-muted-foreground/70 font-mono">
+																		{
+																			tool.id
+																		}
+																	</code>
 																	<Badge variant="secondary">
 																		{
 																			tool.category
