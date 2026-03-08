@@ -18,7 +18,7 @@ export const updateAgent = protectedProcedure
 			organizationId: z.string(),
 			name: z.string().min(1).max(100).optional(),
 			description: z.string().max(500).optional(),
-			systemPrompt: z.string().min(1).max(10000).optional(),
+			systemPrompt: z.string().min(1).max(15000).optional(),
 			greetingMessage: z.string().max(1000).optional(),
 			model: z.string().optional(),
 			knowledgeBase: z.string().max(50000).optional(),

@@ -18,7 +18,7 @@ export const createAgent = protectedProcedure
 			organizationId: z.string(),
 			name: z.string().min(1).max(100),
 			description: z.string().max(500).optional(),
-			systemPrompt: z.string().min(1).max(10000),
+			systemPrompt: z.string().min(1).max(15000),
 			greetingMessage: z.string().max(1000).optional(),
 			model: z.string().default("gpt-4o-mini"),
 			knowledgeBase: z.string().max(50000).optional(),
