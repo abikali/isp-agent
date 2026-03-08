@@ -24,7 +24,9 @@ import { Input } from "@ui/components/input";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
@@ -54,6 +56,7 @@ import { useState } from "react";
 import { useGenerateSystemPrompt, useUpdateAgent } from "../hooks/use-agents";
 import { useAvailableTools } from "../hooks/use-tools";
 import {
+	AI_MODEL_GROUPS,
 	AI_MODEL_OPTIONS,
 	DEFAULT_PROMPT_SECTIONS,
 	type PromptSection,
@@ -768,48 +771,115 @@ export function AgentSettings({
 							<AccordionContent className="px-6 pb-6">
 								<div className="space-y-6">
 									<form.Field name="model">
-										{(field) => (
-											<Field>
-												<FieldLabel>
-													Model
-													<FieldHint text="The AI model powering this agent. Larger models are more capable but slower and cost more." />
-												</FieldLabel>
-												<Select
-													value={field.state.value}
-													onValueChange={
-														field.handleChange
-													}
-												>
-													<SelectTrigger>
-														<SelectValue />
-													</SelectTrigger>
-													<SelectContent>
-														{AI_MODEL_OPTIONS.map(
-															(m) => (
-																<SelectItem
-																	key={m.id}
-																	value={m.id}
-																>
-																	<div className="flex items-center gap-2">
+										{(field) => {
+											const selected =
+												AI_MODEL_OPTIONS.find(
+													(m) =>
+														m.id ===
+														field.state.value,
+												);
+											return (
+												<Field>
+													<FieldLabel>
+														Model
+														<FieldHint text="The AI model powering this agent. All models are routed through OpenRouter." />
+													</FieldLabel>
+													<Select
+														value={
+															field.state.value
+														}
+														onValueChange={
+															field.handleChange
+														}
+													>
+														<SelectTrigger>
+															<SelectValue>
+																{selected && (
+																	<span className="flex items-center gap-2">
 																		{
-																			m.label
+																			selected.label
 																		}
-																		<Badge
-																			variant="outline"
-																			className="text-[10px] px-1.5 py-0"
-																		>
+																		<span className="text-[10px] text-muted-foreground">
+																			$
 																			{
-																				m.provider
+																				selected.priceIn
 																			}
-																		</Badge>
-																	</div>
-																</SelectItem>
-															),
-														)}
-													</SelectContent>
-												</Select>
-											</Field>
-										)}
+																			/$
+																			{
+																				selected.priceOut
+																			}
+																		</span>
+																	</span>
+																)}
+															</SelectValue>
+														</SelectTrigger>
+														<SelectContent>
+															{AI_MODEL_GROUPS.map(
+																(group) => (
+																	<SelectGroup
+																		key={
+																			group.label
+																		}
+																	>
+																		<SelectLabel>
+																			{
+																				group.label
+																			}
+																		</SelectLabel>
+																		{group.models.map(
+																			(
+																				m,
+																			) => (
+																				<SelectItem
+																					key={
+																						m.id
+																					}
+																					value={
+																						m.id
+																					}
+																				>
+																					<div className="flex items-center gap-2 w-full">
+																						<span>
+																							{
+																								m.label
+																							}
+																						</span>
+																						{m.recommended && (
+																							<Badge className="text-[9px] px-1 py-0 leading-tight">
+																								recommended
+																							</Badge>
+																						)}
+																						<span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+																							$
+																							{
+																								m.priceIn
+																							}
+																							/$
+																							{
+																								m.priceOut
+																							}
+																						</span>
+																					</div>
+																				</SelectItem>
+																			),
+																		)}
+																	</SelectGroup>
+																),
+															)}
+														</SelectContent>
+													</Select>
+													{selected && (
+														<p className="text-[11px] text-muted-foreground mt-1">
+															Cost per 1M tokens:
+															${selected.priceIn}{" "}
+															input / $
+															{selected.priceOut}{" "}
+															output
+														</p>
+													)}
+												</Field>
+											);
+										}}
 									</form.Field>
 
 									<div className="grid gap-6 sm:grid-cols-2">

@@ -31,6 +31,10 @@ export default defineConfig({
 			"@repo/auth/lib/audit": resolve(__dirname, "../auth/lib/audit.ts"),
 			"@repo/auth": resolve(__dirname, "../auth/index.ts"),
 			"@repo/audit": resolve(__dirname, "../audit/index.ts"),
+			"@repo/ai": resolve(__dirname, "../ai/index.ts"),
+			"@repo/jobs": resolve(__dirname, "../jobs/index.ts"),
+			"@repo/quotas": resolve(__dirname, "../quotas/index.ts"),
+			"@repo/storage": resolve(__dirname, "../storage/index.ts"),
 		},
 	},
 });

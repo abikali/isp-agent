@@ -1,5 +1,7 @@
 import { logger } from "@repo/logs";
+import { generateText } from "ai";
 import { createWasender } from "wasenderapi";
+import { getModel } from "../model-registry";
 import type {
 	ParsedMessage,
 	SendMessageOptions,
@@ -434,78 +436,51 @@ async function fetchFromUrl(url: string): Promise<FetchResult> {
 }
 
 /**
- * Transcribe a voice message using OpenAI gpt-4o-transcribe.
+ * Transcribe a voice message using AI SDK + OpenRouter.
+ * Sends audio as a file part to an audio-capable model via chat completions.
  */
 export async function transcribeAudio(
 	apiToken: string,
 	mediaId: string,
 	rawMediaPayload?: string,
 ): Promise<string | null> {
-	const apiKey = process.env["OPENAI_API_KEY"];
-	if (!apiKey) {
-		logger.error("OPENAI_API_KEY not set, cannot transcribe voice");
-		return null;
-	}
-
 	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
 	}
 
 	try {
-		const form = new FormData();
 		// Strip codec params like "; codecs=opus" from content-type
 		const mimeType = media.contentType.split(";")[0]?.trim() ?? "audio/ogg";
 
-		// Map MIME type to Whisper-supported extension
-		const extMap: Record<string, string> = {
-			"audio/ogg": "ogg",
-			"audio/mpeg": "mp3",
-			"audio/mp3": "mp3",
-			"audio/mp4": "m4a",
-			"audio/x-m4a": "m4a",
-			"audio/m4a": "m4a",
-			"audio/wav": "wav",
-			"audio/x-wav": "wav",
-			"audio/webm": "webm",
-			"audio/flac": "flac",
-			"audio/x-flac": "flac",
-		};
-
-		const ext = extMap[mimeType] ?? "ogg";
-		const fileMime = extMap[mimeType] ? mimeType : "audio/ogg";
-		// Use File instead of Blob — Node's FormData needs a proper File with name
-		const file = new File([new Uint8Array(media.buffer)], `voice.${ext}`, {
-			type: fileMime,
+		const { text } = await generateText({
+			model: getModel("gpt-4.1-mini"),
+			messages: [
+				{
+					role: "system",
+					content:
+						"You are a transcription assistant. Transcribe the audio exactly as spoken. " +
+						"Output ONLY the transcribed text, nothing else. " +
+						"The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "file",
+							mediaType: mimeType,
+							data: media.buffer,
+						},
+						{
+							type: "text",
+							text: "Transcribe this audio message exactly as spoken.",
+						},
+					],
+				},
+			],
 		});
-		form.append("file", file);
-		form.append("model", "gpt-4o-transcribe");
-		form.append("language", "ar");
 
-		const response = await fetch(
-			"https://api.openai.com/v1/audio/transcriptions",
-			{
-				method: "POST",
-				headers: { Authorization: `Bearer ${apiKey}` },
-				body: form,
-			},
-		);
-
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("Transcription failed", {
-				status: response.status,
-				error: errorText,
-				contentType: media.contentType,
-				bufferSize: media.buffer.length,
-				fileExt: ext,
-				mediaId,
-			});
-			return null;
-		}
-
-		const data = (await response.json()) as { text?: string };
-		return data.text ?? null;
+		return text || null;
 	} catch (error) {
 		logger.error("Transcription error", { error });
 		return null;
@@ -513,7 +488,7 @@ export async function transcribeAudio(
 }
 
 /**
- * Describe an image using OpenAI GPT-4.1-mini vision.
+ * Describe an image using AI SDK + OpenRouter (GPT-4.1-mini vision).
  * Optimized for ISP-related content: bills, invoices, receipts, network diagrams,
  * router screenshots, and general customer photos.
  */
@@ -524,21 +499,12 @@ export async function describeImage(
 	rawMediaPayload?: string,
 	userLanguageHint?: string,
 ): Promise<string | null> {
-	const apiKey = process.env["OPENAI_API_KEY"];
-	if (!apiKey) {
-		logger.error("OPENAI_API_KEY not set, cannot describe image");
-		return null;
-	}
-
 	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
 	}
 
 	try {
-		const base64 = media.buffer.toString("base64");
-		const dataUrl = `data:${media.contentType};base64,${base64}`;
-
 		const languageInstruction = userLanguageHint
 			? `IMPORTANT: Respond in the same language as this text: "${userLanguageHint}". `
 			: "";
@@ -556,49 +522,29 @@ export async function describeImage(
 			? `The customer sent this image with caption: "${caption}". Analyze it following your instructions.`
 			: "The customer sent this image. Analyze it following your instructions.";
 
-		const userContent: Array<Record<string, unknown>> = [
-			{
-				type: "image_url",
-				image_url: { url: dataUrl },
-			},
-			{
-				type: "text",
-				text: userPrompt,
-			},
-		];
-
-		const response = await fetch(
-			"https://api.openai.com/v1/chat/completions",
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					model: "gpt-4.1-mini",
-					messages: [
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: userContent },
+		const { text } = await generateText({
+			model: getModel("gpt-4.1-mini"),
+			system: systemPrompt,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "image",
+							image: media.buffer,
+							mediaType: media.contentType,
+						},
+						{
+							type: "text",
+							text: userPrompt,
+						},
 					],
-					max_tokens: 800,
-				}),
-			},
-		);
+				},
+			],
+			maxOutputTokens: 800,
+		});
 
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("Image description failed", {
-				status: response.status,
-				error: errorText,
-			});
-			return null;
-		}
-
-		const data = (await response.json()) as {
-			choices?: Array<{ message?: { content?: string } }>;
-		};
-		return data.choices?.[0]?.message?.content ?? null;
+		return text || null;
 	} catch (error) {
 		logger.error("Image description error", { error });
 		return null;
@@ -606,9 +552,9 @@ export async function describeImage(
 }
 
 /**
- * Describe a document (PDF) using OpenAI GPT-4o-mini vision.
- * GPT-4o-mini has native PDF support via base64 data URLs, extracting both
- * text and page images automatically. Limited to 100 pages / 32MB.
+ * Describe a document (PDF) using AI SDK + OpenRouter (GPT-4.1-mini vision).
+ * Sends the PDF as a file part for native document understanding.
+ * Limited to 100 pages / 30MB.
  */
 export async function describeDocument(
 	apiToken: string,
@@ -617,12 +563,6 @@ export async function describeDocument(
 	rawMediaPayload?: string,
 	userLanguageHint?: string,
 ): Promise<string | null> {
-	const apiKey = process.env["OPENAI_API_KEY"];
-	if (!apiKey) {
-		logger.error("OPENAI_API_KEY not set, cannot describe document");
-		return null;
-	}
-
 	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
@@ -646,9 +586,6 @@ export async function describeDocument(
 	}
 
 	try {
-		const base64 = media.buffer.toString("base64");
-		const dataUrl = `data:application/pdf;base64,${base64}`;
-
 		const languageInstruction = userLanguageHint
 			? `IMPORTANT: Respond in the same language as this text: "${userLanguageHint}". `
 			: "";
@@ -661,52 +598,33 @@ export async function describeDocument(
 			"due dates, payment details, and any terms or conditions. " +
 			"Organize the extracted information in a clear, structured format. Be thorough but concise.";
 
-		const userContent: Array<Record<string, unknown>> = [
-			{
-				type: "image_url",
-				image_url: { url: dataUrl },
-			},
-			{
-				type: "text",
-				text: fileName
-					? `The customer sent a PDF document: "${fileName}". Extract and summarize its contents following your instructions.`
-					: "The customer sent a PDF document. Extract and summarize its contents following your instructions.",
-			},
-		];
+		const userPrompt = fileName
+			? `The customer sent a PDF document: "${fileName}". Extract and summarize its contents following your instructions.`
+			: "The customer sent a PDF document. Extract and summarize its contents following your instructions.";
 
-		const response = await fetch(
-			"https://api.openai.com/v1/chat/completions",
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					model: "gpt-4o-mini",
-					messages: [
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: userContent },
+		const { text } = await generateText({
+			model: getModel("gpt-4.1-mini"),
+			system: systemPrompt,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "file",
+							mediaType: "application/pdf",
+							data: media.buffer,
+						},
+						{
+							type: "text",
+							text: userPrompt,
+						},
 					],
-					max_tokens: 1500,
-				}),
-			},
-		);
+				},
+			],
+			maxOutputTokens: 1500,
+		});
 
-		if (!response.ok) {
-			const errorText = await response.text();
-			logger.error("Document description failed", {
-				status: response.status,
-				error: errorText,
-				fileName,
-			});
-			return null;
-		}
-
-		const data = (await response.json()) as {
-			choices?: Array<{ message?: { content?: string } }>;
-		};
-		return data.choices?.[0]?.message?.content ?? null;
+		return text || null;
 	} catch (error) {
 		logger.error("Document description error", { error });
 		return null;

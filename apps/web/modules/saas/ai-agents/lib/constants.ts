@@ -1,12 +1,142 @@
-export const AI_MODEL_OPTIONS = [
-	{ id: "gpt-4.1", label: "GPT-4.1", provider: "openai" },
-	{ id: "gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openai" },
-	{ id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
-	{ id: "gpt-4o", label: "GPT-4o", provider: "openai" },
-	{ id: "gpt-5.2", label: "GPT-5.2", provider: "openai" },
-	{ id: "claude-haiku", label: "Claude Haiku 4.5", provider: "anthropic" },
-	{ id: "claude-sonnet", label: "Claude Sonnet", provider: "anthropic" },
-] as const;
+export interface AiModelOption {
+	id: string;
+	label: string;
+	provider: string;
+	/** Price per million input tokens (USD) */
+	priceIn: number;
+	/** Price per million output tokens (USD) */
+	priceOut: number;
+	recommended?: boolean;
+}
+
+export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
+	{
+		label: "Google",
+		models: [
+			{
+				id: "gemini-2.5-pro",
+				label: "Gemini 2.5 Pro",
+				provider: "google",
+				priceIn: 1.25,
+				priceOut: 10,
+				recommended: true,
+			},
+			{
+				id: "gemini-3-flash",
+				label: "Gemini 3 Flash",
+				provider: "google",
+				priceIn: 0.5,
+				priceOut: 3,
+				recommended: true,
+			},
+			{
+				id: "gemini-2.5-flash",
+				label: "Gemini 2.5 Flash",
+				provider: "google",
+				priceIn: 0.3,
+				priceOut: 2.5,
+			},
+		],
+	},
+	{
+		label: "OpenAI",
+		models: [
+			{
+				id: "gpt-4.1",
+				label: "GPT-4.1",
+				provider: "openai",
+				priceIn: 2,
+				priceOut: 8,
+			},
+			{
+				id: "gpt-5.2",
+				label: "GPT-5.2",
+				provider: "openai",
+				priceIn: 1.75,
+				priceOut: 14,
+			},
+			{
+				id: "gpt-4.1-mini",
+				label: "GPT-4.1 Mini",
+				provider: "openai",
+				priceIn: 0.4,
+				priceOut: 1.6,
+			},
+			{
+				id: "gpt-4o",
+				label: "GPT-4o",
+				provider: "openai",
+				priceIn: 2.5,
+				priceOut: 10,
+			},
+			{
+				id: "gpt-4o-mini",
+				label: "GPT-4o Mini",
+				provider: "openai",
+				priceIn: 0.15,
+				priceOut: 0.6,
+			},
+		],
+	},
+	{
+		label: "Anthropic",
+		models: [
+			{
+				id: "claude-sonnet",
+				label: "Claude Sonnet 4",
+				provider: "anthropic",
+				priceIn: 3,
+				priceOut: 15,
+			},
+		],
+	},
+	{
+		label: "Mistral",
+		models: [
+			{
+				id: "mistral-large",
+				label: "Mistral Large 3",
+				provider: "mistral",
+				priceIn: 0.5,
+				priceOut: 1.5,
+			},
+			{
+				id: "mistral-medium",
+				label: "Mistral Medium 3.1",
+				provider: "mistral",
+				priceIn: 0.4,
+				priceOut: 2,
+			},
+		],
+	},
+	{
+		label: "Qwen",
+		models: [
+			{
+				id: "qwen-3.5",
+				label: "Qwen 3.5 397B",
+				provider: "qwen",
+				priceIn: 0.39,
+				priceOut: 2.34,
+			},
+		],
+	},
+	{
+		label: "DeepSeek",
+		models: [
+			{
+				id: "deepseek-v3",
+				label: "DeepSeek V3.2",
+				provider: "deepseek",
+				priceIn: 0.25,
+				priceOut: 0.4,
+			},
+		],
+	},
+];
+
+/** Flat list for backward compatibility */
+export const AI_MODEL_OPTIONS = AI_MODEL_GROUPS.flatMap((g) => g.models);
 
 export const PROVIDER_OPTIONS = [
 	{ id: "whatsapp", label: "WhatsApp" },

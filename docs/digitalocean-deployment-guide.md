@@ -780,43 +780,12 @@ Create on **App Droplet** at `~/libancom/config/litellm/config.yaml`:
 
 ```yaml
 model_list:
-  # OpenAI Models
-  - model_name: gpt-4o
-    litellm_params:
-      model: openai/gpt-4o
-      api_key: os.environ/OPENAI_API_KEY
-
-  - model_name: gpt-4o-mini
-    litellm_params:
-      model: openai/gpt-4o-mini
-      api_key: os.environ/OPENAI_API_KEY
-
-  - model_name: gpt-4-turbo
-    litellm_params:
-      model: openai/gpt-4-turbo
-      api_key: os.environ/OPENAI_API_KEY
-
-  # Anthropic Models
-  - model_name: claude-sonnet-4-20250514
-    litellm_params:
-      model: anthropic/claude-sonnet-4-20250514
-      api_key: os.environ/ANTHROPIC_API_KEY
-
-  - model_name: claude-3-5-sonnet-20241022
-    litellm_params:
-      model: anthropic/claude-3-5-sonnet-20241022
-      api_key: os.environ/ANTHROPIC_API_KEY
-
-  - model_name: claude-3-5-haiku-20241022
-    litellm_params:
-      model: anthropic/claude-3-5-haiku-20241022
-      api_key: os.environ/ANTHROPIC_API_KEY
-
-  # Google Models
-  - model_name: gemini-2.0-flash
-    litellm_params:
-      model: gemini/gemini-2.0-flash-exp
-      api_key: os.environ/GOOGLE_API_KEY
+  # All models routed through OpenRouter (https://openrouter.ai)
+  # No per-provider API keys needed — OpenRouter handles routing.
+  # See packages/ai/src/model-registry.ts for available model mappings.
+  #
+  # Note: LiteLLM is no longer used. This section is kept for reference
+  # in case you want to run a local proxy for logging/caching.
 
   - model_name: gemini-1.5-pro
     litellm_params:
@@ -891,9 +860,7 @@ LANGFUSE_SECRET_KEY=<GET_FROM_LANGFUSE_UI>
 
 # ========== LiteLLM ==========
 LITELLM_MASTER_KEY=sk-<GENERATE: openssl rand -hex 16>
-OPENAI_API_KEY=sk-proj-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=AIza...
+OPENROUTER_API_KEY=sk-or-v1-...
 
 # ========== Storage (Cloudflare R2) ==========
 S3_ENDPOINT=https://xxx.r2.cloudflarestorage.com

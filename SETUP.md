@@ -157,7 +157,7 @@ pnpm start
 | `STRIPE_SECRET_KEY` | Stripe secret key for payments | - |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret | - |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | - |
-| `OPENAI_API_KEY` | OpenAI API key for AI features | - |
+| `OPENROUTER_API_KEY` | OpenRouter API key for AI features (all models) | - |
 | `S3_ACCESS_KEY` | S3-compatible storage access key | - |
 | `S3_SECRET_KEY` | S3-compatible storage secret key | - |
 | `S3_ENDPOINT` | S3-compatible storage endpoint | - |

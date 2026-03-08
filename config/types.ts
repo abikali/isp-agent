@@ -68,7 +68,13 @@ export type IntegrationsConfig = {
 export type AiModelConfig = {
 	id: string;
 	label: string;
-	provider: "openai" | "anthropic";
+	provider:
+		| "openai"
+		| "anthropic"
+		| "google"
+		| "mistral"
+		| "qwen"
+		| "deepseek";
 };
 
 export type AiConfig = {

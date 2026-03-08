@@ -7,16 +7,49 @@ export const config = {
 		enabled: true,
 		defaultModel: "gpt-4o-mini",
 		allowedModels: [
-			{ id: "gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openai" },
+			// OpenAI
 			{ id: "gpt-4.1", label: "GPT-4.1", provider: "openai" },
-			{ id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
+			{ id: "gpt-4.1-mini", label: "GPT-4.1 Mini", provider: "openai" },
 			{ id: "gpt-4o", label: "GPT-4o", provider: "openai" },
+			{ id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
 			{ id: "gpt-5.2", label: "GPT-5.2", provider: "openai" },
+			// Google
+			{
+				id: "gemini-2.5-pro",
+				label: "Gemini 2.5 Pro",
+				provider: "google",
+			},
+			{
+				id: "gemini-2.5-flash",
+				label: "Gemini 2.5 Flash",
+				provider: "google",
+			},
+			{
+				id: "gemini-3-flash",
+				label: "Gemini 3 Flash",
+				provider: "google",
+			},
+			// Anthropic
 			{
 				id: "claude-sonnet",
-				label: "Claude Sonnet",
+				label: "Claude Sonnet 4",
 				provider: "anthropic",
 			},
+			// Mistral
+			{
+				id: "mistral-large",
+				label: "Mistral Large 3",
+				provider: "mistral",
+			},
+			{
+				id: "mistral-medium",
+				label: "Mistral Medium 3.1",
+				provider: "mistral",
+			},
+			// Qwen
+			{ id: "qwen-3.5", label: "Qwen 3.5 397B", provider: "qwen" },
+			// DeepSeek
+			{ id: "deepseek-v3", label: "DeepSeek V3.2", provider: "deepseek" },
 		],
 		maxMessageLength: 4000,
 		maxHistoryLength: 20,

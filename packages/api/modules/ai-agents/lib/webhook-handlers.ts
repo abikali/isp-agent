@@ -24,7 +24,7 @@ import {
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
-import { getRedisConnection } from "@repo/jobs";
+import { getRedisConnection, queueAiChatRetry } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { uploadBuffer } from "@repo/storage";
@@ -32,6 +32,12 @@ import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
+
+const RETRY_MESSAGE = "Give me a moment, I'm still working on this...";
+
+// Concurrency limiter for AI generations in the web server process
+let activeGenerations = 0;
+const MAX_CONCURRENT_GENERATIONS = 20;
 
 const MIME_TO_EXT: Record<string, string> = {
 	"image/jpeg": "jpg",
@@ -126,7 +132,7 @@ async function handleMessages(
 
 				// Acquire the processing lock so we don't delete mid-generation
 				let clearLockAcquired = false;
-				for (let i = 0; i < 60; i++) {
+				for (let i = 0; i < 5; i++) {
 					clearLockAcquired = !!(await redis.set(
 						lockKey,
 						"clear",
@@ -138,6 +144,16 @@ async function handleMessages(
 						break;
 					}
 					await sleep(1000);
+				}
+
+				if (!clearLockAcquired) {
+					await sendTextMessage(
+						provider,
+						apiToken,
+						msg.chatId,
+						"Please wait for the current response to finish, then try /clear again.",
+					);
+					continue;
 				}
 
 				try {
@@ -153,11 +169,7 @@ async function handleMessages(
 						data: { status: "cleared" },
 					});
 				} finally {
-					// Only release the lock if we acquired it — otherwise we'd
-					// delete the active processor's lock causing concurrency issues
-					if (clearLockAcquired) {
-						await redis.del(lockKey);
-					}
+					await redis.del(lockKey);
 				}
 
 				await sendTextMessage(
@@ -312,7 +324,22 @@ async function handleMessages(
 			const lockKey = `ai:lock:${channel.id}:${msg.chatId}`;
 
 			await redis.rpush(bufferKey, truncatedText);
-			const lockAcquired = await redis.set(lockKey, "1", "EX", 120, "NX");
+
+			// Check concurrency limit before acquiring lock
+			if (activeGenerations >= MAX_CONCURRENT_GENERATIONS) {
+				// Message is buffered; an active processor will pick it up
+				continue;
+			}
+
+			// Acquire lock with unique owner ID for safe renewal + release
+			const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+			const lockAcquired = await redis.set(
+				lockKey,
+				lockValue,
+				"EX",
+				120,
+				"NX",
+			);
 
 			if (!lockAcquired) {
 				// Active processor will pick up the buffered message
@@ -388,11 +415,24 @@ async function handleMessages(
 					extractToolPromptOverrides(agentToolConfigs),
 			});
 
+			// Renew lock every 30s to prevent expiry during long generations
+			const lockRenewal = setInterval(async () => {
+				try {
+					const current = await redis.get(lockKey);
+					if (current === lockValue) {
+						await redis.expire(lockKey, 120);
+					}
+				} catch {
+					// Ignore renewal errors
+				}
+			}, 30_000);
+
 			// Processing loop \u2014 handles buffered messages + any that arrive during generation
 			let isFirstIteration = true;
 			let lastAssistantText = "";
 			const lastUserMessage = truncatedText;
 
+			activeGenerations++;
 			try {
 				while (true) {
 					// Bail out if conversation was cleared while we were processing
@@ -709,6 +749,10 @@ async function handleMessages(
 						const errorName =
 							error instanceof Error ? error.name : "";
 
+						const isToolError =
+							errorName === "AI_InvalidToolInputError" ||
+							errorName === "AI_NoSuchToolError";
+
 						if (errorName === "AI_InvalidToolInputError") {
 							const toolError = error as Error & {
 								toolName?: string;
@@ -735,13 +779,35 @@ async function handleMessages(
 							});
 						}
 
-						// Send fallback message
-						await sendTextMessage(
-							provider,
-							apiToken,
-							msg.chatId,
-							FALLBACK_MESSAGE,
-						);
+						// For transient errors, enqueue a retry via BullMQ
+						if (!isToolError) {
+							await sendTextMessage(
+								provider,
+								apiToken,
+								msg.chatId,
+								RETRY_MESSAGE,
+							);
+							queueAiChatRetry({
+								conversationId: conversation.id,
+								channelId: channel.id,
+							}).catch((retryError) => {
+								logger.error("Failed to queue AI chat retry", {
+									retryError,
+									conversationId: conversation.id,
+								});
+							});
+						} else {
+							await sendTextMessage(
+								provider,
+								apiToken,
+								msg.chatId,
+								FALLBACK_MESSAGE,
+							);
+						}
+
+						const errorMessage = isToolError
+							? FALLBACK_MESSAGE
+							: RETRY_MESSAGE;
 
 						// Store error message (conversation may have been cleared concurrently)
 						const conversationExists =
@@ -755,7 +821,7 @@ async function handleMessages(
 								data: {
 									conversationId: conversation.id,
 									role: "assistant",
-									content: FALLBACK_MESSAGE,
+									content: errorMessage,
 									error:
 										error instanceof Error
 											? error.message
@@ -780,8 +846,15 @@ async function handleMessages(
 					}
 				}
 			} finally {
-				// Always release the processing lock
-				await redis.del(lockKey);
+				activeGenerations--;
+				clearInterval(lockRenewal);
+				// Release lock atomically — only if we still own it
+				await redis.eval(
+					`if redis.call("get",KEYS[1])==ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end`,
+					1,
+					lockKey,
+					lockValue,
+				);
 			}
 
 			// Update channel activity
