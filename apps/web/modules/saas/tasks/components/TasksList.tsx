@@ -12,41 +12,66 @@ import {
 	TableRow,
 } from "@ui/components/table";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
+import { cn } from "@ui/lib";
+import {
+	AlertTriangleIcon,
 	BotIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	ClockIcon,
+	MapPinIcon,
 	PlusIcon,
+	StickyNoteIcon,
+	UserIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { useTasks } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_LABELS,
+	TASK_PRIORITY_BG_COLORS,
 	TASK_PRIORITY_LABELS,
+	TASK_STATUS_BG_COLORS,
+	TASK_STATUS_COLORS,
 	TASK_STATUS_LABELS,
 } from "../lib/constants";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { TaskFilters } from "./TaskFilters";
 
-const STATUS_VARIANTS: Record<
-	string,
-	"outline" | "default" | "secondary" | "destructive"
-> = {
-	OPEN: "outline",
-	IN_PROGRESS: "default",
-	ON_HOLD: "secondary",
-	COMPLETED: "default",
-	CANCELLED: "destructive",
-};
+function isOverdue(dueDate: string | Date | null, status: string): boolean {
+	if (!dueDate || status === "COMPLETED" || status === "CANCELLED") {
+		return false;
+	}
+	return new Date(dueDate) < new Date();
+}
 
-const PRIORITY_VARIANTS: Record<
-	string,
-	"outline" | "default" | "secondary" | "destructive"
-> = {
-	URGENT: "destructive",
-	HIGH: "default",
-	MEDIUM: "secondary",
-	LOW: "outline",
-};
+function formatRelativeDate(date: string | Date): string {
+	const d = new Date(date);
+	const now = new Date();
+	const diffMs = d.getTime() - now.getTime();
+	const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+	if (diffDays < -1) {
+		return `${Math.abs(diffDays)} days overdue`;
+	}
+	if (diffDays === -1) {
+		return "1 day overdue";
+	}
+	if (diffDays === 0) {
+		return "Due today";
+	}
+	if (diffDays === 1) {
+		return "Due tomorrow";
+	}
+	if (diffDays <= 7) {
+		return `Due in ${diffDays} days`;
+	}
+	return d.toLocaleDateString();
+}
 
 export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [search, setSearch] = useState("");
@@ -133,136 +158,259 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 					)}
 				</div>
 			) : (
-				<>
+				<TooltipProvider>
 					<div className="rounded-lg border">
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead>Title</TableHead>
+									<TableHead className="w-[40%]">
+										Task
+									</TableHead>
 									<TableHead>Status</TableHead>
 									<TableHead>Priority</TableHead>
 									<TableHead className="hidden md:table-cell">
-										Customer
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Assignee(s)
+										Assignee
 									</TableHead>
 									<TableHead className="hidden lg:table-cell">
 										Due Date
 									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Category
-									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{tasks.map((task) => (
-									<TableRow key={task.id}>
-										<TableCell>
-											<div className="flex items-center gap-2">
-												<Link
-													to="/app/$organizationSlug/tasks/$taskId"
-													params={{
-														organizationSlug,
-														taskId: task.id,
-													}}
-													className="font-medium hover:underline"
-													preload="intent"
-												>
-													{task.title}
-												</Link>
-												{task.source ===
-													"AI_ESCALATION" && (
-													<Badge
-														variant="secondary"
-														className="gap-1 text-xs"
-													>
-														<BotIcon className="size-3" />
-														AI
-													</Badge>
-												)}
-											</div>
-											{task.description && (
-												<p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-													{task.description}
-												</p>
+								{tasks.map((task) => {
+									const overdue = isOverdue(
+										task.dueDate,
+										task.status,
+									);
+									return (
+										<TableRow
+											key={task.id}
+											className={cn(
+												"group",
+												overdue &&
+													"bg-red-50/50 dark:bg-red-950/20",
 											)}
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													STATUS_VARIANTS[
+										>
+											<TableCell>
+												<div className="space-y-1">
+													<div className="flex items-center gap-2">
+														<span
+															className={cn(
+																"size-2 shrink-0 rounded-full",
+																TASK_STATUS_COLORS[
+																	task.status
+																],
+															)}
+														/>
+														<Link
+															to="/app/$organizationSlug/tasks/$taskId"
+															params={{
+																organizationSlug,
+																taskId: task.id,
+															}}
+															className="font-medium hover:underline"
+															preload="intent"
+														>
+															{task.title}
+														</Link>
+														{task.source ===
+															"AI_ESCALATION" && (
+															<Badge
+																variant="secondary"
+																className="gap-1 text-[10px] px-1.5 py-0"
+															>
+																<BotIcon className="size-3" />
+																AI
+															</Badge>
+														)}
+													</div>
+													<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-4 text-xs text-muted-foreground">
+														{task.description && (
+															<span className="line-clamp-1">
+																{
+																	task.description
+																}
+															</span>
+														)}
+													</div>
+													<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-4 text-xs text-muted-foreground">
+														<span className="inline-flex items-center gap-1">
+															{
+																TASK_CATEGORY_LABELS[
+																	task
+																		.category
+																]
+															}
+														</span>
+														{task.customer && (
+															<span className="inline-flex items-center gap-1">
+																<UserIcon className="size-3" />
+																<Link
+																	to="/app/$organizationSlug/customers/$customerId"
+																	params={{
+																		organizationSlug,
+																		customerId:
+																			task
+																				.customer
+																				.id,
+																	}}
+																	className="hover:underline"
+																	preload="intent"
+																>
+																	{
+																		task
+																			.customer
+																			.fullName
+																	}
+																</Link>
+															</span>
+														)}
+														{task.station && (
+															<span className="inline-flex items-center gap-1">
+																<MapPinIcon className="size-3" />
+																{
+																	task.station
+																		.name
+																}
+															</span>
+														)}
+														{task.notes && (
+															<Tooltip>
+																<TooltipTrigger
+																	asChild
+																>
+																	<span className="inline-flex items-center gap-1 cursor-default">
+																		<StickyNoteIcon className="size-3" />
+																		Note
+																	</span>
+																</TooltipTrigger>
+																<TooltipContent
+																	side="bottom"
+																	className="max-w-xs"
+																>
+																	<p className="text-xs line-clamp-3">
+																		{
+																			task.notes
+																		}
+																	</p>
+																</TooltipContent>
+															</Tooltip>
+														)}
+													</div>
+												</div>
+											</TableCell>
+											<TableCell>
+												<span
+													className={cn(
+														"inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
+														TASK_STATUS_BG_COLORS[
+															task.status
+														],
+													)}
+												>
+													{TASK_STATUS_LABELS[
 														task.status
-													] ?? "secondary"
-												}
-											>
-												{TASK_STATUS_LABELS[
-													task.status
-												] ?? task.status}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													PRIORITY_VARIANTS[
-														task.priority
-													] ?? "secondary"
-												}
-											>
-												{TASK_PRIORITY_LABELS[
-													task.priority
-												] ?? task.priority}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											{task.customer ? (
-												<Link
-													to="/app/$organizationSlug/customers/$customerId"
-													params={{
-														organizationSlug,
-														customerId:
-															task.customer.id,
-													}}
-													className="text-sm hover:underline"
-													preload="intent"
+													] ?? task.status}
+												</span>
+											</TableCell>
+											<TableCell>
+												<span
+													className={cn(
+														"inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
+														TASK_PRIORITY_BG_COLORS[
+															task.priority
+														],
+													)}
 												>
-													{task.customer.fullName}
-												</Link>
-											) : (
-												<span className="text-muted-foreground">
-													—
+													{TASK_PRIORITY_LABELS[
+														task.priority
+													] ?? task.priority}
 												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											{task.assignments.length > 0 ? (
-												task.assignments
-													.map((a) => a.employee.name)
-													.join(", ")
-											) : (
-												<span className="text-muted-foreground">
-													Unassigned
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell text-sm">
-											{task.dueDate ? (
-												new Date(
-													task.dueDate,
-												).toLocaleDateString()
-											) : (
-												<span className="text-muted-foreground">
-													—
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell">
-											{TASK_CATEGORY_LABELS[
-												task.category
-											] ?? task.category}
-										</TableCell>
-									</TableRow>
-								))}
+											</TableCell>
+											<TableCell className="hidden md:table-cell">
+												{task.assignments.length > 0 ? (
+													<div className="flex items-center gap-1">
+														{task.assignments
+															.slice(0, 2)
+															.map((a) => (
+																<span
+																	key={
+																		a
+																			.employee
+																			.id
+																	}
+																	className="inline-flex size-7 items-center justify-center rounded-full bg-muted text-[10px] font-medium"
+																	title={
+																		a
+																			.employee
+																			.name
+																	}
+																>
+																	{a.employee.name
+																		.split(
+																			" ",
+																		)
+																		.map(
+																			(
+																				n,
+																			) =>
+																				n[0],
+																		)
+																		.join(
+																			"",
+																		)
+																		.slice(
+																			0,
+																			2,
+																		)
+																		.toUpperCase()}
+																</span>
+															))}
+														{task.assignments
+															.length > 2 && (
+															<span className="text-xs text-muted-foreground">
+																+
+																{task
+																	.assignments
+																	.length - 2}
+															</span>
+														)}
+													</div>
+												) : (
+													<span className="text-xs text-muted-foreground">
+														Unassigned
+													</span>
+												)}
+											</TableCell>
+											<TableCell className="hidden lg:table-cell">
+												{task.dueDate ? (
+													<span
+														className={cn(
+															"inline-flex items-center gap-1 text-xs",
+															overdue
+																? "font-medium text-red-600 dark:text-red-400"
+																: "text-muted-foreground",
+														)}
+													>
+														{overdue && (
+															<AlertTriangleIcon className="size-3" />
+														)}
+														{!overdue && (
+															<ClockIcon className="size-3" />
+														)}
+														{formatRelativeDate(
+															task.dueDate,
+														)}
+													</span>
+												) : (
+													<span className="text-xs text-muted-foreground">
+														No due date
+													</span>
+												)}
+											</TableCell>
+										</TableRow>
+									);
+								})}
 							</TableBody>
 						</Table>
 					</div>
@@ -302,7 +450,7 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 							</div>
 						</div>
 					)}
-				</>
+				</TooltipProvider>
 			)}
 
 			<CreateTaskDialog open={showCreate} onOpenChange={setShowCreate} />

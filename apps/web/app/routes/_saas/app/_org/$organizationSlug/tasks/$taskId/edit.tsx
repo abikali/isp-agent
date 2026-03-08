@@ -5,15 +5,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
 
 export const Route = createFileRoute(
-	"/_saas/app/_org/$organizationSlug/tasks/$taskId",
+	"/_saas/app/_org/$organizationSlug/tasks/$taskId/edit",
 )({
 	head: () => ({
-		meta: [{ title: `Task Details - ${config.appName}` }],
+		meta: [{ title: `Edit Task - ${config.appName}` }],
 	}),
-	component: TaskDetailPage,
+	component: TaskEditPage,
 });
 
-function TaskDetailPage() {
+function TaskEditPage() {
 	const { taskId } = Route.useParams();
 
 	return (

@@ -6,7 +6,6 @@ import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import { Input } from "@ui/components/input";
@@ -19,32 +18,19 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
-import {
-	BotIcon,
-	ExternalLinkIcon,
-	MessageSquareIcon,
-	PlusIcon,
-	UserIcon,
-} from "lucide-react";
-import { useState } from "react";
-import { useDeleteTask, useUpdateTask } from "../hooks/use-tasks";
+import { ArrowLeftIcon } from "lucide-react";
+import { useUpdateTask } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_OPTIONS,
-	TASK_PRIORITY_LABELS,
 	TASK_PRIORITY_OPTIONS,
-	TASK_SOURCE_LABELS,
-	TASK_STATUS_LABELS,
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
-import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 
 export function TaskDetail({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
-	const deleteTask = useDeleteTask();
 	const { stations } = useStationsQuery();
-	const [showAssignEmployees, setShowAssignEmployees] = useState(false);
 
 	const { data } = useSuspenseQuery(
 		orpc.tasks.get.queryOptions({
@@ -56,7 +42,6 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 	);
 
 	const task = data.task;
-	const isAiEscalation = task.source === "AI_ESCALATION";
 
 	const form = useForm({
 		defaultValues: {
@@ -109,32 +94,21 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 
 	return (
 		<div>
-			<div className="mb-6 flex items-center justify-between">
-				<div>
-					<h1 className="text-2xl font-bold">{task.title}</h1>
-					<div className="flex flex-wrap items-center gap-3 mt-1">
-						<Badge>
-							{TASK_STATUS_LABELS[task.status] ?? task.status}
-						</Badge>
-						<Badge variant="outline">
-							{TASK_PRIORITY_LABELS[task.priority] ??
-								task.priority}
-						</Badge>
-						{isAiEscalation && (
-							<Badge variant="secondary" className="gap-1">
-								<BotIcon className="size-3" />
-								{TASK_SOURCE_LABELS[task.source]}
-							</Badge>
-						)}
-						<span className="text-sm text-muted-foreground">
-							{task.createdBy
-								? `Created by ${task.createdBy.name}`
-								: isAiEscalation
-									? "Created by AI Agent"
-									: "Unknown creator"}
-						</span>
-					</div>
-				</div>
+			<div className="mb-6 flex items-center gap-3">
+				<Link
+					to="/app/$organizationSlug/tasks/$taskId"
+					params={{
+						organizationSlug: organizationSlug ?? "",
+						taskId,
+					}}
+					preload="intent"
+				>
+					<Button variant="ghost" size="sm">
+						<ArrowLeftIcon className="mr-1 size-4" />
+						Back to task
+					</Button>
+				</Link>
+				<h1 className="text-2xl font-bold">Edit Task</h1>
 			</div>
 
 			<form
@@ -307,54 +281,11 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 
 					<Card>
 						<CardHeader>
-							<CardTitle className="text-base">Links</CardTitle>
+							<CardTitle className="text-base">
+								Station & Notes
+							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							{task.customer && (
-								<div className="space-y-1">
-									<Label>Customer</Label>
-									<Link
-										to="/app/$organizationSlug/customers/$customerId"
-										params={{
-											organizationSlug:
-												organizationSlug ?? "",
-											customerId: task.customer.id,
-										}}
-										className="flex items-center gap-2 text-sm text-primary hover:underline"
-										preload="intent"
-									>
-										<UserIcon className="size-3.5" />
-										{task.customer.fullName}
-										<span className="text-muted-foreground">
-											({task.customer.accountNumber})
-										</span>
-										<ExternalLinkIcon className="size-3" />
-									</Link>
-								</div>
-							)}
-							{task.conversation && (
-								<div className="space-y-1">
-									<Label>AI Conversation</Label>
-									<Link
-										to="/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
-										params={{
-											organizationSlug:
-												organizationSlug ?? "",
-											agentId: task.conversation.agent.id,
-											conversationId:
-												task.conversation.id,
-										}}
-										className="flex items-center gap-2 text-sm text-primary hover:underline"
-										preload="intent"
-									>
-										<MessageSquareIcon className="size-3.5" />
-										{task.conversation.contactName ??
-											"Unknown contact"}{" "}
-										via {task.conversation.agent.name}
-										<ExternalLinkIcon className="size-3" />
-									</Link>
-								</div>
-							)}
 							<form.Field name="stationId">
 								{(field) => (
 									<div className="space-y-2">
@@ -380,106 +311,45 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 									</div>
 								)}
 							</form.Field>
-						</CardContent>
-					</Card>
-
-					<Card className="lg:col-span-2">
-						<CardHeader>
-							<CardTitle className="text-base">Notes</CardTitle>
-						</CardHeader>
-						<CardContent>
 							<form.Field name="notes">
 								{(field) => (
-									<Textarea
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										rows={4}
-									/>
+									<div className="space-y-2">
+										<Label>Notes</Label>
+										<Textarea
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+											rows={6}
+											placeholder="Add internal notes about this task..."
+										/>
+									</div>
 								)}
 							</form.Field>
 						</CardContent>
 					</Card>
 				</div>
 
-				<div className="mt-6 flex items-center justify-between">
-					<Button
-						type="button"
-						variant="destructive"
-						onClick={() => {
-							if (
-								organizationId &&
-								confirm(
-									"Cancel this task? It will be set to Cancelled.",
-								)
-							) {
-								deleteTask.mutate({
-									organizationId,
-									id: taskId,
-								});
-							}
+				<div className="mt-6 flex items-center justify-end gap-3">
+					<Link
+						to="/app/$organizationSlug/tasks/$taskId"
+						params={{
+							organizationSlug: organizationSlug ?? "",
+							taskId,
 						}}
+						preload="intent"
 					>
-						Cancel Task
-					</Button>
+						<Button type="button" variant="outline">
+							Cancel
+						</Button>
+					</Link>
 					<Button type="submit" disabled={isSubmitting}>
 						{isSubmitting ? "Saving..." : "Save Changes"}
 					</Button>
 				</div>
 			</form>
-
-			{/* Assigned Employees */}
-			<Card className="mt-6">
-				<CardHeader className="flex flex-row items-center justify-between">
-					<CardTitle className="text-base">
-						Assigned Employees
-					</CardTitle>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowAssignEmployees(true)}
-					>
-						<PlusIcon className="mr-1 size-3" />
-						Assign
-					</Button>
-				</CardHeader>
-				<CardContent>
-					{task.assignments.length === 0 ? (
-						<p className="text-sm text-muted-foreground">
-							No employees assigned.
-						</p>
-					) : (
-						<div className="space-y-2">
-							{task.assignments.map((a) => (
-								<div
-									key={a.employee.id}
-									className="flex items-center justify-between rounded-md border p-3"
-								>
-									<div>
-										<p className="text-sm font-medium">
-											{a.employee.name}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											{a.employee.employeeNumber}
-											{a.employee.position
-												? ` - ${a.employee.position}`
-												: ""}
-										</p>
-									</div>
-								</div>
-							))}
-						</div>
-					)}
-				</CardContent>
-			</Card>
-
-			<AssignEmployeeDialog
-				open={showAssignEmployees}
-				onOpenChange={setShowAssignEmployees}
-				taskId={taskId}
-				currentEmployeeIds={task.assignments.map((a) => a.employee.id)}
-			/>
 		</div>
 	);
 }

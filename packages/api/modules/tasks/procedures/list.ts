@@ -111,6 +111,7 @@ export const listTasks = protectedProcedure
 					dueDate: true,
 					completedAt: true,
 					createdAt: true,
+					notes: true,
 					createdBy: {
 						select: {
 							id: true,

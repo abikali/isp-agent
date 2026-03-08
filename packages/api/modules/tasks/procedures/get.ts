@@ -51,6 +51,16 @@ export const getTask = protectedProcedure
 								name: true,
 							},
 						},
+						messages: {
+							select: {
+								id: true,
+								role: true,
+								content: true,
+								createdAt: true,
+							},
+							orderBy: { createdAt: "desc" },
+							take: 5,
+						},
 					},
 				},
 				customer: {
@@ -58,6 +68,24 @@ export const getTask = protectedProcedure
 						id: true,
 						fullName: true,
 						accountNumber: true,
+						email: true,
+						phone: true,
+						address: true,
+						status: true,
+						connectionType: true,
+						monthlyRate: true,
+						plan: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
+						station: {
+							select: {
+								id: true,
+								name: true,
+							},
+						},
 					},
 				},
 				station: {
