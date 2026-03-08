@@ -476,7 +476,7 @@ export async function transcribeAudio(
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "openai/gpt-4o-audio-preview",
+					model: "openai/gpt-audio-mini",
 					messages: [
 						{
 							role: "system",
