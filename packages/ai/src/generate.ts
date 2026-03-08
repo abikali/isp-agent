@@ -79,8 +79,13 @@ export async function generateAgentResponse(
 		}
 	}
 
+	// Strip tool-call annotations the model may have mimicked from conversation history
+	const cleanText = text
+		.replace(/\n*\[Tools used in this response\][\s\S]*$/, "")
+		.trim();
+
 	return {
-		text,
+		text: cleanText,
 		tokenCount: totalTokens,
 		latencyMs: Date.now() - start,
 		toolResults: toolResults.length > 0 ? toolResults : undefined,
