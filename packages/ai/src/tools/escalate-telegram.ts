@@ -72,6 +72,18 @@ function createEscalateTelegramTool(context: ToolContext) {
 				.describe(
 					"What the team should do — e.g. 'Call customer to discuss subscription plans', 'Check coverage in Dekwane area'",
 				),
+			category: z
+				.enum([
+					"installation",
+					"maintenance",
+					"repair",
+					"support",
+					"billing",
+					"general",
+				])
+				.describe(
+					"Task category: installation = new setup, maintenance = scheduled/requested maintenance, repair = broken equipment or line fix, support = general tech support, billing = payment or invoice issues, general = anything else",
+				),
 		}),
 		execute: async (args) => {
 			try {
@@ -414,6 +426,15 @@ const PRIORITY_MAP: Record<string, string> = {
 	high: "URGENT",
 };
 
+const CATEGORY_MAP: Record<string, string> = {
+	installation: "INSTALLATION",
+	maintenance: "MAINTENANCE",
+	repair: "REPAIR",
+	support: "SUPPORT",
+	billing: "BILLING",
+	general: "GENERAL",
+};
+
 async function createOrUpdateEscalationTask(
 	context: ToolContext,
 	args: {
@@ -421,6 +442,7 @@ async function createOrUpdateEscalationTask(
 		priority: string;
 		summary: string;
 		actionRequired?: string | undefined;
+		category: string;
 	},
 	verifiedCustomerId: string | null,
 ) {
@@ -442,6 +464,7 @@ async function createOrUpdateEscalationTask(
 	}
 	const description = descriptionParts.join("\n").slice(0, 5000);
 	const priority = PRIORITY_MAP[args.priority] ?? "MEDIUM";
+	const category = CATEGORY_MAP[args.category] ?? "SUPPORT";
 
 	// Dedup: look for an existing open escalation task for this conversation within the last hour
 	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -454,13 +477,23 @@ async function createOrUpdateEscalationTask(
 		select: { id: true },
 	});
 
+	type TaskCategory =
+		| "INSTALLATION"
+		| "MAINTENANCE"
+		| "REPAIR"
+		| "SUPPORT"
+		| "BILLING"
+		| "GENERAL";
+	type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
 	if (existingTask) {
 		await db.task.update({
 			where: { id: existingTask.id },
 			data: {
 				title,
 				description,
-				priority: priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+				priority: priority as TaskPriority,
+				category: category as TaskCategory,
 			},
 		});
 	} else {
@@ -469,9 +502,9 @@ async function createOrUpdateEscalationTask(
 				organizationId: agent.organizationId,
 				title,
 				description,
-				priority: priority as "LOW" | "MEDIUM" | "HIGH" | "URGENT",
+				priority: priority as TaskPriority,
 				status: "OPEN",
-				category: "SUPPORT",
+				category: category as TaskCategory,
 				source: "AI_ESCALATION",
 				createdById: null,
 				customerId: verifiedCustomerId,

@@ -30,7 +30,14 @@ export async function classifyText<T extends z.ZodType>(
 		const result = await generateText({
 			model: getModel(model),
 			system: opts.systemPrompt,
-			messages: [{ role: "user", content: opts.userPrompt }],
+			// Append "Respond in JSON." — some OpenRouter-routed providers (Azure OpenAI)
+			// require the word "json" in the message when using json_object response format.
+			messages: [
+				{
+					role: "user",
+					content: `${opts.userPrompt}\n\nRespond in JSON.`,
+				},
+			],
 			output: Output.object({ schema: opts.schema }),
 			temperature: 0,
 			abortSignal: abortController.signal,

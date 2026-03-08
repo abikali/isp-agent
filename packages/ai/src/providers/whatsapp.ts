@@ -436,8 +436,9 @@ async function fetchFromUrl(url: string): Promise<FetchResult> {
 }
 
 /**
- * Transcribe a voice message using AI SDK + OpenRouter.
- * Sends audio as a file part to an audio-capable model via chat completions.
+ * Transcribe a voice message via OpenRouter's chat completions API directly.
+ * We bypass the AI SDK here because `@ai-sdk/openai-compatible` only supports
+ * wav/mp3 audio — OpenRouter's raw API supports OGG natively via `input_audio`.
  */
 export async function transcribeAudio(
 	apiToken: string,
@@ -449,37 +450,71 @@ export async function transcribeAudio(
 		return null;
 	}
 
-	try {
-		// Strip codec params like "; codecs=opus" from content-type
-		const mimeType = media.contentType.split(";")[0]?.trim() ?? "audio/ogg";
+	const openrouterKey = process.env["OPENROUTER_API_KEY"];
+	if (!openrouterKey) {
+		logger.error("OPENROUTER_API_KEY not set, cannot transcribe audio");
+		return null;
+	}
 
-		const { text } = await generateText({
-			model: getModel("gpt-4.1-mini"),
-			messages: [
-				{
-					role: "system",
-					content:
-						"You are a transcription assistant. Transcribe the audio exactly as spoken. " +
-						"Output ONLY the transcribed text, nothing else. " +
-						"The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
+	try {
+		const base64Audio = media.buffer.toString("base64");
+		// Use a format OpenRouter accepts (e.g. "ogg" from "audio/ogg; codecs=opus")
+		const format =
+			media.contentType.split(";")[0]?.trim().replace("audio/", "") ??
+			"ogg";
+
+		const response = await fetch(
+			"https://openrouter.ai/api/v1/chat/completions",
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${openrouterKey}`,
+					"Content-Type": "application/json",
 				},
-				{
-					role: "user",
-					content: [
+				body: JSON.stringify({
+					model: "openai/gpt-4o-mini-audio-preview",
+					messages: [
 						{
-							type: "file",
-							mediaType: mimeType,
-							data: media.buffer,
+							role: "system",
+							content:
+								"You are a transcription assistant. Transcribe the audio exactly as spoken. " +
+								"Output ONLY the transcribed text, nothing else. " +
+								"The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
 						},
 						{
-							type: "text",
-							text: "Transcribe this audio message exactly as spoken.",
+							role: "user",
+							content: [
+								{
+									type: "input_audio",
+									input_audio: {
+										data: base64Audio,
+										format,
+									},
+								},
+								{
+									type: "text",
+									text: "Transcribe this audio message exactly as spoken.",
+								},
+							],
 						},
 					],
-				},
-			],
-		});
+				}),
+			},
+		);
 
+		if (!response.ok) {
+			const errorText = await response.text();
+			logger.error("OpenRouter transcription API error", {
+				status: response.status,
+				error: errorText,
+			});
+			return null;
+		}
+
+		const data = (await response.json()) as {
+			choices?: Array<{ message?: { content?: string } }>;
+		};
+		const text = data.choices?.[0]?.message?.content?.trim();
 		return text || null;
 	} catch (error) {
 		logger.error("Transcription error", { error });
