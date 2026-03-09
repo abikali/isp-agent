@@ -7,13 +7,13 @@ type PlanId = keyof typeof config.payments.plans;
  * Default limits for plans without explicit limits defined
  */
 const DEFAULT_LIMITS: PlanLimits = {
-	members: 3,
-	projects: 1,
-	apiCalls: 1000,
-	storage: 100,
-	aiMessages: 500,
-	watchers: 3,
-	customers: 50,
+	members: -1,
+	projects: -1,
+	apiCalls: -1,
+	storage: -1,
+	aiMessages: -1,
+	watchers: -1,
+	customers: -1,
 };
 
 /**
