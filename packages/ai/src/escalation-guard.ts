@@ -14,15 +14,18 @@ const escalationSchema = z.object({
 
 const ESCALATION_SYSTEM_PROMPT = `You are analyzing a customer support agent's response message.
 
-Determine whether the agent explicitly promised to forward, escalate, or refer the customer's issue to a human team member.
+Determine whether the agent stated IN PAST TENSE that it HAS ALREADY forwarded, escalated, or referred the customer's issue to a human team member.
 
-Return true ONLY if the agent committed to having a human follow up — e.g. "I've forwarded your request", "someone from our team will contact you", "I've escalated this", "تم تحويل طلبك", "سيتواصل معك أحد زملائنا", "j'ai transféré votre demande".
+Return true ONLY if the agent says it ALREADY DID the escalation — e.g. "I've forwarded your request", "someone from our team will contact you", "I've escalated this", "تم تحويل طلبك", "لقد قمت بتحويل طلبك", "سيتواصل معك أحد زملائنا", "j'ai transféré votre demande", "بلغت الفريق".
 
 Return false for:
+- Offers or questions about escalating ("would you like me to forward?", "بتحب حوّل طلبك؟", "فيني حوّل طلبك")
+- Conditional statements ("if you want, I can escalate", "أي سرعة بتفضل لخبر فريق المبيعات")
+- Future intentions that depend on customer response ("I'll forward once you confirm", "رح حوّل إذا بتريد")
 - General helpfulness or diagnostic answers
 - Technical terms like "port forwarding"
-- Past tense descriptions ("the team fixed it")
-- Anything that doesn't explicitly promise human follow-up`;
+- Past tense descriptions of someone else's actions ("the team fixed it")
+- Anything that doesn't confirm the escalation was ALREADY performed`;
 
 /**
  * Detect whether the model's response text indicates it intended to escalate
