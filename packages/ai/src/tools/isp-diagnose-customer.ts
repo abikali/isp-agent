@@ -652,8 +652,9 @@ The tool runs ALL diagnostics automatically. Do NOT manually re-run individual t
 
 ## Speed Test
 
-When the report shows the customer is online but bandwidth is idle or zero (inconclusive), or the customer insists internet is slow despite a healthy-looking report, ask them to run a speed test and send you a screenshot. Send the link on its own line:
+When the report shows the customer is online but bandwidth is idle or zero (inconclusive), or the customer insists internet is slow despite a healthy-looking report, ask them to run a speed test. Send the link on its own line:
 https://speedtest.libancomlb.com/
+Then tell them to press the Start button, wait for the test to finish, and send you a screenshot of the results.
 
 Do NOT send the speed test link when:
 - The customer is offline (they can't reach it)
