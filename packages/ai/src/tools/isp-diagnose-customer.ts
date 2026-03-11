@@ -16,7 +16,7 @@ import {
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
-const SPEED_TEST_URL = "http://172.20.2.225:8989/";
+const SPEED_TEST_URL = "https://speedtest.libancomlb.com/";
 
 // ---------------------------------------------------------------------------
 // Analysis helpers (pure, deterministic — exported for testing)
