@@ -270,23 +270,25 @@ Interpreting peerUsers:
 - Empty (dedicated connection) → no peers to cross-check. Focus on equipment and station status.
 - Other peers online but customer offline → issue is ISOLATED to this customer
 - All peers offline → likely infrastructure/AP problem
-- The "online" field is the SOURCE OF TRUTH. Ping timeouts do NOT mean offline (firewalls/NAT can cause them).
+- The "online" field tells you if someone is CONNECTED — but it says nothing about connection QUALITY. A peer can be online but still have high latency or packet loss.
+- If the customer claims their neighbors also have slow internet, do NOT just check the online field. Ping 1-2 online peers by username (isp-ping-customer) to check their actual connection quality (latency and packet loss). This is the only way to confirm or deny the customer's claim.
 
-Never claim "neighbors have internet" unless peerUsers actually shows other users online.
+Never claim "neighbors have internet" or "neighbors are fine" unless you have actually pinged at least one peer to verify connection quality — the online field alone is not enough when the complaint is about speed.
 
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
 
 Offline (online: false):
 1. Check accessPointOnline and stationOnline — report any equipment that is off.
 2. Ping the customer (isp-ping-customer) to check reachability and latency.
-3. Check peerUsers to determine if isolated or widespread.
+3. Check peerUsers to determine if isolated or widespread. Optionally ping a neighbor to double-check.
 4. Report all findings together: equipment status + ping result + peer status.
 
 Slow internet (online: true):
 1. Check fupMode → if "1", that's the diagnosis. Tell the customer their speed is reduced due to FUP. Stop here.
 2. If not FUP → ping the customer to check latency and packet loss.
 3. Check bandwidth stats and interface rates ("10Mbps" = cabling issue).
-4. Report findings: ping quality + bandwidth + any issues found.
+4. If the customer says their neighbors are also slow, ping 1-2 peers by username to compare quality.
+5. Report findings: ping quality + bandwidth + any issues found.
 
 For wireless customers, always mention the signal strength (accessPointSignal) if available.
 
