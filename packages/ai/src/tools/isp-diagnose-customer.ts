@@ -672,10 +672,12 @@ If fup.active is true:
 
 ## Neighbor Claims
 
-When a customer says their neighbors also have issues:
-- Check peersSummary from the report. If it says "dedicated" or "No other users", you CANNOT verify neighbor claims — tell the customer their connection is dedicated and suggest neighbors contact support separately.
-- If the report already includes neighborCheck with ping results, use those. Do NOT fabricate neighbor status.
-- NEVER assume neighbors have the same issue without data. Each account is independent.
+When a customer says their neighbors also have issues, READ the report fields carefully:
+1. FIRST check neighborCheck — if it contains "Pinged [names]", you ALREADY have neighbor ping results from the diagnostic. Use them directly. Example: "We checked your neighbors georgeshanna2 and rabihraad — both connections are healthy."
+2. THEN check peersSummary — it shows how many peers exist and how many are online (e.g. "30 peers: 29 online, 1 offline"). Use this to give context.
+3. ONLY if peersSummary says "dedicated" or "No other users" should you tell the customer their connection has no shared peers and suggest neighbors contact support separately.
+- NEVER say the connection is dedicated when peersSummary shows peers exist.
+- NEVER fabricate neighbor status. Only report what the data shows.
 
 ## Customer Not Found
 
