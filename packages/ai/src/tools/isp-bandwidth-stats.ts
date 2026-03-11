@@ -8,7 +8,7 @@ import {
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
-interface BandwidthDataPoint {
+export interface BandwidthDataPoint {
 	date: string;
 	limitUp: number;
 	limitDown: number;

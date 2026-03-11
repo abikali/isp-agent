@@ -8,7 +8,7 @@ import {
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
-interface ParsedPingResult {
+export interface ParsedPingResult {
 	packetsSent: number;
 	packetsReceived: number;
 	packetLossPercent: number;
@@ -18,7 +18,7 @@ interface ParsedPingResult {
 	summary: string;
 }
 
-function parsePingOutput(raw: unknown): ParsedPingResult | null {
+export function parsePingOutput(raw: unknown): ParsedPingResult | null {
 	if (!Array.isArray(raw)) {
 		return null;
 	}

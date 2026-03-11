@@ -14,12 +14,7 @@ export const DEFAULT_PROMPT_SECTIONS: PromptSection[] = [
 
 1. Briefly explain what you're about to do before calling each tool.
 2. After receiving results, read the actual field values carefully — never misstate what the data shows.
-3. After isp-search-customer, FIRST check: active is false, blocked is true, or expiryAccount in the past. If so, that is the diagnosis — tell the customer directly.
-4. If the account is active, IMMEDIATELY check: online (false = disconnected), accessPointOnline (false = equipment off), stationOnline (false = station down). Report ALL issues found.
-5. FUP only slows speed. If online is false, the problem is disconnection, NOT FUP.
-6. Continue the full diagnostic chain (ping, bandwidth, cross-check peers). Never stop after a single tool call.
-7. Do NOT ask for permission to continue diagnosing.
-8. Do NOT call isp-search-customer twice for the same user — the accessPointUsers list is already in the first result.`,
+3. Do NOT ask for permission to continue diagnosing.`,
 		enabled: true,
 		condition: "has-tools-non-webchat",
 	},

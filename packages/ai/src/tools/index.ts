@@ -3,6 +3,7 @@ import { dnsLookup } from "./dns-lookup";
 import { emailCheck } from "./email-check";
 import { escalateTelegram } from "./escalate-telegram";
 import { ispBandwidthStats } from "./isp-bandwidth-stats";
+import { ispDiagnoseCustomer } from "./isp-diagnose-customer";
 import { ispMikrotikUsers } from "./isp-mikrotik-users";
 import { ispPingCustomer } from "./isp-ping-customer";
 import { ispPingIp } from "./isp-ping-ip";
@@ -21,6 +22,7 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 	"email-check": emailCheck,
 	"speed-test": speedTest,
 	"isp-search-customer": ispSearchCustomer,
+	"isp-diagnose-customer": ispDiagnoseCustomer,
 	"isp-bandwidth-stats": ispBandwidthStats,
 	"isp-mikrotik-users": ispMikrotikUsers,
 	"isp-ping-customer": ispPingCustomer,

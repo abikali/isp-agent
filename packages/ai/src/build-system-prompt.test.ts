@@ -77,26 +77,32 @@ describe("buildSystemPrompt", () => {
 	// Diagnostics / ISP tools section (tool-owned prompt)
 	// -----------------------------------------------------------------------
 
-	it("includes diagnostics section when isp-search-customer is enabled", () => {
+	it("includes diagnostics section when isp-diagnose-customer is enabled", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,
-			enabledTools: ["isp-search-customer"],
+			enabledTools: ["isp-diagnose-customer"],
 		});
-		expect(result).toContain("Diagnostics Reference");
-		expect(result).toContain("Account Status Gate");
-		expect(result).toContain("Connection Type & Peers");
-		expect(result).toContain("Field Reference");
+		expect(result).toContain("Diagnostic Report Guide");
 		expect(result).toContain("## Customer Not Found");
 		expect(result).toContain("## Multiple Account Matches");
 	});
 
-	it("does NOT include diagnostics when isp-search-customer is not enabled", () => {
+	it("does NOT include diagnostics when isp-diagnose-customer is not enabled", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,
 			enabledTools: ["escalate-telegram"],
 		});
-		expect(result).not.toContain("Diagnostics Reference");
+		expect(result).not.toContain("Diagnostic Report Guide");
 		expect(result).not.toContain("## Customer Not Found");
+	});
+
+	it("isp-search-customer no longer has its own prompt section", () => {
+		const result = buildSystemPrompt({
+			basePrompt: BASE_PROMPT,
+			enabledTools: ["isp-search-customer"],
+		});
+		expect(result).not.toContain("Diagnostics Reference");
+		expect(result).not.toContain("Account Status Gate");
 	});
 
 	// -----------------------------------------------------------------------
@@ -106,10 +112,14 @@ describe("buildSystemPrompt", () => {
 	it("includes both escalation and diagnostics when both tools enabled", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,
-			enabledTools: ["isp-search-customer", "escalate-telegram"],
+			enabledTools: [
+				"isp-diagnose-customer",
+				"isp-search-customer",
+				"escalate-telegram",
+			],
 		});
 		expect(result).toContain("## Escalation via Telegram");
-		expect(result).toContain("Diagnostics Reference");
+		expect(result).toContain("Diagnostic Report Guide");
 		expect(result).toContain("## Customer Not Found");
 		expect(result).toContain("## Multiple Account Matches");
 		expect(result).toContain("## Language");
@@ -125,7 +135,9 @@ describe("buildSystemPrompt", () => {
 			enabledTools: ["isp-search-customer"],
 		});
 		expect(result).toContain("## Tool Usage Rules");
-		expect(result).toContain("Never stop after a single tool call");
+		expect(result).toContain(
+			"Do NOT ask for permission to continue diagnosing",
+		);
 	});
 
 	it("excludes verbose tool narration for web chat", () => {
@@ -411,11 +423,15 @@ describe("buildSystemPrompt", () => {
 	it("backward compat: no new params produces same sections as before", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,
-			enabledTools: ["isp-search-customer", "escalate-telegram"],
+			enabledTools: [
+				"isp-diagnose-customer",
+				"isp-search-customer",
+				"escalate-telegram",
+			],
 		});
 		// All original sections present
 		expect(result).toContain("## Tool Usage Rules");
-		expect(result).toContain("Diagnostics Reference");
+		expect(result).toContain("Diagnostic Report Guide");
 		expect(result).toContain("## Customer Not Found");
 		expect(result).toContain("## Multiple Account Matches");
 		expect(result).toContain("## Escalation via Telegram");
@@ -430,6 +446,7 @@ describe("buildSystemPrompt", () => {
 		const result = buildSystemPrompt({
 			basePrompt: "You are LibanBot, an ISP customer support agent.",
 			enabledTools: [
+				"isp-diagnose-customer",
 				"isp-search-customer",
 				"isp-ping-customer",
 				"isp-bandwidth-stats",
@@ -451,7 +468,7 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("+96171234567");
 		expect(result).toContain("telegram");
 		expect(result).toContain("## Tool Usage Rules"); // verbose
-		expect(result).toContain("Diagnostics Reference");
+		expect(result).toContain("Diagnostic Report Guide");
 		expect(result).toContain("## Customer Not Found");
 		expect(result).toContain("## Multiple Account Matches");
 		expect(result).toContain("## Escalation via Telegram");
@@ -460,7 +477,7 @@ describe("buildSystemPrompt", () => {
 		// Section ordering: base → maintenance → contact → tools → language
 		const maintenanceIdx = result.indexOf("MAINTENANCE MODE");
 		const contactIdx = result.indexOf("CUSTOMER CONTACT INFO");
-		const diagnosticsIdx = result.indexOf("Diagnostics Reference");
+		const diagnosticsIdx = result.indexOf("Diagnostic Report Guide");
 		const escalationIdx = result.indexOf("## Escalation via Telegram");
 		const languageIdx = result.indexOf("## Language");
 
@@ -473,14 +490,18 @@ describe("buildSystemPrompt", () => {
 	it("produces correct prompt for web chat (no contact, no verbose)", () => {
 		const result = buildSystemPrompt({
 			basePrompt: "You are LibanBot.",
-			enabledTools: ["isp-search-customer", "escalate-telegram"],
+			enabledTools: [
+				"isp-diagnose-customer",
+				"isp-search-customer",
+				"escalate-telegram",
+			],
 			isWebChat: true,
 		});
 
 		expect(result).not.toContain("CUSTOMER CONTACT INFO");
 		expect(result).not.toContain("## Tool Usage Rules");
 		expect(result).toContain("## Escalation via Telegram");
-		expect(result).toContain("Diagnostics Reference");
+		expect(result).toContain("Diagnostic Report Guide");
 		expect(result).toContain("## Language");
 	});
 });
