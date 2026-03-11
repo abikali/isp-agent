@@ -299,7 +299,7 @@ isp-bandwidth-stats shows CURRENT real-time usage, NOT maximum capacity or speed
 
 What to do:
 - If bandwidth is above ~80% of limit -> line is saturated. Tell customer something on their network is using all the bandwidth.
-- If bandwidth is below ~80% -> this tells you NOTHING about whether speed is actually slow. Ask the customer to run a speed test at http://172.20.2.225:8989/ and send a screenshot, then re-check bandwidth while they test.
+- If bandwidth is below ~80% -> this tells you NOTHING about whether speed is actually slow. Ask the customer to run a speed test and send a screenshot, then re-check bandwidth while they test. Send the speed test link on its own line:\nhttp://speedtest.libancomlb.com:8989/
 - NEVER tell a customer "your speed is much lower than it should be" based on low current usage. That is a misdiagnosis.
 - NEVER present raw kbps/Mbps numbers to the customer. Use simple language.
 - Do NOT blame the customer's devices or usage unless bandwidth is clearly saturated (above ~80%).
