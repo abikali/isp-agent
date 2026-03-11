@@ -650,6 +650,22 @@ When isp-diagnose-customer returns a report:
 
 The tool runs ALL diagnostics automatically. Do NOT manually re-run individual tools unless the customer asks for a specific follow-up.
 
+## FUP (Fair Usage Policy)
+
+FUP is PER-ACCOUNT — it is NOT shared across an area, building, or neighbors. Each customer's quota is independent. NEVER claim that neighbors have the same FUP issue unless you have actually diagnosed their account.
+
+If fup.active is true:
+- That is the diagnosis for slow speed. No further diagnostics needed.
+- FUP resets vary by plan (daily or monthly). You cannot check when it resets. If they ask, offer to connect them with a human who can check or manually reset it.
+- If they want faster speed, suggest upgrading their plan.
+
+## Neighbor Claims
+
+When a customer says their neighbors also have issues:
+- Check peersSummary from the report. If it says "dedicated" or "No other users", you CANNOT verify neighbor claims — tell the customer their connection is dedicated and suggest neighbors contact support separately.
+- If the report already includes neighborCheck with ping results, use those. Do NOT fabricate neighbor status.
+- NEVER assume neighbors have the same issue without data. Each account is independent.
+
 ## Customer Not Found
 
 When { found: false }:
