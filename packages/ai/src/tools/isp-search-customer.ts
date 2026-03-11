@@ -208,11 +208,21 @@ function createIspSearchCustomerTool(context: ToolContext) {
 						};
 					}
 
+					// Only return identifying fields — no diagnostic data.
+					// This forces the model to call isp-search-customer again
+					// with the specific userName to get fupMode, online, etc.
+					const identifyOnly = filtered.map((c) => ({
+						userName: c["userName"],
+						firstName: c["firstName"],
+						lastName: c["lastName"],
+						address: c["address"],
+					}));
+
 					return {
 						success: true,
 						multipleMatches: true,
-						message: `Found ${filtered.length} customers matching "${args.query}". Present ALL accounts with their userName (PPPoE/Hotspot login) and address (if available) so the customer can identify theirs. Do NOT show the plan/subscription name. CRITICAL: When the customer picks one, you MUST use the exact "userName" value from this result list to call isp-search-customer again — do NOT use whatever the customer typed verbatim.`,
-						customers: filtered,
+						message: `Found ${filtered.length} customers matching "${args.query}". Present ALL accounts with their userName (PPPoE/Hotspot login) and address (if available) so the customer can identify theirs. Do NOT show the plan/subscription name. When the customer picks one, you MUST call isp-search-customer again with the exact "userName" value to retrieve their account details — diagnostic data is not included in multi-match results.`,
+						customers: identifyOnly,
 					};
 				},
 			);
