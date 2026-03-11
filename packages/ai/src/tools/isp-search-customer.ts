@@ -271,9 +271,9 @@ Interpreting peerUsers:
 - Other peers online but customer offline → issue is ISOLATED to this customer
 - All peers offline → likely infrastructure/AP problem
 - The "online" field tells you if someone is CONNECTED — but it says nothing about connection QUALITY. A peer can be online but still have high latency or packet loss.
-- If the customer claims their neighbors also have slow internet, do NOT just check the online field and do NOT ask the customer for neighbor usernames — you already have them in the peerUsers list. Pick 1-2 online peers from that list and ping them by their userName (isp-ping-customer) to check their actual connection quality. This is the only way to confirm or deny the customer's claim.
+- When the customer claims their neighbors also have issues: the isp-search-customer result you already received contains a peerUsers array with exact userNames. Use those EXACT userNames to ping — for example if peerUsers includes {userName: "abouhamze", online: true}, call isp-ping-customer with query "abouhamze". NEVER guess, fabricate, or modify usernames. NEVER append numbers to the customer's username. NEVER ask the customer for neighbor usernames.
 
-Never claim "neighbors have internet" or "neighbors are fine" unless you have actually pinged at least one peer to verify connection quality — the online field alone is not enough when the complaint is about speed.
+Never claim "neighbors have internet" or "neighbors are fine" unless you have actually pinged at least one peer from the peerUsers list to verify connection quality.
 
 ### Diagnostic Workflows (only if account is active/unblocked/unexpired)
 
@@ -287,7 +287,7 @@ Slow internet (online: true):
 1. Check fupMode → if "1", that's the diagnosis. Tell the customer their speed is reduced due to FUP. Stop here.
 2. If not FUP → ping the customer to check latency and packet loss.
 3. Check bandwidth stats and interface rates ("10Mbps" = cabling issue).
-4. If the customer says their neighbors are also slow, pick 1-2 online peers from the peerUsers list and ping them (isp-ping-customer with their userName) to compare quality. Do NOT ask the customer for usernames — you already have them.
+4. If the customer says their neighbors are also slow, go back to the peerUsers array from the earlier isp-search-customer result, pick 1-2 peers where online is true, and call isp-ping-customer with their exact userName to compare quality.
 5. Report findings: ping quality + bandwidth + any issues found.
 
 For wireless customers, always mention the signal strength (accessPointSignal) if available.
