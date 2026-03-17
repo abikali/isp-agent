@@ -610,7 +610,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 										description:
 											"Speed reduced due to Fair Usage Policy",
 									}
-								: null,
+								: { active: false },
 						customerPing: customerPingAnalysis,
 						bandwidth: bandwidthAnalysis,
 						neighborCheck,
