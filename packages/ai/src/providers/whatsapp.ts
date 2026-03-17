@@ -859,7 +859,7 @@ export async function setWebhook(
 			webhook_enabled: true,
 			webhook_events: [
 				"messages.received",
-				"message-receipt-update",
+				"messages.update",
 				"messages.reaction",
 				"messages.delete",
 			],
