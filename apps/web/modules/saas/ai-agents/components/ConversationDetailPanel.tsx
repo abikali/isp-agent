@@ -114,7 +114,7 @@ export function ConversationDetailPanel({
 
 	const lastMessage = messages[messages.length - 1];
 	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error;
+		lastMessage?.role === "user" && !lastMessage.error && !isTakeoverActive;
 
 	function handleTogglePin() {
 		togglePin.mutate({
