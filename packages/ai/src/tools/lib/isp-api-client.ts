@@ -45,6 +45,15 @@ export function cleanPhoneNumber(phone: string): string {
 	return cleaned;
 }
 
+/** Normalize a Lebanese phone number for comparison by stripping country code and leading zero. */
+export function normalizeLebanesPhone(phone: string): string {
+	let cleaned = cleanPhoneNumber(phone);
+	if (cleaned.startsWith("0")) {
+		cleaned = cleaned.slice(1);
+	}
+	return cleaned;
+}
+
 /**
  * Extract and validate ISP API config from tool context.
  * Falls back to environment variables when per-agent config is not set.

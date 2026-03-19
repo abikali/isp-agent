@@ -12,6 +12,7 @@ import {
 	extractToolPromptOverrides,
 	formatHistoryMessage,
 	generateAgentResponse,
+	isWhishMoneyMessage,
 	markAsRead,
 	parseWebhookPayload,
 	processMedia,
@@ -21,6 +22,7 @@ import {
 	stripToolAnnotation,
 	telegram,
 	triageBufferedMessages,
+	WHISH_MONEY_CONTEXT,
 	whatsapp,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -266,7 +268,7 @@ async function handleMessages(
 			}
 
 			// Truncate incoming message
-			const truncatedText = messageText.slice(
+			let truncatedText = messageText.slice(
 				0,
 				config.ai.maxMessageLength,
 			);
@@ -366,6 +368,11 @@ async function handleMessages(
 					// Paused — message is saved but AI won't respond
 					continue;
 				}
+			}
+
+			// Detect Whish Money payment notifications — guide the LLM response
+			if (isWhishMoneyMessage(truncatedText)) {
+				truncatedText = WHISH_MONEY_CONTEXT + truncatedText;
 			}
 
 			// Send typing indicator immediately so user sees activity

@@ -58,3 +58,8 @@ export type {
 	ToolRecord,
 	ToolResult,
 } from "./src/types";
+export {
+	isEmployeePhone,
+	isWhishMoneyMessage,
+	WHISH_MONEY_CONTEXT,
+} from "./src/whish-money-guard";
