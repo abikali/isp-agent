@@ -195,8 +195,14 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 
 	const results: ParsedMessage[] = [];
 	for (const msg of messages) {
-		// Skip outgoing messages
+		// Include outgoing messages with fromMe flag — handler decides what to do
 		if (msg.key.fromMe) {
+			results.push({
+				chatId: msg.key.remoteJid,
+				messageId: msg.key.id,
+				text: "",
+				fromMe: true,
+			});
 			continue;
 		}
 		const extracted = extractMessage(msg);

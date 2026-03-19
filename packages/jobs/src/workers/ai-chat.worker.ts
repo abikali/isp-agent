@@ -47,6 +47,23 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				return { success: false, error: "Conversation not found" };
 			}
 
+			// Check human takeover pause
+			if (
+				conversation.agent.humanTakeoverHours &&
+				conversation.humanTakeoverAt
+			) {
+				const expiresAt = new Date(
+					conversation.humanTakeoverAt.getTime() +
+						conversation.agent.humanTakeoverHours * 60 * 60 * 1000,
+				);
+				if (expiresAt > new Date()) {
+					return {
+						success: true,
+						error: "Skipped — human takeover active",
+					};
+				}
+			}
+
 			const apiToken = decryptToken(
 				conversation.channel.encryptedApiToken,
 			);
@@ -240,6 +257,19 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					chatId,
 					result.text,
 				);
+
+				// Track bot-sent message ID
+				if (sendResult.messageId) {
+					const redis = getRedisConnection();
+					redis
+						.set(
+							`ai:sent-msg:${sendResult.messageId}`,
+							"1",
+							"EX",
+							300,
+						)
+						.catch(() => {});
+				}
 
 				await db.aiMessage.create({
 					data: {

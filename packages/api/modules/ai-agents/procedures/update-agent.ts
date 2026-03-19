@@ -35,6 +35,12 @@ export const updateAgent = protectedProcedure
 				.min(60)
 				.max(1440)
 				.optional(),
+			humanTakeoverHours: z
+				.number()
+				.min(0.5)
+				.max(72)
+				.nullable()
+				.optional(),
 			promptSections: z
 				.array(
 					z.object({
@@ -133,6 +139,9 @@ export const updateAgent = protectedProcedure
 			updateData["contextGapThresholdMinutes"] =
 				rest.contextGapThresholdMinutes;
 		}
+		if (rest.humanTakeoverHours !== undefined) {
+			updateData["humanTakeoverHours"] = rest.humanTakeoverHours;
+		}
 		if (rest.promptSections !== undefined) {
 			updateData["promptSections"] = JSON.parse(
 				JSON.stringify(rest.promptSections),
@@ -158,6 +167,7 @@ export const updateAgent = protectedProcedure
 				enabledTools: true,
 				servicePlansEnabled: true,
 				contextGapThresholdMinutes: true,
+				humanTakeoverHours: true,
 				promptSections: true,
 				updatedAt: true,
 			},

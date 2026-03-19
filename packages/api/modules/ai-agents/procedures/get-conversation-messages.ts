@@ -34,7 +34,7 @@ export const getConversationMessages = protectedProcedure
 			where: { id: input.conversationId },
 			include: {
 				agent: {
-					select: { organizationId: true },
+					select: { organizationId: true, humanTakeoverHours: true },
 				},
 				channel: {
 					select: {
@@ -116,6 +116,8 @@ export const getConversationMessages = protectedProcedure
 				contactId: conversation.contactId,
 				status: conversation.status,
 				channel: conversation.channel,
+				humanTakeoverAt: conversation.humanTakeoverAt,
+				humanTakeoverHours: conversation.agent.humanTakeoverHours,
 			},
 			messages: items,
 			nextCursor,

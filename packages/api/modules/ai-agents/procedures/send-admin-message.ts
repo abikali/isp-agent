@@ -3,6 +3,7 @@ import type { ChannelProvider } from "@repo/ai";
 import { decryptToken, sendTextMessage } from "@repo/ai";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import { db } from "@repo/database";
+import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -51,7 +52,7 @@ export const sendAdminMessage = protectedProcedure
 			where: { id: input.conversationId },
 			include: {
 				agent: {
-					select: { organizationId: true },
+					select: { organizationId: true, humanTakeoverHours: true },
 				},
 				channel: true,
 			},
@@ -91,6 +92,19 @@ export const sendAdminMessage = protectedProcedure
 					input.message,
 				);
 				messageData["externalMsgId"] = sendResult.messageId ?? null;
+
+				// Track sent message ID so we don't mistake the echo for human activity
+				if (sendResult.messageId) {
+					const redis = getRedisConnection();
+					redis
+						.set(
+							`ai:sent-msg:${sendResult.messageId}`,
+							"1",
+							"EX",
+							300,
+						)
+						.catch(() => {});
+				}
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {
 					error,
@@ -108,12 +122,15 @@ export const sendAdminMessage = protectedProcedure
 			data: messageData as never,
 		});
 
-		// Update conversation counters
+		// Update conversation counters + trigger human takeover if configured
 		await db.aiConversation.update({
 			where: { id: conversation.id },
 			data: {
 				messageCount: { increment: 1 },
 				lastMessageAt: new Date(),
+				...(conversation.agent.humanTakeoverHours
+					? { humanTakeoverAt: new Date() }
+					: {}),
 			},
 		});
 

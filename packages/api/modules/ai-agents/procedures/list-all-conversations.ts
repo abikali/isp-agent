@@ -80,6 +80,7 @@ export const listAllConversations = protectedProcedure
 				pinned: true,
 				messageCount: true,
 				lastMessageAt: true,
+				humanTakeoverAt: true,
 				createdAt: true,
 				agent: {
 					select: {

@@ -45,6 +45,7 @@ import {
 	BotIcon,
 	BrainIcon,
 	FileTextIcon,
+	HandIcon,
 	HelpCircleIcon,
 	Loader2Icon,
 	RotateCcwIcon,
@@ -136,6 +137,8 @@ export function AgentSettings({
 			servicePlansEnabled: agent.servicePlansEnabled,
 			maintenanceMode: agent.maintenanceMode,
 			maintenanceMessage: agent.maintenanceMessage ?? "",
+			humanTakeoverEnabled: agent.humanTakeoverHours != null,
+			humanTakeoverHours: agent.humanTakeoverHours ?? 1,
 			maxHistoryLength: agent.maxHistoryLength,
 			temperature: agent.temperature,
 			enabledTools: agent.enabledTools as string[],
@@ -156,6 +159,9 @@ export function AgentSettings({
 				servicePlansEnabled: value.servicePlansEnabled,
 				maintenanceMode: value.maintenanceMode,
 				maintenanceMessage: value.maintenanceMessage || undefined,
+				humanTakeoverHours: value.humanTakeoverEnabled
+					? value.humanTakeoverHours
+					: null,
 				maxHistoryLength: value.maxHistoryLength,
 				temperature: value.temperature,
 				enabledTools: value.enabledTools,
@@ -306,6 +312,103 @@ export function AgentSettings({
 													placeholder="e.g. Fiber cut in downtown area affecting ~200 customers. Repair crew dispatched, ETA 4 hours."
 													className="mt-1.5"
 												/>
+											</div>
+										)}
+									</form.Field>
+								)}
+							</CardHeader>
+						</Card>
+					)}
+				</form.Field>
+
+				{/* Human Takeover Pause */}
+				<form.Field name="humanTakeoverEnabled">
+					{(enabledField) => (
+						<Card
+							className={`mb-6 ${enabledField.state.value ? "border-blue-500/50 bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
+						>
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-3">
+										<div
+											className={`flex size-10 items-center justify-center rounded-lg ${enabledField.state.value ? "bg-blue-100 dark:bg-blue-900/50" : "bg-muted"}`}
+										>
+											<HandIcon
+												className={`size-5 ${enabledField.state.value ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
+											/>
+										</div>
+										<div>
+											<CardTitle className="text-lg">
+												Human Takeover
+											</CardTitle>
+											<CardDescription>
+												Pause AI responses when a human
+												replies from WhatsApp or the
+												panel
+											</CardDescription>
+										</div>
+									</div>
+									<div className="flex items-center gap-2">
+										<Badge
+											variant={
+												enabledField.state.value
+													? "default"
+													: "secondary"
+											}
+										>
+											{enabledField.state.value
+												? "Active"
+												: "Off"}
+										</Badge>
+										<Switch
+											checked={enabledField.state.value}
+											onCheckedChange={
+												enabledField.handleChange
+											}
+										/>
+									</div>
+								</div>
+								{enabledField.state.value && (
+									<form.Field name="humanTakeoverHours">
+										{(hoursField) => (
+											<div className="mt-4">
+												<FieldLabel htmlFor="takeover-hours">
+													Pause duration
+													<FieldHint text="How long AI stays paused after a human message. The agent will automatically resume after this period." />
+												</FieldLabel>
+												<div className="flex items-center gap-3 mt-1.5">
+													<Input
+														id="takeover-hours"
+														type="number"
+														min={0.5}
+														max={72}
+														step={0.5}
+														value={
+															hoursField.state
+																.value
+														}
+														onChange={(e) =>
+															hoursField.handleChange(
+																Number.parseFloat(
+																	e.target
+																		.value,
+																) || 1,
+															)
+														}
+														onBlur={
+															hoursField.handleBlur
+														}
+														className="w-24"
+													/>
+													<span className="text-sm text-muted-foreground">
+														hours
+													</span>
+												</div>
+												<p className="mt-1.5 text-xs text-muted-foreground">
+													Recommended: 1–4 hours for
+													active support, 12–24 hours
+													for off-hours coverage
+												</p>
 											</div>
 										)}
 									</form.Field>

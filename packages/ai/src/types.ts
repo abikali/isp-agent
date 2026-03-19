@@ -17,6 +17,8 @@ export interface ParsedMessage {
 	mediaCaption?: string | undefined;
 	/** Original filename for document attachments */
 	mediaFileName?: string | undefined;
+	/** Whether this message was sent by us (fromMe flag from WhatsApp) */
+	fromMe?: boolean | undefined;
 }
 
 export interface SendMessageResult {
