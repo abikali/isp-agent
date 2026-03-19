@@ -478,7 +478,6 @@ const SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute 
 
 export interface FileRoutesByFullPath {
   "/$": typeof SplatRoute
-  "/": typeof MarketingIndexRoute
   "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/reset-password": typeof AuthResetPasswordRoute
@@ -494,11 +493,12 @@ export interface FileRoutesByFullPath {
   "/api/health": typeof ApiHealthRoute
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
+  "/": typeof MarketingIndexRoute
   "/blog/$": typeof MarketingBlogSplatRoute
   "/docs/$": typeof MarketingDocsSplatRoute
   "/legal/$": typeof MarketingLegalSplatRoute
   "/organization-invitation/$invitationId": typeof SaasOrganizationInvitationInvitationIdRoute
-  "/blog/": typeof MarketingBlogIndexRoute
+  "/blog": typeof MarketingBlogIndexRoute
   "/app/admin": typeof SaasAppAccountAdminRouteWithChildren
   "/app/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
@@ -529,24 +529,23 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
-  "/app/admin/organizations/": typeof SaasAppAccountAdminOrganizationsIndexRoute
-  "/app/$organizationSlug/ai-agents/": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
-  "/app/$organizationSlug/conversations/": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
-  "/app/$organizationSlug/customers/": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
-  "/app/$organizationSlug/employees/": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
+  "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
+  "/app/$organizationSlug/ai-agents": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
+  "/app/$organizationSlug/conversations": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
+  "/app/$organizationSlug/customers": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/settings/": typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
-  "/app/$organizationSlug/tasks/": typeof SaasAppOrgOrganizationSlugTasksIndexRoute
-  "/app/$organizationSlug/watchers/": typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
+  "/app/$organizationSlug/tasks": typeof SaasAppOrgOrganizationSlugTasksIndexRoute
+  "/app/$organizationSlug/watchers": typeof SaasAppOrgOrganizationSlugWatchersIndexRoute
   "/app/$organizationSlug/ai-agents/$agentId/stats": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdStatsRoute
   "/app/$organizationSlug/tasks/$taskId/edit": typeof SaasAppOrgOrganizationSlugTasksTaskIdEditRoute
-  "/app/$organizationSlug/ai-agents/$agentId/": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
-  "/app/$organizationSlug/tasks/$taskId/": typeof SaasAppOrgOrganizationSlugTasksTaskIdIndexRoute
-  "/app/$organizationSlug/watchers/$watcherId/": typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
+  "/app/$organizationSlug/ai-agents/$agentId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRoute
+  "/app/$organizationSlug/tasks/$taskId": typeof SaasAppOrgOrganizationSlugTasksTaskIdIndexRoute
+  "/app/$organizationSlug/watchers/$watcherId": typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRoute
   "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdConversationsConversationIdRoute
 }
 export interface FileRoutesByTo {
   "/$": typeof SplatRoute
-  "/": typeof MarketingIndexRoute
   "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/reset-password": typeof AuthResetPasswordRoute
@@ -562,6 +561,7 @@ export interface FileRoutesByTo {
   "/api/health": typeof ApiHealthRoute
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
+  "/": typeof MarketingIndexRoute
   "/blog/$": typeof MarketingBlogSplatRoute
   "/docs/$": typeof MarketingDocsSplatRoute
   "/legal/$": typeof MarketingLegalSplatRoute
@@ -685,7 +685,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/$"
-    | "/"
     | "/forgot-password"
     | "/login"
     | "/reset-password"
@@ -701,11 +700,12 @@ export interface FileRouteTypes {
     | "/api/health"
     | "/chat/$token"
     | "/image-proxy/$"
+    | "/"
     | "/blog/$"
     | "/docs/$"
     | "/legal/$"
     | "/organization-invitation/$invitationId"
-    | "/blog/"
+    | "/blog"
     | "/app/admin"
     | "/app/settings"
     | "/app/$organizationSlug"
@@ -736,24 +736,23 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/members"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
-    | "/app/admin/organizations/"
-    | "/app/$organizationSlug/ai-agents/"
-    | "/app/$organizationSlug/conversations/"
-    | "/app/$organizationSlug/customers/"
-    | "/app/$organizationSlug/employees/"
+    | "/app/admin/organizations"
+    | "/app/$organizationSlug/ai-agents"
+    | "/app/$organizationSlug/conversations"
+    | "/app/$organizationSlug/customers"
+    | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/settings/"
-    | "/app/$organizationSlug/tasks/"
-    | "/app/$organizationSlug/watchers/"
+    | "/app/$organizationSlug/tasks"
+    | "/app/$organizationSlug/watchers"
     | "/app/$organizationSlug/ai-agents/$agentId/stats"
     | "/app/$organizationSlug/tasks/$taskId/edit"
-    | "/app/$organizationSlug/ai-agents/$agentId/"
-    | "/app/$organizationSlug/tasks/$taskId/"
-    | "/app/$organizationSlug/watchers/$watcherId/"
+    | "/app/$organizationSlug/ai-agents/$agentId"
+    | "/app/$organizationSlug/tasks/$taskId"
+    | "/app/$organizationSlug/watchers/$watcherId"
     | "/app/$organizationSlug/ai-agents/$agentId/conversations/$conversationId"
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/$"
-    | "/"
     | "/forgot-password"
     | "/login"
     | "/reset-password"
@@ -769,6 +768,7 @@ export interface FileRouteTypes {
     | "/api/health"
     | "/chat/$token"
     | "/image-proxy/$"
+    | "/"
     | "/blog/$"
     | "/docs/$"
     | "/legal/$"
@@ -904,21 +904,21 @@ declare module "@tanstack/react-router" {
     "/_saas": {
       id: "/_saas"
       path: ""
-      fullPath: "/"
+      fullPath: ""
       preLoaderRoute: typeof SaasRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/_marketing": {
       id: "/_marketing"
       path: ""
-      fullPath: "/"
+      fullPath: ""
       preLoaderRoute: typeof MarketingRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/_auth": {
       id: "/_auth"
       path: ""
-      fullPath: "/"
+      fullPath: ""
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -1044,7 +1044,7 @@ declare module "@tanstack/react-router" {
     "/_marketing/blog/": {
       id: "/_marketing/blog/"
       path: "/blog"
-      fullPath: "/blog/"
+      fullPath: "/blog"
       preLoaderRoute: typeof MarketingBlogIndexRouteImport
       parentRoute: typeof MarketingRoute
     }
@@ -1198,14 +1198,14 @@ declare module "@tanstack/react-router" {
     "/_saas/app/_org/$organizationSlug/watchers/": {
       id: "/_saas/app/_org/$organizationSlug/watchers/"
       path: "/watchers"
-      fullPath: "/app/$organizationSlug/watchers/"
+      fullPath: "/app/$organizationSlug/watchers"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugWatchersIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/tasks/": {
       id: "/_saas/app/_org/$organizationSlug/tasks/"
       path: "/tasks"
-      fullPath: "/app/$organizationSlug/tasks/"
+      fullPath: "/app/$organizationSlug/tasks"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugTasksIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
@@ -1219,35 +1219,35 @@ declare module "@tanstack/react-router" {
     "/_saas/app/_org/$organizationSlug/employees/": {
       id: "/_saas/app/_org/$organizationSlug/employees/"
       path: "/employees"
-      fullPath: "/app/$organizationSlug/employees/"
+      fullPath: "/app/$organizationSlug/employees"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/customers/": {
       id: "/_saas/app/_org/$organizationSlug/customers/"
       path: "/customers"
-      fullPath: "/app/$organizationSlug/customers/"
+      fullPath: "/app/$organizationSlug/customers"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugCustomersIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/conversations/": {
       id: "/_saas/app/_org/$organizationSlug/conversations/"
       path: "/conversations"
-      fullPath: "/app/$organizationSlug/conversations/"
+      fullPath: "/app/$organizationSlug/conversations"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugConversationsIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/ai-agents/": {
       id: "/_saas/app/_org/$organizationSlug/ai-agents/"
       path: "/ai-agents"
-      fullPath: "/app/$organizationSlug/ai-agents/"
+      fullPath: "/app/$organizationSlug/ai-agents"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_account/admin/organizations/": {
       id: "/_saas/app/_account/admin/organizations/"
       path: "/organizations"
-      fullPath: "/app/admin/organizations/"
+      fullPath: "/app/admin/organizations"
       preLoaderRoute: typeof SaasAppAccountAdminOrganizationsIndexRouteImport
       parentRoute: typeof SaasAppAccountAdminRoute
     }
@@ -1359,21 +1359,21 @@ declare module "@tanstack/react-router" {
     "/_saas/app/_org/$organizationSlug/watchers/$watcherId/": {
       id: "/_saas/app/_org/$organizationSlug/watchers/$watcherId/"
       path: "/watchers/$watcherId"
-      fullPath: "/app/$organizationSlug/watchers/$watcherId/"
+      fullPath: "/app/$organizationSlug/watchers/$watcherId"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/tasks/$taskId/": {
       id: "/_saas/app/_org/$organizationSlug/tasks/$taskId/"
       path: "/tasks/$taskId"
-      fullPath: "/app/$organizationSlug/tasks/$taskId/"
+      fullPath: "/app/$organizationSlug/tasks/$taskId"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugTasksTaskIdIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/": {
       id: "/_saas/app/_org/$organizationSlug/ai-agents/$agentId/"
       path: "/ai-agents/$agentId"
-      fullPath: "/app/$organizationSlug/ai-agents/$agentId/"
+      fullPath: "/app/$organizationSlug/ai-agents/$agentId"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugAiAgentsAgentIdIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
@@ -1663,3 +1663,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from "./router.tsx"
+import type { createStart } from "@tanstack/react-start"
+declare module "@tanstack/react-start" {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
