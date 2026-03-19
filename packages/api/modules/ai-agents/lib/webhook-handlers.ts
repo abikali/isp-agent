@@ -140,13 +140,40 @@ async function handleMessages(
 					`ai:sent-msg:${msg.messageId}`,
 				);
 				if (!wasSentByUs && channel.agent.humanTakeoverHours) {
-					const conversation = await db.aiConversation.findFirst({
+					let conversation = await db.aiConversation.findFirst({
 						where: {
 							channelId: channel.id,
 							externalChatId: msg.chatId,
 							status: "active",
 						},
 					});
+
+					// Fallback: WaSender sends fromMe messages with @s.whatsapp.net JIDs
+					// even when the conversation uses an @lid (linked device) chatId.
+					// Find the most recently active conversation on this channel instead.
+					if (
+						!conversation &&
+						msg.chatId.endsWith("@s.whatsapp.net")
+					) {
+						conversation = await db.aiConversation.findFirst({
+							where: {
+								channelId: channel.id,
+								status: "active",
+							},
+							orderBy: { updatedAt: "desc" },
+						});
+						if (conversation) {
+							logger.info(
+								"Human takeover: matched fromMe via fallback",
+								{
+									originalChatId: msg.chatId,
+									matchedChatId: conversation.externalChatId,
+									conversationId: conversation.id,
+								},
+							);
+						}
+					}
+
 					if (conversation) {
 						await db.aiConversation.update({
 							where: { id: conversation.id },
