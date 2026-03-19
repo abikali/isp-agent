@@ -184,7 +184,7 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 		return [];
 	}
 
-	// Normalize messages to array (messages.received = single object, messages.upsert = array)
+	// Normalize messages to array (messages.upsert = array, messages.received (legacy) = single object)
 	const rawMessages = payload.data?.messages;
 	if (!rawMessages) {
 		return [];
@@ -864,7 +864,7 @@ export async function setWebhook(
 			webhook_url: webhookUrl,
 			webhook_enabled: true,
 			webhook_events: [
-				"messages.received",
+				"messages.upsert",
 				"messages.update",
 				"messages.reaction",
 				"messages.delete",
