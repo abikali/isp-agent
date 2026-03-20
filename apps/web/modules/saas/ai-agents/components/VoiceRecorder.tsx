@@ -25,11 +25,14 @@ export function VoiceRecorder({
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: true,
 			});
-			const mediaRecorder = new MediaRecorder(stream, {
-				mimeType: MediaRecorder.isTypeSupported("audio/webm")
-					? "audio/webm"
-					: "audio/ogg",
-			});
+			// Prefer OGG/Opus (WhatsApp native format, no remux needed)
+			// Fall back to WebM/Opus (Chrome) — server remuxes to OGG before sending
+			const mimeType = MediaRecorder.isTypeSupported(
+				"audio/ogg;codecs=opus",
+			)
+				? "audio/ogg;codecs=opus"
+				: "audio/webm;codecs=opus";
+			const mediaRecorder = new MediaRecorder(stream, { mimeType });
 			mediaRecorderRef.current = mediaRecorder;
 			chunksRef.current = [];
 

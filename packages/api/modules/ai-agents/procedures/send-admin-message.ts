@@ -161,7 +161,7 @@ export const sendAdminMessage = protectedProcedure
 
 						const signedUrl = await getSignedUrl(mediaPath, {
 							bucket,
-							expiresIn: 300,
+							expiresIn: 3600,
 						});
 						sendResult = await sendMediaMessage(
 							provider,

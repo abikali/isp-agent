@@ -135,7 +135,10 @@ export function AdminChatInput({
 	async function handleVoiceComplete(blob: Blob) {
 		setIsRecording(false);
 
-		const file = new File([blob], "voice-note.webm", { type: blob.type });
+		const isOgg = blob.type.includes("ogg");
+		const ext = isOgg ? "ogg" : "webm";
+		const filename = `voice-note.${ext}`;
+		const file = new File([blob], filename, { type: blob.type });
 		try {
 			const { storagePath } = await upload(
 				file,
@@ -148,7 +151,7 @@ export function AdminChatInput({
 				message: "Voice note",
 				attachmentType: "audio",
 				attachmentUrl: storagePath,
-				attachmentFilename: "voice-note.webm",
+				attachmentFilename: filename,
 				attachmentMimeType: blob.type,
 				attachmentSize: blob.size,
 			});
