@@ -82,6 +82,9 @@ export default defineConfig(({ mode }) => {
 			// Using node-cluster for multi-core CPU utilization
 			nitro({
 				preset: "node-cluster",
+				// Exclude ffmpeg-static binary from nf3 file tracing —
+				// we use system ffmpeg, not the bundled binary
+				externals: ["ffmpeg-static"],
 				// Enable pre-compression for faster asset delivery
 				compressPublicAssets: {
 					gzip: true,
