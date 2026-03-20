@@ -5,22 +5,35 @@ import { getSignedUploadUrl } from "@repo/storage";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
-const ALLOWED_MIME_TYPES = [
+/** Allowed base MIME types for chat attachments (without parameters like ;codecs=opus) */
+const ALLOWED_MIME_TYPES = new Set([
 	"image/jpeg",
 	"image/png",
 	"image/webp",
 	"image/gif",
+	"image/heic",
+	"image/heif",
 	"video/mp4",
 	"video/webm",
+	"video/quicktime",
 	"audio/mpeg",
+	"audio/mp4",
+	"audio/aac",
 	"audio/ogg",
 	"audio/webm",
 	"audio/wav",
+	"audio/x-m4a",
 	"application/pdf",
 	"application/msword",
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	"text/plain",
-];
+]);
+
+function isAllowedMimeType(contentType: string): boolean {
+	// Strip parameters like ";codecs=opus" — browsers include these
+	const base = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+	return ALLOWED_MIME_TYPES.has(base);
+}
 
 export const uploadChatAttachment = protectedProcedure
 	.route({
@@ -48,7 +61,7 @@ export const uploadChatAttachment = protectedProcedure
 			});
 		}
 
-		if (!ALLOWED_MIME_TYPES.includes(input.contentType)) {
+		if (!isAllowedMimeType(input.contentType)) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Unsupported file type",
 			});
