@@ -39,8 +39,9 @@ export function ConversationThread({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
+	const isHumanTakeover = !!conversation?.humanTakeoverAt;
 	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error;
+		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
 
 	return (
 		<div className="flex h-full flex-col">

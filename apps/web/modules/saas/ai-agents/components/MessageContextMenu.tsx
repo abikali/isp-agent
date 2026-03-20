@@ -6,9 +6,6 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import {
@@ -16,7 +13,6 @@ import {
 	CopyIcon,
 	PencilIcon,
 	ReplyIcon,
-	SmileIcon,
 	TrashIcon,
 } from "lucide-react";
 
@@ -58,32 +54,27 @@ export function MessageContextMenu({
 					<ChevronDownIcon className="size-3.5" />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-44">
+			<DropdownMenuContent align="end" className="w-auto">
+				{/* Inline emoji reactions */}
+				<div className="flex gap-0.5 px-1 py-1">
+					{QUICK_REACTIONS.map((emoji) => (
+						<button
+							key={emoji}
+							type="button"
+							onClick={() => onReact(emoji)}
+							className="rounded-md px-1.5 py-1 text-base transition-colors hover:bg-accent"
+						>
+							{emoji}
+						</button>
+					))}
+				</div>
+
+				<DropdownMenuSeparator />
+
 				<DropdownMenuItem onClick={onReply}>
 					<ReplyIcon className="mr-2 size-4" />
 					Reply
 				</DropdownMenuItem>
-
-				<DropdownMenuSub>
-					<DropdownMenuSubTrigger>
-						<SmileIcon className="mr-2 size-4" />
-						React
-					</DropdownMenuSubTrigger>
-					<DropdownMenuSubContent>
-						<div className="flex gap-1 p-1">
-							{QUICK_REACTIONS.map((emoji) => (
-								<button
-									key={emoji}
-									type="button"
-									onClick={() => onReact(emoji)}
-									className="rounded p-1 text-lg hover:bg-muted"
-								>
-									{emoji}
-								</button>
-							))}
-						</div>
-					</DropdownMenuSubContent>
-				</DropdownMenuSub>
 
 				<DropdownMenuItem
 					onClick={() => navigator.clipboard.writeText(content)}
