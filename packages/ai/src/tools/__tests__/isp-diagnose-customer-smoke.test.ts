@@ -35,14 +35,17 @@ describe("FUP on dedicated wireless connection", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wireless",
-		customerPing: "N/A",
-		bandwidth: null,
+		pingStatus: "unknown",
+		bandwidthStatus: null,
 		neighborResults: [],
-		signalStrength: "-53 dBm (excellent)",
 	});
 
 	it("diagnoses FUP as the cause", () => {
 		expect(fupDiagnosis.diagnosis).toContain("Fair Usage Policy");
+	});
+
+	it("has degraded severity", () => {
+		expect(fupDiagnosis.severity).toBe("degraded");
 	});
 
 	it("does NOT mention neighbors or infrastructure", () => {
@@ -70,14 +73,17 @@ describe("offline with AP down + FUP active", () => {
 		accessPointOnline: false,
 		stationOnline: true,
 		connectionType: "wireless",
-		customerPing: "Unreachable (100% packet loss)",
-		bandwidth: null,
+		pingStatus: "unreachable",
+		bandwidthStatus: null,
 		neighborResults: [],
-		signalStrength: null,
 	});
 
 	it("leads with disconnection, not FUP", () => {
 		expect(diagnosis.diagnosis).toMatch(/disconnected/i);
+	});
+
+	it("has down severity", () => {
+		expect(diagnosis.severity).toBe("down");
 	});
 
 	it("mentions AP is powered off", () => {
@@ -108,13 +114,12 @@ describe("offline with station down + all neighbors unreachable", () => {
 		accessPointOnline: true,
 		stationOnline: false,
 		connectionType: "fiber",
-		customerPing: "Unreachable (100% packet loss)",
-		bandwidth: null,
+		pingStatus: "unreachable",
+		bandwidthStatus: null,
 		neighborResults: [
 			{ userName: "peer1", ping: "Unreachable (100% packet loss)" },
 			{ userName: "peer2", ping: "Unreachable (100% packet loss)" },
 		],
-		signalStrength: null,
 	});
 
 	it("identifies infrastructure issue", () => {
@@ -143,12 +148,11 @@ describe("offline with healthy neighbors (isolated)", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wireless",
-		customerPing: "Unreachable (100% packet loss)",
-		bandwidth: null,
+		pingStatus: "unreachable",
+		bandwidthStatus: null,
 		neighborResults: [
 			{ userName: "peer1", ping: "Healthy (0% loss, low latency)" },
 		],
-		signalStrength: "-72 dBm (fair)",
 	});
 
 	it("identifies isolated issue", () => {
@@ -178,8 +182,7 @@ describe("online with saturated bandwidth", () => {
 	const bwAnalysis = analyzeBandwidth(bw);
 
 	it("detects saturation", () => {
-		expect(bwAnalysis).toContain("Saturated");
-		expect(bwAnalysis).toContain("92%");
+		expect(bwAnalysis).toEqual({ status: "saturated", usagePercent: 92 });
 	});
 
 	const diagnosis = buildDiagnosis({
@@ -190,14 +193,17 @@ describe("online with saturated bandwidth", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wired",
-		customerPing: "Healthy (0% loss, low latency)",
-		bandwidth: "Saturated (92% of plan limit in use)",
+		pingStatus: "healthy",
+		bandwidthStatus: "saturated",
 		neighborResults: [],
-		signalStrength: null,
 	});
 
 	it("mentions bandwidth saturation in diagnosis", () => {
 		expect(diagnosis.diagnosis).toContain("saturated");
+	});
+
+	it("has degraded severity", () => {
+		expect(diagnosis.severity).toBe("degraded");
 	});
 
 	it("suggests checking devices using bandwidth", () => {
@@ -223,9 +229,7 @@ describe("online + healthy + idle bandwidth", () => {
 	const bwAnalysis = analyzeBandwidth(bw);
 
 	it("reports idle, not broken", () => {
-		expect(bwAnalysis).toContain("Idle");
-		expect(bwAnalysis).toContain("inconclusive");
-		expect(bwAnalysis).not.toContain("Saturated");
+		expect(bwAnalysis).toEqual({ status: "idle", usagePercent: 1 });
 	});
 
 	const diagnosis = buildDiagnosis({
@@ -236,16 +240,19 @@ describe("online + healthy + idle bandwidth", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wired",
-		customerPing: "Healthy (0% loss, low latency)",
-		bandwidth: "Idle (1% current usage — inconclusive)",
+		pingStatus: "healthy",
+		bandwidthStatus: "idle",
 		neighborResults: [
 			{ userName: "peer1", ping: "Healthy (0% loss, low latency)" },
 		],
-		signalStrength: null,
 	});
 
 	it("reports connection as healthy", () => {
 		expect(diagnosis.diagnosis).toContain("healthy");
+	});
+
+	it("has ok severity", () => {
+		expect(diagnosis.severity).toBe("ok");
 	});
 
 	it("suggests speed test", () => {
@@ -271,9 +278,7 @@ describe("zero bandwidth does not mean broken", () => {
 	const bwAnalysis = analyzeBandwidth(bw);
 
 	it("reports idle, not saturated", () => {
-		expect(bwAnalysis).toContain("Idle");
-		expect(bwAnalysis).toContain("0%");
-		expect(bwAnalysis).not.toContain("Saturated");
+		expect(bwAnalysis).toEqual({ status: "idle", usagePercent: 0 });
 	});
 });
 
@@ -289,26 +294,28 @@ describe("account gate failures", () => {
 		accessPointOnline: null as boolean | null,
 		stationOnline: null as boolean | null,
 		connectionType: "wireless" as const,
-		customerPing: "N/A",
-		bandwidth: null,
+		pingStatus: "unknown" as const,
+		bandwidthStatus: null,
 		neighborResults: [] as Array<{ userName: string; ping: string }>,
-		signalStrength: null,
 	};
 
-	it("BLOCKED: mentions billing", () => {
+	it("BLOCKED: mentions billing with account-issue severity", () => {
 		const d = buildDiagnosis({ ...baseInput, accountStatus: "BLOCKED" });
+		expect(d.severity).toBe("account-issue");
 		expect(d.diagnosis).toContain("blocked");
 		expect(d.diagnosis.toLowerCase()).toContain("unpaid");
 	});
 
-	it("EXPIRED: mentions subscription", () => {
+	it("EXPIRED: mentions subscription with account-issue severity", () => {
 		const d = buildDiagnosis({ ...baseInput, accountStatus: "EXPIRED" });
+		expect(d.severity).toBe("account-issue");
 		expect(d.diagnosis).toContain("expired");
 		expect(d.actionNeeded).toContain("Renew");
 	});
 
-	it("DISABLED: mentions disabled", () => {
+	it("DISABLED: mentions disabled with account-issue severity", () => {
 		const d = buildDiagnosis({ ...baseInput, accountStatus: "DISABLED" });
+		expect(d.severity).toBe("account-issue");
 		expect(d.diagnosis).toContain("disabled");
 		expect(d.actionNeeded).toContain("reactivate");
 	});
@@ -320,35 +327,41 @@ describe("account gate failures", () => {
 
 describe("signal strength interpretation", () => {
 	it("-50 is excellent", () => {
-		expect(interpretSignal(-50)).toContain("excellent");
+		expect(interpretSignal(-50)).toEqual({
+			dbm: -50,
+			quality: "excellent",
+		});
 	});
 
 	it("-60 boundary is excellent", () => {
-		expect(interpretSignal(-60)).toContain("excellent");
+		expect(interpretSignal(-60)).toEqual({
+			dbm: -60,
+			quality: "excellent",
+		});
 	});
 
 	it("-61 is good", () => {
-		expect(interpretSignal(-61)).toContain("good");
+		expect(interpretSignal(-61)).toEqual({ dbm: -61, quality: "good" });
 	});
 
 	it("-70 boundary is good", () => {
-		expect(interpretSignal(-70)).toContain("good");
+		expect(interpretSignal(-70)).toEqual({ dbm: -70, quality: "good" });
 	});
 
 	it("-71 is fair", () => {
-		expect(interpretSignal(-71)).toContain("fair");
+		expect(interpretSignal(-71)).toEqual({ dbm: -71, quality: "fair" });
 	});
 
 	it("-80 boundary is fair", () => {
-		expect(interpretSignal(-80)).toContain("fair");
+		expect(interpretSignal(-80)).toEqual({ dbm: -80, quality: "fair" });
 	});
 
 	it("-81 is poor", () => {
-		expect(interpretSignal(-81)).toContain("poor");
+		expect(interpretSignal(-81)).toEqual({ dbm: -81, quality: "poor" });
 	});
 
 	it("-90 is poor", () => {
-		expect(interpretSignal(-90)).toContain("poor");
+		expect(interpretSignal(-90)).toEqual({ dbm: -90, quality: "poor" });
 	});
 });
 
@@ -368,8 +381,11 @@ describe("unstable connection", () => {
 	};
 
 	it("reports as unstable", () => {
-		expect(analyzePing(parsed)).toContain("Unstable");
-		expect(analyzePing(parsed)).toContain("40%");
+		expect(analyzePing(parsed)).toEqual({
+			status: "unstable",
+			packetLossPercent: 40,
+			latency: null,
+		});
 	});
 
 	const diagnosis = buildDiagnosis({
@@ -380,16 +396,19 @@ describe("unstable connection", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wireless",
-		customerPing: "Unstable (40% packet loss)",
-		bandwidth: "Idle (5% current usage — inconclusive)",
+		pingStatus: "unstable",
+		bandwidthStatus: "idle",
 		neighborResults: [
 			{ userName: "peer1", ping: "Healthy (0% loss, low latency)" },
 		],
-		signalStrength: "-75 dBm (fair)",
 	});
 
 	it("mentions instability in diagnosis", () => {
 		expect(diagnosis.diagnosis).toContain("unstable");
+	});
+
+	it("has degraded severity", () => {
+		expect(diagnosis.severity).toBe("degraded");
 	});
 });
 
@@ -406,10 +425,9 @@ describe("online but ping unreachable (NAT)", () => {
 		accessPointOnline: true,
 		stationOnline: true,
 		connectionType: "wired",
-		customerPing: "Unreachable (100% packet loss)",
-		bandwidth: "Idle (10% current usage — inconclusive)",
+		pingStatus: "unreachable",
+		bandwidthStatus: "idle",
 		neighborResults: [],
-		signalStrength: null,
 	});
 
 	it("mentions NAT/firewall possibility", () => {
@@ -438,8 +456,7 @@ describe("bandwidth with zero limit", () => {
 
 	it("reports idle (0% because limit is 0)", () => {
 		const result = analyzeBandwidth(bw);
-		expect(result).toContain("Idle");
-		expect(result).toContain("0%");
+		expect(result).toEqual({ status: "idle", usagePercent: 0 });
 	});
 });
 
@@ -466,8 +483,10 @@ describe("bandwidth uses latest data point", () => {
 	];
 
 	it("reports saturated based on latest point", () => {
-		expect(analyzeBandwidth(bw)).toContain("Saturated");
-		expect(analyzeBandwidth(bw)).toContain("94%");
+		expect(analyzeBandwidth(bw)).toEqual({
+			status: "saturated",
+			usagePercent: 94,
+		});
 	});
 });
 
@@ -487,7 +506,10 @@ describe("ping with 0% loss but null avg RTT", () => {
 	};
 
 	it("reports healthy with low latency (null treated as 0)", () => {
-		expect(analyzePing(parsed)).toContain("Healthy");
-		expect(analyzePing(parsed)).toContain("low latency");
+		expect(analyzePing(parsed)).toEqual({
+			status: "healthy",
+			packetLossPercent: 0,
+			latency: "low",
+		});
 	});
 });

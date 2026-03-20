@@ -19,10 +19,51 @@ import type { RegisteredTool, ToolContext } from "./types";
 const SPEED_TEST_URL = "https://speedtest.libancomlb.com/";
 
 // ---------------------------------------------------------------------------
+// Structured analysis types
+// ---------------------------------------------------------------------------
+
+export interface PingAnalysis {
+	status: "healthy" | "unstable" | "unreachable" | "unknown";
+	packetLossPercent: number;
+	latency: "low" | "moderate" | "high" | null;
+}
+
+export interface BandwidthAnalysis {
+	status: "saturated" | "idle" | "unknown";
+	usagePercent: number;
+}
+
+export interface SignalAnalysis {
+	dbm: number;
+	quality: "excellent" | "good" | "fair" | "poor";
+}
+
+// ---------------------------------------------------------------------------
 // Analysis helpers (pure, deterministic — exported for testing)
 // ---------------------------------------------------------------------------
 
-export function analyzePing(parsed: ParsedPingResult | null): string {
+export function analyzePing(parsed: ParsedPingResult | null): PingAnalysis {
+	if (!parsed) {
+		return { status: "unknown", packetLossPercent: 0, latency: null };
+	}
+	if (parsed.packetLossPercent === 100) {
+		return { status: "unreachable", packetLossPercent: 100, latency: null };
+	}
+	if (parsed.packetLossPercent === 0) {
+		const avg = parsed.rttAvg ?? 0;
+		const latency: PingAnalysis["latency"] =
+			avg <= 20 ? "low" : avg <= 50 ? "moderate" : "high";
+		return { status: "healthy", packetLossPercent: 0, latency };
+	}
+	return {
+		status: "unstable",
+		packetLossPercent: parsed.packetLossPercent,
+		latency: null,
+	};
+}
+
+/** Text-formatted ping analysis for neighborCheck display */
+export function analyzePingText(parsed: ParsedPingResult | null): string {
 	if (!parsed) {
 		return "No ping data";
 	}
@@ -44,7 +85,7 @@ export function analyzePing(parsed: ParsedPingResult | null): string {
 
 export function analyzeBandwidth(
 	stats: BandwidthDataPoint[] | null,
-): string | null {
+): BandwidthAnalysis | null {
 	if (!stats || stats.length === 0) {
 		return null;
 	}
@@ -54,28 +95,28 @@ export function analyzeBandwidth(
 		return null;
 	}
 
-	const percentDown =
+	const usagePercent =
 		latest.limitDown > 0
 			? Math.round((latest.currentDown / latest.limitDown) * 100)
 			: 0;
 
-	if (percentDown >= 80) {
-		return `Saturated (${percentDown}% of plan limit in use)`;
+	if (usagePercent >= 80) {
+		return { status: "saturated", usagePercent };
 	}
-	return `Idle (${percentDown}% current usage — inconclusive)`;
+	return { status: "idle", usagePercent };
 }
 
-export function interpretSignal(dbm: number): string {
+export function interpretSignal(dbm: number): SignalAnalysis {
 	if (dbm >= -60) {
-		return `${dbm} dBm (excellent)`;
+		return { dbm, quality: "excellent" };
 	}
 	if (dbm >= -70) {
-		return `${dbm} dBm (good)`;
+		return { dbm, quality: "good" };
 	}
 	if (dbm >= -80) {
-		return `${dbm} dBm (fair)`;
+		return { dbm, quality: "fair" };
 	}
-	return `${dbm} dBm (poor)`;
+	return { dbm, quality: "poor" };
 }
 
 interface DiagnosisInput {
@@ -86,13 +127,13 @@ interface DiagnosisInput {
 	accessPointOnline: boolean | null;
 	stationOnline: boolean | null;
 	connectionType: "wireless" | "fiber" | "wired";
-	customerPing: string;
-	bandwidth: string | null;
+	pingStatus: PingAnalysis["status"];
+	bandwidthStatus: BandwidthAnalysis["status"] | null;
 	neighborResults: Array<{ userName: string; ping: string }>;
-	signalStrength: string | null;
 }
 
 interface DiagnosisOutput {
+	severity: "ok" | "degraded" | "down" | "account-issue";
 	diagnosis: string;
 	actionNeeded: string;
 }
@@ -101,6 +142,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 	// Account gate failures
 	if (input.accountStatus === "BLOCKED") {
 		return {
+			severity: "account-issue",
 			diagnosis: "Account is blocked — usually due to an unpaid balance.",
 			actionNeeded:
 				"Contact your ISP to resolve the block on your account.",
@@ -108,12 +150,14 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 	}
 	if (input.accountStatus === "EXPIRED") {
 		return {
+			severity: "account-issue",
 			diagnosis: "Account subscription has expired.",
 			actionNeeded: "Renew your subscription to restore service.",
 		};
 	}
 	if (input.accountStatus === "DISABLED") {
 		return {
+			severity: "account-issue",
 			diagnosis: "Account is disabled.",
 			actionNeeded: "Contact your ISP to reactivate your account.",
 		};
@@ -122,6 +166,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 	// FUP while online — simple case
 	if (input.online && input.fupMode === "1") {
 		return {
+			severity: "degraded",
 			diagnosis:
 				"Connection is active but speed is reduced due to Fair Usage Policy (data quota exceeded).",
 			actionNeeded:
@@ -177,6 +222,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 					: "Try restarting your router/equipment. If the issue persists, contact your ISP.";
 
 		return {
+			severity: "down",
 			diagnosis: issues.join(" "),
 			actionNeeded: action,
 		};
@@ -185,32 +231,31 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 	// Online but possibly having issues
 	const issues: string[] = ["Customer is online."];
 
-	if (input.customerPing.includes("Unstable")) {
+	if (input.pingStatus === "unstable") {
 		issues.push("Connection is unstable with packet loss.");
 	}
 
-	if (input.bandwidth?.includes("Saturated")) {
+	if (input.bandwidthStatus === "saturated") {
 		issues.push(
 			"Bandwidth is saturated — something on the network is consuming most of the capacity.",
 		);
 		return {
+			severity: "degraded",
 			diagnosis: issues.join(" "),
 			actionNeeded:
 				"Check for devices or applications using heavy bandwidth (updates, streaming, downloads). Disconnect other devices and retest.",
 		};
 	}
 
-	if (input.customerPing.includes("Unreachable")) {
+	if (input.pingStatus === "unreachable") {
 		issues.push(
 			"Device is unreachable via ping — may be behind NAT/firewall, but connection is active.",
 		);
 	}
 
-	if (
-		input.customerPing.includes("Healthy") &&
-		!input.bandwidth?.includes("Saturated")
-	) {
+	if (input.pingStatus === "healthy") {
 		return {
+			severity: "ok",
 			diagnosis:
 				"Connection appears healthy. Ping is good and bandwidth is not saturated.",
 			actionNeeded:
@@ -219,6 +264,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 	}
 
 	return {
+		severity: "degraded",
 		diagnosis: issues.join(" "),
 		actionNeeded:
 			"Run a speed test to verify actual throughput and share the result.",
@@ -299,7 +345,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 
 					// Multiple matches — return for disambiguation
 					if (filtered.length > 1) {
-						const identifyOnly = filtered.map((c) => ({
+						const identifyOnly = filtered.map((c, i) => ({
+							option: i + 1,
 							userName: c["userName"],
 							firstName: c["firstName"],
 							lastName: c["lastName"],
@@ -308,7 +355,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						return {
 							found: true,
 							multipleMatches: true,
-							message: `Found ${filtered.length} customers matching "${args.query}". Present each with userName and address so the customer can identify theirs. When they pick one, call isp-diagnose-customer again with the exact userName.`,
+							message: `Found ${filtered.length} accounts. You MUST list each option with its userName (e.g. "joseph1") and address. The customer needs to tell you which userName is theirs so you can diagnose the correct account.`,
 							customers: identifyOnly,
 						};
 					}
@@ -402,7 +449,16 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							connectionType,
 							accountStatus,
 							accountActive: false,
+							connectionStatus: "Offline",
+							ping: {
+								status: "unknown" as const,
+								packetLossPercent: 0,
+								latency: null,
+							},
+							bandwidth: null,
+							signal: null,
 							peersSummary,
+							neighborCheck: "Skipped (account issue)",
 							...buildDiagnosis({
 								accountStatus,
 								accountActive: false,
@@ -411,10 +467,9 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 								accessPointOnline: null,
 								stationOnline: null,
 								connectionType,
-								customerPing: "N/A",
-								bandwidth: null,
+								pingStatus: "unknown",
+								bandwidthStatus: null,
 								neighborResults: [],
-								signalStrength: null,
 							}),
 						};
 					}
@@ -435,19 +490,24 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						null;
 
 					// Signal strength for wireless
-					let signalStrength: string | null = null;
+					let signalResult: SignalAnalysis | null = null;
 					if (connectionType === "wireless") {
 						const signal = customer["accessPointSignal"] as
 							| number
 							| string
 							| undefined;
 						if (signal != null) {
+							// Parse first number from potential "TX / RX" format (e.g. "-60 / -52")
+							const signalStr = String(signal);
+							const match = signalStr.match(/-?\d+/);
 							const dbm =
 								typeof signal === "number"
 									? signal
-									: Number.parseInt(String(signal), 10);
+									: match
+										? Number.parseInt(match[0], 10)
+										: Number.NaN;
 							if (!Number.isNaN(dbm)) {
-								signalStrength = interpretSignal(dbm);
+								signalResult = interpretSignal(dbm);
 							}
 						}
 					}
@@ -462,10 +522,9 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							accessPointOnline,
 							stationOnline,
 							connectionType,
-							customerPing: "N/A",
-							bandwidth: null,
+							pingStatus: "unknown",
+							bandwidthStatus: null,
 							neighborResults: [],
-							signalStrength,
 						});
 
 						return {
@@ -476,15 +535,17 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							accountStatus,
 							accountActive: true,
 							connectionStatus: "Online",
-							fup: {
-								active: true,
-								description:
-									"Speed reduced due to Fair Usage Policy (data quota exceeded)",
+							fupActive: true,
+							fupDescription:
+								"Speed reduced due to Fair Usage Policy (data quota exceeded)",
+							ping: {
+								status: "unknown" as const,
+								packetLossPercent: 0,
+								latency: null,
 							},
-							customerPing: "Skipped (FUP is the diagnosis)",
 							bandwidth: null,
+							signal: signalResult,
 							neighborCheck: "Skipped (FUP is the diagnosis)",
-							signalStrength,
 							peersSummary,
 							...diagResult,
 						};
@@ -529,7 +590,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						pingResult.status === "fulfilled"
 							? pingResult.value
 							: null;
-					const customerPingAnalysis = analyzePing(parsedPing);
+					const pingAnalysis = analyzePing(parsedPing);
 
 					const bandwidthData =
 						bandwidthResult.status === "fulfilled"
@@ -543,6 +604,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							)
 						: null;
 
+					// Neighbor results use text format for human-readable neighborCheck
 					const neighborResults: Array<{
 						userName: string;
 						ping: string;
@@ -555,7 +617,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							};
 							neighborResults.push({
 								userName: val.userName,
-								ping: analyzePing(val.parsed),
+								ping: analyzePingText(val.parsed),
 							});
 						}
 					}
@@ -583,17 +645,16 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						accessPointOnline,
 						stationOnline,
 						connectionType,
-						customerPing: customerPingAnalysis,
-						bandwidth: bandwidthAnalysis,
+						pingStatus: pingAnalysis.status,
+						bandwidthStatus: bandwidthAnalysis?.status ?? null,
 						neighborResults,
-						signalStrength,
 					});
 
 					// Include speed test URL when relevant
 					const shouldIncludeSpeedTest =
 						online &&
 						fupMode !== "1" &&
-						!bandwidthAnalysis?.includes("Saturated");
+						bandwidthAnalysis?.status !== "saturated";
 
 					return {
 						found: true,
@@ -603,18 +664,17 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						accountStatus,
 						accountActive: true,
 						connectionStatus,
-						fup:
-							fupMode === "1"
-								? {
-										active: true,
-										description:
-											"Speed reduced due to Fair Usage Policy",
-									}
-								: { active: false },
-						customerPing: customerPingAnalysis,
+						...(fupMode === "1"
+							? {
+									fupActive: true,
+									fupDescription:
+										"Speed reduced due to Fair Usage Policy",
+								}
+							: {}),
+						ping: pingAnalysis,
 						bandwidth: bandwidthAnalysis,
+						signal: signalResult,
 						neighborCheck,
-						signalStrength,
 						peersSummary,
 						...diagResult,
 						...(shouldIncludeSpeedTest
@@ -640,19 +700,19 @@ export const ispDiagnoseCustomer: RegisteredTool = {
 	factory: createIspDiagnoseCustomerTool,
 	defaultPromptSection: `## Diagnostic Report Guide
 
-When isp-diagnose-customer returns a report:
-- Lead with the diagnosis field — this is the main finding.
-- Suggest the action from actionNeeded.
-- If speedTestUrl is included, send it on its own line.
-- For wireless customers, mention signal quality if relevant.
-- Do NOT show raw technical numbers — the report uses plain language.
-- If fup.active is true, explain speed is reduced due to data usage.
+Use the severity field to guide response urgency:
+- "ok" → reassure the customer, suggest speed test if they still have issues
+- "degraded" → explain what's degraded (FUP, bandwidth, unstable ping) and suggest actions
+- "down" → prioritize getting them back online
+- "account-issue" → explain the account problem and how to resolve it
 
 The tool runs ALL diagnostics automatically. Do NOT manually re-run individual tools unless the customer asks for a specific follow-up.
 
+Fields like fupActive, ping, bandwidth, and signal are only present when relevant — do NOT mention absent fields.
+
 ## Speed Test
 
-When the report shows the customer is online but bandwidth is idle or zero (inconclusive), or the customer insists internet is slow despite a healthy-looking report, ask them to run a speed test. Send the link on its own line:
+When the report shows the customer is online but bandwidth is idle (inconclusive), or the customer insists internet is slow despite a healthy-looking report, ask them to run a speed test. Send the link on its own line:
 https://speedtest.libancomlb.com/
 Then tell them to press the Start button, wait for the test to finish, and send you a screenshot of the results.
 
@@ -665,7 +725,7 @@ Do NOT send the speed test link when:
 
 FUP is PER-ACCOUNT — it is NOT shared across an area, building, or neighbors. Each customer's quota is independent. NEVER claim that neighbors have the same FUP issue unless you have actually diagnosed their account.
 
-If fup.active is true:
+If fupActive is true:
 - That is the diagnosis for slow speed. No further diagnostics needed.
 - FUP resets vary by plan (daily or monthly). You cannot check when it resets. If they ask, offer to connect them with a human who can check or manually reset it.
 - If they want faster speed, suggest upgrading their plan.
@@ -690,6 +750,7 @@ When { found: false }:
 ## Multiple Account Matches
 
 When { multipleMatches: true }:
-1. Present each account with userName and address (NOT plan name).
-2. When the customer picks one, call isp-diagnose-customer again with the exact userName.`,
+1. List each account showing its userName (exactly as written, e.g. "joseph1") and address. The userName is a technical identifier — always include it verbatim.
+2. Ask the customer which one is theirs.
+3. When they pick one, call isp-diagnose-customer again with the exact userName.`,
 };
