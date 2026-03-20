@@ -2,7 +2,7 @@
 
 import { Button } from "@ui/components/button";
 import { PauseIcon, PlayIcon } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 interface AudioBubbleProps {
 	url: string;
@@ -44,6 +44,17 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	const displayDuration = duration ?? 0;
 
+	// Stable waveform heights — seeded from index so they don't change on re-render
+	const barHeights = useMemo(
+		() =>
+			Array.from({ length: 30 }, (_, i) => {
+				const seed = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+				const pseudo = seed - Math.floor(seed); // 0..1 deterministic
+				return 4 + Math.sin(i * 0.7) * 8 + pseudo * 4;
+			}),
+		[],
+	);
+
 	return (
 		<div className="flex items-center gap-2">
 			{/* biome-ignore lint/a11y/useMediaCaption: chat voice notes don't have captions */}
@@ -74,11 +85,9 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 				)}
 			</Button>
 
-			{/* Waveform placeholder bars */}
+			{/* Waveform bars */}
 			<div className="flex flex-1 items-center gap-px">
-				{Array.from({ length: 30 }, (_, i) => {
-					const barHeight =
-						4 + Math.sin(i * 0.7) * 8 + Math.random() * 4;
+				{barHeights.map((barHeight, i) => {
 					const filled = (i / 30) * 100 < progress;
 					return (
 						<div

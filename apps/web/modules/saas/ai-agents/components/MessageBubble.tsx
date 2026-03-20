@@ -231,11 +231,20 @@ export function MessageBubble({
 					)}
 
 					{/* Content */}
-					{content && (
-						<p className="whitespace-pre-wrap text-sm leading-relaxed">
-							{content}
-						</p>
-					)}
+					{content &&
+						(attachmentType === "voice" ? (
+							content !== "[Voice message received]" && (
+								<div className="mt-1.5 border-l-2 border-primary/30 pl-2">
+									<p className="text-xs italic text-muted-foreground leading-relaxed">
+										{content}
+									</p>
+								</div>
+							)
+						) : (
+							<p className="whitespace-pre-wrap text-sm leading-relaxed">
+								{content}
+							</p>
+						))}
 
 					{/* Timestamp row */}
 					<div className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-50">
@@ -313,7 +322,7 @@ function AttachmentContent({
 			/>
 		);
 	}
-	if (type === "audio") {
+	if (type === "audio" || type === "voice") {
 		return (
 			<AudioBubble
 				url={url}
