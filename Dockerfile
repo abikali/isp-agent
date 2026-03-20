@@ -8,8 +8,8 @@ FROM node:24-alpine AS base
 # Install pnpm (matching packageManager in package.json)
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 
-# Install dependencies needed for Prisma and build
-RUN apk add --no-cache libc6-compat openssl
+# Install dependencies needed for Prisma, build, and audio remux
+RUN apk add --no-cache libc6-compat openssl ffmpeg
 
 # ===============================================
 # Dependencies Stage
@@ -20,6 +20,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY packages/ai/package.json packages/ai/
 COPY packages/api/package.json packages/api/
 COPY packages/audit/package.json packages/audit/
 COPY packages/auth/package.json packages/auth/
