@@ -22,7 +22,6 @@ import {
 	stripToolAnnotation,
 	telegram,
 	triageBufferedMessages,
-	WHISH_MONEY_CONTEXT,
 	whatsapp,
 } from "@repo/ai";
 import { config } from "@repo/config";
@@ -309,7 +308,7 @@ async function handleMessages(
 			}
 
 			// Truncate incoming message
-			let truncatedText = messageText.slice(
+			const truncatedText = messageText.slice(
 				0,
 				config.ai.maxMessageLength,
 			);
@@ -437,9 +436,32 @@ async function handleMessages(
 				} as never,
 			});
 
-			// Detect Whish Money payment notifications — guide the LLM response
+			// Detect Whish Money payment notifications — send hardcoded reply, skip AI
 			if (isWhishMoneyMessage(truncatedText)) {
-				truncatedText = WHISH_MONEY_CONTEXT + truncatedText;
+				const whishReply =
+					"شكراً لإرسال الدفعة! سيتحقق منها المسؤول ويرد عليك قريباً.\nThank you for the payment! The admin will check it and get back to you shortly.";
+				await sendTextMessage(
+					provider,
+					apiToken,
+					msg.chatId,
+					whishReply,
+				);
+				trackBotMessage(getRedisConnection(), whishReply);
+				await db.aiMessage.create({
+					data: {
+						conversationId: conversation.id,
+						role: "assistant",
+						content: whishReply,
+					},
+				});
+				await db.aiConversation.update({
+					where: { id: conversation.id },
+					data: {
+						messageCount: { increment: 2 },
+						lastMessageAt: new Date(),
+					},
+				});
+				continue;
 			}
 
 			// Send typing indicator immediately so user sees activity
