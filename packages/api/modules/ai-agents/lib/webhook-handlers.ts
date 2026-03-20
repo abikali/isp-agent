@@ -140,17 +140,19 @@ async function handleMessages(
 					`ai:sent-msg:${msg.messageId}`,
 				);
 				if (!wasSentByUs && channel.agent.humanTakeoverHours) {
+					// Look up the most recent conversation for this chat (any status —
+					// a human can reply to cleared conversations too)
 					let conversation = await db.aiConversation.findFirst({
 						where: {
 							channelId: channel.id,
 							externalChatId: msg.chatId,
-							status: "active",
 						},
+						orderBy: { updatedAt: "desc" },
 					});
 
 					// Fallback: WaSender sends fromMe messages with @s.whatsapp.net JIDs
 					// even when the conversation uses an @lid (linked device) chatId.
-					// Find the most recently active conversation on this channel instead.
+					// Find the most recently updated conversation on this channel instead.
 					if (
 						!conversation &&
 						msg.chatId.endsWith("@s.whatsapp.net")
@@ -158,7 +160,6 @@ async function handleMessages(
 						conversation = await db.aiConversation.findFirst({
 							where: {
 								channelId: channel.id,
-								status: "active",
 							},
 							orderBy: { updatedAt: "desc" },
 						});
@@ -433,15 +434,25 @@ async function handleMessages(
 				continue;
 			}
 
-			// Re-check conversation status — it may have been cleared between
-			// the initial lookup and lock acquisition (race with /clear)
-			const preCheckStatus = await db.aiConversation.findUnique({
+			// Re-check conversation status and human takeover — either may have
+			// changed between the initial lookup and lock acquisition
+			const preCheck = await db.aiConversation.findUnique({
 				where: { id: conversation.id },
-				select: { status: true },
+				select: { status: true, humanTakeoverAt: true },
 			});
-			if (preCheckStatus?.status !== "active") {
+			if (preCheck?.status !== "active") {
 				await redis.del(lockKey);
 				continue;
+			}
+			if (channel.agent.humanTakeoverHours && preCheck.humanTakeoverAt) {
+				const expiresAt = new Date(
+					preCheck.humanTakeoverAt.getTime() +
+						channel.agent.humanTakeoverHours * 60 * 60 * 1000,
+				);
+				if (expiresAt > new Date()) {
+					await redis.del(lockKey);
+					continue;
+				}
 			}
 
 			// Resolve tools once (same for all messages in this chat)
