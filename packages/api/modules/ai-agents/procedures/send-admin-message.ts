@@ -93,7 +93,9 @@ export const sendAdminMessage = protectedProcedure
 				);
 				messageData["externalMsgId"] = sendResult.messageId ?? null;
 
-				// Track sent message ID so we don't mistake the echo for human activity
+				// Track sent message ID so we don't mistake the echo for human activity.
+				// Also track by phone number because WaSender echoes arrive with
+				// @s.whatsapp.net JIDs even when the conversation uses @lid format.
 				if (sendResult.messageId) {
 					const redis = getRedisConnection();
 					redis
@@ -112,6 +114,17 @@ export const sendAdminMessage = protectedProcedure
 							15,
 						)
 						.catch(() => {});
+					// Track phone-based key for @lid → @s.whatsapp.net echo matching
+					if (conversation.contactId) {
+						redis
+							.set(
+								`ai:bot-active:${conversation.contactId}`,
+								"1",
+								"EX",
+								15,
+							)
+							.catch(() => {});
+					}
 				}
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {

@@ -68,10 +68,22 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Extract the raw phone number from a WhatsApp JID.
+ * e.g. "9613199843@s.whatsapp.net" → "9613199843"
+ *      "13701532909570@lid"        → "13701532909570"
+ */
+function extractPhoneFromJid(jid: string): string {
+	return jid.split("@")[0] ?? jid;
+}
+
+/**
  * Track a bot-sent message so we can distinguish its echo from human phone messages.
  * We track both the API-returned message ID (WaSender numeric ID) AND the chatId,
  * because the messages.upsert webhook echo uses a different ID format (WhatsApp ID)
  * than what the send API returns.
+ *
+ * We also track a phone-based key because WaSender echoes arrive with
+ * @s.whatsapp.net JIDs even when the original chatId used @lid format.
  */
 function trackSentMessage(
 	redis: ReturnType<typeof getRedisConnection>,
@@ -84,6 +96,12 @@ function trackSentMessage(
 	if (chatId) {
 		// Mark this chat as having a recent bot-sent message (15s window)
 		redis.set(`ai:bot-active:${chatId}`, "1", "EX", 15).catch(() => {});
+		// Also track by phone number so @s.whatsapp.net echoes are caught
+		// when the conversation uses @lid format
+		const phone = extractPhoneFromJid(chatId);
+		if (phone !== chatId) {
+			redis.set(`ai:bot-active:${phone}`, "1", "EX", 15).catch(() => {});
+		}
 	}
 }
 
@@ -150,9 +168,11 @@ async function handleMessages(
 			// Detect human phone messages via fromMe flag
 			if (msg.fromMe) {
 				const redis = getRedisConnection();
+				const phone = extractPhoneFromJid(msg.chatId);
 				const wasSentByUs =
 					(await redis.get(`ai:sent-msg:${msg.messageId}`)) ||
-					(await redis.get(`ai:bot-active:${msg.chatId}`));
+					(await redis.get(`ai:bot-active:${msg.chatId}`)) ||
+					(await redis.get(`ai:bot-active:${phone}`));
 				if (!wasSentByUs && channel.agent.humanTakeoverHours) {
 					// Look up the most recent conversation for this chat (any status —
 					// a human can reply to cleared conversations too)
@@ -166,7 +186,7 @@ async function handleMessages(
 
 					// Fallback: WaSender sends fromMe messages with @s.whatsapp.net JIDs
 					// even when the conversation uses an @lid (linked device) chatId.
-					// Find the most recently updated conversation on this channel instead.
+					// Use the phone number to find the correct conversation by contactId.
 					if (
 						!conversation &&
 						msg.chatId.endsWith("@s.whatsapp.net")
@@ -174,14 +194,16 @@ async function handleMessages(
 						conversation = await db.aiConversation.findFirst({
 							where: {
 								channelId: channel.id,
+								contactId: phone,
 							},
 							orderBy: { updatedAt: "desc" },
 						});
 						if (conversation) {
 							logger.info(
-								"Human takeover: matched fromMe via fallback",
+								"Human takeover: matched fromMe via contactId fallback",
 								{
 									originalChatId: msg.chatId,
+									phone,
 									matchedChatId: conversation.externalChatId,
 									conversationId: conversation.id,
 								},
