@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSendAdminMessage } from "../hooks/use-all-conversations";
 import { useAttachmentUpload } from "../hooks/use-attachment-upload";
 import { EmojiPicker } from "./EmojiPicker";
+import { MediaPreviewDialog } from "./MediaPreviewDialog";
 import { VoiceRecorder } from "./VoiceRecorder";
 
 interface ReplyTarget {
@@ -69,6 +70,7 @@ export function AdminChatInput({
 	const [value, setValue] = useState("");
 	const [isRecording, setIsRecording] = useState(false);
 	const [attachPopoverOpen, setAttachPopoverOpen] = useState(false);
+	const [previewFile, setPreviewFile] = useState<File | null>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const imageInputRef = useRef<HTMLInputElement>(null);
 	const docInputRef = useRef<HTMLInputElement>(null);
@@ -155,8 +157,13 @@ export function AdminChatInput({
 		}
 	}
 
-	async function handleFileSelected(file: File) {
+	function handleFileSelected(file: File) {
 		setAttachPopoverOpen(false);
+		setPreviewFile(file);
+	}
+
+	async function handleMediaSend(file: File, caption: string) {
+		setPreviewFile(null);
 
 		try {
 			const { storagePath } = await upload(
@@ -168,7 +175,7 @@ export function AdminChatInput({
 			mutation.mutate({
 				conversationId,
 				organizationId,
-				message: file.name,
+				message: caption || file.name,
 				attachmentType: type,
 				attachmentUrl: storagePath,
 				attachmentFilename: file.name,
@@ -421,6 +428,13 @@ export function AdminChatInput({
 					</>
 				)}
 			</div>
+
+			{/* Media preview dialog */}
+			<MediaPreviewDialog
+				file={previewFile}
+				onSend={handleMediaSend}
+				onClose={() => setPreviewFile(null)}
+			/>
 		</div>
 	);
 }

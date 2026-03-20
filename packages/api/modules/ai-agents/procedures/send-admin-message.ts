@@ -1,11 +1,17 @@
 import { ORPCError } from "@orpc/server";
 import type { ChannelProvider, SendMediaOptions } from "@repo/ai";
-import { decryptToken, sendMediaMessage, sendTextMessage } from "@repo/ai";
+import {
+	decryptToken,
+	needsAudioRemux,
+	remuxWebmToOgg,
+	sendMediaMessage,
+	sendTextMessage,
+} from "@repo/ai";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
-import { getSignedUrl } from "@repo/storage";
+import { getSignedUrl, uploadBuffer } from "@repo/storage";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { trackBotMessage } from "../lib/bot-fingerprint";
@@ -116,13 +122,47 @@ export const sendAdminMessage = protectedProcedure
 						const bucket =
 							process.env["AVATARS_BUCKET_NAME"] ??
 							"libancom-dev";
-						const signedUrl = await getSignedUrl(
-							input.attachmentUrl,
-							{
-								bucket,
-								expiresIn: 300,
-							},
-						);
+
+						let mediaPath = input.attachmentUrl;
+
+						// Remux WebM audio to OGG for WhatsApp compatibility
+						if (
+							input.attachmentType === "audio" &&
+							input.attachmentMimeType &&
+							needsAudioRemux(input.attachmentMimeType)
+						) {
+							try {
+								const webmUrl = await getSignedUrl(
+									input.attachmentUrl,
+									{ bucket, expiresIn: 60 },
+								);
+								const webmResponse = await fetch(webmUrl);
+								const webmBuffer = Buffer.from(
+									await webmResponse.arrayBuffer(),
+								);
+								const oggBuffer =
+									await remuxWebmToOgg(webmBuffer);
+								const oggPath = input.attachmentUrl.replace(
+									/\.webm$/,
+									".ogg",
+								);
+								await uploadBuffer(oggPath, oggBuffer, {
+									bucket,
+									contentType: "audio/ogg;codecs=opus",
+								});
+								mediaPath = oggPath;
+							} catch (remuxError) {
+								logger.warn(
+									"Audio remux failed, sending original",
+									{ error: remuxError },
+								);
+							}
+						}
+
+						const signedUrl = await getSignedUrl(mediaPath, {
+							bucket,
+							expiresIn: 300,
+						});
 						sendResult = await sendMediaMessage(
 							provider,
 							apiToken,
@@ -131,7 +171,7 @@ export const sendAdminMessage = protectedProcedure
 								mediaType:
 									input.attachmentType as SendMediaOptions["mediaType"],
 								mediaUrl: signedUrl,
-								caption: input.message,
+								caption: input.message || undefined,
 								filename: input.attachmentFilename ?? undefined,
 							},
 						);

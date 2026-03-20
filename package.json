@@ -22,6 +22,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
 		"@repo/tsconfig": "workspace:*",
+		"@types/fluent-ffmpeg": "^2.1.28",
 		"@types/node": "^25.0.9",
 		"@vitest/coverage-v8": "^4.0.15",
 		"dotenv-cli": "^11.0.0",
@@ -43,5 +44,9 @@
 			"prisma",
 			"sharp"
 		]
+	},
+	"dependencies": {
+		"ffmpeg-static": "^5.3.0",
+		"fluent-ffmpeg": "^2.1.3"
 	}
 }

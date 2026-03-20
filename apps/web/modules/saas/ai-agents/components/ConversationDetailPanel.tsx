@@ -104,10 +104,9 @@ export function ConversationDetailPanel({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
-	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error;
-
 	const isHumanTakeover = !!conversation?.humanTakeoverAt;
+	const isAwaitingResponse =
+		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
 
 	function handleResumeAi() {
 		resumeConversation.mutate({ conversationId, organizationId });

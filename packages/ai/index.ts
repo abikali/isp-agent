@@ -1,3 +1,4 @@
+export { needsAudioRemux, remuxWebmToOgg } from "./src/audio-remux";
 export {
 	computeBotFingerprint,
 	isHumanTakeoverActive,
