@@ -270,9 +270,13 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						externalMsgId: sendResult.messageId ?? null,
 						tokenCount: result.tokenCount,
 						latencyMs: result.latencyMs,
-						toolCalls: result.toolResults
-							? JSON.parse(JSON.stringify(result.toolResults))
-							: undefined,
+						...(result.toolResults
+							? {
+									toolCalls: JSON.parse(
+										JSON.stringify(result.toolResults),
+									),
+								}
+							: {}),
 					},
 				});
 
