@@ -1,11 +1,6 @@
 import { PassThrough, Readable } from "node:stream";
 import { logger } from "@repo/logs";
-import ffmpegStatic from "ffmpeg-static";
 import ffmpeg from "fluent-ffmpeg";
-
-if (ffmpegStatic) {
-	ffmpeg.setFfmpegPath(ffmpegStatic);
-}
 
 /**
  * Remux a WebM/Opus audio buffer to OGG/Opus without re-encoding.
@@ -14,6 +9,8 @@ if (ffmpegStatic) {
  *
  * WhatsApp requires audio in OGG/Opus, AAC, MP3, or AMR format.
  * Browsers record in WebM/Opus (Chrome) which WhatsApp can't play.
+ *
+ * Requires `ffmpeg` to be installed on the system (apt install ffmpeg).
  */
 export async function remuxWebmToOgg(webmBuffer: Buffer): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
