@@ -68,22 +68,10 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Extract the raw phone number from a WhatsApp JID.
- * e.g. "9613199843@s.whatsapp.net" → "9613199843"
- *      "13701532909570@lid"        → "13701532909570"
- */
-function extractPhoneFromJid(jid: string): string {
-	return jid.split("@")[0] ?? jid;
-}
-
-/**
  * Track a bot-sent message so we can distinguish its echo from human phone messages.
  * We track both the API-returned message ID (WaSender numeric ID) AND the chatId,
  * because the messages.upsert webhook echo uses a different ID format (WhatsApp ID)
  * than what the send API returns.
- *
- * We also track a phone-based key because WaSender echoes arrive with
- * @s.whatsapp.net JIDs even when the original chatId used @lid format.
  */
 function trackSentMessage(
 	redis: ReturnType<typeof getRedisConnection>,
@@ -96,12 +84,6 @@ function trackSentMessage(
 	if (chatId) {
 		// Mark this chat as having a recent bot-sent message (15s window)
 		redis.set(`ai:bot-active:${chatId}`, "1", "EX", 15).catch(() => {});
-		// Also track by phone number so @s.whatsapp.net echoes are caught
-		// when the conversation uses @lid format
-		const phone = extractPhoneFromJid(chatId);
-		if (phone !== chatId) {
-			redis.set(`ai:bot-active:${phone}`, "1", "EX", 15).catch(() => {});
-		}
 	}
 }
 
@@ -165,59 +147,8 @@ async function handleMessages(
 
 	for (const msg of parsedMessages) {
 		try {
-			// Detect human phone messages via fromMe flag
+			// Skip outgoing (fromMe) messages — only process incoming customer messages
 			if (msg.fromMe) {
-				const redis = getRedisConnection();
-				const phone = extractPhoneFromJid(msg.chatId);
-				const wasSentByUs =
-					(await redis.get(`ai:sent-msg:${msg.messageId}`)) ||
-					(await redis.get(`ai:bot-active:${msg.chatId}`)) ||
-					(await redis.get(`ai:bot-active:${phone}`));
-				if (!wasSentByUs && channel.agent.humanTakeoverHours) {
-					// Look up the most recent conversation for this chat (any status —
-					// a human can reply to cleared conversations too)
-					let conversation = await db.aiConversation.findFirst({
-						where: {
-							channelId: channel.id,
-							externalChatId: msg.chatId,
-						},
-						orderBy: { updatedAt: "desc" },
-					});
-
-					// Fallback: WaSender sends fromMe messages with @s.whatsapp.net JIDs
-					// even when the conversation uses an @lid (linked device) chatId.
-					// Use the phone number to find the correct conversation by contactId.
-					if (
-						!conversation &&
-						msg.chatId.endsWith("@s.whatsapp.net")
-					) {
-						conversation = await db.aiConversation.findFirst({
-							where: {
-								channelId: channel.id,
-								contactId: phone,
-							},
-							orderBy: { updatedAt: "desc" },
-						});
-						if (conversation) {
-							logger.info(
-								"Human takeover: matched fromMe via contactId fallback",
-								{
-									originalChatId: msg.chatId,
-									phone,
-									matchedChatId: conversation.externalChatId,
-									conversationId: conversation.id,
-								},
-							);
-						}
-					}
-
-					if (conversation) {
-						await db.aiConversation.update({
-							where: { id: conversation.id },
-							data: { humanTakeoverAt: new Date() },
-						});
-					}
-				}
 				continue;
 			}
 
@@ -419,21 +350,6 @@ async function handleMessages(
 				} as never,
 			});
 
-			// Check human takeover pause
-			if (
-				channel.agent.humanTakeoverHours &&
-				conversation.humanTakeoverAt
-			) {
-				const expiresAt = new Date(
-					conversation.humanTakeoverAt.getTime() +
-						channel.agent.humanTakeoverHours * 60 * 60 * 1000,
-				);
-				if (expiresAt > new Date()) {
-					// Paused — message is saved but AI won't respond
-					continue;
-				}
-			}
-
 			// Detect Whish Money payment notifications — guide the LLM response
 			if (isWhishMoneyMessage(truncatedText)) {
 				truncatedText = WHISH_MONEY_CONTEXT + truncatedText;
@@ -470,25 +386,15 @@ async function handleMessages(
 				continue;
 			}
 
-			// Re-check conversation status and human takeover — either may have
-			// changed between the initial lookup and lock acquisition
+			// Re-check conversation status — it may have changed between
+			// the initial lookup and lock acquisition
 			const preCheck = await db.aiConversation.findUnique({
 				where: { id: conversation.id },
-				select: { status: true, humanTakeoverAt: true },
+				select: { status: true },
 			});
 			if (preCheck?.status !== "active") {
 				await redis.del(lockKey);
 				continue;
-			}
-			if (channel.agent.humanTakeoverHours && preCheck.humanTakeoverAt) {
-				const expiresAt = new Date(
-					preCheck.humanTakeoverAt.getTime() +
-						channel.agent.humanTakeoverHours * 60 * 60 * 1000,
-				);
-				if (expiresAt > new Date()) {
-					await redis.del(lockKey);
-					continue;
-				}
 			}
 
 			// Resolve tools once (same for all messages in this chat)
@@ -797,23 +703,6 @@ async function handleMessages(
 										if (sentInitial) {
 											return;
 										}
-										// Check if human took over during tool execution
-										if (channel.agent.humanTakeoverHours) {
-											const midCheck =
-												await db.aiConversation.findUnique(
-													{
-														where: {
-															id: conversation.id,
-														},
-														select: {
-															humanTakeoverAt: true,
-														},
-													},
-												);
-											if (midCheck?.humanTakeoverAt) {
-												return;
-											}
-										}
 										sentInitial = true;
 										const stepResult =
 											await sendTextMessage(
@@ -858,30 +747,6 @@ async function handleMessages(
 									result.toolResults = [];
 								}
 								result.toolResults.push(guardResult);
-							}
-						}
-
-						// Final human takeover check — admin may have replied
-						// while we were generating
-						if (channel.agent.humanTakeoverHours) {
-							const postGenCheck =
-								await db.aiConversation.findUnique({
-									where: { id: conversation.id },
-									select: { humanTakeoverAt: true },
-								});
-							if (postGenCheck?.humanTakeoverAt) {
-								const expiresAt = new Date(
-									postGenCheck.humanTakeoverAt.getTime() +
-										channel.agent.humanTakeoverHours *
-											60 *
-											60 *
-											1000,
-								);
-								if (expiresAt > new Date()) {
-									// Human took over during generation — suppress AI response
-									lastAssistantText = "";
-									break;
-								}
 							}
 						}
 

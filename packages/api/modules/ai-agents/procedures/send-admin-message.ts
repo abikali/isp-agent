@@ -52,7 +52,7 @@ export const sendAdminMessage = protectedProcedure
 			where: { id: input.conversationId },
 			include: {
 				agent: {
-					select: { organizationId: true, humanTakeoverHours: true },
+					select: { organizationId: true },
 				},
 				channel: true,
 			},
@@ -114,17 +114,6 @@ export const sendAdminMessage = protectedProcedure
 							15,
 						)
 						.catch(() => {});
-					// Track phone-based key for @lid → @s.whatsapp.net echo matching
-					if (conversation.contactId) {
-						redis
-							.set(
-								`ai:bot-active:${conversation.contactId}`,
-								"1",
-								"EX",
-								15,
-							)
-							.catch(() => {});
-					}
 				}
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {
@@ -143,15 +132,12 @@ export const sendAdminMessage = protectedProcedure
 			data: messageData as never,
 		});
 
-		// Update conversation counters + trigger human takeover if configured
+		// Update conversation counters
 		await db.aiConversation.update({
 			where: { id: conversation.id },
 			data: {
 				messageCount: { increment: 1 },
 				lastMessageAt: new Date(),
-				...(conversation.agent.humanTakeoverHours
-					? { humanTakeoverAt: new Date() }
-					: {}),
 			},
 		});
 

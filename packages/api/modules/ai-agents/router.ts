@@ -15,7 +15,7 @@ import { listChannels } from "./procedures/list-channels";
 import { listConversations } from "./procedures/list-conversations";
 import { listTools } from "./procedures/list-tools";
 import { reactToMessage } from "./procedures/react-to-message";
-import { resumeConversation } from "./procedures/resume-conversation";
+
 import { searchConversationMessages } from "./procedures/search-conversation-messages";
 import { sendAdminMessage } from "./procedures/send-admin-message";
 import { sendWebChatMessage } from "./procedures/send-web-chat-message";
@@ -47,7 +47,7 @@ export const aiAgentsRouter = {
 	deleteMessage,
 	editMessage,
 	uploadChatAttachment,
-	resumeConversation,
+
 	togglePinConversation,
 	searchConversationMessages,
 	getAgentStats,

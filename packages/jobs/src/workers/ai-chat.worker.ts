@@ -47,23 +47,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				return { success: false, error: "Conversation not found" };
 			}
 
-			// Check human takeover pause
-			if (
-				conversation.agent.humanTakeoverHours &&
-				conversation.humanTakeoverAt
-			) {
-				const expiresAt = new Date(
-					conversation.humanTakeoverAt.getTime() +
-						conversation.agent.humanTakeoverHours * 60 * 60 * 1000,
-				);
-				if (expiresAt > new Date()) {
-					return {
-						success: true,
-						error: "Skipped — human takeover active",
-					};
-				}
-			}
-
 			const apiToken = decryptToken(
 				conversation.channel.encryptedApiToken,
 			);

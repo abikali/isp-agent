@@ -12,18 +12,15 @@ import { Input } from "@ui/components/input";
 import { cn } from "@ui/lib";
 import {
 	ArrowLeftIcon,
-	HandIcon,
 	LockIcon,
 	MoreVerticalIcon,
 	PinIcon,
 	PinOffIcon,
-	PlayIcon,
 	SearchIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-	useResumeConversation,
 	useSearchMessages,
 	useTogglePinConversation,
 } from "../hooks/use-all-conversations";
@@ -73,7 +70,6 @@ export function ConversationDetailPanel({
 		content: string;
 	} | null>(null);
 	const togglePin = useTogglePinConversation();
-	const resumeConversation = useResumeConversation();
 	const reactMutation = useReactToMessage();
 	const deleteMutation = useDeleteMessage();
 	const editMutation = useEditMessage();
@@ -84,21 +80,6 @@ export function ConversationDetailPanel({
 	);
 
 	const searchMatchIds = new Set(searchResults.map((m) => m.id));
-
-	// Check human takeover pause status
-	const humanTakeoverAt = conversation?.humanTakeoverAt
-		? new Date(conversation.humanTakeoverAt)
-		: null;
-	const humanTakeoverHours = conversation?.humanTakeoverHours ?? null;
-	const takeoverExpiresAt =
-		humanTakeoverAt && humanTakeoverHours
-			? new Date(
-					humanTakeoverAt.getTime() +
-						humanTakeoverHours * 60 * 60 * 1000,
-				)
-			: null;
-	const isTakeoverActive =
-		takeoverExpiresAt !== null && takeoverExpiresAt > new Date();
 
 	// Auto-scroll to bottom only when new messages actually arrive
 	const lastMessageId = messages[messages.length - 1]?.id;
@@ -114,7 +95,7 @@ export function ConversationDetailPanel({
 
 	const lastMessage = messages[messages.length - 1];
 	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error && !isTakeoverActive;
+		lastMessage?.role === "user" && !lastMessage.error;
 
 	function handleTogglePin() {
 		togglePin.mutate({
@@ -254,20 +235,6 @@ export function ConversationDetailPanel({
 						</p>
 					)}
 				</div>
-			)}
-
-			{/* Human takeover banner */}
-			{isTakeoverActive && takeoverExpiresAt && (
-				<HumanTakeoverBanner
-					expiresAt={takeoverExpiresAt}
-					onResume={() =>
-						resumeConversation.mutate({
-							conversationId,
-							organizationId,
-						})
-					}
-					isResuming={resumeConversation.isPending}
-				/>
 			)}
 
 			{/* Messages area with subtle wallpaper pattern */}
@@ -433,42 +400,6 @@ export function ConversationDetailPanel({
 				onCancelEdit={() => setEditingMessage(null)}
 				onSaveEdit={handleEditSave}
 			/>
-		</div>
-	);
-}
-
-function HumanTakeoverBanner({
-	expiresAt,
-	onResume,
-	isResuming,
-}: {
-	expiresAt: Date;
-	onResume: () => void;
-	isResuming: boolean;
-}) {
-	const now = new Date();
-	const remainingMs = expiresAt.getTime() - now.getTime();
-	const remainingMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
-	const hours = Math.floor(remainingMinutes / 60);
-	const minutes = remainingMinutes % 60;
-	const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-
-	return (
-		<div className="flex items-center gap-2 border-b bg-blue-50 px-4 py-2 dark:bg-blue-950/30">
-			<HandIcon className="size-4 text-blue-600 dark:text-blue-400 shrink-0" />
-			<span className="text-xs text-blue-700 dark:text-blue-300 flex-1">
-				AI paused — human takeover (resumes in {timeStr})
-			</span>
-			<Button
-				variant="outline"
-				size="sm"
-				className="h-6 text-xs"
-				onClick={onResume}
-				disabled={isResuming}
-			>
-				<PlayIcon className="size-3 mr-1" />
-				{isResuming ? "Resuming..." : "Resume AI"}
-			</Button>
 		</div>
 	);
 }

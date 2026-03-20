@@ -70,22 +70,6 @@ export function useTogglePinConversation() {
 	});
 }
 
-export function useResumeConversation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.aiAgents.resumeConversation.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.aiAgents.getConversationMessages.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.aiAgents.listAllConversations.key(),
-			});
-		},
-	});
-}
-
 export function useSearchMessages(
 	conversationId: string,
 	organizationId: string,
