@@ -1,3 +1,7 @@
+export {
+	computeBotFingerprint,
+	isHumanTakeoverActive,
+} from "./src/bot-fingerprint";
 export type { BuildSystemPromptOptions } from "./src/build-system-prompt";
 export {
 	buildSystemPrompt,
@@ -23,6 +27,7 @@ export {
 	markAsRead,
 	parseWebhookPayload,
 	processMedia,
+	sendMediaMessage,
 	sendTextMessage,
 	sendTypingIndicator,
 	telegram,
@@ -53,6 +58,7 @@ export type {
 	GenerateResponseInput,
 	GenerateResponseResult,
 	ParsedMessage,
+	SendMediaOptions,
 	SendMessageOptions,
 	SendMessageResult,
 	ToolRecord,

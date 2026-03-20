@@ -1,12 +1,14 @@
 import { ORPCError } from "@orpc/server";
-import type { ChannelProvider } from "@repo/ai";
-import { decryptToken, sendTextMessage } from "@repo/ai";
+import type { ChannelProvider, SendMediaOptions } from "@repo/ai";
+import { decryptToken, sendMediaMessage, sendTextMessage } from "@repo/ai";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { getSignedUrl } from "@repo/storage";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { trackBotMessage } from "../lib/bot-fingerprint";
 
 export const sendAdminMessage = protectedProcedure
 	.route({
@@ -52,7 +54,10 @@ export const sendAdminMessage = protectedProcedure
 			where: { id: input.conversationId },
 			include: {
 				agent: {
-					select: { organizationId: true },
+					select: {
+						organizationId: true,
+						humanTakeoverHours: true,
+					},
 				},
 				channel: true,
 			},
@@ -85,36 +90,81 @@ export const sendAdminMessage = protectedProcedure
 				const apiToken = decryptToken(
 					conversation.channel.encryptedApiToken,
 				);
-				const sendResult = await sendTextMessage(
-					conversation.channel.provider as ChannelProvider,
-					apiToken,
-					conversation.externalChatId,
-					input.message,
-				);
+				const provider = conversation.channel
+					.provider as ChannelProvider;
+				let sendResult: {
+					success: boolean;
+					messageId?: string | undefined;
+				};
+
+				// Send media if attachment is present
+				const mediaTypes = [
+					"image",
+					"video",
+					"audio",
+					"document",
+					"sticker",
+				] as const;
+				if (
+					input.attachmentType &&
+					input.attachmentUrl &&
+					mediaTypes.includes(
+						input.attachmentType as (typeof mediaTypes)[number],
+					)
+				) {
+					try {
+						const bucket =
+							process.env["AVATARS_BUCKET_NAME"] ??
+							"libancom-dev";
+						const signedUrl = await getSignedUrl(
+							input.attachmentUrl,
+							{
+								bucket,
+								expiresIn: 300,
+							},
+						);
+						sendResult = await sendMediaMessage(
+							provider,
+							apiToken,
+							conversation.externalChatId,
+							{
+								mediaType:
+									input.attachmentType as SendMediaOptions["mediaType"],
+								mediaUrl: signedUrl,
+								caption: input.message,
+								filename: input.attachmentFilename ?? undefined,
+							},
+						);
+					} catch (mediaError) {
+						logger.warn(
+							"Media send failed, falling back to text-only",
+							{
+								error: mediaError,
+								attachmentType: input.attachmentType,
+								conversationId: conversation.id,
+							},
+						);
+						// Fall back to text-only
+						sendResult = await sendTextMessage(
+							provider,
+							apiToken,
+							conversation.externalChatId,
+							input.message,
+						);
+					}
+				} else {
+					sendResult = await sendTextMessage(
+						provider,
+						apiToken,
+						conversation.externalChatId,
+						input.message,
+					);
+				}
+
 				messageData["externalMsgId"] = sendResult.messageId ?? null;
 
-				// Track sent message ID so we don't mistake the echo for human activity.
-				// Also track by phone number because WaSender echoes arrive with
-				// @s.whatsapp.net JIDs even when the conversation uses @lid format.
-				if (sendResult.messageId) {
-					const redis = getRedisConnection();
-					redis
-						.set(
-							`ai:sent-msg:${sendResult.messageId}`,
-							"1",
-							"EX",
-							300,
-						)
-						.catch(() => {});
-					redis
-						.set(
-							`ai:bot-active:${conversation.externalChatId}`,
-							"1",
-							"EX",
-							15,
-						)
-						.catch(() => {});
-				}
+				// Track sent message by content fingerprint so we don't mistake the echo for human activity
+				trackBotMessage(getRedisConnection(), input.message);
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {
 					error,
@@ -132,13 +182,19 @@ export const sendAdminMessage = protectedProcedure
 			data: messageData as never,
 		});
 
-		// Update conversation counters
+		// Admin sending = human takeover (pause AI responses)
+		const updateData: Record<string, unknown> = {
+			messageCount: { increment: 1 },
+			lastMessageAt: new Date(),
+		};
+		if (conversation.agent.humanTakeoverHours) {
+			updateData["humanTakeoverAt"] = new Date();
+		}
+
+		// Update conversation counters + takeover
 		await db.aiConversation.update({
 			where: { id: conversation.id },
-			data: {
-				messageCount: { increment: 1 },
-				lastMessageAt: new Date(),
-			},
+			data: updateData,
 		});
 
 		return {

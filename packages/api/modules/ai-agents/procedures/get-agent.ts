@@ -49,7 +49,7 @@ export const getAgent = protectedProcedure
 				enabledTools: true,
 				servicePlansEnabled: true,
 				contextGapThresholdMinutes: true,
-
+				humanTakeoverHours: true,
 				promptSections: true,
 				webChatEnabled: true,
 				webChatToken: true,

@@ -4,19 +4,17 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
-export const searchConversationMessages = protectedProcedure
+export const resumeConversation = protectedProcedure
 	.route({
-		method: "GET",
-		path: "/ai-agents/conversations/{conversationId}/search",
+		method: "POST",
+		path: "/ai-agents/conversations/{conversationId}/resume",
 		tags: ["AI Agents"],
-		summary: "Search messages within a conversation",
+		summary: "Resume AI responses for a conversation after human takeover",
 	})
 	.input(
 		z.object({
 			conversationId: z.string(),
 			organizationId: z.string(),
-			query: z.string().min(1).max(200),
-			limit: z.number().int().min(1).max(50).default(20),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -48,24 +46,10 @@ export const searchConversationMessages = protectedProcedure
 			});
 		}
 
-		const messages = await db.aiMessage.findMany({
-			where: {
-				conversationId: input.conversationId,
-				deletedAt: null,
-				content: {
-					contains: input.query,
-					mode: "insensitive",
-				},
-			},
-			take: input.limit,
-			select: {
-				id: true,
-				role: true,
-				content: true,
-				createdAt: true,
-			},
-			orderBy: { createdAt: "asc" },
+		await db.aiConversation.update({
+			where: { id: input.conversationId },
+			data: { humanTakeoverAt: null },
 		});
 
-		return { messages };
+		return { success: true };
 	});

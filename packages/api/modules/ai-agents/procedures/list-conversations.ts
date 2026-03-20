@@ -66,7 +66,7 @@ export const listConversations = protectedProcedure
 				status: true,
 				messageCount: true,
 				lastMessageAt: true,
-
+				humanTakeoverAt: true,
 				createdAt: true,
 				channel: {
 					select: {

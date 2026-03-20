@@ -45,6 +45,7 @@ import {
 	BotIcon,
 	BrainIcon,
 	FileTextIcon,
+	HandIcon,
 	HelpCircleIcon,
 	Loader2Icon,
 	RotateCcwIcon,
@@ -140,6 +141,8 @@ export function AgentSettings({
 			temperature: agent.temperature,
 			enabledTools: agent.enabledTools as string[],
 			contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
+			humanTakeoverEnabled: agent.humanTakeoverHours != null,
+			humanTakeoverHours: agent.humanTakeoverHours ?? 4,
 			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
@@ -160,6 +163,9 @@ export function AgentSettings({
 				temperature: value.temperature,
 				enabledTools: value.enabledTools,
 				contextGapThresholdMinutes: value.contextGapThresholdMinutes,
+				humanTakeoverHours: value.humanTakeoverEnabled
+					? value.humanTakeoverHours
+					: null,
 				promptSections: value.promptSections,
 			});
 		},
@@ -306,6 +312,95 @@ export function AgentSettings({
 													placeholder="e.g. Fiber cut in downtown area affecting ~200 customers. Repair crew dispatched, ETA 4 hours."
 													className="mt-1.5"
 												/>
+											</div>
+										)}
+									</form.Field>
+								)}
+							</CardHeader>
+						</Card>
+					)}
+				</form.Field>
+
+				{/* Human Takeover */}
+				<form.Field name="humanTakeoverEnabled">
+					{(enabledField) => (
+						<Card className="mb-6">
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-3">
+										<div
+											className={`flex size-10 items-center justify-center rounded-lg ${enabledField.state.value ? "bg-blue-100 dark:bg-blue-900/50" : "bg-muted"}`}
+										>
+											<HandIcon
+												className={`size-5 ${enabledField.state.value ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
+											/>
+										</div>
+										<div>
+											<CardTitle className="text-lg">
+												Human Takeover
+											</CardTitle>
+											<CardDescription>
+												Pause AI when a human sends a
+												message from the linked phone
+											</CardDescription>
+										</div>
+									</div>
+									<div className="flex items-center gap-2">
+										<Badge
+											variant={
+												enabledField.state.value
+													? "default"
+													: "secondary"
+											}
+										>
+											{enabledField.state.value
+												? "Active"
+												: "Off"}
+										</Badge>
+										<Switch
+											checked={enabledField.state.value}
+											onCheckedChange={
+												enabledField.handleChange
+											}
+										/>
+									</div>
+								</div>
+								{enabledField.state.value && (
+									<form.Field name="humanTakeoverHours">
+										{(hoursField) => (
+											<div className="mt-4">
+												<FieldLabel htmlFor="takeover-hours">
+													Pause duration (hours)
+													<FieldHint text="How long the AI stays paused after a human message. After this time, the AI will automatically resume responding." />
+												</FieldLabel>
+												<div className="flex items-center gap-3 mt-1.5">
+													<Input
+														id="takeover-hours"
+														type="number"
+														min={0.5}
+														max={48}
+														step={0.5}
+														value={
+															hoursField.state
+																.value
+														}
+														onChange={(e) =>
+															hoursField.handleChange(
+																Number.parseFloat(
+																	e.target
+																		.value,
+																) || 4,
+															)
+														}
+														onBlur={
+															hoursField.handleBlur
+														}
+														className="w-24"
+													/>
+													<span className="text-sm text-muted-foreground">
+														hours
+													</span>
+												</div>
 											</div>
 										)}
 									</form.Field>

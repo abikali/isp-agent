@@ -2,6 +2,7 @@
 
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export function useReactToMessage() {
 	const queryClient = useQueryClient();
@@ -12,6 +13,9 @@ export function useReactToMessage() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.aiAgents.getConversationMessages.key(),
 			});
+		},
+		onError: () => {
+			toast.error("Failed to react");
 		},
 	});
 }
@@ -26,6 +30,9 @@ export function useDeleteMessage() {
 				queryKey: orpc.aiAgents.getConversationMessages.key(),
 			});
 		},
+		onError: () => {
+			toast.error("Failed to delete message");
+		},
 	});
 }
 
@@ -38,6 +45,9 @@ export function useEditMessage() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.aiAgents.getConversationMessages.key(),
 			});
+		},
+		onError: () => {
+			toast.error("Failed to edit message");
 		},
 	});
 }

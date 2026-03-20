@@ -7,11 +7,13 @@ import type {
 import {
 	buildContextGapNote,
 	buildSystemPrompt,
+	computeBotFingerprint,
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
 	formatHistoryMessage,
 	generateAgentResponse,
+	isHumanTakeoverActive,
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
@@ -45,6 +47,16 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 
 			if (!conversation || !conversation.channel || !conversation.agent) {
 				return { success: false, error: "Conversation not found" };
+			}
+
+			// Check if human takeover is active — skip AI generation
+			if (
+				isHumanTakeoverActive(
+					conversation.humanTakeoverAt,
+					conversation.agent.humanTakeoverHours,
+				)
+			) {
+				return { success: true, error: "Human takeover active" };
 			}
 
 			const apiToken = decryptToken(
@@ -241,16 +253,12 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					result.text,
 				);
 
-				// Track bot-sent message ID
-				if (sendResult.messageId) {
+				// Track bot-sent message by content fingerprint
+				if (result.text) {
 					const redis = getRedisConnection();
+					const fp = computeBotFingerprint(result.text);
 					redis
-						.set(
-							`ai:sent-msg:${sendResult.messageId}`,
-							"1",
-							"EX",
-							300,
-						)
+						.set(`ai:bot-fp:${fp}`, "1", "EX", 600)
 						.catch(() => {});
 				}
 

@@ -31,6 +31,11 @@ import { getRedisConnection, queueAiChatRetry } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { uploadBuffer } from "@repo/storage";
+import {
+	computeBotFingerprint,
+	isHumanTakeoverActive,
+	trackBotMessage,
+} from "./bot-fingerprint";
 import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
@@ -65,26 +70,6 @@ const QUOTA_EXCEEDED_MESSAGE =
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Track a bot-sent message so we can distinguish its echo from human phone messages.
- * We track both the API-returned message ID (WaSender numeric ID) AND the chatId,
- * because the messages.upsert webhook echo uses a different ID format (WhatsApp ID)
- * than what the send API returns.
- */
-function trackSentMessage(
-	redis: ReturnType<typeof getRedisConnection>,
-	messageId: string | undefined,
-	chatId?: string,
-): void {
-	if (messageId) {
-		redis.set(`ai:sent-msg:${messageId}`, "1", "EX", 300).catch(() => {});
-	}
-	if (chatId) {
-		// Mark this chat as having a recent bot-sent message (15s window)
-		redis.set(`ai:bot-active:${chatId}`, "1", "EX", 15).catch(() => {});
-	}
 }
 
 async function handleMessages(
@@ -123,16 +108,15 @@ async function handleMessages(
 		const messages = parseWebhookPayload(provider, body);
 		if (messages[0]) {
 			const apiToken = decryptToken(channel.encryptedApiToken);
-			const greetResult = await sendTextMessage(
+			await sendTextMessage(
 				provider,
 				apiToken,
 				messages[0].chatId,
 				channel.agent.greetingMessage,
 			);
-			trackSentMessage(
+			trackBotMessage(
 				getRedisConnection(),
-				greetResult.messageId,
-				messages[0].chatId,
+				channel.agent.greetingMessage,
 			);
 		}
 		return new Response("OK", { status: 200 });
@@ -147,8 +131,65 @@ async function handleMessages(
 
 	for (const msg of parsedMessages) {
 		try {
-			// Skip outgoing (fromMe) messages — only process incoming customer messages
+			// Handle outgoing (fromMe) messages — detect human takeover
 			if (msg.fromMe) {
+				// If the message has text, check if it's a bot echo via fingerprint
+				if (msg.text) {
+					const redis = getRedisConnection();
+					const fp = computeBotFingerprint(msg.text);
+					const isBotMessage = await redis.get(`ai:bot-fp:${fp}`);
+
+					if (isBotMessage) {
+						// Bot echo — clean up and skip
+						redis.del(`ai:bot-fp:${fp}`).catch(() => {});
+						continue;
+					}
+				}
+
+				// No text (voice/image/sticker from phone) or text not matching
+				// any bot fingerprint → this is a human-sent message.
+				// The bot only ever sends text via sendTextMessage(), so any
+				// non-text fromMe message is guaranteed to be from a human.
+
+				// Check if agent has takeover enabled.
+				if (!channel.agent.humanTakeoverHours) {
+					continue;
+				}
+
+				// Find conversation — handle JID format mismatch by prefix match
+				let takeoverConversation = await db.aiConversation.findFirst({
+					where: {
+						channelId: channel.id,
+						status: "active",
+						externalChatId: msg.chatId,
+					},
+					orderBy: { updatedAt: "desc" },
+				});
+				if (!takeoverConversation) {
+					const chatIdBase = msg.chatId.split("@")[0];
+					takeoverConversation = await db.aiConversation.findFirst({
+						where: {
+							channelId: channel.id,
+							status: "active",
+							externalChatId: {
+								startsWith: `${chatIdBase}@`,
+							},
+						},
+						orderBy: { updatedAt: "desc" },
+					});
+				}
+
+				if (takeoverConversation) {
+					await db.aiConversation.update({
+						where: { id: takeoverConversation.id },
+						data: { humanTakeoverAt: new Date() },
+					});
+					logger.info("Human takeover activated", {
+						conversationId: takeoverConversation.id,
+						chatId: msg.chatId,
+					});
+				}
+
 				continue;
 			}
 
@@ -180,13 +221,16 @@ async function handleMessages(
 				}
 
 				if (!clearLockAcquired) {
-					const waitResult = await sendTextMessage(
+					await sendTextMessage(
 						provider,
 						apiToken,
 						msg.chatId,
 						"Please wait for the current response to finish, then try /clear again.",
 					);
-					trackSentMessage(redis, waitResult.messageId, msg.chatId);
+					trackBotMessage(
+						redis,
+						"Please wait for the current response to finish, then try /clear again.",
+					);
 					continue;
 				}
 
@@ -206,13 +250,15 @@ async function handleMessages(
 					await redis.del(lockKey);
 				}
 
-				const clearResult = await sendTextMessage(
+				const clearText =
+					"Conversation cleared. Send a message to start fresh.";
+				await sendTextMessage(
 					provider,
 					apiToken,
 					msg.chatId,
-					"Conversation cleared. Send a message to start fresh.",
+					clearText,
 				);
-				trackSentMessage(redis, clearResult.messageId, msg.chatId);
+				trackBotMessage(redis, clearText);
 				continue;
 			}
 
@@ -302,13 +348,28 @@ async function handleMessages(
 
 			// Upload incoming media to R2 for display in dashboard
 			let attachmentData: Record<string, unknown> = {};
-			if (msg.mediaId && msg.mediaType) {
+			if (
+				msg.mediaType === "location" &&
+				msg.latitude != null &&
+				msg.longitude != null
+			) {
+				attachmentData = {
+					attachmentType: "location",
+					attachmentMeta: { lat: msg.latitude, lng: msg.longitude },
+				};
+			} else if (msg.mediaId && msg.mediaType) {
 				try {
-					const media = await whatsapp.downloadMedia(
-						apiToken,
-						msg.mediaId,
-						msg.mediaLink,
-					);
+					const media =
+						provider === "telegram"
+							? await telegram.downloadMedia(
+									apiToken,
+									msg.mediaId,
+								)
+							: await whatsapp.downloadMedia(
+									apiToken,
+									msg.mediaId,
+									msg.mediaLink,
+								);
 					if (media) {
 						const { createId } = await import(
 							"@paralleldrive/cuid2"
@@ -337,6 +398,32 @@ async function handleMessages(
 						conversationId: conversation.id,
 					});
 				}
+			}
+
+			// Check if human takeover is active — store message but skip AI response
+			if (
+				isHumanTakeoverActive(
+					conversation.humanTakeoverAt,
+					channel.agent.humanTakeoverHours,
+				)
+			) {
+				await db.aiMessage.create({
+					data: {
+						conversationId: conversation.id,
+						role: "user",
+						content: truncatedText,
+						externalMsgId: msg.messageId,
+						...attachmentData,
+					} as never,
+				});
+				continue;
+			}
+			// Clear expired takeover if present
+			if (conversation.humanTakeoverAt) {
+				await db.aiConversation.update({
+					where: { id: conversation.id },
+					data: { humanTakeoverAt: null },
+				});
 			}
 
 			// Store user message in DB immediately
@@ -533,17 +620,13 @@ async function handleMessages(
 								triageResult.message ??
 								"Understood, let me know if you need anything else.";
 
-							const ackSendResult = await sendTextMessage(
+							await sendTextMessage(
 								provider,
 								apiToken,
 								msg.chatId,
 								ackMessage,
 							);
-							trackSentMessage(
-								redis,
-								ackSendResult.messageId,
-								msg.chatId,
-							);
+							trackBotMessage(redis, ackMessage);
 
 							const conversationExists =
 								await db.aiConversation.findUnique({
@@ -585,17 +668,13 @@ async function handleMessages(
 						"aiMessages",
 					);
 					if (!quotaResult.allowed) {
-						const quotaSendResult = await sendTextMessage(
+						await sendTextMessage(
 							provider,
 							apiToken,
 							msg.chatId,
 							QUOTA_EXCEEDED_MESSAGE,
 						);
-						trackSentMessage(
-							redis,
-							quotaSendResult.messageId,
-							msg.chatId,
-						);
+						trackBotMessage(redis, QUOTA_EXCEEDED_MESSAGE);
 						break;
 					}
 
@@ -704,18 +783,13 @@ async function handleMessages(
 											return;
 										}
 										sentInitial = true;
-										const stepResult =
-											await sendTextMessage(
-												provider,
-												apiToken,
-												msg.chatId,
-												stepText,
-											);
-										trackSentMessage(
-											redis,
-											stepResult.messageId,
+										await sendTextMessage(
+											provider,
+											apiToken,
 											msg.chatId,
+											stepText,
 										);
+										trackBotMessage(redis, stepText);
 									}
 								: undefined,
 						});
@@ -758,12 +832,8 @@ async function handleMessages(
 							result.text,
 						);
 
-						// Track bot-sent message ID so we don't mistake the echo for human activity
-						trackSentMessage(
-							redis,
-							sendResult.messageId,
-							msg.chatId,
-						);
+						// Track bot-sent message by content fingerprint so we don't mistake the echo for human activity
+						trackBotMessage(redis, result.text);
 
 						// Store assistant message (conversation may have been cleared concurrently)
 						const conversationExists =
@@ -847,17 +917,13 @@ async function handleMessages(
 
 						// For transient errors, enqueue a retry via BullMQ
 						if (!isToolError) {
-							const retrySendResult = await sendTextMessage(
+							await sendTextMessage(
 								provider,
 								apiToken,
 								msg.chatId,
 								RETRY_MESSAGE,
 							);
-							trackSentMessage(
-								redis,
-								retrySendResult.messageId,
-								msg.chatId,
-							);
+							trackBotMessage(redis, RETRY_MESSAGE);
 							queueAiChatRetry({
 								conversationId: conversation.id,
 								channelId: channel.id,
@@ -868,17 +934,13 @@ async function handleMessages(
 								});
 							});
 						} else {
-							const fallbackSendResult = await sendTextMessage(
+							await sendTextMessage(
 								provider,
 								apiToken,
 								msg.chatId,
 								FALLBACK_MESSAGE,
 							);
-							trackSentMessage(
-								redis,
-								fallbackSendResult.messageId,
-								msg.chatId,
-							);
+							trackBotMessage(redis, FALLBACK_MESSAGE);
 						}
 
 						const errorMessage = isToolError

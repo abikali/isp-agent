@@ -115,6 +115,7 @@ export const getConversationMessages = protectedProcedure
 				contactName: conversation.contactName,
 				contactId: conversation.contactId,
 				status: conversation.status,
+				humanTakeoverAt: conversation.humanTakeoverAt,
 				channel: conversation.channel,
 			},
 			messages: items,

@@ -556,6 +556,7 @@ model AiAgent {
   promptSections   Json             @default("[]")
   servicePlansEnabled        Boolean       @default(false)
   contextGapThresholdMinutes Int           @default(240)
+  humanTakeoverHours Float?          @map("human_takeover_hours")
   webChatEnabled   Boolean          @default(false)
   webChatToken     String?          @unique
   createdById      String
@@ -608,6 +609,7 @@ model AiConversation {
   verifiedCustomerId String?
   pinAttempts        Int       @default(0)
   pinLockedUntil     DateTime?
+  humanTakeoverAt    DateTime? @map("human_takeover_at")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

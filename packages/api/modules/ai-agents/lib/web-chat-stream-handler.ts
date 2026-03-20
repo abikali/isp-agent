@@ -291,7 +291,12 @@ export async function handleWebChatStream(
 
 				await db.aiMessage
 					.create({ data: messageData as never })
-					.catch(() => {});
+					.catch((err) =>
+						logger.error("Failed to store assistant message", {
+							error: err,
+							conversationId,
+						}),
+					);
 				await db.aiConversation
 					.update({
 						where: { id: conversationId },
@@ -300,7 +305,12 @@ export async function handleWebChatStream(
 							lastMessageAt: new Date(),
 						},
 					})
-					.catch(() => {});
+					.catch((err) =>
+						logger.error("Failed to update conversation counters", {
+							error: err,
+							conversationId,
+						}),
+					);
 			} catch (error) {
 				logger.error("Web chat stream completion failed", {
 					error,
@@ -319,7 +329,12 @@ export async function handleWebChatStream(
 									: "Unknown error",
 						},
 					})
-					.catch(() => {});
+					.catch((err) =>
+						logger.error("Failed to store fallback message", {
+							error: err,
+							conversationId,
+						}),
+					);
 
 				db.aiConversation
 					.update({
@@ -329,11 +344,20 @@ export async function handleWebChatStream(
 							lastMessageAt: new Date(),
 						},
 					})
-					.catch(() => {});
+					.catch((err) =>
+						logger.error(
+							"Failed to update conversation after error",
+							{ error: err, conversationId },
+						),
+					);
 			}
 		})
-		.catch(() => {
+		.catch((err) => {
 			clearTimeout(timeout);
+			logger.error("Web chat stream consumption failed", {
+				error: err,
+				conversationId,
+			});
 		});
 
 	return streamResult.toUIMessageStreamResponse();

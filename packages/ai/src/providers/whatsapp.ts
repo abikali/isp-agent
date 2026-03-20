@@ -4,6 +4,7 @@ import { createWasender } from "wasenderapi";
 import { getModel } from "../model-registry";
 import type {
 	ParsedMessage,
+	SendMediaOptions,
 	SendMessageOptions,
 	SendMessageResult,
 } from "../types";
@@ -79,6 +80,8 @@ interface ExtractedMessage {
 	mediaType?: string | undefined;
 	mediaCaption?: string | undefined;
 	mediaFileName?: string | undefined;
+	latitude?: number | undefined;
+	longitude?: number | undefined;
 }
 
 function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
@@ -131,6 +134,15 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 			text: content.videoMessage.caption
 				? `[Video] ${content.videoMessage.caption}`
 				: "[Video received]",
+			mediaId: msg.key.id,
+			mediaLink: JSON.stringify({
+				messages: {
+					key: { id: msg.key.id },
+					message: { videoMessage: content.videoMessage },
+				},
+			}),
+			mediaType: "video",
+			mediaCaption: content.videoMessage.caption ?? undefined,
 		};
 	}
 
@@ -155,7 +167,17 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 
 	// Sticker
 	if (content?.stickerMessage) {
-		return { text: "[Sticker received]" };
+		return {
+			text: "[Sticker received]",
+			mediaId: msg.key.id,
+			mediaLink: JSON.stringify({
+				messages: {
+					key: { id: msg.key.id },
+					message: { stickerMessage: content.stickerMessage },
+				},
+			}),
+			mediaType: "sticker",
+		};
 	}
 
 	// Location
@@ -163,7 +185,12 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 		const lat = content.locationMessage.degreesLatitude;
 		const lng = content.locationMessage.degreesLongitude;
 		if (lat != null && lng != null) {
-			return { text: `[Location: ${lat}, ${lng}]` };
+			return {
+				text: `[Location: ${lat}, ${lng}]`,
+				mediaType: "location",
+				latitude: lat,
+				longitude: lng,
+			};
 		}
 		return { text: "[Location received]" };
 	}
@@ -197,10 +224,11 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 	for (const msg of messages) {
 		// Include outgoing messages with fromMe flag — handler decides what to do
 		if (msg.key.fromMe) {
+			const extracted = extractMessage(msg);
 			results.push({
 				chatId: msg.key.remoteJid,
 				messageId: msg.key.id,
-				text: "",
+				text: extracted?.text ?? "",
 				fromMe: true,
 			});
 			continue;
@@ -224,6 +252,8 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				mediaType: extracted.mediaType,
 				mediaCaption: extracted.mediaCaption,
 				mediaFileName: extracted.mediaFileName,
+				latitude: extracted.latitude,
+				longitude: extracted.longitude,
 			});
 		}
 	}
@@ -313,6 +343,104 @@ function get429RetryAfter(error: unknown): number {
 		}
 	}
 	return 3; // Default from WaSender docs
+}
+
+/**
+ * Send a media message (image, video, audio, document, sticker, location) via WaSender.
+ */
+export async function sendMediaMessage(
+	apiToken: string,
+	chatId: string,
+	options: SendMediaOptions,
+): Promise<SendMessageResult> {
+	await acquireSendSlot(apiToken);
+
+	try {
+		const client = createClient(apiToken);
+		let result: { response: unknown };
+		const textOpts = options.caption ? { text: options.caption } : {};
+
+		switch (options.mediaType) {
+			case "image":
+				result = await client.sendImage({
+					to: chatId,
+					imageUrl: options.mediaUrl ?? "",
+					...textOpts,
+				});
+				break;
+			case "video":
+				result = await client.sendVideo({
+					to: chatId,
+					videoUrl: options.mediaUrl ?? "",
+					...textOpts,
+				});
+				break;
+			case "document":
+				result = await client.sendDocument({
+					to: chatId,
+					documentUrl: options.mediaUrl ?? "",
+					...textOpts,
+				});
+				break;
+			case "audio":
+				result = await client.sendAudio({
+					to: chatId,
+					audioUrl: options.mediaUrl ?? "",
+				});
+				break;
+			case "sticker":
+				result = await client.sendSticker({
+					to: chatId,
+					stickerUrl: options.mediaUrl ?? "",
+				});
+				break;
+			case "location":
+				result = await client.sendLocation({
+					to: chatId,
+					location: {
+						latitude: options.latitude ?? 0,
+						longitude: options.longitude ?? 0,
+					},
+				});
+				break;
+			default:
+				return { success: false };
+		}
+
+		const responseData = result.response as unknown as Record<
+			string,
+			unknown
+		>;
+		const data = responseData["data"] as
+			| { msgId?: string | number }
+			| undefined;
+		const messageId = data?.msgId != null ? String(data.msgId) : undefined;
+		return { success: true, messageId };
+	} catch (error) {
+		// Safety net: retry once on 429
+		if (is429Error(error)) {
+			const retryAfter = get429RetryAfter(error);
+			logger.warn("WhatsApp media 429 rate limit, retrying", {
+				retryAfter,
+			});
+			await new Promise((r) => setTimeout(r, retryAfter * 1000));
+
+			try {
+				return await sendMediaMessage(apiToken, chatId, options);
+			} catch (retryError) {
+				logger.error("WhatsApp media send error after 429 retry", {
+					error: retryError,
+				});
+				return { success: false };
+			}
+		}
+
+		logger.error("WhatsApp media send error", {
+			error,
+			mediaType: options.mediaType,
+		});
+		return { success: false };
+	}
 }
 
 /**

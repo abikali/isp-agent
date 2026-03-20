@@ -1,6 +1,7 @@
 import type {
 	ChannelProvider,
 	ParsedMessage,
+	SendMediaOptions,
 	SendMessageOptions,
 	SendMessageResult,
 } from "../types";
@@ -104,6 +105,25 @@ export async function processMedia(
 			);
 		default:
 			return null;
+	}
+}
+
+/**
+ * Send a media message (image, video, audio, document, sticker, location) to an external channel.
+ */
+export async function sendMediaMessage(
+	provider: ChannelProvider,
+	apiToken: string,
+	chatId: string,
+	options: SendMediaOptions,
+): Promise<SendMessageResult> {
+	switch (provider) {
+		case "whatsapp":
+			return whatsapp.sendMediaMessage(apiToken, chatId, options);
+		case "telegram":
+			return telegram.sendMediaMessage(apiToken, chatId, options);
+		default:
+			return { success: false };
 	}
 }
 

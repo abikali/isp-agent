@@ -125,6 +125,11 @@ vi.mock("@repo/ai", () => ({
 	triageBufferedMessages: vi.fn(),
 	executeEscalationGuard: vi.fn().mockResolvedValue(null),
 	extractToolPromptOverrides: vi.fn().mockReturnValue({}),
+	stripToolAnnotation: vi.fn((text: string) => text),
+	isWhishMoneyMessage: vi.fn().mockReturnValue(false),
+	WHISH_MONEY_CONTEXT: "",
+	computeBotFingerprint: vi.fn().mockReturnValue("mock-fp"),
+	isHumanTakeoverActive: vi.fn().mockReturnValue(false),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),

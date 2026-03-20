@@ -1,5 +1,6 @@
 "use client";
 
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import {
@@ -12,10 +13,12 @@ import { Input } from "@ui/components/input";
 import { cn } from "@ui/lib";
 import {
 	ArrowLeftIcon,
+	HandIcon,
 	LockIcon,
 	MoreVerticalIcon,
 	PinIcon,
 	PinOffIcon,
+	PlayIcon,
 	SearchIcon,
 	XIcon,
 } from "lucide-react";
@@ -24,7 +27,10 @@ import {
 	useSearchMessages,
 	useTogglePinConversation,
 } from "../hooks/use-all-conversations";
-import { useConversationMessages } from "../hooks/use-conversations";
+import {
+	useConversationMessages,
+	useResumeConversation,
+} from "../hooks/use-conversations";
 import {
 	useDeleteMessage,
 	useEditMessage,
@@ -70,13 +76,17 @@ export function ConversationDetailPanel({
 		content: string;
 	} | null>(null);
 	const togglePin = useTogglePinConversation();
+	const resumeConversation = useResumeConversation();
 	const reactMutation = useReactToMessage();
 	const deleteMutation = useDeleteMessage();
 	const editMutation = useEditMessage();
+	const [debouncedSearchQuery] = useDebouncedValue(searchQuery, {
+		wait: 300,
+	});
 	const { messages: searchResults } = useSearchMessages(
 		conversationId,
 		organizationId,
-		searchQuery,
+		debouncedSearchQuery,
 	);
 
 	const searchMatchIds = new Set(searchResults.map((m) => m.id));
@@ -96,6 +106,12 @@ export function ConversationDetailPanel({
 	const lastMessage = messages[messages.length - 1];
 	const isAwaitingResponse =
 		lastMessage?.role === "user" && !lastMessage.error;
+
+	const isHumanTakeover = !!conversation?.humanTakeoverAt;
+
+	function handleResumeAi() {
+		resumeConversation.mutate({ conversationId, organizationId });
+	}
 
 	function handleTogglePin() {
 		togglePin.mutate({
@@ -234,6 +250,26 @@ export function ConversationDetailPanel({
 							{searchResults.length !== 1 ? "es" : ""}
 						</p>
 					)}
+				</div>
+			)}
+
+			{/* Human takeover banner */}
+			{isHumanTakeover && (
+				<div className="flex items-center gap-2 border-b bg-amber-50 px-4 py-2 dark:bg-amber-950/30">
+					<HandIcon className="size-4 text-amber-600 dark:text-amber-400" />
+					<span className="flex-1 text-xs text-amber-800 dark:text-amber-300">
+						AI paused — human takeover active
+					</span>
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-6 text-xs"
+						onClick={handleResumeAi}
+						disabled={resumeConversation.isPending}
+					>
+						<PlayIcon className="mr-1 size-3" />
+						Resume AI
+					</Button>
 				</div>
 			)}
 

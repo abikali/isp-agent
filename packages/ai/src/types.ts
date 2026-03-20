@@ -19,6 +19,10 @@ export interface ParsedMessage {
 	mediaFileName?: string | undefined;
 	/** Whether this message was sent by us (fromMe flag from WhatsApp) */
 	fromMe?: boolean | undefined;
+	/** Latitude for location messages */
+	latitude?: number | undefined;
+	/** Longitude for location messages */
+	longitude?: number | undefined;
 }
 
 export interface SendMessageResult {
@@ -63,3 +67,18 @@ export interface GenerateResponseResult {
 }
 
 export type ChannelProvider = "whatsapp" | "telegram";
+
+export interface SendMediaOptions {
+	mediaType:
+		| "image"
+		| "video"
+		| "audio"
+		| "document"
+		| "sticker"
+		| "location";
+	mediaUrl?: string | undefined;
+	caption?: string | undefined;
+	filename?: string | undefined;
+	latitude?: number | undefined;
+	longitude?: number | undefined;
+}

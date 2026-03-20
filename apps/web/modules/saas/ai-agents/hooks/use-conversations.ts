@@ -1,7 +1,7 @@
 "use client";
 
 import { orpc } from "@shared/lib/orpc";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useConversations(
 	agentId: string,
@@ -51,4 +51,23 @@ export function useConversationMessages(
 		nextCursor: query.data?.nextCursor,
 		isLoading: query.isLoading,
 	};
+}
+
+export function useResumeConversation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.aiAgents.resumeConversation.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.aiAgents.getConversationMessages.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.aiAgents.listConversations.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.aiAgents.listAllConversations.key(),
+			});
+		},
+	});
 }

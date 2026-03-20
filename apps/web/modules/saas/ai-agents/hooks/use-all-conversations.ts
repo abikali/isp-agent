@@ -2,6 +2,7 @@
 
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 interface AllConversationsFilters {
 	agentId?: string | undefined;
@@ -54,6 +55,9 @@ export function useSendAdminMessage() {
 				queryKey: orpc.aiAgents.listAllConversations.key(),
 			});
 		},
+		onError: () => {
+			toast.error("Failed to send message");
+		},
 	});
 }
 
@@ -66,6 +70,12 @@ export function useTogglePinConversation() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.aiAgents.listAllConversations.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.aiAgents.listConversations.key(),
+			});
+		},
+		onError: () => {
+			toast.error("Failed to update pin");
 		},
 	});
 }
