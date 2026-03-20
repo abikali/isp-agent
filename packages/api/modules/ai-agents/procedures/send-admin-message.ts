@@ -104,6 +104,14 @@ export const sendAdminMessage = protectedProcedure
 							300,
 						)
 						.catch(() => {});
+					redis
+						.set(
+							`ai:bot-active:${conversation.externalChatId}`,
+							"1",
+							"EX",
+							15,
+						)
+						.catch(() => {});
 				}
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {

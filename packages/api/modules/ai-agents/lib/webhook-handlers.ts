@@ -67,13 +67,23 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Track a bot/admin-sent message ID in Redis so we can distinguish it from human phone messages. */
+/**
+ * Track a bot-sent message so we can distinguish its echo from human phone messages.
+ * We track both the API-returned message ID (WaSender numeric ID) AND the chatId,
+ * because the messages.upsert webhook echo uses a different ID format (WhatsApp ID)
+ * than what the send API returns.
+ */
 function trackSentMessage(
 	redis: ReturnType<typeof getRedisConnection>,
 	messageId: string | undefined,
+	chatId?: string,
 ): void {
 	if (messageId) {
 		redis.set(`ai:sent-msg:${messageId}`, "1", "EX", 300).catch(() => {});
+	}
+	if (chatId) {
+		// Mark this chat as having a recent bot-sent message (15s window)
+		redis.set(`ai:bot-active:${chatId}`, "1", "EX", 15).catch(() => {});
 	}
 }
 
@@ -119,7 +129,11 @@ async function handleMessages(
 				messages[0].chatId,
 				channel.agent.greetingMessage,
 			);
-			trackSentMessage(getRedisConnection(), greetResult.messageId);
+			trackSentMessage(
+				getRedisConnection(),
+				greetResult.messageId,
+				messages[0].chatId,
+			);
 		}
 		return new Response("OK", { status: 200 });
 	}
@@ -136,9 +150,9 @@ async function handleMessages(
 			// Detect human phone messages via fromMe flag
 			if (msg.fromMe) {
 				const redis = getRedisConnection();
-				const wasSentByUs = await redis.get(
-					`ai:sent-msg:${msg.messageId}`,
-				);
+				const wasSentByUs =
+					(await redis.get(`ai:sent-msg:${msg.messageId}`)) ||
+					(await redis.get(`ai:bot-active:${msg.chatId}`));
 				if (!wasSentByUs && channel.agent.humanTakeoverHours) {
 					// Look up the most recent conversation for this chat (any status —
 					// a human can reply to cleared conversations too)
@@ -219,7 +233,7 @@ async function handleMessages(
 						msg.chatId,
 						"Please wait for the current response to finish, then try /clear again.",
 					);
-					trackSentMessage(redis, waitResult.messageId);
+					trackSentMessage(redis, waitResult.messageId, msg.chatId);
 					continue;
 				}
 
@@ -245,7 +259,7 @@ async function handleMessages(
 					msg.chatId,
 					"Conversation cleared. Send a message to start fresh.",
 				);
-				trackSentMessage(redis, clearResult.messageId);
+				trackSentMessage(redis, clearResult.messageId, msg.chatId);
 				continue;
 			}
 
@@ -597,7 +611,11 @@ async function handleMessages(
 								msg.chatId,
 								ackMessage,
 							);
-							trackSentMessage(redis, ackSendResult.messageId);
+							trackSentMessage(
+								redis,
+								ackSendResult.messageId,
+								msg.chatId,
+							);
 
 							const conversationExists =
 								await db.aiConversation.findUnique({
@@ -645,7 +663,11 @@ async function handleMessages(
 							msg.chatId,
 							QUOTA_EXCEEDED_MESSAGE,
 						);
-						trackSentMessage(redis, quotaSendResult.messageId);
+						trackSentMessage(
+							redis,
+							quotaSendResult.messageId,
+							msg.chatId,
+						);
 						break;
 					}
 
@@ -781,6 +803,7 @@ async function handleMessages(
 										trackSentMessage(
 											redis,
 											stepResult.messageId,
+											msg.chatId,
 										);
 									}
 								: undefined,
@@ -849,7 +872,11 @@ async function handleMessages(
 						);
 
 						// Track bot-sent message ID so we don't mistake the echo for human activity
-						trackSentMessage(redis, sendResult.messageId);
+						trackSentMessage(
+							redis,
+							sendResult.messageId,
+							msg.chatId,
+						);
 
 						// Store assistant message (conversation may have been cleared concurrently)
 						const conversationExists =
@@ -939,7 +966,11 @@ async function handleMessages(
 								msg.chatId,
 								RETRY_MESSAGE,
 							);
-							trackSentMessage(redis, retrySendResult.messageId);
+							trackSentMessage(
+								redis,
+								retrySendResult.messageId,
+								msg.chatId,
+							);
 							queueAiChatRetry({
 								conversationId: conversation.id,
 								channelId: channel.id,
@@ -959,6 +990,7 @@ async function handleMessages(
 							trackSentMessage(
 								redis,
 								fallbackSendResult.messageId,
+								msg.chatId,
 							);
 						}
 
