@@ -753,6 +753,23 @@ async function handleMessages(
 										if (sentInitial) {
 											return;
 										}
+										// Check if human took over during tool execution
+										if (channel.agent.humanTakeoverHours) {
+											const midCheck =
+												await db.aiConversation.findUnique(
+													{
+														where: {
+															id: conversation.id,
+														},
+														select: {
+															humanTakeoverAt: true,
+														},
+													},
+												);
+											if (midCheck?.humanTakeoverAt) {
+												return;
+											}
+										}
 										sentInitial = true;
 										const stepResult =
 											await sendTextMessage(
@@ -796,6 +813,30 @@ async function handleMessages(
 									result.toolResults = [];
 								}
 								result.toolResults.push(guardResult);
+							}
+						}
+
+						// Final human takeover check — admin may have replied
+						// while we were generating
+						if (channel.agent.humanTakeoverHours) {
+							const postGenCheck =
+								await db.aiConversation.findUnique({
+									where: { id: conversation.id },
+									select: { humanTakeoverAt: true },
+								});
+							if (postGenCheck?.humanTakeoverAt) {
+								const expiresAt = new Date(
+									postGenCheck.humanTakeoverAt.getTime() +
+										channel.agent.humanTakeoverHours *
+											60 *
+											60 *
+											1000,
+								);
+								if (expiresAt > new Date()) {
+									// Human took over during generation — suppress AI response
+									lastAssistantText = "";
+									break;
+								}
 							}
 						}
 
