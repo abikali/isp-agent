@@ -23,7 +23,7 @@ import {
 	SearchIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentsQuery } from "../hooks/use-agents";
 import {
 	formatListTimestamp,
@@ -110,15 +110,23 @@ export function ConversationsListPanel({
 	const { agents } = useAgentsQuery();
 	const [searchInput, setSearchInput] = useState(filters.search);
 
-	// Debounce search
+	// Debounce search — only react to searchInput changes, not filter object identity
+	const filtersRef = useRef(filters);
+	filtersRef.current = filters;
+	const onFiltersChangeRef = useRef(onFiltersChange);
+	onFiltersChangeRef.current = onFiltersChange;
+
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			if (searchInput !== filters.search) {
-				onFiltersChange({ ...filters, search: searchInput });
+			if (searchInput !== filtersRef.current.search) {
+				onFiltersChangeRef.current({
+					...filtersRef.current,
+					search: searchInput,
+				});
 			}
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [searchInput, filters, onFiltersChange]);
+	}, [searchInput]);
 
 	const updateFilter = useCallback(
 		(key: keyof Filters, value: string) => {
