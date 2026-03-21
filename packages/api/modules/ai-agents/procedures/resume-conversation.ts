@@ -1,6 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import { db } from "@repo/database";
+import { queueAiChatRetry } from "@repo/jobs";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -34,6 +36,9 @@ export const resumeConversation = protectedProcedure
 				agent: {
 					select: { organizationId: true },
 				},
+				channel: {
+					select: { id: true },
+				},
 			},
 		});
 
@@ -50,6 +55,26 @@ export const resumeConversation = protectedProcedure
 			where: { id: input.conversationId },
 			data: { humanTakeoverAt: null },
 		});
+
+		// If the last message is from a user (unanswered), queue an AI response
+		if (conversation.channelId) {
+			const lastMessage = await db.aiMessage.findFirst({
+				where: { conversationId: input.conversationId },
+				orderBy: { createdAt: "desc" },
+				select: { role: true },
+			});
+			if (lastMessage?.role === "user") {
+				queueAiChatRetry({
+					conversationId: input.conversationId,
+					channelId: conversation.channelId,
+				}).catch((err) =>
+					logger.error("Failed to queue AI response after resume", {
+						error: err,
+						conversationId: input.conversationId,
+					}),
+				);
+			}
+		}
 
 		return { success: true };
 	});
