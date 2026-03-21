@@ -178,7 +178,7 @@ export function AdminChatInput({
 			mutation.mutate({
 				conversationId,
 				organizationId,
-				message: caption || file.name,
+				message: caption,
 				attachmentType: type,
 				attachmentUrl: storagePath,
 				attachmentFilename: file.name,

@@ -27,7 +27,7 @@ export const sendAdminMessage = protectedProcedure
 		z.object({
 			conversationId: z.string(),
 			organizationId: z.string(),
-			message: z.string().min(1).max(4000),
+			message: z.string().max(4000),
 			replyToId: z.string().optional(),
 			attachmentType: z
 				.enum([
@@ -184,21 +184,27 @@ export const sendAdminMessage = protectedProcedure
 								conversationId: conversation.id,
 							},
 						);
-						// Fall back to text-only
-						sendResult = await sendTextMessage(
-							provider,
-							apiToken,
-							conversation.externalChatId,
-							input.message,
-						);
+						// Fall back to text-only (only if there's text to send)
+						if (input.message) {
+							sendResult = await sendTextMessage(
+								provider,
+								apiToken,
+								conversation.externalChatId,
+								input.message,
+							);
+						} else {
+							sendResult = { success: false };
+						}
 					}
-				} else {
+				} else if (input.message) {
 					sendResult = await sendTextMessage(
 						provider,
 						apiToken,
 						conversation.externalChatId,
 						input.message,
 					);
+				} else {
+					sendResult = { success: true };
 				}
 
 				messageData["externalMsgId"] = sendResult.messageId ?? null;

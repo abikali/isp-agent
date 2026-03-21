@@ -104,9 +104,41 @@ export function ConversationDetailPanel({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
-	const isHumanTakeover = !!conversation?.humanTakeoverAt;
+	const takeoverExpiresAt = conversation?.humanTakeoverExpiresAt
+		? new Date(conversation.humanTakeoverExpiresAt)
+		: null;
+	const [takeoverRemaining, setTakeoverRemaining] = useState("");
+	const isHumanTakeover = !!takeoverExpiresAt;
 	const isAwaitingResponse =
 		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
+
+	// Countdown timer for human takeover
+	const expiresAtMs = takeoverExpiresAt?.getTime() ?? 0;
+	useEffect(() => {
+		if (!expiresAtMs) {
+			setTakeoverRemaining("");
+			return;
+		}
+		function update() {
+			const remaining = expiresAtMs - Date.now();
+			if (remaining <= 0) {
+				setTakeoverRemaining("");
+				return;
+			}
+			const mins = Math.floor(remaining / 60000);
+			const secs = Math.floor((remaining % 60000) / 1000);
+			if (mins >= 60) {
+				const hrs = Math.floor(mins / 60);
+				const m = mins % 60;
+				setTakeoverRemaining(`${hrs}h ${m}m remaining`);
+			} else {
+				setTakeoverRemaining(`${mins}m ${secs}s remaining`);
+			}
+		}
+		update();
+		const interval = setInterval(update, 1000);
+		return () => clearInterval(interval);
+	}, [expiresAtMs]);
 
 	function handleResumeAi() {
 		resumeConversation.mutate({ conversationId, organizationId });
@@ -258,6 +290,11 @@ export function ConversationDetailPanel({
 					<HandIcon className="size-4 text-amber-600 dark:text-amber-400" />
 					<span className="flex-1 text-xs text-amber-800 dark:text-amber-300">
 						AI paused — human takeover active
+						{takeoverRemaining && (
+							<span className="ml-1 font-medium">
+								({takeoverRemaining})
+							</span>
+						)}
 					</span>
 					<Button
 						variant="outline"

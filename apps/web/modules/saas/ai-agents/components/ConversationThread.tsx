@@ -39,7 +39,7 @@ export function ConversationThread({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
-	const isHumanTakeover = !!conversation?.humanTakeoverAt;
+	const isHumanTakeover = !!conversation?.humanTakeoverExpiresAt;
 	const isAwaitingResponse =
 		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
 

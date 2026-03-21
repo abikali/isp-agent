@@ -34,7 +34,7 @@ export const getConversationMessages = protectedProcedure
 			where: { id: input.conversationId },
 			include: {
 				agent: {
-					select: { organizationId: true },
+					select: { organizationId: true, humanTakeoverHours: true },
 				},
 				channel: {
 					select: {
@@ -109,6 +109,21 @@ export const getConversationMessages = protectedProcedure
 		const items = hasMore ? messages.slice(0, input.limit) : messages;
 		const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
 
+		// Compute takeover expiry: null if not active or expired
+		let humanTakeoverExpiresAt: Date | null = null;
+		if (
+			conversation.humanTakeoverAt &&
+			conversation.agent.humanTakeoverHours
+		) {
+			const expiresAt = new Date(
+				conversation.humanTakeoverAt.getTime() +
+					conversation.agent.humanTakeoverHours * 60 * 60 * 1000,
+			);
+			if (expiresAt > new Date()) {
+				humanTakeoverExpiresAt = expiresAt;
+			}
+		}
+
 		return {
 			conversation: {
 				id: conversation.id,
@@ -116,6 +131,7 @@ export const getConversationMessages = protectedProcedure
 				contactId: conversation.contactId,
 				status: conversation.status,
 				humanTakeoverAt: conversation.humanTakeoverAt,
+				humanTakeoverExpiresAt,
 				channel: conversation.channel,
 			},
 			messages: items,
