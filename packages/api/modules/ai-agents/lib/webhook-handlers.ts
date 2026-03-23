@@ -19,6 +19,7 @@ import {
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
+	sendWhishPaymentEscalation,
 	stripToolAnnotation,
 	telegram,
 	triageBufferedMessages,
@@ -461,6 +462,16 @@ async function handleMessages(
 						lastMessageAt: new Date(),
 					},
 				});
+
+				// Fire-and-forget Telegram escalation so the team sees the payment
+				sendWhishPaymentEscalation({
+					agentId: channel.agent.id,
+					conversationId: conversation.id,
+					contactName: msg.contactName ?? null,
+					contactPhone: msg.contactId ?? null,
+					messageText: truncatedText,
+				}).catch(() => {});
+
 				continue;
 			}
 

@@ -68,5 +68,6 @@ export type {
 export {
 	isEmployeePhone,
 	isWhishMoneyMessage,
+	sendWhishPaymentEscalation,
 	WHISH_MONEY_CONTEXT,
 } from "./src/whish-money-guard";
