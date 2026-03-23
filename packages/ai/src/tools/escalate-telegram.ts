@@ -2,6 +2,7 @@ import { logger } from "@repo/logs";
 import { tool } from "ai";
 import { z } from "zod";
 import { summarizeForEscalation } from "../escalation-summary";
+import { cleanPhoneNumber, ispGet } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
 const PRIORITY_EMOJI: Record<string, string> = {
@@ -76,8 +77,10 @@ function buildTelegramMessage(opts: {
 	category: string;
 	displayName: string;
 	customer: CustomerDetails | null;
+	ispCustomer: IspCustomerInfo | null;
 	customerUsername: string | undefined;
 	contactId: string | null;
+	contactPhone: string | null;
 	summary: string;
 	actionRequired: string | undefined;
 	conversationExcerpt: string;
@@ -94,33 +97,54 @@ function buildTelegramMessage(opts: {
 		"",
 	];
 
-	// Customer identity line
+	// Customer identity line — merge DB customer, ISP lookup, and agent-provided data
 	const nameParts: string[] = [escapeHtml(opts.displayName)];
-	const username = opts.customer?.username ?? opts.customerUsername;
+	const username =
+		opts.customer?.username ??
+		opts.ispCustomer?.userName ??
+		opts.customerUsername;
 	if (username) {
 		nameParts.push(`· <code>${escapeHtml(username)}</code>`);
 	}
 	lines.push(`👤 ${nameParts.join(" ")}`);
 
-	// Contact info line
+	// Contact info line — prefer verified customer, then ISP lookup, then WhatsApp
+	const phone = opts.customer?.phone ?? opts.contactPhone;
+	const address = opts.customer?.address ?? opts.ispCustomer?.address;
 	const contactParts: string[] = [];
-	if (opts.customer?.phone) {
-		contactParts.push(escapeHtml(opts.customer.phone));
+	if (phone) {
+		contactParts.push(escapeHtml(phone));
 	}
-	if (opts.customer?.address) {
-		contactParts.push(escapeHtml(opts.customer.address));
+	if (address) {
+		contactParts.push(escapeHtml(address));
 	}
 	if (contactParts.length > 0) {
 		lines.push(`📞 ${contactParts.join(" · ")}`);
 	}
 
-	// Plan / status line
+	// Plan / status line — merge DB and ISP data
 	const planParts: string[] = [];
 	if (opts.customer?.planName) {
 		planParts.push(escapeHtml(opts.customer.planName));
+	} else if (opts.ispCustomer?.accountTypeName) {
+		planParts.push(escapeHtml(opts.ispCustomer.accountTypeName));
 	}
 	if (opts.customer) {
 		planParts.push(escapeHtml(opts.customer.status));
+	} else if (opts.ispCustomer) {
+		// Build status from ISP fields
+		if (opts.ispCustomer.blocked) {
+			planParts.push("BLOCKED");
+		} else if (opts.ispCustomer.active === false) {
+			planParts.push("INACTIVE");
+		} else if (opts.ispCustomer.online) {
+			planParts.push("Online");
+		} else if (opts.ispCustomer.online === false) {
+			planParts.push("Offline");
+		}
+	}
+	if (opts.ispCustomer?.stationName && !opts.customer?.stationName) {
+		planParts.push(escapeHtml(opts.ispCustomer.stationName));
 	}
 	if (planParts.length > 0) {
 		lines.push(`📋 ${planParts.join(" · ")}`);
@@ -200,6 +224,102 @@ async function sendTelegramMessages(
 	);
 
 	return { succeeded, failed: failedIds };
+}
+
+// ---------------------------------------------------------------------------
+// ISP API customer lookup (enrichment for escalations)
+// ---------------------------------------------------------------------------
+
+interface IspCustomerInfo {
+	userName: string | null;
+	fullName: string | null;
+	address: string | null;
+	online: boolean | null;
+	active: boolean | null;
+	blocked: boolean | null;
+	stationName: string | null;
+	accountTypeName: string | null;
+}
+
+/**
+ * Quick ISP API lookup by phone number to enrich escalation messages.
+ * Returns null if no ISP config, no phone, or the API returns nothing.
+ * Never throws — failures are silently ignored.
+ */
+async function lookupIspCustomer(
+	agentId: string,
+	phone: string | null,
+): Promise<IspCustomerInfo | null> {
+	if (!phone) {
+		return null;
+	}
+
+	try {
+		const { db } = await import("@repo/database");
+
+		// Load ISP API config from any ISP tool config on this agent
+		const ispToolConfig = await db.aiAgentToolConfig.findFirst({
+			where: {
+				agentId,
+				toolId: {
+					in: ["isp-search-customer", "isp-diagnose-customer"],
+				},
+			},
+			select: { config: true },
+		});
+
+		if (!ispToolConfig) {
+			return null;
+		}
+
+		const cfg = ispToolConfig.config as Record<string, unknown>;
+		const baseUrl = cfg["ispBaseUrl"] as string | undefined;
+		const userName = cfg["ispUsername"] as string | undefined;
+		const password = cfg["ispPassword"] as string | undefined;
+
+		if (!baseUrl || !userName || !password) {
+			return null;
+		}
+
+		const query = cleanPhoneNumber(phone);
+		const data = await ispGet<
+			Record<string, unknown> | Record<string, unknown>[] | null
+		>(
+			{ baseUrl: baseUrl.replace(/\/+$/, ""), userName, password },
+			"/user-info",
+			{ mobile: query },
+		);
+
+		if (!data) {
+			return null;
+		}
+
+		const customer = Array.isArray(data) ? data[0] : data;
+		if (!customer) {
+			return null;
+		}
+
+		return {
+			userName: (customer["userName"] as string) ?? null,
+			fullName:
+				[customer["firstName"], customer["lastName"]]
+					.filter(Boolean)
+					.join(" ") || null,
+			address: (customer["address"] as string) ?? null,
+			online:
+				customer["online"] != null ? Boolean(customer["online"]) : null,
+			active:
+				customer["active"] != null ? Boolean(customer["active"]) : null,
+			blocked:
+				customer["blocked"] != null
+					? Boolean(customer["blocked"])
+					: null,
+			stationName: (customer["stationName"] as string) ?? null,
+			accountTypeName: (customer["accountTypeName"] as string) ?? null,
+		};
+	} catch {
+		return null;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -510,9 +630,19 @@ function createEscalateTelegramTool(context: ToolContext) {
 					);
 				}
 
+				// ---- ISP API lookup when no verified customer ----
+				let ispCustomer: IspCustomerInfo | null = null;
+				if (!customer && contactId) {
+					ispCustomer = await lookupIspCustomer(
+						context.agentId,
+						contactId,
+					);
+				}
+
 				const displayName =
 					args.customerName ??
 					customer?.fullName ??
+					ispCustomer?.fullName ??
 					contactName ??
 					context.contactName ??
 					"Unknown";
@@ -545,8 +675,10 @@ function createEscalateTelegramTool(context: ToolContext) {
 					category: finalCategory,
 					displayName,
 					customer,
+					ispCustomer,
 					customerUsername: args.customerUsername,
 					contactId,
+					contactPhone: contactId,
 					summary: finalSummary,
 					actionRequired: finalAction,
 					conversationExcerpt: excerpt,
