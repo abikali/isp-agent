@@ -1,6 +1,7 @@
 import { logger } from "@repo/logs";
 import { z } from "zod";
 import { classifyText } from "./classify";
+import { summarizeForEscalation } from "./escalation-summary";
 import type { ToolRecord, ToolResult } from "./types";
 
 interface EscalationToolOutput {
@@ -37,7 +38,6 @@ export async function detectMissedEscalation(
 	responseText: string,
 	toolResults?: ToolResult[],
 ): Promise<boolean> {
-	// If the tool was already called, no missed escalation
 	if (toolResults?.some((tr) => tr.toolName === "escalate-telegram")) {
 		return false;
 	}
@@ -52,7 +52,6 @@ export async function detectMissedEscalation(
 		schema: escalationSchema,
 	});
 
-	// Fallback: if LLM call failed, default to false (don't trigger guard)
 	return result?.promisedEscalation ?? false;
 }
 
@@ -67,8 +66,25 @@ interface EscalationGuardOptions {
 }
 
 /**
+ * Build a minimal fallback summary when the LLM summarizer fails.
+ */
+function buildFallbackSummary(opts: EscalationGuardOptions): string {
+	const recentUserMessages = opts.conversationMessages
+		.filter((m) => m.role === "user")
+		.slice(-3)
+		.map((m) => m.content.slice(0, 200))
+		.join("\n");
+
+	const displayName = opts.customerName ?? "Unknown";
+	return `Customer: ${displayName}\n\nRecent messages:\n${recentUserMessages}`;
+}
+
+/**
  * Post-generation safety net: if the model said it would escalate but didn't
  * call the tool, directly invoke the escalate-telegram tool's execute function.
+ *
+ * Uses the LLM summarizer to produce proper priority, category, and summary
+ * instead of hardcoded values.
  *
  * Returns the tool result if escalation was triggered, or null if not needed.
  */
@@ -84,24 +100,31 @@ export async function executeEscalationGuard(
 		return null;
 	}
 
-	// Build a summary from recent user messages
-	const recentUserMessages = opts.conversationMessages
-		.filter((m) => m.role === "user")
-		.slice(-5)
-		.map((m) => m.content)
-		.join("\n");
-
-	const displayName = opts.customerName ?? "Unknown";
-	const phone = opts.customerPhone ? ` (${opts.customerPhone})` : "";
+	// Use LLM to produce a proper summary, priority, and category
+	const llmSummary = await summarizeForEscalation({
+		conversationMessages: opts.conversationMessages,
+		customerName: opts.customerName,
+		customerPhone: opts.customerPhone,
+	});
 
 	const args = {
-		reason: "Customer request requiring human follow-up (auto-detected)",
-		priority: "medium" as const,
-		summary:
-			`Customer: ${displayName}${phone}\n\n` +
-			`Recent messages:\n${recentUserMessages}\n\n` +
-			`Agent response: ${opts.responseText.slice(0, 500)}`,
+		reason:
+			llmSummary?.actionRequired ??
+			"Customer request requiring human follow-up",
+		priority: (llmSummary?.priority ?? "medium") as
+			| "low"
+			| "medium"
+			| "high",
+		summary: llmSummary?.summary ?? buildFallbackSummary(opts),
 		customerName: opts.customerName,
+		category: (llmSummary?.category ?? "support") as
+			| "installation"
+			| "maintenance"
+			| "repair"
+			| "support"
+			| "billing"
+			| "general",
+		actionRequired: llmSummary?.actionRequired,
 	};
 
 	try {
@@ -121,16 +144,12 @@ export async function executeEscalationGuard(
 
 		if (!result.success) {
 			logger.error(
-				"Escalation guard: forced tool call returned failure — Telegram message was NOT sent",
+				"Escalation guard: forced tool call returned failure",
 				{
 					conversationId: opts.conversationId,
 					toolMessage: result.message,
 				},
 			);
-		} else {
-			logger.info("Escalation guard: forced escalation succeeded", {
-				conversationId: opts.conversationId,
-			});
 		}
 
 		return {

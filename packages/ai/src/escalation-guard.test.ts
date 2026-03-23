@@ -12,6 +12,12 @@ vi.mock("./classify", () => ({
 	classifyText: (...args: unknown[]) => mockClassifyText(...args),
 }));
 
+// Mock summarizeForEscalation — returns null by default (fallback path)
+const mockSummarize = vi.fn();
+vi.mock("./escalation-summary", () => ({
+	summarizeForEscalation: (...args: unknown[]) => mockSummarize(...args),
+}));
+
 // Mock @repo/logs to suppress output
 vi.mock("@repo/logs", () => ({
 	logger: {
@@ -31,6 +37,9 @@ function mockClassifyFailure() {
 
 beforeEach(() => {
 	mockClassifyText.mockReset();
+	mockSummarize.mockReset();
+	// Default: summarizer returns null → fallback path
+	mockSummarize.mockResolvedValue(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -676,15 +685,15 @@ describe("executeEscalationGuard", () => {
 			string,
 			unknown
 		>;
-		expect(callArgs["reason"]).toContain("auto-detected");
+		// When summarizer returns null, falls back to defaults
+		expect(callArgs["reason"]).toContain("human follow-up");
 		expect(callArgs["priority"]).toBe("medium");
 		expect(callArgs["summary"]).toContain("Ahmad");
-		expect(callArgs["summary"]).toContain("+961123456");
 		expect(callArgs["summary"]).toContain("subscribe");
 		expect(callArgs["customerName"]).toBe("Ahmad");
 	});
 
-	it("includes recent user messages in summary", async () => {
+	it("includes recent user messages in fallback summary", async () => {
 		mockEscalation(true);
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
@@ -700,6 +709,7 @@ describe("executeEscalationGuard", () => {
 			string,
 			unknown
 		>;
+		// Fallback summary includes user messages
 		expect(callArgs["summary"]).toContain("subscribe");
 		expect(callArgs["summary"]).toContain("Dekwane");
 	});
@@ -748,29 +758,26 @@ describe("executeEscalationGuard", () => {
 		expect(callArgs["customerName"]).toBeUndefined();
 	});
 
-	it("truncates long response text in summary", async () => {
+	it("fallback summary is reasonably sized", async () => {
 		mockEscalation(true);
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
-		const longResponse = "I've forwarded your request to the team. ".repeat(
-			50,
-		);
 
 		await executeEscalationGuard({
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
 			},
-			responseText: longResponse,
+			responseText: "I've forwarded your request to the team. ".repeat(
+				50,
+			),
 		});
 
 		const callArgs = mockExecute.mock.calls[0]?.[0] as Record<
 			string,
 			unknown
 		>;
-		// Summary should include truncated agent response (500 chars max)
-		expect((callArgs["summary"] as string).length).toBeLessThan(
-			longResponse.length + 200,
-		);
+		// Fallback uses truncated user messages (200 chars each, max 3)
+		expect((callArgs["summary"] as string).length).toBeLessThan(1000);
 	});
 
 	it("detects missed escalation with Arabic response text", async () => {
@@ -838,12 +845,11 @@ describe("executeEscalationGuard", () => {
 			string,
 			unknown
 		>;
-		// Summary should still contain customer info even with no messages
+		// Fallback summary should still contain customer name
 		expect(callArgs["summary"]).toContain("Ali");
-		expect(callArgs["summary"]).toContain("+961999888");
 	});
 
-	it("only includes last 5 user messages in summary", async () => {
+	it("only includes last 3 user messages in fallback summary", async () => {
 		mockEscalation(true);
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
@@ -867,7 +873,7 @@ describe("executeEscalationGuard", () => {
 			unknown
 		>;
 		const summary = callArgs["summary"] as string;
-		// Should only have the last 5 user messages (even indices: 10, 12, 14, 16, 18)
+		// Fallback uses last 3 user messages
 		expect(summary).toContain("Message 18");
 		expect(summary).not.toContain("Message 0");
 	});
@@ -926,8 +932,14 @@ describe("executeEscalationGuard", () => {
 		expect(mockExecute).not.toHaveBeenCalled();
 	});
 
-	it("includes agent response snippet in summary", async () => {
+	it("uses LLM summary when summarizer succeeds", async () => {
 		mockEscalation(true);
+		mockSummarize.mockResolvedValue({
+			summary: "Customer needs coverage check in Dekwane.",
+			priority: "high",
+			category: "installation",
+			actionRequired: "Check coverage in Dekwane area",
+		});
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		await executeEscalationGuard({
@@ -935,17 +947,21 @@ describe("executeEscalationGuard", () => {
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
 			},
-			responseText:
-				"I've forwarded your request to the technical team. They will check the coverage in your area.",
+			responseText: "I've forwarded your request to the technical team.",
 		});
 
 		const callArgs = mockExecute.mock.calls[0]?.[0] as Record<
 			string,
 			unknown
 		>;
-		const summary = callArgs["summary"] as string;
-		expect(summary).toContain("Agent response:");
-		expect(summary).toContain("coverage");
+		expect(callArgs["summary"]).toBe(
+			"Customer needs coverage check in Dekwane.",
+		);
+		expect(callArgs["priority"]).toBe("high");
+		expect(callArgs["category"]).toBe("installation");
+		expect(callArgs["actionRequired"]).toBe(
+			"Check coverage in Dekwane area",
+		);
 	});
 
 	it("returns null when classifyText fails during guard check", async () => {

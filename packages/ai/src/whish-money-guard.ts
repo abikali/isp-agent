@@ -88,21 +88,20 @@ export async function sendWhishPaymentEscalation(opts: {
 
 		const displayName = opts.contactName ?? "Unknown";
 		const lines: string[] = [
-			"💳 <b>Whish Money Payment Received</b>",
+			"💳 <b>Payment Received</b>",
 			"",
-			`<b>From:</b> ${escapeHtml(displayName)}`,
+			`👤 ${escapeHtml(displayName)}`,
 		];
 
 		if (opts.contactPhone) {
-			lines.push(`<b>Phone:</b> ${escapeHtml(opts.contactPhone)}`);
+			lines.push(`📞 ${escapeHtml(opts.contactPhone)}`);
 		}
 
 		lines.push(
 			"",
-			"<b>Message:</b>",
-			escapeHtml(opts.messageText),
+			`<blockquote>${escapeHtml(opts.messageText.slice(0, 500))}</blockquote>`,
 			"",
-			`<b>Conversation:</b> <code>${escapeHtml(opts.conversationId)}</code>`,
+			`<code>${escapeHtml(opts.conversationId)}</code>`,
 		);
 
 		const message = lines.join("\n");

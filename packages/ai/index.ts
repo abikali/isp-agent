@@ -13,6 +13,8 @@ export type { PromptSection } from "./src/default-prompt-sections";
 export { DEFAULT_PROMPT_SECTIONS } from "./src/default-prompt-sections";
 export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
+export type { EscalationSummary } from "./src/escalation-summary";
+export { summarizeForEscalation } from "./src/escalation-summary";
 export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
