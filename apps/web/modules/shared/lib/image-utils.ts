@@ -32,7 +32,12 @@ export function getStorageImageUrl(
 	}
 
 	// Convert storage path to image proxy URL
-	return `/image-proxy/${bucket}/${path}`;
+	// Encode each path segment to handle special characters (e.g. semicolons from MIME params)
+	const encodedPath = path
+		.split("/")
+		.map((segment) => encodeURIComponent(segment))
+		.join("/");
+	return `/image-proxy/${bucket}/${encodedPath}`;
 }
 
 /**

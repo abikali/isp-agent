@@ -63,7 +63,9 @@ const MIME_TO_EXT: Record<string, string> = {
 };
 
 function getExtFromMime(contentType: string): string {
-	return MIME_TO_EXT[contentType] ?? contentType.split("/")[1] ?? "bin";
+	// Strip MIME parameters (e.g. "audio/ogg; codecs=opus" → "audio/ogg")
+	const base = contentType.split(";")[0]?.trim() ?? contentType;
+	return MIME_TO_EXT[base] ?? base.split("/")[1] ?? "bin";
 }
 const QUOTA_EXCEEDED_MESSAGE =
 	"This agent has reached its message limit. Please contact the organization administrator.";

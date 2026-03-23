@@ -15,8 +15,11 @@ export const Route = createFileRoute("/image-proxy/$" as "/api/$")({
 					return new Response("Invalid path", { status: 400 });
 				}
 
-				const bucket = pathParts[0];
-				const objectPath = pathParts.slice(1).join("/");
+				const bucket = decodeURIComponent(pathParts[0] ?? "");
+				const objectPath = pathParts
+					.slice(1)
+					.map((p) => decodeURIComponent(p))
+					.join("/");
 
 				if (!bucket || !objectPath) {
 					return new Response("Invalid path", { status: 400 });
