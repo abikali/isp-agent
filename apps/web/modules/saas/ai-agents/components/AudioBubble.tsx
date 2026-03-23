@@ -2,7 +2,7 @@
 
 import { cn } from "@ui/lib";
 import { PauseIcon, PlayIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AudioBubbleProps {
 	url: string;
@@ -19,8 +19,8 @@ function formatTime(seconds: number): string {
 	return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** Generate deterministic pseudo-random waveform as fallback */
-function generateFallbackWaveform(count: number): number[] {
+/** Generate deterministic pseudo-random waveform heights (0..1) seeded by index */
+function generateStaticBars(count: number): number[] {
 	return Array.from({ length: count }, (_, i) => {
 		const seed = Math.sin(i * 127.1 + 311.7) * 43758.5453;
 		const pseudo = seed - Math.floor(seed);
@@ -28,88 +28,108 @@ function generateFallbackWaveform(count: number): number[] {
 	});
 }
 
-/** Decode audio and extract waveform amplitudes */
-async function extractWaveform(
-	url: string,
-	barCount: number,
-): Promise<number[] | null> {
-	try {
-		const response = await fetch(url);
-		if (!response.ok) {
-			return null;
-		}
-		const arrayBuffer = await response.arrayBuffer();
-		const audioContext = new AudioContext();
-		const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-		const channelData = audioBuffer.getChannelData(0);
-		await audioContext.close();
-
-		const samplesPerBar = Math.floor(channelData.length / barCount);
-		const bars: number[] = [];
-
-		for (let i = 0; i < barCount; i++) {
-			let sum = 0;
-			const start = i * samplesPerBar;
-			for (
-				let j = start;
-				j < start + samplesPerBar && j < channelData.length;
-				j++
-			) {
-				sum += Math.abs(channelData[j] ?? 0);
-			}
-			bars.push(sum / samplesPerBar);
-		}
-
-		// Normalize to 0..1
-		const max = Math.max(...bars, 0.01);
-		return bars.map((b) => b / max);
-	} catch {
-		return null;
-	}
-}
+// Cache audio contexts per element to avoid re-connecting
+const connectedElements = new WeakSet<HTMLAudioElement>();
 
 export function AudioBubble({ url, duration }: AudioBubbleProps) {
 	const audioRef = useRef<HTMLAudioElement>(null);
 	const waveformRef = useRef<HTMLDivElement>(null);
+	const analyserRef = useRef<AnalyserNode | null>(null);
+	const animFrameRef = useRef<number>(0);
+
 	const [isPlaying, setIsPlaying] = useState(false);
 	const [progress, setProgress] = useState(0);
 	const [currentTime, setCurrentTime] = useState(0);
 	const [audioDuration, setAudioDuration] = useState(duration ?? 0);
 	const [speedIndex, setSpeedIndex] = useState(0);
-	const [waveform, setWaveform] = useState<number[] | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 
+	// Live waveform bars (updated by analyser during playback)
+	const [liveBars, setLiveBars] = useState<number[] | null>(null);
+	// Snapshot of the waveform when paused (freezes the last live state)
+	const snapshotRef = useRef<number[] | null>(null);
+
 	const playbackSpeed = SPEED_OPTIONS[speedIndex] ?? 1;
+	const staticBars = useRef(generateStaticBars(BAR_COUNT)).current;
 
-	// Extract real waveform from audio data
+	// Connect AnalyserNode to audio element on first play
+	const ensureAnalyser = useCallback(() => {
+		const audio = audioRef.current;
+		if (!audio || connectedElements.has(audio)) {
+			return;
+		}
+		try {
+			const ctx = new AudioContext();
+			const source = ctx.createMediaElementSource(audio);
+			const analyser = ctx.createAnalyser();
+			analyser.fftSize = 256;
+			source.connect(analyser);
+			analyser.connect(ctx.destination);
+			analyserRef.current = analyser;
+			connectedElements.add(audio);
+		} catch {
+			// Fallback: analyser won't be available
+		}
+	}, []);
+
+	// Animation loop: read frequency data while playing
 	useEffect(() => {
-		let cancelled = false;
-		extractWaveform(url, BAR_COUNT).then((data) => {
-			if (!cancelled) {
-				setWaveform(data);
-			}
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [url]);
+		if (!isPlaying) {
+			cancelAnimationFrame(animFrameRef.current);
+			return;
+		}
 
-	const bars = useMemo(
-		() => waveform ?? generateFallbackWaveform(BAR_COUNT),
-		[waveform],
-	);
+		const analyser = analyserRef.current;
+		if (!analyser) {
+			return;
+		}
+
+		const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+		function tick() {
+			if (!analyser) {
+				return;
+			}
+			analyser.getByteFrequencyData(dataArray);
+
+			// Map frequency bins to our bar count
+			const binsPerBar = Math.floor(dataArray.length / BAR_COUNT);
+			const bars: number[] = [];
+			for (let i = 0; i < BAR_COUNT; i++) {
+				let sum = 0;
+				for (let j = 0; j < binsPerBar; j++) {
+					sum += dataArray[i * binsPerBar + j] ?? 0;
+				}
+				bars.push(sum / binsPerBar / 255); // normalize 0..1
+			}
+			setLiveBars(bars);
+			snapshotRef.current = bars;
+			animFrameRef.current = requestAnimationFrame(tick);
+		}
+
+		animFrameRef.current = requestAnimationFrame(tick);
+		return () => {
+			cancelAnimationFrame(animFrameRef.current);
+		};
+	}, [isPlaying]);
+
+	// Determine which bars to render
+	const displayBars = isPlaying
+		? (liveBars ?? staticBars)
+		: (snapshotRef.current ?? staticBars);
 
 	const togglePlay = useCallback(() => {
 		const audio = audioRef.current;
 		if (!audio) {
 			return;
 		}
+		ensureAnalyser();
 		if (isPlaying) {
 			audio.pause();
 		} else {
 			audio.play();
 		}
-	}, [isPlaying]);
+	}, [isPlaying, ensureAnalyser]);
 
 	const cycleSpeed = useCallback(() => {
 		const nextIndex = (speedIndex + 1) % SPEED_OPTIONS.length;
@@ -178,7 +198,6 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 	const displayTime =
 		isPlaying || currentTime > 0 ? currentTime : audioDuration;
 
-	// Remaining time when playing
 	const timeLabel =
 		isPlaying && audioDuration > 0
 			? `-${formatTime(audioDuration - currentTime)}`
@@ -190,6 +209,7 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 			<audio
 				ref={audioRef}
 				src={url}
+				crossOrigin="anonymous"
 				onPlay={() => setIsPlaying(true)}
 				onPause={() => setIsPlaying(false)}
 				onEnded={() => {
@@ -231,7 +251,7 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 					onPointerCancel={handlePointerUp}
 				>
 					<div className="flex h-full w-full items-center justify-between">
-						{bars.map((amplitude, i) => {
+						{displayBars.map((amplitude, i) => {
 							const barProgress = (i / BAR_COUNT) * 100;
 							const filled = barProgress < progress;
 							const minHeight = 3;
@@ -241,13 +261,16 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 							return (
 								<div
 									key={i}
-									className="rounded-full transition-colors duration-75"
+									className="rounded-full"
 									style={{
 										width: `${BAR_WIDTH}px`,
 										height: `${height}px`,
 										backgroundColor: filled
 											? "hsl(var(--primary))"
 											: "hsl(var(--muted-foreground) / 0.25)",
+										transition: isPlaying
+											? "height 100ms ease-out"
+											: "background-color 75ms",
 									}}
 								/>
 							);
