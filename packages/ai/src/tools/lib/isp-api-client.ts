@@ -34,18 +34,49 @@ export interface IspApiConfig {
 	password: string;
 }
 
-/** Strip leading +961 / 961, spaces, and dashes from a phone number. */
+/**
+ * Clean a phone number for the ISP API (domestic format with leading 0).
+ *
+ * Lebanese numbers are 8 digits locally (0X XXXXXX). The international format
+ * drops the leading 0 (+961 X XXXXXX = 7 digits after country code).
+ * WhatsApp sends 961XXXXXXX, so stripping 961 gives 7 digits — we restore
+ * the leading 0 to match what the ISP API expects.
+ *
+ * Examples:
+ *   +96171234567  → 71234567  (8 digits, no 0 needed — 70/71/76/78 prefixes)
+ *   +9613123456   → 03123456  (7 digits after strip → prepend 0)
+ *   9611234567    → 01234567  (7 digits after strip → prepend 0)
+ *   03 123 456    → 03123456  (already domestic, just strip spaces)
+ *   71234567      → 71234567  (already clean)
+ *   josephuser    → josephuser (username passes through)
+ */
 export function cleanPhoneNumber(phone: string): string {
-	let cleaned = phone.trim().replace(/[\s-]/g, "");
+	// Strip all whitespace, dashes, dots, and parentheses
+	let cleaned = phone.trim().replace(/[\s\-().]/g, "");
+
+	// Strip country code
 	if (cleaned.startsWith("+961")) {
 		cleaned = cleaned.slice(4);
-	} else if (cleaned.startsWith("961")) {
+	} else if (cleaned.startsWith("00961")) {
+		cleaned = cleaned.slice(5);
+	} else if (cleaned.startsWith("961") && cleaned.length >= 10) {
+		// Strip 961 if the result is 7-8 digits (Lebanese phone number).
+		// 961 + 7 digits = 10 chars, 961 + 8 digits = 11 chars.
+		// This avoids mangling usernames that happen to start with "961".
 		cleaned = cleaned.slice(3);
 	}
+
+	// After stripping country code, Lebanese numbers are 7 digits (0 was dropped
+	// in international format). Restore the domestic 0 prefix so the ISP API
+	// gets the format it expects (8 digits starting with 0X).
+	if (/^\d{7}$/.test(cleaned)) {
+		cleaned = `0${cleaned}`;
+	}
+
 	return cleaned;
 }
 
-/** Normalize a Lebanese phone number for comparison by stripping country code and leading zero. */
+/** Normalize a Lebanese phone number for comparison (no country code, no leading zero). */
 export function normalizeLebanesPhone(phone: string): string {
 	let cleaned = cleanPhoneNumber(phone);
 	if (cleaned.startsWith("0")) {
