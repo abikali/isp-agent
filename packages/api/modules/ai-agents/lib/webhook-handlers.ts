@@ -556,6 +556,7 @@ async function handleMessages(
 			const servicePlans = await fetchServicePlansSection(
 				channel.agent.organizationId,
 				channel.agent.servicePlansEnabled,
+				channel.agent.servicePlanIds,
 			);
 
 			// Build system prompt once

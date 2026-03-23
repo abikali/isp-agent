@@ -48,6 +48,7 @@ export const getAgent = protectedProcedure
 				temperature: true,
 				enabledTools: true,
 				servicePlansEnabled: true,
+				servicePlanIds: true,
 				contextGapThresholdMinutes: true,
 				humanTakeoverHours: true,
 				promptSections: true,

@@ -130,10 +130,14 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			// Fetch service plans section (if enabled)
 			let servicePlans: string | undefined;
 			if (conversation.agent.servicePlansEnabled) {
+				const hasFilter = conversation.agent.servicePlanIds.length > 0;
 				const plans = await db.servicePlan.findMany({
 					where: {
 						organizationId: conversation.agent.organizationId,
 						archived: false,
+						...(hasFilter
+							? { id: { in: conversation.agent.servicePlanIds } }
+							: {}),
 					},
 					orderBy: { monthlyPrice: "asc" },
 					select: {

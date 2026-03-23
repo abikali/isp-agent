@@ -157,6 +157,7 @@ export async function handleWebChatMessage(
 	const servicePlans = await fetchServicePlansSection(
 		agent.organizationId,
 		agent.servicePlansEnabled,
+		agent.servicePlanIds,
 	);
 
 	// Build system prompt

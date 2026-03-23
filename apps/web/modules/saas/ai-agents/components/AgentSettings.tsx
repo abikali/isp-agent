@@ -49,6 +49,7 @@ import {
 	HelpCircleIcon,
 	Loader2Icon,
 	RotateCcwIcon,
+	SearchIcon,
 	SlidersHorizontalIcon,
 	SparklesIcon,
 	WrenchIcon,
@@ -74,6 +75,164 @@ function FieldHint({ text }: { text: string }) {
 				{text}
 			</TooltipContent>
 		</Tooltip>
+	);
+}
+
+interface ServicePlan {
+	id: string;
+	name: string;
+	downloadSpeed: number;
+	uploadSpeed: number;
+	monthlyPrice: number;
+}
+
+function ServicePlanSelector({
+	plans,
+	isLoading,
+	form,
+}: {
+	plans: ServicePlan[];
+	isLoading: boolean;
+	// biome-ignore lint/suspicious/noExplicitAny: form type is complex and inferred from useForm
+	form: { Field: any };
+}) {
+	const [search, setSearch] = useState("");
+
+	if (isLoading) {
+		return (
+			<p className="mt-2 text-xs text-muted-foreground">
+				Loading plans...
+			</p>
+		);
+	}
+
+	if (plans.length === 0) {
+		return (
+			<p className="mt-2 text-xs text-muted-foreground">
+				No active service plans found. Add plans in the Service Plans
+				page for the agent to reference.
+			</p>
+		);
+	}
+
+	return (
+		<form.Field name="servicePlanIds">
+			{(field: {
+				state: { value: string[] };
+				handleChange: (val: string[]) => void;
+			}) => {
+				const selectedIds = field.state.value;
+				const allSelected =
+					selectedIds.length === 0 ||
+					selectedIds.length === plans.length;
+
+				const filteredPlans = search
+					? plans.filter((p) =>
+							p.name.toLowerCase().includes(search.toLowerCase()),
+						)
+					: plans;
+
+				const visibleCount = allSelected
+					? plans.length
+					: selectedIds.length;
+
+				function togglePlan(planId: string) {
+					const current = allSelected
+						? plans.map((p) => p.id)
+						: [...selectedIds];
+					const idx = current.indexOf(planId);
+					if (idx >= 0) {
+						current.splice(idx, 1);
+					} else {
+						current.push(planId);
+					}
+					// If all selected again, reset to empty (= all)
+					if (current.length === plans.length) {
+						field.handleChange([]);
+					} else {
+						field.handleChange(current);
+					}
+				}
+
+				function toggleAll() {
+					if (allSelected) {
+						// Deselect all — but we need at least the concept of "none selected"
+						// Since empty = all, we select just the first one to make it non-all
+						field.handleChange([]);
+					} else {
+						// Select all = reset to empty
+						field.handleChange([]);
+					}
+				}
+
+				return (
+					<div className="mt-2 space-y-2">
+						<div className="flex items-center justify-between">
+							<p className="text-xs font-medium text-muted-foreground">
+								{allSelected
+									? `All ${plans.length} plans visible to agent`
+									: `${visibleCount} of ${plans.length} plans visible`}
+							</p>
+							<button
+								type="button"
+								onClick={toggleAll}
+								className="text-xs text-primary hover:underline"
+							>
+								{allSelected ? "Select all" : "Reset to all"}
+							</button>
+						</div>
+
+						{plans.length > 8 && (
+							<div className="relative">
+								<SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									placeholder="Search plans..."
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									className="h-8 pl-8 text-xs"
+								/>
+							</div>
+						)}
+
+						<div className="max-h-52 space-y-1 overflow-y-auto rounded-md border p-1">
+							{filteredPlans.map((plan) => {
+								const checked = allSelected
+									? true
+									: selectedIds.includes(plan.id);
+								return (
+									<label
+										key={plan.id}
+										htmlFor={`plan-${plan.id}`}
+										className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/50"
+									>
+										<Checkbox
+											id={`plan-${plan.id}`}
+											checked={checked}
+											onCheckedChange={() =>
+												togglePlan(plan.id)
+											}
+										/>
+										<span className="flex-1 font-medium">
+											{plan.name}
+										</span>
+										<span className="text-muted-foreground tabular-nums">
+											{plan.downloadSpeed}/
+											{plan.uploadSpeed} Mbps &middot;{" "}
+											{plan.monthlyPrice}/mo
+										</span>
+									</label>
+								);
+							})}
+							{filteredPlans.length === 0 && (
+								<p className="px-2.5 py-3 text-center text-xs text-muted-foreground">
+									No plans match "{search}"
+								</p>
+							)}
+						</div>
+					</div>
+				);
+			}}
+		</form.Field>
 	);
 }
 
@@ -135,6 +294,7 @@ export function AgentSettings({
 			knowledgeBase: agent.knowledgeBase ?? "",
 			enabled: agent.enabled,
 			servicePlansEnabled: agent.servicePlansEnabled,
+			servicePlanIds: agent.servicePlanIds as string[],
 			maintenanceMode: agent.maintenanceMode,
 			maintenanceMessage: agent.maintenanceMessage ?? "",
 			maxHistoryLength: agent.maxHistoryLength,
@@ -157,6 +317,7 @@ export function AgentSettings({
 				knowledgeBase: value.knowledgeBase || undefined,
 				enabled: value.enabled,
 				servicePlansEnabled: value.servicePlansEnabled,
+				servicePlanIds: value.servicePlanIds,
 				maintenanceMode: value.maintenanceMode,
 				maintenanceMessage: value.maintenanceMessage || undefined,
 				maxHistoryLength: value.maxHistoryLength,
@@ -611,76 +772,13 @@ export function AgentSettings({
 													/>
 												</div>
 												{field.state.value && (
-													<div className="mt-2 space-y-2">
-														{isLoadingPlans ? (
-															<p className="text-xs text-muted-foreground">
-																Loading plans...
-															</p>
-														) : activePlans.length ===
-															0 ? (
-															<p className="text-xs text-muted-foreground">
-																No active
-																service plans
-																found. Add plans
-																in the Service
-																Plans page for
-																the agent to
-																reference.
-															</p>
-														) : (
-															<>
-																<p className="text-xs font-medium text-muted-foreground">
-																	The agent
-																	will see
-																	these{" "}
-																	{
-																		activePlans.length
-																	}{" "}
-																	plan
-																	{activePlans.length !==
-																	1
-																		? "s"
-																		: ""}
-																	:
-																</p>
-																<div className="grid gap-1.5">
-																	{activePlans.map(
-																		(
-																			plan,
-																		) => (
-																			<div
-																				key={
-																					plan.id
-																				}
-																				className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5 text-xs"
-																			>
-																				<span className="font-medium">
-																					{
-																						plan.name
-																					}
-																				</span>
-																				<span className="text-muted-foreground">
-																					{
-																						plan.downloadSpeed
-																					}
-																					/
-																					{
-																						plan.uploadSpeed
-																					}{" "}
-																					Mbps
-																					&middot;{" "}
-																					{
-																						plan.monthlyPrice
-																					}
-																					/mo
-																				</span>
-																			</div>
-																		),
-																	)}
-																</div>
-															</>
-														)}
-													</div>
+													<ServicePlanSelector
+														plans={activePlans}
+														isLoading={
+															isLoadingPlans
+														}
+														form={form}
+													/>
 												)}
 											</div>
 										)}

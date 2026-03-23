@@ -29,6 +29,7 @@ export const updateAgent = protectedProcedure
 			temperature: z.number().min(0).max(2).optional(),
 			enabledTools: z.array(z.string()).optional(),
 			servicePlansEnabled: z.boolean().optional(),
+			servicePlanIds: z.array(z.string()).optional(),
 			contextGapThresholdMinutes: z
 				.number()
 				.int()
@@ -135,6 +136,9 @@ export const updateAgent = protectedProcedure
 		if (rest.servicePlansEnabled !== undefined) {
 			updateData["servicePlansEnabled"] = rest.servicePlansEnabled;
 		}
+		if (rest.servicePlanIds !== undefined) {
+			updateData["servicePlanIds"] = rest.servicePlanIds;
+		}
 		if (rest.contextGapThresholdMinutes !== undefined) {
 			updateData["contextGapThresholdMinutes"] =
 				rest.contextGapThresholdMinutes;
@@ -166,6 +170,7 @@ export const updateAgent = protectedProcedure
 				temperature: true,
 				enabledTools: true,
 				servicePlansEnabled: true,
+				servicePlanIds: true,
 				contextGapThresholdMinutes: true,
 				humanTakeoverHours: true,
 				promptSections: true,

@@ -555,6 +555,7 @@ model AiAgent {
   enabledTools     String[]         @default([])
   promptSections   Json             @default("[]")
   servicePlansEnabled        Boolean       @default(false)
+  servicePlanIds             String[]      @default([])
   contextGapThresholdMinutes Int           @default(240)
   humanTakeoverHours Float?          @map("human_takeover_hours")
   webChatEnabled   Boolean          @default(false)

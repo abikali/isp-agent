@@ -4,18 +4,28 @@ import { db } from "@repo/database";
  * Fetches active service plans for the organization and formats them
  * as a system prompt section for the AI agent.
  *
+ * When `planIds` is non-empty, only those plans are included.
+ * When empty, all active (non-archived) plans are included.
+ *
  * Returns `undefined` if disabled, or if no active plans exist.
  */
 export async function fetchServicePlansSection(
 	organizationId: string,
 	enabled: boolean,
+	planIds?: string[],
 ): Promise<string | undefined> {
 	if (!enabled) {
 		return undefined;
 	}
 
+	const hasFilter = planIds && planIds.length > 0;
+
 	const plans = await db.servicePlan.findMany({
-		where: { organizationId, archived: false },
+		where: {
+			organizationId,
+			archived: false,
+			...(hasFilter ? { id: { in: planIds } } : {}),
+		},
 		orderBy: { monthlyPrice: "asc" },
 		select: {
 			name: true,

@@ -199,6 +199,7 @@ export async function handleWebChatStream(
 	const servicePlans = await fetchServicePlansSection(
 		agent.organizationId,
 		agent.servicePlansEnabled,
+		agent.servicePlanIds,
 	);
 
 	// Build system prompt (streaming web chat needs verbose tool narration)
