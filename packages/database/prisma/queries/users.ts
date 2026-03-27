@@ -40,9 +40,11 @@ export async function getUserById(id: string) {
 }
 
 export async function getUserByEmail(email: string) {
+	const normalizedEmail = email.trim().toLowerCase();
+
 	return await db.user.findUnique({
 		where: {
-			email,
+			email: normalizedEmail,
 		},
 	});
 }
@@ -60,10 +62,12 @@ export async function createUser({
 	emailVerified: boolean;
 	onboardingComplete: boolean;
 }) {
+	const normalizedEmail = email.trim().toLowerCase();
+
 	return await db.user.create({
 		data: {
 			id: createId(),
-			email,
+			email: normalizedEmail,
 			name,
 			role,
 			emailVerified,

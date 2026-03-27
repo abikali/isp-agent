@@ -57,7 +57,7 @@ export function useEmployees(filters: EmployeeListInput = {}) {
 		input["sortOrder"] = filters.sortOrder;
 	}
 
-	const query = useSuspenseQuery(
+	const query = useQuery(
 		orpc.employees.list.queryOptions({
 			input: input as Parameters<
 				typeof orpc.employees.list.queryOptions
@@ -71,6 +71,8 @@ export function useEmployees(filters: EmployeeListInput = {}) {
 		page: query.data?.page ?? 1,
 		pageSize: query.data?.pageSize ?? 25,
 		totalPages: query.data?.totalPages ?? 0,
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
 	};
 }
 
@@ -171,5 +173,18 @@ export function useEmployeeBulkImport() {
 export function useEmployeeBulkExport() {
 	return useMutation({
 		...orpc.employees.bulkExport.mutationOptions(),
+	});
+}
+
+export function useInviteEmployee() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.employees.invite.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.employees.key(),
+			});
+		},
 	});
 }

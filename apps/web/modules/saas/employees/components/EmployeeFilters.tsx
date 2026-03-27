@@ -1,7 +1,7 @@
 "use client";
 
 import { useStationsQuery } from "@saas/customers/client";
-import { Input } from "@ui/components/input";
+import { FilterBar } from "@shared/components/FilterBar";
 import {
 	Select,
 	SelectContent,
@@ -9,7 +9,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import { SearchIcon } from "lucide-react";
 import {
 	EMPLOYEE_DEPARTMENT_OPTIONS,
 	EMPLOYEE_STATUS_OPTIONS,
@@ -38,18 +37,26 @@ export function EmployeeFilters({
 }: EmployeeFiltersProps) {
 	const { stations } = useStationsQuery();
 
-	return (
-		<div className="flex flex-wrap items-center gap-3">
-			<div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-				<SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					placeholder="Search employees..."
-					value={search}
-					onChange={(e) => onSearchChange(e.target.value)}
-					className="pl-9"
-				/>
-			</div>
+	const activeCount = [
+		status !== "all" ? 1 : 0,
+		department !== "all" ? 1 : 0,
+		stationId !== "all" ? 1 : 0,
+	].reduce((a, b) => a + b, 0);
 
+	function handleReset() {
+		onStatusChange("all");
+		onDepartmentChange("all");
+		onStationIdChange("all");
+	}
+
+	return (
+		<FilterBar
+			searchPlaceholder="Search employees..."
+			searchValue={search}
+			onSearchChange={onSearchChange}
+			activeFilterCount={activeCount}
+			onReset={handleReset}
+		>
 			<Select value={status} onValueChange={onStatusChange}>
 				<SelectTrigger className="w-[140px]">
 					<SelectValue placeholder="Status" />
@@ -91,6 +98,6 @@ export function EmployeeFilters({
 					))}
 				</SelectContent>
 			</Select>
-		</div>
+		</FilterBar>
 	);
 }

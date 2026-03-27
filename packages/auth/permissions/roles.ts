@@ -28,6 +28,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
+		inventory: ["create", "read", "update", "delete"],
+		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -35,7 +37,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		// Insights - full access
 		audit: ["view"],
 		// Billing
-		billing: ["view", "manage"],
+		billing: ["view", "manage", "collect"],
 	},
 	admin: {
 		// Organization management (cannot delete)
@@ -60,6 +62,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
+		inventory: ["create", "read", "update", "delete"],
+		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -67,7 +71,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		// Insights - full access
 		audit: ["view"],
 		// Billing
-		billing: ["view", "manage"],
+		billing: ["view", "manage", "collect"],
 	},
 	member: {
 		// AI & Monitoring - read only
@@ -112,6 +116,8 @@ export const owner = ac.newRole({
 		"assign",
 	],
 	tasks: ["create", "read", "update", "delete", "assign"],
+	inventory: ["create", "read", "update", "delete"],
+	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -119,7 +125,7 @@ export const owner = ac.newRole({
 	// Insights - full access
 	audit: ["view"],
 	// Billing
-	billing: ["view", "manage"],
+	billing: ["view", "manage", "collect", "collect:own"],
 });
 
 /**
@@ -149,6 +155,8 @@ export const admin = ac.newRole({
 		"assign",
 	],
 	tasks: ["create", "read", "update", "delete", "assign"],
+	inventory: ["create", "read", "update", "delete"],
+	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -156,7 +164,7 @@ export const admin = ac.newRole({
 	// Insights - full access
 	audit: ["view"],
 	// Billing
-	billing: ["view", "manage"],
+	billing: ["view", "manage", "collect", "collect:own"],
 });
 
 /**
@@ -256,3 +264,68 @@ export function getSystemRolePermissions(
 	}
 	return result;
 }
+
+// ─── ISP Role Templates ─────────────────────────────────────────
+
+/**
+ * Pre-defined role templates for ISP staff.
+ * Used when inviting employees/dealers to create their organization role.
+ * Admins can customize permissions after creation via the role management UI.
+ */
+export const ISP_ROLE_TEMPLATES = {
+	collector: {
+		label: "Collector",
+		description:
+			"Field payment collector — sees assigned customers, records payments",
+		permissions: {
+			customers: ["read"],
+			billing: ["view", "collect:own"],
+			tasks: ["read"],
+		},
+	},
+	field_tech: {
+		label: "Field Technician",
+		description: "Field worker — manages installations, stock, and tasks",
+		permissions: {
+			customers: ["read"],
+			tasks: ["create", "read", "update"],
+			inventory: ["read", "update"],
+			installations: ["create", "read", "update"],
+			stations: ["read"],
+		},
+	},
+	dealer: {
+		label: "Dealer",
+		description: "Reseller — views customers, plans, and own account",
+		permissions: {
+			customers: ["read"],
+			servicePlans: ["read"],
+			billing: ["view"],
+		},
+	},
+	manager: {
+		label: "Manager",
+		description:
+			"ISP manager — full ISP management without org admin privileges",
+		permissions: {
+			customers: [
+				"create",
+				"read",
+				"update",
+				"delete",
+				"import",
+				"export",
+			],
+			employees: ["read", "update"],
+			servicePlans: ["read", "update"],
+			stations: ["read", "update"],
+			tasks: ["create", "read", "update", "delete", "assign"],
+			billing: ["view", "manage", "collect"],
+			inventory: ["create", "read", "update", "delete"],
+			installations: ["create", "read", "update", "approve"],
+			audit: ["view"],
+		},
+	},
+} as const;
+
+export type IspRoleTemplate = keyof typeof ISP_ROLE_TEMPLATES;

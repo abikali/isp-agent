@@ -34,6 +34,7 @@ export const getEmployee = protectedProcedure
 				organizationId: input.organizationId,
 			},
 			include: {
+				dealer: { select: { id: true, name: true } },
 				stations: {
 					select: {
 						assignedAt: true,

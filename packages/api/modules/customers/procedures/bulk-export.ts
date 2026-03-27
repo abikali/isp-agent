@@ -65,7 +65,8 @@ export const bulkExportCustomers = protectedProcedure
 		// Build CSV
 		const csvHeaders = [
 			"Account Number",
-			"Full Name",
+			"First Name",
+			"Last Name",
 			"Email",
 			"Phone",
 			"Address",
@@ -84,7 +85,8 @@ export const bulkExportCustomers = protectedProcedure
 
 		const csvRows = customers.map((c) => [
 			c.accountNumber,
-			c.fullName,
+			c.firstName ?? "",
+			c.lastName ?? "",
 			c.email ?? "",
 			c.phone ?? "",
 			c.address ?? "",

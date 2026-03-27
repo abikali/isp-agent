@@ -1,5 +1,6 @@
 "use client";
 
+import { emailSchema } from "@repo/api/lib/validation";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
@@ -10,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
+import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
@@ -42,7 +44,8 @@ export function CreateCustomerDialog({
 
 	const form = useForm({
 		defaultValues: {
-			fullName: "",
+			firstName: "",
+			lastName: "",
 			email: "",
 			phone: "",
 			address: "",
@@ -63,7 +66,8 @@ export function CreateCustomerDialog({
 			}
 			await createCustomer.mutateAsync({
 				organizationId,
-				fullName: value.fullName,
+				firstName: value.firstName,
+				lastName: value.lastName || undefined,
 				email: value.email || undefined,
 				phone: value.phone || undefined,
 				address: value.address || undefined,
@@ -113,29 +117,15 @@ export function CreateCustomerDialog({
 					}}
 					className="space-y-4"
 				>
-					<form.Field name="fullName">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-name">Full Name *</Label>
-								<Input
-									id="cust-name"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-
 					<div className="grid grid-cols-2 gap-4">
-						<form.Field name="email">
+						<form.Field name="firstName">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="cust-email">Email</Label>
+									<Label htmlFor="cust-fname">
+										First Name *
+									</Label>
 									<Input
-										id="cust-email"
-										type="email"
+										id="cust-fname"
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
@@ -143,6 +133,63 @@ export function CreateCustomerDialog({
 									/>
 								</div>
 							)}
+						</form.Field>
+						<form.Field name="lastName">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="cust-lname">
+										Last Name
+									</Label>
+									<Input
+										id="cust-lname"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)}
+						</form.Field>
+					</div>
+
+					<div className="grid grid-cols-2 gap-4">
+						<form.Field
+							name="email"
+							validators={{
+								onBlur: emailSchema,
+							}}
+						>
+							{(field) => {
+								const hasErrors =
+									field.state.meta.isTouched &&
+									field.state.meta.errors.length > 0;
+								return (
+									<div className="space-y-2">
+										<Label htmlFor="cust-email">
+											Email
+										</Label>
+										<Input
+											id="cust-email"
+											type="email"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+											onBlur={field.handleBlur}
+											aria-invalid={
+												hasErrors || undefined
+											}
+										/>
+										{hasErrors && (
+											<FieldError
+												errors={field.state.meta.errors}
+											/>
+										)}
+									</div>
+								);
+							}}
 						</form.Field>
 						<form.Field name="phone">
 							{(field) => (

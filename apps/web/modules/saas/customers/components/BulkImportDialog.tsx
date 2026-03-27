@@ -1,5 +1,6 @@
 "use client";
 
+import { displayName } from "@shared/lib/display-name";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import { Button } from "@ui/components/button";
@@ -348,7 +349,7 @@ export function BulkImportDialog({
 							<TableBody>
 								{rows.slice(0, 50).map((row, i) => (
 									<PreviewRow
-										key={`row-${row.fullName}-${i}`}
+										key={`row-${row.firstName}-${i}`}
 										row={row}
 										index={i}
 									/>
@@ -440,7 +441,9 @@ function PreviewRow({ row, index }: { row: CsvRow; index: number }) {
 			<TableCell className="font-mono text-xs text-muted-foreground">
 				{index + 1}
 			</TableCell>
-			<TableCell className="font-medium">{row.fullName}</TableCell>
+			<TableCell className="font-medium">
+				{displayName(row.firstName, row.lastName)}
+			</TableCell>
 			<TableCell className="text-xs">
 				{row.email ?? <span className="text-muted-foreground">-</span>}
 			</TableCell>

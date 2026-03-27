@@ -45,6 +45,7 @@ export function CreateOrganizationForm({
 					queryKey: organizationsQueryKeys.list(),
 				});
 
+				toast.success("Organization created");
 				router.replace(`/app/${newOrganization.slug}`);
 			} catch {
 				toast.error("Failed to create organization");

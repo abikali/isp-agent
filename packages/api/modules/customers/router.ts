@@ -5,9 +5,16 @@ import { deleteCustomer } from "./procedures/delete";
 import { generateCustomerPin } from "./procedures/generate-pin";
 import { getCustomer } from "./procedures/get";
 import { listCustomers } from "./procedures/list";
+import { listCustomerInvoices } from "./procedures/list-invoices";
+import { listCustomerTransactions } from "./procedures/list-transactions";
 import { resetCustomerPin } from "./procedures/reset-pin";
 import { setCustomerPin } from "./procedures/set-pin";
 import { getCustomerStats } from "./procedures/stats";
+import {
+	getIRadiusSyncStatus,
+	syncFromIRadius,
+	testIRadius,
+} from "./procedures/sync-iradius";
 import { updateCustomer } from "./procedures/update";
 
 export const customersRouter = {
@@ -22,4 +29,9 @@ export const customersRouter = {
 	setPin: setCustomerPin,
 	resetPin: resetCustomerPin,
 	generatePin: generateCustomerPin,
+	listTransactions: listCustomerTransactions,
+	listInvoices: listCustomerInvoices,
+	testIRadius,
+	syncFromIRadius,
+	getIRadiusSyncStatus,
 };

@@ -23,7 +23,7 @@ interface CustomerListInput {
 		| undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
-	sortBy?: "fullName" | "accountNumber" | "createdAt" | "status" | undefined;
+	sortBy?: "lastName" | "accountNumber" | "createdAt" | "status" | undefined;
 	sortOrder?: "asc" | "desc" | undefined;
 }
 
@@ -61,7 +61,7 @@ export function useCustomers(filters: CustomerListInput = {}) {
 		input["sortOrder"] = filters.sortOrder;
 	}
 
-	const query = useSuspenseQuery(
+	const query = useQuery(
 		orpc.customers.list.queryOptions({
 			input: input as Parameters<
 				typeof orpc.customers.list.queryOptions
@@ -75,6 +75,8 @@ export function useCustomers(filters: CustomerListInput = {}) {
 		page: query.data?.page ?? 1,
 		pageSize: query.data?.pageSize ?? 25,
 		totalPages: query.data?.totalPages ?? 0,
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
 	};
 }
 
@@ -200,6 +202,40 @@ export function useGenerateCustomerPin() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.customers.key(),
 			});
+		},
+	});
+}
+
+export function useTestIRadius() {
+	return useMutation({
+		...orpc.customers.testIRadius.mutationOptions(),
+	});
+}
+
+export function useSyncFromIRadius() {
+	return useMutation({
+		...orpc.customers.syncFromIRadius.mutationOptions(),
+	});
+}
+
+export function useIRadiusSyncStatus(
+	organizationId: string | null,
+	operationId: string | null,
+) {
+	return useQuery({
+		...orpc.customers.getIRadiusSyncStatus.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				...(operationId ? { operationId } : {}),
+			},
+		}),
+		enabled: !!organizationId,
+		refetchInterval: (query) => {
+			const status = query.state.data?.operation?.status;
+			if (status === "pending" || status === "in_progress") {
+				return 2000;
+			}
+			return false;
 		},
 	});
 }

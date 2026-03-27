@@ -1,16 +1,14 @@
 "use client";
 
-import { Skeleton } from "@ui/components/skeleton";
+import { StatCardGroup, StatCardSkeleton } from "@shared/components/StatCard";
 
 export function EmployeeStatsSkeleton() {
 	return (
-		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			{Array.from({ length: 4 }).map((_, i) => (
-				<Skeleton
-					key={`stat-skeleton-${i}`}
-					className="h-24 rounded-lg"
-				/>
-			))}
-		</div>
+		<StatCardGroup columns={4}>
+			<StatCardSkeleton />
+			<StatCardSkeleton />
+			<StatCardSkeleton />
+			<StatCardSkeleton />
+		</StatCardGroup>
 	);
 }

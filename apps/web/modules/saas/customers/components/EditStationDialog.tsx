@@ -20,6 +20,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useUpdateStation } from "../hooks/use-stations";
 
 interface Station {
@@ -55,16 +56,27 @@ export function EditStationDialog({
 			if (!organizationId) {
 				return;
 			}
-			await updateStation.mutateAsync({
-				organizationId,
-				id: station.id,
-				name: value.name,
-				address: value.address || undefined,
-				status: value.status,
-				capacity: value.capacity ? Number(value.capacity) : undefined,
-				notes: value.notes || undefined,
-			});
-			onOpenChange(false);
+			try {
+				await updateStation.mutateAsync({
+					organizationId,
+					id: station.id,
+					name: value.name,
+					address: value.address || undefined,
+					status: value.status,
+					capacity: value.capacity
+						? Number(value.capacity)
+						: undefined,
+					notes: value.notes || undefined,
+				});
+				toast.success("Station updated");
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to update station",
+				);
+			}
 		},
 	});
 

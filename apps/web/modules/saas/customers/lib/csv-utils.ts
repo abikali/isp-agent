@@ -1,7 +1,8 @@
 import { CSV_HEADERS } from "./constants";
 
 export interface CsvRow {
-	fullName: string;
+	firstName: string;
+	lastName?: string | undefined;
 	email?: string | undefined;
 	phone?: string | undefined;
 	address?: string | undefined;
@@ -100,14 +101,16 @@ export function parseCsv(csvText: string): ParseResult {
 	const headerLine = lines[0] ?? "";
 	const headerMap = buildHeaderMap(headerLine);
 
-	// Verify at least "Full Name" header exists
-	if (!headerMap.has("full name")) {
+	// Support both "First Name" and legacy "Full Name" headers
+	const hasFirstName = headerMap.has("first name");
+	const hasFullName = headerMap.has("full name");
+	if (!hasFirstName && !hasFullName) {
 		return {
 			rows: [],
 			errors: [
 				{
 					row: 1,
-					error: 'Missing required "Full Name" column header. Download the template for the expected format.',
+					error: 'Missing required "First Name" (or "Full Name") column header. Download the template for the expected format.',
 				},
 			],
 		};
@@ -124,14 +127,34 @@ export function parseCsv(csvText: string): ParseResult {
 		const fields = parseCsvLine(line);
 		const rowNumber = i + 1;
 
-		const fullName = getField(fields, headerMap, "Full Name");
-		if (!fullName) {
-			errors.push({ row: rowNumber, error: "Full Name is required" });
+		let firstName: string;
+		let lastName: string | undefined;
+
+		if (hasFirstName) {
+			firstName = getField(fields, headerMap, "First Name");
+			const ln = getField(fields, headerMap, "Last Name");
+			if (ln) {
+				lastName = ln;
+			}
+		} else {
+			// Legacy: split "Full Name" on first space
+			const fullName = getField(fields, headerMap, "Full Name");
+			const spaceIdx = fullName.indexOf(" ");
+			if (spaceIdx > 0) {
+				firstName = fullName.substring(0, spaceIdx);
+				lastName = fullName.substring(spaceIdx + 1);
+			} else {
+				firstName = fullName;
+			}
+		}
+
+		if (!firstName) {
+			errors.push({ row: rowNumber, error: "First Name is required" });
 			continue;
 		}
 
 		const rowErrors: string[] = [];
-		const row: CsvRow = { fullName };
+		const row: CsvRow = { firstName, lastName };
 
 		const email = getField(fields, headerMap, "Email");
 		if (email) {
@@ -232,11 +255,11 @@ export function parseCsv(csvText: string): ParseResult {
 export function generateCsvTemplate(): string {
 	const header = CSV_HEADERS.join(",");
 	const sampleRows = [
-		'Ahmad Khalil,ahmad.khalil@email.com,+961 71 123 456,"Beirut, Hamra St. Block 5",akhalil,Fiber 50Mbps,Hamra Tower,FIBER,10.0.1.101,AA:BB:CC:11:22:33,45.00,1,Residential customer',
-		"Sara Nassar,sara.nassar@email.com,+961 76 654 321,Tripoli Mina District,snassar,Wireless 25Mbps,Mina Station,WIRELESS,10.0.2.55,DD:EE:FF:44:55:66,30.00,15,Business owner",
-		"Omar Haddad,omar.h@email.com,+961 03 987 654,Jounieh Main Road,ohaddad,Fiber 100Mbps,Jounieh Central,FIBER,10.0.3.200,11:22:33:AA:BB:CC,75.00,10,Premium plan - upgraded from 50Mbps",
-		"Nour Fakhoury,nour.f@email.com,+961 70 111 222,Saida Old City,nfakhoury,DSL 10Mbps,Saida Hub,DSL,10.0.4.30,77:88:99:DD:EE:FF,20.00,5,",
-		"Rami Karam,,+961 78 333 444,Baalbek Center,rkaram,Cable 30Mbps,Baalbek Node,CABLE,10.0.5.88,AB:CD:EF:12:34:56,35.00,20,No email on file",
+		'Ahmad,Khalil,ahmad.khalil@email.com,+961 71 123 456,"Beirut, Hamra St. Block 5",akhalil,Fiber 50Mbps,Hamra Tower,FIBER,10.0.1.101,AA:BB:CC:11:22:33,45.00,1,Residential customer',
+		"Sara,Nassar,sara.nassar@email.com,+961 76 654 321,Tripoli Mina District,snassar,Wireless 25Mbps,Mina Station,WIRELESS,10.0.2.55,DD:EE:FF:44:55:66,30.00,15,Business owner",
+		"Omar,Haddad,omar.h@email.com,+961 03 987 654,Jounieh Main Road,ohaddad,Fiber 100Mbps,Jounieh Central,FIBER,10.0.3.200,11:22:33:AA:BB:CC,75.00,10,Premium plan - upgraded from 50Mbps",
+		"Nour,Fakhoury,nour.f@email.com,+961 70 111 222,Saida Old City,nfakhoury,DSL 10Mbps,Saida Hub,DSL,10.0.4.30,77:88:99:DD:EE:FF,20.00,5,",
+		"Rami,Karam,,+961 78 333 444,Baalbek Center,rkaram,Cable 30Mbps,Baalbek Node,CABLE,10.0.5.88,AB:CD:EF:12:34:56,35.00,20,No email on file",
 	];
 	return [header, ...sampleRows].join("\n");
 }

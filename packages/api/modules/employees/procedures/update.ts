@@ -58,12 +58,36 @@ export const updateEmployee = protectedProcedure
 			});
 		}
 
+		const normalizedEmail =
+			input.email === undefined
+				? undefined
+				: (input.email?.trim().toLowerCase() ?? null);
+
+		// Check email uniqueness within the organization
+		if (normalizedEmail !== undefined && normalizedEmail !== null) {
+			const emailTaken = await db.employee.findFirst({
+				where: {
+					organizationId: input.organizationId,
+					email: {
+						equals: normalizedEmail,
+						mode: "insensitive",
+					},
+					id: { not: input.id },
+				},
+			});
+			if (emailTaken) {
+				throw new ORPCError("CONFLICT", {
+					message: `Email "${normalizedEmail}" is already used by another employee (${emailTaken.name})`,
+				});
+			}
+		}
+
 		const updateData: Record<string, unknown> = {};
 		if (input.name !== undefined) {
 			updateData["name"] = input.name;
 		}
 		if (input.email !== undefined) {
-			updateData["email"] = input.email ?? null;
+			updateData["email"] = normalizedEmail ?? null;
 		}
 		if (input.phone !== undefined) {
 			updateData["phone"] = input.phone ?? null;

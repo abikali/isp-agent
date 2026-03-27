@@ -55,6 +55,7 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useGenerateSystemPrompt, useUpdateAgent } from "../hooks/use-agents";
 import { useAvailableTools } from "../hooks/use-tools";
 import {
@@ -306,29 +307,39 @@ export function AgentSettings({
 			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
-			await updateAgent.mutateAsync({
-				agentId,
-				organizationId,
-				name: value.name,
-				description: value.description || undefined,
-				systemPrompt: value.systemPrompt,
-				greetingMessage: value.greetingMessage || undefined,
-				model: value.model,
-				knowledgeBase: value.knowledgeBase || undefined,
-				enabled: value.enabled,
-				servicePlansEnabled: value.servicePlansEnabled,
-				servicePlanIds: value.servicePlanIds,
-				maintenanceMode: value.maintenanceMode,
-				maintenanceMessage: value.maintenanceMessage || undefined,
-				maxHistoryLength: value.maxHistoryLength,
-				temperature: value.temperature,
-				enabledTools: value.enabledTools,
-				contextGapThresholdMinutes: value.contextGapThresholdMinutes,
-				humanTakeoverHours: value.humanTakeoverEnabled
-					? value.humanTakeoverHours
-					: null,
-				promptSections: value.promptSections,
-			});
+			try {
+				await updateAgent.mutateAsync({
+					agentId,
+					organizationId,
+					name: value.name,
+					description: value.description || undefined,
+					systemPrompt: value.systemPrompt,
+					greetingMessage: value.greetingMessage || undefined,
+					model: value.model,
+					knowledgeBase: value.knowledgeBase || undefined,
+					enabled: value.enabled,
+					servicePlansEnabled: value.servicePlansEnabled,
+					servicePlanIds: value.servicePlanIds,
+					maintenanceMode: value.maintenanceMode,
+					maintenanceMessage: value.maintenanceMessage || undefined,
+					maxHistoryLength: value.maxHistoryLength,
+					temperature: value.temperature,
+					enabledTools: value.enabledTools,
+					contextGapThresholdMinutes:
+						value.contextGapThresholdMinutes,
+					humanTakeoverHours: value.humanTakeoverEnabled
+						? value.humanTakeoverHours
+						: null,
+					promptSections: value.promptSections,
+				});
+				toast.success("Settings saved");
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to save settings",
+				);
+			}
 		},
 	});
 

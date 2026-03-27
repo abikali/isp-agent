@@ -88,6 +88,12 @@ export const listEmployees = protectedProcedure
 					status: true,
 					hireDate: true,
 					createdAt: true,
+					dealer: {
+						select: {
+							id: true,
+							name: true,
+						},
+					},
 					stations: {
 						select: {
 							station: {

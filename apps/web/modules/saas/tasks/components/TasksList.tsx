@@ -1,5 +1,7 @@
 "use client";
 
+import { displayName } from "@shared/lib/display-name";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -75,6 +77,7 @@ function formatRelativeDate(date: string | Date): string {
 
 export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
 	const [priority, setPriority] = useState("all");
 	const [category, setCategory] = useState("all");
@@ -85,8 +88,8 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 
 	const resetPage = () => setPage(1);
 
-	const { tasks, total, totalPages } = useTasks({
-		search: search || undefined,
+	const { tasks, total, totalPages, isLoading, isFetching } = useTasks({
+		search: debouncedSearch || undefined,
 		status: status !== "all" ? (status as "OPEN") : undefined,
 		priority: priority !== "all" ? (priority as "LOW") : undefined,
 		category: category !== "all" ? (category as "GENERAL") : undefined,
@@ -140,7 +143,11 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 				/>
 			</div>
 
-			{tasks.length === 0 ? (
+			{isLoading ? (
+				<div className="rounded-xl shadow-card p-8 text-center text-muted-foreground">
+					Loading tasks...
+				</div>
+			) : tasks.length === 0 ? (
 				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
 					<h3 className="mb-1 text-lg font-medium">
 						{total === 0 ? "No tasks yet" : "No results found"}
@@ -159,7 +166,12 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 				</div>
 			) : (
 				<TooltipProvider>
-					<div className="rounded-lg border">
+					<div
+						className={cn(
+							"rounded-xl shadow-card overflow-hidden transition-opacity",
+							isFetching && "opacity-60",
+						)}
+					>
 						<Table>
 							<TableHeader>
 								<TableRow>
@@ -257,11 +269,14 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 																	className="hover:underline"
 																	preload="intent"
 																>
-																	{
+																	{displayName(
 																		task
 																			.customer
-																			.fullName
-																	}
+																			.firstName,
+																		task
+																			.customer
+																			.lastName,
+																	)}
 																</Link>
 															</span>
 														)}

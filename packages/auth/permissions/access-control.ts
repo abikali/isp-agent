@@ -44,8 +44,12 @@ export const permissionStatement = {
 	// Insights
 	audit: ["view"],
 
-	// Billing
-	billing: ["view", "manage"],
+	// Billing & Collections
+	billing: ["view", "manage", "collect", "collect:own"],
+
+	// Inventory & Installations
+	inventory: ["create", "read", "update", "delete"],
+	installations: ["create", "read", "update", "approve"],
 } as const;
 
 /**
@@ -53,7 +57,7 @@ export const permissionStatement = {
  * For these resources, members may have "own only" restrictions
  * where they can only modify resources they created.
  */
-export const OWNERSHIP_RESOURCES = ["apiKeys"] as const;
+export const OWNERSHIP_RESOURCES = ["apiKeys", "billing"] as const;
 export type OwnershipResource = (typeof OWNERSHIP_RESOURCES)[number];
 
 /**
@@ -62,6 +66,7 @@ export type OwnershipResource = (typeof OWNERSHIP_RESOURCES)[number];
  */
 export const SCOPED_ACTIONS: Record<OwnershipResource, readonly string[]> = {
 	apiKeys: ["read", "delete"],
+	billing: ["collect"],
 } as const;
 
 /**
@@ -125,6 +130,8 @@ export const PERMISSION_GROUPS = {
 			"stations",
 			"employees",
 			"tasks",
+			"inventory",
+			"installations",
 		] as const,
 		label: "ISP Management",
 	},

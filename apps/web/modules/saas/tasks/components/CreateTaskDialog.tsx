@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useCreateTask } from "../hooks/use-tasks";
 import { TASK_CATEGORY_OPTIONS, TASK_PRIORITY_OPTIONS } from "../lib/constants";
 
@@ -49,28 +50,39 @@ export function CreateTaskDialog({
 			if (!organizationId) {
 				return;
 			}
-			await createTask.mutateAsync({
-				organizationId,
-				title: value.title,
-				description: value.description || undefined,
-				priority: value.priority as
-					| "LOW"
-					| "MEDIUM"
-					| "HIGH"
-					| "URGENT",
-				category: value.category as
-					| "INSTALLATION"
-					| "MAINTENANCE"
-					| "REPAIR"
-					| "SUPPORT"
-					| "BILLING"
-					| "GENERAL",
-				dueDate: value.dueDate ? new Date(value.dueDate) : undefined,
-				stationId: value.stationId || undefined,
-				notes: value.notes || undefined,
-			});
-			onOpenChange(false);
-			form.reset();
+			try {
+				await createTask.mutateAsync({
+					organizationId,
+					title: value.title,
+					description: value.description || undefined,
+					priority: value.priority as
+						| "LOW"
+						| "MEDIUM"
+						| "HIGH"
+						| "URGENT",
+					category: value.category as
+						| "INSTALLATION"
+						| "MAINTENANCE"
+						| "REPAIR"
+						| "SUPPORT"
+						| "BILLING"
+						| "GENERAL",
+					dueDate: value.dueDate
+						? new Date(value.dueDate)
+						: undefined,
+					stationId: value.stationId || undefined,
+					notes: value.notes || undefined,
+				});
+				toast.success("Task created");
+				onOpenChange(false);
+				form.reset();
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create task",
+				);
+			}
 		},
 	});
 

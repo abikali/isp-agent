@@ -27,6 +27,8 @@ model Account {
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@unique([providerId, accountId])
+  @@unique([userId, providerId])
   @@map("account")
 }
 
@@ -267,10 +269,27 @@ model Organization {
   watchers             Watcher[]
   webhooks             Webhook[]
   customers            Customer[]
+  customerTransactions CustomerTransaction[]
+  customerInvoices     CustomerInvoice[]
+  accessPoints         AccessPoint[]
+  ispNasServers        IspNas[]
+  ispRouters           IspRouter[]
+  ispDealers           IspDealer[]
+  ispDealerAccounts    IspDealerAccount[]
+  iRadiusSyncOps       IRadiusSyncOperation[]
   employees            Employee[]
   servicePlans         ServicePlan[]
   stations             Station[]
   tasks                Task[]
+  billingCycles        BillingCycle[]
+  payments             Payment[]
+  cashCollections      CashCollection[]
+  expenses             Expense[]
+  stockItems           StockItem[]
+  stockLogs            StockLog[]
+  installations        Installation[]
+  billingSyncOps           BillingSyncOperation[]
+  billingEmployeeMappings  BillingEmployeeMapping[]
 
   @@map("organization")
 }
@@ -415,6 +434,13 @@ model User {
   usageQuotas         UsageQuota[]
   watchersCreated     Watcher[]          @relation("watcherCreator")
   tasksCreated        Task[]             @relation("taskCreator")
+  employee            Employee?          @relation("EmployeeUser")
+  dealer              IspDealer?         @relation("DealerUser")
+  paymentsProcessed   Payment[]          @relation("PaymentProcessor")
+  cashCollectionsReceived CashCollection[] @relation("CashReceiver")
+  expensesApproved    Expense[]          @relation("ExpenseApprover")
+  stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
+  installationsApproved Installation[]   @relation("InstallationApprover")
 
   @@map("user")
 }
@@ -802,27 +828,78 @@ enum StationStatus {
 }
 
 model ServicePlan {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  description    String?
-  downloadSpeed  Int // Mbps
-  uploadSpeed    Int // Mbps
-  monthlyPrice   Float
-  archived       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  organizationId  String
+  externalId      String?
+  name            String
+  description     String?
+  downloadSpeed   Int // Mbps
+  uploadSpeed     Int // Mbps
+  monthlyPrice    Float
+  validityPeriod  Int?     // Days the plan is valid
+  monthlyQuota    Int?     // Combined monthly quota (GB)
+  dailyQuotaUp    Int?     // Separate daily upload limit
+  dailyQuotaDown  Int?     // Separate daily download limit
+  ipPoolName      String?  // RADIUS IP pool name
+  maxUsers        Int?     // Simultaneous connections allowed
+  visible          Boolean  @default(true) // Shown on customer-facing UI
+  commission       Float    @default(0)
+  parentCommission Float    @default(0)
+  dealerExternalId String?  // iRadius DealerId (legacy, use dealerId)
+  dealerId         String?
+  archived         Boolean  @default(false)
+  // iRadius AccountType fields
+  rate                       Float?   // Wholesale rate (AccountType.Rate)
+  sellingPrice               Float?   // Dealer selling price (AccountType.SellingPrice)
+  autoBindAccToMac           Boolean  @default(false)
+  refundable                 Boolean  @default(false)
+  refundableByGb             Boolean  @default(false)
+  canChangeMac               Boolean  @default(false)
+  canChangeUserName          Boolean  @default(false)
+  immediateRecharge          Boolean  @default(false)
+  preventBeforeRecharge      Boolean  @default(false)
+  totalSession               Int?
+  totalSessionPeriodTypeId   Int?
+  validityPeriodTypeId       Int?
+  separateMaxMonthlyUp       Int?
+  separateMaxMonthlyDown     Int?
+  monthlyPoolAfterMax        String?
+  ulDlForAutoFallBack        Boolean  @default(false)
+  unlimitedTimeTo            String?
+  unlimitedTimeFrom          String?
+  newIpPoolAfterMax          String?
+  combinedMaxUpAndDown       Int?
+  resetCounterTime           String?
+  expiryAccountPool          String?
+  ulDlMonthlyForAutoFallBack Boolean  @default(false)
+  disablePoolName            String?
+  proceraId                  Int?
+  expiryProceraId            Int?
+  accountTypeCategory        Int?
+  adminId                    Int?
+  canExcludeQuotaByIpAddress Boolean  @default(false)
+  fupResetPrice              Float?
+  addressListId              Int?
+  defaultAddressListIds      Int?
+  queueTreeMode              Boolean  @default(false)
+  iRadiusNasId               Int?     // AccountType.NasId (iRadius FK, not our FK)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer       IspDealer?   @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   customers    Customer[]
 
+  @@unique([organizationId, externalId])
   @@index([organizationId])
+  @@index([dealerId])
   @@map("service_plan")
 }
 
 model Station {
   id             String        @id @default(cuid())
   organizationId String
+  externalId     String?
   name           String
   address        String?
   latitude       Float?
@@ -830,56 +907,491 @@ model Station {
   status         StationStatus @default(ACTIVE)
   capacity       Int?
   notes          String?
+  host           String?       // IP for API access
+  apiPort        Int?          // MikroTik API port
+  sshPort        Int?          // SSH port
+  vlanId         Int?          // VLAN assignment
+  version        String?       // Firmware version
+  uptime         String?       // Last known uptime
+  sshUsername    String?       // SSH login username
+  sshPassword   String?       // SSH login password
+  apUsername     String?       // Access point API username
+  apPassword     String?       // Access point API password
+  apApiPort      Int?          // Access point API port
+  apSshPort      Int?          // Access point SSH port
+  // iRadius monitoring fields
+  boardName      String?
+  cpuLoad        String?
+  voltage        String?
+  online         Boolean       @default(false)
+  scanStatus     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customers    Customer[]
-  employees    EmployeeStation[]
-  tasks        Task[]
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customers     Customer[]
+  employees     EmployeeStation[]
+  tasks         Task[]
+  accessPoints  AccessPoint[]
+  routers       IspRouter[]
 
+  @@unique([organizationId, externalId])
   @@index([organizationId])
   @@map("station")
 }
 
-model Customer {
-  id             String          @id @default(cuid())
+model AccessPoint {
+  id             String   @id @default(cuid())
   organizationId String
-  accountNumber  String
-  fullName       String
-  email          String?
-  phone          String?
-  address        String?
-  username       String?
-  planId         String?
   stationId      String?
-  status         CustomerStatus  @default(ACTIVE)
-  connectionType ConnectionType?
-  ipAddress      String?
+  externalId     String?
+  name           String
   macAddress     String?
-  monthlyRate    Float?
-  billingDay     Int?
-  balance        Float           @default(0)
-  notes          String?         @db.Text
-  pin            String?
-  pinHash        String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  ipAddress      String?
+  signal         String?
+  boardName      String?
+  version        String?
+  interface      String?  // Network interface name
+  uptime         String?  // Last known uptime
+  isUbiquiti      Boolean  @default(false) // Ubiquiti equipment
+  online          Boolean  @default(false)
+  autoNegotiation Boolean  @default(false)
+  fullDuplex      Boolean  @default(false)
+  scanStatus      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization  Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  plan          ServicePlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
-  station       Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  customers    Customer[]
+  routers      IspRouter[]
 
-  tasks         Task[]
-  conversations AiConversation[]
+  @@unique([organizationId, externalId])
+  @@index([organizationId])
+  @@index([stationId])
+  @@map("access_point")
+}
+
+model Customer {
+  id                String          @id @default(cuid())
+  organizationId    String
+  accountNumber     String
+  fullName          String?         // Legacy — use firstName + lastName
+  firstName         String?
+  lastName          String?
+  email             String?
+  phone             String?         // iRadius User.Phone
+  mobile            String?         // iRadius User.Mobile
+  address           String?
+  username          String?
+  planId            String?
+  stationId         String?
+  accessPointId     String?
+  status            CustomerStatus  @default(ACTIVE)
+  connectionType    ConnectionType?
+  ipAddress         String?
+  macAddress        String?
+  monthlyRate       Float?
+  billingDay        Int?
+  balance           Float           @default(0)
+  notes             String?         @db.Text
+  pin               String?
+  pinHash           String?
+  externalId        String?
+  // Subscription lifecycle
+  activatedAt       DateTime?
+  expiresAt         DateTime?
+  // Network details
+  staticIp          String?
+  nasHost           String?
+  mikrotikUser      String?
+  mikrotikInterface String?
+  online            Boolean         @default(false)
+  // Usage tracking
+  downloadBytes      BigInt          @default(0)
+  uploadBytes        BigInt          @default(0)
+  dailyDownloadBytes BigInt          @default(0)
+  dailyUploadBytes   BigInt          @default(0)
+  fupMode            String?
+  automaticRenew     Boolean         @default(false)
+  // Pricing
+  discount           Float           @default(0)
+  iptvPrice          Float           @default(0)
+  realIpPrice        Float           @default(0)
+  // Geo
+  latitude          Float?
+  longitude         Float?
+  // Classification
+  categoryName      String?
+  groupName         String?
+  collectorName     String?
+  collectorPhone    String?
+  // Foreign keys (resolved from iRadius)
+  dealerId           String?
+  collectorId        String?
+  nasId              String?
+  originalCreatedAt  DateTime?
+  // iRadius User fields
+  mof                    String?         // Tax registration (MOF)
+  lastLogin              DateTime?
+  lastLogOut             DateTime?
+  autoGenerateInvoice    Boolean         @default(false)
+  financialCategoryId    Int?
+  linkId                 Int?
+  canResetAccount        Boolean         @default(false)
+  collectorResetMac      Boolean         @default(false)
+  collectorCanShowLinks  Boolean         @default(false)
+  readOnly               Boolean         @default(false)
+  // iRadius UserNas fields
+  nasAccountId                  Int?            // UserNas.Id
+  freeDownloadBytes             BigInt          @default(0)
+  freeUploadBytes               BigInt          @default(0)
+  extraDaysToAddOnRefill        Int?
+  extraDaysToDeductOnRefill     Int?
+  addedHours                    Int?
+  extraUploadGb                 Float?
+  extraDownloadGb               Float?
+  canShowTrafficDetails         Boolean         @default(false)
+  oldAccountTypeId              Int?
+  forwardAccountTypeId          Int?
+  conditionAccountTypeId        Int?
+  deductMoney                   Float?
+  reachMaxQuota                 Boolean         @default(false)
+  tempUser                      Boolean         @default(false)
+  tempExpiryAccount             DateTime?
+  mikrotikQueue                 String?
+  wirelessInterface             String?
+  routerBrandPrefix             String?
+  overrideExpiryAccount         DateTime?
+  forceExpiryAfterDays          Int?
+  forceOverrideImmediateRecharge Boolean       @default(false)
+  overrideImmediateRecharge     Boolean         @default(false)
+  forceAutoBindAccToMac         Boolean         @default(false)
+  overrideAutoBindAccToMac      Boolean         @default(false)
+  simultaneous                  Boolean         @default(false)
+  apElectrical                  Boolean         @default(false)
+  excludeDailyDownloadBytes     BigInt          @default(0)
+  excludeDailyUploadBytes       BigInt          @default(0)
+  excludeMonthlyDownloadBytes   BigInt          @default(0)
+  excludeMonthlyUploadBytes     BigInt          @default(0)
+  freeDailyDownloadBytes        BigInt          @default(0)
+  freeDailyUploadBytes          BigInt          @default(0)
+  excludeFreeDailyDownloadBytes   BigInt        @default(0)
+  excludeFreeMonthlyDownloadBytes BigInt        @default(0)
+  excludeFreeDailyUploadBytes     BigInt        @default(0)
+  excludeFreeMonthlyUploadBytes   BigInt        @default(0)
+  nasLastLogOut                 DateTime?
+  mikrotikInterface1            String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan           ServicePlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  station        Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  accessPoint    AccessPoint?     @relation(fields: [accessPointId], references: [id], onDelete: SetNull)
+  dealer         IspDealer?       @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  collector      Employee?        @relation("CustomerCollector", fields: [collectorId], references: [id], onDelete: SetNull)
+  nas            IspNas?          @relation(fields: [nasId], references: [id], onDelete: SetNull)
+
+  tasks          Task[]
+  conversations  AiConversation[]
+  transactions   CustomerTransaction[]
+  invoices       CustomerInvoice[]
+  payments       Payment[]
+  installations  Installation[]
+
+  // Billing workflow
+  paidCurrentCycle Boolean @default(false)
 
   @@unique([organizationId, accountNumber])
+  @@unique([organizationId, externalId])
+  @@unique([organizationId, email])
   @@index([organizationId])
   @@index([planId])
   @@index([stationId])
+  @@index([accessPointId])
+  @@index([dealerId])
+  @@index([collectorId])
+  @@index([nasId])
   @@index([status])
-  @@index([organizationId, fullName])
+  @@index([organizationId, lastName, firstName])
   @@map("customer")
+}
+
+model CustomerTransaction {
+  id                String   @id @default(cuid())
+  organizationId    String
+  customerId        String
+  externalId        String?
+  invoiceExternalId   String?
+  collectorExternalId String?
+  collectorId         String?
+  credit              Float    @default(0)
+  debit             Float    @default(0)
+  notes          String?  @db.Text
+  operationDate  DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  collector    Employee?    @relation("TransactionCollector", fields: [collectorId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, externalId])
+  @@index([customerId])
+  @@index([collectorId])
+  @@index([organizationId])
+  @@map("customer_transaction")
+}
+
+model CustomerInvoice {
+  id             String    @id @default(cuid())
+  organizationId String
+  customerId     String
+  externalId     String?
+  invoiceNumber  String?
+  year           Int
+  month          Int
+  invoiceDate    DateTime
+  expiryDate     DateTime?
+  total          Float     @default(0)
+  discount       Float     @default(0)
+  tax            Float     @default(0)
+  totalWithTax   Float     @default(0)
+  paid           Boolean   @default(false)
+  autoGenerated  Boolean   @default(false)
+  generatedDate  DateTime?
+  blocked        Boolean   @default(false)
+  vatValue       Float?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, externalId])
+  @@index([customerId])
+  @@index([organizationId])
+  @@map("customer_invoice")
+}
+
+model IspNas {
+  id             String   @id @default(cuid())
+  organizationId String
+  externalId     String?
+  name           String
+  host           String?
+  sharedSecret   String?
+  apiPort        Int?
+  active         Boolean  @default(true)
+  // iRadius Nas fields
+  description              String?
+  apiUserName              String?
+  apiPassword              String?
+  onlineUsers              Int?
+  faultSession             Boolean  @default(false)
+  countFaultSession        Int?
+  minutesToRemoveNasFilter Int?
+  nasTypeId                Int?
+  adminId                  Int?
+  mikrotikNewVersion       Boolean  @default(false)
+  sshPort                  Int?
+  sshUserName              String?
+  sshPassword              String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customers    Customer[]
+
+  @@unique([organizationId, externalId])
+  @@index([organizationId])
+  @@map("isp_nas")
+}
+
+model IspRouter {
+  id             String   @id @default(cuid())
+  organizationId String
+  externalId     String?
+  name           String
+  ipAddress      String?
+  macAddress     String?
+  stationId      String?
+  accessPointId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  accessPoint  AccessPoint? @relation(fields: [accessPointId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, externalId])
+  @@index([organizationId])
+  @@map("isp_router")
+}
+
+model IspDealer {
+  id                   String         @id @default(cuid())
+  organizationId       String
+  externalId           String?
+  name                 String
+  username             String?
+  email                String?
+  phone                String?
+  companyName          String?
+  companyAddress       String?
+  companyPhone         String?
+  companyMobile        String?
+  companyVatNumber     String?
+  credit               Float          @default(0)
+  commission           Float          @default(0)
+  smsSenderId          String?
+  notificationAmount   Float?
+  fupResetPrice        Float?
+  extraOneGbPrice      Float?
+  extraOneGbCommission Float?
+  canShowRate          Boolean        @default(false)
+  canShowSpeed         Boolean        @default(false)
+  noCharge             Boolean        @default(false)
+  canSendMail          Boolean        @default(false)
+  canSendSms           Boolean        @default(false)
+  canExportToExcel     Boolean        @default(false)
+  canAddDealer         Boolean        @default(false)
+  canDeleteUser        Boolean        @default(false)
+  canChangeAccountType Boolean        @default(false)
+  // iRadius Dealer extra fields
+  notifyBefore3Days       Boolean        @default(false)
+  notifyBefore2Days       Boolean        @default(false)
+  notifyBefore1Day        Boolean        @default(false)
+  extraGb                 Boolean        @default(false)
+  canShowOnlineUsersSpeed Boolean        @default(false)
+  userNotification        Boolean        @default(false)
+  canMonitorLog           Boolean        @default(false)
+  chargeIfNotExpiry       Boolean        @default(false)
+  parentDealerId       String?
+  userId               String?        @unique
+  status               CustomerStatus @default(ACTIVE)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?             @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
+  parentDealer   IspDealer?        @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
+  childDealers   IspDealer[]       @relation("DealerHierarchy")
+  customers      Customer[]
+  employees      Employee[]
+  servicePlans   ServicePlan[]
+  dealerAccounts IspDealerAccount[]
+
+  @@unique([organizationId, externalId])
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([parentDealerId])
+  @@map("isp_dealer")
+}
+
+model IspDealerAccount {
+  id             String   @id @default(cuid())
+  organizationId String
+  dealerId       String
+  externalId     String?
+  credit         Float    @default(0)
+  debit          Float    @default(0)
+  balance        Float    @default(0)
+  comment        String?  @db.Text
+  operationDate  DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer       IspDealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, externalId])
+  @@index([dealerId])
+  @@index([organizationId])
+  @@map("isp_dealer_account")
+}
+
+model IRadiusSyncOperation {
+  id                      String    @id @default(cuid())
+  organizationId          String
+  status                  String    @default("pending")
+  phase                   String?
+  totalPlans              Int       @default(0)
+  processedPlans          Int       @default(0)
+  totalStations           Int       @default(0)
+  processedStations       Int       @default(0)
+  totalAccessPoints       Int       @default(0)
+  processedAccessPoints   Int       @default(0)
+  totalNas                Int       @default(0)
+  processedNas            Int       @default(0)
+  totalRouters            Int       @default(0)
+  processedRouters        Int       @default(0)
+  totalDealers            Int       @default(0)
+  processedDealers        Int       @default(0)
+  totalDealerAccounts     Int       @default(0)
+  processedDealerAccounts Int       @default(0)
+  totalEmployees          Int       @default(0)
+  processedEmployees      Int       @default(0)
+  totalCustomers          Int       @default(0)
+  processedCustomers      Int       @default(0)
+  totalTransactions       Int       @default(0)
+  processedTransactions   Int       @default(0)
+  totalInvoices           Int       @default(0)
+  processedInvoices       Int       @default(0)
+  result                  Json?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("iradius_sync_operation")
+}
+
+model BillingSyncOperation {
+  id                     String    @id @default(cuid())
+  organizationId         String
+  status                 String    @default("pending") // pending | in_progress | completed | failed
+  phase                  String?
+  totalCustomers         Int       @default(0)
+  processedCustomers     Int       @default(0)
+  totalPayments          Int       @default(0)
+  processedPayments      Int       @default(0)
+  totalCollections       Int       @default(0)
+  processedCollections   Int       @default(0)
+  totalExpenses          Int       @default(0)
+  processedExpenses      Int       @default(0)
+  totalStockItems        Int       @default(0)
+  processedStockItems    Int       @default(0)
+  totalWorkerStock       Int       @default(0)
+  processedWorkerStock   Int       @default(0)
+  totalInstallations     Int       @default(0)
+  processedInstallations Int       @default(0)
+  result                 Json?
+  startedAt              DateTime?
+  completedAt            DateTime?
+  createdAt              DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("billing_sync_operation")
+}
+
+model BillingEmployeeMapping {
+  id               String   @id @default(cuid())
+  organizationId   String
+  billingUsername   String
+  employeeId       String?
+  action           String   // create | skip | map
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, billingUsername])
+  @@index([organizationId])
+  @@map("billing_employee_mapping")
 }
 
 // ============================================================================
@@ -922,6 +1434,7 @@ enum TaskCategory {
   SUPPORT
   BILLING
   GENERAL
+  FOLLOW_UP
 }
 
 enum TaskSource {
@@ -943,15 +1456,34 @@ model Employee {
   hireDate       DateTime?
   status         EmployeeStatus     @default(ACTIVE)
   notes          String?            @db.Text
+  externalId     String?
+  iRadiusProfile String?
+  username       String?
+  userId         String?            @unique
+  dealerId       String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stations     EmployeeStation[]
-  taskAssignments TaskAssignment[]
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                  User?                 @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  dealer                IspDealer?            @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  stations              EmployeeStation[]
+  taskAssignments       TaskAssignment[]
+  customerCollections   Customer[]            @relation("CustomerCollector")
+  transactionCollections CustomerTransaction[] @relation("TransactionCollector")
+  paymentsCollected     Payment[]             @relation("PaymentCollector")
+  cashCollections       CashCollection[]      @relation("CashCollector")
+  expensesSubmitted     Expense[]             @relation("ExpenseSubmitter")
+  workerStock           WorkerStock[]
+  stockLogs             StockLog[]
+  installationsDone     Installation[]        @relation("Installer")
+  billingMappings       BillingEmployeeMapping[]
 
   @@unique([organizationId, employeeNumber])
+  @@unique([organizationId, externalId])
+  @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([dealerId])
   @@index([status])
   @@index([organizationId, name])
   @@map("employee")
@@ -988,6 +1520,7 @@ model Task {
   customerId     String?
   stationId      String?
   conversationId String?
+  followUpStatus String?        // pending | contacted | promised | resolved | escalated
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1024,3 +1557,253 @@ model TaskAssignment {
   @@map("task_assignment")
 }
 
+// ─── Billing Enums ─────────────────────────────────────────────────
+
+enum BillingCycleStatus {
+  OPEN
+  CLOSED
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSED
+  PARTIAL
+  STOPPED
+}
+
+enum PaymentNoteCategory {
+  DOWNGRADE
+  UPGRADE
+  DISCOUNT
+  REFERRAL
+  MOVED
+  POOR_SERVICE
+  CANT_PAY
+  TEMP_STOP
+}
+
+enum CashCollectionType {
+  HANDOFF
+  EXPENSE_DEDUCTION
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum InstallationStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+}
+
+enum StockAction {
+  ADD
+  REMOVE
+  TRANSFER_TO_WORKER
+  TRANSFER_FROM_WORKER
+  ADJUST
+}
+
+// ─── Billing ───────────────────────────────────────────────────────
+
+model BillingCycle {
+  id             String             @id @default(cuid())
+  organizationId String
+  year           Int
+  month          Int
+  status         BillingCycleStatus @default(OPEN)
+  openedAt       DateTime           @default(now())
+  closedAt       DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payments     Payment[]
+
+  @@unique([organizationId, year, month])
+  @@index([organizationId])
+  @@map("billing_cycle")
+}
+
+model Payment {
+  id              String               @id @default(cuid())
+  organizationId  String
+  customerId      String
+  billingCycleId  String
+  collectorId     String
+  accountPrice    Float
+  paidAmount      Float
+  discount        Float                @default(0)
+  status          PaymentStatus        @default(PENDING)
+  freeAccount     Boolean              @default(false)
+  stoppedAccount  Boolean              @default(false)
+  noteCategory    PaymentNoteCategory?
+  notes           String?              @db.Text
+  receiptSent     Boolean              @default(false)
+  receiptSentAt   DateTime?
+  paidAt          DateTime             @default(now())
+  processedAt     DateTime?
+  processedById   String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  billingCycle BillingCycle  @relation(fields: [billingCycleId], references: [id], onDelete: Cascade)
+  collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
+  processedBy  User?        @relation("PaymentProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, billingCycleId])
+  @@index([customerId])
+  @@index([collectorId])
+  @@index([processedById])
+  @@index([status])
+  @@map("payment")
+}
+
+model CashCollection {
+  id             String             @id @default(cuid())
+  organizationId String
+  collectorId    String
+  amount         Float
+  notes          String?            @db.Text
+  type           CashCollectionType @default(HANDOFF)
+  expenseId      String?            @unique
+  receivedById   String?
+  collectedAt    DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    Employee     @relation("CashCollector", fields: [collectorId], references: [id], onDelete: Restrict)
+  receivedBy   User?        @relation("CashReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
+  expense      Expense?     @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, collectorId])
+  @@index([collectedAt])
+  @@map("cash_collection")
+}
+
+model Expense {
+  id             String        @id @default(cuid())
+  organizationId String
+  submittedById  String
+  amount         Float
+  description    String        @db.Text
+  receiptUrl     String?
+  status         ExpenseStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectedReason String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submittedBy  Employee        @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  approvedBy   User?           @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  collection   CashCollection?
+
+  @@index([organizationId, status])
+  @@index([submittedById])
+  @@map("expense")
+}
+
+// ─── Inventory ─────────────────────────────────────────────────────
+
+model StockItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  quantity       Int      @default(0)
+  costPrice      Float    @default(0)
+  sellPrice      Float    @default(0)
+  alertThreshold Int?
+  alertEnabled   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workerAllocations WorkerStock[]
+  logs              StockLog[]
+  installations     Installation[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("stock_item")
+}
+
+model WorkerStock {
+  id          String   @id @default(cuid())
+  stockItemId String
+  employeeId  String
+  quantity    Int      @default(0)
+  unitPrice   Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([stockItemId, employeeId])
+  @@index([stockItemId])
+  @@index([employeeId])
+  @@map("worker_stock")
+}
+
+model StockLog {
+  id              String   @id @default(cuid())
+  organizationId  String
+  stockItemId     String
+  employeeId      String?
+  performedById   String
+  action          StockAction
+  itemName        String
+  quantity        Int
+  adminQtyBefore  Int?
+  adminQtyAfter   Int?
+  workerQtyBefore Int?
+  workerQtyAfter  Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockItem    StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  employee     Employee?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  performedBy  User         @relation("StockLogPerformer", fields: [performedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, stockItemId])
+  @@index([employeeId])
+  @@map("stock_log")
+}
+
+model Installation {
+  id             String    @id @default(cuid())
+  organizationId String
+  customerId     String
+  employeeId     String
+  stockItemId    String?
+  quantity       Int       @default(1)
+  price          Float     @default(0)
+  isAddOn        Boolean   @default(false)
+  status         InstallationStatus @default(PENDING)
+  approvedById   String?
+  approvedAt     DateTime?
+  notes          String?            @db.Text
+  installedAt    DateTime           @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
+  stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([employeeId])
+  @@map("installation")
+}

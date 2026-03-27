@@ -25,7 +25,7 @@ function escapeHtml(text: string): string {
 }
 
 interface CustomerDetails {
-	fullName: string;
+	fullName: string | null;
 	phone: string | null;
 	email: string | null;
 	username: string | null;
@@ -588,6 +588,8 @@ function createEscalateTelegramTool(context: ToolContext) {
 									id: conversation.verifiedCustomerId,
 								},
 								select: {
+									firstName: true,
+									lastName: true,
 									fullName: true,
 									phone: true,
 									email: true,
@@ -606,7 +608,13 @@ function createEscalateTelegramTool(context: ToolContext) {
 
 							if (dbCustomer) {
 								customer = {
-									fullName: dbCustomer.fullName,
+									fullName:
+										[
+											dbCustomer.firstName,
+											dbCustomer.lastName,
+										]
+											.filter(Boolean)
+											.join(" ") || dbCustomer.fullName,
 									phone: dbCustomer.phone,
 									email: dbCustomer.email,
 									username: dbCustomer.username,

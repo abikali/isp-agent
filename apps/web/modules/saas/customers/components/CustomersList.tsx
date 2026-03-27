@@ -1,8 +1,13 @@
 "use client";
 
+import { Pagination } from "@saas/shared/components/Pagination";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { EmptyState } from "@shared/components/EmptyState";
+import { PageShell } from "@shared/components/PageShell";
+import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { displayName } from "@shared/lib/display-name";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
-import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import {
 	Table,
@@ -12,16 +17,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	PencilIcon,
-	PlusIcon,
-	UploadIcon,
-} from "lucide-react";
+import { cn } from "@ui/lib";
+import { PencilIcon, PlusIcon, UploadIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { useCustomers } from "../hooks/use-customers";
-import { CUSTOMER_STATUS_LABELS } from "../lib/constants";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
@@ -29,12 +28,25 @@ import { CustomerFilters } from "./CustomerFilters";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
 
+type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+
+const statusMap: Record<
+	string,
+	"active" | "inactive" | "suspended" | "pending"
+> = {
+	ACTIVE: "active",
+	INACTIVE: "inactive",
+	SUSPENDED: "suspended",
+	PENDING: "pending",
+};
+
 export function CustomersList({
 	organizationSlug,
 }: {
 	organizationSlug: string;
 }) {
 	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
 	const [planId, setPlanId] = useState("all");
 	const [stationId, setStationId] = useState("all");
@@ -44,11 +56,8 @@ export function CustomersList({
 	const [showImport, setShowImport] = useState(false);
 
 	const filters = {
-		search: search || undefined,
-		status:
-			status !== "all"
-				? (status as "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING")
-				: undefined,
+		search: debouncedSearch || undefined,
+		status: status !== "all" ? (status as CustomerStatus) : undefined,
 		planId: planId !== "all" ? planId : undefined,
 		stationId: stationId !== "all" ? stationId : undefined,
 		connectionType:
@@ -63,32 +72,14 @@ export function CustomersList({
 		page,
 	};
 
-	const { customers, total, totalPages } = useCustomers(filters);
-
-	function getStatusVariant(s: string) {
-		switch (s) {
-			case "ACTIVE":
-				return "default" as const;
-			case "INACTIVE":
-				return "secondary" as const;
-			case "SUSPENDED":
-				return "destructive" as const;
-			case "PENDING":
-				return "outline" as const;
-			default:
-				return "secondary" as const;
-		}
-	}
+	const { customers, total, totalPages, isLoading, isFetching } =
+		useCustomers(filters);
 
 	return (
-		<div>
-			<AsyncBoundary fallback={<CustomerStatsSkeleton />}>
-				<CustomerStats />
-			</AsyncBoundary>
-
-			<div className="mt-6 mb-4 flex flex-wrap items-center justify-between gap-4">
-				<h1 className="text-2xl font-bold">Customers</h1>
-				<div className="flex items-center gap-2">
+		<PageShell
+			title="Customers"
+			actions={
+				<>
 					<BulkExportButton
 						filters={{
 							status: filters.status,
@@ -107,62 +98,77 @@ export function CustomersList({
 						<PlusIcon className="mr-2 size-4" />
 						Add Customer
 					</Button>
+				</>
+			}
+		>
+			<AsyncBoundary fallback={<CustomerStatsSkeleton />}>
+				<CustomerStats />
+			</AsyncBoundary>
+
+			<CustomerFilters
+				search={search}
+				onSearchChange={(v) => {
+					setSearch(v);
+					setPage(1);
+				}}
+				status={status}
+				onStatusChange={(v) => {
+					setStatus(v);
+					setPage(1);
+				}}
+				planId={planId}
+				onPlanIdChange={(v) => {
+					setPlanId(v);
+					setPage(1);
+				}}
+				stationId={stationId}
+				onStationIdChange={(v) => {
+					setStationId(v);
+					setPage(1);
+				}}
+				connectionType={connectionType}
+				onConnectionTypeChange={(v) => {
+					setConnectionType(v);
+					setPage(1);
+				}}
+			/>
+
+			{isLoading ? (
+				<div className="rounded-xl shadow-card p-8 text-center text-muted-foreground">
+					Loading customers...
 				</div>
-			</div>
-
-			<div className="mb-4">
-				<CustomerFilters
-					search={search}
-					onSearchChange={(v) => {
-						setSearch(v);
-						setPage(1);
-					}}
-					status={status}
-					onStatusChange={(v) => {
-						setStatus(v);
-						setPage(1);
-					}}
-					planId={planId}
-					onPlanIdChange={(v) => {
-						setPlanId(v);
-						setPage(1);
-					}}
-					stationId={stationId}
-					onStationIdChange={(v) => {
-						setStationId(v);
-						setPage(1);
-					}}
-					connectionType={connectionType}
-					onConnectionTypeChange={(v) => {
-						setConnectionType(v);
-						setPage(1);
-					}}
-				/>
-			</div>
-
-			{customers.length === 0 ? (
-				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-					<h3 className="mb-1 text-lg font-medium">
-						{total === 0 ? "No customers yet" : "No results found"}
-					</h3>
-					<p className="mb-4 text-sm text-muted-foreground">
-						{total === 0
+			) : customers.length === 0 ? (
+				<EmptyState
+					icon={UsersIcon}
+					title={
+						total === 0 ? "No customers yet" : "No results found"
+					}
+					description={
+						total === 0
 							? "Add your first customer to get started."
-							: "Try adjusting your filters or search term."}
-					</p>
-					{total === 0 && (
-						<Button onClick={() => setShowCreate(true)}>
-							<PlusIcon className="mr-2 size-4" />
-							Add Customer
-						</Button>
-					)}
-				</div>
+							: "Try adjusting your filters or search term."
+					}
+					action={
+						total === 0 ? (
+							<Button onClick={() => setShowCreate(true)}>
+								<PlusIcon className="mr-2 size-4" />
+								Add Customer
+							</Button>
+						) : undefined
+					}
+				/>
 			) : (
 				<>
-					<div className="rounded-lg border">
+					<div
+						className={cn(
+							"rounded-xl shadow-card overflow-hidden transition-opacity",
+							isFetching && "opacity-60",
+						)}
+					>
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-10" />
 									<TableHead>Account</TableHead>
 									<TableHead>Name</TableHead>
 									<TableHead className="hidden md:table-cell">
@@ -171,16 +177,32 @@ export function CustomersList({
 									<TableHead className="hidden lg:table-cell">
 										Station
 									</TableHead>
-									<TableHead>Status</TableHead>
+									<TableHead className="hidden lg:table-cell">
+										Connection
+									</TableHead>
 									<TableHead className="hidden sm:table-cell text-right">
 										Balance
 									</TableHead>
-									<TableHead className="w-12" />
+									<TableHead className="w-10" />
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{customers.map((customer) => (
-									<TableRow key={customer.id}>
+									<TableRow
+										key={customer.id}
+										className="hover:bg-muted/30 transition-colors"
+									>
+										<TableCell className="w-10 pr-0">
+											<StatusIndicator
+												status={
+													statusMap[
+														customer.status
+													] ?? "inactive"
+												}
+												label=""
+												size="sm"
+											/>
+										</TableCell>
 										<TableCell className="font-mono text-xs">
 											<Link
 												to="/app/$organizationSlug/customers/$customerId"
@@ -205,7 +227,10 @@ export function CustomersList({
 													className="font-medium hover:underline"
 													preload="intent"
 												>
-													{customer.fullName}
+													{displayName(
+														customer.firstName,
+														customer.lastName,
+													)}
 												</Link>
 												{customer.email && (
 													<p className="text-xs text-muted-foreground">
@@ -228,21 +253,17 @@ export function CustomersList({
 												</span>
 											)}
 										</TableCell>
-										<TableCell>
-											<Badge
-												variant={getStatusVariant(
-													customer.status,
-												)}
-											>
-												{CUSTOMER_STATUS_LABELS[
-													customer.status
-												] ?? customer.status}
-											</Badge>
+										<TableCell className="hidden lg:table-cell text-xs">
+											{customer.connectionType ?? (
+												<span className="text-muted-foreground">
+													-
+												</span>
+											)}
 										</TableCell>
-										<TableCell className="hidden sm:table-cell text-right font-mono">
+										<TableCell className="hidden sm:table-cell text-right font-mono tabular-nums">
 											${customer.balance.toFixed(2)}
 										</TableCell>
-										<TableCell>
+										<TableCell className="w-10">
 											<Button
 												variant="ghost"
 												size="icon"
@@ -271,39 +292,13 @@ export function CustomersList({
 					</div>
 
 					{totalPages > 1 && (
-						<div className="mt-4 flex items-center justify-between">
-							<p className="text-sm text-muted-foreground">
-								Showing {(page - 1) * 25 + 1}-
-								{Math.min(page * 25, total)} of {total}
-							</p>
-							<div className="flex items-center gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) => Math.max(1, p - 1))
-									}
-									disabled={page === 1}
-								>
-									<ChevronLeftIcon className="size-4" />
-								</Button>
-								<span className="text-sm">
-									Page {page} of {totalPages}
-								</span>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) =>
-											Math.min(totalPages, p + 1),
-										)
-									}
-									disabled={page === totalPages}
-								>
-									<ChevronRightIcon className="size-4" />
-								</Button>
-							</div>
-						</div>
+						<Pagination
+							className="mt-4"
+							totalItems={total}
+							itemsPerPage={25}
+							currentPage={page}
+							onChangeCurrentPage={setPage}
+						/>
 					)}
 				</>
 			)}
@@ -313,6 +308,6 @@ export function CustomersList({
 				onOpenChange={setShowCreate}
 			/>
 			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
-		</div>
+		</PageShell>
 	);
 }

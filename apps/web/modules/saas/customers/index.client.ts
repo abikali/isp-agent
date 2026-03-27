@@ -1,6 +1,8 @@
 "use client";
 
 // Components
+export { AccessPointsList } from "./components/AccessPointsList";
+export { AccessPointsListSkeleton } from "./components/AccessPointsListSkeleton";
 export { BulkExportButton } from "./components/BulkExportButton";
 export { BulkImportDialog } from "./components/BulkImportDialog";
 export { CreateCustomerDialog } from "./components/CreateCustomerDialog";
@@ -18,7 +20,13 @@ export { PlansList } from "./components/PlansList";
 export { PlansListSkeleton } from "./components/PlansListSkeleton";
 export { StationsList } from "./components/StationsList";
 export { StationsListSkeleton } from "./components/StationsListSkeleton";
-
+export {
+	useAccessPoints,
+	useAccessPointsQuery,
+	useCreateAccessPoint,
+	useDeleteAccessPoint,
+	useUpdateAccessPoint,
+} from "./hooks/use-access-points";
 // Hooks
 export {
 	useBulkExport,
@@ -28,6 +36,9 @@ export {
 	useCustomerStatsQuery,
 	useCustomers,
 	useDeleteCustomer,
+	useIRadiusSyncStatus,
+	useSyncFromIRadius,
+	useTestIRadius,
 	useUpdateCustomer,
 } from "./hooks/use-customers";
 export {

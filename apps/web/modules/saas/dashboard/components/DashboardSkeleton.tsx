@@ -1,5 +1,6 @@
 "use client";
 
+import { StatCardGroup, StatCardSkeleton } from "@shared/components/StatCard";
 import { Skeleton } from "@ui/components/skeleton";
 
 export function DashboardSkeleton() {
@@ -11,18 +12,26 @@ export function DashboardSkeleton() {
 				<Skeleton className="h-4 w-48" />
 			</div>
 
-			{/* Customer Stats Row */}
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<Skeleton key={i} className="h-28 rounded-xl" />
-				))}
-			</div>
+			{/* Primary Stats */}
+			<StatCardGroup columns={4}>
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+			</StatCardGroup>
 
-			{/* Infrastructure Stats Row */}
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<Skeleton key={i} className="h-28 rounded-xl" />
-				))}
+			{/* Secondary Stats */}
+			<StatCardGroup columns={4}>
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+				<StatCardSkeleton />
+			</StatCardGroup>
+
+			{/* Infrastructure + Plan Distribution */}
+			<div className="grid gap-4 lg:grid-cols-3">
+				<Skeleton className="h-48 rounded-xl shadow-card" />
+				<Skeleton className="h-48 rounded-xl shadow-card lg:col-span-2" />
 			</div>
 
 			{/* Quick Actions */}
@@ -30,7 +39,10 @@ export function DashboardSkeleton() {
 				<Skeleton className="h-5 w-24" />
 				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
 					{Array.from({ length: 5 }).map((_, i) => (
-						<Skeleton key={i} className="h-28 rounded-xl" />
+						<Skeleton
+							key={`action-${i}`}
+							className="h-20 rounded-xl shadow-card"
+						/>
 					))}
 				</div>
 			</div>

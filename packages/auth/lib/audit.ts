@@ -1034,7 +1034,7 @@ export const customerAudit = {
 		userId: string,
 		organizationId: string,
 		context: AuditContext,
-		metadata?: { fullName?: string; accountNumber?: string },
+		metadata?: { fullName?: string | null; accountNumber?: string },
 	) => {
 		logAuthEvent(
 			buildLogEventParams(

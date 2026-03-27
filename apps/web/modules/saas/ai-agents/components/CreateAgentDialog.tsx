@@ -23,6 +23,7 @@ import {
 } from "@ui/components/select";
 import { Separator } from "@ui/components/separator";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useCreateAgent } from "../hooks/use-agents";
 import { AI_MODEL_OPTIONS } from "../lib/constants";
 
@@ -47,14 +48,23 @@ export function CreateAgentDialog({
 			if (!organizationId) {
 				return;
 			}
-			await createAgent.mutateAsync({
-				organizationId,
-				name: value.name,
-				description: value.description || undefined,
-				systemPrompt: value.systemPrompt,
-				model: value.model,
-			});
-			onOpenChange(false);
+			try {
+				await createAgent.mutateAsync({
+					organizationId,
+					name: value.name,
+					description: value.description || undefined,
+					systemPrompt: value.systemPrompt,
+					model: value.model,
+				});
+				toast.success("Agent created");
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create agent",
+				);
+			}
 		},
 	});
 

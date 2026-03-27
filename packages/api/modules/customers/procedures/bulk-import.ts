@@ -10,7 +10,8 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { generateAccountNumber } from "../lib/account-number";
 
 const importRowSchema = z.object({
-	fullName: z.string().min(1),
+	firstName: z.string().min(1),
+	lastName: z.string().optional(),
 	email: z.string().email().optional(),
 	phone: z.string().optional(),
 	address: z.string().optional(),
@@ -110,7 +111,11 @@ export const bulkImportCustomers = protectedProcedure
 					data: {
 						organizationId: input.organizationId,
 						accountNumber,
-						fullName: row.fullName,
+						firstName: row.firstName,
+						lastName: row.lastName ?? null,
+						fullName: [row.firstName, row.lastName]
+							.filter(Boolean)
+							.join(" "),
 						email: row.email ?? null,
 						phone: row.phone ?? null,
 						address: row.address ?? null,

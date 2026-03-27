@@ -63,6 +63,10 @@ const getLocaleFromRequest = (
 
 const appUrl = getBaseUrl();
 
+function normalizeEmail(value: unknown) {
+	return typeof value === "string" ? value.trim().toLowerCase() : value;
+}
+
 // Redis client for Better Auth secondary storage (lazy initialization)
 let redisClient: IORedis | null = null;
 function getRedis(): IORedis {
@@ -467,6 +471,23 @@ export const auth = betterAuth({
 			}
 		}),
 		before: createAuthMiddleware(async (ctx) => {
+			if (ctx.body && typeof ctx.body === "object") {
+				if ("email" in ctx.body) {
+					ctx.body.email = normalizeEmail(ctx.body.email);
+				}
+				if ("newEmail" in ctx.body) {
+					ctx.body.newEmail = normalizeEmail(ctx.body.newEmail);
+				}
+				if (
+					ctx.path === "/sign-in/username" &&
+					"username" in ctx.body &&
+					typeof ctx.body.username === "string" &&
+					ctx.body.username.includes("@")
+				) {
+					ctx.body.username = normalizeEmail(ctx.body.username);
+				}
+			}
+
 			// Security: Check for login attempts (sign-in endpoints)
 			if (
 				ctx.path === "/sign-in/email" ||

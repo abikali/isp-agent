@@ -1,10 +1,17 @@
 "use client";
 
+import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
+import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
+import { MetricDisplay } from "@shared/components/MetricDisplay";
+import { PageShell } from "@shared/components/PageShell";
+import { PropertyList } from "@shared/components/PropertyList";
+import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { displayName } from "@shared/lib/display-name";
+import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -18,7 +25,6 @@ import {
 } from "@ui/components/alert-dialog";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import {
 	Dialog,
 	DialogContent,
@@ -37,7 +43,14 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
-import { ArrowLeftIcon } from "lucide-react";
+import {
+	ActivityIcon,
+	DollarSignIcon,
+	FileTextIcon,
+	NetworkIcon,
+	ServerIcon,
+	UserIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -51,9 +64,10 @@ import { usePlansQuery } from "../hooks/use-plans";
 import { useStationsQuery } from "../hooks/use-stations";
 import {
 	CONNECTION_TYPE_OPTIONS,
-	CUSTOMER_STATUS_LABELS,
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
+import { CustomerInvoices } from "./CustomerInvoices";
+import { CustomerTransactions } from "./CustomerTransactions";
 
 export function CustomerDetail({
 	customerId,
@@ -87,9 +101,11 @@ export function CustomerDetail({
 
 	const form = useForm({
 		defaultValues: {
-			fullName: customer.fullName,
+			firstName: customer.firstName ?? "",
+			lastName: customer.lastName ?? "",
 			email: customer.email ?? "",
 			phone: customer.phone ?? "",
+			mobile: customer.mobile ?? "",
 			address: customer.address ?? "",
 			username: customer.username ?? "",
 			planId: customer.planId ?? "",
@@ -111,7 +127,8 @@ export function CustomerDetail({
 				updateCustomer.mutateAsync({
 					organizationId,
 					id: customerId,
-					fullName: value.fullName,
+					firstName: value.firstName,
+					lastName: value.lastName || undefined,
 					email: value.email || undefined,
 					phone: value.phone || undefined,
 					address: value.address || undefined,
@@ -158,11 +175,7 @@ export function CustomerDetail({
 			return;
 		}
 		toast.promise(
-			setPin.mutateAsync({
-				organizationId,
-				customerId,
-				pin: manualPin,
-			}),
+			setPin.mutateAsync({ organizationId, customerId, pin: manualPin }),
 			{
 				loading: "Setting PIN...",
 				success: () => {
@@ -176,36 +189,80 @@ export function CustomerDetail({
 		);
 	}
 
-	return (
-		<div>
-			<div className="mb-6">
-				<Button variant="ghost" size="sm" className="mb-4" asChild>
-					<Link
-						to="/app/$organizationSlug/customers"
-						params={{ organizationSlug }}
-					>
-						<ArrowLeftIcon className="mr-2 size-4" />
-						Back to Customers
-					</Link>
-				</Button>
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-2xl font-bold">
-							{customer.fullName}
-						</h1>
-						<div className="flex items-center gap-3 text-muted-foreground">
-							<span className="font-mono text-sm">
-								{customer.accountNumber}
-							</span>
-							<Badge>
-								{CUSTOMER_STATUS_LABELS[customer.status] ??
-									customer.status}
-							</Badge>
-						</div>
-					</div>
-				</div>
-			</div>
+	const statusType =
+		customer.status === "ACTIVE"
+			? "active"
+			: customer.status === "SUSPENDED"
+				? "suspended"
+				: customer.status === "PENDING"
+					? "pending"
+					: "inactive";
 
+	return (
+		<PageShell
+			title={displayName(customer.firstName, customer.lastName)}
+			backTo={`/app/${organizationSlug}/customers`}
+			backLabel="Customers"
+			subtitle={
+				<span className="flex items-center gap-3">
+					<span className="font-mono">{customer.accountNumber}</span>
+					<StatusIndicator status={statusType} variant="badge" />
+					{customer.online && (
+						<StatusIndicator status="online" variant="badge" />
+					)}
+					{customer.externalId && (
+						<Badge variant="outline">
+							iRadius: {customer.externalId}
+						</Badge>
+					)}
+				</span>
+			}
+			actions={
+				<div className="flex gap-2">
+					<AlertDialog>
+						<AlertDialogTrigger asChild>
+							<Button variant="outline" size="sm">
+								Deactivate
+							</Button>
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>
+									Deactivate Customer
+								</AlertDialogTitle>
+								<AlertDialogDescription>
+									This will set the customer status to
+									inactive.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => {
+										if (!organizationId) {
+											return;
+										}
+										deleteCustomer.mutate({
+											organizationId,
+											id: customerId,
+										});
+									}}
+								>
+									Deactivate
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+					<Button
+						size="sm"
+						disabled={isSubmitting}
+						onClick={() => form.handleSubmit()}
+					>
+						{isSubmitting ? "Saving..." : "Save Changes"}
+					</Button>
+				</div>
+			}
+		>
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -213,589 +270,957 @@ export function CustomerDetail({
 					form.handleSubmit();
 				}}
 			>
-				<div className="grid gap-6 lg:grid-cols-2">
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">
-								Personal Information
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<form.Field name="fullName">
-								{(field) => (
-									<div className="space-y-2">
-										<Label>Full Name</Label>
-										<Input
-											value={field.state.value}
-											onChange={(e) =>
-												field.handleChange(
-													e.target.value,
-												)
-											}
-										/>
-									</div>
-								)}
-							</form.Field>
-							<div className="grid grid-cols-2 gap-4">
-								<form.Field name="email">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Email</Label>
-											<Input
-												type="email"
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="phone">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Phone</Label>
-											<Input
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-							</div>
-							<form.Field name="address">
-								{(field) => (
-									<div className="space-y-2">
-										<Label>Address</Label>
-										<Input
-											value={field.state.value}
-											onChange={(e) =>
-												field.handleChange(
-													e.target.value,
-												)
-											}
-										/>
-									</div>
-								)}
-							</form.Field>
-						</CardContent>
-					</Card>
+				<DetailPanel
+					tabs={[
+						{
+							id: "overview",
+							label: "Overview",
+							icon: UserIcon,
+							content: (
+								<OverviewTab
+									form={form}
+									customer={customer}
+									plans={plans}
+									stations={stations}
+								/>
+							),
+						},
+						{
+							id: "network",
+							label: "Network",
+							icon: NetworkIcon,
+							content: <NetworkTab customer={customer} />,
+						},
+						{
+							id: "billing",
+							label: "Usage & Billing",
+							icon: DollarSignIcon,
+							content: (
+								<BillingTab form={form} customer={customer} />
+							),
+						},
+						{
+							id: "financial",
+							label: "Financial",
+							icon: FileTextIcon,
+							content: <FinancialTab customerId={customerId} />,
+						},
+						{
+							id: "activity",
+							label: "Activity",
+							icon: ActivityIcon,
+							content: (
+								<ActivityTab
+									customer={customer}
+									customerId={customerId}
+									organizationId={organizationId}
+									generatedPin={generatedPin}
+									setGeneratedPin={setGeneratedPin}
+									showSetPin={showSetPin}
+									setShowSetPin={setShowSetPin}
+									manualPin={manualPin}
+									setManualPin={setManualPin}
+									handleSetPin={handleSetPin}
+									generatePin={generatePin}
+									resetPin={resetPin}
+								/>
+							),
+						},
+						{
+							id: "sync",
+							label: "Sync Details",
+							icon: ServerIcon,
+							hidden: !customer.externalId,
+							content: <SyncTab customer={customer} />,
+						},
+					]}
+				/>
+			</form>
+		</PageShell>
+	);
+}
 
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">
-								Service Configuration
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid grid-cols-2 gap-4">
-								<form.Field name="planId">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Plan</Label>
-											<Select
-												value={field.state.value}
-												onValueChange={
-													field.handleChange
-												}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder="No plan" />
-												</SelectTrigger>
-												<SelectContent>
-													{plans.map((p) => (
-														<SelectItem
-															key={p.id}
-															value={p.id}
-														>
-															{p.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="stationId">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Station</Label>
-											<Select
-												value={field.state.value}
-												onValueChange={
-													field.handleChange
-												}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder="No station" />
-												</SelectTrigger>
-												<SelectContent>
-													{stations.map((s) => (
-														<SelectItem
-															key={s.id}
-															value={s.id}
-														>
-															{s.name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									)}
-								</form.Field>
-							</div>
-							<div className="grid grid-cols-2 gap-4">
-								<form.Field name="status">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Status</Label>
-											<Select
-												value={field.state.value}
-												onValueChange={(v) =>
-													field.handleChange(
-														v as typeof field.state.value,
-													)
-												}
-											>
-												<SelectTrigger>
-													<SelectValue />
-												</SelectTrigger>
-												<SelectContent>
-													{CUSTOMER_STATUS_OPTIONS.map(
-														(opt) => (
-															<SelectItem
-																key={opt.value}
-																value={
-																	opt.value
-																}
-															>
-																{opt.label}
-															</SelectItem>
-														),
-													)}
-												</SelectContent>
-											</Select>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="connectionType">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Connection Type</Label>
-											<Select
-												value={field.state.value}
-												onValueChange={
-													field.handleChange
-												}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder="None" />
-												</SelectTrigger>
-												<SelectContent>
-													{CONNECTION_TYPE_OPTIONS.map(
-														(opt) => (
-															<SelectItem
-																key={opt.value}
-																value={
-																	opt.value
-																}
-															>
-																{opt.label}
-															</SelectItem>
-														),
-													)}
-												</SelectContent>
-											</Select>
-										</div>
-									)}
-								</form.Field>
-							</div>
-							<div className="grid grid-cols-2 gap-4">
-								<form.Field name="username">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>PPPoE Username</Label>
-											<Input
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="ipAddress">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>IP Address</Label>
-											<Input
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-							</div>
-						</CardContent>
-					</Card>
+// ─── Tab Content Components ────────────────────────────────────────────
 
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">Billing</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid grid-cols-3 gap-4">
-								<form.Field name="monthlyRate">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Monthly Rate ($)</Label>
-											<Input
-												type="number"
-												min={0}
-												step="0.01"
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-												placeholder="Plan price"
-											/>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="billingDay">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Billing Day</Label>
-											<Input
-												type="number"
-												min={1}
-												max={28}
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="balance">
-									{(field) => (
-										<div className="space-y-2">
-											<Label>Balance ($)</Label>
-											<Input
-												type="number"
-												step="0.01"
-												value={field.state.value}
-												onChange={(e) =>
-													field.handleChange(
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									)}
-								</form.Field>
-							</div>
-						</CardContent>
-					</Card>
-
-					<Card>
-						<CardHeader>
-							<CardTitle className="text-base">Notes</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<form.Field name="notes">
-								{(field) => (
-									<Textarea
+// biome-ignore lint/suspicious/noExplicitAny: form type is complex
+function OverviewTab({
+	form,
+	customer,
+	plans,
+	stations,
+}: {
+	form: any;
+	customer: any;
+	plans: any[];
+	stations: any[];
+}) {
+	return (
+		<>
+			<DetailSection title="Personal Information">
+				<FieldGroup columns={2}>
+					<form.Field name="firstName">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>First Name</Label>
+									<Input
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
 										}
-										rows={4}
 									/>
-								)}
-							</form.Field>
-						</CardContent>
-					</Card>
-				</div>
-
-				<Card className="mt-6">
-					<CardHeader>
-						<CardTitle className="text-base">Security</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-4">
-						<div className="flex items-center justify-between">
-							<div className="space-y-1">
-								<p className="text-sm font-medium">
-									Customer PIN
-								</p>
-								<p className="text-sm text-muted-foreground">
-									{customer.hasPin
-										? "PIN is set. Customer can verify identity via AI agents."
-										: "No PIN set. Customer cannot verify identity via AI agents."}
-								</p>
-								{customer.hasPin && (
-									<p className="font-mono text-2xl tracking-widest pt-1">
-										{customer.pin ?? (
-											<span className="text-sm text-muted-foreground font-sans tracking-normal">
-												PIN was set before display was
-												enabled. Re-generate to see it.
-											</span>
-										)}
-									</p>
-								)}
-							</div>
-							<div className="flex items-center gap-2">
-								<Badge
-									variant={
-										customer.hasPin
-											? "default"
-											: "secondary"
-									}
-								>
-									{customer.hasPin ? "PIN Active" : "No PIN"}
-								</Badge>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => setShowSetPin(true)}
-								>
-									Set PIN
-								</Button>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									disabled={generatePin.isPending}
-									onClick={() => {
-										if (!organizationId) {
-											return;
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="lastName">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Last Name</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
 										}
-										generatePin.mutate(
-											{
-												organizationId,
-												customerId,
-											},
-											{
-												onSuccess: (data) => {
-													setGeneratedPin(data.pin);
-												},
-											},
-										);
-									}}
-								>
-									{generatePin.isPending
-										? "Generating..."
-										: "Generate Random PIN"}
-								</Button>
-								{customer.hasPin && (
-									<AlertDialog>
-										<AlertDialogTrigger asChild>
-											<Button
-												type="button"
-												variant="outline"
-												size="sm"
-												disabled={resetPin.isPending}
-											>
-												Reset PIN
-											</Button>
-										</AlertDialogTrigger>
-										<AlertDialogContent>
-											<AlertDialogHeader>
-												<AlertDialogTitle>
-													Reset Customer PIN
-												</AlertDialogTitle>
-												<AlertDialogDescription>
-													This will remove the
-													customer's PIN. They will no
-													longer be able to verify
-													their identity via AI agents
-													until a new PIN is
-													generated.
-												</AlertDialogDescription>
-											</AlertDialogHeader>
-											<AlertDialogFooter>
-												<AlertDialogCancel>
-													Cancel
-												</AlertDialogCancel>
-												<AlertDialogAction
-													onClick={() => {
-														if (!organizationId) {
-															return;
-														}
-														resetPin.mutate(
-															{
-																organizationId,
-																customerId,
-															},
-															{
-																onSuccess:
-																	() => {
-																		toast.success(
-																			"PIN has been reset",
-																		);
-																	},
-															},
-														);
-													}}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="email">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Email</Label>
+									<Input
+										type="email"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="phone">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Phone</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="mobile">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Mobile</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="address">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Address</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+				</FieldGroup>
+			</DetailSection>
+
+			<DetailSection title="Service & Connection">
+				<FieldGroup columns={3}>
+					<form.Field name="planId">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Plan</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select plan" />
+										</SelectTrigger>
+										<SelectContent>
+											{plans.map((p) => (
+												<SelectItem
+													key={p.id}
+													value={p.id}
 												>
-													Reset PIN
-												</AlertDialogAction>
-											</AlertDialogFooter>
-										</AlertDialogContent>
-									</AlertDialog>
-								)}
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				{/* Set PIN Dialog */}
-				<Dialog open={showSetPin} onOpenChange={setShowSetPin}>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Set Customer PIN</DialogTitle>
-							<DialogDescription>
-								Enter a 6-digit PIN for the customer. They will
-								use this to verify their identity with AI
-								agents.
-							</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4 py-4">
-							<div className="space-y-2">
-								<Label htmlFor="manual-pin">6-Digit PIN</Label>
-								<Input
-									id="manual-pin"
-									value={manualPin}
-									onChange={(e) => {
-										const val = e.target.value.replace(
-											/\D/g,
-											"",
-										);
-										if (val.length <= 6) {
-											setManualPin(val);
+													{p.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="stationId">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Station</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select station" />
+										</SelectTrigger>
+										<SelectContent>
+											{stations.map((s) => (
+												<SelectItem
+													key={s.id}
+													value={s.id}
+												>
+													{s.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)
+						}
+					</form.Field>
+					{customer.accessPoint && (
+						<ReadOnlyField
+							label="Access Point"
+							value={customer.accessPoint.name}
+						/>
+					)}
+					<form.Field name="status">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Status</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{CUSTOMER_STATUS_OPTIONS.map(
+												(opt) => (
+													<SelectItem
+														key={opt.value}
+														value={opt.value}
+													>
+														{opt.label}
+													</SelectItem>
+												),
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="connectionType">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Connection Type</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select type" />
+										</SelectTrigger>
+										<SelectContent>
+											{CONNECTION_TYPE_OPTIONS.map(
+												(opt) => (
+													<SelectItem
+														key={opt.value}
+														value={opt.value}
+													>
+														{opt.label}
+													</SelectItem>
+												),
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="username">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>PPPoE Username</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
 										}
-									}}
-									placeholder="000000"
-									maxLength={6}
-									className="font-mono text-center text-lg tracking-widest"
-								/>
-								{manualPin.length > 0 &&
-									manualPin.length < 6 && (
-										<p className="text-sm text-muted-foreground">
-											{6 - manualPin.length} more digits
-											needed
-										</p>
-									)}
-							</div>
-						</div>
-						<DialogFooter>
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+				</FieldGroup>
+			</DetailSection>
+
+			<DetailSection title="Notes">
+				<form.Field name="notes">
+					{
+						// biome-ignore lint/suspicious/noExplicitAny: form render prop
+						(field: any) => (
+							<Textarea
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								rows={3}
+								placeholder="Add notes about this customer..."
+							/>
+						)
+					}
+				</form.Field>
+			</DetailSection>
+		</>
+	);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: customer type from query
+function NetworkTab({ customer }: { customer: any }) {
+	return (
+		<>
+			<DetailSection title="Connection Details">
+				<PropertyList
+					columns={3}
+					items={[
+						{
+							label: "IP Address",
+							value: customer.ipAddress,
+							mono: true,
+							copyable: true,
+						},
+						{
+							label: "Static IP",
+							value: customer.staticIp,
+							mono: true,
+							copyable: true,
+						},
+						{
+							label: "MAC Address",
+							value: customer.macAddress,
+							mono: true,
+							copyable: true,
+						},
+						{
+							label: "NAS Host",
+							value: customer.nasHost,
+							mono: true,
+							copyable: true,
+						},
+						{
+							label: "MikroTik User",
+							value: customer.mikrotikUser,
+							mono: true,
+						},
+						{
+							label: "MikroTik Interface",
+							value: customer.mikrotikInterface,
+						},
+						{
+							label: "MikroTik Interface 2",
+							value: customer.mikrotikInterface1,
+						},
+						{
+							label: "MikroTik Queue",
+							value: customer.mikrotikQueue,
+						},
+						{
+							label: "Wireless Interface",
+							value: customer.wirelessInterface,
+						},
+						{
+							label: "Router Brand Prefix",
+							value: customer.routerBrandPrefix,
+							mono: true,
+						},
+					]}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Status Flags">
+				<div className="flex flex-wrap gap-4">
+					<StatusIndicator
+						status={customer.online ? "online" : "offline"}
+						variant="badge"
+					/>
+				</div>
+				<PropertyList
+					columns={4}
+					items={[
+						{ label: "FUP Mode", value: customer.fupMode },
+						{ label: "Auto Renew", value: customer.automaticRenew },
+						{ label: "Simultaneous", value: customer.simultaneous },
+						{
+							label: "AP Electrical",
+							value: customer.apElectrical,
+						},
+						{ label: "Temp User", value: customer.tempUser },
+						{ label: "Read Only", value: customer.readOnly },
+						{
+							label: "Reach Max Quota",
+							value: customer.reachMaxQuota,
+						},
+						{
+							label: "Show Traffic",
+							value: customer.canShowTrafficDetails,
+						},
+					]}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Override Settings">
+				<PropertyList
+					columns={3}
+					items={[
+						{
+							label: "Force Override Recharge",
+							value: customer.forceOverrideImmediateRecharge,
+						},
+						{
+							label: "Override Recharge",
+							value: customer.overrideImmediateRecharge,
+						},
+						{
+							label: "Force Auto Bind MAC",
+							value: customer.forceAutoBindAccToMac,
+						},
+						{
+							label: "Override Auto Bind MAC",
+							value: customer.overrideAutoBindAccToMac,
+						},
+						{
+							label: "Force Expiry Days",
+							value: customer.forceExpiryAfterDays,
+						},
+						{
+							label: "Override Expiry",
+							value: customer.overrideExpiryAccount
+								? new Date(
+										customer.overrideExpiryAccount,
+									).toLocaleDateString()
+								: null,
+						},
+						{
+							label: "Temp Expiry",
+							value: customer.tempExpiryAccount
+								? new Date(
+										customer.tempExpiryAccount,
+									).toLocaleDateString()
+								: null,
+						},
+					]}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Reference IDs">
+				<PropertyList
+					columns={4}
+					items={[
+						{
+							label: "NAS Account ID",
+							value: customer.nasAccountId,
+						},
+						{
+							label: "Old Account Type",
+							value: customer.oldAccountTypeId,
+						},
+						{
+							label: "Forward Account Type",
+							value: customer.forwardAccountTypeId,
+						},
+						{
+							label: "Condition Account Type",
+							value: customer.conditionAccountTypeId,
+						},
+						{ label: "Link ID", value: customer.linkId },
+						{
+							label: "Financial Category",
+							value: customer.financialCategoryId,
+						},
+					]}
+				/>
+			</DetailSection>
+		</>
+	);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: form and customer types
+function BillingTab({ form, customer }: { form: any; customer: any }) {
+	return (
+		<>
+			<DetailSection title="Billing">
+				<FieldGroup columns={3}>
+					<form.Field name="monthlyRate">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Monthly Rate ($)</Label>
+									<Input
+										type="number"
+										min={0}
+										step="0.01"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Use plan price"
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="billingDay">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Billing Day (1-28)</Label>
+									<Input
+										type="number"
+										min={1}
+										max={28}
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+					<form.Field name="balance">
+						{
+							// biome-ignore lint/suspicious/noExplicitAny: form render prop
+							(field: any) => (
+								<div className="space-y-2">
+									<Label>Balance ($)</Label>
+									<Input
+										type="number"
+										step="0.01"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)
+						}
+					</form.Field>
+				</FieldGroup>
+				<FieldGroup columns={4}>
+					<ReadOnlyField
+						label="Discount"
+						value={
+							customer.discount > 0
+								? formatCurrency(customer.discount)
+								: null
+						}
+					/>
+					<ReadOnlyField
+						label="IPTV Price"
+						value={
+							customer.iptvPrice > 0
+								? formatCurrency(customer.iptvPrice)
+								: null
+						}
+					/>
+					<ReadOnlyField
+						label="Real IP Price"
+						value={
+							customer.realIpPrice > 0
+								? formatCurrency(customer.realIpPrice)
+								: null
+						}
+					/>
+					<ReadOnlyField
+						label="Deduct Money"
+						value={customer.deductMoney}
+					/>
+				</FieldGroup>
+			</DetailSection>
+
+			<DetailSection title="Monthly Usage">
+				<FieldGroup columns={4}>
+					<MetricDisplay
+						label="Download"
+						value={customer.downloadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Upload"
+						value={customer.uploadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Daily Download"
+						value={customer.dailyDownloadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Daily Upload"
+						value={customer.dailyUploadBytes ?? 0}
+						format="bytes"
+					/>
+				</FieldGroup>
+			</DetailSection>
+
+			<DetailSection title="Free Usage Quotas">
+				<FieldGroup columns={4}>
+					<MetricDisplay
+						label="Free Download"
+						value={customer.freeDownloadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Free Upload"
+						value={customer.freeUploadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Free Daily DL"
+						value={customer.freeDailyDownloadBytes ?? 0}
+						format="bytes"
+					/>
+					<MetricDisplay
+						label="Free Daily UL"
+						value={customer.freeDailyUploadBytes ?? 0}
+						format="bytes"
+					/>
+				</FieldGroup>
+			</DetailSection>
+
+			<DetailSection title="Extra Quotas">
+				<PropertyList
+					columns={3}
+					items={[
+						{
+							label: "Extra Upload GB",
+							value: customer.extraUploadGb,
+						},
+						{
+							label: "Extra Download GB",
+							value: customer.extraDownloadGb,
+						},
+						{
+							label: "Extra Days on Refill",
+							value: customer.extraDaysToAddOnRefill,
+						},
+						{
+							label: "Deduct Days on Refill",
+							value: customer.extraDaysToDeductOnRefill,
+						},
+						{ label: "Added Hours", value: customer.addedHours },
+					]}
+				/>
+			</DetailSection>
+		</>
+	);
+}
+
+function FinancialTab({ customerId }: { customerId: string }) {
+	return (
+		<>
+			<DetailSection title="Invoices">
+				<CustomerInvoices customerId={customerId} />
+			</DetailSection>
+			<DetailSection title="Transactions">
+				<CustomerTransactions customerId={customerId} />
+			</DetailSection>
+		</>
+	);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: many props passed through
+function ActivityTab({
+	customer,
+	customerId,
+	organizationId,
+	generatedPin,
+	setGeneratedPin,
+	showSetPin,
+	setShowSetPin,
+	manualPin,
+	setManualPin,
+	handleSetPin,
+	generatePin,
+	resetPin,
+}: any) {
+	return (
+		<>
+			{(customer.latitude || customer.longitude) && (
+				<DetailSection title="Location">
+					<PropertyList
+						columns={2}
+						items={[
+							{ label: "Latitude", value: customer.latitude },
+							{ label: "Longitude", value: customer.longitude },
+						]}
+					/>
+				</DetailSection>
+			)}
+
+			<DetailSection title="Security — Account PIN">
+				<div className="space-y-3">
+					<p className="text-sm text-muted-foreground">
+						{customer.pin
+							? `PIN is set: ${customer.pin}`
+							: "No PIN configured"}
+					</p>
+					<div className="flex flex-wrap gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => setShowSetPin(true)}
+						>
+							Set PIN
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								if (!organizationId) {
+									return;
+								}
+								toast.promise(
+									generatePin
+										.mutateAsync({
+											organizationId,
+											customerId,
+										})
+										.then((res: { pin: string }) => {
+											setGeneratedPin(res.pin);
+											return res;
+										}),
+									{
+										loading: "Generating...",
+										success: "PIN generated",
+										error: "Failed to generate PIN",
+									},
+								);
+							}}
+						>
+							Generate Random
+						</Button>
+						{customer.pin && (
 							<Button
 								type="button"
 								variant="outline"
+								size="sm"
 								onClick={() => {
-									setShowSetPin(false);
-									setManualPin("");
+									if (!organizationId) {
+										return;
+									}
+									toast.promise(
+										resetPin.mutateAsync({
+											organizationId,
+											customerId,
+										}),
+										{
+											loading: "Resetting...",
+											success: "PIN removed",
+											error: "Failed to reset PIN",
+										},
+									);
 								}}
 							>
-								Cancel
+								Reset PIN
 							</Button>
-							<Button
-								type="button"
-								disabled={
-									!/^\d{6}$/.test(manualPin) ||
-									setPin.isPending
-								}
-								onClick={handleSetPin}
-							>
-								{setPin.isPending
-									? "Setting PIN..."
-									: "Set PIN"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-
-				{/* Generated PIN Display Dialog */}
-				<Dialog
-					open={generatedPin !== null}
-					onOpenChange={(open) => {
-						if (!open) {
-							setGeneratedPin(null);
-						}
-					}}
-				>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Customer PIN Generated</DialogTitle>
-							<DialogDescription>
-								Share this PIN with the customer. It will only
-								be shown once.
-							</DialogDescription>
-						</DialogHeader>
-						<div className="flex items-center justify-center py-6">
-							<span className="font-mono text-4xl tracking-widest">
+						)}
+					</div>
+					{generatedPin && (
+						<p className="text-sm">
+							Generated PIN:{" "}
+							<span className="font-mono font-bold">
 								{generatedPin}
 							</span>
-						</div>
-						<p className="text-center text-sm text-muted-foreground">
-							The customer can use this PIN to verify their
-							identity when interacting with AI agents.
 						</p>
-					</DialogContent>
-				</Dialog>
-
-				<div className="mt-6 flex items-center justify-between">
-					<Button
-						type="button"
-						variant="destructive"
-						onClick={() => {
-							if (
-								organizationId &&
-								confirm(
-									"Deactivate this customer? They will be set to Inactive.",
-								)
-							) {
-								deleteCustomer.mutate(
-									{
-										organizationId,
-										id: customerId,
-									},
-									{
-										onSuccess: () => {
-											toast.success(
-												"Customer deactivated",
-											);
-										},
-									},
-								);
-							}
-						}}
-					>
-						Deactivate Customer
-					</Button>
-					<Button type="submit" disabled={isSubmitting}>
-						{isSubmitting ? "Saving..." : "Save Changes"}
-					</Button>
+					)}
 				</div>
-			</form>
-		</div>
+			</DetailSection>
+
+			{/* Set PIN Dialog */}
+			<Dialog open={showSetPin} onOpenChange={setShowSetPin}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Set Account PIN</DialogTitle>
+						<DialogDescription>
+							Enter a 6-digit PIN for this customer account.
+						</DialogDescription>
+					</DialogHeader>
+					<Input
+						placeholder="000000"
+						maxLength={6}
+						value={manualPin}
+						onChange={(e) =>
+							setManualPin(e.target.value.replace(/\D/g, ""))
+						}
+					/>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setShowSetPin(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSetPin}
+							disabled={!/^\d{6}$/.test(manualPin)}
+						>
+							Set PIN
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</>
+	);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: customer type from query
+function SyncTab({ customer }: { customer: any }) {
+	return (
+		<>
+			<DetailSection title="iRadius Metadata">
+				<PropertyList
+					columns={3}
+					items={[
+						{
+							label: "External ID",
+							value: customer.externalId,
+							mono: true,
+						},
+						{
+							label: "Original Created",
+							value: customer.originalCreatedAt
+								? new Date(
+										customer.originalCreatedAt,
+									).toLocaleDateString()
+								: null,
+						},
+						{
+							label: "Activated",
+							value: customer.activatedAt
+								? new Date(
+										customer.activatedAt,
+									).toLocaleDateString()
+								: null,
+						},
+						{
+							label: "Expires",
+							value: customer.expiresAt
+								? new Date(
+										customer.expiresAt,
+									).toLocaleDateString()
+								: null,
+						},
+						{
+							label: "Last Login",
+							value: customer.lastLogin
+								? new Date(customer.lastLogin).toLocaleString()
+								: null,
+						},
+						{
+							label: "Last Log Out",
+							value: customer.lastLogOut
+								? new Date(customer.lastLogOut).toLocaleString()
+								: null,
+						},
+						{
+							label: "NAS Last Log Out",
+							value: customer.nasLastLogOut
+								? new Date(
+										customer.nasLastLogOut,
+									).toLocaleString()
+								: null,
+						},
+						{ label: "MOF", value: customer.mof },
+						{ label: "Category", value: customer.categoryName },
+						{ label: "Group", value: customer.groupName },
+						{ label: "Collector", value: customer.collectorName },
+						{
+							label: "Collector Phone",
+							value: customer.collectorPhone,
+						},
+					]}
+				/>
+			</DetailSection>
+
+			<DetailSection title="Collector Flags">
+				<PropertyList
+					columns={3}
+					items={[
+						{
+							label: "Can Reset Account",
+							value: customer.canResetAccount,
+						},
+						{
+							label: "Collector Reset MAC",
+							value: customer.collectorResetMac,
+						},
+						{
+							label: "Collector Show Links",
+							value: customer.collectorCanShowLinks,
+						},
+						{
+							label: "Show Traffic Details",
+							value: customer.canShowTrafficDetails,
+						},
+						{
+							label: "Auto Generate Invoice",
+							value: customer.autoGenerateInvoice,
+						},
+					]}
+				/>
+			</DetailSection>
+		</>
 	);
 }

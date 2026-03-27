@@ -1,10 +1,13 @@
 import type { RouterClient } from "@orpc/server";
+import { accessPointsRouter } from "../modules/access-points/router";
 import { adminRouter } from "../modules/admin/router";
 import { aiAgentsRouter } from "../modules/ai-agents/router";
 import { apiKeysRouter } from "../modules/api-keys/router";
 import { auditRouter } from "../modules/audit/router";
 import { authRouter } from "../modules/auth/router";
+import { billingRouter } from "../modules/billing/router";
 import { customersRouter } from "../modules/customers/router";
+import { dealersRouter } from "../modules/dealers/router";
 import { employeesRouter } from "../modules/employees/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
 import { integrationsRouter } from "../modules/integrations/router";
@@ -23,10 +26,13 @@ import { webhooksRouter } from "../modules/webhooks/router";
 import { publicProcedure } from "./procedures";
 
 export const router = publicProcedure.router({
+	accessPoints: accessPointsRouter,
 	admin: adminRouter,
 	aiAgents: aiAgentsRouter,
+	billing: billingRouter,
 	auth: authRouter,
 	customers: customersRouter,
+	dealers: dealersRouter,
 	employees: employeesRouter,
 	newsletter: newsletterRouter,
 	integrations: integrationsRouter,

@@ -4,7 +4,9 @@ import { bulkImportEmployees } from "./procedures/bulk-import";
 import { createEmployee } from "./procedures/create";
 import { deleteEmployee } from "./procedures/delete";
 import { getEmployee } from "./procedures/get";
+import { inviteEmployee } from "./procedures/invite";
 import { listEmployees } from "./procedures/list";
+import { getMyEmployeeIdentity } from "./procedures/me";
 import { getEmployeeStats } from "./procedures/stats";
 import { updateEmployee } from "./procedures/update";
 
@@ -18,4 +20,6 @@ export const employeesRouter = {
 	stats: getEmployeeStats,
 	bulkImport: bulkImportEmployees,
 	bulkExport: bulkExportEmployees,
+	invite: inviteEmployee,
+	me: getMyEmployeeIdentity,
 };

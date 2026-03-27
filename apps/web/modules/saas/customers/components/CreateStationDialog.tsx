@@ -20,6 +20,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useCreateStation } from "../hooks/use-stations";
 
 export function CreateStationDialog({
@@ -44,16 +45,27 @@ export function CreateStationDialog({
 			if (!organizationId) {
 				return;
 			}
-			await createStation.mutateAsync({
-				organizationId,
-				name: value.name,
-				address: value.address || undefined,
-				status: value.status,
-				capacity: value.capacity ? Number(value.capacity) : undefined,
-				notes: value.notes || undefined,
-			});
-			onOpenChange(false);
-			form.reset();
+			try {
+				await createStation.mutateAsync({
+					organizationId,
+					name: value.name,
+					address: value.address || undefined,
+					status: value.status,
+					capacity: value.capacity
+						? Number(value.capacity)
+						: undefined,
+					notes: value.notes || undefined,
+				});
+				toast.success("Station created");
+				onOpenChange(false);
+				form.reset();
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create station",
+				);
+			}
 		},
 	});
 

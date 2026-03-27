@@ -12,6 +12,7 @@ import {
 	useActiveOrganizationQuery,
 } from "@saas/organizations/lib/api";
 import { useRouter } from "@shared/hooks/router";
+import { disabledQuery } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
@@ -189,6 +190,15 @@ export function ActiveOrganizationProvider({
 		(member) => member.userId === session?.userId,
 	)?.role;
 
+	// Fetch employee/dealer identity for the active org
+	const { data: identityData } = useQuery(
+		activeOrganization?.id
+			? orpc.employees.me.queryOptions({
+					input: { organizationId: activeOrganization.id },
+				})
+			: disabledQuery(["employees", "me"]),
+	);
+
 	return (
 		<ActiveOrganizationContext.Provider
 			value={{
@@ -199,6 +209,8 @@ export function ActiveOrganizationProvider({
 					!!activeOrganization &&
 					!!user &&
 					isOrganizationAdmin(activeOrganization, user),
+				employee: identityData?.employee ?? null,
+				dealer: identityData?.dealer ?? null,
 				setActiveOrganization,
 				refetchActiveOrganization,
 			}}

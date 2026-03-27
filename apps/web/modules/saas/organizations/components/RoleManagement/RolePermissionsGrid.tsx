@@ -43,6 +43,8 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
 	apiKeys: "API Keys",
 	audit: "Audit Logs",
 	billing: "Billing",
+	inventory: "Inventory",
+	installations: "Installations",
 	connections: "Integrations",
 };
 
@@ -61,6 +63,9 @@ const ACTION_LABELS: Record<string, string> = {
 	import: "Import",
 	assign: "Assign",
 	unassign: "Unassign",
+	collect: "Collect Payments",
+	approve: "Approve",
+	sync: "Sync",
 	"update-config": "Update Config",
 };
 

@@ -52,6 +52,7 @@ export default defineConfig(({ mode }) => {
 			// It should be re-evaluated on each request during development
 			// to pick up config changes without restart
 			include: ["@repo/auth/client"],
+			exclude: ["ssh2", "cpu-features"],
 		},
 		// SSR configuration for browser-only packages
 		ssr: {
@@ -84,7 +85,7 @@ export default defineConfig(({ mode }) => {
 				preset: "node-cluster",
 				// Exclude ffmpeg-static binary from nf3 file tracing —
 				// we use system ffmpeg, not the bundled binary
-				externals: ["ffmpeg-static"],
+				externals: ["ffmpeg-static", "ssh2", "cpu-features"],
 				// Enable pre-compression for faster asset delivery
 				compressPublicAssets: {
 					gzip: true,

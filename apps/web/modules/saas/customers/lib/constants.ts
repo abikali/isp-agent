@@ -34,8 +34,15 @@ export const STATION_STATUS_LABELS: Record<string, string> = {
 	OFFLINE: "Offline",
 };
 
+export const STATION_STATUS_OPTIONS = [
+	{ value: "ACTIVE", label: "Active" },
+	{ value: "MAINTENANCE", label: "Maintenance" },
+	{ value: "OFFLINE", label: "Offline" },
+] as const;
+
 export const CSV_HEADERS = [
-	"Full Name",
+	"First Name",
+	"Last Name",
 	"Email",
 	"Phone",
 	"Address",

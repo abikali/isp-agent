@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { useState } from "react";
+import { toast } from "sonner";
 import { useCreateWatcher } from "../hooks/use-watchers";
 import { INTERVAL_OPTIONS, WATCHER_TYPES } from "../lib/constants";
 import {
@@ -78,16 +79,26 @@ export function CreateWatcherDialog({
 				config.recordType = value.recordType;
 			}
 
-			await createWatcher.mutateAsync({
-				organizationId,
-				name: value.name,
-				type: value.type as "ping" | "http" | "port" | "dns",
-				target: value.target,
-				intervalSeconds: value.intervalSeconds,
-				config: Object.keys(config).length > 0 ? config : undefined,
-				notificationConfig: toApiNotificationConfig(notificationConfig),
-			});
-			onOpenChange(false);
+			try {
+				await createWatcher.mutateAsync({
+					organizationId,
+					name: value.name,
+					type: value.type as "ping" | "http" | "port" | "dns",
+					target: value.target,
+					intervalSeconds: value.intervalSeconds,
+					config: Object.keys(config).length > 0 ? config : undefined,
+					notificationConfig:
+						toApiNotificationConfig(notificationConfig),
+				});
+				toast.success("Watcher created");
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create watcher",
+				);
+			}
 		},
 	});
 

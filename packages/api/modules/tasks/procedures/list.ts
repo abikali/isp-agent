@@ -121,7 +121,8 @@ export const listTasks = protectedProcedure
 					customer: {
 						select: {
 							id: true,
-							fullName: true,
+							firstName: true,
+							lastName: true,
 						},
 					},
 					station: {

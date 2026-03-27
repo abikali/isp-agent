@@ -19,6 +19,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import { toast } from "sonner";
 import { useCreateChannel } from "../hooks/use-channels";
 import { PROVIDER_OPTIONS } from "../lib/constants";
 
@@ -58,20 +59,31 @@ export function CreateChannelDialog({
 			sessionId: "",
 		},
 		onSubmit: async ({ value }) => {
-			await createChannel.mutateAsync({
-				agentId,
-				organizationId,
-				provider: value.provider,
-				name: value.name,
-				apiToken: value.apiToken,
-				personalAccessToken:
-					value.provider === "whatsapp"
-						? value.personalAccessToken
-						: undefined,
-				sessionId:
-					value.provider === "whatsapp" ? value.sessionId : undefined,
-			});
-			onOpenChange(false);
+			try {
+				await createChannel.mutateAsync({
+					agentId,
+					organizationId,
+					provider: value.provider,
+					name: value.name,
+					apiToken: value.apiToken,
+					personalAccessToken:
+						value.provider === "whatsapp"
+							? value.personalAccessToken
+							: undefined,
+					sessionId:
+						value.provider === "whatsapp"
+							? value.sessionId
+							: undefined,
+				});
+				toast.success("Channel created");
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create channel",
+				);
+			}
 		},
 	});
 

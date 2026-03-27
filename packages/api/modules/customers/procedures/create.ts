@@ -19,7 +19,8 @@ export const createCustomer = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
-			fullName: z.string().min(1).max(200),
+			firstName: z.string().min(1).max(100),
+			lastName: z.string().max(100).optional(),
 			email: z.string().email().optional(),
 			phone: z.string().max(50).optional(),
 			address: z.string().max(500).optional(),
@@ -56,7 +57,11 @@ export const createCustomer = protectedProcedure
 			data: {
 				organizationId: input.organizationId,
 				accountNumber,
-				fullName: input.fullName,
+				firstName: input.firstName,
+				lastName: input.lastName ?? null,
+				fullName: [input.firstName, input.lastName]
+					.filter(Boolean)
+					.join(" "),
 				email: input.email ?? null,
 				phone: input.phone ?? null,
 				address: input.address ?? null,
@@ -74,7 +79,8 @@ export const createCustomer = protectedProcedure
 			select: {
 				id: true,
 				accountNumber: true,
-				fullName: true,
+				firstName: true,
+				lastName: true,
 				email: true,
 				status: true,
 				createdAt: true,
@@ -87,7 +93,12 @@ export const createCustomer = protectedProcedure
 			user.id,
 			input.organizationId,
 			auditContext,
-			{ fullName: input.fullName, accountNumber },
+			{
+				fullName: [input.firstName, input.lastName]
+					.filter(Boolean)
+					.join(" "),
+				accountNumber,
+			},
 		);
 
 		return { customer };

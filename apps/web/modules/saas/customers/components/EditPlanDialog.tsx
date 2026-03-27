@@ -13,6 +13,7 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useUpdatePlan } from "../hooks/use-plans";
 
 interface Plan {
@@ -48,16 +49,25 @@ export function EditPlanDialog({
 			if (!organizationId) {
 				return;
 			}
-			await updatePlan.mutateAsync({
-				organizationId,
-				id: plan.id,
-				name: value.name,
-				description: value.description || undefined,
-				downloadSpeed: value.downloadSpeed,
-				uploadSpeed: value.uploadSpeed,
-				monthlyPrice: value.monthlyPrice,
-			});
-			onOpenChange(false);
+			try {
+				await updatePlan.mutateAsync({
+					organizationId,
+					id: plan.id,
+					name: value.name,
+					description: value.description || undefined,
+					downloadSpeed: value.downloadSpeed,
+					uploadSpeed: value.uploadSpeed,
+					monthlyPrice: value.monthlyPrice,
+				});
+				toast.success("Plan updated");
+				onOpenChange(false);
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to update plan",
+				);
+			}
 		},
 	});
 

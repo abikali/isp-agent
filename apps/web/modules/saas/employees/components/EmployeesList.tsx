@@ -1,8 +1,12 @@
 "use client";
 
+import { Pagination } from "@saas/shared/components/Pagination";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { EmptyState } from "@shared/components/EmptyState";
+import { PageShell } from "@shared/components/PageShell";
+import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
-import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import {
 	Table,
@@ -12,18 +16,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	PlusIcon,
-	UploadIcon,
-} from "lucide-react";
+import { cn } from "@ui/lib";
+import { PlusIcon, UploadIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { useEmployees } from "../hooks/use-employees";
-import {
-	EMPLOYEE_DEPARTMENT_LABELS,
-	EMPLOYEE_STATUS_LABELS,
-} from "../lib/constants";
+import { EMPLOYEE_DEPARTMENT_LABELS } from "../lib/constants";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
 import { CreateEmployeeDialog } from "./CreateEmployeeDialog";
@@ -31,12 +28,19 @@ import { EmployeeFilters } from "./EmployeeFilters";
 import { EmployeeStats } from "./EmployeeStats";
 import { EmployeeStatsSkeleton } from "./EmployeeStatsSkeleton";
 
+const statusMap: Record<string, "active" | "inactive" | "pending"> = {
+	ACTIVE: "active",
+	INACTIVE: "inactive",
+	ON_LEAVE: "pending",
+};
+
 export function EmployeesList({
 	organizationSlug,
 }: {
 	organizationSlug: string;
 }) {
 	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
 	const [department, setDepartment] = useState("all");
 	const [stationId, setStationId] = useState("all");
@@ -45,7 +49,7 @@ export function EmployeesList({
 	const [showImport, setShowImport] = useState(false);
 
 	const filters = {
-		search: search || undefined,
+		search: debouncedSearch || undefined,
 		status:
 			status !== "all"
 				? (status as "ACTIVE" | "INACTIVE" | "ON_LEAVE")
@@ -63,30 +67,14 @@ export function EmployeesList({
 		page,
 	};
 
-	const { employees, total, totalPages } = useEmployees(filters);
-
-	function getStatusVariant(s: string) {
-		switch (s) {
-			case "ACTIVE":
-				return "default" as const;
-			case "INACTIVE":
-				return "secondary" as const;
-			case "ON_LEAVE":
-				return "outline" as const;
-			default:
-				return "secondary" as const;
-		}
-	}
+	const { employees, total, totalPages, isLoading, isFetching } =
+		useEmployees(filters);
 
 	return (
-		<div>
-			<AsyncBoundary fallback={<EmployeeStatsSkeleton />}>
-				<EmployeeStats />
-			</AsyncBoundary>
-
-			<div className="mt-6 mb-4 flex flex-wrap items-center justify-between gap-4">
-				<h1 className="text-2xl font-bold">Employees</h1>
-				<div className="flex items-center gap-2">
+		<PageShell
+			title="Employees"
+			actions={
+				<>
 					<BulkExportButton
 						filters={{
 							status: filters.status,
@@ -105,57 +93,72 @@ export function EmployeesList({
 						<PlusIcon className="mr-2 size-4" />
 						Add Employee
 					</Button>
+				</>
+			}
+		>
+			<AsyncBoundary fallback={<EmployeeStatsSkeleton />}>
+				<EmployeeStats />
+			</AsyncBoundary>
+
+			<EmployeeFilters
+				search={search}
+				onSearchChange={(v) => {
+					setSearch(v);
+					setPage(1);
+				}}
+				status={status}
+				onStatusChange={(v) => {
+					setStatus(v);
+					setPage(1);
+				}}
+				department={department}
+				onDepartmentChange={(v) => {
+					setDepartment(v);
+					setPage(1);
+				}}
+				stationId={stationId}
+				onStationIdChange={(v) => {
+					setStationId(v);
+					setPage(1);
+				}}
+			/>
+
+			{isLoading ? (
+				<div className="rounded-xl shadow-card p-8 text-center text-muted-foreground">
+					Loading employees...
 				</div>
-			</div>
-
-			<div className="mb-4">
-				<EmployeeFilters
-					search={search}
-					onSearchChange={(v) => {
-						setSearch(v);
-						setPage(1);
-					}}
-					status={status}
-					onStatusChange={(v) => {
-						setStatus(v);
-						setPage(1);
-					}}
-					department={department}
-					onDepartmentChange={(v) => {
-						setDepartment(v);
-						setPage(1);
-					}}
-					stationId={stationId}
-					onStationIdChange={(v) => {
-						setStationId(v);
-						setPage(1);
-					}}
-				/>
-			</div>
-
-			{employees.length === 0 ? (
-				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-					<h3 className="mb-1 text-lg font-medium">
-						{total === 0 ? "No employees yet" : "No results found"}
-					</h3>
-					<p className="mb-4 text-sm text-muted-foreground">
-						{total === 0
+			) : employees.length === 0 ? (
+				<EmptyState
+					icon={UsersIcon}
+					title={
+						total === 0 ? "No employees yet" : "No results found"
+					}
+					description={
+						total === 0
 							? "Add your first employee to get started."
-							: "Try adjusting your filters or search term."}
-					</p>
-					{total === 0 && (
-						<Button onClick={() => setShowCreate(true)}>
-							<PlusIcon className="mr-2 size-4" />
-							Add Employee
-						</Button>
-					)}
-				</div>
+							: "Try adjusting your filters or search term."
+					}
+					action={
+						total === 0 ? (
+							<Button onClick={() => setShowCreate(true)}>
+								<PlusIcon className="mr-2 size-4" />
+								Add Employee
+							</Button>
+						) : undefined
+					}
+				/>
 			) : (
 				<>
-					<div className="rounded-lg border">
+					<div
+						className={cn(
+							"rounded-xl shadow-card overflow-hidden transition-opacity",
+							isFetching && "opacity-60",
+						)}
+					>
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-10" />
 									<TableHead>Employee #</TableHead>
 									<TableHead>Name</TableHead>
 									<TableHead className="hidden md:table-cell">
@@ -167,12 +170,28 @@ export function EmployeesList({
 									<TableHead className="hidden lg:table-cell">
 										Station(s)
 									</TableHead>
-									<TableHead>Status</TableHead>
+									<TableHead className="hidden lg:table-cell">
+										Dealer
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
 								{employees.map((employee) => (
-									<TableRow key={employee.id}>
+									<TableRow
+										key={employee.id}
+										className="hover:bg-muted/30 transition-colors"
+									>
+										<TableCell className="w-10 pr-0">
+											<StatusIndicator
+												status={
+													statusMap[
+														employee.status
+													] ?? "inactive"
+												}
+												label=""
+												size="sm"
+											/>
+										</TableCell>
 										<TableCell className="font-mono text-xs">
 											<Link
 												to="/app/$organizationSlug/employees/$employeeId"
@@ -235,16 +254,12 @@ export function EmployeesList({
 												</span>
 											)}
 										</TableCell>
-										<TableCell>
-											<Badge
-												variant={getStatusVariant(
-													employee.status,
-												)}
-											>
-												{EMPLOYEE_STATUS_LABELS[
-													employee.status
-												] ?? employee.status}
-											</Badge>
+										<TableCell className="hidden lg:table-cell">
+											{employee.dealer?.name ?? (
+												<span className="text-muted-foreground">
+													-
+												</span>
+											)}
 										</TableCell>
 									</TableRow>
 								))}
@@ -253,39 +268,13 @@ export function EmployeesList({
 					</div>
 
 					{totalPages > 1 && (
-						<div className="mt-4 flex items-center justify-between">
-							<p className="text-sm text-muted-foreground">
-								Showing {(page - 1) * 25 + 1}-
-								{Math.min(page * 25, total)} of {total}
-							</p>
-							<div className="flex items-center gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) => Math.max(1, p - 1))
-									}
-									disabled={page === 1}
-								>
-									<ChevronLeftIcon className="size-4" />
-								</Button>
-								<span className="text-sm">
-									Page {page} of {totalPages}
-								</span>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) =>
-											Math.min(totalPages, p + 1),
-										)
-									}
-									disabled={page === totalPages}
-								>
-									<ChevronRightIcon className="size-4" />
-								</Button>
-							</div>
-						</div>
+						<Pagination
+							className="mt-4"
+							totalItems={total}
+							itemsPerPage={25}
+							currentPage={page}
+							onChangeCurrentPage={setPage}
+						/>
 					)}
 				</>
 			)}
@@ -295,6 +284,6 @@ export function EmployeesList({
 				onOpenChange={setShowCreate}
 			/>
 			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
-		</div>
+		</PageShell>
 	);
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { displayName } from "@shared/lib/display-name";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -399,7 +400,10 @@ export function TaskView({ taskId }: { taskId: string }) {
 									</div>
 									<div>
 										<p className="font-medium">
-											{task.customer.fullName}
+											{displayName(
+												task.customer.firstName,
+												task.customer.lastName,
+											)}
 										</p>
 										<p className="text-xs text-muted-foreground">
 											#{task.customer.accountNumber}

@@ -8,189 +8,321 @@ import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import type { LucideIcon } from "lucide-react";
 import {
+	BanknoteIcon,
 	BotIcon,
-	ChevronRightIcon,
+	ChevronDownIcon,
 	ClipboardListIcon,
+	DollarSignIcon,
 	EyeIcon,
+	HandshakeIcon,
 	HardHatIcon,
 	HeartIcon,
-	HomeIcon,
+	LayoutDashboardIcon,
+	ListIcon,
 	MessageSquareIcon,
+	OctagonXIcon,
 	PackageIcon,
 	RadioTowerIcon,
 	SettingsIcon,
 	ShieldIcon,
-	UserCog2Icon,
 	UsersIcon,
+	WifiIcon,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { OrganizationSelect } from "../../organizations/components/OrganizationSelect";
 import { NotificationBell } from "./NotificationBell";
 import { UserMenu } from "./UserMenu";
 
-interface MenuItem {
+// ─── Types ──────────────────────────────────────────────────────────
+
+interface NavItem {
 	label: string;
 	href: string;
 	icon: LucideIcon;
 	isActive: boolean;
 }
 
-interface MenuGroup {
+interface NavGroup {
+	id: string;
 	label: string;
-	items: MenuItem[];
+	icon: LucideIcon;
+	items: NavItem[];
 }
+
+// ─── Component ──────────────────────────────────────────────────────
 
 export function NavBar() {
 	const location = useLocation();
 	const pathname = location.pathname;
 	const { user } = useSession();
-	const { activeOrganization, loaded } = useActiveOrganization();
+	const {
+		activeOrganization,
+		loaded,
+		isOrganizationAdmin,
+		activeOrganizationUserRole,
+	} = useActiveOrganization();
 	const { useSidebarLayout } = config.ui.saas;
 
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
 		: "/app";
 
-	// Group menu items into logical sections
-	const menuGroups: MenuGroup[] = [
-		{
-			label: "Overview",
-			items: [
-				{
-					label: "Home",
-					href: basePath,
-					icon: HomeIcon,
-					isActive: pathname === basePath,
-				},
-				...(activeOrganization
-					? [
-							{
-								label: "AI Agents",
-								href: `${basePath}/ai-agents`,
-								icon: BotIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/ai-agents`,
-								),
-							},
-							{
-								label: "Conversations",
-								href: `${basePath}/conversations`,
-								icon: MessageSquareIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/conversations`,
-								),
-							},
-							{
-								label: "Watchers",
-								href: `${basePath}/watchers`,
-								icon: EyeIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/watchers`,
-								),
-							},
-						]
-					: []),
-			],
-		},
-		...(activeOrganization
-			? [
-					{
-						label: "ISP Management",
-						items: [
-							{
-								label: "Customers",
-								href: `${basePath}/customers`,
-								icon: UsersIcon,
-								isActive:
-									pathname === `${basePath}/customers` ||
-									(pathname.startsWith(
-										`${basePath}/customers/`,
-									) &&
-										!pathname.includes("/plans") &&
-										!pathname.includes("/stations")),
-							},
-							{
-								label: "Plans",
-								href: `${basePath}/customers/plans`,
-								icon: PackageIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/customers/plans`,
-								),
-							},
-							{
-								label: "Stations",
-								href: `${basePath}/customers/stations`,
-								icon: RadioTowerIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/customers/stations`,
-								),
-							},
-							{
-								label: "Employees",
-								href: `${basePath}/employees`,
-								icon: HardHatIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/employees`,
-								),
-							},
-							{
-								label: "Tasks",
-								href: `${basePath}/tasks`,
-								icon: ClipboardListIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/tasks`,
-								),
-							},
-						],
-					},
-				]
-			: []),
-		{
-			label: "Settings",
-			items: [
-				...(activeOrganization
-					? [
-							{
-								label: "Organization",
-								href: `${basePath}/settings`,
-								icon: SettingsIcon,
-								isActive: pathname.startsWith(
-									`${basePath}/settings/`,
-								),
-							},
-						]
-					: []),
-				{
-					label: "Account",
-					href: "/app/settings",
-					icon: UserCog2Icon,
-					isActive: pathname.startsWith("/app/settings/"),
-				},
-			],
-		},
-		...(user?.role === "admin"
-			? [
-					{
-						label: "Administration",
-						items: [
-							{
-								label: "Admin Panel",
-								href: "/app/admin",
-								icon: ShieldIcon,
-								isActive: pathname.startsWith("/app/admin/"),
-							},
-						],
-					},
-				]
-			: []),
-	];
+	// ── Build navigation ────────────────────────────────────────────
 
-	// Flatten for mobile horizontal view
-	const flatMenuItems = menuGroups.flatMap((group) => group.items);
+	const dashboard: NavItem | null = activeOrganization
+		? {
+				label: "Dashboard",
+				href: basePath,
+				icon: LayoutDashboardIcon,
+				isActive: pathname === basePath || pathname === `${basePath}/`,
+			}
+		: null;
+
+	const navGroups: NavGroup[] = useMemo(() => {
+		if (!activeOrganization) {
+			return [];
+		}
+
+		const at = (href: string) =>
+			pathname === href || pathname === `${href}/`;
+		const under = (href: string) =>
+			pathname === href || pathname.startsWith(`${href}/`);
+
+		// "All Customers" is active at /customers and /customers/:id
+		// but NOT at /customers/plans, /customers/stations, /customers/access-points
+		const customersActive =
+			under(`${basePath}/customers`) &&
+			!under(`${basePath}/customers/plans`) &&
+			!under(`${basePath}/customers/stations`) &&
+			!under(`${basePath}/customers/access-points`);
+
+		return [
+			{
+				id: "subscribers",
+				label: "Subscribers",
+				icon: UsersIcon,
+				items: [
+					{
+						label: "All Customers",
+						href: `${basePath}/customers`,
+						icon: UsersIcon,
+						isActive: customersActive,
+					},
+					{
+						label: "Service Plans",
+						href: `${basePath}/customers/plans`,
+						icon: PackageIcon,
+						isActive: under(`${basePath}/customers/plans`),
+					},
+					{
+						label: "Stations",
+						href: `${basePath}/customers/stations`,
+						icon: RadioTowerIcon,
+						isActive: under(`${basePath}/customers/stations`),
+					},
+					{
+						label: "Access Points",
+						href: `${basePath}/customers/access-points`,
+						icon: WifiIcon,
+						isActive: under(`${basePath}/customers/access-points`),
+					},
+				],
+			},
+			// Billing — visible to admins, managers, and collectors
+			...(isOrganizationAdmin ||
+			["collector", "manager"].includes(activeOrganizationUserRole ?? "")
+				? [
+						{
+							id: "billing",
+							label: "Billing",
+							icon: DollarSignIcon,
+							items: [
+								// Dashboard, Payments, Stopped — admins and managers only
+								...(isOrganizationAdmin ||
+								activeOrganizationUserRole === "manager"
+									? [
+											{
+												label: "Dashboard",
+												href: `${basePath}/billing`,
+												icon: DollarSignIcon,
+												isActive:
+													at(`${basePath}/billing`) &&
+													!under(
+														`${basePath}/billing/collect`,
+													) &&
+													!under(
+														`${basePath}/billing/payments`,
+													) &&
+													!under(
+														`${basePath}/billing/stopped`,
+													),
+											},
+										]
+									: []),
+								{
+									label: "Collect",
+									href: `${basePath}/billing/collect`,
+									icon: BanknoteIcon,
+									isActive: under(
+										`${basePath}/billing/collect`,
+									),
+								},
+								...(isOrganizationAdmin ||
+								activeOrganizationUserRole === "manager"
+									? [
+											{
+												label: "Payments",
+												href: `${basePath}/billing/payments`,
+												icon: ListIcon,
+												isActive: under(
+													`${basePath}/billing/payments`,
+												),
+											},
+											{
+												label: "Stopped",
+												href: `${basePath}/billing/stopped`,
+												icon: OctagonXIcon,
+												isActive: under(
+													`${basePath}/billing/stopped`,
+												),
+											},
+										]
+									: []),
+							],
+						},
+					]
+				: []),
+			{
+				id: "operations",
+				label: "Operations",
+				icon: ClipboardListIcon,
+				items: [
+					{
+						label: "Dealers",
+						href: `${basePath}/dealers`,
+						icon: HandshakeIcon,
+						isActive: under(`${basePath}/dealers`),
+					},
+					{
+						label: "Employees",
+						href: `${basePath}/employees`,
+						icon: HardHatIcon,
+						isActive: under(`${basePath}/employees`),
+					},
+					{
+						label: "Tasks",
+						href: `${basePath}/tasks`,
+						icon: ClipboardListIcon,
+						isActive: under(`${basePath}/tasks`),
+					},
+				],
+			},
+			{
+				id: "intelligence",
+				label: "Intelligence",
+				icon: BotIcon,
+				items: [
+					{
+						label: "AI Agents",
+						href: `${basePath}/ai-agents`,
+						icon: BotIcon,
+						isActive: under(`${basePath}/ai-agents`),
+					},
+					{
+						label: "Conversations",
+						href: `${basePath}/conversations`,
+						icon: MessageSquareIcon,
+						isActive: under(`${basePath}/conversations`),
+					},
+					{
+						label: "Watchers",
+						href: `${basePath}/watchers`,
+						icon: EyeIcon,
+						isActive: under(`${basePath}/watchers`),
+					},
+				],
+			},
+		];
+	}, [
+		activeOrganization,
+		basePath,
+		pathname,
+		isOrganizationAdmin,
+		activeOrganizationUserRole,
+	]);
+
+	const bottomLinks: NavItem[] = useMemo(() => {
+		const under = (href: string) =>
+			pathname === href || pathname.startsWith(`${href}/`);
+		const links: NavItem[] = [];
+		if (activeOrganization) {
+			links.push({
+				label: "Settings",
+				href: `${basePath}/settings`,
+				icon: SettingsIcon,
+				isActive: under(`${basePath}/settings`),
+			});
+		}
+		if (user?.role === "admin") {
+			links.push({
+				label: "Admin",
+				href: "/app/admin",
+				icon: ShieldIcon,
+				isActive: under("/app/admin"),
+			});
+		}
+		return links;
+	}, [activeOrganization, basePath, user?.role, pathname]);
+
+	// ── Accordion state ─────────────────────────────────────────────
+
+	const [openGroups, setOpenGroups] = useState<string[]>([]);
+
+	// Auto-expand groups that have an active item
+	useEffect(() => {
+		const shouldOpen = navGroups
+			.filter((g) => g.items.some((i) => i.isActive))
+			.map((g) => g.id);
+		if (shouldOpen.length > 0) {
+			setOpenGroups((prev) => {
+				const merged = new Set([...prev, ...shouldOpen]);
+				return Array.from(merged);
+			});
+		}
+	}, [navGroups]);
+
+	function toggleGroup(groupId: string) {
+		setOpenGroups((prev) =>
+			prev.includes(groupId)
+				? prev.filter((id) => id !== groupId)
+				: [...prev, groupId],
+		);
+	}
+
+	// ── Flat list for mobile ────────────────────────────────────────
+
+	const flatMenuItems = useMemo(() => {
+		const items: NavItem[] = [];
+		if (dashboard) {
+			items.push(dashboard);
+		}
+		for (const group of navGroups) {
+			for (const item of group.items) {
+				items.push(item);
+			}
+		}
+		for (const link of bottomLinks) {
+			items.push(link);
+		}
+		return items;
+	}, [dashboard, navGroups, bottomLinks]);
+
+	// ── Render ──────────────────────────────────────────────────────
 
 	return (
 		<nav
 			className={cn("w-full", {
-				"w-full md:fixed md:top-0 md:left-0 md:h-full md:w-[280px] md:border-r md:border-border md:bg-background":
+				"w-full md:fixed md:top-0 md:left-0 md:h-full md:w-[280px] md:bg-background":
 					useSidebarLayout,
 			})}
 		>
@@ -200,10 +332,11 @@ export function NavBar() {
 						useSidebarLayout,
 				})}
 			>
+				{/* Header */}
 				<div className="flex flex-wrap items-center justify-between gap-4">
 					<div
 						className={cn("flex items-center gap-4 md:gap-2", {
-							"md:flex md:w-full md:flex-col md:items-stretch md:align-stretch":
+							"md:flex md:w-full md:flex-col md:items-stretch":
 								useSidebarLayout,
 						})}
 					>
@@ -218,34 +351,18 @@ export function NavBar() {
 
 						{config.organizations.enable &&
 							!config.organizations.hideOrganization && (
-								<>
-									<span
-										className={cn(
-											"hidden opacity-30 md:block",
-											{
-												"md:hidden": useSidebarLayout,
-											},
-										)}
-									>
-										<ChevronRightIcon className="size-4" />
-									</span>
-
-									<OrganizationSelect
-										className={cn({
-											"md:-mx-2 md:mt-2":
-												useSidebarLayout,
-										})}
-									/>
-								</>
+								<OrganizationSelect
+									className={cn({
+										"md:-mx-2 md:mt-2": useSidebarLayout,
+									})}
+								/>
 							)}
 					</div>
 
 					<div
 						className={cn(
 							"mr-0 ml-auto flex items-center justify-end gap-2",
-							{
-								"md:hidden": useSidebarLayout,
-							},
+							{ "md:hidden": useSidebarLayout },
 						)}
 					>
 						<NotificationBell />
@@ -253,99 +370,120 @@ export function NavBar() {
 					</div>
 				</div>
 
-				{/* Mobile: Horizontal scrollable menu (flat) */}
+				{/* Mobile: Horizontal scrollable menu */}
 				<ul
 					className={cn(
 						"no-scrollbar -mx-4 -mb-4 mt-6 flex list-none items-center justify-start gap-1 overflow-x-auto px-4 text-sm",
-						{
-							"md:hidden": useSidebarLayout,
-						},
+						{ "md:hidden": useSidebarLayout },
 					)}
 				>
-					{flatMenuItems.map((menuItem) => (
-						<li key={menuItem.href}>
-							<Link
-								to={menuItem.href}
-								className={cn(
-									"flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 transition-colors",
-									menuItem.isActive
-										? "bg-muted font-medium text-foreground"
-										: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-								)}
-								preload="intent"
-							>
-								<menuItem.icon className="size-4 shrink-0" />
-								<span>{menuItem.label}</span>
-							</Link>
+					{flatMenuItems.map((item) => (
+						<li key={item.href + item.label}>
+							<NavLink item={item} size="mobile" />
 						</li>
 					))}
 					{!loaded && (
 						<>
 							<li>
-								<Skeleton className="h-9 w-24 rounded-md" />
+								<Skeleton className="h-9 w-24 rounded-lg" />
 							</li>
 							<li>
-								<Skeleton className="h-9 w-28 rounded-md" />
+								<Skeleton className="h-9 w-28 rounded-lg" />
 							</li>
 						</>
 					)}
 				</ul>
 
-				{/* Desktop: Grouped sidebar menu */}
+				{/* Desktop: Sidebar */}
 				<div
 					className={cn("hidden flex-1 overflow-y-auto py-4", {
 						"md:block": useSidebarLayout,
 					})}
 				>
-					<nav className="space-y-6">
-						{menuGroups.map((group) => (
-							<div key={group.label}>
-								<h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-									{group.label}
-								</h3>
-								<ul className="space-y-1">
-									{group.items.map((menuItem) => (
-										<li key={menuItem.href}>
-											<Link
-												to={menuItem.href}
-												className={cn(
-													"flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all",
-													menuItem.isActive
-														? "bg-primary/10 font-medium text-primary"
-														: "text-muted-foreground hover:bg-muted hover:text-foreground",
-												)}
-												preload="intent"
-											>
-												<menuItem.icon
-													className={cn(
-														"size-4 shrink-0",
-														menuItem.isActive
-															? "text-primary"
-															: "text-muted-foreground",
-													)}
-												/>
-												<span>{menuItem.label}</span>
-											</Link>
-										</li>
-									))}
-									{!loaded && (
-										<li>
-											<Skeleton className="h-10 w-full rounded-lg" />
-										</li>
+					<div className="space-y-1">
+						{/* Dashboard */}
+						{dashboard && (
+							<NavLink item={dashboard} size="desktop" />
+						)}
+
+						{/* Accordion groups */}
+						{navGroups.map((group) => {
+							const isOpen = openGroups.includes(group.id);
+							const groupHasActive = group.items.some(
+								(i) => i.isActive,
+							);
+
+							return (
+								<div key={group.id}>
+									<button
+										type="button"
+										onClick={() => toggleGroup(group.id)}
+										className={cn(
+											"flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
+											groupHasActive
+												? "font-medium text-foreground"
+												: "text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+										)}
+									>
+										<group.icon
+											className={cn(
+												"size-4 shrink-0",
+												groupHasActive
+													? "text-foreground"
+													: "text-muted-foreground",
+											)}
+										/>
+										<span className="flex-1 text-left">
+											{group.label}
+										</span>
+										<ChevronDownIcon
+											className={cn(
+												"size-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+												isOpen && "rotate-180",
+											)}
+										/>
+									</button>
+
+									{isOpen && (
+										<ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/40 pl-3">
+											{group.items.map((item) => (
+												<li key={item.href}>
+													<NavLink
+														item={item}
+														size="sub"
+													/>
+												</li>
+											))}
+										</ul>
 									)}
-								</ul>
-							</div>
+								</div>
+							);
+						})}
+
+						<div className="pt-3" />
+
+						{/* Bottom links */}
+						{bottomLinks.map((link) => (
+							<NavLink
+								key={link.href}
+								item={link}
+								size="desktop"
+							/>
 						))}
-					</nav>
+
+						{!loaded && (
+							<Skeleton className="h-9 w-full rounded-lg" />
+						)}
+					</div>
 				</div>
 
-				{/* Desktop: Footer with user menu and credits */}
+				{/* Desktop: Footer */}
 				<div
 					className={cn("mt-auto mb-0 hidden", {
 						"md:block": useSidebarLayout,
 					})}
 				>
-					<div className="border-t border-border p-4">
+					<div className="border-t border-border/50 p-4">
 						<div className="flex items-center gap-3">
 							<div className="min-w-0 flex-1">
 								<UserMenu showUserName />
@@ -355,7 +493,7 @@ export function NavBar() {
 							</div>
 						</div>
 					</div>
-					<div className="border-t border-border px-4 py-3">
+					<div className="border-t border-border/50 px-4 py-3">
 						<p className="flex items-center justify-center gap-1 text-xs text-muted-foreground/60">
 							<span>Made with</span>
 							<HeartIcon className="size-3 fill-current text-red-500" />
@@ -376,5 +514,50 @@ export function NavBar() {
 				</div>
 			</div>
 		</nav>
+	);
+}
+
+// ─── NavLink ────────────────────────────────────────────────────────
+
+const mobileCls =
+	"flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 transition-colors";
+const desktopCls =
+	"flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all";
+const subCls =
+	"flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-all";
+const activeCls = "bg-card font-medium text-foreground shadow-sm";
+const inactiveCls =
+	"text-muted-foreground hover:bg-muted/40 hover:text-foreground";
+
+function NavLink({
+	item,
+	size,
+}: {
+	item: NavItem;
+	size: "mobile" | "desktop" | "sub";
+}) {
+	const base =
+		size === "mobile" ? mobileCls : size === "sub" ? subCls : desktopCls;
+	const iconSize = size === "sub" ? "size-3.5" : "size-4";
+
+	const cls = cn(base, item.isActive ? activeCls : inactiveCls);
+
+	return (
+		<Link
+			to={item.href}
+			activeOptions={{ exact: true }}
+			activeProps={{ className: cls }}
+			inactiveProps={{ className: cls }}
+			preload="intent"
+		>
+			<item.icon
+				className={cn(
+					iconSize,
+					"shrink-0",
+					item.isActive ? "text-foreground" : "text-muted-foreground",
+				)}
+			/>
+			<span>{item.label}</span>
+		</Link>
 	);
 }

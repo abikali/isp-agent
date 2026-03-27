@@ -15,7 +15,7 @@ export function AppWrapper({ children }: PropsWithChildren) {
 						config.ui.saas.useSidebarLayout,
 				})}
 			>
-				<main className="min-h-full w-full rounded-xl border border-border bg-card text-card-foreground px-4 py-6 md:p-8">
+				<main className="min-h-full w-full rounded-xl bg-card px-4 py-6 shadow-card md:p-8">
 					<div className="container px-0">{children}</div>
 				</main>
 			</div>

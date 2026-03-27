@@ -143,15 +143,10 @@ async function main() {
 			await client.query(
 				`INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
 				 VALUES ($1, $2, 'credential', $3, $4, $5, $5)
-				 ON CONFLICT ON CONSTRAINT account_pkey DO NOTHING`,
+				 ON CONFLICT ("providerId", "accountId") DO UPDATE SET
+					password = EXCLUDED.password,
+					"updatedAt" = EXCLUDED."updatedAt"`,
 				[createId(), userId, userId, passwordHash, now],
-			);
-
-			// If account already exists, update password
-			await client.query(
-				`UPDATE account SET password = $1, "updatedAt" = $2
-				 WHERE "userId" = $3 AND "providerId" = 'credential'`,
-				[passwordHash, now, userId],
 			);
 			log(`  ✓ Account credentials for ${email}`);
 		}

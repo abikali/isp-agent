@@ -68,6 +68,18 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Sync online/offline status from iRadius every 60 seconds
+	await queue.upsertJobScheduler(
+		"online-status-sync",
+		{
+			every: 60000,
+		},
+		{
+			name: "online-status-sync",
+			data: { type: "online-status-sync" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

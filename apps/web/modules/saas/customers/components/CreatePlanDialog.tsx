@@ -13,6 +13,7 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Textarea } from "@ui/components/textarea";
+import { toast } from "sonner";
 import { useCreatePlan } from "../hooks/use-plans";
 
 export function CreatePlanDialog({
@@ -37,16 +38,25 @@ export function CreatePlanDialog({
 			if (!organizationId) {
 				return;
 			}
-			await createPlan.mutateAsync({
-				organizationId,
-				name: value.name,
-				description: value.description || undefined,
-				downloadSpeed: value.downloadSpeed,
-				uploadSpeed: value.uploadSpeed,
-				monthlyPrice: value.monthlyPrice,
-			});
-			onOpenChange(false);
-			form.reset();
+			try {
+				await createPlan.mutateAsync({
+					organizationId,
+					name: value.name,
+					description: value.description || undefined,
+					downloadSpeed: value.downloadSpeed,
+					uploadSpeed: value.uploadSpeed,
+					monthlyPrice: value.monthlyPrice,
+				});
+				toast.success("Plan created");
+				onOpenChange(false);
+				form.reset();
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to create plan",
+				);
+			}
 		},
 	});
 

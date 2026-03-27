@@ -15,11 +15,12 @@ export {
 	permissionStatement,
 	SCOPED_ACTIONS,
 } from "./access-control";
-export type { SystemRole } from "./roles";
+export type { IspRoleTemplate, SystemRole } from "./roles";
 export {
 	admin,
 	getSystemRolePermissions,
 	getSystemRoleScope,
+	ISP_ROLE_TEMPLATES,
 	isSystemRole,
 	MEMBER_SCOPE_RESTRICTIONS,
 	member,

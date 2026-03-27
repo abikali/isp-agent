@@ -1,6 +1,8 @@
 "use client";
 
 export { ActiveSessionsBlock } from "./components/ActiveSessionsBlock";
+export { BillingSyncPreviewDialog } from "./components/BillingSyncPreviewDialog";
+export { BillingSyncSettings } from "./components/BillingSyncSettings";
 export { ChangeEmailForm } from "./components/ChangeEmailForm";
 export { ChangeNameForm } from "./components/ChangeNameForm";
 export { ChangePasswordForm } from "./components/ChangePassword";

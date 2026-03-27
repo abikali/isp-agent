@@ -26,7 +26,7 @@ export const listCustomers = protectedProcedure
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
-				.enum(["fullName", "accountNumber", "createdAt", "status"])
+				.enum(["lastName", "accountNumber", "createdAt", "status"])
 				.default("createdAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 		}),
@@ -60,9 +60,11 @@ export const listCustomers = protectedProcedure
 		}
 		if (input.search) {
 			where["OR"] = [
-				{ fullName: { contains: input.search, mode: "insensitive" } },
+				{ firstName: { contains: input.search, mode: "insensitive" } },
+				{ lastName: { contains: input.search, mode: "insensitive" } },
 				{ email: { contains: input.search, mode: "insensitive" } },
 				{ phone: { contains: input.search, mode: "insensitive" } },
+				{ mobile: { contains: input.search, mode: "insensitive" } },
 				{
 					accountNumber: {
 						contains: input.search,
@@ -78,9 +80,11 @@ export const listCustomers = protectedProcedure
 				select: {
 					id: true,
 					accountNumber: true,
-					fullName: true,
+					firstName: true,
+					lastName: true,
 					email: true,
 					phone: true,
+					mobile: true,
 					status: true,
 					connectionType: true,
 					ipAddress: true,

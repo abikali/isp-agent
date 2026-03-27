@@ -11,14 +11,12 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
 	ClipboardListIcon,
 	CreditCardIcon,
-	KeyIcon,
-	PlugIcon,
+	DatabaseIcon,
 	Settings2Icon,
 	ShieldCheckIcon,
 	SparklesIcon,
 	TriangleAlertIcon,
 	Users2Icon,
-	WebhookIcon,
 } from "lucide-react";
 
 export const Route = createFileRoute(
@@ -87,22 +85,17 @@ function OrganizationSettingsLayout() {
 								),
 							},
 							{
-								title: "API Keys",
-								href: `${organizationSettingsBasePath}/api-keys`,
-								icon: <KeyIcon className="size-4 opacity-50" />,
-							},
-							{
-								title: "Webhooks",
-								href: `${organizationSettingsBasePath}/webhooks`,
+								title: "iRadius Sync",
+								href: `${organizationSettingsBasePath}/iradius`,
 								icon: (
-									<WebhookIcon className="size-4 opacity-50" />
+									<DatabaseIcon className="size-4 opacity-50" />
 								),
 							},
 							{
-								title: "Integrations",
-								href: `${organizationSettingsBasePath}/integrations`,
+								title: "Billing Sync",
+								href: `${organizationSettingsBasePath}/billing-sync`,
 								icon: (
-									<PlugIcon className="size-4 opacity-50" />
+									<CreditCardIcon className="size-4 opacity-50" />
 								),
 							},
 							{

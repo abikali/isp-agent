@@ -19,6 +19,7 @@ import {
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
 import { ArrowLeftIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useUpdateTask } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_OPTIONS,
@@ -60,33 +61,42 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 			if (!organizationId) {
 				return;
 			}
-			await updateTask.mutateAsync({
-				organizationId,
-				id: taskId,
-				title: value.title,
-				description: value.description || null,
-				status: value.status as
-					| "OPEN"
-					| "IN_PROGRESS"
-					| "ON_HOLD"
-					| "COMPLETED"
-					| "CANCELLED",
-				priority: value.priority as
-					| "LOW"
-					| "MEDIUM"
-					| "HIGH"
-					| "URGENT",
-				category: value.category as
-					| "INSTALLATION"
-					| "MAINTENANCE"
-					| "REPAIR"
-					| "SUPPORT"
-					| "BILLING"
-					| "GENERAL",
-				dueDate: value.dueDate ? new Date(value.dueDate) : null,
-				stationId: value.stationId || null,
-				notes: value.notes || null,
-			});
+			try {
+				await updateTask.mutateAsync({
+					organizationId,
+					id: taskId,
+					title: value.title,
+					description: value.description || null,
+					status: value.status as
+						| "OPEN"
+						| "IN_PROGRESS"
+						| "ON_HOLD"
+						| "COMPLETED"
+						| "CANCELLED",
+					priority: value.priority as
+						| "LOW"
+						| "MEDIUM"
+						| "HIGH"
+						| "URGENT",
+					category: value.category as
+						| "INSTALLATION"
+						| "MAINTENANCE"
+						| "REPAIR"
+						| "SUPPORT"
+						| "BILLING"
+						| "GENERAL",
+					dueDate: value.dueDate ? new Date(value.dueDate) : null,
+					stationId: value.stationId || null,
+					notes: value.notes || null,
+				});
+				toast.success("Task updated");
+			} catch (error) {
+				toast.error(
+					error instanceof Error
+						? error.message
+						: "Failed to update task",
+				);
+			}
 		},
 	});
 

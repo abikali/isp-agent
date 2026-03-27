@@ -19,7 +19,8 @@ export const updateCustomer = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			id: z.string(),
-			fullName: z.string().min(1).max(200).optional(),
+			firstName: z.string().min(1).max(100).optional(),
+			lastName: z.string().max(100).nullable().optional(),
 			email: z.string().email().optional(),
 			phone: z.string().max(50).optional(),
 			address: z.string().max(500).optional(),
@@ -62,8 +63,24 @@ export const updateCustomer = protectedProcedure
 		}
 
 		const updateData: Record<string, unknown> = {};
-		if (input.fullName !== undefined) {
-			updateData["fullName"] = input.fullName;
+		if (input.firstName !== undefined) {
+			updateData["firstName"] = input.firstName;
+			// Also update fullName for backward compat
+			const lastName =
+				input.lastName !== undefined
+					? input.lastName
+					: existing.lastName;
+			updateData["fullName"] = [input.firstName, lastName]
+				.filter(Boolean)
+				.join(" ");
+		}
+		if (input.lastName !== undefined) {
+			updateData["lastName"] = input.lastName ?? null;
+			if (input.firstName === undefined) {
+				updateData["fullName"] = [existing.firstName, input.lastName]
+					.filter(Boolean)
+					.join(" ");
+			}
 		}
 		if (input.email !== undefined) {
 			updateData["email"] = input.email ?? null;
@@ -114,7 +131,8 @@ export const updateCustomer = protectedProcedure
 			select: {
 				id: true,
 				accountNumber: true,
-				fullName: true,
+				firstName: true,
+				lastName: true,
 				email: true,
 				status: true,
 				createdAt: true,

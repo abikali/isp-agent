@@ -51,6 +51,19 @@ export const getCustomer = protectedProcedure
 						status: true,
 					},
 				},
+				accessPoint: {
+					select: {
+						id: true,
+						name: true,
+						ipAddress: true,
+						signal: true,
+						boardName: true,
+						online: true,
+					},
+				},
+				dealer: { select: { id: true, name: true } },
+				collector: { select: { id: true, name: true, phone: true } },
+				nas: { select: { id: true, name: true } },
 			},
 		});
 

@@ -38,6 +38,7 @@
 			"@saas/customers/client": [
 				"./modules/saas/customers/index.client.ts"
 			],
+			"@saas/dealers/client": ["./modules/saas/dealers/index.client.ts"],
 			"@saas/employees/client": [
 				"./modules/saas/employees/index.client.ts"
 			],
@@ -47,6 +48,7 @@
 			],
 			"@saas/admin/client": ["./modules/saas/admin/index.client.ts"],
 			"@saas/start/client": ["./modules/saas/start/index.client.ts"],
+			"@saas/billing/client": ["./modules/saas/billing/index.client.ts"],
 			"@saas/dashboard/client": [
 				"./modules/saas/dashboard/index.client.ts"
 			],

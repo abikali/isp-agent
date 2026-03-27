@@ -47,6 +47,12 @@
 	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
 	--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
 	--shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+	--shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+	--shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+	--shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+	--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+	--shadow-status-online: 0 0 0 3px rgba(34, 197, 94, 0.2);
+	--shadow-status-offline: 0 0 0 3px rgba(239, 68, 68, 0.2);
 
 	/* Animation timing */
 	--ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);

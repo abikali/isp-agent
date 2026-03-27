@@ -66,7 +66,8 @@ export const getTask = protectedProcedure
 				customer: {
 					select: {
 						id: true,
-						fullName: true,
+						firstName: true,
+						lastName: true,
 						accountNumber: true,
 						email: true,
 						phone: true,

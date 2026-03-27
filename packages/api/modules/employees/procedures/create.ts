@@ -51,6 +51,26 @@ export const createEmployee = protectedProcedure
 			});
 		}
 
+		const normalizedEmail = input.email?.trim().toLowerCase() || undefined;
+
+		// Check email uniqueness within the organization
+		if (normalizedEmail) {
+			const emailTaken = await db.employee.findFirst({
+				where: {
+					organizationId: input.organizationId,
+					email: {
+						equals: normalizedEmail,
+						mode: "insensitive",
+					},
+				},
+			});
+			if (emailTaken) {
+				throw new ORPCError("CONFLICT", {
+					message: `Email "${normalizedEmail}" is already used by another employee (${emailTaken.name})`,
+				});
+			}
+		}
+
 		const employeeNumber = await generateEmployeeNumber(
 			input.organizationId,
 		);
@@ -60,7 +80,7 @@ export const createEmployee = protectedProcedure
 				organizationId: input.organizationId,
 				employeeNumber,
 				name: input.name,
-				email: input.email ?? null,
+				email: normalizedEmail ?? null,
 				phone: input.phone ?? null,
 				position: input.position ?? null,
 				department: input.department ?? null,

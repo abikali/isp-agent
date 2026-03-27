@@ -4,6 +4,7 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
 	useMutation,
+	useQuery,
 	useQueryClient,
 	useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ type TaskFilters = Omit<ListTasksInput, "organizationId">;
 export function useTasks(filters: TaskFilters = {}) {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
+	const query = useQuery(
 		orpc.tasks.list.queryOptions({
 			input: {
 				organizationId: organizationId ?? "",
@@ -32,6 +33,8 @@ export function useTasks(filters: TaskFilters = {}) {
 		page: query.data?.page ?? 1,
 		pageSize: query.data?.pageSize ?? 25,
 		totalPages: query.data?.totalPages ?? 0,
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
 	};
 }
 

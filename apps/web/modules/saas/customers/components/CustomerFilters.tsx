@@ -1,6 +1,6 @@
 "use client";
 
-import { Input } from "@ui/components/input";
+import { FilterBar } from "@shared/components/FilterBar";
 import {
 	Select,
 	SelectContent,
@@ -8,7 +8,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import { SearchIcon } from "lucide-react";
 import { usePlansQuery } from "../hooks/use-plans";
 import { useStationsQuery } from "../hooks/use-stations";
 import {
@@ -44,18 +43,28 @@ export function CustomerFilters({
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 
-	return (
-		<div className="flex flex-wrap items-center gap-3">
-			<div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-				<SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					placeholder="Search customers..."
-					value={search}
-					onChange={(e) => onSearchChange(e.target.value)}
-					className="pl-9"
-				/>
-			</div>
+	const activeCount = [
+		status !== "all" ? 1 : 0,
+		planId !== "all" ? 1 : 0,
+		stationId !== "all" ? 1 : 0,
+		connectionType !== "all" ? 1 : 0,
+	].reduce((a, b) => a + b, 0);
 
+	function handleReset() {
+		onStatusChange("all");
+		onPlanIdChange("all");
+		onStationIdChange("all");
+		onConnectionTypeChange("all");
+	}
+
+	return (
+		<FilterBar
+			searchPlaceholder="Search customers..."
+			searchValue={search}
+			onSearchChange={onSearchChange}
+			activeFilterCount={activeCount}
+			onReset={handleReset}
+		>
 			<Select value={status} onValueChange={onStatusChange}>
 				<SelectTrigger className="w-[140px]">
 					<SelectValue placeholder="Status" />
@@ -114,6 +123,6 @@ export function CustomerFilters({
 					))}
 				</SelectContent>
 			</Select>
-		</div>
+		</FilterBar>
 	);
 }

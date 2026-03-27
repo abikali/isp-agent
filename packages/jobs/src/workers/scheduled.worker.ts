@@ -1,4 +1,4 @@
-import { db } from "@repo/database";
+import { db, queryIRadiusOnlineUserIds } from "@repo/database";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
@@ -111,6 +111,40 @@ async function dispatchDueWatchers(): Promise<number> {
 	return dueWatchers.length;
 }
 
+async function syncOnlineStatus(): Promise<number> {
+	const onlineIds = await queryIRadiusOnlineUserIds();
+	if (!onlineIds) {
+		logger.warn("[Online Sync] Could not reach iRadius, skipping");
+		return 0;
+	}
+
+	const [setOnline, setOffline] = await Promise.all([
+		db.customer.updateMany({
+			where: {
+				externalId: { in: onlineIds },
+				online: false,
+			},
+			data: { online: true },
+		}),
+		db.customer.updateMany({
+			where: {
+				externalId: { not: null, notIn: onlineIds },
+				online: true,
+			},
+			data: { online: false },
+		}),
+	]);
+
+	const updated = setOnline.count + setOffline.count;
+	if (updated > 0) {
+		logger.info(
+			`[Online Sync] Updated ${updated} customers, ${onlineIds.length} online`,
+		);
+	}
+
+	return updated;
+}
+
 async function cleanupOldExecutions(): Promise<number> {
 	const thirtyDaysAgo = new Date();
 	thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -156,6 +190,10 @@ export function createScheduledWorker(): Worker<
 				case "watcher-cleanup": {
 					const cleaned = await cleanupOldExecutions();
 					return { processedCount: cleaned };
+				}
+				case "online-status-sync": {
+					const synced = await syncOnlineStatus();
+					return { processedCount: synced };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

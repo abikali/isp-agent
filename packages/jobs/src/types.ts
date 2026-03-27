@@ -28,7 +28,8 @@ export type ScheduledJobType =
 	| "quota-reset"
 	| "ai-credit-reset"
 	| "watcher-scheduler"
-	| "watcher-cleanup";
+	| "watcher-cleanup"
+	| "online-status-sync";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;
@@ -100,4 +101,35 @@ export interface WatcherCheckJobResult {
 	success: boolean;
 	latencyMs?: number | undefined;
 	message: string;
+}
+
+// iRadius sync job types
+export interface IRadiusSyncJobData {
+	operationId: string;
+	organizationId: string;
+}
+
+export interface IRadiusSyncJobResult {
+	success: boolean;
+	operationId: string;
+}
+
+// Billing sync job types
+export interface BillingSyncJobData {
+	operationId: string;
+	organizationId: string;
+	createEmployees: Array<{
+		username: string;
+		role: string;
+		phone: string | null;
+	}>;
+	mapEmployees: Array<{
+		billingUsername: string;
+		employeeId: string;
+	}>;
+}
+
+export interface BillingSyncJobResult {
+	success: boolean;
+	operationId: string;
 }

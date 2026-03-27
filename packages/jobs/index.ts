@@ -2,12 +2,14 @@
 export { closeConnection, getRedisConnection } from "./src/connection";
 // Jobs
 export { queueAiChatRetry } from "./src/jobs/ai-chat.jobs";
+export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,
 	queueSimpleEmail,
 	queueTemplateEmail,
 } from "./src/jobs/email.jobs";
 export { queueContactSync } from "./src/jobs/integration-sync.jobs";
+export { queueIRadiusSync } from "./src/jobs/iradius-sync.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
 export {
 	queueWebhooks,
@@ -21,6 +23,11 @@ export {
 	getAiChatQueue,
 } from "./src/queues/ai-chat.queue";
 export {
+	BILLING_SYNC_QUEUE_NAME,
+	closeBillingSyncQueue,
+	getBillingSyncQueue,
+} from "./src/queues/billing-sync.queue";
+export {
 	closeEmailQueue,
 	EMAIL_QUEUE_NAME,
 	getEmailQueue,
@@ -30,6 +37,11 @@ export {
 	getIntegrationSyncQueue,
 	INTEGRATION_SYNC_QUEUE_NAME,
 } from "./src/queues/integration-sync.queue";
+export {
+	closeIRadiusSyncQueue,
+	getIRadiusSyncQueue,
+	IRADIUS_SYNC_QUEUE_NAME,
+} from "./src/queues/iradius-sync.queue";
 export {
 	closeScheduledQueue,
 	getScheduledQueue,
@@ -50,12 +62,16 @@ export {
 export type {
 	AiChatJobData,
 	AiChatJobResult,
+	BillingSyncJobData,
+	BillingSyncJobResult,
 	EmailJobData,
 	EmailJobResult,
 	IntegrationSyncJobData,
 	IntegrationSyncJobResult,
 	IntegrationSyncOperationType,
 	IntegrationSyncTrigger,
+	IRadiusSyncJobData,
+	IRadiusSyncJobResult,
 	ScheduledJobData,
 	ScheduledJobResult,
 	WatcherCheckJobData,
@@ -65,8 +81,10 @@ export type {
 } from "./src/types";
 // Workers (for worker process)
 export { createAiChatWorker } from "./src/workers/ai-chat.worker";
+export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
+export { createIRadiusSyncWorker } from "./src/workers/iradius-sync.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export {
 	createWatcherCheckWorker,
@@ -78,8 +96,10 @@ export { createWebhookWorker } from "./src/workers/webhook.worker";
 // Cleanup utilities
 import { closeConnection } from "./src/connection";
 import { closeAiChatQueue } from "./src/queues/ai-chat.queue";
+import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
+import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
 import { closeWebhookQueue } from "./src/queues/webhook.queue";
@@ -91,7 +111,9 @@ import { closeWebhookQueue } from "./src/queues/webhook.queue";
 export async function shutdownJobs(): Promise<void> {
 	await Promise.allSettled([
 		closeAiChatQueue(),
+		closeBillingSyncQueue(),
 		closeEmailQueue(),
+		closeIRadiusSyncQueue(),
 		closeIntegrationSyncQueue(),
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),

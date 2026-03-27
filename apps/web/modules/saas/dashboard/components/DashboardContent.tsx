@@ -2,6 +2,7 @@
 
 import { useSession } from "@saas/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
+import { PageShell } from "@shared/components/PageShell";
 import { QuickActions } from "./QuickActions";
 import { StatCards } from "./StatCards";
 
@@ -37,23 +38,12 @@ export function DashboardContent({
 	const greeting = getGreeting();
 
 	return (
-		<div className="space-y-6">
-			{/* Header */}
-			<div className="space-y-1">
-				<h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-					{greeting}
-					{userName ? `, ${userName.split(" ")[0]}` : ""}
-				</h1>
-				<p className="text-muted-foreground">
-					Welcome to {activeOrganization?.name ?? "your organization"}
-				</p>
-			</div>
-
-			{/* Stats */}
+		<PageShell
+			title={`${greeting}${userName ? `, ${userName.split(" ")[0]}` : ""}`}
+			description={`Welcome to ${activeOrganization?.name ?? "your organization"}`}
+		>
 			<StatCards />
-
-			{/* Quick Actions */}
 			<QuickActions organizationSlug={organizationSlug} />
-		</div>
+		</PageShell>
 	);
 }
