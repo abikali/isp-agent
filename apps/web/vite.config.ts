@@ -72,13 +72,18 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		plugins: [
-			// Externalize native .node binaries (e.g. cpu-features used by ssh2)
-			// that Rollup cannot bundle
+			// Stub native .node binaries (e.g. cpu-features used by ssh2)
+			// that Rollup cannot bundle — they're optional and fail gracefully
 			{
-				name: "externalize-node-binaries",
+				name: "stub-node-binaries",
 				resolveId(id) {
 					if (id.endsWith(".node") || id.includes(".node?")) {
-						return { id, external: true };
+						return "\0native-stub";
+					}
+				},
+				load(id) {
+					if (id === "\0native-stub") {
+						return "export default {}";
 					}
 				},
 			},
