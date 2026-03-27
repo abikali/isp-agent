@@ -1,8 +1,7 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import {
-	getOwnershipFilter,
-	getPermissionContext,
+	getOwnershipFilterAsync,
+	requirePermission,
 } from "@repo/api/lib/permission";
 import { db, getOrganizationById } from "@repo/database";
 import z from "zod";
@@ -30,36 +29,23 @@ export const listApiKeys = protectedProcedure
 			});
 		}
 
-		// Verify membership
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			organizationId,
 			user.id,
-		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
-
-		// Get permission context for ownership filtering
-		// Admins/owners see all keys, members with "own" scope see only their own
-		const permContext = getPermissionContext(
-			user.id,
-			organizationId,
-			member.role,
-		);
-		const ownershipFilter = getOwnershipFilter(
-			permContext,
 			"apiKeys",
 			"read",
-			"createdById",
+		);
+		const ownershipFilter = await getOwnershipFilterAsync(
+			permCtx,
+			"apiKeys",
+			"read",
 		);
 
 		const apiKeys = await db.apiKey.findMany({
 			where: {
 				organizationId,
-				revokedAt: null, // Don't show revoked keys
-				...ownershipFilter, // Adds createdById filter for members
+				revokedAt: null,
+				...ownershipFilter,
 			},
 			select: {
 				id: true,

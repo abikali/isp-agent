@@ -1,4 +1,5 @@
 import { generateSystemPrompt as generate } from "@repo/ai";
+import { requirePermission } from "@repo/api/lib/permission";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -18,7 +19,14 @@ export const generateSystemPrompt = protectedProcedure
 			agentDescription: z.string().optional(),
 		}),
 	)
-	.handler(async ({ input }) => {
+	.handler(async ({ context: { user }, input }) => {
+		await requirePermission(
+			input.organizationId,
+			user.id,
+			"aiAgents",
+			"update",
+		);
+
 		const systemPrompt = await generate({
 			enabledToolIds: input.enabledToolIds,
 			currentPrompt: input.currentPrompt,

@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import {
+	requirePermission,
+	verifyTaskOwnership,
+} from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -19,24 +22,26 @@ export const deleteTask = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"tasks",
+			"delete",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can delete tasks",
-			});
-		}
 
 		const existing = await db.task.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },
+			include: {
+				assignments: { select: { employeeId: true } },
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
 			});
 		}
+
+		await verifyTaskOwnership(permCtx, "delete", existing);
 
 		await db.task.update({
 			where: { id: input.id },

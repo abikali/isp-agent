@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { encryptToken } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -22,15 +22,12 @@ export const updateChannel = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can update channels",
-			});
-		}
 
 		const existing = await db.aiAgentChannel.findFirst({
 			where: { id: input.channelId },

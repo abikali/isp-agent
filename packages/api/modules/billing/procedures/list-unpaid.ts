@@ -1,10 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
-import {
-	getActionScope,
-	getPermissionContext,
-	verifyPermission,
-} from "@repo/api/lib/permission";
+import { getActionScope, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -29,23 +23,12 @@ export const listUnpaidCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"billing",
+			"view",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
-
-		const permCtx = getPermissionContext(
-			user.id,
-			input.organizationId,
-			member.role,
-			member.rolePermissions,
-		);
-		verifyPermission(permCtx, "billing", "collect");
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,

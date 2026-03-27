@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	employeeAudit,
 	getAuditContextFromHeaders,
@@ -39,15 +39,12 @@ export const updateEmployee = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"employees",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can update employees",
-			});
-		}
 
 		const existing = await db.employee.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },

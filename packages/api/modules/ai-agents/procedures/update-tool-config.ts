@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { isValidToolId } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -22,16 +22,12 @@ export const updateToolConfig = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message:
-					"Only organization admins can configure AI agent tools",
-			});
-		}
 
 		if (!isValidToolId(input.toolId)) {
 			throw new ORPCError("BAD_REQUEST", {

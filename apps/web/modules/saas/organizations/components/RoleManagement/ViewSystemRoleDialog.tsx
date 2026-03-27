@@ -5,6 +5,7 @@ import {
 	type PermissionRecord,
 	type SystemRole,
 } from "@repo/auth/permissions";
+import { Badge } from "@ui/components/badge";
 import {
 	Dialog,
 	DialogContent,
@@ -38,12 +39,18 @@ export function ViewSystemRoleDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
 				<DialogHeader>
-					<DialogTitle>{roleLabel} Permissions</DialogTitle>
+					<DialogTitle className="flex items-center gap-2">
+						{roleLabel} Permissions
+						<Badge variant="secondary" className="text-[10px]">
+							System Role
+						</Badge>
+					</DialogTitle>
 					<DialogDescription>
-						These are the default permissions for the {roleLabel}{" "}
-						role. System role permissions cannot be modified.
+						System role permissions are built-in and cannot be
+						modified. Create a custom role if you need different
+						permissions.
 					</DialogDescription>
 				</DialogHeader>
 

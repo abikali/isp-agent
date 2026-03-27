@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	db,
 	queryBilling,
@@ -23,15 +23,12 @@ export const testBilling = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"billing",
+			"manage",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can test billing connection",
-			});
-		}
 
 		return testBillingConnection();
 	});
@@ -50,15 +47,12 @@ export const previewBillingSync = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"billing",
+			"manage",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can preview billing sync",
-			});
-		}
 
 		return withBillingConnection(async (conn) => {
 			const loginRows = await queryBilling(
@@ -165,15 +159,12 @@ export const syncFromBilling = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"billing",
+			"manage",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can sync from billing",
-			});
-		}
 
 		const active = await db.billingSyncOperation.findFirst({
 			where: {
@@ -263,15 +254,12 @@ export const getBillingSyncStatus = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"billing",
+			"manage",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can view sync status",
-			});
-		}
 
 		const operation = input.operationId
 			? await db.billingSyncOperation.findUnique({

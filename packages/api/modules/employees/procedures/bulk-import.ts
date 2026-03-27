@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	employeeAudit,
 	getAuditContextFromHeaders,
@@ -43,15 +42,12 @@ export const bulkImportEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"employees",
+			"import",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can import employees",
-			});
-		}
 
 		// Resolve station names to IDs
 		const stations = await db.station.findMany({

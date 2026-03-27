@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -18,15 +18,12 @@ export const getAgent = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"read",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const agent = await db.aiAgent.findFirst({
 			where: {
@@ -96,6 +93,10 @@ export const getAgent = protectedProcedure
 				message: "Agent not found",
 			});
 		}
+
+		verifyPermission(permCtx, "aiAgents", "read", {
+			resourceCreatedById: agent.createdBy?.id ?? null,
+		});
 
 		return { agent };
 	});

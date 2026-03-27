@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import {
+	requirePermission,
+	verifyTaskOwnership,
+} from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -45,24 +48,26 @@ export const updateTask = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"tasks",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const existing = await db.task.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },
+			include: {
+				assignments: { select: { employeeId: true } },
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
 			});
 		}
+
+		await verifyTaskOwnership(permCtx, "update", existing);
 
 		const updateData: Record<string, unknown> = {};
 		if (input.title !== undefined) {

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { aiAgentAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -21,15 +21,12 @@ export const toggleWebChat = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const admin = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!admin) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be an admin of this organization",
-			});
-		}
 
 		const agent = await db.aiAgent.findFirst({
 			where: {

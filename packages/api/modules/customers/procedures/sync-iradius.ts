@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db, testIRadiusConnection } from "@repo/database";
 import { queueIRadiusSync } from "@repo/jobs";
 import z from "zod";
@@ -18,15 +18,12 @@ export const testIRadius = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"connections",
+			"sync",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can test iRadius connection",
-			});
-		}
 
 		return testIRadiusConnection();
 	});
@@ -48,15 +45,12 @@ export const syncFromIRadius = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"connections",
+			"sync",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can sync from iRadius",
-			});
-		}
 
 		// Check no active sync for this org
 		const active = await db.iRadiusSyncOperation.findFirst({
@@ -107,15 +101,12 @@ export const getIRadiusSyncStatus = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"connections",
+			"sync",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can view sync status",
-			});
-		}
 
 		const operation = input.operationId
 			? await db.iRadiusSyncOperation.findUnique({

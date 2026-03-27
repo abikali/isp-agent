@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { encryptToken, telegram, whatsapp } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	aiChannelAudit,
 	getAuditContextFromHeaders,
@@ -30,15 +30,12 @@ export const createChannel = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"create",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can create channels",
-			});
-		}
 
 		const agent = await db.aiAgent.findFirst({
 			where: {

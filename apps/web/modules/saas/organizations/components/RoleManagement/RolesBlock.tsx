@@ -1,9 +1,10 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/client";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/components/tabs";
+import { Button } from "@ui/components/button";
+import { PlusIcon } from "lucide-react";
 import { Suspense, useState } from "react";
-import { CreateRoleForm } from "./CreateRoleForm";
+import { CreateRoleDialog } from "./CreateRoleForm";
 import { EditRoleDialog } from "./EditRoleDialog";
 import { RolesList, RolesListSkeleton } from "./RolesList";
 
@@ -12,7 +13,7 @@ interface RolesBlockProps {
 }
 
 export function RolesBlock({ organizationId }: RolesBlockProps) {
-	const [activeTab, setActiveTab] = useState("list");
+	const [showCreate, setShowCreate] = useState(false);
 	const [editingRole, setEditingRole] = useState<{
 		id: string;
 		name: string;
@@ -22,30 +23,36 @@ export function RolesBlock({ organizationId }: RolesBlockProps) {
 	return (
 		<>
 			<SettingsItem
-				title="Roles"
-				description="Manage roles and permissions for your organization"
+				title={
+					<div className="flex items-center justify-between">
+						<span>Roles</span>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => setShowCreate(true)}
+							className="gap-1.5"
+						>
+							<PlusIcon className="size-3.5" />
+							Create Role
+						</Button>
+					</div>
+				}
+				description="Define roles with granular permissions to control what each team member can access"
+				fullWidth
 			>
-				<Tabs value={activeTab} onValueChange={setActiveTab}>
-					<TabsList className="mb-4">
-						<TabsTrigger value="list">Roles</TabsTrigger>
-						<TabsTrigger value="create">Create Role</TabsTrigger>
-					</TabsList>
-					<TabsContent value="list">
-						<Suspense fallback={<RolesListSkeleton />}>
-							<RolesList
-								organizationId={organizationId}
-								onEditRole={setEditingRole}
-							/>
-						</Suspense>
-					</TabsContent>
-					<TabsContent value="create">
-						<CreateRoleForm
-							organizationId={organizationId}
-							onSuccess={() => setActiveTab("list")}
-						/>
-					</TabsContent>
-				</Tabs>
+				<Suspense fallback={<RolesListSkeleton />}>
+					<RolesList
+						organizationId={organizationId}
+						onEditRole={setEditingRole}
+					/>
+				</Suspense>
 			</SettingsItem>
+
+			<CreateRoleDialog
+				organizationId={organizationId}
+				open={showCreate}
+				onOpenChange={setShowCreate}
+			/>
 
 			<EditRoleDialog
 				organizationId={organizationId}

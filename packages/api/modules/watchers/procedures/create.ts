@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, watcherAudit } from "@repo/auth/lib/audit";
 import { db, Prisma } from "@repo/database";
 import z from "zod";
@@ -39,15 +38,12 @@ export const create = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"watchers",
+			"create",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can create watchers",
-			});
-		}
 
 		const watcher = await db.watcher.create({
 			data: {

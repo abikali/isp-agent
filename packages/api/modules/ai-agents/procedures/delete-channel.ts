@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { decryptToken, telegram } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	aiChannelAudit,
 	getAuditContextFromHeaders,
@@ -23,15 +23,12 @@ export const deleteChannel = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"delete",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can delete channels",
-			});
-		}
 
 		const channel = await db.aiAgentChannel.findFirst({
 			where: { id: input.channelId },

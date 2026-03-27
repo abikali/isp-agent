@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	getAuditContextFromHeaders,
 	servicePlanAudit,
@@ -26,15 +25,12 @@ export const createServicePlan = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"servicePlans",
+			"create",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can create service plans",
-			});
-		}
 
 		const plan = await db.servicePlan.create({
 			data: {

@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -18,15 +18,12 @@ export const getDealer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"dealers",
+			"read",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const dealer = await db.ispDealer.findFirst({
 			where: {

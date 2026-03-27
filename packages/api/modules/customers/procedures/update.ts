@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import {
+	requirePermission,
+	verifyCustomerOwnership,
+} from "@repo/api/lib/permission";
 import {
 	customerAudit,
 	getAuditContextFromHeaders,
@@ -43,15 +46,12 @@ export const updateCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"customers",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can update customers",
-			});
-		}
 
 		const existing = await db.customer.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },
@@ -61,6 +61,8 @@ export const updateCustomer = protectedProcedure
 				message: "Customer not found",
 			});
 		}
+
+		await verifyCustomerOwnership(permCtx, "update", existing.collectorId);
 
 		const updateData: Record<string, unknown> = {};
 		if (input.firstName !== undefined) {

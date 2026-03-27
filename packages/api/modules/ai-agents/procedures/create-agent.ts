@@ -1,6 +1,5 @@
-import { ORPCError } from "@orpc/server";
 import { DEFAULT_PROMPT_SECTIONS } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { aiAgentAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -28,15 +27,12 @@ export const createAgent = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"create",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can create AI agents",
-			});
-		}
 
 		const agent = await db.aiAgent.create({
 			data: {

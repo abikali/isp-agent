@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { createId } from "@paralleldrive/cuid2";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { getSignedUploadUrl } from "@repo/storage";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -51,15 +51,12 @@ export const uploadChatAttachment = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		if (!isAllowedMimeType(input.contentType)) {
 			throw new ORPCError("BAD_REQUEST", {

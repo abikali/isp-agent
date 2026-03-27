@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -18,34 +18,36 @@ export const get = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
-			input.organizationId,
-			user.id,
-		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
-
-		const watcher = await db.watcher.findFirst({
-			where: {
-				id: input.watcherId,
-				organizationId: input.organizationId,
-			},
-			include: {
-				executions: {
-					orderBy: { createdAt: "desc" },
-					take: 5,
+		const [{ permCtx }, watcher] = await Promise.all([
+			requirePermission(
+				input.organizationId,
+				user.id,
+				"watchers",
+				"read",
+			),
+			db.watcher.findFirst({
+				where: {
+					id: input.watcherId,
+					organizationId: input.organizationId,
 				},
-			},
-		});
+				include: {
+					executions: {
+						orderBy: { createdAt: "desc" },
+						take: 5,
+					},
+				},
+			}),
+		]);
 
 		if (!watcher) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Watcher not found",
 			});
 		}
+
+		verifyPermission(permCtx, "watchers", "read", {
+			resourceCreatedById: watcher.createdById,
+		});
 
 		return { watcher };
 	});

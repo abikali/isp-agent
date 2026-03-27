@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { aiAgentAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -62,24 +62,26 @@ export const updateAgent = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can update AI agents",
-			});
-		}
 
 		const existing = await db.aiAgent.findFirst({
 			where: { id: input.agentId, organizationId: input.organizationId },
+			select: { id: true, createdById: true, maintenanceMessage: true },
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Agent not found",
 			});
 		}
+
+		verifyPermission(permCtx, "aiAgents", "update", {
+			resourceCreatedById: existing.createdById,
+		});
 
 		// Validate: maintenanceMessage required when enabling maintenanceMode
 		if (input.maintenanceMode === true) {

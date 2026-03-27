@@ -7,8 +7,23 @@ import { db } from "@repo/database";
 export type MemberRole = "owner" | "admin" | "member";
 
 /**
+ * Short-lived cache for custom role permissions.
+ * Avoids repeated DB lookups when multiple API calls from the same
+ * user hit the server concurrently (e.g., dashboard loading 5 queries).
+ * Entries expire after 5 seconds — enough to deduplicate concurrent
+ * requests from the same page load without staling after role edits.
+ */
+const rolePermissionCache = new Map<
+	string,
+	{ data: Record<string, string[]> | undefined; expiresAt: number }
+>();
+
+const ROLE_CACHE_TTL_MS = 5_000;
+
+/**
  * Fetch role permissions for custom (non-system) roles.
  * Returns undefined for system roles or if permissions not found.
+ * Results are cached for 30 seconds to avoid redundant DB queries.
  */
 async function fetchRolePermissions(
 	organizationId: string,
@@ -16,6 +31,12 @@ async function fetchRolePermissions(
 ): Promise<Record<string, string[]> | undefined> {
 	if (isSystemRole(role)) {
 		return undefined;
+	}
+
+	const cacheKey = `${organizationId}:${role}`;
+	const cached = rolePermissionCache.get(cacheKey);
+	if (cached && cached.expiresAt > Date.now()) {
+		return cached.data;
 	}
 
 	const customRole = await db.organizationRole.findUnique({
@@ -27,15 +48,31 @@ async function fetchRolePermissions(
 		},
 	});
 
+	let result: Record<string, string[]> | undefined;
 	if (customRole?.permission) {
 		try {
-			return JSON.parse(customRole.permission);
+			result = JSON.parse(customRole.permission);
 		} catch {
-			return undefined;
+			result = undefined;
 		}
 	}
 
-	return undefined;
+	rolePermissionCache.set(cacheKey, {
+		data: result,
+		expiresAt: Date.now() + ROLE_CACHE_TTL_MS,
+	});
+
+	// Lazy cleanup: remove expired entries when cache grows
+	if (rolePermissionCache.size > 100) {
+		const now = Date.now();
+		for (const [key, entry] of rolePermissionCache) {
+			if (entry.expiresAt <= now) {
+				rolePermissionCache.delete(key);
+			}
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -65,9 +102,6 @@ export async function verifyOrganizationMembership(
 				userId,
 			},
 		},
-		include: {
-			organization: true,
-		},
 	});
 
 	if (!member) {
@@ -80,88 +114,4 @@ export async function verifyOrganizationMembership(
 	);
 
 	return { ...member, rolePermissions };
-}
-
-/**
- * Verify that a user is an admin (owner or admin role) of an organization.
- * Returns true if user has admin privileges, false otherwise.
- */
-export async function isOrganizationAdmin(
-	organizationId: string,
-	userId: string,
-): Promise<boolean> {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	return member ? isAdminRole(member.role as MemberRole) : false;
-}
-
-/**
- * Verify that a user is the owner of an organization.
- * Returns true if user is the owner, false otherwise.
- */
-export async function isOrganizationOwner(
-	organizationId: string,
-	userId: string,
-): Promise<boolean> {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	return member?.role === "owner";
-}
-
-/**
- * Check if user is an organization member.
- * Returns the member record if found, null otherwise.
- * Callers should handle the null case (typically throwing FORBIDDEN).
- */
-export async function checkOrganizationMembership(
-	organizationId: string,
-	userId: string,
-) {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	if (!member) {
-		return null;
-	}
-	return member;
-}
-
-/**
- * Check if user is an organization admin (owner or admin role).
- * Returns the member record if user has admin privileges, null otherwise.
- * Callers should handle the null case (typically throwing FORBIDDEN).
- */
-export async function checkOrganizationAdmin(
-	organizationId: string,
-	userId: string,
-) {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	if (!member || !isAdminRole(member.role as MemberRole)) {
-		return null;
-	}
-	return member;
-}
-
-/**
- * Check if user is the organization owner.
- * Returns the member record if user is owner, null otherwise.
- * Callers should handle the null case (typically throwing FORBIDDEN).
- */
-export async function checkOrganizationOwner(
-	organizationId: string,
-	userId: string,
-) {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	if (!member || member.role !== "owner") {
-		return null;
-	}
-	return member;
-}
-
-/**
- * Get user's role in an organization.
- * Returns the role string or null if not a member.
- */
-export async function getUserRole(
-	organizationId: string,
-	userId: string,
-): Promise<MemberRole | null> {
-	const member = await verifyOrganizationMembership(organizationId, userId);
-	return member ? (member.role as MemberRole) : null;
 }

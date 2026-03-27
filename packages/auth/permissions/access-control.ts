@@ -23,13 +23,40 @@ export const permissionStatement = {
 	connections: ["create", "read", "update", "delete", "sync"],
 
 	// AI & Monitoring
-	aiAgents: ["create", "read", "update", "delete"],
-	watchers: ["create", "read", "update", "delete"],
+	aiAgents: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
+	watchers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
 
 	// ISP Management
-	customers: ["create", "read", "update", "delete", "import", "export"],
+	customers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"import",
+		"export",
+	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
 		"read",
@@ -39,7 +66,17 @@ export const permissionStatement = {
 		"export",
 		"assign",
 	],
-	tasks: ["create", "read", "update", "delete", "assign"],
+	tasks: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"assign",
+	],
+	dealers: ["create", "read", "update", "delete"],
 
 	// Insights
 	audit: ["view"],
@@ -57,7 +94,14 @@ export const permissionStatement = {
  * For these resources, members may have "own only" restrictions
  * where they can only modify resources they created.
  */
-export const OWNERSHIP_RESOURCES = ["apiKeys", "billing"] as const;
+export const OWNERSHIP_RESOURCES = [
+	"apiKeys",
+	"billing",
+	"customers",
+	"tasks",
+	"watchers",
+	"aiAgents",
+] as const;
 export type OwnershipResource = (typeof OWNERSHIP_RESOURCES)[number];
 
 /**
@@ -67,6 +111,10 @@ export type OwnershipResource = (typeof OWNERSHIP_RESOURCES)[number];
 export const SCOPED_ACTIONS: Record<OwnershipResource, readonly string[]> = {
 	apiKeys: ["read", "delete"],
 	billing: ["collect"],
+	customers: ["read", "update", "delete"],
+	tasks: ["read", "update", "delete"],
+	watchers: ["read", "update", "delete"],
+	aiAgents: ["read", "update", "delete"],
 } as const;
 
 /**
@@ -128,8 +176,10 @@ export const PERMISSION_GROUPS = {
 			"customers",
 			"servicePlans",
 			"stations",
+			"accessPoints",
 			"employees",
 			"tasks",
+			"dealers",
 			"inventory",
 			"installations",
 		] as const,

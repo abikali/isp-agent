@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	getSystemRolePermissions,
 	isSystemRole,
 	SYSTEM_ROLES,
 	type SystemRole,
@@ -12,16 +13,19 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Skeleton } from "@ui/components/skeleton";
-import { Table, TableBody, TableCell, TableRow } from "@ui/components/table";
 import {
+	CrownIcon,
 	EyeIcon,
 	MoreVerticalIcon,
 	PencilIcon,
+	ShieldCheckIcon,
 	ShieldIcon,
 	TrashIcon,
+	UserIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -32,30 +36,58 @@ import {
 } from "../../hooks/use-roles";
 import { ViewSystemRoleDialog } from "./ViewSystemRoleDialog";
 
-/**
- * Loading skeleton for the roles list.
- * Used as Suspense fallback when data is being fetched.
- */
 export function RolesListSkeleton() {
 	return (
-		<div className="rounded-md border">
-			<div className="divide-y">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<div
-						key={i}
-						className="flex items-center justify-between p-4"
-					>
-						<div className="flex items-center gap-2">
-							<Skeleton className="size-4" />
+		<div className="space-y-2">
+			{Array.from({ length: 4 }).map((_, i) => (
+				<div
+					key={i}
+					className="flex items-center justify-between rounded-lg border p-4"
+				>
+					<div className="flex items-center gap-3">
+						<Skeleton className="size-9 rounded-lg" />
+						<div className="space-y-1.5">
 							<Skeleton className="h-4 w-24" />
-							<Skeleton className="h-5 w-20" />
+							<Skeleton className="h-3 w-40" />
 						</div>
-						<Skeleton className="size-8" />
 					</div>
-				))}
-			</div>
+					<Skeleton className="size-8" />
+				</div>
+			))}
 		</div>
 	);
+}
+
+const SYSTEM_ROLE_ICONS: Record<SystemRole, typeof ShieldIcon> = {
+	owner: CrownIcon,
+	admin: ShieldCheckIcon,
+	member: UserIcon,
+};
+
+const SYSTEM_ROLE_DESCRIPTIONS: Record<SystemRole, string> = {
+	owner: "Full access to everything including organization deletion",
+	admin: "Full access except organization deletion",
+	member: "Read-only access to most resources",
+};
+
+function countActions(perms: Record<string, unknown>): number {
+	return Object.values(perms).reduce(
+		(sum: number, actions) =>
+			sum + (Array.isArray(actions) ? actions.length : 0),
+		0,
+	);
+}
+
+function getPermissionCount(permissions: string): number {
+	try {
+		return countActions(JSON.parse(permissions));
+	} catch {
+		return 0;
+	}
+}
+
+function getSystemPermissionCount(role: SystemRole): number {
+	return countActions(getSystemRolePermissions(role));
 }
 
 interface RolesListProps {
@@ -67,16 +99,11 @@ interface RolesListProps {
 	}) => void;
 }
 
-/**
- * Roles list component using Suspense for data fetching.
- * MUST be wrapped in a Suspense boundary with RolesListSkeleton as fallback.
- */
 export function RolesList({ organizationId, onEditRole }: RolesListProps) {
 	const { data: customRoles } = useSuspenseQuery(
 		organizationRolesQueryOptions(organizationId),
 	);
 	const deleteRoleMutation = useDeleteRoleMutation(organizationId);
-	const systemRoleLabels = ORGANIZATION_MEMBER_ROLES;
 
 	const [viewingSystemRole, setViewingSystemRole] =
 		useState<SystemRole | null>(null);
@@ -95,89 +122,139 @@ export function RolesList({ organizationId, onEditRole }: RolesListProps) {
 		});
 	};
 
-	// Combine system roles with custom roles
-	const allRoles = [
-		...SYSTEM_ROLES.map((role) => ({
-			id: role,
-			name: role,
-			isSystem: true,
-			label: systemRoleLabels[role],
-			permissions: "",
-		})),
-		...(customRoles?.roles || []).map((r) => ({
-			id: r.id,
-			name: r.role,
-			isSystem: false,
-			label: r.role,
-			permissions: JSON.stringify(r.permission),
-		})),
-	];
+	const customRolesList = (customRoles?.roles || []).map((r) => ({
+		id: r.id,
+		name: r.role,
+		permissions: JSON.stringify(r.permission),
+	}));
 
 	return (
-		<div className="rounded-md border">
-			<Table>
-				<TableBody>
-					{allRoles.map((role) => (
-						<TableRow key={role.id}>
-							<TableCell>
-								<div className="flex items-center gap-2">
-									{role.isSystem && (
-										<ShieldIcon className="size-4 text-muted-foreground" />
-									)}
-									<span className="font-medium">
-										{role.label}
-									</span>
-									{role.isSystem && (
-										<Badge variant="secondary">
-											System Role
-										</Badge>
-									)}
+		<div className="space-y-4">
+			{/* System roles */}
+			<div>
+				<p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+					System Roles
+				</p>
+				<div className="space-y-2">
+					{SYSTEM_ROLES.map((role) => {
+						const Icon = SYSTEM_ROLE_ICONS[role];
+						const permCount = getSystemPermissionCount(role);
+						return (
+							<div
+								key={role}
+								className="group flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+							>
+								<div className="flex items-center gap-3">
+									<div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+										<Icon className="size-4 text-muted-foreground" />
+									</div>
+									<div>
+										<div className="flex items-center gap-2">
+											<span className="text-sm font-medium">
+												{
+													ORGANIZATION_MEMBER_ROLES[
+														role
+													]
+												}
+											</span>
+											<Badge
+												variant="secondary"
+												className="text-[10px] px-1.5 py-0"
+											>
+												System
+											</Badge>
+										</div>
+										<p className="text-xs text-muted-foreground">
+											{SYSTEM_ROLE_DESCRIPTIONS[role]}
+										</p>
+									</div>
 								</div>
-							</TableCell>
-							<TableCell className="text-right">
-								{role.isSystem ? (
+								<div className="flex items-center gap-2">
+									<span className="hidden text-xs text-muted-foreground sm:inline">
+										{permCount} permissions
+									</span>
 									<Button
 										size="icon"
 										variant="ghost"
+										className="size-8"
 										onClick={() =>
-											setViewingSystemRole(
-												role.name as SystemRole,
-											)
+											setViewingSystemRole(role)
 										}
 									>
-										<EyeIcon className="size-4" />
+										<EyeIcon className="size-3.5" />
 									</Button>
-								) : (
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+
+			{/* Custom roles */}
+			{customRolesList.length > 0 && (
+				<div>
+					<p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+						Custom Roles
+					</p>
+					<div className="space-y-2">
+						{customRolesList.map((role) => {
+							const permCount = getPermissionCount(
+								role.permissions,
+							);
+							return (
+								<div
+									key={role.id}
+									className="group flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+								>
+									<div className="flex items-center gap-3">
+										<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+											<ShieldIcon className="size-4 text-primary" />
+										</div>
+										<div>
+											<span className="text-sm font-medium">
+												{role.name}
+											</span>
+											<p className="text-xs text-muted-foreground">
+												{permCount} permissions
+												configured
+											</p>
+										</div>
+									</div>
 									<DropdownMenu>
 										<DropdownMenuTrigger asChild>
-											<Button size="icon" variant="ghost">
-												<MoreVerticalIcon className="size-4" />
+											<Button
+												size="icon"
+												variant="ghost"
+												className="size-8"
+											>
+												<MoreVerticalIcon className="size-3.5" />
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
 											<DropdownMenuItem
 												onClick={() => onEditRole(role)}
 											>
-												<PencilIcon className="mr-2 size-4" />
-												Edit
+												<PencilIcon className="mr-2 size-3.5" />
+												Edit Permissions
 											</DropdownMenuItem>
+											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												className="text-destructive"
 												onClick={() =>
 													handleDelete(role.name)
 												}
 											>
-												<TrashIcon className="mr-2 size-4" />
-												Delete
+												<TrashIcon className="mr-2 size-3.5" />
+												Delete Role
 											</DropdownMenuItem>
 										</DropdownMenuContent>
 									</DropdownMenu>
-								)}
-							</TableCell>
-						</TableRow>
-					))}
-				</TableBody>
-			</Table>
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			)}
 
 			<ViewSystemRoleDialog
 				role={viewingSystemRole}

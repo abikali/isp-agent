@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	ISP_ROLE_TEMPLATES,
 	type IspRoleTemplate,
@@ -34,15 +34,12 @@ export const inviteEmployee = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"employees",
+			"create",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can invite employees",
-			});
-		}
 
 		// 1. Load employee
 		const employee = await db.employee.findFirst({

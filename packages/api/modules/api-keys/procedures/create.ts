@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { createId } from "@paralleldrive/cuid2";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { apiKeyAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db, getOrganizationById } from "@repo/database";
 import z from "zod";
@@ -37,16 +37,12 @@ export const createApiKey = protectedProcedure
 				});
 			}
 
-			// Only admins/owners can create API keys
-			const member = await checkOrganizationAdmin(
+			await requirePermission(
 				organizationId,
 				user.id,
+				"apiKeys",
+				"create",
 			);
-			if (!member) {
-				throw new ORPCError("FORBIDDEN", {
-					message: "Only organization admins can create API keys",
-				});
-			}
 
 			// Generate the key
 			const { plainKey, keyHash, keyPrefix } = generateApiKey();

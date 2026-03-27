@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import {
 	employeeAudit,
 	getAuditContextFromHeaders,
@@ -38,15 +37,12 @@ export const bulkExportEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await verifyOrganizationMembership(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"employees",
+			"export",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,

@@ -1,6 +1,5 @@
-import { ORPCError } from "@orpc/server";
 import { testTelegramConfig as runTest } from "@repo/ai";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -19,16 +18,12 @@ export const testTelegramConfig = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message:
-					"Only organization admins can test AI agent tool configuration",
-			});
-		}
 
 		return runTest(input.botToken, input.chatIds);
 	});

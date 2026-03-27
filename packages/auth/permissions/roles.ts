@@ -18,6 +18,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["create", "read", "update", "delete", "import", "export"],
 		servicePlans: ["create", "read", "update", "delete"],
 		stations: ["create", "read", "update", "delete"],
+		accessPoints: ["create", "read", "update", "delete"],
 		employees: [
 			"create",
 			"read",
@@ -28,6 +29,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
+		dealers: ["create", "read", "update", "delete"],
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
@@ -52,6 +54,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["create", "read", "update", "delete", "import", "export"],
 		servicePlans: ["create", "read", "update", "delete"],
 		stations: ["create", "read", "update", "delete"],
+		accessPoints: ["create", "read", "update", "delete"],
 		employees: [
 			"create",
 			"read",
@@ -62,6 +65,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
+		dealers: ["create", "read", "update", "delete"],
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
@@ -81,8 +85,10 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["read"],
 		servicePlans: ["read"],
 		stations: ["read"],
+		accessPoints: ["read"],
 		employees: ["read"],
 		tasks: ["read"],
+		dealers: ["read"],
 		// Integrations - read only own
 		apiKeys: ["read:own"],
 		connections: ["read"],
@@ -100,12 +106,39 @@ export const owner = ac.newRole({
 	invitation: ["create", "cancel"],
 	ac: ["create", "read", "update", "delete"],
 	// AI & Monitoring - full access
-	aiAgents: ["create", "read", "update", "delete"],
-	watchers: ["create", "read", "update", "delete"],
+	aiAgents: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
+	watchers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
 	// ISP Management - full access
-	customers: ["create", "read", "update", "delete", "import", "export"],
+	customers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"import",
+		"export",
+	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
 		"read",
@@ -115,7 +148,17 @@ export const owner = ac.newRole({
 		"export",
 		"assign",
 	],
-	tasks: ["create", "read", "update", "delete", "assign"],
+	tasks: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"assign",
+	],
+	dealers: ["create", "read", "update", "delete"],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
@@ -139,12 +182,39 @@ export const admin = ac.newRole({
 	invitation: ["create", "cancel"],
 	ac: ["create", "read", "update", "delete"],
 	// AI & Monitoring - full access
-	aiAgents: ["create", "read", "update", "delete"],
-	watchers: ["create", "read", "update", "delete"],
+	aiAgents: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
+	watchers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+	],
 	// ISP Management - full access
-	customers: ["create", "read", "update", "delete", "import", "export"],
+	customers: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"import",
+		"export",
+	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
 		"read",
@@ -154,7 +224,17 @@ export const admin = ac.newRole({
 		"export",
 		"assign",
 	],
-	tasks: ["create", "read", "update", "delete", "assign"],
+	tasks: [
+		"create",
+		"read",
+		"read:own",
+		"update",
+		"update:own",
+		"delete",
+		"delete:own",
+		"assign",
+	],
+	dealers: ["create", "read", "update", "delete"],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
@@ -180,10 +260,12 @@ export const member = ac.newRole({
 	customers: ["read"],
 	servicePlans: ["read"],
 	stations: ["read"],
+	accessPoints: ["read"],
 	employees: ["read"],
 	tasks: ["read"],
+	dealers: ["read"],
 	// Integrations - read only
-	apiKeys: ["read"],
+	apiKeys: ["read", "read:own"],
 	connections: ["read"],
 });
 
@@ -278,9 +360,9 @@ export const ISP_ROLE_TEMPLATES = {
 		description:
 			"Field payment collector — sees assigned customers, records payments",
 		permissions: {
-			customers: ["read"],
+			customers: ["read:own"],
 			billing: ["view", "collect:own"],
-			tasks: ["read"],
+			tasks: ["read:own"],
 		},
 	},
 	field_tech: {
@@ -288,7 +370,7 @@ export const ISP_ROLE_TEMPLATES = {
 		description: "Field worker — manages installations, stock, and tasks",
 		permissions: {
 			customers: ["read"],
-			tasks: ["create", "read", "update"],
+			tasks: ["create", "read:own", "update:own"],
 			inventory: ["read", "update"],
 			installations: ["create", "read", "update"],
 			stations: ["read"],
@@ -296,9 +378,9 @@ export const ISP_ROLE_TEMPLATES = {
 	},
 	dealer: {
 		label: "Dealer",
-		description: "Reseller — views customers, plans, and own account",
+		description: "Reseller — views own customers, plans, and own account",
 		permissions: {
-			customers: ["read"],
+			customers: ["read:own"],
 			servicePlans: ["read"],
 			billing: ["view"],
 		},
@@ -319,7 +401,9 @@ export const ISP_ROLE_TEMPLATES = {
 			employees: ["read", "update"],
 			servicePlans: ["read", "update"],
 			stations: ["read", "update"],
+			accessPoints: ["read", "update"],
 			tasks: ["create", "read", "update", "delete", "assign"],
+			dealers: ["read"],
 			billing: ["view", "manage", "collect"],
 			inventory: ["create", "read", "update", "delete"],
 			installations: ["create", "read", "update", "approve"],

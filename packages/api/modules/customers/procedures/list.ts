@@ -1,5 +1,7 @@
-import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import {
+	getOwnershipFilterAsync,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -32,18 +34,22 @@ export const listCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"customers",
+			"read",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
+
+		const ownerFilter = await getOwnershipFilterAsync(
+			permCtx,
+			"customers",
+			"read",
+		);
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			...ownerFilter,
 		};
 
 		if (input.status) {

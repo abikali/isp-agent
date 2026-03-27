@@ -11,7 +11,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { Label } from "@ui/components/label";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useUpdateRoleMutation } from "../../hooks/use-roles";
@@ -36,7 +35,6 @@ export function EditRoleDialog({
 }: EditRoleDialogProps) {
 	const updateRoleMutation = useUpdateRoleMutation(organizationId);
 
-	// Parse permissions from JSON string
 	const parsePermissions = useCallback(
 		(permissionsStr: string): PermissionRecord => {
 			try {
@@ -77,7 +75,6 @@ export function EditRoleDialog({
 		},
 	});
 
-	// Reset form when role changes
 	useEffect(() => {
 		if (role) {
 			form.reset({
@@ -90,11 +87,17 @@ export function EditRoleDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
 				<DialogHeader>
-					<DialogTitle>Edit Role</DialogTitle>
+					<DialogTitle>
+						Edit Role{" "}
+						<span className="font-mono text-muted-foreground">
+							{role?.name}
+						</span>
+					</DialogTitle>
 					<DialogDescription>
-						Edit permissions for the {role?.name ?? ""} role.
+						Update the permissions for this role. Changes apply
+						immediately to all members with this role.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -108,17 +111,10 @@ export function EditRoleDialog({
 				>
 					<form.Field name="permissions">
 						{(field) => (
-							<div className="space-y-2">
-								<Label>Permissions</Label>
-								<RolePermissionsGrid
-									value={
-										field.state.value as PermissionRecord
-									}
-									onChange={(value) =>
-										field.handleChange(value)
-									}
-								/>
-							</div>
+							<RolePermissionsGrid
+								value={field.state.value as PermissionRecord}
+								onChange={(v) => field.handleChange(v)}
+							/>
 						)}
 					</form.Field>
 
@@ -131,7 +127,7 @@ export function EditRoleDialog({
 							Cancel
 						</Button>
 						<Button type="submit" disabled={isSubmitting}>
-							{isSubmitting ? "Updating..." : "Update Role"}
+							{isSubmitting ? "Saving..." : "Save Changes"}
 						</Button>
 					</DialogFooter>
 				</form>

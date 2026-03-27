@@ -7,7 +7,7 @@ import {
 	sendMediaMessage,
 	sendTextMessage,
 } from "@repo/ai";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -46,15 +46,12 @@ export const sendAdminMessage = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"aiAgents",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const conversation = await db.aiConversation.findFirst({
 			where: { id: input.conversationId },

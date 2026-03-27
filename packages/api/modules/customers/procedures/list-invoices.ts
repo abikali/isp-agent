@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { checkOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -20,15 +19,12 @@ export const listCustomerInvoices = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationMembership(
+		await requirePermission(
 			input.organizationId,
 			user.id,
+			"customers",
+			"read",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Not a member of this organization",
-			});
-		}
 
 		const [invoices, total] = await Promise.all([
 			db.customerInvoice.findMany({

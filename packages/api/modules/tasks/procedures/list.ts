@@ -1,5 +1,8 @@
-import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import {
+	getActionScope,
+	getUserEmployeeId,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -48,19 +51,36 @@ export const listTasks = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"tasks",
+			"read",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "You must be a member of this organization",
-			});
-		}
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 		};
+
+		// Composite own filter: tasks created by user OR assigned to user's employee
+		// Uses AND to avoid conflicting with the search OR clause
+		const scope = getActionScope(permCtx, "tasks", "read");
+		if (scope === "own") {
+			const empId = await getUserEmployeeId(
+				input.organizationId,
+				user.id,
+			);
+			where["AND"] = [
+				{
+					OR: [
+						{ createdById: user.id },
+						...(empId
+							? [{ assignments: { some: { employeeId: empId } } }]
+							: []),
+					],
+				},
+			];
+		}
 
 		if (input.status) {
 			where["status"] = input.status;

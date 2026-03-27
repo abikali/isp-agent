@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { queueWatcherCheck } from "@repo/jobs";
 import z from "zod";
@@ -19,15 +19,12 @@ export const runNow = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await checkOrganizationAdmin(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"watchers",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can trigger watcher checks",
-			});
-		}
 
 		const watcher = await db.watcher.findFirst({
 			where: {
@@ -39,6 +36,7 @@ export const runNow = protectedProcedure
 				type: true,
 				target: true,
 				config: true,
+				createdById: true,
 			},
 		});
 
@@ -47,6 +45,10 @@ export const runNow = protectedProcedure
 				message: "Watcher not found",
 			});
 		}
+
+		verifyPermission(permCtx, "watchers", "update", {
+			resourceCreatedById: watcher.createdById,
+		});
 
 		await queueWatcherCheck({
 			watcherId: watcher.id,

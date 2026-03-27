@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { checkOrganizationAdmin } from "@repo/api/lib/membership";
+import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, watcherAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -20,15 +20,12 @@ export const toggleEnabled = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const member = await checkOrganizationAdmin(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"watchers",
+			"update",
 		);
-		if (!member) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can toggle watchers",
-			});
-		}
 
 		const existing = await db.watcher.findFirst({
 			where: {
@@ -41,6 +38,10 @@ export const toggleEnabled = protectedProcedure
 				message: "Watcher not found",
 			});
 		}
+
+		verifyPermission(permCtx, "watchers", "update", {
+			resourceCreatedById: existing.createdById,
+		});
 
 		const updateData: Record<string, unknown> = {
 			enabled: input.enabled,

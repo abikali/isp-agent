@@ -9,7 +9,12 @@ import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
-import { orpc } from "@shared/lib/orpc";
+import { orpc, type orpcClient } from "@shared/lib/orpc";
+import type {
+	FormAsyncValidateOrFn,
+	FormValidateOrFn,
+	ReactFormExtendedApi,
+} from "@tanstack/react-form";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -69,6 +74,75 @@ import {
 import { CustomerInvoices } from "./CustomerInvoices";
 import { CustomerTransactions } from "./CustomerTransactions";
 
+// ─── Type Definitions ──────────────────────────────────────────────────
+
+type CustomerData = Awaited<
+	ReturnType<typeof orpcClient.customers.get>
+>["customer"];
+
+type PlanItem = Awaited<
+	ReturnType<typeof orpcClient.servicePlans.list>
+>["plans"][number];
+
+type StationItem = Awaited<
+	ReturnType<typeof orpcClient.stations.list>
+>["stations"][number];
+
+function getCustomerFormDefaults(customer: CustomerData) {
+	return {
+		firstName: customer.firstName ?? "",
+		lastName: customer.lastName ?? "",
+		email: customer.email ?? "",
+		phone: customer.phone ?? "",
+		mobile: customer.mobile ?? "",
+		address: customer.address ?? "",
+		username: customer.username ?? "",
+		planId: customer.planId ?? "",
+		stationId: customer.stationId ?? "",
+		status: customer.status,
+		connectionType: customer.connectionType ?? "",
+		ipAddress: customer.ipAddress ?? "",
+		macAddress: customer.macAddress ?? "",
+		monthlyRate: customer.monthlyRate?.toString() ?? "",
+		billingDay: customer.billingDay?.toString() ?? "",
+		balance: customer.balance.toString(),
+		notes: customer.notes ?? "",
+	};
+}
+
+type CustomerFormValues = ReturnType<typeof getCustomerFormDefaults>;
+
+// TanStack Form's ReactFormExtendedApi requires all validator type params to be specified
+type CustomerForm = ReactFormExtendedApi<
+	CustomerFormValues,
+	undefined | FormValidateOrFn<CustomerFormValues>,
+	undefined | FormValidateOrFn<CustomerFormValues>,
+	undefined | FormAsyncValidateOrFn<CustomerFormValues>,
+	undefined | FormValidateOrFn<CustomerFormValues>,
+	undefined | FormAsyncValidateOrFn<CustomerFormValues>,
+	undefined | FormValidateOrFn<CustomerFormValues>,
+	undefined | FormAsyncValidateOrFn<CustomerFormValues>,
+	undefined | FormValidateOrFn<CustomerFormValues>,
+	undefined | FormAsyncValidateOrFn<CustomerFormValues>,
+	undefined | FormAsyncValidateOrFn<CustomerFormValues>,
+	unknown
+>;
+
+interface ActivityTabProps {
+	customer: CustomerData;
+	customerId: string;
+	organizationId: string | null;
+	generatedPin: string | null;
+	setGeneratedPin: (pin: string | null) => void;
+	showSetPin: boolean;
+	setShowSetPin: (show: boolean) => void;
+	manualPin: string;
+	setManualPin: (pin: string) => void;
+	handleSetPin: () => void;
+	generatePin: ReturnType<typeof useGenerateCustomerPin>;
+	resetPin: ReturnType<typeof useResetCustomerPin>;
+}
+
 export function CustomerDetail({
 	customerId,
 	organizationSlug,
@@ -100,25 +174,7 @@ export function CustomerDetail({
 	const customer = data.customer;
 
 	const form = useForm({
-		defaultValues: {
-			firstName: customer.firstName ?? "",
-			lastName: customer.lastName ?? "",
-			email: customer.email ?? "",
-			phone: customer.phone ?? "",
-			mobile: customer.mobile ?? "",
-			address: customer.address ?? "",
-			username: customer.username ?? "",
-			planId: customer.planId ?? "",
-			stationId: customer.stationId ?? "",
-			status: customer.status,
-			connectionType: customer.connectionType ?? "",
-			ipAddress: customer.ipAddress ?? "",
-			macAddress: customer.macAddress ?? "",
-			monthlyRate: customer.monthlyRate?.toString() ?? "",
-			billingDay: customer.billingDay?.toString() ?? "",
-			balance: customer.balance.toString(),
-			notes: customer.notes ?? "",
-		},
+		defaultValues: getCustomerFormDefaults(customer),
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
 				return;
@@ -342,118 +398,99 @@ export function CustomerDetail({
 
 // ─── Tab Content Components ────────────────────────────────────────────
 
-// biome-ignore lint/suspicious/noExplicitAny: form type is complex
 function OverviewTab({
 	form,
 	customer,
 	plans,
 	stations,
 }: {
-	form: any;
-	customer: any;
-	plans: any[];
-	stations: any[];
+	form: CustomerForm;
+	customer: CustomerData;
+	plans: PlanItem[];
+	stations: StationItem[];
 }) {
 	return (
 		<>
 			<DetailSection title="Personal Information">
 				<FieldGroup columns={2}>
 					<form.Field name="firstName">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>First Name</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>First Name</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="lastName">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Last Name</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Last Name</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="email">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Email</Label>
-									<Input
-										type="email"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Email</Label>
+								<Input
+									type="email"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="phone">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Phone</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Phone</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="mobile">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Mobile</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Mobile</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="address">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Address</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Address</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 				</FieldGroup>
 			</DetailSection>
@@ -461,60 +498,48 @@ function OverviewTab({
 			<DetailSection title="Service & Connection">
 				<FieldGroup columns={3}>
 					<form.Field name="planId">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Plan</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select plan" />
-										</SelectTrigger>
-										<SelectContent>
-											{plans.map((p) => (
-												<SelectItem
-													key={p.id}
-													value={p.id}
-												>
-													{p.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Plan</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={field.handleChange}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select plan" />
+									</SelectTrigger>
+									<SelectContent>
+										{plans.map((p) => (
+											<SelectItem key={p.id} value={p.id}>
+												{p.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="stationId">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Station</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select station" />
-										</SelectTrigger>
-										<SelectContent>
-											{stations.map((s) => (
-												<SelectItem
-													key={s.id}
-													value={s.id}
-												>
-													{s.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Station</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={field.handleChange}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select station" />
+									</SelectTrigger>
+									<SelectContent>
+										{stations.map((s) => (
+											<SelectItem key={s.id} value={s.id}>
+												{s.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 					</form.Field>
 					{customer.accessPoint && (
 						<ReadOnlyField
@@ -523,107 +548,96 @@ function OverviewTab({
 						/>
 					)}
 					<form.Field name="status">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Status</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{CUSTOMER_STATUS_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
-											)}
-										</SelectContent>
-									</Select>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Status</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={(value) =>
+										field.handleChange(
+											value as typeof field.state.value,
+										)
+									}
+								>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{CUSTOMER_STATUS_OPTIONS.map((opt) => (
+											<SelectItem
+												key={opt.value}
+												value={opt.value}
+											>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="connectionType">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Connection Type</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select type" />
-										</SelectTrigger>
-										<SelectContent>
-											{CONNECTION_TYPE_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
-											)}
-										</SelectContent>
-									</Select>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Connection Type</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={(value) =>
+										field.handleChange(
+											value as typeof field.state.value,
+										)
+									}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select type" />
+									</SelectTrigger>
+									<SelectContent>
+										{CONNECTION_TYPE_OPTIONS.map((opt) => (
+											<SelectItem
+												key={opt.value}
+												value={opt.value}
+											>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="username">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>PPPoE Username</Label>
-									<Input
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>PPPoE Username</Label>
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 				</FieldGroup>
 			</DetailSection>
 
 			<DetailSection title="Notes">
 				<form.Field name="notes">
-					{
-						// biome-ignore lint/suspicious/noExplicitAny: form render prop
-						(field: any) => (
-							<Textarea
-								value={field.state.value}
-								onChange={(e) =>
-									field.handleChange(e.target.value)
-								}
-								rows={3}
-								placeholder="Add notes about this customer..."
-							/>
-						)
-					}
+					{(field) => (
+						<Textarea
+							value={field.state.value}
+							onChange={(e) => field.handleChange(e.target.value)}
+							rows={3}
+							placeholder="Add notes about this customer..."
+						/>
+					)}
 				</form.Field>
 			</DetailSection>
 		</>
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: customer type from query
-function NetworkTab({ customer }: { customer: any }) {
+function NetworkTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>
 			<DetailSection title="Connection Details">
@@ -791,68 +805,64 @@ function NetworkTab({ customer }: { customer: any }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: form and customer types
-function BillingTab({ form, customer }: { form: any; customer: any }) {
+function BillingTab({
+	form,
+	customer,
+}: {
+	form: CustomerForm;
+	customer: CustomerData;
+}) {
 	return (
 		<>
 			<DetailSection title="Billing">
 				<FieldGroup columns={3}>
 					<form.Field name="monthlyRate">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Monthly Rate ($)</Label>
-									<Input
-										type="number"
-										min={0}
-										step="0.01"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Use plan price"
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Monthly Rate ($)</Label>
+								<Input
+									type="number"
+									min={0}
+									step="0.01"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="Use plan price"
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="billingDay">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Billing Day (1-28)</Label>
-									<Input
-										type="number"
-										min={1}
-										max={28}
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Billing Day (1-28)</Label>
+								<Input
+									type="number"
+									min={1}
+									max={28}
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 					<form.Field name="balance">
-						{
-							// biome-ignore lint/suspicious/noExplicitAny: form render prop
-							(field: any) => (
-								<div className="space-y-2">
-									<Label>Balance ($)</Label>
-									<Input
-										type="number"
-										step="0.01"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)
-						}
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Balance ($)</Label>
+								<Input
+									type="number"
+									step="0.01"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
 					</form.Field>
 				</FieldGroup>
 				<FieldGroup columns={4}>
@@ -978,7 +988,6 @@ function FinancialTab({ customerId }: { customerId: string }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: many props passed through
 function ActivityTab({
 	customer,
 	customerId,
@@ -992,7 +1001,7 @@ function ActivityTab({
 	handleSetPin,
 	generatePin,
 	resetPin,
-}: any) {
+}: ActivityTabProps) {
 	return (
 		<>
 			{(customer.latitude || customer.longitude) && (
@@ -1125,8 +1134,7 @@ function ActivityTab({
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: customer type from query
-function SyncTab({ customer }: { customer: any }) {
+function SyncTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>
 			<DetailSection title="iRadius Metadata">
