@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useEmployeesQuery } from "../../employees/hooks/use-employees";
 import {
 	useDeleteCustomer,
 	useGenerateCustomerPin,
@@ -88,6 +89,10 @@ type StationItem = Awaited<
 	ReturnType<typeof orpcClient.stations.list>
 >["stations"][number];
 
+type EmployeeItem = Awaited<
+	ReturnType<typeof orpcClient.employees.list>
+>["employees"][number];
+
 function getCustomerFormDefaults(customer: CustomerData) {
 	return {
 		firstName: customer.firstName ?? "",
@@ -107,6 +112,7 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		billingDay: customer.billingDay?.toString() ?? "",
 		balance: customer.balance.toString(),
 		notes: customer.notes ?? "",
+		collectorId: customer.collectorId ?? "",
 	};
 }
 
@@ -158,6 +164,7 @@ export function CustomerDetail({
 	const setPin = useSetCustomerPin();
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
+	const { employees } = useEmployeesQuery();
 	const [generatedPin, setGeneratedPin] = useState<string | null>(null);
 	const [showSetPin, setShowSetPin] = useState(false);
 	const [manualPin, setManualPin] = useState("");
@@ -213,6 +220,7 @@ export function CustomerDetail({
 						: null,
 					balance: Number(value.balance),
 					notes: value.notes || undefined,
+					collectorId: value.collectorId || null,
 				}),
 				{
 					loading: "Saving changes...",
@@ -338,6 +346,7 @@ export function CustomerDetail({
 									customer={customer}
 									plans={plans}
 									stations={stations}
+									employees={employees}
 								/>
 							),
 						},
@@ -403,11 +412,13 @@ function OverviewTab({
 	customer,
 	plans,
 	stations,
+	employees,
 }: {
 	form: CustomerForm;
 	customer: CustomerData;
 	plans: PlanItem[];
 	stations: StationItem[];
+	employees: EmployeeItem[];
 }) {
 	return (
 		<>
@@ -534,6 +545,33 @@ function OverviewTab({
 										{stations.map((s) => (
 											<SelectItem key={s.id} value={s.id}>
 												{s.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
+					</form.Field>
+					<form.Field name="collectorId">
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Collector</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={field.handleChange}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select collector" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="">
+											<span className="text-muted-foreground">
+												None
+											</span>
+										</SelectItem>
+										{employees.map((e) => (
+											<SelectItem key={e.id} value={e.id}>
+												{e.name}
 											</SelectItem>
 										))}
 									</SelectContent>

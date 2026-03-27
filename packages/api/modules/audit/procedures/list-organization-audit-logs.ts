@@ -1,5 +1,4 @@
-import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { getOrganizationAuditLogs } from "@repo/audit";
 import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -33,24 +32,12 @@ export const listOrganizationAuditLogs = protectedProcedure
 			},
 			context,
 		}) => {
-			// Ensure user is a member of the organization
-			const membership = await verifyOrganizationMembership(
+			await requirePermission(
 				organizationId,
 				context.user.id,
+				"audit",
+				"view",
 			);
-
-			if (!membership) {
-				throw new ORPCError("FORBIDDEN", {
-					message: "Access denied",
-				});
-			}
-
-			// Only admins and owners can view audit logs
-			if (membership.role !== "admin" && membership.role !== "owner") {
-				throw new ORPCError("FORBIDDEN", {
-					message: "Access denied",
-				});
-			}
 
 			const params: {
 				limit: number;

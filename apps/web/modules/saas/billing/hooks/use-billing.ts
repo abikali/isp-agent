@@ -235,6 +235,133 @@ export function useReactivateAccount() {
 	});
 }
 
+// ─── Collectors ─────────────────────────────────────────────────
+
+export function useCollectors() {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId
+			? orpc.billing.collectors.list.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "collectors", "list"]),
+	);
+}
+
+export function useCollectorBalance(collectorId: string | null) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId && collectorId
+			? orpc.billing.collectors.balance.queryOptions({
+					input: { organizationId, collectorId },
+				})
+			: disabledQuery(["billing", "collectors", "balance"]),
+	);
+}
+
+export function useCollectorStats(collectorId?: string) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId
+			? orpc.billing.collectors.stats.queryOptions({
+					input: { organizationId, collectorId },
+				})
+			: disabledQuery(["billing", "collectors", "stats"]),
+	);
+}
+
+// ─── Cash Collections ───────────────────────────────────────────
+
+export function useCollections(filters: {
+	collectorId?: string;
+	dateFrom?: string;
+	dateTo?: string;
+	page?: number;
+	pageSize?: number;
+}) {
+	const organizationId = useOrganizationId();
+
+	return useSuspenseQuery(
+		orpc.billing.collections.list.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				...filters,
+				page: filters.page ?? 1,
+				pageSize: filters.pageSize ?? 25,
+			},
+		}),
+	);
+}
+
+export function useCreateCollection() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.collections.create.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+		},
+	});
+}
+
+export function useDeleteCollection() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.collections.delete.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+		},
+	});
+}
+
+// ─── Delete Payment ─────────────────────────────────────────────
+
+export function useDeletePayment() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.delete.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.collectors.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+// ─── Reports ────────────────────────────────────────────────────
+
+export function useAccountingReports(
+	scope: "month" | "all" = "month",
+	billingCycleId?: string,
+) {
+	const organizationId = useOrganizationId();
+
+	return useSuspenseQuery(
+		orpc.billing.reports.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				scope,
+				billingCycleId,
+			},
+		}),
+	);
+}
+
 // ─── Billing Sync ───────────────────────────────────────────────
 
 export function useTestBilling() {

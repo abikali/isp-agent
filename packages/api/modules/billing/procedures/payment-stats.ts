@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	requirePermission,
+	resolveCollectorScope,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -17,7 +20,7 @@ export const getPaymentStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -40,10 +43,15 @@ export const getPaymentStats = protectedProcedure
 			cycleId = cycle?.id;
 		}
 
-		const baseWhere = {
+		const baseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			...(cycleId ? { billingCycleId: cycleId } : {}),
 		};
+
+		const { scope, employeeId } = await resolveCollectorScope(permCtx);
+		if (scope === "own" && employeeId) {
+			baseWhere["collectorId"] = employeeId;
+		}
 
 		const [
 			totalPayments,

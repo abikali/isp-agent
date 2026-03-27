@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { AgentStats, AgentStatsSkeleton } from "@saas/ai-agents/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
@@ -21,11 +22,16 @@ function StatsPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<div>
-			<h1 className="mb-6 text-2xl font-bold">Agent Statistics</h1>
-			<AsyncBoundary fallback={<AgentStatsSkeleton />}>
-				<AgentStats agentId={agentId} organizationId={organizationId} />
-			</AsyncBoundary>
-		</div>
+		<PermissionGate resource="aiAgents" action="read">
+			<div>
+				<h1 className="mb-6 text-2xl font-bold">Agent Statistics</h1>
+				<AsyncBoundary fallback={<AgentStatsSkeleton />}>
+					<AgentStats
+						agentId={agentId}
+						organizationId={organizationId}
+					/>
+				</AsyncBoundary>
+			</div>
+		</PermissionGate>
 	);
 }

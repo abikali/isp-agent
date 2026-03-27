@@ -1,8 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import {
-	getActionScope,
 	getPermissionContext,
+	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
 import type { PaymentNoteCategory, PaymentStatus } from "@repo/database";
@@ -61,22 +61,11 @@ export const createPayment = protectedProcedure
 		);
 		verifyPermission(permCtx, "billing", "collect");
 
-		// If scope is "own", ensure collectorId matches the user's employee
-		const scope = getActionScope(permCtx, "billing", "collect");
-		if (scope === "own") {
-			const emp = await db.employee.findFirst({
-				where: {
-					organizationId: input.organizationId,
-					userId: user.id,
-				},
-				select: { id: true },
+		const { scope, employeeId } = await resolveCollectorScope(permCtx);
+		if (scope === "own" && employeeId !== input.collectorId) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "Can only record payments for your own collections",
 			});
-			if (!emp || emp.id !== input.collectorId) {
-				throw new ORPCError("FORBIDDEN", {
-					message:
-						"Can only record payments for your own collections",
-				});
-			}
 		}
 
 		// Verify customer exists

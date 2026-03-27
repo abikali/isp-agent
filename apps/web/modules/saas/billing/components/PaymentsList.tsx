@@ -7,6 +7,17 @@ import { SearchInput } from "@shared/components/SearchInput";
 import { displayName } from "@shared/lib/display-name";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@ui/components/alert-dialog";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Skeleton } from "@ui/components/skeleton";
@@ -18,10 +29,14 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
-import { CheckIcon, ListIcon } from "lucide-react";
+import { CheckIcon, ListIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { usePayments, useProcessPayment } from "../hooks/use-billing";
+import {
+	useDeletePayment,
+	usePayments,
+	useProcessPayment,
+} from "../hooks/use-billing";
 
 const STATUS_VARIANT: Record<
 	string,
@@ -56,6 +71,7 @@ export function PaymentsList() {
 
 	const organizationId = useOrganizationId();
 	const processPayment = useProcessPayment();
+	const deletePayment = useDeletePayment();
 
 	return (
 		<PageShell title="Payments" description={`${total} payment records`}>
@@ -160,40 +176,112 @@ export function PaymentsList() {
 												"—"}
 										</TableCell>
 										<TableCell>
-											{payment.status !== "PROCESSED" &&
-												organizationId && (
-													<Button
-														size="sm"
-														variant="ghost"
-														disabled={
-															processPayment.isPending
-														}
-														onClick={() =>
-															processPayment.mutate(
-																{
-																	organizationId,
-																	paymentId:
-																		payment.id,
-																},
-																{
-																	onSuccess:
-																		() =>
-																			toast.success(
-																				"Payment processed",
-																			),
-																	onError: (
-																		error,
-																	) =>
-																		toast.error(
-																			error.message,
-																		),
-																},
-															)
-														}
-													>
-														<CheckIcon className="size-3.5" />
-													</Button>
+											<div className="flex items-center gap-1">
+												{payment.status !==
+													"PROCESSED" &&
+													organizationId && (
+														<Button
+															size="sm"
+															variant="ghost"
+															disabled={
+																processPayment.isPending
+															}
+															onClick={() =>
+																processPayment.mutate(
+																	{
+																		organizationId,
+																		paymentId:
+																			payment.id,
+																	},
+																	{
+																		onSuccess:
+																			() =>
+																				toast.success(
+																					"Payment processed",
+																				),
+																		onError:
+																			(
+																				error,
+																			) =>
+																				toast.error(
+																					error.message,
+																				),
+																	},
+																)
+															}
+														>
+															<CheckIcon className="size-3.5" />
+														</Button>
+													)}
+												{organizationId && (
+													<AlertDialog>
+														<AlertDialogTrigger
+															asChild
+														>
+															<Button
+																size="sm"
+																variant="ghost"
+																className="text-destructive"
+															>
+																<TrashIcon className="size-3.5" />
+															</Button>
+														</AlertDialogTrigger>
+														<AlertDialogContent>
+															<AlertDialogHeader>
+																<AlertDialogTitle>
+																	Delete
+																	payment?
+																</AlertDialogTitle>
+																<AlertDialogDescription>
+																	This will
+																	permanently
+																	delete this
+																	payment of $
+																	{payment.paidAmount.toFixed(
+																		2,
+																	)}{" "}
+																	and reset
+																	the
+																	customer&apos;s
+																	paid status.
+																</AlertDialogDescription>
+															</AlertDialogHeader>
+															<AlertDialogFooter>
+																<AlertDialogCancel>
+																	Cancel
+																</AlertDialogCancel>
+																<AlertDialogAction
+																	onClick={() =>
+																		deletePayment.mutate(
+																			{
+																				organizationId,
+																				paymentId:
+																					payment.id,
+																			},
+																			{
+																				onSuccess:
+																					() =>
+																						toast.success(
+																							"Payment deleted",
+																						),
+																				onError:
+																					(
+																						error,
+																					) =>
+																						toast.error(
+																							error.message,
+																						),
+																			},
+																		)
+																	}
+																>
+																	Delete
+																</AlertDialogAction>
+															</AlertDialogFooter>
+														</AlertDialogContent>
+													</AlertDialog>
 												)}
+											</div>
 										</TableCell>
 									</TableRow>
 								))}

@@ -2,12 +2,149 @@ import type { Prisma } from "@repo/database";
 import { db } from "@repo/database";
 import { queryBilling, withBillingConnection } from "@repo/database/billing";
 import { logger } from "@repo/logs";
+import { hashPassword } from "@repo/utils/password";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { BILLING_SYNC_QUEUE_NAME } from "../queues/billing-sync.queue";
 import type { BillingSyncJobData, BillingSyncJobResult } from "../types";
 
 const BATCH_SIZE = 500;
+const DEFAULT_COLLECTOR_PASSWORD = "123456";
+
+/**
+ * ISP role permission templates — inlined to avoid circular dependency
+ * (@repo/auth → @repo/notifications → @repo/jobs → @repo/auth).
+ * Keep in sync with ISP_ROLE_TEMPLATES in packages/auth/permissions/roles.ts.
+ */
+const ISP_ROLE_TEMPLATES: Record<
+	string,
+	{ permissions: Record<string, string[]> }
+> = {
+	collector: {
+		permissions: {
+			customers: ["read:own"],
+			billing: ["view", "collect:own"],
+			tasks: ["read:own"],
+		},
+	},
+	field_tech: {
+		permissions: {
+			customers: ["read"],
+			tasks: ["create", "read:own", "update:own"],
+			inventory: ["read", "update"],
+			installations: ["create", "read", "update"],
+			stations: ["read"],
+		},
+	},
+};
+
+/** Map billing system role names to ISP_ROLE_TEMPLATES keys */
+const BILLING_TO_ISP_ROLE: Record<string, string> = {
+	collector: "collector",
+	worker: "field_tech",
+};
+
+/**
+ * Ensure an employee has a User + Account + Member for login access.
+ * Reused by both new-employee creation (Phase 0) and backfill (Phase 0b).
+ */
+async function ensureEmployeeLogin(params: {
+	organizationId: string;
+	employeeId: string;
+	name: string;
+	email: string;
+	role: string;
+	hashedPassword: string;
+}): Promise<void> {
+	const { organizationId, employeeId, name, email, role, hashedPassword } =
+		params;
+
+	let targetUser = await db.user.findFirst({
+		where: { email: { equals: email, mode: "insensitive" } },
+	});
+
+	if (!targetUser) {
+		targetUser = await db.user.create({
+			data: {
+				name,
+				email,
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+
+		await db.account.create({
+			data: {
+				accountId: targetUser.id,
+				providerId: "credential",
+				userId: targetUser.id,
+				password: hashedPassword,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+	}
+
+	const existingMember = await db.member.findUnique({
+		where: {
+			organizationId_userId: { organizationId, userId: targetUser.id },
+		},
+	});
+	if (!existingMember) {
+		await db.member.create({
+			data: {
+				organizationId,
+				userId: targetUser.id,
+				role,
+				createdAt: new Date(),
+			},
+		});
+	}
+
+	await db.employee.update({
+		where: { id: employeeId },
+		data: { userId: targetUser.id, email },
+	});
+
+	logger.info(`[Billing Sync] Created login for ${name} (${role})`);
+}
+
+/**
+ * Ensure ISP roles exist in the organization for the given role types.
+ */
+async function ensureOrgRoles(
+	organizationId: string,
+	roleTypes: Set<string>,
+	addError: (phase: string, detail: string) => void,
+) {
+	for (const roleType of roleTypes) {
+		const ispRole = BILLING_TO_ISP_ROLE[roleType] ?? roleType;
+		const template = ISP_ROLE_TEMPLATES[ispRole];
+		if (!template) {
+			continue;
+		}
+		try {
+			await db.organizationRole.upsert({
+				where: {
+					organizationId_role: { organizationId, role: roleType },
+				},
+				update: {},
+				create: {
+					organizationId,
+					role: roleType,
+					permission: JSON.stringify(template.permissions),
+				},
+			});
+		} catch (err) {
+			addError(
+				"employees",
+				`Failed to ensure role ${roleType}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+	}
+}
+
 const MAX_ERRORS = 50;
 
 /** MySQL returns decimal columns as strings — parse to float safely. */
@@ -62,10 +199,12 @@ async function processBillingSync(
 			startedAt: new Date(),
 		});
 
+		// Pre-compute shared resources for employee phases
+		const hashedPassword = await hashPassword(DEFAULT_COLLECTOR_PASSWORD);
+
 		await withBillingConnection(async (conn) => {
 			// ── Phase 0: Create admin-confirmed employees ────────────
-			// The preview step identified unmatched billing employees.
-			// The admin confirmed which ones to create before starting sync.
+			// For collectors: also create User + Account + Member so they can log in.
 
 			if (createEmployees.length > 0) {
 				const lastEmp = await db.employee.findFirst({
@@ -90,17 +229,25 @@ async function processBillingSync(
 					worker: "Field Technician",
 				};
 
+				const roleTypesNeeded = new Set(
+					createEmployees.map((e) => e.role),
+				);
+				await ensureOrgRoles(organizationId, roleTypesNeeded, addError);
+
 				for (const emp of createEmployees) {
 					try {
 						const empNumber = `EMP-${String(nextEmpNum).padStart(5, "0")}`;
 						nextEmpNum++;
 
-						await db.employee.create({
+						const email = `${emp.username.toLowerCase()}@libancom.local`;
+
+						const newEmployee = await db.employee.create({
 							data: {
 								organizationId,
 								employeeNumber: empNumber,
 								name: emp.username,
 								username: emp.username,
+								email,
 								phone: emp.phone,
 								department: ROLE_DEPT[emp.role] ?? "FIELD_OPS",
 								position:
@@ -108,6 +255,21 @@ async function processBillingSync(
 								status: "ACTIVE",
 							},
 						});
+
+						if (
+							ISP_ROLE_TEMPLATES[
+								BILLING_TO_ISP_ROLE[emp.role] ?? emp.role
+							]
+						) {
+							await ensureEmployeeLogin({
+								organizationId,
+								employeeId: newEmployee.id,
+								name: emp.username,
+								email,
+								role: emp.role,
+								hashedPassword,
+							});
+						}
 					} catch (err) {
 						addError(
 							"employees",
@@ -117,7 +279,60 @@ async function processBillingSync(
 				}
 			}
 
-			// ── Build lookup maps ─────────────────────────────────��──
+			// ── Phase 0b: Ensure existing BILLING/FIELD_OPS employees have logins
+			// Employees matched from iRadius sync may exist without User accounts.
+
+			const employeesWithoutLogin = await db.employee.findMany({
+				where: {
+					organizationId,
+					department: { in: ["BILLING", "FIELD_OPS"] },
+					userId: null,
+				},
+				select: {
+					id: true,
+					name: true,
+					username: true,
+					department: true,
+				},
+			});
+
+			if (employeesWithoutLogin.length > 0) {
+				const rolesNeeded = new Set(
+					employeesWithoutLogin.map((e) =>
+						e.department === "BILLING" ? "collector" : "worker",
+					),
+				);
+				await ensureOrgRoles(organizationId, rolesNeeded, addError);
+
+				for (const emp of employeesWithoutLogin) {
+					try {
+						const uname =
+							emp.username ??
+							emp.name.toLowerCase().replace(/\s+/g, "");
+						const email = `${uname.toLowerCase()}@libancom.local`;
+						const role =
+							emp.department === "BILLING"
+								? "collector"
+								: "worker";
+
+						await ensureEmployeeLogin({
+							organizationId,
+							employeeId: emp.id,
+							name: emp.name,
+							email,
+							role,
+							hashedPassword,
+						});
+					} catch (err) {
+						addError(
+							"employees",
+							`Login for ${emp.name}: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					}
+				}
+			}
+
+			// ── Build lookup maps ────────────────────────────────────
 
 			const employees = await db.employee.findMany({
 				where: { organizationId },

@@ -164,13 +164,14 @@ export function hasPermission(
 		return true;
 	}
 
-	// Scope is "own" - verify ownership
+	// Scope is "own" — if ownership info is provided, verify it.
+	// If not provided, return true (user has the base permission;
+	// callers enforce scope via getOwnershipFilterAsync or verifyCustomerOwnership).
 	if (ownership) {
 		return ownership.resourceCreatedById === userId;
 	}
 
-	// Action is restricted but no ownership info provided
-	return false;
+	return true;
 }
 
 /**
@@ -339,6 +340,26 @@ export async function getOwnershipFilterAsync(
 	}
 
 	return undefined;
+}
+
+/**
+ * Resolve collector scope for billing:collect permission.
+ * Returns the scope and the user's employee ID (if scope is "own").
+ *
+ * Use in billing procedures that need to filter or verify by collector.
+ */
+export async function resolveCollectorScope(
+	context: PermissionContext,
+): Promise<{ scope: "all" | "own"; employeeId: string | null }> {
+	const scope = getActionScope(context, "billing", "collect");
+	if (scope === "own") {
+		const employeeId = await getUserEmployeeId(
+			context.organizationId,
+			context.userId,
+		);
+		return { scope, employeeId };
+	}
+	return { scope, employeeId: null };
 }
 
 // ─── Resource-Specific Ownership Helpers ─────────────────────

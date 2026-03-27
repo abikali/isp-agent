@@ -209,6 +209,7 @@ export function ActiveOrganizationProvider({
 					!!activeOrganization &&
 					!!user &&
 					isOrganizationAdmin(activeOrganization, user),
+				permissions: identityData?.permissions ?? {},
 				employee: identityData?.employee ?? null,
 				dealer: identityData?.dealer ?? null,
 				setActiveOrganization,

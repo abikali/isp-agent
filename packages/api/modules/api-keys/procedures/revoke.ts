@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { requirePermission } from "@repo/api/lib/permission";
 import { apiKeyAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -19,7 +19,6 @@ export const revokeApiKey = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input: { id } }) => {
-		// Find the API key
 		const apiKey = await db.apiKey.findUnique({
 			where: { id },
 			select: {
@@ -40,22 +39,12 @@ export const revokeApiKey = protectedProcedure
 			});
 		}
 
-		// Verify membership and permissions
-		const membership = await verifyOrganizationMembership(
+		await requirePermission(
 			apiKey.organizationId,
 			user.id,
+			"apiKeys",
+			"delete",
 		);
-
-		if (!membership) {
-			throw new ORPCError("FORBIDDEN");
-		}
-
-		// Only admins/owners can revoke API keys
-		if (membership.role !== "owner" && membership.role !== "admin") {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only organization admins can revoke API keys",
-			});
-		}
 
 		// Revoke the key
 		await db.apiKey.update({

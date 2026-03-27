@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { StationsList, StationsListSkeleton } from "@saas/customers/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
@@ -14,8 +15,10 @@ export const Route = createFileRoute(
 
 function StationsPage() {
 	return (
-		<AsyncBoundary fallback={<StationsListSkeleton />}>
-			<StationsList />
-		</AsyncBoundary>
+		<PermissionGate resource="stations" action="read">
+			<AsyncBoundary fallback={<StationsListSkeleton />}>
+				<StationsList />
+			</AsyncBoundary>
+		</PermissionGate>
 	);
 }

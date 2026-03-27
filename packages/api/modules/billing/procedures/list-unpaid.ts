@@ -1,4 +1,7 @@
-import { getActionScope, requirePermission } from "@repo/api/lib/permission";
+import {
+	requirePermission,
+	resolveCollectorScope,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -36,19 +39,9 @@ export const listUnpaidCustomers = protectedProcedure
 			status: "ACTIVE",
 		};
 
-		// If scope is "own", auto-filter to this collector's customers
-		const scope = getActionScope(permCtx, "billing", "collect");
-		if (scope === "own") {
-			const emp = await db.employee.findFirst({
-				where: {
-					organizationId: input.organizationId,
-					userId: user.id,
-				},
-				select: { id: true },
-			});
-			if (emp) {
-				where["collectorId"] = emp.id;
-			}
+		const { scope, employeeId } = await resolveCollectorScope(permCtx);
+		if (scope === "own" && employeeId) {
+			where["collectorId"] = employeeId;
 		} else if (input.collectorId) {
 			where["collectorId"] = input.collectorId;
 		}

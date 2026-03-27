@@ -32,6 +32,7 @@
 	},
 	"dependencies": {
 		"@paralleldrive/cuid2": "3.0.6",
+		"@repo/utils": "workspace:*",
 		"@prisma/adapter-pg": "^7.1.0",
 		"@prisma/client": "7.1.0",
 		"mysql2": "^3.20.0",

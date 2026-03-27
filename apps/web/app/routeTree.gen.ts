@@ -78,7 +78,9 @@ import { Route as SaasAppOrgOrganizationSlugCustomersAccessPointsRouteImport } f
 import { Route as SaasAppOrgOrganizationSlugCustomersCustomerIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/$customerId"
 import { Route as SaasAppOrgOrganizationSlugConversationsConversationIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/conversations/$conversationId"
 import { Route as SaasAppOrgOrganizationSlugBillingStoppedRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/stopped"
+import { Route as SaasAppOrgOrganizationSlugBillingReportsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/reports"
 import { Route as SaasAppOrgOrganizationSlugBillingPaymentsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/payments"
+import { Route as SaasAppOrgOrganizationSlugBillingCollectionsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/collections"
 import { Route as SaasAppOrgOrganizationSlugBillingCollectRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/collect"
 import { Route as SaasAppAccountAdminOrganizationsIdRouteImport } from "./routes/_saas/app/_account/admin/organizations/$id"
 import { Route as SaasAppOrgOrganizationSlugWatchersWatcherIdIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/watchers/$watcherId/index"
@@ -482,10 +484,22 @@ const SaasAppOrgOrganizationSlugBillingStoppedRoute =
     path: "/billing/stopped",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
+const SaasAppOrgOrganizationSlugBillingReportsRoute =
+  SaasAppOrgOrganizationSlugBillingReportsRouteImport.update({
+    id: "/billing/reports",
+    path: "/billing/reports",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugBillingPaymentsRoute =
   SaasAppOrgOrganizationSlugBillingPaymentsRouteImport.update({
     id: "/billing/payments",
     path: "/billing/payments",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugBillingCollectionsRoute =
+  SaasAppOrgOrganizationSlugBillingCollectionsRouteImport.update({
+    id: "/billing/collections",
+    path: "/billing/collections",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
 const SaasAppOrgOrganizationSlugBillingCollectRoute =
@@ -579,7 +593,9 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/app/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
   "/app/$organizationSlug/billing/collect": typeof SaasAppOrgOrganizationSlugBillingCollectRoute
+  "/app/$organizationSlug/billing/collections": typeof SaasAppOrgOrganizationSlugBillingCollectionsRoute
   "/app/$organizationSlug/billing/payments": typeof SaasAppOrgOrganizationSlugBillingPaymentsRoute
+  "/app/$organizationSlug/billing/reports": typeof SaasAppOrgOrganizationSlugBillingReportsRoute
   "/app/$organizationSlug/billing/stopped": typeof SaasAppOrgOrganizationSlugBillingStoppedRoute
   "/app/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
   "/app/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
@@ -651,7 +667,9 @@ export interface FileRoutesByTo {
   "/app/settings": typeof SaasAppAccountSettingsIndexRoute
   "/app/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
   "/app/$organizationSlug/billing/collect": typeof SaasAppOrgOrganizationSlugBillingCollectRoute
+  "/app/$organizationSlug/billing/collections": typeof SaasAppOrgOrganizationSlugBillingCollectionsRoute
   "/app/$organizationSlug/billing/payments": typeof SaasAppOrgOrganizationSlugBillingPaymentsRoute
+  "/app/$organizationSlug/billing/reports": typeof SaasAppOrgOrganizationSlugBillingReportsRoute
   "/app/$organizationSlug/billing/stopped": typeof SaasAppOrgOrganizationSlugBillingStoppedRoute
   "/app/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
   "/app/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
@@ -734,7 +752,9 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/_saas/app/_account/admin/organizations/$id": typeof SaasAppAccountAdminOrganizationsIdRoute
   "/_saas/app/_org/$organizationSlug/billing/collect": typeof SaasAppOrgOrganizationSlugBillingCollectRoute
+  "/_saas/app/_org/$organizationSlug/billing/collections": typeof SaasAppOrgOrganizationSlugBillingCollectionsRoute
   "/_saas/app/_org/$organizationSlug/billing/payments": typeof SaasAppOrgOrganizationSlugBillingPaymentsRoute
+  "/_saas/app/_org/$organizationSlug/billing/reports": typeof SaasAppOrgOrganizationSlugBillingReportsRoute
   "/_saas/app/_org/$organizationSlug/billing/stopped": typeof SaasAppOrgOrganizationSlugBillingStoppedRoute
   "/_saas/app/_org/$organizationSlug/conversations/$conversationId": typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
   "/_saas/app/_org/$organizationSlug/customers/$customerId": typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
@@ -813,7 +833,9 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/"
     | "/app/admin/organizations/$id"
     | "/app/$organizationSlug/billing/collect"
+    | "/app/$organizationSlug/billing/collections"
     | "/app/$organizationSlug/billing/payments"
+    | "/app/$organizationSlug/billing/reports"
     | "/app/$organizationSlug/billing/stopped"
     | "/app/$organizationSlug/conversations/$conversationId"
     | "/app/$organizationSlug/customers/$customerId"
@@ -885,7 +907,9 @@ export interface FileRouteTypes {
     | "/app/settings"
     | "/app/admin/organizations/$id"
     | "/app/$organizationSlug/billing/collect"
+    | "/app/$organizationSlug/billing/collections"
     | "/app/$organizationSlug/billing/payments"
+    | "/app/$organizationSlug/billing/reports"
     | "/app/$organizationSlug/billing/stopped"
     | "/app/$organizationSlug/conversations/$conversationId"
     | "/app/$organizationSlug/customers/$customerId"
@@ -967,7 +991,9 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/"
     | "/_saas/app/_account/admin/organizations/$id"
     | "/_saas/app/_org/$organizationSlug/billing/collect"
+    | "/_saas/app/_org/$organizationSlug/billing/collections"
     | "/_saas/app/_org/$organizationSlug/billing/payments"
+    | "/_saas/app/_org/$organizationSlug/billing/reports"
     | "/_saas/app/_org/$organizationSlug/billing/stopped"
     | "/_saas/app/_org/$organizationSlug/conversations/$conversationId"
     | "/_saas/app/_org/$organizationSlug/customers/$customerId"
@@ -1515,11 +1541,25 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugBillingStoppedRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
+    "/_saas/app/_org/$organizationSlug/billing/reports": {
+      id: "/_saas/app/_org/$organizationSlug/billing/reports"
+      path: "/billing/reports"
+      fullPath: "/app/$organizationSlug/billing/reports"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugBillingReportsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
     "/_saas/app/_org/$organizationSlug/billing/payments": {
       id: "/_saas/app/_org/$organizationSlug/billing/payments"
       path: "/billing/payments"
       fullPath: "/app/$organizationSlug/billing/payments"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugBillingPaymentsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/billing/collections": {
+      id: "/_saas/app/_org/$organizationSlug/billing/collections"
+      path: "/billing/collections"
+      fullPath: "/app/$organizationSlug/billing/collections"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugBillingCollectionsRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/billing/collect": {
@@ -1738,7 +1778,9 @@ interface SaasAppOrgOrganizationSlugRouteChildren {
   SaasAppOrgOrganizationSlugSettingsRoute: typeof SaasAppOrgOrganizationSlugSettingsRouteWithChildren
   SaasAppOrgOrganizationSlugIndexRoute: typeof SaasAppOrgOrganizationSlugIndexRoute
   SaasAppOrgOrganizationSlugBillingCollectRoute: typeof SaasAppOrgOrganizationSlugBillingCollectRoute
+  SaasAppOrgOrganizationSlugBillingCollectionsRoute: typeof SaasAppOrgOrganizationSlugBillingCollectionsRoute
   SaasAppOrgOrganizationSlugBillingPaymentsRoute: typeof SaasAppOrgOrganizationSlugBillingPaymentsRoute
+  SaasAppOrgOrganizationSlugBillingReportsRoute: typeof SaasAppOrgOrganizationSlugBillingReportsRoute
   SaasAppOrgOrganizationSlugBillingStoppedRoute: typeof SaasAppOrgOrganizationSlugBillingStoppedRoute
   SaasAppOrgOrganizationSlugConversationsConversationIdRoute: typeof SaasAppOrgOrganizationSlugConversationsConversationIdRoute
   SaasAppOrgOrganizationSlugCustomersCustomerIdRoute: typeof SaasAppOrgOrganizationSlugCustomersCustomerIdRoute
@@ -1770,8 +1812,12 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
     SaasAppOrgOrganizationSlugIndexRoute: SaasAppOrgOrganizationSlugIndexRoute,
     SaasAppOrgOrganizationSlugBillingCollectRoute:
       SaasAppOrgOrganizationSlugBillingCollectRoute,
+    SaasAppOrgOrganizationSlugBillingCollectionsRoute:
+      SaasAppOrgOrganizationSlugBillingCollectionsRoute,
     SaasAppOrgOrganizationSlugBillingPaymentsRoute:
       SaasAppOrgOrganizationSlugBillingPaymentsRoute,
+    SaasAppOrgOrganizationSlugBillingReportsRoute:
+      SaasAppOrgOrganizationSlugBillingReportsRoute,
     SaasAppOrgOrganizationSlugBillingStoppedRoute:
       SaasAppOrgOrganizationSlugBillingStoppedRoute,
     SaasAppOrgOrganizationSlugConversationsConversationIdRoute:

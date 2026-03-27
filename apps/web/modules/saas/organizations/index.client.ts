@@ -31,7 +31,11 @@ export * from "./components/RoleManagement";
 export { WebhooksList, WebhooksListSkeleton } from "./components/WebhooksList";
 export { ORGANIZATION_MEMBER_ROLES } from "./hooks/member-roles";
 // Hooks
-export { useActiveOrganization } from "./hooks/use-active-organization";
+export {
+	useActiveOrganization,
+	useCanAccess,
+	usePermissionScope,
+} from "./hooks/use-active-organization";
 // Hooks - API Keys & Webhooks
 export { apiKeysQueryOptions, useApiKeysQuery } from "./hooks/use-api-keys";
 export { useNavigationPermissions } from "./hooks/use-navigation-permissions";

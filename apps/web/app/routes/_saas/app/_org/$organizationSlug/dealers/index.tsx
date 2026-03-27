@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { DealersList, DealersListSkeleton } from "@saas/dealers/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
@@ -16,8 +17,10 @@ function DealersPage() {
 	const { organizationSlug } = Route.useParams();
 
 	return (
-		<AsyncBoundary fallback={<DealersListSkeleton />}>
-			<DealersList organizationSlug={organizationSlug} />
-		</AsyncBoundary>
+		<PermissionGate resource="dealers" action="read">
+			<AsyncBoundary fallback={<DealersListSkeleton />}>
+				<DealersList organizationSlug={organizationSlug} />
+			</AsyncBoundary>
+		</PermissionGate>
 	);
 }

@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { ConversationDetailPanel } from "@saas/ai-agents/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
 
@@ -22,22 +23,24 @@ function ConversationDetailPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<div className="h-[calc(100vh-130px)]">
-			<AsyncBoundary
-				fallback={
-					<div className="space-y-4 p-4">
-						<Skeleton className="h-8 w-48" />
-						<Skeleton className="h-64 w-full" />
-					</div>
-				}
-			>
-				<ConversationDetailPanel
-					conversationId={conversationId}
-					organizationId={organizationId}
-					organizationSlug={organizationSlug}
-					fullPage
-				/>
-			</AsyncBoundary>
-		</div>
+		<PermissionGate resource="aiAgents" action="read">
+			<div className="h-[calc(100vh-130px)]">
+				<AsyncBoundary
+					fallback={
+						<div className="space-y-4 p-4">
+							<Skeleton className="h-8 w-48" />
+							<Skeleton className="h-64 w-full" />
+						</div>
+					}
+				>
+					<ConversationDetailPanel
+						conversationId={conversationId}
+						organizationId={organizationId}
+						organizationSlug={organizationSlug}
+						fullPage
+					/>
+				</AsyncBoundary>
+			</div>
+		</PermissionGate>
 	);
 }

@@ -43,6 +43,7 @@ export const updateCustomer = protectedProcedure
 			billingDay: z.number().int().min(1).max(28).nullable().optional(),
 			balance: z.number().optional(),
 			notes: z.string().max(5000).optional(),
+			collectorId: z.string().nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -125,6 +126,29 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
+		}
+		if (input.collectorId !== undefined) {
+			if (input.collectorId) {
+				const employee = await db.employee.findFirst({
+					where: {
+						id: input.collectorId,
+						organizationId: input.organizationId,
+					},
+					select: { id: true, name: true, phone: true },
+				});
+				if (!employee) {
+					throw new ORPCError("NOT_FOUND", {
+						message: "Collector employee not found",
+					});
+				}
+				updateData["collectorId"] = input.collectorId;
+				updateData["collectorName"] = employee.name;
+				updateData["collectorPhone"] = employee.phone ?? null;
+			} else {
+				updateData["collectorId"] = null;
+				updateData["collectorName"] = null;
+				updateData["collectorPhone"] = null;
+			}
 		}
 
 		const customer = await db.customer.update({

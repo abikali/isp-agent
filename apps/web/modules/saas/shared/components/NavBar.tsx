@@ -1,7 +1,11 @@
 "use client";
 import { config } from "@repo/config";
 import { useSession } from "@saas/auth/client";
-import { useActiveOrganization } from "@saas/organizations/client";
+import {
+	useActiveOrganization,
+	useCanAccess,
+	usePermissionScope,
+} from "@saas/organizations/client";
 import { Logo } from "@shared/components/Logo";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
@@ -55,91 +59,128 @@ export function NavBar() {
 	const location = useLocation();
 	const pathname = location.pathname;
 	const { user } = useSession();
-	const {
-		activeOrganization,
-		loaded,
-		isOrganizationAdmin,
-		activeOrganizationUserRole,
-	} = useActiveOrganization();
+	const { activeOrganization, loaded, isOrganizationAdmin, permissions } =
+		useActiveOrganization();
+	const hasPermission = useCanAccess();
+	const getScope = usePermissionScope();
 	const { useSidebarLayout } = config.ui.saas;
 
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
 		: "/app";
 
-	// ── Build navigation ────────────────────────────────────────────
-
-	const dashboard: NavItem | null = activeOrganization
-		? {
-				label: "Dashboard",
-				href: basePath,
-				icon: LayoutDashboardIcon,
-				isActive: pathname === basePath || pathname === `${basePath}/`,
-			}
-		: null;
-
-	const navGroups: NavGroup[] = useMemo(() => {
+	const { dashboard, navGroups } = useMemo(() => {
 		if (!activeOrganization) {
-			return [];
+			return {
+				dashboard: null as NavItem | null,
+				navGroups: [] as NavGroup[],
+			};
 		}
+
+		// Wait for permissions to load for non-admins — prevents flash of unauthorized nav items
+		if (!isOrganizationAdmin && Object.keys(permissions).length === 0) {
+			return {
+				dashboard: null as NavItem | null,
+				navGroups: [] as NavGroup[],
+			};
+		}
+
+		const customersScope = getScope("customers", "read");
+		const canReadCustomers = customersScope !== null;
+		const canReadEmployees = hasPermission("employees", "read");
+		const canReadDealers = hasPermission("dealers", "read");
+		const canReadTasks = hasPermission("tasks", "read");
+		const canReadAiAgents = hasPermission("aiAgents", "read");
+		const canReadWatchers = hasPermission("watchers", "read");
+		const canViewBilling = hasPermission("billing", "view");
+		const canManageBilling = hasPermission("billing", "manage");
+		const canCollectBilling = hasPermission("billing", "collect");
 
 		const at = (href: string) =>
 			pathname === href || pathname === `${href}/`;
 		const under = (href: string) =>
 			pathname === href || pathname.startsWith(`${href}/`);
 
-		// "All Customers" is active at /customers and /customers/:id
-		// but NOT at /customers/plans, /customers/stations, /customers/access-points
+		const hasFullCustomerAccess =
+			isOrganizationAdmin || customersScope === "all";
+
+		const dashboardItem: NavItem | null = hasFullCustomerAccess
+			? {
+					label: "Dashboard",
+					href: basePath,
+					icon: LayoutDashboardIcon,
+					isActive:
+						pathname === basePath || pathname === `${basePath}/`,
+				}
+			: null;
+
+		// Active at /customers and /customers/:id but NOT sub-pages
 		const customersActive =
 			under(`${basePath}/customers`) &&
 			!under(`${basePath}/customers/plans`) &&
 			!under(`${basePath}/customers/stations`) &&
 			!under(`${basePath}/customers/access-points`);
 
-		return [
-			{
-				id: "subscribers",
-				label: "Subscribers",
-				icon: UsersIcon,
-				items: [
-					{
-						label: "All Customers",
-						href: `${basePath}/customers`,
-						icon: UsersIcon,
-						isActive: customersActive,
-					},
-					{
-						label: "Service Plans",
-						href: `${basePath}/customers/plans`,
-						icon: PackageIcon,
-						isActive: under(`${basePath}/customers/plans`),
-					},
-					{
-						label: "Stations",
-						href: `${basePath}/customers/stations`,
-						icon: RadioTowerIcon,
-						isActive: under(`${basePath}/customers/stations`),
-					},
-					{
-						label: "Access Points",
-						href: `${basePath}/customers/access-points`,
-						icon: WifiIcon,
-						isActive: under(`${basePath}/customers/access-points`),
-					},
-				],
-			},
-			// Billing — visible to admins, managers, and collectors
-			...(isOrganizationAdmin ||
-			["collector", "manager"].includes(activeOrganizationUserRole ?? "")
+		const groups: NavGroup[] = [
+			// Subscribers — requires customers:read (any scope)
+			...(canReadCustomers
+				? [
+						{
+							id: "subscribers",
+							label: "Subscribers",
+							icon: UsersIcon,
+							items: [
+								{
+									label: hasFullCustomerAccess
+										? "All Customers"
+										: "My Customers",
+									href: `${basePath}/customers`,
+									icon: UsersIcon,
+									isActive: customersActive,
+								},
+								// Plans, Stations, Access Points only for full access
+								...(hasFullCustomerAccess
+									? [
+											{
+												label: "Service Plans",
+												href: `${basePath}/customers/plans`,
+												icon: PackageIcon,
+												isActive: under(
+													`${basePath}/customers/plans`,
+												),
+											},
+											{
+												label: "Stations",
+												href: `${basePath}/customers/stations`,
+												icon: RadioTowerIcon,
+												isActive: under(
+													`${basePath}/customers/stations`,
+												),
+											},
+											{
+												label: "Access Points",
+												href: `${basePath}/customers/access-points`,
+												icon: WifiIcon,
+												isActive: under(
+													`${basePath}/customers/access-points`,
+												),
+											},
+										]
+									: []),
+							],
+						},
+					]
+				: []),
+			// Billing — visible to anyone with billing:view or billing:collect
+			...(canViewBilling || canCollectBilling
 				? [
 						{
 							id: "billing",
 							label: "Billing",
 							icon: DollarSignIcon,
 							items: [
-								// Dashboard, Payments, Stopped — admins and managers only
-								...(isOrganizationAdmin ||
-								activeOrganizationUserRole === "manager"
+								// Dashboard, Payments, Stopped, Collections, Reports — requires billing:manage
+								...(canManageBilling
 									? [
 											{
 												label: "Dashboard",
@@ -167,8 +208,7 @@ export function NavBar() {
 										`${basePath}/billing/collect`,
 									),
 								},
-								...(isOrganizationAdmin ||
-								activeOrganizationUserRole === "manager"
+								...(canManageBilling
 									? [
 											{
 												label: "Payments",
@@ -186,76 +226,138 @@ export function NavBar() {
 													`${basePath}/billing/stopped`,
 												),
 											},
+											{
+												label: "Collections",
+												href: `${basePath}/billing/collections`,
+												icon: BanknoteIcon,
+												isActive: under(
+													`${basePath}/billing/collections`,
+												),
+											},
+											{
+												label: "Reports",
+												href: `${basePath}/billing/reports`,
+												icon: DollarSignIcon,
+												isActive: under(
+													`${basePath}/billing/reports`,
+												),
+											},
 										]
 									: []),
 							],
 						},
 					]
 				: []),
-			{
-				id: "operations",
-				label: "Operations",
-				icon: ClipboardListIcon,
-				items: [
-					{
-						label: "Dealers",
-						href: `${basePath}/dealers`,
-						icon: HandshakeIcon,
-						isActive: under(`${basePath}/dealers`),
-					},
-					{
-						label: "Employees",
-						href: `${basePath}/employees`,
-						icon: HardHatIcon,
-						isActive: under(`${basePath}/employees`),
-					},
-					{
-						label: "Tasks",
-						href: `${basePath}/tasks`,
-						icon: ClipboardListIcon,
-						isActive: under(`${basePath}/tasks`),
-					},
-				],
-			},
-			{
-				id: "intelligence",
-				label: "Intelligence",
-				icon: BotIcon,
-				items: [
-					{
-						label: "AI Agents",
-						href: `${basePath}/ai-agents`,
-						icon: BotIcon,
-						isActive: under(`${basePath}/ai-agents`),
-					},
-					{
-						label: "Conversations",
-						href: `${basePath}/conversations`,
-						icon: MessageSquareIcon,
-						isActive: under(`${basePath}/conversations`),
-					},
-					{
-						label: "Watchers",
-						href: `${basePath}/watchers`,
-						icon: EyeIcon,
-						isActive: under(`${basePath}/watchers`),
-					},
-				],
-			},
+			// Operations — requires at least one of dealers/employees/tasks read
+			...(canReadDealers || canReadEmployees || canReadTasks
+				? [
+						{
+							id: "operations",
+							label: "Operations",
+							icon: ClipboardListIcon,
+							items: [
+								...(canReadDealers
+									? [
+											{
+												label: "Dealers",
+												href: `${basePath}/dealers`,
+												icon: HandshakeIcon,
+												isActive: under(
+													`${basePath}/dealers`,
+												),
+											},
+										]
+									: []),
+								...(canReadEmployees
+									? [
+											{
+												label: "Employees",
+												href: `${basePath}/employees`,
+												icon: HardHatIcon,
+												isActive: under(
+													`${basePath}/employees`,
+												),
+											},
+										]
+									: []),
+								...(canReadTasks
+									? [
+											{
+												label: "Tasks",
+												href: `${basePath}/tasks`,
+												icon: ClipboardListIcon,
+												isActive: under(
+													`${basePath}/tasks`,
+												),
+											},
+										]
+									: []),
+							],
+						},
+					]
+				: []),
+			// Intelligence — requires aiAgents or watchers read
+			...(canReadAiAgents || canReadWatchers
+				? [
+						{
+							id: "intelligence",
+							label: "Intelligence",
+							icon: BotIcon,
+							items: [
+								...(canReadAiAgents
+									? [
+											{
+												label: "AI Agents",
+												href: `${basePath}/ai-agents`,
+												icon: BotIcon,
+												isActive: under(
+													`${basePath}/ai-agents`,
+												),
+											},
+											{
+												label: "Conversations",
+												href: `${basePath}/conversations`,
+												icon: MessageSquareIcon,
+												isActive: under(
+													`${basePath}/conversations`,
+												),
+											},
+										]
+									: []),
+								...(canReadWatchers
+									? [
+											{
+												label: "Watchers",
+												href: `${basePath}/watchers`,
+												icon: EyeIcon,
+												isActive: under(
+													`${basePath}/watchers`,
+												),
+											},
+										]
+									: []),
+							],
+						},
+					]
+				: []),
 		];
+
+		return { dashboard: dashboardItem, navGroups: groups };
 	}, [
 		activeOrganization,
 		basePath,
 		pathname,
+		permissions,
 		isOrganizationAdmin,
-		activeOrganizationUserRole,
+		hasPermission,
+		getScope,
 	]);
 
 	const bottomLinks: NavItem[] = useMemo(() => {
 		const under = (href: string) =>
 			pathname === href || pathname.startsWith(`${href}/`);
 		const links: NavItem[] = [];
-		if (activeOrganization) {
+		if (activeOrganization && isOrganizationAdmin) {
 			links.push({
 				label: "Settings",
 				href: `${basePath}/settings`,
@@ -272,7 +374,13 @@ export function NavBar() {
 			});
 		}
 		return links;
-	}, [activeOrganization, basePath, user?.role, pathname]);
+	}, [
+		activeOrganization,
+		basePath,
+		user?.role,
+		pathname,
+		isOrganizationAdmin,
+	]);
 
 	// ── Accordion state ─────────────────────────────────────────────
 

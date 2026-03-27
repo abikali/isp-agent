@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { EmployeeDetail } from "@saas/employees/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
 
@@ -17,8 +18,10 @@ function EmployeeDetailPage() {
 	const { employeeId } = Route.useParams();
 
 	return (
-		<AsyncBoundary fallback={<Skeleton className="h-96" />}>
-			<EmployeeDetail employeeId={employeeId} />
-		</AsyncBoundary>
+		<PermissionGate resource="employees" action="read">
+			<AsyncBoundary fallback={<Skeleton className="h-96" />}>
+				<EmployeeDetail employeeId={employeeId} />
+			</AsyncBoundary>
+		</PermissionGate>
 	);
 }

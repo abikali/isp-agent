@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getOwnershipFilterAsync,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -16,7 +19,20 @@ export const getCustomerStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input: { organizationId } }) => {
-		await requirePermission(organizationId, user.id, "customers", "read");
+		const { permCtx } = await requirePermission(
+			organizationId,
+			user.id,
+			"customers",
+			"read",
+		);
+
+		// Scope stats to own customers for collectors with read:own
+		const ownerFilter = await getOwnershipFilterAsync(
+			permCtx,
+			"customers",
+			"read",
+		);
+		const baseWhere = { organizationId, ...ownerFilter };
 
 		const [
 			statusCounts,
@@ -30,18 +46,18 @@ export const getCustomerStats = protectedProcedure
 		] = await Promise.all([
 			db.customer.groupBy({
 				by: ["status"],
-				where: { organizationId },
+				where: baseWhere,
 				_count: true,
 			}),
 			db.customer.count({
-				where: { organizationId, online: true },
+				where: { ...baseWhere, online: true },
 			}),
 			db.customer.count({
-				where: { organizationId, online: false, status: "ACTIVE" },
+				where: { ...baseWhere, online: false, status: "ACTIVE" },
 			}),
 			db.customer.count({
 				where: {
-					organizationId,
+					...baseWhere,
 					expiresAt: { lt: new Date() },
 					status: "ACTIVE",
 				},
@@ -51,7 +67,7 @@ export const getCustomerStats = protectedProcedure
 			db.customer.groupBy({
 				by: ["planId"],
 				where: {
-					organizationId,
+					...baseWhere,
 					status: "ACTIVE",
 					planId: { not: null },
 				},
@@ -94,20 +110,23 @@ export const getCustomerStats = protectedProcedure
 				: [],
 			db.customer.aggregate({
 				where: {
-					organizationId,
+					...baseWhere,
 					status: "ACTIVE",
 					monthlyRate: { not: null },
 				},
 				_sum: { monthlyRate: true },
 			}),
-			db.$queryRaw<[{ total: number | null }]>`
-				SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
-				FROM "customer" c
-				INNER JOIN "service_plan" sp ON sp."id" = c."planId"
-				WHERE c."organizationId" = ${organizationId}
-				AND c."status" = 'ACTIVE'
-				AND c."monthlyRate" IS NULL
-			`,
+			// Scoped users have dynamic ownership filters that can't be safely embedded in raw SQL
+			ownerFilter
+				? Promise.resolve([{ total: 0 }] as [{ total: number | null }])
+				: db.$queryRaw<[{ total: number | null }]>`
+					SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
+					FROM "customer" c
+					INNER JOIN "service_plan" sp ON sp."id" = c."planId"
+					WHERE c."organizationId" = ${organizationId}
+					AND c."status" = 'ACTIVE'
+					AND c."monthlyRate" IS NULL
+				`,
 		]);
 
 		const planNameMap = new Map(plans.map((p) => [p.id, p.name]));

@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import { ConversationsHub } from "@saas/ai-agents/client";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
@@ -20,9 +21,11 @@ function ConversationsPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<ConversationsHub
-			organizationId={organizationId}
-			organizationSlug={organizationSlug}
-		/>
+		<PermissionGate resource="aiAgents" action="read">
+			<ConversationsHub
+				organizationId={organizationId}
+				organizationSlug={organizationSlug}
+			/>
+		</PermissionGate>
 	);
 }

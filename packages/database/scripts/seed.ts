@@ -10,25 +10,11 @@
  * Usage: pnpm --filter @repo/database seed
  */
 
-import { randomBytes, scryptSync } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
+import { hashPasswordSync } from "@repo/utils/password";
 // @ts-expect-error -- pg has types via @types/pg but they don't cover the ESM export
 import pg from "pg";
-
-/**
- * Hash a password using the same scrypt format as Better Auth.
- * Format: `<hex-salt>:<hex-derived-key>`
- */
-function hashPassword(password: string): string {
-	const salt = randomBytes(16).toString("hex");
-	const key = scryptSync(password.normalize("NFKC"), salt, 64, {
-		N: 16384,
-		r: 16,
-		p: 1,
-		maxmem: 128 * 16384 * 16 * 2,
-	});
-	return `${salt}:${key.toString("hex")}`;
-}
 
 const TEST_PASSWORD = "TestPassword123!";
 
@@ -90,7 +76,7 @@ async function main() {
 		log("🌱 Seeding database...\n");
 
 		// --- Users ---
-		const passwordHash = hashPassword(TEST_PASSWORD);
+		const passwordHash = hashPasswordSync(TEST_PASSWORD);
 		const now = new Date();
 
 		const user1Id = createId();

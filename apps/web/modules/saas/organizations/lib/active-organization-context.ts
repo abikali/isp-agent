@@ -1,6 +1,7 @@
 "use client";
 
 import type { ActiveOrganization } from "@repo/auth";
+import type { PermissionResource } from "@repo/auth/permissions";
 import React from "react";
 
 export interface EmployeeIdentity {
@@ -30,6 +31,7 @@ export const ActiveOrganizationContext = React.createContext<
 				| ActiveOrganization["members"][number]["role"]
 				| null;
 			isOrganizationAdmin: boolean;
+			permissions: Partial<Record<PermissionResource, string[]>>;
 			employee: EmployeeIdentity | null;
 			dealer: DealerIdentity | null;
 			loaded: boolean;
