@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
 			cssCodeSplit: false,
 			// Use fixed asset filenames to prevent SSR/client hash mismatch
 			rollupOptions: {
+				// Externalize native modules that Rollup cannot bundle
+				external: ["cpu-features", "ssh2"],
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
 					assetFileNames: (assetInfo) => {
