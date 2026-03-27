@@ -26,8 +26,6 @@ export default defineConfig(({ mode }) => {
 			cssCodeSplit: false,
 			// Use fixed asset filenames to prevent SSR/client hash mismatch
 			rollupOptions: {
-				// Externalize native modules that Rollup cannot bundle
-				external: ["cpu-features", "ssh2"],
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
 					assetFileNames: (assetInfo) => {
@@ -74,6 +72,16 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		plugins: [
+			// Externalize native .node binaries (e.g. cpu-features used by ssh2)
+			// that Rollup cannot bundle
+			{
+				name: "externalize-node-binaries",
+				resolveId(id) {
+					if (id.endsWith(".node") || id.includes(".node?")) {
+						return { id, external: true };
+					}
+				},
+			},
 			contentCollections(),
 			tsConfigPaths({
 				projects: ["./tsconfig.json"],

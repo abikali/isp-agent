@@ -1,5 +1,5 @@
 import { requirePermission } from "@repo/api/lib/permission";
-import { queryIRadiusLiveStats } from "@repo/database";
+import { queryIRadiusLiveStats } from "@repo/database/iradius";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 

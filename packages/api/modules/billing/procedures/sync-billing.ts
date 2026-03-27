@@ -1,11 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
+import { db } from "@repo/database";
 import {
-	db,
 	queryBilling,
 	testBillingConnection,
 	withBillingConnection,
-} from "@repo/database";
+} from "@repo/database/billing";
 import { queueBillingSync } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";

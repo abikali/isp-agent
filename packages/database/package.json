@@ -6,6 +6,14 @@
 		".": {
 			"types": "./index.ts",
 			"default": "./index.ts"
+		},
+		"./iradius": {
+			"types": "./lib/iradius.ts",
+			"default": "./lib/iradius.ts"
+		},
+		"./billing": {
+			"types": "./lib/billing.ts",
+			"default": "./lib/billing.ts"
 		}
 	},
 	"scripts": {

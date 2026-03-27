@@ -3,9 +3,8 @@ import {
 	type CustomerStatus,
 	db,
 	type EmployeeDepartment,
-	queryIRadius,
-	withIRadiusConnection,
 } from "@repo/database";
+import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";

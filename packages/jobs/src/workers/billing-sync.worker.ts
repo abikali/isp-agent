@@ -1,5 +1,6 @@
 import type { Prisma } from "@repo/database";
-import { db, queryBilling, withBillingConnection } from "@repo/database";
+import { db } from "@repo/database";
+import { queryBilling, withBillingConnection } from "@repo/database/billing";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";

@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
-import { db, testIRadiusConnection } from "@repo/database";
+import { db } from "@repo/database";
+import { testIRadiusConnection } from "@repo/database/iradius";
 import { queueIRadiusSync } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";

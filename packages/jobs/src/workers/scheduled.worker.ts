@@ -1,4 +1,5 @@
-import { db, queryIRadiusOnlineUserIds } from "@repo/database";
+import { db } from "@repo/database";
+import { queryIRadiusOnlineUserIds } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
