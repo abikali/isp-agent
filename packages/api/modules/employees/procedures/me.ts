@@ -43,6 +43,7 @@ export const getMyEmployeeIdentity = protectedProcedure
 					department: true,
 					email: true,
 					phone: true,
+					preferredLayout: true,
 				},
 			}),
 			db.ispDealer.findFirst({

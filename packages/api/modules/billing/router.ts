@@ -9,6 +9,7 @@ import { deletePayment } from "./procedures/delete-payment";
 import { listCollections } from "./procedures/list-collections";
 import { listCollectors } from "./procedures/list-collectors";
 import { listCycles } from "./procedures/list-cycles";
+import { listCustomerGroups } from "./procedures/list-groups";
 import { listPayments } from "./procedures/list-payments";
 import { listUnpaidCustomers } from "./procedures/list-unpaid";
 import { getPaymentStats } from "./procedures/payment-stats";
@@ -41,6 +42,9 @@ export const billingRouter = {
 	},
 	unpaid: {
 		list: listUnpaidCustomers,
+	},
+	groups: {
+		list: listCustomerGroups,
 	},
 	stopped: {
 		list: listStoppedAccounts,

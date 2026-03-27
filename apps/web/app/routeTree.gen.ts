@@ -9,6 +9,7 @@
 import { Route as rootRouteImport } from "./routes/__root"
 import { Route as SaasRouteImport } from "./routes/_saas"
 import { Route as MarketingRouteImport } from "./routes/_marketing"
+import { Route as CollectorRouteImport } from "./routes/_collector"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as SplatRouteImport } from "./routes/$"
 import { Route as MarketingIndexRouteImport } from "./routes/_marketing/index"
@@ -33,7 +34,9 @@ import { Route as SaasAppAccountRouteImport } from "./routes/_saas/app/_account"
 import { Route as MarketingLegalSplatRouteImport } from "./routes/_marketing/legal/$"
 import { Route as MarketingDocsSplatRouteImport } from "./routes/_marketing/docs/$"
 import { Route as MarketingBlogSplatRouteImport } from "./routes/_marketing/blog/$"
+import { Route as CollectorCollectOrganizationSlugRouteImport } from "./routes/_collector/collect/$organizationSlug"
 import { Route as SaasAppAccountIndexRouteImport } from "./routes/_saas/app/_account/index"
+import { Route as CollectorCollectOrganizationSlugIndexRouteImport } from "./routes/_collector/collect/$organizationSlug/index"
 import { Route as SaasAppOrgOrganizationSlugRouteImport } from "./routes/_saas/app/_org/$organizationSlug"
 import { Route as SaasAppFullbleedOrganizationSlugRouteImport } from "./routes/_saas/app/_fullbleed/$organizationSlug"
 import { Route as SaasAppAccountSettingsRouteImport } from "./routes/_saas/app/_account/settings"
@@ -96,6 +99,10 @@ const SaasRoute = SaasRouteImport.update({
 } as any)
 const MarketingRoute = MarketingRouteImport.update({
   id: "/_marketing",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectorRoute = CollectorRouteImport.update({
+  id: "/_collector",
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -217,11 +224,23 @@ const MarketingBlogSplatRoute = MarketingBlogSplatRouteImport.update({
   path: "/blog/$",
   getParentRoute: () => MarketingRoute,
 } as any)
+const CollectorCollectOrganizationSlugRoute =
+  CollectorCollectOrganizationSlugRouteImport.update({
+    id: "/collect/$organizationSlug",
+    path: "/collect/$organizationSlug",
+    getParentRoute: () => CollectorRoute,
+  } as any)
 const SaasAppAccountIndexRoute = SaasAppAccountIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => SaasAppAccountRoute,
 } as any)
+const CollectorCollectOrganizationSlugIndexRoute =
+  CollectorCollectOrganizationSlugIndexRouteImport.update({
+    id: "/",
+    path: "/",
+    getParentRoute: () => CollectorCollectOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugRoute =
   SaasAppOrgOrganizationSlugRouteImport.update({
     id: "/_org/$organizationSlug",
@@ -571,6 +590,7 @@ export interface FileRoutesByFullPath {
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/": typeof MarketingIndexRoute
+  "/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugRouteWithChildren
   "/blog/$": typeof MarketingBlogSplatRoute
   "/docs/$": typeof MarketingDocsSplatRoute
   "/legal/$": typeof MarketingLegalSplatRoute
@@ -579,6 +599,7 @@ export interface FileRoutesByFullPath {
   "/app/admin": typeof SaasAppAccountAdminRouteWithChildren
   "/app/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
+  "/collect/$organizationSlug/": typeof CollectorCollectOrganizationSlugIndexRoute
   "/app/": typeof SaasAppAccountIndexRoute
   "/app/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
   "/app/admin/users": typeof SaasAppAccountAdminUsersRoute
@@ -656,6 +677,7 @@ export interface FileRoutesByTo {
   "/organization-invitation/$invitationId": typeof SaasOrganizationInvitationInvitationIdRoute
   "/blog": typeof MarketingBlogIndexRoute
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugIndexRoute
+  "/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugIndexRoute
   "/app/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
   "/app/admin/users": typeof SaasAppAccountAdminUsersRoute
   "/app/settings/danger-zone": typeof SaasAppAccountSettingsDangerZoneRoute
@@ -710,6 +732,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/$": typeof SplatRoute
   "/_auth": typeof AuthRouteWithChildren
+  "/_collector": typeof CollectorRouteWithChildren
   "/_marketing": typeof MarketingRouteWithChildren
   "/_saas": typeof SaasRouteWithChildren
   "/_auth/forgot-password": typeof AuthForgotPasswordRoute
@@ -728,6 +751,7 @@ export interface FileRoutesById {
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/_marketing/": typeof MarketingIndexRoute
+  "/_collector/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugRouteWithChildren
   "/_marketing/blog/$": typeof MarketingBlogSplatRoute
   "/_marketing/docs/$": typeof MarketingDocsSplatRoute
   "/_marketing/legal/$": typeof MarketingLegalSplatRoute
@@ -738,6 +762,7 @@ export interface FileRoutesById {
   "/_saas/app/_account/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/_saas/app/_fullbleed/$organizationSlug": typeof SaasAppFullbleedOrganizationSlugRoute
   "/_saas/app/_org/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
+  "/_collector/collect/$organizationSlug/": typeof CollectorCollectOrganizationSlugIndexRoute
   "/_saas/app/_account/": typeof SaasAppAccountIndexRoute
   "/_saas/app/_account/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
   "/_saas/app/_account/admin/users": typeof SaasAppAccountAdminUsersRoute
@@ -811,6 +836,7 @@ export interface FileRouteTypes {
     | "/chat/$token"
     | "/image-proxy/$"
     | "/"
+    | "/collect/$organizationSlug"
     | "/blog/$"
     | "/docs/$"
     | "/legal/$"
@@ -819,6 +845,7 @@ export interface FileRouteTypes {
     | "/app/admin"
     | "/app/settings"
     | "/app/$organizationSlug"
+    | "/collect/$organizationSlug/"
     | "/app/"
     | "/app/admin/feature-flags"
     | "/app/admin/users"
@@ -896,6 +923,7 @@ export interface FileRouteTypes {
     | "/organization-invitation/$invitationId"
     | "/blog"
     | "/app/$organizationSlug"
+    | "/collect/$organizationSlug"
     | "/app/admin/feature-flags"
     | "/app/admin/users"
     | "/app/settings/danger-zone"
@@ -949,6 +977,7 @@ export interface FileRouteTypes {
     | "__root__"
     | "/$"
     | "/_auth"
+    | "/_collector"
     | "/_marketing"
     | "/_saas"
     | "/_auth/forgot-password"
@@ -967,6 +996,7 @@ export interface FileRouteTypes {
     | "/chat/$token"
     | "/image-proxy/$"
     | "/_marketing/"
+    | "/_collector/collect/$organizationSlug"
     | "/_marketing/blog/$"
     | "/_marketing/docs/$"
     | "/_marketing/legal/$"
@@ -977,6 +1007,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_account/settings"
     | "/_saas/app/_fullbleed/$organizationSlug"
     | "/_saas/app/_org/$organizationSlug"
+    | "/_collector/collect/$organizationSlug/"
     | "/_saas/app/_account/"
     | "/_saas/app/_account/admin/feature-flags"
     | "/_saas/app/_account/admin/users"
@@ -1034,6 +1065,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AuthRoute: typeof AuthRouteWithChildren
+  CollectorRoute: typeof CollectorRouteWithChildren
   MarketingRoute: typeof MarketingRouteWithChildren
   SaasRoute: typeof SaasRouteWithChildren
   ApiSplatRoute: typeof ApiSplatRoute
@@ -1056,6 +1088,13 @@ declare module "@tanstack/react-router" {
       path: ""
       fullPath: ""
       preLoaderRoute: typeof MarketingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/_collector": {
+      id: "/_collector"
+      path: ""
+      fullPath: ""
+      preLoaderRoute: typeof CollectorRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/_auth": {
@@ -1226,12 +1265,26 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof MarketingBlogSplatRouteImport
       parentRoute: typeof MarketingRoute
     }
+    "/_collector/collect/$organizationSlug": {
+      id: "/_collector/collect/$organizationSlug"
+      path: "/collect/$organizationSlug"
+      fullPath: "/collect/$organizationSlug"
+      preLoaderRoute: typeof CollectorCollectOrganizationSlugRouteImport
+      parentRoute: typeof CollectorRoute
+    }
     "/_saas/app/_account/": {
       id: "/_saas/app/_account/"
       path: "/"
       fullPath: "/app/"
       preLoaderRoute: typeof SaasAppAccountIndexRouteImport
       parentRoute: typeof SaasAppAccountRoute
+    }
+    "/_collector/collect/$organizationSlug/": {
+      id: "/_collector/collect/$organizationSlug/"
+      path: "/"
+      fullPath: "/collect/$organizationSlug/"
+      preLoaderRoute: typeof CollectorCollectOrganizationSlugIndexRouteImport
+      parentRoute: typeof CollectorCollectOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug": {
       id: "/_saas/app/_org/$organizationSlug"
@@ -1639,6 +1692,34 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface CollectorCollectOrganizationSlugRouteChildren {
+  CollectorCollectOrganizationSlugIndexRoute: typeof CollectorCollectOrganizationSlugIndexRoute
+}
+
+const CollectorCollectOrganizationSlugRouteChildren: CollectorCollectOrganizationSlugRouteChildren =
+  {
+    CollectorCollectOrganizationSlugIndexRoute:
+      CollectorCollectOrganizationSlugIndexRoute,
+  }
+
+const CollectorCollectOrganizationSlugRouteWithChildren =
+  CollectorCollectOrganizationSlugRoute._addFileChildren(
+    CollectorCollectOrganizationSlugRouteChildren,
+  )
+
+interface CollectorRouteChildren {
+  CollectorCollectOrganizationSlugRoute: typeof CollectorCollectOrganizationSlugRouteWithChildren
+}
+
+const CollectorRouteChildren: CollectorRouteChildren = {
+  CollectorCollectOrganizationSlugRoute:
+    CollectorCollectOrganizationSlugRouteWithChildren,
+}
+
+const CollectorRouteWithChildren = CollectorRoute._addFileChildren(
+  CollectorRouteChildren,
+)
+
 interface MarketingRouteChildren {
   MarketingChangelogRoute: typeof MarketingChangelogRoute
   MarketingContactRoute: typeof MarketingContactRoute
@@ -1906,6 +1987,7 @@ const SaasRouteWithChildren = SaasRoute._addFileChildren(SaasRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AuthRoute: AuthRouteWithChildren,
+  CollectorRoute: CollectorRouteWithChildren,
   MarketingRoute: MarketingRouteWithChildren,
   SaasRoute: SaasRouteWithChildren,
   ApiSplatRoute: ApiSplatRoute,

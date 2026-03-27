@@ -3,7 +3,12 @@ import { AppNotFound, AppWrapper } from "@saas/shared/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate } from "@tanstack/react-query";
-import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	notFound,
+	Outlet,
+	redirect,
+} from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
@@ -40,15 +45,47 @@ const getOrganizationFn = createServerFn({ method: "GET" })
 		}
 	});
 
+const getEmployeeLayoutFn = createServerFn({ method: "GET" })
+	.inputValidator((data: { organizationId: string; userId: string }) => data)
+	.handler(async ({ data }) => {
+		const { db } = await import("@repo/database");
+		const employee = await db.employee.findFirst({
+			where: {
+				organizationId: data.organizationId,
+				userId: data.userId,
+			},
+			select: { preferredLayout: true },
+		});
+		return employee?.preferredLayout ?? "standard";
+	});
+
 export const Route = createFileRoute("/_saas/app/_org/$organizationSlug")({
 	// beforeLoad fetches org and makes it available to child route loaders via context
-	beforeLoad: async ({ params }) => {
+	beforeLoad: async ({ params, context }) => {
 		const organization = await getOrganizationFn({
 			data: { organizationSlug: params.organizationSlug },
 		});
 
 		if (!organization) {
 			throw notFound();
+		}
+
+		// Check if employee should be redirected to collector portal
+		const session = (context as { session?: { user?: { id: string } } })
+			.session;
+		if (session?.user?.id) {
+			const layout = await getEmployeeLayoutFn({
+				data: {
+					organizationId: organization.id,
+					userId: session.user.id,
+				},
+			});
+			if (layout === "collector") {
+				throw redirect({
+					to: "/collect/$organizationSlug",
+					params: { organizationSlug: params.organizationSlug },
+				});
+			}
 		}
 
 		// This context is available to all child route loaders

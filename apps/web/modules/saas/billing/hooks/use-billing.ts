@@ -65,6 +65,22 @@ export function usePaymentStatsQuery(billingCycleId?: string) {
 	);
 }
 
+// ─── Customer Groups ───────────────────────────────────────────
+
+export function useCustomerGroups() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.billing.groups.list.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "groups", "list"]),
+	);
+
+	return { groups: query.data?.groups ?? [], isLoading: query.isLoading };
+}
+
 // ─── Payments List (suspense) ───────────────────────────────────
 
 export function usePayments(filters: {
@@ -73,6 +89,8 @@ export function usePayments(filters: {
 	status?: "PENDING" | "PROCESSED" | "PARTIAL" | "STOPPED";
 	groupName?: string;
 	search?: string;
+	dateFrom?: string;
+	dateTo?: string;
 	page?: number;
 	pageSize?: number;
 }) {

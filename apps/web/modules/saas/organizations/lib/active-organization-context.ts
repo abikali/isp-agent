@@ -12,6 +12,7 @@ export interface EmployeeIdentity {
 	department: string | null;
 	email: string | null;
 	phone: string | null;
+	preferredLayout: string;
 }
 
 export interface DealerIdentity {

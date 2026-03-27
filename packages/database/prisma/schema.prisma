@@ -1458,9 +1458,10 @@ model Employee {
   notes          String?            @db.Text
   externalId     String?
   iRadiusProfile String?
-  username       String?
-  userId         String?            @unique
-  dealerId       String?
+  username        String?
+  preferredLayout String            @default("standard") @map("preferred_layout")
+  userId          String?           @unique
+  dealerId        String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 

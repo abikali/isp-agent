@@ -40,6 +40,7 @@ export const createPayment = protectedProcedure
 				])
 				.optional(),
 			notes: z.string().optional(),
+			customerMobile: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -160,11 +161,21 @@ export const createPayment = protectedProcedure
 				},
 			});
 
-			// Mark customer as paid for current cycle (unless stopped)
+			// Update customer mobile if provided and changed
+			const customerUpdateData: Record<string, unknown> = {};
 			if (!input.stoppedAccount) {
+				customerUpdateData["paidCurrentCycle"] = true;
+			}
+			if (
+				input.customerMobile &&
+				input.customerMobile !== customer.mobile
+			) {
+				customerUpdateData["mobile"] = input.customerMobile;
+			}
+			if (Object.keys(customerUpdateData).length > 0) {
 				await tx.customer.update({
 					where: { id: input.customerId },
-					data: { paidCurrentCycle: true },
+					data: customerUpdateData,
 				});
 			}
 

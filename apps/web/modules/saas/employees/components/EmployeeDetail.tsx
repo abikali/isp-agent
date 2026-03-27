@@ -107,6 +107,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 					"")
 				: "",
 			status: employee.status,
+			preferredLayout: employee.preferredLayout ?? "standard",
 			notes: employee.notes ?? "",
 		},
 		onSubmit: async ({ value }) => {
@@ -131,6 +132,9 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 						| null,
 					hireDate: value.hireDate ? new Date(value.hireDate) : null,
 					status: value.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE",
+					preferredLayout: value.preferredLayout as
+						| "standard"
+						| "collector",
 					notes: value.notes || null,
 				}),
 				{
@@ -472,6 +476,45 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																)}
 															</SelectContent>
 														</Select>
+													</div>
+												)}
+											</form.Field>
+											<form.Field name="preferredLayout">
+												{(field) => (
+													<div className="space-y-2">
+														<Label>
+															Portal Layout
+														</Label>
+														<Select
+															value={
+																field.state
+																	.value
+															}
+															onValueChange={
+																field.handleChange
+															}
+														>
+															<SelectTrigger>
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value="standard">
+																	Standard
+																	Dashboard
+																</SelectItem>
+																<SelectItem value="collector">
+																	Collector
+																	Portal
+																</SelectItem>
+															</SelectContent>
+														</Select>
+														<p className="text-xs text-muted-foreground">
+															Collector portal
+															shows a simplified
+															mobile-friendly
+															interface for
+															payment collection.
+														</p>
 													</div>
 												)}
 											</form.Field>

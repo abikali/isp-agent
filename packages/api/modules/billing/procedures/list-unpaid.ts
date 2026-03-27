@@ -85,6 +85,8 @@ export const listUnpaidCustomers = protectedProcedure
 					discount: true,
 					iptvPrice: true,
 					realIpPrice: true,
+					latitude: true,
+					longitude: true,
 					plan: {
 						select: { id: true, name: true, monthlyPrice: true },
 					},

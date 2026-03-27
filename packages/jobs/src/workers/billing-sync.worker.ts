@@ -253,6 +253,10 @@ async function processBillingSync(
 								position:
 									ROLE_POS[emp.role] ?? "Field Technician",
 								status: "ACTIVE",
+								preferredLayout:
+									emp.role === "collector"
+										? "collector"
+										: "standard",
 							},
 						});
 

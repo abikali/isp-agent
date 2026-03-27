@@ -36,6 +36,7 @@ export const updateEmployee = protectedProcedure
 			hireDate: z.coerce.date().nullable().optional(),
 			status: z.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"]).optional(),
 			notes: z.string().max(5000).nullable().optional(),
+			preferredLayout: z.enum(["standard", "collector"]).optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -103,6 +104,9 @@ export const updateEmployee = protectedProcedure
 		}
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
+		}
+		if (input.preferredLayout !== undefined) {
+			updateData["preferredLayout"] = input.preferredLayout;
 		}
 
 		const employee = await db.employee.update({
