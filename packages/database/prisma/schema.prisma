@@ -288,6 +288,8 @@ model Organization {
   stockItems           StockItem[]
   stockLogs            StockLog[]
   installations        Installation[]
+  followups            Followup[]
+  uninstalledItems     UninstalledItem[]
   billingSyncOps           BillingSyncOperation[]
   billingEmployeeMappings  BillingEmployeeMapping[]
 
@@ -1029,6 +1031,7 @@ model Customer {
   // Foreign keys (resolved from iRadius)
   dealerId           String?
   collectorId        String?
+  workerId           String?          @map("worker_id")
   nasId              String?
   originalCreatedAt  DateTime?
   // iRadius User fields
@@ -1091,6 +1094,7 @@ model Customer {
   accessPoint    AccessPoint?     @relation(fields: [accessPointId], references: [id], onDelete: SetNull)
   dealer         IspDealer?       @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   collector      Employee?        @relation("CustomerCollector", fields: [collectorId], references: [id], onDelete: SetNull)
+  worker         Employee?        @relation("CustomerWorker", fields: [workerId], references: [id], onDelete: SetNull)
   nas            IspNas?          @relation(fields: [nasId], references: [id], onDelete: SetNull)
 
   tasks          Task[]
@@ -1099,6 +1103,7 @@ model Customer {
   invoices       CustomerInvoice[]
   payments       Payment[]
   installations  Installation[]
+  followups      Followup[]
 
   // Billing workflow
   paidCurrentCycle Boolean @default(false)
@@ -1112,6 +1117,7 @@ model Customer {
   @@index([accessPointId])
   @@index([dealerId])
   @@index([collectorId])
+  @@index([workerId])
   @@index([nasId])
   @@index([status])
   @@index([organizationId, lastName, firstName])
@@ -1440,6 +1446,7 @@ enum TaskCategory {
 enum TaskSource {
   MANUAL
   AI_ESCALATION
+  LEGACY
 
   @@map("task_source")
 }
@@ -1460,6 +1467,7 @@ model Employee {
   iRadiusProfile String?
   username        String?
   preferredLayout String            @default("standard") @map("preferred_layout")
+  telegramChatId  String?           @map("telegram_chat_id")
   userId          String?           @unique
   dealerId        String?
   createdAt      DateTime           @default(now())
@@ -1471,6 +1479,7 @@ model Employee {
   stations              EmployeeStation[]
   taskAssignments       TaskAssignment[]
   customerCollections   Customer[]            @relation("CustomerCollector")
+  customerWorkerAssignments Customer[]        @relation("CustomerWorker")
   transactionCollections CustomerTransaction[] @relation("TransactionCollector")
   paymentsCollected     Payment[]             @relation("PaymentCollector")
   cashCollections       CashCollection[]      @relation("CashCollector")
@@ -1522,6 +1531,7 @@ model Task {
   stationId      String?
   conversationId String?
   followUpStatus String?        // pending | contacted | promised | resolved | escalated
+  externalBillingId Int?        @map("external_billing_id")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1531,7 +1541,9 @@ model Task {
   station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
   conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   assignments  TaskAssignment[]
+  uninstalledItems UninstalledItem[]
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId])
   @@index([status])
   @@index([priority])
@@ -1607,6 +1619,7 @@ enum StockAction {
   TRANSFER_TO_WORKER
   TRANSFER_FROM_WORKER
   ADJUST
+  DELIVER
 }
 
 // ─── Billing ───────────────────────────────────────────────────────
@@ -1647,10 +1660,11 @@ model Payment {
   receiptSent     Boolean              @default(false)
   receiptSentAt   DateTime?
   paidAt          DateTime             @default(now())
-  processedAt     DateTime?
-  processedById   String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  processedAt       DateTime?
+  processedById     String?
+  externalBillingId Int?               @map("external_billing_id")
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -1658,6 +1672,7 @@ model Payment {
   collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
   processedBy  User?        @relation("PaymentProcessor", fields: [processedById], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId, billingCycleId])
   @@index([customerId])
   @@index([collectorId])
@@ -1667,46 +1682,50 @@ model Payment {
 }
 
 model CashCollection {
-  id             String             @id @default(cuid())
-  organizationId String
-  collectorId    String
-  amount         Float
-  notes          String?            @db.Text
-  type           CashCollectionType @default(HANDOFF)
-  expenseId      String?            @unique
-  receivedById   String?
-  collectedAt    DateTime           @default(now())
-  createdAt      DateTime           @default(now())
+  id                String             @id @default(cuid())
+  organizationId    String
+  collectorId       String
+  amount            Float
+  notes             String?            @db.Text
+  type              CashCollectionType @default(HANDOFF)
+  expenseId         String?            @unique
+  receivedById      String?
+  externalBillingId Int?               @map("external_billing_id")
+  collectedAt       DateTime           @default(now())
+  createdAt         DateTime           @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   collector    Employee     @relation("CashCollector", fields: [collectorId], references: [id], onDelete: Restrict)
   receivedBy   User?        @relation("CashReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
   expense      Expense?     @relation(fields: [expenseId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId, collectorId])
   @@index([collectedAt])
   @@map("cash_collection")
 }
 
 model Expense {
-  id             String        @id @default(cuid())
-  organizationId String
-  submittedById  String
-  amount         Float
-  description    String        @db.Text
-  receiptUrl     String?
-  status         ExpenseStatus @default(PENDING)
-  approvedById   String?
-  approvedAt     DateTime?
-  rejectedReason String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                String        @id @default(cuid())
+  organizationId    String
+  submittedById     String
+  amount            Float
+  description       String        @db.Text
+  receiptUrl        String?
+  status            ExpenseStatus @default(PENDING)
+  approvedById      String?
+  approvedAt        DateTime?
+  rejectedReason    String?
+  externalBillingId Int?          @map("external_billing_id")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   submittedBy  Employee        @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
   approvedBy   User?           @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   collection   CashCollection?
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId, status])
   @@index([submittedById])
   @@map("expense")
@@ -1755,56 +1774,116 @@ model WorkerStock {
 }
 
 model StockLog {
-  id              String   @id @default(cuid())
-  organizationId  String
-  stockItemId     String
-  employeeId      String?
-  performedById   String
-  action          StockAction
-  itemName        String
-  quantity        Int
-  adminQtyBefore  Int?
-  adminQtyAfter   Int?
-  workerQtyBefore Int?
-  workerQtyAfter  Int?
-  notes           String?
-  createdAt       DateTime @default(now())
+  id                String     @id @default(cuid())
+  organizationId    String
+  stockItemId       String
+  employeeId        String?
+  performedById     String
+  action            StockAction
+  itemName          String
+  quantity          Int
+  adminQtyBefore    Int?
+  adminQtyAfter     Int?
+  workerQtyBefore   Int?
+  workerQtyAfter    Int?
+  notes             String?
+  externalBillingId Int?       @map("external_billing_id")
+  createdAt         DateTime   @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stockItem    StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
   employee     Employee?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   performedBy  User         @relation("StockLogPerformer", fields: [performedById], references: [id], onDelete: Restrict)
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId, stockItemId])
   @@index([employeeId])
   @@map("stock_log")
 }
 
 model Installation {
-  id             String    @id @default(cuid())
-  organizationId String
-  customerId     String
-  employeeId     String
-  stockItemId    String?
-  quantity       Int       @default(1)
-  price          Float     @default(0)
-  isAddOn        Boolean   @default(false)
-  status         InstallationStatus @default(PENDING)
-  approvedById   String?
-  approvedAt     DateTime?
-  notes          String?            @db.Text
-  installedAt    DateTime           @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  organizationId    String
+  customerId        String
+  employeeId        String
+  stockItemId       String?
+  quantity          Int       @default(1)
+  price             Float     @default(0)
+  isAddOn           Boolean   @default(false)
+  status            InstallationStatus @default(PENDING)
+  approvedById      String?
+  approvedAt        DateTime?
+  notes             String?            @db.Text
+  externalBillingId Int?               @map("external_billing_id")
+  installedAt       DateTime           @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   employee     Employee     @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
   stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
   approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  uninstalledItems UninstalledItem[]
 
+  @@unique([organizationId, externalBillingId])
   @@index([organizationId])
   @@index([customerId])
   @@index([employeeId])
   @@map("installation")
+}
+
+// ─── Followup ─────────────────────────────────────────────────────
+
+model Followup {
+  id                String    @id @default(cuid())
+  organizationId    String
+  customerId        String?
+  customerName      String?
+  customerUsername  String?
+  mobile            String?
+  groupName         String?
+  isDone            Boolean   @default(false)
+  note              String?   @db.Text
+  status            String?   // new | stopped | contacted | etc.
+  collectorNote     String?
+  externalBillingId Int?      @map("external_billing_id")
+  doneAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, externalBillingId])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([isDone])
+  @@map("followup")
+}
+
+// ─── Uninstalled Items ────────────────────────────────────────────
+
+model UninstalledItem {
+  id                String             @id @default(cuid())
+  organizationId    String
+  installationId    String?
+  taskId            String?
+  itemName          String
+  quantity          Int                @default(1)
+  pictureUrl        String?
+  employeeId        String?
+  status            InstallationStatus @default(PENDING)
+  externalBillingId Int?               @map("external_billing_id")
+  uninstalledAt     DateTime           @default(now())
+  createdAt         DateTime           @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  installation Installation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  task         Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, externalBillingId])
+  @@index([organizationId])
+  @@index([taskId])
+  @@map("uninstalled_item")
 }

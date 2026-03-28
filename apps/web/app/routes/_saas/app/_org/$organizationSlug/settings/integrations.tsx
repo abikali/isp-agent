@@ -4,7 +4,7 @@ import {
 	ConnectedIntegrationsSkeleton,
 	IntegrationsGrid,
 	IntegrationsGridSkeleton,
-} from "@saas/integrations/index.client";
+} from "@saas/integrations/client";
 import { SettingsList } from "@saas/shared/components/SettingsList";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { orpc } from "@shared/lib/orpc";

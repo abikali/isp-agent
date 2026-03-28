@@ -51,7 +51,7 @@ export const setCustomerPin = protectedProcedure
 
 		await db.customer.update({
 			where: { id: input.customerId },
-			data: { pin: input.pin, pinHash },
+			data: { pin: null, pinHash },
 		});
 
 		const auditContext = getAuditContextFromHeaders(headers);

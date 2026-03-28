@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getOwnershipFilterAsync,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	customerAudit,
 	getAuditContextFromHeaders,
@@ -29,15 +32,22 @@ export const bulkExportCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"export",
 		);
 
+		const ownerFilter = await getOwnershipFilterAsync(
+			permCtx,
+			"customers",
+			"export",
+		);
+
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			...ownerFilter,
 		};
 		if (input.filters?.status) {
 			where["status"] = input.filters.status;

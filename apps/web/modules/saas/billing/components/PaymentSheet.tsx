@@ -1,6 +1,7 @@
 "use client";
 
 import { useActiveOrganization } from "@saas/organizations/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -36,14 +37,14 @@ interface PaymentSheetProps {
 }
 
 const NOTE_CATEGORIES = [
-	{ value: "DOWNGRADE", label: "Downgrade" },
-	{ value: "UPGRADE", label: "Upgrade" },
-	{ value: "DISCOUNT", label: "Discount" },
-	{ value: "REFERRAL", label: "Friend Referral" },
-	{ value: "MOVED", label: "Moved House" },
-	{ value: "POOR_SERVICE", label: "Poor Service" },
-	{ value: "CANT_PAY", label: "Can't Pay" },
-	{ value: "TEMP_STOP", label: "Temporary Stop" },
+	{ value: "DOWNGRADE", label: "Downgrade (تصغير)" },
+	{ value: "UPGRADE", label: "Upgrade (تكبير)" },
+	{ value: "DISCOUNT", label: "Discount (خصم)" },
+	{ value: "REFERRAL", label: "Referral (احضر صديق)" },
+	{ value: "MOVED", label: "Moved (انتقل)" },
+	{ value: "POOR_SERVICE", label: "Poor Service (انترنت غير جيد)" },
+	{ value: "CANT_PAY", label: "Can't Pay (لا يستطيع الدفع)" },
+	{ value: "TEMP_STOP", label: "Temp Stop (توقيف مؤقت)" },
 ] as const;
 
 export function PaymentSheet({
@@ -54,6 +55,7 @@ export function PaymentSheet({
 	const organizationId = useOrganizationId();
 	const { employee } = useActiveOrganization();
 	const createPayment = useCreatePayment();
+	const { confirm } = useConfirmationAlert();
 
 	const accountPrice =
 		customer?.monthlyRate ?? customer?.plan?.monthlyPrice ?? 0;
@@ -72,6 +74,7 @@ export function PaymentSheet({
 		name: string;
 		amount: number;
 		phone: string | null;
+		receiptSent: boolean;
 	} | null>(null);
 
 	// Reset form when a different customer is selected
@@ -97,8 +100,9 @@ export function PaymentSheet({
 		? iptvPrice + realIpPrice
 		: accountPrice + iptvPrice + realIpPrice - discountAmount;
 
-	function handleSubmit(e: React.FormEvent) {
-		e.preventDefault();
+	const stoppedMissingNote = stoppedAccount && !noteCategory && !notes.trim();
+
+	function doSubmit() {
 		const collectorId = employee?.id ?? customer?.collector?.id;
 		if (!organizationId || !collectorId || !customer) {
 			return;
@@ -125,8 +129,8 @@ export function PaymentSheet({
 				customerMobile: mobileChanged ? customerMobile : undefined,
 			},
 			{
-				onSuccess: () => {
-					const name = displayName(
+				onSuccess: (data) => {
+					const cName = displayName(
 						customer.firstName,
 						customer.lastName,
 					);
@@ -134,9 +138,16 @@ export function PaymentSheet({
 					const phone = mobileChanged
 						? customerMobile
 						: originalMobile;
+					const receiptSent =
+						"receiptSent" in data && !!data.receiptSent;
 
 					if (!stoppedAccount && phone) {
-						setLastPaymentInfo({ name, amount, phone });
+						setLastPaymentInfo({
+							name: cName,
+							amount,
+							phone,
+							receiptSent,
+						});
 						setShowReceiptPrompt(true);
 					} else {
 						toast.success("Payment recorded");
@@ -148,6 +159,17 @@ export function PaymentSheet({
 				},
 			},
 		);
+	}
+
+	function handleSubmit(e: React.FormEvent) {
+		e.preventDefault();
+		const amount = Number.parseFloat(paidAmount) || 0;
+		confirm({
+			title: `Collect ${formatCurrency(amount)}?`,
+			message: `From ${name}. This cannot be undone.`,
+			confirmLabel: "Confirm Payment",
+			onConfirm: () => doSubmit(),
+		});
 	}
 
 	function handleSendReceipt() {
@@ -195,6 +217,11 @@ export function PaymentSheet({
 								{formatCurrency(lastPaymentInfo?.amount ?? 0)}{" "}
 								collected from {lastPaymentInfo?.name}
 							</p>
+							{lastPaymentInfo?.receiptSent && (
+								<p className="text-sm text-green-600 font-medium">
+									Receipt sent via WhatsApp
+								</p>
+							)}
 						</div>
 						<div className="flex flex-col gap-2">
 							{lastPaymentInfo?.phone && (
@@ -204,7 +231,9 @@ export function PaymentSheet({
 									onClick={handleSendReceipt}
 								>
 									<MessageCircleIcon className="mr-2 size-4" />
-									Send Receipt via WhatsApp
+									{lastPaymentInfo.receiptSent
+										? "Send Again via WhatsApp"
+										: "Send Receipt via WhatsApp"}
 								</Button>
 							)}
 							<Button
@@ -213,7 +242,7 @@ export function PaymentSheet({
 								className="w-full text-base"
 								onClick={handleSkipReceipt}
 							>
-								Skip
+								{lastPaymentInfo?.receiptSent ? "Done" : "Skip"}
 							</Button>
 						</div>
 					</div>
@@ -348,12 +377,19 @@ export function PaymentSheet({
 							/>
 						</div>
 
-						{/* Submit button — large and green */}
+						{stoppedMissingNote && (
+							<p className="text-sm font-medium text-destructive">
+								Note required for stopped accounts
+							</p>
+						)}
+
 						<Button
 							type="submit"
 							size="lg"
 							className="w-full text-base font-semibold bg-green-600 hover:bg-green-700"
-							disabled={createPayment.isPending}
+							disabled={
+								createPayment.isPending || stoppedMissingNote
+							}
 						>
 							{createPayment.isPending
 								? "Recording..."

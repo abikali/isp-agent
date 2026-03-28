@@ -57,7 +57,7 @@ export const previewBillingSync = protectedProcedure
 		return withBillingConnection(async (conn) => {
 			const loginRows = await queryBilling(
 				conn,
-				"SELECT username, role, phone FROM isplogin WHERE role IN ('collector', 'worker') ORDER BY role, username",
+				"SELECT username, role, phone, telegram FROM isplogin WHERE role IN ('collector', 'worker') ORDER BY role, username",
 			);
 
 			const existingEmployees = await db.employee.findMany({
@@ -79,6 +79,7 @@ export const previewBillingSync = protectedProcedure
 				username: string;
 				role: string;
 				phone: string | null;
+				telegram: string | null;
 			}> = [];
 
 			for (const row of loginRows) {
@@ -93,6 +94,7 @@ export const previewBillingSync = protectedProcedure
 					username,
 					role: row["role"] as string,
 					phone: (row["phone"] as string) ?? null,
+					telegram: (row["telegram"] as string) ?? null,
 				});
 			}
 
@@ -144,6 +146,7 @@ export const syncFromBilling = protectedProcedure
 						username: z.string(),
 						role: z.string(),
 						phone: z.string().nullable(),
+						telegram: z.string().nullable().default(null),
 					}),
 				)
 				.default([]),

@@ -18,6 +18,7 @@ import {
 	processPayment,
 } from "./procedures/process-payment";
 import { getAccountingReports } from "./procedures/reports";
+import { requestLocation } from "./procedures/request-location";
 import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
 import {
 	getBillingSyncStatus,
@@ -59,6 +60,9 @@ export const billingRouter = {
 		list: listCollections,
 		create: createCollection,
 		delete: deleteCollection,
+	},
+	location: {
+		request: requestLocation,
 	},
 	reports: getAccountingReports,
 	sync: {

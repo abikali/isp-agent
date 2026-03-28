@@ -1,6 +1,6 @@
 "use client";
 
-import { emailSchema, passwordLoginSchema } from "@repo/api/lib/validation";
+import { passwordLoginSchema } from "@repo/api/lib/validation";
 import { authClient } from "@repo/auth/client";
 import { config } from "@repo/config";
 import { getAuthErrorMessage } from "@saas/auth/client";
@@ -32,14 +32,23 @@ import { useSession } from "../hooks/use-session";
 import { LoginModeSwitch } from "./LoginModeSwitch";
 import { SocialSigninButton } from "./SocialSigninButton";
 
+/** Allow bare usernames (e.g. "collalewe") in addition to emails. */
+function normalizeLoginEmail(value: string): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return trimmed;
+	}
+	return trimmed.includes("@") ? trimmed : `${trimmed}@libancom.local`;
+}
+
 const formSchema = z.union([
 	z.object({
 		mode: z.literal("magic-link"),
-		email: z.string().email(),
+		email: z.string().min(1),
 	}),
 	z.object({
 		mode: z.literal("password"),
-		email: z.string().email(),
+		email: z.string().min(1),
 		password: z.string().min(1),
 	}),
 ]);
@@ -71,10 +80,12 @@ export function LoginForm() {
 		} as FormValues,
 		onSubmit: async ({ value }) => {
 			setRootError(null);
+			const email = normalizeLoginEmail(value.email);
 			try {
 				if (value.mode === "password") {
 					const { data, error } = await authClient.signIn.email({
 						...value,
+						email,
 					});
 
 					if (error) {
@@ -101,6 +112,7 @@ export function LoginForm() {
 				} else {
 					const { error } = await authClient.signIn.magicLink({
 						...value,
+						email,
 						callbackURL: redirectPath,
 					});
 
@@ -200,12 +212,7 @@ export function LoginForm() {
 							</Alert>
 						)}
 
-						<form.Field
-							name="email"
-							validators={{
-								onBlur: emailSchema,
-							}}
-						>
+						<form.Field name="email">
 							{(field) => {
 								const hasErrors =
 									field.state.meta.isTouched &&
@@ -215,11 +222,11 @@ export function LoginForm() {
 										data-invalid={hasErrors || undefined}
 									>
 										<FieldLabel htmlFor="email">
-											Email
+											Email or Username
 										</FieldLabel>
 										<Input
 											id="email"
-											type="email"
+											type="text"
 											value={field.state.value}
 											onChange={(e) =>
 												field.handleChange(
@@ -227,7 +234,7 @@ export function LoginForm() {
 												)
 											}
 											onBlur={field.handleBlur}
-											autoComplete="email"
+											autoComplete="username"
 											aria-invalid={
 												hasErrors || undefined
 											}

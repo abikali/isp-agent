@@ -10,6 +10,8 @@ import type { BillingSyncJobData, BillingSyncJobResult } from "../types";
 
 const BATCH_SIZE = 500;
 const DEFAULT_COLLECTOR_PASSWORD = "123456";
+/** Offset added to addon installation IDs to avoid collision with main installations */
+const ADDON_ID_OFFSET = 1_000_000;
 
 /**
  * ISP role permission templates — inlined to avoid circular dependency
@@ -184,6 +186,12 @@ async function processBillingSync(
 		stockItems: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		workerStock: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		installations: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		followups: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		tasks: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		uninstalledItems: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		stockLogs: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		stationWorkers: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		addonInstallations: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		errors: [] as Array<{ phase: string; detail: string }>,
 	};
 
@@ -257,6 +265,7 @@ async function processBillingSync(
 									emp.role === "collector"
 										? "collector"
 										: "standard",
+								telegramChatId: emp.telegram ?? null,
 							},
 						});
 
@@ -336,17 +345,64 @@ async function processBillingSync(
 				}
 			}
 
+			// ── Phase 0c: Sync Telegram chat IDs from billing isplogin table
+			try {
+				const loginRows = await queryBilling(
+					conn,
+					"SELECT username, telegram FROM isplogin WHERE telegram IS NOT NULL AND telegram != '0'",
+				);
+				for (const row of loginRows) {
+					const username = row["username"] as string | null;
+					const telegram = row["telegram"] as string | null;
+					if (!username || !telegram) {
+						continue;
+					}
+					await db.employee
+						.updateMany({
+							where: {
+								organizationId,
+								username: {
+									equals: username,
+									mode: "insensitive",
+								},
+								telegramChatId: null,
+							},
+							data: { telegramChatId: telegram },
+						})
+						.catch((err) =>
+							logger.warn(
+								`[Billing Sync] Telegram update failed for ${username}`,
+								{
+									error:
+										err instanceof Error
+											? err.message
+											: String(err),
+								},
+							),
+						);
+				}
+			} catch (err) {
+				addError(
+					"employees",
+					`Telegram sync: ${err instanceof Error ? err.message : String(err)}`,
+				);
+			}
+
 			// ── Build lookup maps ────────────────────────────────────
 
 			const employees = await db.employee.findMany({
 				where: { organizationId },
-				select: { id: true, name: true, username: true },
+				select: { id: true, name: true, username: true, userId: true },
 			});
 			const employeeNameMap = new Map<string, string>();
+			const employeeUserIdMap = new Map<string, string>();
 			for (const emp of employees) {
 				employeeNameMap.set(emp.name.toLowerCase(), emp.id);
 				if (emp.username) {
 					employeeNameMap.set(emp.username.toLowerCase(), emp.id);
+				}
+				if (emp.userId) {
+					employeeUserIdMap.set(emp.id, emp.userId);
 				}
 			}
 
@@ -453,13 +509,80 @@ async function processBillingSync(
 			}
 			await updateProgress(operationId, { processedCustomers });
 
+			// ── Phase 1b: GPS coordinates from john_full + worker from john ──
+
+			await updateProgress(operationId, { phase: "gps_enrichment" });
+
+			const gpsRows = await queryBilling(
+				conn,
+				"SELECT username, lat, lng FROM john_full WHERE lat IS NOT NULL AND lat != 0 AND lng IS NOT NULL AND lng != 0",
+			);
+
+			let gpsUpdated = 0;
+			for (const row of gpsRows) {
+				const username = row["username"] as string | null;
+				const customerId = findCustomerId(username);
+				if (!customerId) {
+					continue;
+				}
+				const lat = Number(row["lat"]);
+				const lng = Number(row["lng"]);
+				if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+					continue;
+				}
+				try {
+					await db.customer.update({
+						where: { id: customerId },
+						data: { latitude: lat, longitude: lng },
+					});
+					gpsUpdated++;
+				} catch {
+					// Skip silently — non-critical
+				}
+			}
+			logger.info(
+				`[Billing Sync] GPS enrichment: ${gpsUpdated} customers updated`,
+			);
+
+			// Worker assignments from john
+			const workerRows = await queryBilling(
+				conn,
+				"SELECT username, worker FROM john WHERE worker IS NOT NULL AND worker != ''",
+			);
+
+			let workersAssigned = 0;
+			for (const row of workerRows) {
+				const username = row["username"] as string | null;
+				const customerId = findCustomerId(username);
+				if (!customerId) {
+					continue;
+				}
+				const workerName = row["worker"] as string | null;
+				const workerId = findEmployeeId(workerName);
+				if (!workerId) {
+					continue;
+				}
+				try {
+					await db.customer.update({
+						where: { id: customerId },
+						data: { workerId },
+					});
+					workersAssigned++;
+				} catch {
+					// Skip silently — non-critical
+				}
+			}
+			logger.info(
+				`[Billing Sync] Worker assignments: ${workersAssigned} customers updated`,
+			);
+
 			// ── Phase 2: Payments ────────────────────────────────────
 
 			await updateProgress(operationId, { phase: "payments" });
 
 			const paymentRows = await queryBilling(
 				conn,
-				"SELECT invoice_number, username, collector, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
+				"SELECT id, invoice_number, username, collector, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
 			);
 
 			await updateProgress(operationId, {
@@ -540,6 +663,7 @@ async function processBillingSync(
 						customerId,
 						billingCycleId: cycleId,
 						collectorId,
+						externalBillingId: row["id"] as number,
 						accountPrice: toFloat(row["account_price"]),
 						paidAmount: toFloat(row["paid_amount"]),
 						discount: toFloat(row["discount"]),
@@ -607,6 +731,7 @@ async function processBillingSync(
 						continue;
 					}
 
+					const billingId = row["id"] as number;
 					const date = row["date"] as Date | string | null;
 
 					collectionBatch.push({
@@ -615,6 +740,7 @@ async function processBillingSync(
 						amount: toFloat(row["collect_amount"]),
 						notes: (row["note"] as string) ?? null,
 						type: "HANDOFF",
+						externalBillingId: billingId,
 						collectedAt: date ? new Date(String(date)) : new Date(),
 					});
 
@@ -631,6 +757,7 @@ async function processBillingSync(
 				if (collectionBatch.length >= BATCH_SIZE) {
 					await db.cashCollection.createMany({
 						data: collectionBatch,
+						skipDuplicates: true,
 					});
 					collectionBatch.length = 0;
 					await updateProgress(operationId, { processedCollections });
@@ -638,7 +765,10 @@ async function processBillingSync(
 			}
 
 			if (collectionBatch.length > 0) {
-				await db.cashCollection.createMany({ data: collectionBatch });
+				await db.cashCollection.createMany({
+					data: collectionBatch,
+					skipDuplicates: true,
+				});
 			}
 			await updateProgress(operationId, { processedCollections });
 
@@ -666,13 +796,30 @@ async function processBillingSync(
 						continue;
 					}
 
+					const billingId = row["id"] as number;
 					const ts = row["timestamp"] as Date | string | null;
 					const approved = Number(row["approved"]) === 1;
 
-					await db.expense.create({
-						data: {
+					await db.expense.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId,
+							},
+						},
+						update: {
+							amount: toFloat(row["amount"]),
+							description:
+								(row["note"] as string) ?? "Imported expense",
+							receiptUrl: (row["image_name"] as string) ?? null,
+							status: approved ? "APPROVED" : "PENDING",
+							approvedAt:
+								approved && ts ? new Date(String(ts)) : null,
+						},
+						create: {
 							organizationId,
 							submittedById: employeeId,
+							externalBillingId: billingId,
 							amount: toFloat(row["amount"]),
 							description:
 								(row["note"] as string) ?? "Imported expense",
@@ -875,6 +1022,7 @@ async function processBillingSync(
 						customerId,
 						employeeId,
 						stockItemId,
+						externalBillingId: row["id"] as number,
 						quantity: toFloat(row["quantity"]) || 1,
 						price: toFloat(row["price"]),
 						isAddOn: Number(row["isAddOn"]) === 1,
@@ -895,7 +1043,10 @@ async function processBillingSync(
 
 				processedInstallations++;
 				if (installBatch.length >= BATCH_SIZE) {
-					await db.installation.createMany({ data: installBatch });
+					await db.installation.createMany({
+						data: installBatch,
+						skipDuplicates: true,
+					});
 					installBatch.length = 0;
 					await updateProgress(operationId, {
 						processedInstallations,
@@ -904,9 +1055,476 @@ async function processBillingSync(
 			}
 
 			if (installBatch.length > 0) {
-				await db.installation.createMany({ data: installBatch });
+				await db.installation.createMany({
+					data: installBatch,
+					skipDuplicates: true,
+				});
 			}
 			await updateProgress(operationId, { processedInstallations });
+
+			// ── Phase 8: Followups ──────────────────────────────────
+
+			await updateProgress(operationId, { phase: "followups" });
+
+			const followupRows = await queryBilling(
+				conn,
+				"SELECT id, name, username, mobile, is_done, note, status, collector_note, date_time, is_done_date_time, `group` FROM followup ORDER BY date_time ASC",
+			);
+
+			for (const row of followupRows) {
+				try {
+					const billingId = row["id"] as number;
+					const username = row["username"] as string | null;
+					const customerId = findCustomerId(username);
+					const isDone = row["is_done"] === "yes";
+					const dt = row["date_time"] as Date | string | null;
+					const doneDt = row["is_done_date_time"] as
+						| Date
+						| string
+						| null;
+
+					await db.followup.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId,
+							},
+						},
+						update: {
+							isDone,
+							note: (row["note"] as string) ?? null,
+							status: (row["status"] as string) ?? null,
+							collectorNote:
+								(row["collector_note"] as string) ?? null,
+							doneAt:
+								isDone && doneDt
+									? new Date(String(doneDt))
+									: null,
+						},
+						create: {
+							organizationId,
+							externalBillingId: billingId,
+							customerId: customerId ?? null,
+							customerName: (row["name"] as string) ?? null,
+							customerUsername: username ?? null,
+							mobile: (row["mobile"] as string) ?? null,
+							groupName: (row["group"] as string) ?? null,
+							isDone,
+							note: (row["note"] as string) ?? null,
+							status: (row["status"] as string) ?? null,
+							collectorNote:
+								(row["collector_note"] as string) ?? null,
+							doneAt:
+								isDone && doneDt
+									? new Date(String(doneDt))
+									: null,
+							createdAt: dt ? new Date(String(dt)) : new Date(),
+						},
+					});
+
+					result.followups.created++;
+				} catch (err) {
+					result.followups.errors++;
+					addError(
+						"followups",
+						`id=${row["id"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
+
+			// ── Phase 9: Legacy Tasks (uninstall/maintenance) ───────
+
+			await updateProgress(operationId, { phase: "legacy_tasks" });
+
+			const taskRows = await queryBilling(
+				conn,
+				"SELECT t.id, t.type, t.message, t.status, t.customer_username, t.task_date, t.wid FROM tasks t ORDER BY t.task_date ASC",
+			);
+
+			// Build a map of task legacy ID → our task ID for uninstalled items later
+			const taskIdMap = new Map<number, string>();
+
+			for (const row of taskRows) {
+				try {
+					const billingId = row["id"] as number;
+					const taskType = row["type"] as string;
+					const customerId = findCustomerId(
+						row["customer_username"] as string | null,
+					);
+					const taskDate = row["task_date"] as Date | string | null;
+					const legacyStatus = row["status"] as string;
+
+					let status:
+						| "OPEN"
+						| "IN_PROGRESS"
+						| "COMPLETED"
+						| "CANCELLED" = "OPEN";
+					if (
+						legacyStatus === "completed" ||
+						legacyStatus === "approved"
+					) {
+						status = "COMPLETED";
+					} else if (legacyStatus === "denied") {
+						status = "CANCELLED";
+					} else if (legacyStatus === "assigned") {
+						status = "IN_PROGRESS";
+					}
+
+					const category =
+						taskType === "maintenance"
+							? "MAINTENANCE"
+							: "INSTALLATION";
+
+					const task = await db.task.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId,
+							},
+						},
+						update: {
+							status,
+							completedAt:
+								status === "COMPLETED" && taskDate
+									? new Date(String(taskDate))
+									: null,
+						},
+						create: {
+							organizationId,
+							externalBillingId: billingId,
+							title: `${taskType === "maintenance" ? "Maintenance" : "Uninstall"} #${billingId}`,
+							description: (row["message"] as string) ?? null,
+							category,
+							source: "LEGACY",
+							status,
+							customerId: customerId ?? null,
+							completedAt:
+								status === "COMPLETED" && taskDate
+									? new Date(String(taskDate))
+									: null,
+							createdAt: taskDate
+								? new Date(String(taskDate))
+								: new Date(),
+						},
+					});
+
+					taskIdMap.set(billingId, task.id);
+
+					// Sync task assignments
+					const wid = row["wid"] as string | null;
+					if (wid) {
+						const workerIds = wid
+							.split(",")
+							.map((w) => findEmployeeId(w.trim()))
+							.filter(Boolean) as string[];
+						for (const empId of workerIds) {
+							await db.taskAssignment
+								.upsert({
+									where: {
+										taskId_employeeId: {
+											taskId: task.id,
+											employeeId: empId,
+										},
+									},
+									update: {},
+									create: {
+										taskId: task.id,
+										employeeId: empId,
+									},
+								})
+								.catch(() => {});
+						}
+					}
+
+					result.tasks.created++;
+				} catch (err) {
+					result.tasks.errors++;
+					addError(
+						"tasks",
+						`id=${row["id"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
+
+			// ── Phase 10: Uninstalled Items ─────────────────────────
+
+			await updateProgress(operationId, { phase: "uninstalled_items" });
+
+			const uninstallRows = await queryBilling(
+				conn,
+				"SELECT id, task_id, item_name, quantity, picture_url, worker_id, item_status, uninstall_time FROM uninstalled_items ORDER BY uninstall_time ASC",
+			);
+
+			for (const row of uninstallRows) {
+				try {
+					const billingId = row["id"] as number;
+					const legacyTaskId = row["task_id"] as number;
+					const taskId = taskIdMap.get(legacyTaskId) ?? null;
+
+					const itemStatus = row["item_status"] as string;
+					let status: "PENDING" | "APPROVED" = "PENDING";
+					if (itemStatus === "approved") {
+						status = "APPROVED";
+					}
+
+					const ts = row["uninstall_time"] as Date | string | null;
+
+					await db.uninstalledItem.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId,
+							},
+						},
+						update: {
+							status,
+							itemName: (row["item_name"] as string) ?? "Unknown",
+							quantity: toFloat(row["quantity"]) || 1,
+							pictureUrl: (row["picture_url"] as string) ?? null,
+						},
+						create: {
+							organizationId,
+							externalBillingId: billingId,
+							taskId,
+							itemName: (row["item_name"] as string) ?? "Unknown",
+							quantity: toFloat(row["quantity"]) || 1,
+							pictureUrl: (row["picture_url"] as string) ?? null,
+							status,
+							uninstalledAt: ts
+								? new Date(String(ts))
+								: new Date(),
+						},
+					});
+
+					result.uninstalledItems.created++;
+				} catch (err) {
+					result.uninstalledItems.errors++;
+					addError(
+						"uninstalledItems",
+						`id=${row["id"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
+
+			// ── Phase 11: Stock Log ─────────────────────────────────
+
+			await updateProgress(operationId, { phase: "stock_logs" });
+
+			const stockLogRows = await queryBilling(
+				conn,
+				"SELECT id, username, action, item_name, `timestamp`, worker_username, quantity, admin_previous_quantity, admin_new_quantity, worker_previous_quantity, worker_new_quantity FROM stock_log ORDER BY `timestamp` ASC",
+			);
+
+			for (const row of stockLogRows) {
+				try {
+					const itemName = (row["item_name"] as string)
+						?.trim()
+						?.toLowerCase();
+					const stockItemId = itemName
+						? stockItemMap.get(itemName)
+						: undefined;
+					if (!stockItemId) {
+						result.stockLogs.skipped++;
+						continue;
+					}
+
+					const adminUser = row["username"] as string | null;
+					const performedById = findEmployeeId(adminUser);
+					const workerName = row["worker_username"] as string | null;
+					const employeeId = findEmployeeId(workerName);
+
+					if (!performedById) {
+						result.stockLogs.skipped++;
+						continue;
+					}
+
+					const legacyAction = row["action"] as string;
+					let action: "ADD" | "DELIVER" | "TRANSFER_TO_WORKER" =
+						"DELIVER";
+					if (legacyAction === "add quantity") {
+						action = "ADD";
+					} else if (legacyAction === "deliver") {
+						action = "DELIVER";
+					}
+
+					const ts = row["timestamp"] as Date | string | null;
+
+					// StockLog requires performedById to be a User ID, not Employee ID.
+					const performerUserId =
+						employeeUserIdMap.get(performedById);
+					if (!performerUserId) {
+						result.stockLogs.skipped++;
+						continue;
+					}
+
+					const billingId = row["id"] as number;
+					await db.stockLog.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId,
+							},
+						},
+						update: {
+							quantity: toFloat(row["quantity"]) || 0,
+						},
+						create: {
+							organizationId,
+							externalBillingId: billingId,
+							stockItemId,
+							employeeId: employeeId ?? null,
+							performedById: performerUserId,
+							action,
+							itemName: (row["item_name"] as string) ?? "Unknown",
+							quantity: toFloat(row["quantity"]) || 0,
+							adminQtyBefore:
+								toFloat(row["admin_previous_quantity"]) || null,
+							adminQtyAfter:
+								toFloat(row["admin_new_quantity"]) || null,
+							workerQtyBefore:
+								toFloat(row["worker_previous_quantity"]) ||
+								null,
+							workerQtyAfter:
+								toFloat(row["worker_new_quantity"]) || null,
+							createdAt: ts ? new Date(String(ts)) : new Date(),
+						},
+					});
+
+					result.stockLogs.created++;
+				} catch (err) {
+					result.stockLogs.errors++;
+					addError(
+						"stockLogs",
+						`id=${row["id"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
+
+			// ── Phase 12: Station-Worker Assignments ────────────────
+
+			await updateProgress(operationId, { phase: "station_workers" });
+
+			const stationWorkerRows = await queryBilling(
+				conn,
+				"SELECT sw.station_id, sw.worker_username, s.station_name FROM station_workers sw LEFT JOIN stations s ON sw.station_id = s.id",
+			);
+
+			// Build station name → our station ID map
+			const stations = await db.station.findMany({
+				where: { organizationId },
+				select: { id: true, name: true },
+			});
+			const stationNameMap = new Map<string, string>();
+			for (const st of stations) {
+				stationNameMap.set(st.name.toLowerCase(), st.id);
+			}
+
+			for (const row of stationWorkerRows) {
+				try {
+					const stationName = row["station_name"] as string | null;
+					const stationId = stationName
+						? stationNameMap.get(stationName.toLowerCase())
+						: undefined;
+					if (!stationId) {
+						result.stationWorkers.skipped++;
+						continue;
+					}
+
+					const workerName = row["worker_username"] as string | null;
+					const employeeId = findEmployeeId(workerName);
+					if (!employeeId) {
+						result.stationWorkers.skipped++;
+						continue;
+					}
+
+					await db.employeeStation
+						.upsert({
+							where: {
+								employeeId_stationId: {
+									employeeId,
+									stationId,
+								},
+							},
+							update: {},
+							create: { employeeId, stationId },
+						})
+						.catch(() => {});
+
+					result.stationWorkers.created++;
+				} catch (err) {
+					result.stationWorkers.errors++;
+					addError(
+						"stationWorkers",
+						`station=${row["station_name"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
+
+			// ── Phase 13: Add-on Installations ──────────────────────
+
+			await updateProgress(operationId, { phase: "addon_installations" });
+
+			const addonRows = await queryBilling(
+				conn,
+				"SELECT id, worker_username, addon_name, customer_name, customer_username, price, installation_date, state FROM installations_addons ORDER BY installation_date ASC",
+			);
+
+			for (const row of addonRows) {
+				try {
+					const customerId = findCustomerId(
+						row["customer_username"] as string | null,
+					);
+					const employeeId = findEmployeeId(
+						row["worker_username"] as string | null,
+					);
+
+					if (!customerId || !employeeId) {
+						result.addonInstallations.skipped++;
+						continue;
+					}
+
+					const billingId = row["id"] as number;
+					const installDate = row["installation_date"] as
+						| Date
+						| string
+						| null;
+					const state = Number(row["state"]);
+
+					await db.installation.upsert({
+						where: {
+							organizationId_externalBillingId: {
+								organizationId,
+								externalBillingId: billingId + ADDON_ID_OFFSET,
+							},
+						},
+						update: {
+							status: state === 1 ? "APPROVED" : "PENDING",
+						},
+						create: {
+							organizationId,
+							customerId,
+							employeeId,
+							externalBillingId: billingId + ADDON_ID_OFFSET,
+							quantity: 1,
+							price: toFloat(row["price"]),
+							isAddOn: true,
+							status: state === 1 ? "APPROVED" : "PENDING",
+							notes: (row["addon_name"] as string) ?? null,
+							installedAt: installDate
+								? new Date(String(installDate))
+								: new Date(),
+						},
+					});
+
+					result.addonInstallations.created++;
+				} catch (err) {
+					result.addonInstallations.errors++;
+					addError(
+						"addonInstallations",
+						`id=${row["id"]}: ${err instanceof Error ? err.message : String(err)}`,
+					);
+				}
+			}
 		});
 
 		// ── Complete ─────────────────────────────────────────────

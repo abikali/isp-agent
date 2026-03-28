@@ -122,6 +122,7 @@ export interface BillingSyncJobData {
 		username: string;
 		role: string;
 		phone: string | null;
+		telegram: string | null;
 	}>;
 	mapEmployees: Array<{
 		billingUsername: string;

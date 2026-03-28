@@ -7,8 +7,10 @@ import {
 } from "@repo/api/lib/permission";
 import type { PaymentNoteCategory, PaymentStatus } from "@repo/database";
 import { db } from "@repo/database";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { sendWhatsAppReceipt } from "../lib/whatsapp-receipt";
 
 export const createPayment = protectedProcedure
 	.route({
@@ -182,5 +184,41 @@ export const createPayment = protectedProcedure
 			return newPayment;
 		});
 
-		return { payment };
+		// Send WhatsApp receipt for non-stopped payments
+		let receiptSent = false;
+		if (!input.stoppedAccount) {
+			const phone =
+				input.customerMobile ?? customer.mobile ?? customer.phone;
+			if (phone) {
+				try {
+					const sent = await sendWhatsAppReceipt({
+						phone,
+						paymentId: payment.id,
+					});
+					if (sent) {
+						receiptSent = true;
+						await db.payment
+							.update({
+								where: { id: payment.id },
+								data: {
+									receiptSent: true,
+									receiptSentAt: new Date(),
+								},
+							})
+							.catch((err) =>
+								logger.warn(
+									"[WhatsApp Receipt] Failed to update payment record",
+									{ error: String(err) },
+								),
+							);
+					}
+				} catch (err) {
+					logger.warn("[WhatsApp Receipt] Unexpected error", {
+						error: String(err),
+					});
+				}
+			}
+		}
+
+		return { payment, receiptSent };
 	});

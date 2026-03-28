@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	requirePermission,
+	verifyCustomerOwnership,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -19,12 +22,28 @@ export const listCustomerInvoices = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { permCtx } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"read",
 		);
+
+		// Verify the user can access this customer (ownership check for :own scope)
+		const customer = await db.customer.findFirst({
+			where: {
+				id: input.customerId,
+				organizationId: input.organizationId,
+			},
+			select: { collectorId: true },
+		});
+		if (customer) {
+			await verifyCustomerOwnership(
+				permCtx,
+				"read",
+				customer.collectorId,
+			);
+		}
 
 		const [invoices, total] = await Promise.all([
 			db.customerInvoice.findMany({

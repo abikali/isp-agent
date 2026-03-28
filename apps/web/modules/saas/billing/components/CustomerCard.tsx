@@ -2,6 +2,7 @@
 
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
+import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -12,8 +13,11 @@ import {
 	MapPinIcon,
 	MessageCircleIcon,
 	PhoneIcon,
+	SendIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { useRequestLocation } from "../hooks/use-billing";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 
 export interface UnpaidCustomer {
@@ -72,6 +76,8 @@ function getExpiryStatus(expiresAt: UnpaidCustomer["expiresAt"]): {
 
 export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const [expanded, setExpanded] = useState(false);
+	const organizationId = useOrganizationId();
+	const requestLocation = useRequestLocation();
 
 	const name = displayName(customer.firstName, customer.lastName);
 	const accountPrice =
@@ -158,21 +164,66 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 							</p>
 						)}
 						{hasLocation && (
-							<Button
-								variant="outline"
-								size="sm"
-								className="w-full"
-								asChild
-							>
-								<a
-									href={`https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`}
-									target="_blank"
-									rel="noopener noreferrer"
+							<div className="flex gap-2">
+								<Button
+									variant="outline"
+									size="sm"
+									className="flex-1"
+									asChild
 								>
-									<MapPinIcon className="mr-1.5 size-3.5" />
-									Navigate
-								</a>
-							</Button>
+									<a
+										href={`https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										<MapPinIcon className="mr-1.5 size-3.5" />
+										Navigate
+									</a>
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									className="flex-1"
+									disabled={requestLocation.isPending}
+									onClick={() => {
+										if (!organizationId) {
+											return;
+										}
+										requestLocation.mutate(
+											{
+												organizationId,
+												customerId: customer.id,
+											},
+											{
+												onSuccess: (data) => {
+													if (data.success) {
+														toast.success(
+															"Location sent to Telegram",
+														);
+													} else {
+														// Fallback: open maps directly
+														window.open(
+															data.mapsLink,
+															"_blank",
+														);
+														toast.info(
+															"Telegram not available, opened Maps",
+														);
+													}
+												},
+												onError: (error) => {
+													toast.error(error.message);
+												},
+											},
+										);
+									}}
+								>
+									<SendIcon className="mr-1.5 size-3.5" />
+									{requestLocation.isPending
+										? "Sending..."
+										: "Telegram"}
+								</Button>
+							</div>
 						)}
 					</div>
 				)}

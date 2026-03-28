@@ -21,6 +21,11 @@ export type JobsConfig = {
 		email: { concurrency: number };
 		webhook: { concurrency: number };
 		scheduled: { concurrency: number };
+		aiChat: { concurrency: number };
+		watcherCheck: { concurrency: number };
+		iradiusSync: { concurrency: number };
+		billingSync: { concurrency: number };
+		integrationSync: { concurrency: number };
 	};
 };
 

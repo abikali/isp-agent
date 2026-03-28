@@ -90,8 +90,8 @@ const trustedOrigins = [appUrl];
 if (appUrl.includes("localhost")) {
 	trustedOrigins.push(appUrl.replace("localhost", "127.0.0.1"));
 }
-// When using a tunnel, also trust the local dev origins
-if (!appUrl.includes("localhost")) {
+// When using a tunnel in dev, also trust the local dev origins
+if (!appUrl.includes("localhost") && process.env["NODE_ENV"] !== "production") {
 	trustedOrigins.push("http://localhost:5050");
 	trustedOrigins.push("http://127.0.0.1:5050");
 	trustedOrigins.push("http://localhost:3030");

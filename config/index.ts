@@ -84,6 +84,11 @@ export const config = {
 			email: { concurrency: 5 },
 			webhook: { concurrency: 10 },
 			scheduled: { concurrency: 1 },
+			aiChat: { concurrency: 3 },
+			watcherCheck: { concurrency: 2 },
+			iradiusSync: { concurrency: 1 },
+			billingSync: { concurrency: 1 },
+			integrationSync: { concurrency: 2 },
 		},
 	},
 	// Security

@@ -340,6 +340,12 @@ export function useDeleteCollection() {
 	});
 }
 
+// ─── Request Location ───────────────────────────────────────
+
+export function useRequestLocation() {
+	return useMutation(orpc.billing.location.request.mutationOptions());
+}
+
 // ─── Delete Payment ─────────────────────────────────────────────
 
 export function useDeletePayment() {

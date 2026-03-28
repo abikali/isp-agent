@@ -54,6 +54,7 @@ export {
 	usePreviewBillingSync,
 	useProcessPayment,
 	useReactivateAccount,
+	useRequestLocation,
 	useStoppedAccounts,
 	useSyncFromBilling,
 	useTestBilling,

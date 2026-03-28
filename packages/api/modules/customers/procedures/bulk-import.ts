@@ -25,6 +25,16 @@ const importRowSchema = z.object({
 	notes: z.string().optional(),
 });
 
+const IMPORT_BATCH_SIZE = 200;
+
+const VALID_CONNECTION_TYPES = new Set([
+	"FIBER",
+	"WIRELESS",
+	"DSL",
+	"CABLE",
+	"ETHERNET",
+]);
+
 export const bulkImportCustomers = protectedProcedure
 	.route({
 		method: "POST",
@@ -65,18 +75,37 @@ export const bulkImportCustomers = protectedProcedure
 			stations.map((s) => [s.name.toLowerCase(), s.id]),
 		);
 
-		const validConnectionTypes = new Set([
-			"FIBER",
-			"WIRELESS",
-			"DSL",
-			"CABLE",
-			"ETHERNET",
-		]);
+		// Pre-generate all account numbers (one DB query instead of N)
+		const firstAccountNumber = await generateAccountNumber(
+			input.organizationId,
+		);
+		const match = firstAccountNumber.match(/ACC-(\d+)/);
+		const startingNumber = match?.[1] ? Number.parseInt(match[1], 10) : 1;
 
-		let successCount = 0;
-		let errorCount = 0;
+		// Pre-validate and build all records
 		const errors: Array<{ row: number; error: string }> = [];
+		const validRecords: Array<{
+			organizationId: string;
+			accountNumber: string;
+			firstName: string;
+			lastName: string | null;
+			fullName: string;
+			email: string | null;
+			phone: string | null;
+			address: string | null;
+			username: string | null;
+			planId: string | null;
+			stationId: string | null;
+			connectionType: ConnectionType | null;
+			ipAddress: string | null;
+			macAddress: string | null;
+			monthlyRate: number | null;
+			billingDay: number | null;
+			notes: string | null;
+			status: "ACTIVE";
+		}> = [];
 
+		let numberOffset = 0;
 		for (let i = 0; i < input.rows.length; i++) {
 			const row = input.rows[i];
 			if (!row) {
@@ -84,10 +113,6 @@ export const bulkImportCustomers = protectedProcedure
 			}
 
 			try {
-				const accountNumber = await generateAccountNumber(
-					input.organizationId,
-				);
-
 				const planId = row.planName
 					? (planMap.get(row.planName.toLowerCase()) ?? null)
 					: null;
@@ -98,39 +123,37 @@ export const bulkImportCustomers = protectedProcedure
 				let connectionType: ConnectionType | null = null;
 				if (row.connectionType) {
 					const ct = row.connectionType.toUpperCase();
-					if (validConnectionTypes.has(ct)) {
+					if (VALID_CONNECTION_TYPES.has(ct)) {
 						connectionType = ct as ConnectionType;
 					}
 				}
 
-				await db.customer.create({
-					data: {
-						organizationId: input.organizationId,
-						accountNumber,
-						firstName: row.firstName,
-						lastName: row.lastName ?? null,
-						fullName: [row.firstName, row.lastName]
-							.filter(Boolean)
-							.join(" "),
-						email: row.email ?? null,
-						phone: row.phone ?? null,
-						address: row.address ?? null,
-						username: row.username ?? null,
-						planId,
-						stationId,
-						connectionType,
-						ipAddress: row.ipAddress ?? null,
-						macAddress: row.macAddress ?? null,
-						monthlyRate: row.monthlyRate ?? null,
-						billingDay: row.billingDay ?? null,
-						notes: row.notes ?? null,
-						status: "ACTIVE",
-					},
-				});
+				const accountNumber = `ACC-${String(startingNumber + numberOffset).padStart(5, "0")}`;
+				numberOffset++;
 
-				successCount++;
+				validRecords.push({
+					organizationId: input.organizationId,
+					accountNumber,
+					firstName: row.firstName,
+					lastName: row.lastName ?? null,
+					fullName: [row.firstName, row.lastName]
+						.filter(Boolean)
+						.join(" "),
+					email: row.email ?? null,
+					phone: row.phone ?? null,
+					address: row.address ?? null,
+					username: row.username ?? null,
+					planId,
+					stationId,
+					connectionType,
+					ipAddress: row.ipAddress ?? null,
+					macAddress: row.macAddress ?? null,
+					monthlyRate: row.monthlyRate ?? null,
+					billingDay: row.billingDay ?? null,
+					notes: row.notes ?? null,
+					status: "ACTIVE",
+				});
 			} catch (error) {
-				errorCount++;
 				errors.push({
 					row: i + 1,
 					error:
@@ -140,6 +163,41 @@ export const bulkImportCustomers = protectedProcedure
 				});
 			}
 		}
+
+		// Batch insert valid records
+		let successCount = 0;
+		for (let i = 0; i < validRecords.length; i += IMPORT_BATCH_SIZE) {
+			const batch = validRecords.slice(i, i + IMPORT_BATCH_SIZE);
+			try {
+				const result = await db.customer.createMany({
+					data: batch,
+					skipDuplicates: true,
+				});
+				successCount += result.count;
+			} catch {
+				// If batch fails, fall back to individual inserts for this batch
+				for (let j = 0; j < batch.length; j++) {
+					const record = batch[j];
+					if (!record) {
+						continue;
+					}
+					try {
+						await db.customer.create({ data: record });
+						successCount++;
+					} catch (err) {
+						errors.push({
+							row: i + j + 1,
+							error:
+								err instanceof Error
+									? err.message
+									: "Unknown error",
+						});
+					}
+				}
+			}
+		}
+
+		const errorCount = input.rows.length - successCount;
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		customerAudit.imported(user.id, input.organizationId, auditContext, {
