@@ -1,4 +1,5 @@
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
@@ -22,7 +23,7 @@ export const listCustomerInvoices = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -34,6 +35,7 @@ export const listCustomerInvoices = protectedProcedure
 			where: {
 				id: input.customerId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { collectorId: true },
 		});

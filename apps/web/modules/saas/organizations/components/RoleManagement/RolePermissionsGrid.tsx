@@ -54,7 +54,6 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
 	accessPoints: "Access Points",
 	employees: "Employees",
 	tasks: "Tasks",
-	dealers: "Dealers",
 	webhooks: "Webhooks",
 	apiKeys: "API Keys",
 	audit: "Audit Logs",

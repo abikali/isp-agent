@@ -34,7 +34,7 @@ export const testBilling = protectedProcedure
 	});
 
 // ---------------------------------------------------------------------------
-// Preview sync (shows unmatched employees before committing)
+// Preview sync — show what will be imported vs skipped
 // ---------------------------------------------------------------------------
 
 export const previewBillingSync = protectedProcedure
@@ -43,7 +43,7 @@ export const previewBillingSync = protectedProcedure
 		path: "/billing/sync/preview",
 		tags: ["Billing"],
 		summary:
-			"Preview what the billing sync will do — returns unmatched employees",
+			"Preview what billing sync will import vs skip due to unmatched employees/customers",
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
@@ -54,80 +54,275 @@ export const previewBillingSync = protectedProcedure
 			"manage",
 		);
 
+		const { organizationId } = input;
+
+		// Build the same lookup maps the worker uses
+		const employees = await db.employee.findMany({
+			where: { organizationId },
+			select: { id: true, name: true, username: true },
+		});
+		const employeeNameMap = new Map<string, string>();
+		for (const emp of employees) {
+			employeeNameMap.set(emp.name.toLowerCase(), emp.id);
+			if (emp.username) {
+				employeeNameMap.set(emp.username.toLowerCase(), emp.id);
+			}
+		}
+
+		const customers = await db.customer.findMany({
+			where: { organizationId, username: { not: null } },
+			select: { id: true, username: true },
+		});
+		const customerUsernameMap = new Map<string, string>();
+		for (const cust of customers) {
+			if (cust.username) {
+				customerUsernameMap.set(cust.username.toLowerCase(), cust.id);
+			}
+		}
+
+		function hasEmployee(name: string | null | undefined): boolean {
+			if (!name) {
+				return false;
+			}
+			return employeeNameMap.has(name.toLowerCase());
+		}
+
+		function hasCustomer(username: string | null | undefined): boolean {
+			if (!username) {
+				return false;
+			}
+			return customerUsernameMap.has(username.toLowerCase());
+		}
+
 		return withBillingConnection(async (conn) => {
-			const loginRows = await queryBilling(
+			// Customers — skipped if username not in local DB
+			const johnRows = await queryBilling(
 				conn,
-				"SELECT username, role, phone, telegram FROM isplogin WHERE role IN ('collector', 'worker') ORDER BY role, username",
+				"SELECT username FROM john",
 			);
-
-			const existingEmployees = await db.employee.findMany({
-				where: { organizationId: input.organizationId },
-				select: {
-					id: true,
-					name: true,
-					username: true,
-					department: true,
-				},
-			});
-			const existingUsernames = new Set(
-				existingEmployees
-					.filter((e) => e.username)
-					.map((e) => e.username?.toLowerCase()),
-			);
-
-			const unmatchedEmployees: Array<{
-				username: string;
-				role: string;
-				phone: string | null;
-				telegram: string | null;
-			}> = [];
-
-			for (const row of loginRows) {
+			const unmatchedCustomerUsernames = new Set<string>();
+			let customerMatched = 0;
+			for (const row of johnRows) {
 				const username = row["username"] as string | null;
-				if (
-					!username ||
-					existingUsernames.has(username.toLowerCase())
-				) {
-					continue;
+				if (hasCustomer(username)) {
+					customerMatched++;
+				} else if (username) {
+					unmatchedCustomerUsernames.add(username);
 				}
-				unmatchedEmployees.push({
-					username,
-					role: row["role"] as string,
-					phone: (row["phone"] as string) ?? null,
-					telegram: (row["telegram"] as string) ?? null,
-				});
 			}
 
-			// Load saved mappings from previous syncs
-			const savedMappings = await db.billingEmployeeMapping.findMany({
-				where: { organizationId: input.organizationId },
-			});
-			const savedMap = new Map(
-				savedMappings.map((m) => [m.billingUsername.toLowerCase(), m]),
+			// Payments — skipped if customer OR collector not found
+			const paymentRows = await queryBilling(
+				conn,
+				"SELECT username, collector FROM john_payment",
 			);
+			const unmatchedPaymentCollectors = new Set<string>();
+			const unmatchedPaymentCustomers = new Set<string>();
+			let paymentMatched = 0;
+			let paymentSkipped = 0;
+			for (const row of paymentRows) {
+				const username = row["username"] as string | null;
+				const collector = row["collector"] as string | null;
+				const custOk = hasCustomer(username);
+				const collOk = hasEmployee(collector);
+				if (custOk && collOk) {
+					paymentMatched++;
+				} else {
+					paymentSkipped++;
+					if (!custOk && username) {
+						unmatchedPaymentCustomers.add(username);
+					}
+					if (!collOk && collector) {
+						unmatchedPaymentCollectors.add(collector);
+					}
+				}
+			}
+
+			// Collections — skipped if collector not found
+			const collectionRows = await queryBilling(
+				conn,
+				"SELECT collector FROM john_collection",
+			);
+			const unmatchedCollectionCollectors = new Set<string>();
+			let collectionMatched = 0;
+			let collectionSkipped = 0;
+			for (const row of collectionRows) {
+				const collector = row["collector"] as string | null;
+				if (hasEmployee(collector)) {
+					collectionMatched++;
+				} else {
+					collectionSkipped++;
+					if (collector) {
+						unmatchedCollectionCollectors.add(collector);
+					}
+				}
+			}
+
+			// Expenses — skipped if worker not found
+			const expenseRows = await queryBilling(
+				conn,
+				"SELECT worker_username FROM expenses",
+			);
+			const unmatchedExpenseWorkers = new Set<string>();
+			let expenseMatched = 0;
+			let expenseSkipped = 0;
+			for (const row of expenseRows) {
+				const worker = row["worker_username"] as string | null;
+				if (hasEmployee(worker)) {
+					expenseMatched++;
+				} else {
+					expenseSkipped++;
+					if (worker) {
+						unmatchedExpenseWorkers.add(worker);
+					}
+				}
+			}
+
+			// Installations — skipped if customer OR worker not found
+			const installRows = await queryBilling(
+				conn,
+				"SELECT customer_username, worker_username FROM installations",
+			);
+			const unmatchedInstallWorkers = new Set<string>();
+			const unmatchedInstallCustomers = new Set<string>();
+			let installMatched = 0;
+			let installSkipped = 0;
+			for (const row of installRows) {
+				const username = row["customer_username"] as string | null;
+				const worker = row["worker_username"] as string | null;
+				const custOk = hasCustomer(username);
+				const wrkOk = hasEmployee(worker);
+				if (custOk && wrkOk) {
+					installMatched++;
+				} else {
+					installSkipped++;
+					if (!custOk && username) {
+						unmatchedInstallCustomers.add(username);
+					}
+					if (!wrkOk && worker) {
+						unmatchedInstallWorkers.add(worker);
+					}
+				}
+			}
+
+			// Collect all unique unmatched names
+			const allUnmatchedEmployees = new Set<string>();
+			for (const s of [
+				unmatchedPaymentCollectors,
+				unmatchedCollectionCollectors,
+				unmatchedExpenseWorkers,
+				unmatchedInstallWorkers,
+			]) {
+				for (const name of s) {
+					allUnmatchedEmployees.add(name);
+				}
+			}
+
+			const allUnmatchedCustomers = new Set<string>();
+			for (const s of [
+				unmatchedCustomerUsernames,
+				unmatchedPaymentCustomers,
+				unmatchedInstallCustomers,
+			]) {
+				for (const name of s) {
+					allUnmatchedCustomers.add(name);
+				}
+			}
+
+			// Fetch dealer info for unmatched customers from john_full
+			const customerDealerMap = new Map<string, string>();
+			if (allUnmatchedCustomers.size > 0) {
+				const dealerRows = await queryBilling(
+					conn,
+					"SELECT username, dealer FROM john_full WHERE dealer IS NOT NULL AND dealer != ''",
+				);
+				for (const row of dealerRows) {
+					const username = row["username"] as string | null;
+					const dealer = row["dealer"] as string | null;
+					if (username && dealer) {
+						customerDealerMap.set(username.toLowerCase(), dealer);
+					}
+				}
+			}
+
+			// Build unmatched customers with dealer info
+			function customersWithDealers(usernames: string[]) {
+				return usernames.map((username) => ({
+					username,
+					dealer:
+						customerDealerMap.get(username.toLowerCase()) ?? null,
+				}));
+			}
 
 			return {
-				unmatchedEmployees,
-				existingEmployees: existingEmployees.map((e) => ({
-					id: e.id,
-					name: e.name,
-					username: e.username,
-					department: e.department,
-				})),
-				savedMappings: unmatchedEmployees.map((emp) => {
-					const saved = savedMap.get(emp.username.toLowerCase());
-					return {
-						billingUsername: emp.username,
-						action: saved?.action ?? "create",
-						employeeId: saved?.employeeId ?? null,
-					};
-				}),
+				phases: {
+					customers: {
+						total: johnRows.length,
+						matched: customerMatched,
+						skipped: unmatchedCustomerUsernames.size,
+						reason: "customer username not found locally",
+						unmatchedCustomers: customersWithDealers(
+							[...unmatchedCustomerUsernames].sort(),
+						),
+						unmatchedEmployees: [] as string[],
+					},
+					payments: {
+						total: paymentRows.length,
+						matched: paymentMatched,
+						skipped: paymentSkipped,
+						reason: "customer or collector not found",
+						unmatchedCustomers: customersWithDealers(
+							[...unmatchedPaymentCustomers].sort(),
+						),
+						unmatchedEmployees: [
+							...unmatchedPaymentCollectors,
+						].sort(),
+					},
+					collections: {
+						total: collectionRows.length,
+						matched: collectionMatched,
+						skipped: collectionSkipped,
+						reason: "collector not found",
+						unmatchedCustomers: [] as Array<{
+							username: string;
+							dealer: string | null;
+						}>,
+						unmatchedEmployees: [
+							...unmatchedCollectionCollectors,
+						].sort(),
+					},
+					expenses: {
+						total: expenseRows.length,
+						matched: expenseMatched,
+						skipped: expenseSkipped,
+						reason: "worker not found",
+						unmatchedCustomers: [] as Array<{
+							username: string;
+							dealer: string | null;
+						}>,
+						unmatchedEmployees: [...unmatchedExpenseWorkers].sort(),
+					},
+					installations: {
+						total: installRows.length,
+						matched: installMatched,
+						skipped: installSkipped,
+						reason: "customer or worker not found",
+						unmatchedCustomers: customersWithDealers(
+							[...unmatchedInstallCustomers].sort(),
+						),
+						unmatchedEmployees: [...unmatchedInstallWorkers].sort(),
+					},
+				},
+				unmatchedEmployees: [...allUnmatchedEmployees].sort(),
+				unmatchedCustomers: customersWithDealers(
+					[...allUnmatchedCustomers].sort(),
+				),
 			};
 		});
 	});
 
 // ---------------------------------------------------------------------------
-// Trigger sync (with optional confirmed employees to create)
+// Trigger sync
 // ---------------------------------------------------------------------------
 
 export const syncFromBilling = protectedProcedure
@@ -137,30 +332,7 @@ export const syncFromBilling = protectedProcedure
 		tags: ["Billing"],
 		summary: "Queue a full data sync from billing system",
 	})
-	.input(
-		z.object({
-			organizationId: z.string(),
-			createEmployees: z
-				.array(
-					z.object({
-						username: z.string(),
-						role: z.string(),
-						phone: z.string().nullable(),
-						telegram: z.string().nullable().default(null),
-					}),
-				)
-				.default([]),
-			mapEmployees: z
-				.array(
-					z.object({
-						billingUsername: z.string(),
-						employeeId: z.string(),
-					}),
-				)
-				.default([]),
-			skippedEmployees: z.array(z.string()).default([]),
-		}),
-	)
+	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
 		await requirePermission(
 			input.organizationId,
@@ -182,46 +354,6 @@ export const syncFromBilling = protectedProcedure
 			});
 		}
 
-		// Persist mappings for next sync
-		const mappingUpserts = [
-			...input.createEmployees.map((e) => ({
-				billingUsername: e.username,
-				action: "create" as const,
-				employeeId: null,
-			})),
-			...input.mapEmployees.map((e) => ({
-				billingUsername: e.billingUsername,
-				action: "map" as const,
-				employeeId: e.employeeId,
-			})),
-			...input.skippedEmployees.map((username) => ({
-				billingUsername: username,
-				action: "skip" as const,
-				employeeId: null,
-			})),
-		];
-
-		for (const m of mappingUpserts) {
-			await db.billingEmployeeMapping.upsert({
-				where: {
-					organizationId_billingUsername: {
-						organizationId: input.organizationId,
-						billingUsername: m.billingUsername,
-					},
-				},
-				update: {
-					action: m.action,
-					employeeId: m.employeeId,
-				},
-				create: {
-					organizationId: input.organizationId,
-					billingUsername: m.billingUsername,
-					action: m.action,
-					employeeId: m.employeeId,
-				},
-			});
-		}
-
 		const operation = await db.billingSyncOperation.create({
 			data: {
 				organizationId: input.organizationId,
@@ -232,8 +364,6 @@ export const syncFromBilling = protectedProcedure
 		await queueBillingSync({
 			operationId: operation.id,
 			organizationId: input.organizationId,
-			createEmployees: input.createEmployees,
-			mapEmployees: input.mapEmployees,
 		});
 
 		return { operationId: operation.id };

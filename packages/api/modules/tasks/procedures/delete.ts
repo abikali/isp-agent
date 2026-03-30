@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	NO_DEALER,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -22,7 +23,7 @@ export const deleteTask = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
@@ -33,6 +34,7 @@ export const deleteTask = protectedProcedure
 			where: { id: input.id, organizationId: input.organizationId },
 			include: {
 				assignments: { select: { employeeId: true } },
+				customer: { select: { dealerId: true } },
 			},
 		});
 		if (!existing) {
@@ -42,6 +44,16 @@ export const deleteTask = protectedProcedure
 		}
 
 		await verifyTaskOwnership(permCtx, "delete", existing);
+
+		// Dealer scoping: if task has a customer, it must belong to the active dealer
+		if (
+			existing.customerId &&
+			existing.customer?.dealerId !== (activeDealerId ?? NO_DEALER)
+		) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Task not found",
+			});
+		}
 
 		await db.task.update({
 			where: { id: input.id },

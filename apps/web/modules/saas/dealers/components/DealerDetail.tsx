@@ -6,11 +6,10 @@ import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { formatCurrency } from "@shared/lib/format";
-import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -61,15 +60,12 @@ const PERMISSION_LABELS: Record<string, string> = {
 };
 
 export function DealerDetail({ dealerId }: { dealerId: string }) {
-	const organizationId = useOrganizationId();
-	const { organizationSlug } = useParams({ strict: false });
 	const updateDealer = useUpdateDealer();
 	const deleteDealer = useDeleteDealer();
 
 	const { data } = useSuspenseQuery(
-		orpc.dealers.get.queryOptions({
+		orpc.admin.dealers.get.queryOptions({
 			input: {
-				organizationId: organizationId ?? "",
 				id: dealerId,
 			},
 		}),
@@ -91,12 +87,8 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 			status: dealer.status,
 		},
 		onSubmit: async ({ value }) => {
-			if (!organizationId) {
-				return;
-			}
 			try {
 				await updateDealer.mutateAsync({
-					organizationId,
 					id: dealerId,
 					name: value.name,
 					username: value.username || undefined,
@@ -138,7 +130,7 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 	return (
 		<PageShell
 			title={dealer.name}
-			backTo={`/app/${organizationSlug}/dealers`}
+			backTo="/app/admin/dealers"
 			backLabel="Dealers"
 			subtitle={
 				<span className="flex items-center gap-3">
@@ -160,12 +152,8 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 						variant="outline"
 						size="sm"
 						onClick={() => {
-							if (
-								organizationId &&
-								confirm("Deactivate this dealer?")
-							) {
+							if (confirm("Deactivate this dealer?")) {
 								deleteDealer.mutate({
-									organizationId,
 									id: dealerId,
 								});
 							}
@@ -606,11 +594,8 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 													label: "Parent Dealer",
 													value: dealer.parentDealer ? (
 														<Link
-															to="/app/$organizationSlug/dealers/$dealerId"
+															to="/app/admin/dealers/$dealerId"
 															params={{
-																organizationSlug:
-																	organizationSlug ??
-																	"",
 																dealerId:
 																	dealer
 																		.parentDealer
@@ -639,11 +624,8 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 																			key={
 																				child.id
 																			}
-																			to="/app/$organizationSlug/dealers/$dealerId"
+																			to="/app/admin/dealers/$dealerId"
 																			params={{
-																				organizationSlug:
-																					organizationSlug ??
-																					"",
 																				dealerId:
 																					child.id,
 																			}}

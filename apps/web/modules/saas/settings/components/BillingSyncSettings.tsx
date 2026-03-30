@@ -1,22 +1,28 @@
 "use client";
 
-import { useBillingSyncStatus, useTestBilling } from "@saas/billing/client";
+import {
+	useBillingSyncStatus,
+	usePreviewBillingSync,
+	useSyncFromBilling,
+	useTestBilling,
+} from "@saas/billing/client";
 import { SettingsItem } from "@saas/shared/components/SettingsItem";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
+import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import { ScrollArea } from "@ui/components/scroll-area";
 import {
+	AlertTriangleIcon,
 	CheckCircle2Icon,
+	ChevronRightIcon,
 	CircleIcon,
 	CreditCardIcon,
 	LoaderIcon,
 	XCircleIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { BillingSyncPreviewDialog } from "./BillingSyncPreviewDialog";
 
 interface Counts {
 	customers: number;
@@ -28,16 +34,44 @@ interface Counts {
 	installations: number;
 }
 
+interface UnmatchedCustomer {
+	username: string;
+	dealer: string | null;
+}
+
+interface PhasePreview {
+	total: number;
+	matched: number;
+	skipped: number;
+	reason: string;
+	unmatchedCustomers: UnmatchedCustomer[];
+	unmatchedEmployees: string[];
+}
+
+interface PreviewData {
+	phases: {
+		customers: PhasePreview;
+		payments: PhasePreview;
+		collections: PhasePreview;
+		expenses: PhasePreview;
+		installations: PhasePreview;
+	};
+	unmatchedEmployees: string[];
+	unmatchedCustomers: UnmatchedCustomer[];
+}
+
 export function BillingSyncSettings() {
 	const organizationId = useOrganizationId();
 	const testConnection = useTestBilling();
+	const previewSync = usePreviewBillingSync();
+	const syncFromBilling = useSyncFromBilling();
 	const queryClient = useQueryClient();
 
 	const [counts, setCounts] = useState<Counts | null>(null);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
 	const [operationId, setOperationId] = useState<string | null>(null);
 	const [connected, setConnected] = useState(false);
-	const [showPreview, setShowPreview] = useState(false);
+	const [preview, setPreview] = useState<PreviewData | null>(null);
 
 	const invalidatedRef = useRef<string | null>(null);
 
@@ -83,6 +117,38 @@ export function BillingSyncSettings() {
 				error instanceof Error
 					? error.message
 					: "Connection test failed",
+			);
+		}
+	}
+
+	async function handlePreview() {
+		if (!organizationId) {
+			return;
+		}
+		setConnectionError(null);
+		try {
+			const result = await previewSync.mutateAsync({ organizationId });
+			setPreview(result as PreviewData);
+		} catch (error) {
+			setConnectionError(
+				error instanceof Error ? error.message : "Preview failed",
+			);
+		}
+	}
+
+	async function handleStartSync() {
+		if (!organizationId) {
+			return;
+		}
+		try {
+			const result = await syncFromBilling.mutateAsync({
+				organizationId,
+			});
+			setOperationId(result.operationId);
+			setPreview(null);
+		} catch (error) {
+			setConnectionError(
+				error instanceof Error ? error.message : "Failed to start sync",
 			);
 		}
 	}
@@ -162,7 +228,7 @@ export function BillingSyncSettings() {
 			{/* Sync Control + Progress */}
 			<SettingsItem
 				title="Data Sync"
-				description="Import billing data: enrich customer records with collector/pricing info, import payments, collections, expenses, inventory, and installations. Runs as a background job."
+				description="Import billing data: enrich customer records with pricing info, import payments, collections, expenses, inventory, and installations. Runs as a background job."
 				fullWidth
 			>
 				<div className="space-y-4">
@@ -190,22 +256,209 @@ export function BillingSyncSettings() {
 							</div>
 						)}
 
+					{preview && <SyncPreview preview={preview} />}
+
 					{!isActive && (
-						<Button onClick={() => setShowPreview(true)}>
-							{operationId
-								? "Re-sync from Billing"
-								: "Start Sync from Billing"}
-						</Button>
+						<div className="flex gap-2">
+							<Button
+								onClick={handlePreview}
+								variant="outline"
+								disabled={previewSync.isPending}
+							>
+								{previewSync.isPending
+									? "Checking..."
+									: "Preview Sync"}
+							</Button>
+							<Button
+								onClick={handleStartSync}
+								disabled={syncFromBilling.isPending}
+							>
+								{syncFromBilling.isPending
+									? "Starting..."
+									: operationId
+										? "Re-sync from Billing"
+										: "Start Sync"}
+							</Button>
+						</div>
 					)}
 				</div>
 			</SettingsItem>
-
-			<BillingSyncPreviewDialog
-				open={showPreview}
-				onOpenChange={setShowPreview}
-				onSyncStarted={(id) => setOperationId(id)}
-			/>
 		</>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Preview
+// ---------------------------------------------------------------------------
+
+const PHASE_LABELS: Record<string, string> = {
+	customers: "Customers",
+	payments: "Payments",
+	collections: "Collections",
+	expenses: "Expenses",
+	installations: "Installations",
+};
+
+function SyncPreview({ preview }: { preview: PreviewData }) {
+	const phases = Object.entries(preview.phases) as Array<
+		[string, PhasePreview]
+	>;
+	const totalSkipped = phases.reduce((sum, [, p]) => sum + p.skipped, 0);
+	const [expanded, setExpanded] = useState<string | null>(null);
+
+	return (
+		<div className="space-y-4 rounded-lg border border-border p-4">
+			<div className="flex items-center gap-2 text-sm font-medium">
+				{totalSkipped > 0 ? (
+					<AlertTriangleIcon className="size-4 text-amber-500" />
+				) : (
+					<CheckCircle2Icon className="size-4 text-green-600" />
+				)}
+				{totalSkipped > 0
+					? `${totalSkipped.toLocaleString()} records will be skipped due to missing mappings`
+					: "All records can be imported"}
+			</div>
+
+			<div className="space-y-1">
+				{phases.map(([key, phase]) => {
+					const hasDetails =
+						phase.skipped > 0 &&
+						(phase.unmatchedEmployees.length > 0 ||
+							phase.unmatchedCustomers.length > 0);
+					const isExpanded = expanded === key;
+
+					return (
+						<div key={key}>
+							<button
+								type="button"
+								className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm ${
+									hasDetails
+										? "cursor-pointer hover:bg-muted/50"
+										: "cursor-default"
+								}`}
+								onClick={() => {
+									if (hasDetails) {
+										setExpanded(isExpanded ? null : key);
+									}
+								}}
+							>
+								<div className="flex items-center gap-2">
+									{hasDetails && (
+										<ChevronRightIcon
+											className={`size-3.5 text-muted-foreground transition-transform ${
+												isExpanded ? "rotate-90" : ""
+											}`}
+										/>
+									)}
+									<span>{PHASE_LABELS[key] ?? key}</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<Badge variant="secondary">
+										{phase.matched.toLocaleString()} matched
+									</Badge>
+									{phase.skipped > 0 && (
+										<Badge variant="destructive">
+											{phase.skipped.toLocaleString()}{" "}
+											skipped
+										</Badge>
+									)}
+								</div>
+							</button>
+
+							{isExpanded && (
+								<div className="ml-6 mt-1 mb-2 space-y-2 rounded-md border bg-muted/30 p-3 text-xs">
+									<p className="text-muted-foreground">
+										{phase.reason}
+									</p>
+									{phase.unmatchedEmployees.length > 0 && (
+										<div className="space-y-1">
+											<p className="font-medium text-destructive">
+												Missing employees (
+												{
+													phase.unmatchedEmployees
+														.length
+												}
+												):
+											</p>
+											<div className="flex flex-wrap gap-1">
+												{phase.unmatchedEmployees.map(
+													(name) => (
+														<Badge
+															key={name}
+															variant="outline"
+															className="text-xs"
+														>
+															{name}
+														</Badge>
+													),
+												)}
+											</div>
+										</div>
+									)}
+									{phase.unmatchedCustomers.length > 0 && (
+										<UnmatchedCustomersList
+											customers={phase.unmatchedCustomers}
+										/>
+									)}
+								</div>
+							)}
+						</div>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+function UnmatchedCustomersList({
+	customers,
+}: {
+	customers: UnmatchedCustomer[];
+}) {
+	// Group by dealer
+	const byDealer = new Map<string, string[]>();
+	for (const c of customers) {
+		const dealer = c.dealer ?? "Unknown";
+		const list = byDealer.get(dealer);
+		if (list) {
+			list.push(c.username);
+		} else {
+			byDealer.set(dealer, [c.username]);
+		}
+	}
+	const dealers = [...byDealer.entries()].sort((a, b) =>
+		a[0].localeCompare(b[0]),
+	);
+
+	return (
+		<div className="space-y-1">
+			<p className="font-medium text-destructive">
+				Missing customers ({customers.length}):
+			</p>
+			<div className="thin-scrollbar max-h-40 space-y-2 overflow-y-auto">
+				{dealers.map(([dealer, usernames]) => (
+					<div key={dealer}>
+						<p className="text-muted-foreground">
+							<span className="font-medium text-foreground">
+								{dealer}
+							</span>{" "}
+							({usernames.length})
+						</p>
+						<div className="mt-0.5 flex flex-wrap gap-1">
+							{usernames.map((name) => (
+								<Badge
+									key={name}
+									variant="outline"
+									className="text-xs"
+								>
+									{name}
+								</Badge>
+							))}
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
 	);
 }
 
@@ -242,6 +495,8 @@ interface BillingOperation {
 	processedWorkerStock: number;
 	totalInstallations: number;
 	processedInstallations: number;
+	totalReconciled: number;
+	processedReconciled: number;
 	// biome-ignore lint/suspicious/noExplicitAny: Prisma JsonValue
 	result: any;
 	completedAt: Date | string | null;
@@ -289,6 +544,12 @@ const PHASES = [
 		label: "Installations",
 		totalKey: "totalInstallations",
 		processedKey: "processedInstallations",
+	},
+	{
+		key: "reconciliation",
+		label: "Reconciliation",
+		totalKey: "totalReconciled",
+		processedKey: "processedReconciled",
 	},
 ] as const;
 
@@ -434,7 +695,7 @@ function SyncResult({ operation }: { operation: BillingOperation }) {
 			</div>
 
 			{errors.length > 0 && (
-				<ScrollArea className="max-h-32 rounded-md border p-3">
+				<div className="thin-scrollbar max-h-32 overflow-y-auto rounded-md border p-3">
 					<ul className="space-y-1 text-xs text-destructive">
 						{errors.slice(0, 50).map((err, i) => (
 							<li key={`err-${err.phase}-${i}`}>
@@ -445,7 +706,7 @@ function SyncResult({ operation }: { operation: BillingOperation }) {
 							</li>
 						))}
 					</ul>
-				</ScrollArea>
+				</div>
 			)}
 		</div>
 	);

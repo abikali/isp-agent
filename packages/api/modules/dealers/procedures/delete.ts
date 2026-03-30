@@ -1,32 +1,23 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const deleteDealer = protectedProcedure
+export const deleteDealer = adminProcedure
 	.route({
 		method: "POST",
-		path: "/dealers/delete",
+		path: "/admin/dealers/delete",
 		tags: ["Dealers"],
-		summary: "Soft-delete a dealer (set status to INACTIVE)",
+		summary: "Soft-delete a dealer (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
 			id: z.string(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"dealers",
-			"delete",
-		);
-
+	.handler(async ({ input }) => {
 		const existing = await db.ispDealer.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: { id: input.id },
 		});
 
 		if (!existing) {

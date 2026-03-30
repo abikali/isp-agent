@@ -8,18 +8,13 @@ import {
 	useQueryClient,
 	useSuspenseQuery,
 } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { PauseIcon, PlayIcon, TrashIcon } from "lucide-react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { webhooksQueryOptions } from "../hooks/use-webhooks";
 
@@ -51,6 +46,13 @@ export function WebhooksListSkeleton() {
 	);
 }
 
+interface Webhook {
+	id: string;
+	url: string;
+	events: string[];
+	enabled: boolean;
+}
+
 export function WebhooksList() {
 	const queryClient = useQueryClient();
 	const organizationId = useOrganizationId();
@@ -59,7 +61,7 @@ export function WebhooksList() {
 	const { data } = useSuspenseQuery(
 		webhooksQueryOptions(organizationId ?? ""),
 	);
-	const webhooks = data?.webhooks ?? [];
+	const webhooks = (data?.webhooks ?? []) as Webhook[];
 
 	const deleteMutation = useMutation(orpc.webhooks.delete.mutationOptions());
 	const updateMutation = useMutation(orpc.webhooks.update.mutationOptions());
@@ -108,6 +110,90 @@ export function WebhooksList() {
 		}
 	};
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: handlers are stable enough via isPending
+	const columns: ColumnDef<Webhook, unknown>[] = useMemo(
+		() => [
+			{
+				accessorKey: "url",
+				header: "Endpoint",
+				cell: ({ row }) => (
+					<span className="max-w-[200px] truncate block font-mono text-sm">
+						{row.original.url}
+					</span>
+				),
+			},
+			{
+				accessorKey: "events",
+				header: "Events",
+				cell: ({ row }) => (
+					<div className="flex flex-wrap gap-1">
+						{row.original.events.slice(0, 2).map((event) => (
+							<Badge
+								key={event}
+								variant="secondary"
+								className="text-xs"
+							>
+								{event}
+							</Badge>
+						))}
+						{row.original.events.length > 2 && (
+							<Badge variant="outline" className="text-xs">
+								+{row.original.events.length - 2}
+							</Badge>
+						)}
+					</div>
+				),
+			},
+			{
+				accessorKey: "enabled",
+				header: "Status",
+				cell: ({ row }) => (
+					<Badge
+						variant={row.original.enabled ? "default" : "secondary"}
+					>
+						{row.original.enabled ? "Enabled" : "Disabled"}
+					</Badge>
+				),
+			},
+			{
+				id: "actions",
+				enableSorting: false,
+				meta: { className: "w-[120px]" },
+				cell: ({ row }) => (
+					<div className="flex gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() =>
+								handleToggle(
+									row.original.id,
+									!row.original.enabled,
+								)
+							}
+							disabled={updateMutation.isPending}
+							title={row.original.enabled ? "Disable" : "Enable"}
+						>
+							{row.original.enabled ? (
+								<PauseIcon className="size-4" />
+							) : (
+								<PlayIcon className="size-4" />
+							)}
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleDelete(row.original.id)}
+							disabled={deleteMutation.isPending}
+						>
+							<TrashIcon className="size-4 text-destructive" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[updateMutation.isPending, deleteMutation.isPending],
+	);
+
 	if (!organizationId) {
 		return null;
 	}
@@ -117,111 +203,15 @@ export function WebhooksList() {
 			title="Webhooks"
 			description="Manage webhook endpoints for your organization"
 		>
-			{webhooks.length === 0 ? (
-				<div className="py-8 text-center text-muted-foreground">
-					No webhooks configured
-				</div>
-			) : (
-				<div className="overflow-x-auto">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Endpoint</TableHead>
-								<TableHead>Events</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead className="w-[120px]" />
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{webhooks.map((webhook) => (
-								<TableRow key={webhook.id}>
-									<TableCell className="font-mono text-sm">
-										<span className="max-w-[200px] truncate block">
-											{webhook.url}
-										</span>
-									</TableCell>
-									<TableCell>
-										<div className="flex flex-wrap gap-1">
-											{webhook.events
-												.slice(0, 2)
-												.map((event) => (
-													<Badge
-														key={event}
-														variant="secondary"
-														className="text-xs"
-													>
-														{event}
-													</Badge>
-												))}
-											{webhook.events.length > 2 && (
-												<Badge
-													variant="outline"
-													className="text-xs"
-												>
-													+{webhook.events.length - 2}
-												</Badge>
-											)}
-										</div>
-									</TableCell>
-									<TableCell>
-										<Badge
-											variant={
-												webhook.enabled
-													? "default"
-													: "secondary"
-											}
-										>
-											{webhook.enabled
-												? "Enabled"
-												: "Disabled"}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<div className="flex gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() =>
-													handleToggle(
-														webhook.id,
-														!webhook.enabled,
-													)
-												}
-												disabled={
-													updateMutation.isPending
-												}
-												title={
-													webhook.enabled
-														? "Disable"
-														: "Enable"
-												}
-											>
-												{webhook.enabled ? (
-													<PauseIcon className="size-4" />
-												) : (
-													<PlayIcon className="size-4" />
-												)}
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() =>
-													handleDelete(webhook.id)
-												}
-												disabled={
-													deleteMutation.isPending
-												}
-											>
-												<TrashIcon className="size-4 text-destructive" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+			<DataTable
+				columns={columns}
+				data={webhooks}
+				emptyState={
+					<div className="py-8 text-center text-muted-foreground">
+						No webhooks configured
+					</div>
+				}
+			/>
 		</SettingsItem>
 	);
 }

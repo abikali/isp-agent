@@ -1,7 +1,7 @@
 "use client";
 
 import { authClient } from "@repo/auth/client";
-import { Pagination, useConfirmationAlert } from "@saas/shared/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { Spinner } from "@shared/components/Spinner";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import { orpc } from "@shared/lib/orpc";
@@ -9,14 +9,9 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-	flexRender,
-	getCoreRowModel,
-	getPaginationRowModel,
-	useReactTable,
-} from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
 import { Card } from "@ui/components/card";
+import { DataTable } from "@ui/components/data-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -25,7 +20,6 @@ import {
 } from "@ui/components/dropdown-menu";
 import { Input } from "@ui/components/input";
 import { Skeleton } from "@ui/components/skeleton";
-import { Table, TableBody, TableCell, TableRow } from "@ui/components/table";
 import {
 	MoreVerticalIcon,
 	Repeat1Icon,
@@ -210,7 +204,7 @@ export function UserList() {
 	);
 
 	type User = NonNullable<typeof data>["users"][number];
-	const columns: ColumnDef<User>[] = useMemo(
+	const columns: ColumnDef<User, unknown>[] = useMemo(
 		() => [
 			{
 				accessorKey: "user",
@@ -337,14 +331,6 @@ export function UserList() {
 
 	const users = useMemo(() => data?.users ?? [], [data?.users]);
 
-	const table = useReactTable({
-		data: users,
-		columns,
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		manualPagination: true,
-	});
-
 	return (
 		<Card className="p-6">
 			<h2 className="mb-4 font-semibold text-2xl">Users</h2>
@@ -361,61 +347,27 @@ export function UserList() {
 				)}
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableBody>
-						{table.getRowModel().rows?.length ? (
-							table.getRowModel().rows.map((row) => (
-								<TableRow
-									key={row.id}
-									data-state={
-										row.getIsSelected() && "selected"
-									}
-									className="group"
-								>
-									{row.getVisibleCells().map((cell) => (
-										<TableCell
-											key={cell.id}
-											className="py-2 group-first:rounded-t-md group-last:rounded-b-md"
-										>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : (
-							<TableRow>
-								<TableCell
-									colSpan={columns.length}
-									className="h-24 text-center"
-								>
-									{isLoading ? (
-										<div className="flex h-full items-center justify-center">
-											<Spinner className="mr-2 size-4 text-primary" />
-											Loading...
-										</div>
-									) : (
-										<p>No results.</p>
-									)}
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</div>
-
-			{data?.total && data.total > ITEMS_PER_PAGE && (
-				<Pagination
-					className="mt-4"
-					totalItems={data.total}
-					itemsPerPage={ITEMS_PER_PAGE}
-					currentPage={currentPage}
-					onChangeCurrentPage={setCurrentPage}
-				/>
-			)}
+			<DataTable
+				columns={columns}
+				data={users}
+				isLoading={isLoading}
+				isFetching={isFetching}
+				emptyState={
+					<p className="h-24 flex items-center justify-center text-muted-foreground">
+						No results.
+					</p>
+				}
+				pagination={
+					data?.total && data.total > ITEMS_PER_PAGE
+						? {
+								totalItems: data.total,
+								currentPage,
+								itemsPerPage: ITEMS_PER_PAGE,
+								onPageChange: setCurrentPage,
+							}
+						: undefined
+				}
+			/>
 		</Card>
 	);
 }

@@ -291,7 +291,15 @@ model Organization {
   followups            Followup[]
   uninstalledItems     UninstalledItem[]
   billingSyncOps           BillingSyncOperation[]
-  billingEmployeeMappings  BillingEmployeeMapping[]
+  noteCategories           NoteCategory[]
+
+  // Active billing period (null = current calendar month)
+  activeBillingYear  Int?
+  activeBillingMonth Int?
+
+  // Dealer scoping (null = show all dealers' data)
+  activeDealerId String?    @unique
+  activeDealer   IspDealer? @relation("ActiveDealer", fields: [activeDealerId], references: [id], onDelete: SetNull)
 
   @@map("organization")
 }
@@ -926,7 +934,7 @@ model Station {
   cpuLoad        String?
   voltage        String?
   online         Boolean       @default(false)
-  scanStatus     String?
+  scanStatus     Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -959,7 +967,7 @@ model AccessPoint {
   online          Boolean  @default(false)
   autoNegotiation Boolean  @default(false)
   fullDuplex      Boolean  @default(false)
-  scanStatus      String?
+  scanStatus      Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1236,8 +1244,8 @@ model IspRouter {
 
 model IspDealer {
   id                   String         @id @default(cuid())
-  organizationId       String
-  externalId           String?
+  organizationId       String?
+  externalId           String?        @unique
   name                 String
   username             String?
   email                String?
@@ -1278,17 +1286,17 @@ model IspDealer {
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user           User?             @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
   parentDealer   IspDealer?        @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
   childDealers   IspDealer[]       @relation("DealerHierarchy")
   customers      Customer[]
   employees      Employee[]
   servicePlans   ServicePlan[]
-  dealerAccounts IspDealerAccount[]
+  dealerAccounts         IspDealerAccount[]
+  activeForOrganization  Organization?       @relation("ActiveDealer")
 
-  @@unique([organizationId, externalId])
-  @@unique([organizationId, email])
+  @@unique([email])
   @@index([organizationId])
   @@index([parentDealerId])
   @@map("isp_dealer")
@@ -1296,9 +1304,9 @@ model IspDealer {
 
 model IspDealerAccount {
   id             String   @id @default(cuid())
-  organizationId String
+  organizationId String?
   dealerId       String
-  externalId     String?
+  externalId     String?  @unique
   credit         Float    @default(0)
   debit          Float    @default(0)
   balance        Float    @default(0)
@@ -1306,10 +1314,9 @@ model IspDealerAccount {
   operationDate  DateTime
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  dealer       IspDealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  dealer       IspDealer     @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, externalId])
   @@index([dealerId])
   @@index([organizationId])
   @@map("isp_dealer_account")
@@ -1317,7 +1324,7 @@ model IspDealerAccount {
 
 model IRadiusSyncOperation {
   id                      String    @id @default(cuid())
-  organizationId          String
+  organizationId          String?
   status                  String    @default("pending")
   phase                   String?
   totalPlans              Int       @default(0)
@@ -1347,7 +1354,7 @@ model IRadiusSyncOperation {
   completedAt             DateTime?
   createdAt               DateTime  @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("iradius_sync_operation")
@@ -1372,6 +1379,8 @@ model BillingSyncOperation {
   processedWorkerStock   Int       @default(0)
   totalInstallations     Int       @default(0)
   processedInstallations Int       @default(0)
+  totalReconciled        Int       @default(0)
+  processedReconciled    Int       @default(0)
   result                 Json?
   startedAt              DateTime?
   completedAt            DateTime?
@@ -1383,22 +1392,6 @@ model BillingSyncOperation {
   @@map("billing_sync_operation")
 }
 
-model BillingEmployeeMapping {
-  id               String   @id @default(cuid())
-  organizationId   String
-  billingUsername   String
-  employeeId       String?
-  action           String   // create | skip | map
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  employee     Employee?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-
-  @@unique([organizationId, billingUsername])
-  @@index([organizationId])
-  @@map("billing_employee_mapping")
-}
 
 // ============================================================================
 // EMPLOYEE & TASK MANAGEMENT MODELS
@@ -1487,7 +1480,6 @@ model Employee {
   workerStock           WorkerStock[]
   stockLogs             StockLog[]
   installationsDone     Installation[]        @relation("Installer")
-  billingMappings       BillingEmployeeMapping[]
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -1585,15 +1577,21 @@ enum PaymentStatus {
   STOPPED
 }
 
-enum PaymentNoteCategory {
-  DOWNGRADE
-  UPGRADE
-  DISCOUNT
-  REFERRAL
-  MOVED
-  POOR_SERVICE
-  CANT_PAY
-  TEMP_STOP
+model NoteCategory {
+  id             String       @id @default(cuid())
+  organizationId String
+  value          String       // Machine-readable key (e.g. "DOWNGRADE")
+  label          String       // Display label (e.g. "Downgrade")
+  labelAr        String?      // Arabic label (e.g. "تصغير")
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, value])
+  @@index([organizationId])
+  @@map("note_category")
 }
 
 enum CashCollectionType {
@@ -1655,7 +1653,7 @@ model Payment {
   status          PaymentStatus        @default(PENDING)
   freeAccount     Boolean              @default(false)
   stoppedAccount  Boolean              @default(false)
-  noteCategory    PaymentNoteCategory?
+  noteCategory    String?
   notes           String?              @db.Text
   receiptSent     Boolean              @default(false)
   receiptSentAt   DateTime?

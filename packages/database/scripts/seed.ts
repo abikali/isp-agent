@@ -172,6 +172,75 @@ async function main() {
 			log(`  ✓ Member: ${label}`);
 		}
 
+		// --- Note Categories ---
+		const defaultNoteCategories = [
+			{
+				value: "DOWNGRADE",
+				label: "Downgrade",
+				labelAr: "تصغير",
+				sortOrder: 1,
+			},
+			{
+				value: "UPGRADE",
+				label: "Upgrade",
+				labelAr: "تكبير",
+				sortOrder: 2,
+			},
+			{
+				value: "DISCOUNT",
+				label: "Discount",
+				labelAr: "خصم",
+				sortOrder: 3,
+			},
+			{
+				value: "REFERRAL",
+				label: "Referral",
+				labelAr: "احضر صديق",
+				sortOrder: 4,
+			},
+			{ value: "MOVED", label: "Moved", labelAr: "انتقل", sortOrder: 5 },
+			{
+				value: "POOR_SERVICE",
+				label: "Poor Service",
+				labelAr: "انترنت غير جيد",
+				sortOrder: 6,
+			},
+			{
+				value: "CANT_PAY",
+				label: "Can't Pay",
+				labelAr: "لا يستطيع الدفع",
+				sortOrder: 7,
+			},
+			{
+				value: "TEMP_STOP",
+				label: "Temp Stop",
+				labelAr: "توقيف مؤقت",
+				sortOrder: 8,
+			},
+		];
+
+		for (const cat of defaultNoteCategories) {
+			await client.query(
+				`INSERT INTO note_category (id, "organizationId", value, label, "labelAr", "sortOrder", "createdAt", "updatedAt")
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+				 ON CONFLICT ("organizationId", value) DO UPDATE SET
+					label = EXCLUDED.label,
+					"labelAr" = EXCLUDED."labelAr",
+					"sortOrder" = EXCLUDED."sortOrder",
+					"updatedAt" = EXCLUDED."updatedAt"`,
+				[
+					createId(),
+					actualOrgId,
+					cat.value,
+					cat.label,
+					cat.labelAr,
+					cat.sortOrder,
+					now,
+				],
+			);
+		}
+		log("✓ Note Categories (8 defaults)");
+
 		// --- AI Agent ---
 		const existingAgent = await client.query(
 			`SELECT id FROM ai_agent WHERE "organizationId" = $1 AND name = $2`,

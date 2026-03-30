@@ -670,7 +670,14 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																>
 																	<TableCell>
 																		<Link
-																			to="/app/$organizationSlug/tasks/$taskId"
+																			to={
+																				ta
+																					.task
+																					.source ===
+																				"AI_ESCALATION"
+																					? "/app/$organizationSlug/escalations/$taskId"
+																					: "/app/$organizationSlug/tasks/$taskId"
+																			}
 																			params={{
 																				organizationSlug:
 																					organizationSlug ??

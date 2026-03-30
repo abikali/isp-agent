@@ -8,10 +8,11 @@ import {
 	organizationsQueryKeys,
 	useFullOrganizationSuspense,
 } from "@saas/organizations/lib/api";
-import { Pagination } from "@saas/shared/client";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -19,14 +20,13 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Skeleton } from "@ui/components/skeleton";
-import { Table, TableBody, TableCell, TableRow } from "@ui/components/table";
 import { LogOutIcon, MoreVerticalIcon, TrashIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { ORGANIZATION_MEMBER_ROLES } from "../hooks/member-roles";
 import { OrganizationRoleSelect } from "./OrganizationRoleSelect";
 
-const MEMBERS_PER_PAGE = 20;
+type Member = NonNullable<ActiveOrganization>["members"][number];
 
 /**
  * Loading skeleton for the members list.
@@ -72,8 +72,6 @@ export function OrganizationMembersList({
 	const { data: organizationData } =
 		useFullOrganizationSuspense(organizationId);
 
-	const [currentPage, setCurrentPage] = useState(1);
-
 	const organization = organizationData as
 		| ActiveOrganization
 		| null
@@ -81,197 +79,188 @@ export function OrganizationMembersList({
 	const userIsOrganizationAdmin = isOrganizationAdmin(organization, user);
 	const members = organization?.members ?? [];
 
-	// Paginate members client-side
-	const paginatedMembers = useMemo(() => {
-		const start = (currentPage - 1) * MEMBERS_PER_PAGE;
-		return members.slice(start, start + MEMBERS_PER_PAGE);
-	}, [members, currentPage]);
+	const updateMemberRole = useCallback(
+		async (memberId: string, role: string) => {
+			toast.promise(
+				async () => {
+					await authClient.organization.updateMemberRole({
+						memberId,
+						role,
+						organizationId,
+					});
+				},
+				{
+					loading: "Updating member role...",
+					success: () => {
+						queryClient.invalidateQueries({
+							queryKey:
+								organizationsQueryKeys.detail(organizationId),
+						});
+						return "Member role updated successfully";
+					},
+					error: (error: { message?: string }) =>
+						error?.message || "Failed to update member role",
+				},
+			);
+		},
+		[organizationId, queryClient],
+	);
 
-	const updateMemberRole = async (memberId: string, role: string) => {
-		toast.promise(
-			async () => {
-				await authClient.organization.updateMemberRole({
-					memberId,
-					role,
-					organizationId,
-				});
+	const removeMember = useCallback(
+		async (memberId: string) => {
+			toast.promise(
+				async () => {
+					await authClient.organization.removeMember({
+						memberIdOrEmail: memberId,
+						organizationId,
+					});
+				},
+				{
+					loading: "Removing member...",
+					success: () => {
+						queryClient.invalidateQueries({
+							queryKey:
+								organizationsQueryKeys.detail(organizationId),
+						});
+						return "Member removed successfully";
+					},
+					error: (error: { message?: string }) =>
+						error?.message || "Failed to remove member",
+				},
+			);
+		},
+		[organizationId, queryClient],
+	);
+
+	const columns = useMemo<ColumnDef<Member, unknown>[]>(
+		() => [
+			{
+				id: "member",
+				accessorFn: (row) => row.user?.name ?? row.user?.email ?? "",
+				header: "Member",
+				cell: ({ row }) => {
+					const member = row.original;
+					if (!member.user) {
+						return null;
+					}
+					return (
+						<div className="flex items-center gap-2">
+							<UserAvatar
+								name={member.user.name ?? member.user.email}
+								avatarUrl={member.user.image}
+							/>
+							<div>
+								<strong className="block">
+									{member.user.name}
+								</strong>
+								<small className="text-foreground/60">
+									{member.user.email}
+								</small>
+							</div>
+						</div>
+					);
+				},
 			},
 			{
-				loading: "Updating member role...",
-				success: () => {
-					queryClient.invalidateQueries({
-						queryKey: organizationsQueryKeys.detail(organizationId),
-					});
-					return "Member role updated successfully";
-				},
-				error: (error: { message?: string }) =>
-					error?.message || "Failed to update member role",
-			},
-		);
-	};
-
-	const removeMember = async (memberId: string) => {
-		toast.promise(
-			async () => {
-				await authClient.organization.removeMember({
-					memberIdOrEmail: memberId,
-					organizationId,
-				});
-			},
-			{
-				loading: "Removing member...",
-				success: () => {
-					queryClient.invalidateQueries({
-						queryKey: organizationsQueryKeys.detail(organizationId),
-					});
-					return "Member removed successfully";
-				},
-				error: (error: { message?: string }) =>
-					error?.message || "Failed to remove member",
-			},
-		);
-	};
-
-	return (
-		<div className="space-y-4">
-			<div className="overflow-x-auto rounded-md border">
-				<Table>
-					<TableBody>
-						{paginatedMembers.length > 0 ? (
-							paginatedMembers.map((member) => (
-								<TableRow key={member.id}>
-									<TableCell>
-										{member.user && (
-											<div className="flex items-center gap-2">
-												<UserAvatar
-													name={
-														member.user.name ??
-														member.user.email
+				id: "role",
+				accessorFn: (row) => row.role,
+				header: "Role",
+				meta: { className: "text-right" },
+				enableSorting: false,
+				cell: ({ row }) => {
+					const member = row.original;
+					return (
+						<div className="flex flex-row justify-end gap-2">
+							{userIsOrganizationAdmin ? (
+								<>
+									<OrganizationRoleSelect
+										value={member.role}
+										onSelect={(value) =>
+											updateMemberRole(member.id, value)
+										}
+										disabled={
+											!userIsOrganizationAdmin ||
+											member.role === "owner"
+										}
+										organizationId={organizationId}
+									/>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button size="icon" variant="ghost">
+												<MoreVerticalIcon className="size-4" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent>
+											{member.userId !== user?.id && (
+												<DropdownMenuItem
+													disabled={
+														!isOrganizationAdmin(
+															organization,
+															user,
+														)
 													}
-													avatarUrl={
-														member.user.image
+													className="text-destructive"
+													onClick={() =>
+														removeMember(member.id)
 													}
-												/>
-												<div>
-													<strong className="block">
-														{member.user.name}
-													</strong>
-													<small className="text-foreground/60">
-														{member.user.email}
-													</small>
-												</div>
-											</div>
-										)}
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex flex-row justify-end gap-2">
-											{userIsOrganizationAdmin ? (
-												<>
-													<OrganizationRoleSelect
-														value={member.role}
-														onSelect={(value) =>
-															updateMemberRole(
+												>
+													<TrashIcon className="mr-2 size-4" />
+													Remove Member
+												</DropdownMenuItem>
+											)}
+											{member.userId === user?.id &&
+												member.role !== "owner" && (
+													<DropdownMenuItem
+														className="text-destructive"
+														onClick={() =>
+															removeMember(
 																member.id,
-																value,
 															)
 														}
-														disabled={
-															!userIsOrganizationAdmin ||
-															member.role ===
-																"owner"
-														}
-														organizationId={
-															organizationId
-														}
-													/>
-													<DropdownMenu>
-														<DropdownMenuTrigger
-															asChild
-														>
-															<Button
-																size="icon"
-																variant="ghost"
-															>
-																<MoreVerticalIcon className="size-4" />
-															</Button>
-														</DropdownMenuTrigger>
-														<DropdownMenuContent>
-															{member.userId !==
-																user?.id && (
-																<DropdownMenuItem
-																	disabled={
-																		!isOrganizationAdmin(
-																			organization,
-																			user,
-																		)
-																	}
-																	className="text-destructive"
-																	onClick={() =>
-																		removeMember(
-																			member.id,
-																		)
-																	}
-																>
-																	<TrashIcon className="mr-2 size-4" />
-																	Remove
-																	Member
-																</DropdownMenuItem>
-															)}
-															{member.userId ===
-																user?.id &&
-																member.role !==
-																	"owner" && (
-																	<DropdownMenuItem
-																		className="text-destructive"
-																		onClick={() =>
-																			removeMember(
-																				member.id,
-																			)
-																		}
-																	>
-																		<LogOutIcon className="mr-2 size-4" />
-																		Leave
-																		Organization
-																	</DropdownMenuItem>
-																)}
-														</DropdownMenuContent>
-													</DropdownMenu>
-												</>
-											) : (
-												<span className="font-medium text-foreground/60 text-sm">
-													{
-														ORGANIZATION_MEMBER_ROLES[
-															member.role as keyof typeof ORGANIZATION_MEMBER_ROLES
-														]
-													}
-												</span>
-											)}
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						) : (
-							<TableRow>
-								<TableCell
-									colSpan={2}
-									className="h-24 text-center"
-								>
-									No members found
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</div>
+													>
+														<LogOutIcon className="mr-2 size-4" />
+														Leave Organization
+													</DropdownMenuItem>
+												)}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</>
+							) : (
+								<span className="font-medium text-foreground/60 text-sm">
+									{
+										ORGANIZATION_MEMBER_ROLES[
+											member.role as keyof typeof ORGANIZATION_MEMBER_ROLES
+										]
+									}
+								</span>
+							)}
+						</div>
+					);
+				},
+			},
+		],
+		[
+			userIsOrganizationAdmin,
+			organizationId,
+			user,
+			organization,
+			updateMemberRole,
+			removeMember,
+		],
+	);
 
-			{members.length > MEMBERS_PER_PAGE && (
-				<Pagination
-					totalItems={members.length}
-					itemsPerPage={MEMBERS_PER_PAGE}
-					currentPage={currentPage}
-					onChangeCurrentPage={setCurrentPage}
-				/>
-			)}
-		</div>
+	return (
+		<DataTable
+			columns={columns}
+			data={members}
+			pageSize={20}
+			emptyState={
+				<div className="rounded-md border">
+					<div className="h-24 flex items-center justify-center text-muted-foreground">
+						No members found
+					</div>
+				</div>
+			}
+		/>
 	);
 }

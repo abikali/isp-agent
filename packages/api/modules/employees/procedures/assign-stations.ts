@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	employeeAudit,
 	getAuditContextFromHeaders,
@@ -23,7 +26,7 @@ export const assignStations = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"employees",
@@ -34,6 +37,7 @@ export const assignStations = protectedProcedure
 			where: {
 				id: input.employeeId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 		});
 		if (!existing) {

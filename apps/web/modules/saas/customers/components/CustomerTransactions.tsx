@@ -3,19 +3,22 @@
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
-import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { ChevronLeftIcon, ChevronRightIcon, ReceiptIcon } from "lucide-react";
-import { useState } from "react";
+import { DataTable } from "@ui/components/data-table";
+import { ReceiptIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+
+const PAGE_SIZE = 10;
+
+interface TransactionRow {
+	id: string;
+	operationDate: string | Date;
+	credit: number;
+	debit: number;
+	notes: string | null;
+}
 
 export function CustomerTransactions({ customerId }: { customerId: string }) {
 	const organizationId = useOrganizationId();
@@ -24,14 +27,70 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 	const { data, isLoading } = useQuery(
 		organizationId
 			? orpc.customers.listTransactions.queryOptions({
-					input: { organizationId, customerId, page, pageSize: 10 },
+					input: {
+						organizationId,
+						customerId,
+						page,
+						pageSize: PAGE_SIZE,
+					},
 				})
 			: disabledQuery(["customers", "listTransactions"]),
 	);
 
 	const transactions = data?.transactions ?? [];
 	const total = data?.total ?? 0;
-	const totalPages = data?.totalPages ?? 1;
+
+	const columns = useMemo<ColumnDef<TransactionRow, unknown>[]>(
+		() => [
+			{
+				id: "date",
+				header: "Date",
+				enableSorting: false,
+				meta: { className: "text-xs" },
+				cell: ({ row }) =>
+					new Date(row.original.operationDate).toLocaleDateString(),
+			},
+			{
+				id: "credit",
+				header: "Credit",
+				enableSorting: false,
+				meta: { className: "text-right text-xs" },
+				cell: ({ row }) =>
+					row.original.credit > 0 ? (
+						<span className="text-green-600">
+							+${row.original.credit.toFixed(2)}
+						</span>
+					) : (
+						"-"
+					),
+			},
+			{
+				id: "debit",
+				header: "Debit",
+				enableSorting: false,
+				meta: { className: "text-right text-xs" },
+				cell: ({ row }) =>
+					row.original.debit > 0 ? (
+						<span className="text-red-600">
+							-${row.original.debit.toFixed(2)}
+						</span>
+					) : (
+						"-"
+					),
+			},
+			{
+				id: "notes",
+				header: "Notes",
+				enableSorting: false,
+				meta: {
+					className:
+						"hidden max-w-[200px] truncate text-xs text-muted-foreground sm:table-cell",
+				},
+				cell: ({ row }) => row.original.notes || "-",
+			},
+		],
+		[],
+	);
 
 	if (!isLoading && total === 0) {
 		return null;
@@ -51,94 +110,17 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 				</CardTitle>
 			</CardHeader>
 			<CardContent>
-				{isLoading ? (
-					<p className="text-sm text-muted-foreground">Loading...</p>
-				) : (
-					<>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Date</TableHead>
-									<TableHead className="text-right">
-										Credit
-									</TableHead>
-									<TableHead className="text-right">
-										Debit
-									</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Notes
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{transactions.map((tx) => (
-									<TableRow key={tx.id}>
-										<TableCell className="text-xs">
-											{new Date(
-												tx.operationDate,
-											).toLocaleDateString()}
-										</TableCell>
-										<TableCell className="text-right text-xs">
-											{tx.credit > 0 ? (
-												<span className="text-green-600">
-													+$
-													{tx.credit.toFixed(2)}
-												</span>
-											) : (
-												"-"
-											)}
-										</TableCell>
-										<TableCell className="text-right text-xs">
-											{tx.debit > 0 ? (
-												<span className="text-red-600">
-													-$
-													{tx.debit.toFixed(2)}
-												</span>
-											) : (
-												"-"
-											)}
-										</TableCell>
-										<TableCell className="hidden max-w-[200px] truncate text-xs text-muted-foreground sm:table-cell">
-											{tx.notes || "-"}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-
-						{totalPages > 1 && (
-							<div className="mt-3 flex items-center justify-between">
-								<span className="text-xs text-muted-foreground">
-									Page {page} of {totalPages}
-								</span>
-								<div className="flex gap-1">
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setPage((p) => Math.max(1, p - 1))
-										}
-										disabled={page === 1}
-									>
-										<ChevronLeftIcon className="size-4" />
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setPage((p) =>
-												Math.min(totalPages, p + 1),
-											)
-										}
-										disabled={page === totalPages}
-									>
-										<ChevronRightIcon className="size-4" />
-									</Button>
-								</div>
-							</div>
-						)}
-					</>
-				)}
+				<DataTable
+					columns={columns}
+					data={transactions}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: setPage,
+					}}
+					isLoading={isLoading}
+				/>
 			</CardContent>
 		</Card>
 	);

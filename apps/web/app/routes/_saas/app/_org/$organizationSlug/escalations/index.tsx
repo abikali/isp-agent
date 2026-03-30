@@ -1,25 +1,25 @@
 import { config } from "@repo/config";
-import { DealersList, DealersListSkeleton } from "@saas/dealers/client";
+import { EscalationsList, TasksListSkeleton } from "@saas/tasks/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
-	"/_saas/app/_org/$organizationSlug/dealers/",
+	"/_saas/app/_org/$organizationSlug/escalations/",
 )({
 	head: () => ({
-		meta: [{ title: `Dealers - ${config.appName}` }],
+		meta: [{ title: `AI Escalations - ${config.appName}` }],
 	}),
-	component: DealersPage,
+	component: EscalationsPage,
 });
 
-function DealersPage() {
+function EscalationsPage() {
 	const { organizationSlug } = Route.useParams();
 
 	return (
-		<PermissionGate resource="dealers" action="read">
-			<AsyncBoundary fallback={<DealersListSkeleton />}>
-				<DealersList organizationSlug={organizationSlug} />
+		<PermissionGate resource="tasks" action="read">
+			<AsyncBoundary fallback={<TasksListSkeleton />}>
+				<EscalationsList organizationSlug={organizationSlug} />
 			</AsyncBoundary>
 		</PermissionGate>
 	);

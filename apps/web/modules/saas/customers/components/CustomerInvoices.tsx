@@ -3,19 +3,24 @@
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
-import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { ChevronLeftIcon, ChevronRightIcon, FileTextIcon } from "lucide-react";
-import { useState } from "react";
+import { DataTable } from "@ui/components/data-table";
+import { FileTextIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+
+const PAGE_SIZE = 10;
+
+interface InvoiceRow {
+	id: string;
+	invoiceNumber: string | null;
+	invoiceDate: string | Date;
+	total: number;
+	tax: number;
+	totalWithTax: number;
+	paid: boolean;
+}
 
 export function CustomerInvoices({ customerId }: { customerId: string }) {
 	const organizationId = useOrganizationId();
@@ -24,14 +29,73 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 	const { data, isLoading } = useQuery(
 		organizationId
 			? orpc.customers.listInvoices.queryOptions({
-					input: { organizationId, customerId, page, pageSize: 10 },
+					input: {
+						organizationId,
+						customerId,
+						page,
+						pageSize: PAGE_SIZE,
+					},
 				})
 			: disabledQuery(["customers", "listInvoices"]),
 	);
 
 	const invoices = data?.invoices ?? [];
 	const total = data?.total ?? 0;
-	const totalPages = data?.totalPages ?? 1;
+
+	const columns = useMemo<ColumnDef<InvoiceRow, unknown>[]>(
+		() => [
+			{
+				id: "invoiceNumber",
+				header: "Invoice #",
+				enableSorting: false,
+				meta: { className: "text-xs font-mono" },
+				cell: ({ row }) => row.original.invoiceNumber || "-",
+			},
+			{
+				id: "date",
+				header: "Date",
+				enableSorting: false,
+				meta: { className: "text-xs" },
+				cell: ({ row }) =>
+					new Date(row.original.invoiceDate).toLocaleDateString(),
+			},
+			{
+				id: "total",
+				header: "Total",
+				enableSorting: false,
+				meta: { className: "text-right text-xs" },
+				cell: ({ row }) => `$${row.original.total.toFixed(2)}`,
+			},
+			{
+				id: "tax",
+				header: "Tax",
+				enableSorting: false,
+				meta: { className: "text-right text-xs hidden sm:table-cell" },
+				cell: ({ row }) => `$${row.original.tax.toFixed(2)}`,
+			},
+			{
+				id: "totalTTC",
+				header: "Total (TTC)",
+				enableSorting: false,
+				meta: { className: "text-right text-xs font-medium" },
+				cell: ({ row }) => `$${row.original.totalWithTax.toFixed(2)}`,
+			},
+			{
+				id: "status",
+				header: "Status",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<Badge
+						variant={row.original.paid ? "success" : "destructive"}
+						className="text-xs"
+					>
+						{row.original.paid ? "Paid" : "Unpaid"}
+					</Badge>
+				),
+			},
+		],
+		[],
+	);
 
 	if (!isLoading && total === 0) {
 		return null;
@@ -51,97 +115,17 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 				</CardTitle>
 			</CardHeader>
 			<CardContent>
-				{isLoading ? (
-					<p className="text-sm text-muted-foreground">Loading...</p>
-				) : (
-					<>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Invoice #</TableHead>
-									<TableHead>Date</TableHead>
-									<TableHead className="text-right">
-										Total
-									</TableHead>
-									<TableHead className="text-right hidden sm:table-cell">
-										Tax
-									</TableHead>
-									<TableHead className="text-right">
-										Total (TTC)
-									</TableHead>
-									<TableHead>Status</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{invoices.map((inv) => (
-									<TableRow key={inv.id}>
-										<TableCell className="text-xs font-mono">
-											{inv.invoiceNumber || "-"}
-										</TableCell>
-										<TableCell className="text-xs">
-											{new Date(
-												inv.invoiceDate,
-											).toLocaleDateString()}
-										</TableCell>
-										<TableCell className="text-right text-xs">
-											${inv.total.toFixed(2)}
-										</TableCell>
-										<TableCell className="text-right text-xs hidden sm:table-cell">
-											${inv.tax.toFixed(2)}
-										</TableCell>
-										<TableCell className="text-right text-xs font-medium">
-											${inv.totalWithTax.toFixed(2)}
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													inv.paid
-														? "success"
-														: "destructive"
-												}
-												className="text-xs"
-											>
-												{inv.paid ? "Paid" : "Unpaid"}
-											</Badge>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-
-						{totalPages > 1 && (
-							<div className="mt-3 flex items-center justify-between">
-								<span className="text-xs text-muted-foreground">
-									Page {page} of {totalPages}
-								</span>
-								<div className="flex gap-1">
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setPage((p) => Math.max(1, p - 1))
-										}
-										disabled={page === 1}
-									>
-										<ChevronLeftIcon className="size-4" />
-									</Button>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() =>
-											setPage((p) =>
-												Math.min(totalPages, p + 1),
-											)
-										}
-										disabled={page === totalPages}
-									>
-										<ChevronRightIcon className="size-4" />
-									</Button>
-								</div>
-							</div>
-						)}
-					</>
-				)}
+				<DataTable
+					columns={columns}
+					data={invoices}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: setPage,
+					}}
+					isLoading={isLoading}
+				/>
 			</CardContent>
 		</Card>
 	);

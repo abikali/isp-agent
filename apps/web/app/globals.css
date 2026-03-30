@@ -99,3 +99,40 @@ input[cmdk-input] {
 	opacity: 1;
 	transform: rotate(3deg) translate(0, -4px);
 }
+
+/* Invoice print / PDF styles */
+@media print {
+	@page {
+		size: A5;
+		margin: 10mm;
+	}
+
+	html,
+	body {
+		background: white !important;
+		-webkit-print-color-adjust: exact !important;
+		print-color-adjust: exact !important;
+	}
+
+	/*
+	 * Strategy: make the invoice-page a direct-layout root via position:fixed
+	 * so it covers the viewport regardless of DOM nesting, then hide overflow
+	 * on html/body so only the invoice prints.
+	 */
+	.invoice-page {
+		position: fixed !important;
+		inset: 0 !important;
+		z-index: 99999 !important;
+		padding: 0 !important;
+		margin: 0 !important;
+		min-height: auto !important;
+		background: white !important;
+		overflow: visible !important;
+	}
+
+	.invoice-card {
+		box-shadow: none !important;
+		border-radius: 0 !important;
+		break-inside: avoid;
+	}
+}

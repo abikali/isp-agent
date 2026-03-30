@@ -23,14 +23,12 @@ import {
 
 interface Counts {
 	subscribers: number;
-	dealers: number;
 	employees: number;
 	accountTypes: number;
 	stations: number;
 	accessPoints: number;
 	balances: number;
 	invoices: number;
-	dealerAccounts: number;
 }
 
 export function IRadiusSyncSettings() {
@@ -136,10 +134,6 @@ export function IRadiusSyncSettings() {
 									count={counts.subscribers}
 								/>
 								<CountBadge
-									label="Dealers"
-									count={counts.dealers}
-								/>
-								<CountBadge
 									label="Employees"
 									count={counts.employees}
 								/>
@@ -162,10 +156,6 @@ export function IRadiusSyncSettings() {
 								<CountBadge
 									label="Invoices"
 									count={counts.invoices}
-								/>
-								<CountBadge
-									label="Dealer Txns"
-									count={counts.dealerAccounts}
 								/>
 							</div>
 						</div>
@@ -274,10 +264,6 @@ interface Operation {
 	processedNas: number;
 	totalRouters: number;
 	processedRouters: number;
-	totalDealers: number;
-	processedDealers: number;
-	totalDealerAccounts: number;
-	processedDealerAccounts: number;
 	totalEmployees: number;
 	processedEmployees: number;
 	totalCustomers: number;
@@ -321,12 +307,6 @@ const PHASES = [
 		label: "Routers",
 		totalKey: "totalRouters",
 		processedKey: "processedRouters",
-	},
-	{
-		key: "dealers",
-		label: "Dealers",
-		totalKey: "totalDealers",
-		processedKey: "processedDealers",
 	},
 	{
 		key: "employees",

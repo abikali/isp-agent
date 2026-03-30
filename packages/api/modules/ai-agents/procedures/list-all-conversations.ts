@@ -43,10 +43,20 @@ export const listAllConversations = protectedProcedure
 		}
 
 		if (input.search) {
-			where["contactName"] = {
-				contains: input.search,
-				mode: "insensitive",
-			};
+			where["OR"] = [
+				{
+					contactName: {
+						contains: input.search,
+						mode: "insensitive",
+					},
+				},
+				{
+					externalChatId: {
+						contains: input.search,
+						mode: "insensitive",
+					},
+				},
+			];
 		}
 
 		if (input.channelType === "web") {

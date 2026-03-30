@@ -15,6 +15,7 @@ import {
 	Settings2Icon,
 	ShieldCheckIcon,
 	SparklesIcon,
+	TagsIcon,
 	TriangleAlertIcon,
 	Users2Icon,
 } from "lucide-react";
@@ -89,6 +90,13 @@ function OrganizationSettingsLayout() {
 								href: `${organizationSettingsBasePath}/iradius`,
 								icon: (
 									<DatabaseIcon className="size-4 opacity-50" />
+								),
+							},
+							{
+								title: "Note Categories",
+								href: `${organizationSettingsBasePath}/note-categories`,
+								icon: (
+									<TagsIcon className="size-4 opacity-50" />
 								),
 							},
 							{

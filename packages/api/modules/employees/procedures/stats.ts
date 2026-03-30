@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -16,18 +19,27 @@ export const getEmployeeStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input: { organizationId } }) => {
-		await requirePermission(organizationId, user.id, "employees", "read");
+		const { activeDealerId } = await requirePermission(
+			organizationId,
+			user.id,
+			"employees",
+			"read",
+		);
+
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		const [total, active, inactive, onLeave] = await Promise.all([
-			db.employee.count({ where: { organizationId } }),
 			db.employee.count({
-				where: { organizationId, status: "ACTIVE" },
+				where: { organizationId, ...dealerFilter },
 			}),
 			db.employee.count({
-				where: { organizationId, status: "INACTIVE" },
+				where: { organizationId, status: "ACTIVE", ...dealerFilter },
 			}),
 			db.employee.count({
-				where: { organizationId, status: "ON_LEAVE" },
+				where: { organizationId, status: "INACTIVE", ...dealerFilter },
+			}),
+			db.employee.count({
+				where: { organizationId, status: "ON_LEAVE", ...dealerFilter },
 			}),
 		]);
 

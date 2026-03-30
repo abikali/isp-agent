@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -20,7 +20,7 @@ export const assignEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
@@ -32,11 +32,42 @@ export const assignEmployees = protectedProcedure
 				id: input.taskId,
 				organizationId: input.organizationId,
 			},
+			include: {
+				customer: { select: { dealerId: true } },
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
 			});
+		}
+
+		// Dealer scoping: if task has a customer, it must belong to the active dealer
+		const dealerFilter = activeDealerId ?? NO_DEALER;
+		if (
+			existing.customerId &&
+			existing.customer?.dealerId !== dealerFilter
+		) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Task not found",
+			});
+		}
+
+		// Verify employees belong to active dealer
+		if (input.employeeIds.length > 0) {
+			const validCount = await db.employee.count({
+				where: {
+					id: { in: input.employeeIds },
+					organizationId: input.organizationId,
+					dealerId: dealerFilter,
+				},
+			});
+			if (validCount !== input.employeeIds.length) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						"One or more employees do not belong to your dealer",
+				});
+			}
 		}
 
 		await db.$transaction([

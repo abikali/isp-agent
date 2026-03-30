@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	NO_DEALER,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -21,7 +22,7 @@ export const getTask = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const [{ permCtx }, task] = await Promise.all([
+		const [{ permCtx, activeDealerId }, task] = await Promise.all([
 			requirePermission(input.organizationId, user.id, "tasks", "read"),
 			db.task.findFirst({
 				where: {
@@ -70,6 +71,7 @@ export const getTask = protectedProcedure
 							status: true,
 							connectionType: true,
 							monthlyRate: true,
+							dealerId: true,
 							plan: {
 								select: {
 									id: true,
@@ -115,6 +117,16 @@ export const getTask = protectedProcedure
 		}
 
 		await verifyTaskOwnership(permCtx, "read", task);
+
+		// Dealer scoping: if task has a customer, it must belong to the active dealer
+		if (
+			task.customerId &&
+			task.customer?.dealerId !== (activeDealerId ?? NO_DEALER)
+		) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Task not found",
+			});
+		}
 
 		return { task };
 	});

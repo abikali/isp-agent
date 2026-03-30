@@ -213,6 +213,25 @@
 	scrollbar-width: none;
 }
 
+@utility thin-scrollbar {
+	overflow-y: scroll !important;
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-border) transparent;
+	&::-webkit-scrollbar {
+		-webkit-appearance: none;
+		width: 6px;
+		display: block;
+	}
+	&::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	&::-webkit-scrollbar-thumb {
+		background-color: var(--color-border);
+		border-radius: 3px;
+		min-height: 24px;
+	}
+}
+
 /* ============================================================================
    PROFILE THEME SYSTEM
    Premium, Apple-like styling for libancom Profiles

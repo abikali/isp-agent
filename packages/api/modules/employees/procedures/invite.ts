@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	ISP_ROLE_TEMPLATES,
 	type IspRoleTemplate,
@@ -34,7 +37,7 @@ export const inviteEmployee = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"employees",
@@ -46,6 +49,7 @@ export const inviteEmployee = protectedProcedure
 			where: {
 				id: input.employeeId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 		});
 		if (!employee) {

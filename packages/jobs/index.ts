@@ -10,12 +10,14 @@ export {
 } from "./src/jobs/email.jobs";
 export { queueContactSync } from "./src/jobs/integration-sync.jobs";
 export { queueIRadiusSync } from "./src/jobs/iradius-sync.jobs";
+export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
 export {
 	queueWebhooks,
 	retryWebhookDelivery,
 	type WebhookPayload,
 } from "./src/jobs/webhook.jobs";
+export { queueWhatsAppReceipt } from "./src/jobs/whatsapp-receipt.jobs";
 // Queues
 export {
 	AI_CHAT_QUEUE_NAME,
@@ -43,6 +45,11 @@ export {
 	IRADIUS_SYNC_QUEUE_NAME,
 } from "./src/queues/iradius-sync.queue";
 export {
+	closeOrgSetupQueue,
+	getOrgSetupQueue,
+	ORG_SETUP_QUEUE_NAME,
+} from "./src/queues/org-setup.queue";
+export {
 	closeScheduledQueue,
 	getScheduledQueue,
 	SCHEDULED_QUEUE_NAME,
@@ -58,6 +65,11 @@ export {
 	getWebhookQueue,
 	WEBHOOK_QUEUE_NAME,
 } from "./src/queues/webhook.queue";
+export {
+	closeWhatsAppReceiptQueue,
+	getWhatsAppReceiptQueue,
+	WHATSAPP_RECEIPT_QUEUE_NAME,
+} from "./src/queues/whatsapp-receipt.queue";
 // Types
 export type {
 	AiChatJobData,
@@ -72,12 +84,16 @@ export type {
 	IntegrationSyncTrigger,
 	IRadiusSyncJobData,
 	IRadiusSyncJobResult,
+	OrgSetupJobData,
+	OrgSetupJobResult,
 	ScheduledJobData,
 	ScheduledJobResult,
 	WatcherCheckJobData,
 	WatcherCheckJobResult,
 	WebhookJobData,
 	WebhookJobResult,
+	WhatsAppReceiptJobData,
+	WhatsAppReceiptJobResult,
 } from "./src/types";
 // Workers (for worker process)
 export { createAiChatWorker } from "./src/workers/ai-chat.worker";
@@ -85,6 +101,7 @@ export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
 export { createIRadiusSyncWorker } from "./src/workers/iradius-sync.worker";
+export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export {
 	createWatcherCheckWorker,
@@ -92,6 +109,7 @@ export {
 	type WatcherNotificationPayload,
 } from "./src/workers/watcher-check.worker";
 export { createWebhookWorker } from "./src/workers/webhook.worker";
+export { createWhatsAppReceiptWorker } from "./src/workers/whatsapp-receipt.worker";
 
 // Cleanup utilities
 import { closeConnection } from "./src/connection";
@@ -100,9 +118,11 @@ import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
 import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
+import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
 import { closeWebhookQueue } from "./src/queues/webhook.queue";
+import { closeWhatsAppReceiptQueue } from "./src/queues/whatsapp-receipt.queue";
 
 /**
  * Gracefully shutdown all job queues and connections.
@@ -115,8 +135,10 @@ export async function shutdownJobs(): Promise<void> {
 		closeEmailQueue(),
 		closeIRadiusSyncQueue(),
 		closeIntegrationSyncQueue(),
+		closeOrgSetupQueue(),
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),
+		closeWhatsAppReceiptQueue(),
 		closeWebhookQueue(),
 	]);
 

@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeViaCustomers,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -18,7 +21,7 @@ export const getAccessPoint = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"accessPoints",
@@ -29,6 +32,7 @@ export const getAccessPoint = protectedProcedure
 			where: {
 				id: input.id,
 				organizationId: input.organizationId,
+				...getDealerScopeViaCustomers(activeDealerId),
 			},
 			include: {
 				station: { select: { id: true, name: true } },

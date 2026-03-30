@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { ShieldAlertIcon } from "lucide-react";
 
 // Inline query key factory (matches organizationsQueryKeys.active() from "@saas/organizations/lib/api")
 const activeOrganizationQueryKey = (slug: string) =>
@@ -24,18 +25,30 @@ const getOrganizationFn = createServerFn({ method: "GET" })
 		const { logger } = await import("@repo/logs");
 
 		try {
-			const organization = await authApi.getFullOrganization({
-				query: {
-					organizationSlug: data.organizationSlug,
-				},
-				headers: getRequest().headers,
-			});
+			const { db } = await import("@repo/database");
+
+			// Run auth API and DB query in parallel (slug is unique)
+			const [organization, orgData] = await Promise.all([
+				authApi.getFullOrganization({
+					query: {
+						organizationSlug: data.organizationSlug,
+					},
+					headers: getRequest().headers,
+				}),
+				db.organization.findUnique({
+					where: { slug: data.organizationSlug },
+					select: { activeDealerId: true },
+				}),
+			]);
 
 			if (!organization) {
 				return null;
 			}
 
-			return organization;
+			return {
+				...organization,
+				activeDealerId: orgData?.activeDealerId ?? null,
+			};
 		} catch (error) {
 			logger.error("Failed to get active organization", {
 				slug: data.organizationSlug,
@@ -102,7 +115,9 @@ export const Route = createFileRoute("/_saas/app/_org/$organizationSlug")({
 		);
 
 		return {
-			organization: context.organization as ActiveOrganization,
+			organization: context.organization as ActiveOrganization & {
+				activeDealerId: string | null;
+			},
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 		};
 	},
@@ -121,6 +136,16 @@ function OrganizationNotFound() {
 function OrganizationLayout() {
 	const loaderData = Route.useLoaderData();
 
+	if (!loaderData.organization.activeDealerId) {
+		return (
+			<AppWrapper>
+				<NoDealerAssigned
+					organizationName={loaderData.organization.name}
+				/>
+			</AppWrapper>
+		);
+	}
+
 	return (
 		<AsyncBoundary
 			fallback={null}
@@ -130,5 +155,29 @@ function OrganizationLayout() {
 				<Outlet />
 			</AppWrapper>
 		</AsyncBoundary>
+	);
+}
+
+function NoDealerAssigned({ organizationName }: { organizationName: string }) {
+	return (
+		<div className="flex min-h-[60vh] items-center justify-center p-8">
+			<div className="mx-auto max-w-md text-center">
+				<div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+					<ShieldAlertIcon className="size-8 text-amber-600" />
+				</div>
+				<h1 className="text-2xl font-semibold tracking-tight">
+					No Dealer Assigned
+				</h1>
+				<p className="mt-3 text-muted-foreground">
+					<strong>{organizationName}</strong> does not have a dealer
+					assigned yet. A dealer must be configured before you can
+					access any data.
+				</p>
+				<p className="mt-4 text-sm text-muted-foreground">
+					Please contact your administrator to assign a dealer to this
+					organization.
+				</p>
+			</div>
+		</div>
 	);
 }

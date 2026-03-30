@@ -5,7 +5,10 @@ import { FilterBar } from "@shared/components/FilterBar";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	Select,
 	SelectContent,
@@ -14,21 +17,12 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import {
-	ArrowDownIcon,
-	ArrowUpDownIcon,
-	ArrowUpIcon,
 	PencilIcon,
 	PlusIcon,
 	RadioTowerIcon,
 	TrashIcon,
+	WifiIcon,
+	WifiOffIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useDeleteStation, useStations } from "../hooks/use-stations";
@@ -39,8 +33,7 @@ import {
 import { CreateStationDialog } from "./CreateStationDialog";
 import { EditStationDialog } from "./EditStationDialog";
 
-type SortField = "name" | "status" | "customers" | "employees";
-type SortDir = "asc" | "desc";
+type Station = ReturnType<typeof useStations>["stations"][number];
 
 const statusIndicatorMap: Record<string, "active" | "inactive" | "pending"> = {
 	ACTIVE: "active",
@@ -48,85 +41,231 @@ const statusIndicatorMap: Record<string, "active" | "inactive" | "pending"> = {
 	OFFLINE: "inactive",
 };
 
-const PAGE_SIZE = 15;
-
 export function StationsList() {
-	const { stations } = useStations();
 	const deleteStation = useDeleteStation();
 	const [showCreate, setShowCreate] = useState(false);
-	const [editingStation, setEditingStation] = useState<
-		(typeof stations)[number] | null
-	>(null);
+	const [editingStation, setEditingStation] = useState<Station | null>(null);
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
-	const [statusFilter, setStatusFilter] = useState("all");
-	const [sortField, setSortField] = useState<SortField>("name");
-	const [sortDir, setSortDir] = useState<SortDir>("asc");
-	const [page, setPage] = useState(1);
+	const [statusFilter, setStatusFilter] = useState("");
+	const [onlineFilter, setOnlineFilter] = useState("");
+	const { stations } = useStations({
+		search: debouncedSearch || undefined,
+		status:
+			(statusFilter as "ACTIVE" | "MAINTENANCE" | "OFFLINE") || undefined,
+		online:
+			onlineFilter === "online"
+				? true
+				: onlineFilter === "offline"
+					? false
+					: undefined,
+	});
 
-	function toggleSort(field: SortField) {
-		if (sortField === field) {
-			setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-		} else {
-			setSortField(field);
-			setSortDir("asc");
-		}
-		setPage(1);
+	const activeFilterCount = (statusFilter ? 1 : 0) + (onlineFilter ? 1 : 0);
+
+	function resetFilters() {
+		setSearch("");
+		setStatusFilter("");
+		setOnlineFilter("");
 	}
 
-	const filtered = useMemo(() => {
-		let result = [...stations];
-
-		if (debouncedSearch) {
-			const q = debouncedSearch.toLowerCase();
-			result = result.filter(
-				(s) =>
-					s.name.toLowerCase().includes(q) ||
-					s.address?.toLowerCase().includes(q),
-			);
-		}
-
-		if (statusFilter !== "all") {
-			result = result.filter((s) => s.status === statusFilter);
-		}
-
-		result.sort((a, b) => {
-			let cmp = 0;
-			switch (sortField) {
-				case "name":
-					cmp = a.name.localeCompare(b.name);
-					break;
-				case "status":
-					cmp = a.status.localeCompare(b.status);
-					break;
-				case "customers":
-					cmp = a._count.customers - b._count.customers;
-					break;
-				case "employees":
-					cmp = a._count.employees - b._count.employees;
-					break;
-			}
-			return sortDir === "asc" ? cmp : -cmp;
-		});
-
-		return result;
-	}, [stations, debouncedSearch, statusFilter, sortField, sortDir]);
-
-	const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-	const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-	const activeCount = statusFilter !== "all" ? 1 : 0;
-
-	function SortIcon({ field }: { field: SortField }) {
-		if (sortField !== field) {
-			return <ArrowUpDownIcon className="ml-1 size-3 opacity-30" />;
-		}
-		return sortDir === "asc" ? (
-			<ArrowUpIcon className="ml-1 size-3" />
-		) : (
-			<ArrowDownIcon className="ml-1 size-3" />
-		);
-	}
+	const columns = useMemo<ColumnDef<Station, unknown>[]>(
+		() => [
+			{
+				id: "statusIcon",
+				enableSorting: false,
+				meta: { className: "w-10 pr-0" },
+				cell: ({ row }) => (
+					<StatusIndicator
+						status={
+							statusIndicatorMap[row.original.status] ??
+							"inactive"
+						}
+						label=""
+						size="sm"
+					/>
+				),
+			},
+			{
+				accessorKey: "name",
+				header: "Station",
+				cell: ({ row }) => (
+					<div>
+						<p className="font-medium">{row.original.name}</p>
+						<p className="text-xs text-muted-foreground">
+							{STATION_STATUS_LABELS[row.original.status] ??
+								row.original.status}
+						</p>
+					</div>
+				),
+			},
+			{
+				id: "address",
+				accessorKey: "address",
+				header: "Address",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.address ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				id: "host",
+				header: "Host",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm font-mono">
+						{row.original.host ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				id: "online",
+				header: "Online",
+				enableSorting: false,
+				cell: ({ row }) =>
+					row.original.online ? (
+						<Badge
+							variant="outline"
+							className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30"
+						>
+							<WifiIcon className="mr-1 size-3" />
+							Online
+						</Badge>
+					) : (
+						<Badge
+							variant="outline"
+							className="text-muted-foreground"
+						>
+							<WifiOffIcon className="mr-1 size-3" />
+							Offline
+						</Badge>
+					),
+			},
+			{
+				id: "dealers",
+				header: "Dealers",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const stationDealers = row.original.dealers;
+					if (!stationDealers || stationDealers.length === 0) {
+						return (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						);
+					}
+					if (stationDealers.length === 1) {
+						return (
+							<span className="text-sm">
+								{stationDealers[0]?.name}
+							</span>
+						);
+					}
+					return (
+						<div className="flex items-center gap-1">
+							<span className="text-sm">
+								{stationDealers[0]?.name}
+							</span>
+							<Badge
+								variant="secondary"
+								className="text-[10px] px-1.5 py-0"
+							>
+								+{stationDealers.length - 1}
+							</Badge>
+						</div>
+					);
+				},
+			},
+			{
+				id: "customers",
+				accessorFn: (row) => row._count.customers,
+				header: "Customers",
+				cell: ({ row }) => (
+					<span className="tabular-nums">
+						{row.original._count.customers}
+						{row.original.capacity ? (
+							<span className="text-xs text-muted-foreground">
+								{" "}
+								/ {row.original.capacity}
+							</span>
+						) : null}
+					</span>
+				),
+			},
+			{
+				id: "employees",
+				accessorFn: (row) => row._count.employees,
+				header: "Employees",
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="tabular-nums">
+						{row.original._count.employees}
+					</span>
+				),
+			},
+			{
+				id: "accessPoints",
+				accessorFn: (row) => row._count.accessPoints,
+				header: "APs",
+				meta: { className: "hidden xl:table-cell" },
+				cell: ({ row }) => (
+					<span className="tabular-nums">
+						{row.original._count.accessPoints}
+					</span>
+				),
+			},
+			{
+				id: "actions",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const station = row.original;
+					return (
+						<div className="flex gap-1">
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-8"
+								onClick={() => setEditingStation(station)}
+							>
+								<PencilIcon className="size-4" />
+								<span className="sr-only">Edit</span>
+							</Button>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-8"
+								onClick={() => {
+									if (confirm("Delete this station?")) {
+										deleteStation.mutate({
+											organizationId: station.id,
+											id: station.id,
+										});
+									}
+								}}
+								disabled={station._count.customers > 0}
+							>
+								<TrashIcon className="size-4" />
+								<span className="sr-only">Delete</span>
+							</Button>
+						</div>
+					);
+				},
+			},
+		],
+		[deleteStation],
+	);
 
 	return (
 		<PageShell
@@ -140,27 +279,20 @@ export function StationsList() {
 			}
 		>
 			<FilterBar
-				searchPlaceholder="Search stations..."
+				searchPlaceholder="Search by name, address, or host..."
 				searchValue={search}
-				onSearchChange={(v) => {
-					setSearch(v);
-					setPage(1);
-				}}
-				activeFilterCount={activeCount}
-				onReset={() => {
-					setStatusFilter("all");
-					setPage(1);
-				}}
+				onSearchChange={setSearch}
+				activeFilterCount={activeFilterCount}
+				onReset={resetFilters}
 			>
 				<Select
-					value={statusFilter}
-					onValueChange={(v) => {
-						setStatusFilter(v);
-						setPage(1);
-					}}
+					value={statusFilter || "all"}
+					onValueChange={(val) =>
+						setStatusFilter(val === "all" ? "" : val)
+					}
 				>
-					<SelectTrigger className="w-[140px]">
-						<SelectValue placeholder="Status" />
+					<SelectTrigger className="w-[150px]">
+						<SelectValue placeholder="All Status" />
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="all">All Status</SelectItem>
@@ -171,211 +303,51 @@ export function StationsList() {
 						))}
 					</SelectContent>
 				</Select>
+				<Select
+					value={onlineFilter || "all"}
+					onValueChange={(val) =>
+						setOnlineFilter(val === "all" ? "" : val)
+					}
+				>
+					<SelectTrigger className="w-[140px]">
+						<SelectValue placeholder="Connectivity" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All</SelectItem>
+						<SelectItem value="online">Online</SelectItem>
+						<SelectItem value="offline">Offline</SelectItem>
+					</SelectContent>
+				</Select>
 			</FilterBar>
 
-			{stations.length === 0 ? (
-				<EmptyState
-					icon={RadioTowerIcon}
-					title="No stations yet"
-					description="Create your first station to organize customer connections."
-					action={
-						<Button onClick={() => setShowCreate(true)}>
-							<PlusIcon className="mr-2 size-4" />
-							Create Station
-						</Button>
-					}
-				/>
-			) : filtered.length === 0 ? (
-				<EmptyState
-					icon={RadioTowerIcon}
-					title="No results found"
-					description="Try adjusting your search or filters."
-				/>
-			) : (
-				<>
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-10" />
-									<TableHead>
-										<button
-											type="button"
-											className="inline-flex items-center font-medium"
-											onClick={() => toggleSort("name")}
-										>
-											Station <SortIcon field="name" />
-										</button>
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Address
-									</TableHead>
-									<TableHead>
-										<button
-											type="button"
-											className="inline-flex items-center font-medium"
-											onClick={() =>
-												toggleSort("customers")
-											}
-										>
-											Customers{" "}
-											<SortIcon field="customers" />
-										</button>
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										<button
-											type="button"
-											className="inline-flex items-center font-medium"
-											onClick={() =>
-												toggleSort("employees")
-											}
-										>
-											Employees{" "}
-											<SortIcon field="employees" />
-										</button>
-									</TableHead>
-									<TableHead className="w-24" />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{paginated.map((station) => (
-									<TableRow
-										key={station.id}
-										className="hover:bg-muted/30 transition-colors"
-									>
-										<TableCell className="w-10 pr-0">
-											<StatusIndicator
-												status={
-													statusIndicatorMap[
-														station.status
-													] ?? "inactive"
-												}
-												label=""
-												size="sm"
-											/>
-										</TableCell>
-										<TableCell>
-											<div>
-												<p className="font-medium">
-													{station.name}
-												</p>
-												<p className="text-xs text-muted-foreground">
-													{STATION_STATUS_LABELS[
-														station.status
-													] ?? station.status}
-												</p>
-											</div>
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-sm">
-											{station.address ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="tabular-nums">
-											{station._count.customers}
-											{station.capacity ? (
-												<span className="text-xs text-muted-foreground">
-													{" "}
-													/ {station.capacity}
-												</span>
-											) : null}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell tabular-nums">
-											{station._count.employees}
-										</TableCell>
-										<TableCell>
-											<div className="flex gap-1">
-												<Button
-													variant="ghost"
-													size="icon"
-													className="size-8"
-													onClick={() =>
-														setEditingStation(
-															station,
-														)
-													}
-												>
-													<PencilIcon className="size-4" />
-													<span className="sr-only">
-														Edit
-													</span>
-												</Button>
-												<Button
-													variant="ghost"
-													size="icon"
-													className="size-8"
-													onClick={() => {
-														if (
-															confirm(
-																"Delete this station?",
-															)
-														) {
-															deleteStation.mutate(
-																{
-																	organizationId:
-																		station.id,
-																	id: station.id,
-																},
-															);
-														}
-													}}
-													disabled={
-														station._count
-															.customers > 0
-													}
-												>
-													<TrashIcon className="size-4" />
-													<span className="sr-only">
-														Delete
-													</span>
-												</Button>
-											</div>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-
-					{totalPages > 1 && (
-						<div className="mt-4 flex items-center justify-between">
-							<p className="text-sm text-muted-foreground">
-								{filtered.length} station
-								{filtered.length !== 1 ? "s" : ""} total
-							</p>
-							<div className="flex items-center gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) => Math.max(1, p - 1))
-									}
-									disabled={page === 1}
-								>
-									Previous
+			<DataTable
+				columns={columns}
+				data={stations}
+				pageSize={15}
+				emptyState={
+					stations.length === 0 &&
+					!activeFilterCount &&
+					!debouncedSearch ? (
+						<EmptyState
+							icon={RadioTowerIcon}
+							title="No stations yet"
+							description="Create your first station to organize customer connections."
+							action={
+								<Button onClick={() => setShowCreate(true)}>
+									<PlusIcon className="mr-2 size-4" />
+									Create Station
 								</Button>
-								<span className="text-sm tabular-nums text-muted-foreground">
-									{page} / {totalPages}
-								</span>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() =>
-										setPage((p) =>
-											Math.min(totalPages, p + 1),
-										)
-									}
-									disabled={page === totalPages}
-								>
-									Next
-								</Button>
-							</div>
-						</div>
-					)}
-				</>
-			)}
+							}
+						/>
+					) : (
+						<EmptyState
+							icon={RadioTowerIcon}
+							title="No results found"
+							description="Try adjusting your search or filters."
+						/>
+					)
+				}
+			/>
 
 			<CreateStationDialog
 				open={showCreate}

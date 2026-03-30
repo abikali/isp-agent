@@ -76,8 +76,6 @@ export const permissionStatement = {
 		"delete:own",
 		"assign",
 	],
-	dealers: ["create", "read", "update", "delete"],
-
 	// Insights
 	audit: ["view"],
 
@@ -179,7 +177,6 @@ export const PERMISSION_GROUPS = {
 			"accessPoints",
 			"employees",
 			"tasks",
-			"dealers",
 			"inventory",
 			"installations",
 		] as const,

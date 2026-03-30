@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	NO_DEALER,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -45,10 +46,19 @@ export const updateTask = protectedProcedure
 			notes: z.string().max(5000).nullable().optional(),
 			customerId: z.string().nullable().optional(),
 			stationId: z.string().nullable().optional(),
+			followUpStatus: z
+				.enum([
+					"pending",
+					"contacted",
+					"promised",
+					"resolved",
+					"escalated",
+				])
+				.optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
@@ -59,6 +69,7 @@ export const updateTask = protectedProcedure
 			where: { id: input.id, organizationId: input.organizationId },
 			include: {
 				assignments: { select: { employeeId: true } },
+				customer: { select: { dealerId: true } },
 			},
 		});
 		if (!existing) {
@@ -68,6 +79,16 @@ export const updateTask = protectedProcedure
 		}
 
 		await verifyTaskOwnership(permCtx, "update", existing);
+
+		// Dealer scoping: if task has a customer, it must belong to the active dealer
+		if (
+			existing.customerId &&
+			existing.customer?.dealerId !== (activeDealerId ?? NO_DEALER)
+		) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Task not found",
+			});
+		}
 
 		const updateData: Record<string, unknown> = {};
 		if (input.title !== undefined) {
@@ -93,6 +114,9 @@ export const updateTask = protectedProcedure
 		}
 		if (input.stationId !== undefined) {
 			updateData["stationId"] = input.stationId ?? null;
+		}
+		if (input.followUpStatus !== undefined) {
+			updateData["followUpStatus"] = input.followUpStatus;
 		}
 
 		// Auto-manage completedAt based on status transitions

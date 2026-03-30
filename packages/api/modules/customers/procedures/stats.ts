@@ -1,5 +1,7 @@
 import {
+	getDealerScopeFilter,
 	getOwnershipFilterAsync,
+	NO_DEALER,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
@@ -19,7 +21,7 @@ export const getCustomerStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input: { organizationId } }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			organizationId,
 			user.id,
 			"customers",
@@ -32,17 +34,19 @@ export const getCustomerStats = protectedProcedure
 			"customers",
 			"read",
 		);
-		const baseWhere = { organizationId, ...ownerFilter };
+		const baseWhere = {
+			organizationId,
+			...ownerFilter,
+			...getDealerScopeFilter(activeDealerId),
+		};
 
 		const [
 			statusCounts,
 			online,
 			offline,
 			expired,
-			dealerCount,
 			employeeCount,
 			planDistribution,
-			topDealers,
 		] = await Promise.all([
 			db.customer.groupBy({
 				by: ["status"],
@@ -62,8 +66,12 @@ export const getCustomerStats = protectedProcedure
 					status: "ACTIVE",
 				},
 			}),
-			db.ispDealer.count({ where: { organizationId } }),
-			db.employee.count({ where: { organizationId } }),
+			db.employee.count({
+				where: {
+					organizationId,
+					...getDealerScopeFilter(activeDealerId),
+				},
+			}),
 			db.customer.groupBy({
 				by: ["planId"],
 				where: {
@@ -74,16 +82,6 @@ export const getCustomerStats = protectedProcedure
 				_count: true,
 				orderBy: { _count: { planId: "desc" } },
 				take: 20,
-			}),
-			db.ispDealer.findMany({
-				where: { organizationId, status: "ACTIVE" },
-				select: {
-					id: true,
-					name: true,
-					_count: { select: { customers: true } },
-				},
-				orderBy: { customers: { _count: "desc" } },
-				take: 5,
 			}),
 		]);
 
@@ -126,6 +124,7 @@ export const getCustomerStats = protectedProcedure
 					WHERE c."organizationId" = ${organizationId}
 					AND c."status" = 'ACTIVE'
 					AND c."monthlyRate" IS NULL
+					AND c."dealerId" = ${activeDealerId ?? NO_DEALER}
 				`,
 		]);
 
@@ -143,7 +142,6 @@ export const getCustomerStats = protectedProcedure
 			online,
 			offline,
 			expired,
-			dealerCount,
 			employeeCount,
 			totalMonthlyRevenue,
 			planDistribution: planDistribution.map((p) => ({
@@ -151,11 +149,6 @@ export const getCustomerStats = protectedProcedure
 					? (planNameMap.get(p.planId) ?? "Unknown")
 					: "No Plan",
 				count: p._count,
-			})),
-			topDealers: topDealers.map((d) => ({
-				id: d.id,
-				name: d.name,
-				customerCount: d._count.customers,
 			})),
 		};
 	});

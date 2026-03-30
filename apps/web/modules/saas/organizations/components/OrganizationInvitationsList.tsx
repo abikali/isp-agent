@@ -9,7 +9,9 @@ import {
 	useFullOrganizationSuspense,
 } from "@saas/organizations/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,7 +19,6 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Skeleton } from "@ui/components/skeleton";
-import { Table, TableBody, TableCell, TableRow } from "@ui/components/table";
 import { cn } from "@ui/lib";
 import {
 	CheckIcon,
@@ -64,6 +65,14 @@ const STATUS_ICONS = {
 	canceled: XIcon,
 } as const;
 
+interface Invitation {
+	id: string;
+	email: string;
+	status: string;
+	role: string;
+	expiresAt: string | Date;
+}
+
 /**
  * Invitations list component using Suspense for data fetching.
  * MUST be wrapped in a Suspense boundary.
@@ -95,13 +104,13 @@ export function OrganizationInvitationsList({
 
 	const invitations = useMemo(
 		() =>
-			organization?.invitations
+			(organization?.invitations
 				?.filter((invitation) => invitation.status === "pending")
 				.sort(
 					(a, b) =>
 						new Date(a.expiresAt).getTime() -
 						new Date(b.expiresAt).getTime(),
-				) ?? [],
+				) ?? []) as Invitation[],
 		[organization?.invitations],
 	);
 
@@ -130,104 +139,100 @@ export function OrganizationInvitationsList({
 		);
 	};
 
-	return (
-		<div className="overflow-x-auto rounded-md border">
-			<Table>
-				<TableBody>
-					{invitations.length > 0 ? (
-						invitations.map((invitation) => {
-							const StatusIcon =
-								STATUS_ICONS[
-									invitation.status as keyof typeof STATUS_ICONS
-								] ?? ClockIcon;
-							const isPending = invitation.status === "pending";
+	// biome-ignore lint/correctness/useExhaustiveDependencies: revokeInvitation is stable enough via other deps
+	const columns: ColumnDef<Invitation, unknown>[] = useMemo(
+		() => [
+			{
+				accessorKey: "email",
+				header: "Invitation",
+				cell: ({ row }) => {
+					const invitation = row.original;
+					const StatusIcon =
+						STATUS_ICONS[
+							invitation.status as keyof typeof STATUS_ICONS
+						] ?? ClockIcon;
 
-							return (
-								<TableRow key={invitation.id}>
-									<TableCell>
-										<div className="leading-normal">
-											<strong
-												className={cn("block", {
-													"opacity-50":
-														invitation.status ===
-														"canceled",
-												})}
-											>
-												{invitation.email}
-											</strong>
-											<small className="flex flex-wrap gap-1 text-foreground/60">
-												<span className="flex items-center gap-0.5">
-													<StatusIcon className="size-3" />
-													{invitation.status
-														.charAt(0)
-														.toUpperCase() +
-														invitation.status.slice(
-															1,
-														)}
-												</span>
-												<span>-</span>
-												<span>
-													Expires{" "}
-													{dateFormatter.format(
-														new Date(
-															invitation.expiresAt,
-														),
-													)}
-												</span>
-											</small>
-										</div>
-									</TableCell>
-									<TableCell className="text-right">
-										<div className="flex flex-row justify-end gap-2">
-											<OrganizationRoleSelect
-												value={invitation.role}
-												disabled
-												onSelect={() => {}}
-												organizationId={organizationId}
-											/>
-											{canUserEditInvitations && (
-												<DropdownMenu>
-													<DropdownMenuTrigger
-														asChild
-													>
-														<Button
-															size="icon"
-															variant="ghost"
-														>
-															<MoreVerticalIcon className="size-4" />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent>
-														<DropdownMenuItem
-															disabled={
-																!isPending
-															}
-															onClick={() =>
-																revokeInvitation(
-																	invitation.id,
-																)
-															}
-														>
-															<MailXIcon className="mr-2 size-4" />
-															Revoke Invitation
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
-										</div>
-									</TableCell>
-								</TableRow>
-							);
-						})
-					) : (
-						<TableRow>
-							<TableCell colSpan={2} className="h-24 text-center">
-								No pending invitations
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
-			</Table>
-		</div>
+					return (
+						<div className="leading-normal">
+							<strong
+								className={cn("block", {
+									"opacity-50":
+										invitation.status === "canceled",
+								})}
+							>
+								{invitation.email}
+							</strong>
+							<small className="flex flex-wrap gap-1 text-foreground/60">
+								<span className="flex items-center gap-0.5">
+									<StatusIcon className="size-3" />
+									{invitation.status.charAt(0).toUpperCase() +
+										invitation.status.slice(1)}
+								</span>
+								<span>-</span>
+								<span>
+									Expires{" "}
+									{dateFormatter.format(
+										new Date(invitation.expiresAt),
+									)}
+								</span>
+							</small>
+						</div>
+					);
+				},
+			},
+			{
+				id: "actions",
+				header: "Role",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const invitation = row.original;
+					const isPending = invitation.status === "pending";
+
+					return (
+						<div className="flex flex-row justify-end gap-2">
+							<OrganizationRoleSelect
+								value={invitation.role}
+								disabled
+								onSelect={() => {}}
+								organizationId={organizationId}
+							/>
+							{canUserEditInvitations && (
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button size="icon" variant="ghost">
+											<MoreVerticalIcon className="size-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent>
+										<DropdownMenuItem
+											disabled={!isPending}
+											onClick={() =>
+												revokeInvitation(invitation.id)
+											}
+										>
+											<MailXIcon className="mr-2 size-4" />
+											Revoke Invitation
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							)}
+						</div>
+					);
+				},
+			},
+		],
+		[canUserEditInvitations, dateFormatter, organizationId],
+	);
+
+	return (
+		<DataTable
+			columns={columns}
+			data={invitations}
+			emptyState={
+				<div className="rounded-xl border bg-card py-8 text-center text-muted-foreground">
+					No pending invitations
+				</div>
+			}
+		/>
 	);
 }

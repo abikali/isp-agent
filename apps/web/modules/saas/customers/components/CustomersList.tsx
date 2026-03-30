@@ -1,6 +1,5 @@
 "use client";
 
-import { Pagination } from "@saas/shared/components/Pagination";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
@@ -8,18 +7,11 @@ import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { displayName } from "@shared/lib/display-name";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { cn } from "@ui/lib";
+import { DataTable } from "@ui/components/data-table";
 import { PencilIcon, PlusIcon, UploadIcon, UsersIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCustomers } from "../hooks/use-customers";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
@@ -39,6 +31,21 @@ const statusMap: Record<
 	SUSPENDED: "suspended",
 	PENDING: "pending",
 };
+
+const PAGE_SIZE = 25;
+
+interface CustomerRow {
+	id: string;
+	status: string;
+	accountNumber: string;
+	firstName: string | null;
+	lastName: string | null;
+	email: string | null;
+	plan: { name: string } | null;
+	station: { name: string } | null;
+	connectionType: string | null;
+	balance: number;
+}
 
 export function CustomersList({
 	organizationSlug,
@@ -72,8 +79,137 @@ export function CustomersList({
 		page,
 	};
 
-	const { customers, total, totalPages, isLoading, isFetching } =
-		useCustomers(filters);
+	const { customers, total, isLoading, isFetching } = useCustomers(filters);
+
+	const columns = useMemo<ColumnDef<CustomerRow, unknown>[]>(
+		() => [
+			{
+				id: "status",
+				enableSorting: false,
+				meta: { className: "w-10 pr-0" },
+				cell: ({ row }) => (
+					<StatusIndicator
+						status={statusMap[row.original.status] ?? "inactive"}
+						label=""
+						size="sm"
+					/>
+				),
+			},
+			{
+				id: "accountNumber",
+				header: "Account",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<Link
+						to="/app/$organizationSlug/customers/$customerId"
+						params={{
+							organizationSlug,
+							customerId: row.original.id,
+						}}
+						className="font-mono text-xs text-primary hover:underline"
+						preload="intent"
+					>
+						{row.original.accountNumber}
+					</Link>
+				),
+			},
+			{
+				id: "name",
+				header: "Name",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div>
+						<Link
+							to="/app/$organizationSlug/customers/$customerId"
+							params={{
+								organizationSlug,
+								customerId: row.original.id,
+							}}
+							className="font-medium hover:underline"
+							preload="intent"
+						>
+							{displayName(
+								row.original.firstName,
+								row.original.lastName,
+							)}
+						</Link>
+						{row.original.email && (
+							<p className="text-xs text-muted-foreground">
+								{row.original.email}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "plan",
+				header: "Plan",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) =>
+					row.original.plan?.name ?? (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "station",
+				header: "Station",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) =>
+					row.original.station?.name ?? (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "connectionType",
+				header: "Connection",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell text-xs" },
+				cell: ({ row }) =>
+					row.original.connectionType ?? (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "balance",
+				header: "Balance",
+				enableSorting: false,
+				meta: { className: "hidden sm:table-cell text-right" },
+				cell: ({ row }) => (
+					<span className="font-mono tabular-nums">
+						${row.original.balance.toFixed(2)}
+					</span>
+				),
+			},
+			{
+				id: "actions",
+				enableSorting: false,
+				meta: { className: "w-10" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-8"
+						asChild
+					>
+						<Link
+							to="/app/$organizationSlug/customers/$customerId"
+							params={{
+								organizationSlug,
+								customerId: row.original.id,
+							}}
+							preload="intent"
+						>
+							<PencilIcon className="size-4" />
+							<span className="sr-only">Edit</span>
+						</Link>
+					</Button>
+				),
+			},
+		],
+		[organizationSlug],
+	);
 
 	return (
 		<PageShell
@@ -133,175 +269,41 @@ export function CustomersList({
 				}}
 			/>
 
-			{isLoading ? (
-				<div className="rounded-xl shadow-card p-8 text-center text-muted-foreground">
-					Loading customers...
-				</div>
-			) : customers.length === 0 ? (
-				<EmptyState
-					icon={UsersIcon}
-					title={
-						total === 0 ? "No customers yet" : "No results found"
-					}
-					description={
-						total === 0
-							? "Add your first customer to get started."
-							: "Try adjusting your filters or search term."
-					}
-					action={
-						total === 0 ? (
-							<Button onClick={() => setShowCreate(true)}>
-								<PlusIcon className="mr-2 size-4" />
-								Add Customer
-							</Button>
-						) : undefined
-					}
-				/>
-			) : (
-				<>
-					<div
-						className={cn(
-							"rounded-xl shadow-card overflow-hidden transition-opacity",
-							isFetching && "opacity-60",
-						)}
-					>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-10" />
-									<TableHead>Account</TableHead>
-									<TableHead>Name</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Plan
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Station
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Connection
-									</TableHead>
-									<TableHead className="hidden sm:table-cell text-right">
-										Balance
-									</TableHead>
-									<TableHead className="w-10" />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{customers.map((customer) => (
-									<TableRow
-										key={customer.id}
-										className="hover:bg-muted/30 transition-colors"
-									>
-										<TableCell className="w-10 pr-0">
-											<StatusIndicator
-												status={
-													statusMap[
-														customer.status
-													] ?? "inactive"
-												}
-												label=""
-												size="sm"
-											/>
-										</TableCell>
-										<TableCell className="font-mono text-xs">
-											<Link
-												to="/app/$organizationSlug/customers/$customerId"
-												params={{
-													organizationSlug,
-													customerId: customer.id,
-												}}
-												className="text-primary hover:underline"
-												preload="intent"
-											>
-												{customer.accountNumber}
-											</Link>
-										</TableCell>
-										<TableCell>
-											<div>
-												<Link
-													to="/app/$organizationSlug/customers/$customerId"
-													params={{
-														organizationSlug,
-														customerId: customer.id,
-													}}
-													className="font-medium hover:underline"
-													preload="intent"
-												>
-													{displayName(
-														customer.firstName,
-														customer.lastName,
-													)}
-												</Link>
-												{customer.email && (
-													<p className="text-xs text-muted-foreground">
-														{customer.email}
-													</p>
-												)}
-											</div>
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											{customer.plan?.name ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell">
-											{customer.station?.name ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell text-xs">
-											{customer.connectionType ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden sm:table-cell text-right font-mono tabular-nums">
-											${customer.balance.toFixed(2)}
-										</TableCell>
-										<TableCell className="w-10">
-											<Button
-												variant="ghost"
-												size="icon"
-												className="size-8"
-												asChild
-											>
-												<Link
-													to="/app/$organizationSlug/customers/$customerId"
-													params={{
-														organizationSlug,
-														customerId: customer.id,
-													}}
-													preload="intent"
-												>
-													<PencilIcon className="size-4" />
-													<span className="sr-only">
-														Edit
-													</span>
-												</Link>
-											</Button>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-
-					{totalPages > 1 && (
-						<Pagination
-							className="mt-4"
-							totalItems={total}
-							itemsPerPage={25}
-							currentPage={page}
-							onChangeCurrentPage={setPage}
-						/>
-					)}
-				</>
-			)}
+			<DataTable
+				columns={columns}
+				data={customers}
+				pagination={{
+					totalItems: total,
+					currentPage: page,
+					itemsPerPage: PAGE_SIZE,
+					onPageChange: setPage,
+				}}
+				isLoading={isLoading}
+				isFetching={isFetching}
+				emptyState={
+					<EmptyState
+						icon={UsersIcon}
+						title={
+							total === 0
+								? "No customers yet"
+								: "No results found"
+						}
+						description={
+							total === 0
+								? "Add your first customer to get started."
+								: "Try adjusting your filters or search term."
+						}
+						action={
+							total === 0 ? (
+								<Button onClick={() => setShowCreate(true)}>
+									<PlusIcon className="mr-2 size-4" />
+									Add Customer
+								</Button>
+							) : undefined
+						}
+					/>
+				}
+			/>
 
 			<CreateCustomerDialog
 				open={showCreate}

@@ -7,7 +7,12 @@ import {
 } from "@saas/shared/client";
 import { Logo } from "@shared/components/Logo";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { Building2Icon, FlagIcon, UsersIcon } from "lucide-react";
+import {
+	Building2Icon,
+	FlagIcon,
+	HandshakeIcon,
+	UsersIcon,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_saas/app/_account/admin")({
 	beforeLoad: ({ context }) => {
@@ -45,6 +50,11 @@ function AdminLayout() {
 							},
 						]
 					: []),
+				{
+					title: "Dealers",
+					href: "/app/admin/dealers",
+					icon: <HandshakeIcon className="size-4 opacity-50" />,
+				},
 				{
 					title: "Feature Flags",
 					href: "/app/admin/feature-flags",

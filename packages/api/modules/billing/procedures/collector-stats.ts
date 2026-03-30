@@ -1,11 +1,18 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
+	getDealerScopeViaCustomer,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	calculateInHandBalance,
+	sumAmountOrZero,
+	sumOrZero,
+} from "../lib/calculations";
 
 export const getCollectorStats = protectedProcedure
 	.route({
@@ -23,7 +30,7 @@ export const getCollectorStats = protectedProcedure
 	)
 	.handler(async ({ context: { user }, input }) => {
 		// Use billing:view for basic access check (collectors have this)
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -53,38 +60,63 @@ export const getCollectorStats = protectedProcedure
 		const tomorrow = new Date(today);
 		tomorrow.setDate(tomorrow.getDate() + 1);
 
+		const excludeFreeGroup = {
+			NOT: {
+				groupName: { equals: "free", mode: "insensitive" as const },
+			},
+		};
+
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
+
 		const [
 			totalCustomers,
 			paidCustomers,
 			totalPayments,
+			pendingPayments,
 			dailyPayments,
 			totalHandedOff,
 		] = await Promise.all([
-			// Total customers assigned to this collector
+			// Total customers assigned to this collector (excluding free group)
 			db.customer.count({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
 					status: "ACTIVE",
+					...excludeFreeGroup,
+					...dealerFilter,
 				},
 			}),
-			// Paid customers this cycle
+			// Paid customers this cycle (excluding free group)
 			db.customer.count({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
 					status: "ACTIVE",
 					paidCurrentCycle: true,
+					...excludeFreeGroup,
+					...dealerFilter,
 				},
 			}),
-			// Total amount collected (all time in current cycle)
+			// Total amount collected (all time)
 			db.payment.aggregate({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
+					...dealerViaCustomer,
 				},
 				_sum: { paidAmount: true },
 				_count: true,
+			}),
+			// Pending payments — cash physically with the collector
+			db.payment.aggregate({
+				where: {
+					organizationId: input.organizationId,
+					collectorId,
+					status: PaymentStatus.PENDING,
+					...dealerViaCustomer,
+				},
+				_sum: { paidAmount: true },
 			}),
 			// Daily collected (today only)
 			db.payment.aggregate({
@@ -92,6 +124,7 @@ export const getCollectorStats = protectedProcedure
 					organizationId: input.organizationId,
 					collectorId,
 					paidAt: { gte: today, lt: tomorrow },
+					...dealerViaCustomer,
 				},
 				_sum: { paidAmount: true },
 				_count: true,
@@ -106,8 +139,9 @@ export const getCollectorStats = protectedProcedure
 			}),
 		]);
 
-		const totalCollected = totalPayments._sum.paidAmount ?? 0;
-		const handedOff = totalHandedOff._sum.amount ?? 0;
+		const totalCollected = sumOrZero(totalPayments);
+		const handedOff = sumAmountOrZero(totalHandedOff);
+		const pending = sumOrZero(pendingPayments);
 
 		return {
 			collectorId,
@@ -115,8 +149,8 @@ export const getCollectorStats = protectedProcedure
 			paidCustomers,
 			totalCollected,
 			totalHandedOff: handedOff,
-			netBalance: totalCollected - handedOff,
-			dailyCollected: dailyPayments._sum.paidAmount ?? 0,
+			netBalance: calculateInHandBalance(pending, handedOff),
+			dailyCollected: sumOrZero(dailyPayments),
 			dailyCount: dailyPayments._count,
 		};
 	});

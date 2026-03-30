@@ -2,151 +2,14 @@ import type { Prisma } from "@repo/database";
 import { db } from "@repo/database";
 import { queryBilling, withBillingConnection } from "@repo/database/billing";
 import { logger } from "@repo/logs";
-import { hashPassword } from "@repo/utils/password";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { BILLING_SYNC_QUEUE_NAME } from "../queues/billing-sync.queue";
 import type { BillingSyncJobData, BillingSyncJobResult } from "../types";
 
 const BATCH_SIZE = 500;
-const DEFAULT_COLLECTOR_PASSWORD = "123456";
 /** Offset added to addon installation IDs to avoid collision with main installations */
 const ADDON_ID_OFFSET = 1_000_000;
-
-/**
- * ISP role permission templates — inlined to avoid circular dependency
- * (@repo/auth → @repo/notifications → @repo/jobs → @repo/auth).
- * Keep in sync with ISP_ROLE_TEMPLATES in packages/auth/permissions/roles.ts.
- */
-const ISP_ROLE_TEMPLATES: Record<
-	string,
-	{ permissions: Record<string, string[]> }
-> = {
-	collector: {
-		permissions: {
-			customers: ["read:own"],
-			billing: ["view", "collect:own"],
-			tasks: ["read:own"],
-		},
-	},
-	field_tech: {
-		permissions: {
-			customers: ["read"],
-			tasks: ["create", "read:own", "update:own"],
-			inventory: ["read", "update"],
-			installations: ["create", "read", "update"],
-			stations: ["read"],
-		},
-	},
-};
-
-/** Map billing system role names to ISP_ROLE_TEMPLATES keys */
-const BILLING_TO_ISP_ROLE: Record<string, string> = {
-	collector: "collector",
-	worker: "field_tech",
-};
-
-/**
- * Ensure an employee has a User + Account + Member for login access.
- * Reused by both new-employee creation (Phase 0) and backfill (Phase 0b).
- */
-async function ensureEmployeeLogin(params: {
-	organizationId: string;
-	employeeId: string;
-	name: string;
-	email: string;
-	role: string;
-	hashedPassword: string;
-}): Promise<void> {
-	const { organizationId, employeeId, name, email, role, hashedPassword } =
-		params;
-
-	let targetUser = await db.user.findFirst({
-		where: { email: { equals: email, mode: "insensitive" } },
-	});
-
-	if (!targetUser) {
-		targetUser = await db.user.create({
-			data: {
-				name,
-				email,
-				emailVerified: true,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			},
-		});
-
-		await db.account.create({
-			data: {
-				accountId: targetUser.id,
-				providerId: "credential",
-				userId: targetUser.id,
-				password: hashedPassword,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			},
-		});
-	}
-
-	const existingMember = await db.member.findUnique({
-		where: {
-			organizationId_userId: { organizationId, userId: targetUser.id },
-		},
-	});
-	if (!existingMember) {
-		await db.member.create({
-			data: {
-				organizationId,
-				userId: targetUser.id,
-				role,
-				createdAt: new Date(),
-			},
-		});
-	}
-
-	await db.employee.update({
-		where: { id: employeeId },
-		data: { userId: targetUser.id, email },
-	});
-
-	logger.info(`[Billing Sync] Created login for ${name} (${role})`);
-}
-
-/**
- * Ensure ISP roles exist in the organization for the given role types.
- */
-async function ensureOrgRoles(
-	organizationId: string,
-	roleTypes: Set<string>,
-	addError: (phase: string, detail: string) => void,
-) {
-	for (const roleType of roleTypes) {
-		const ispRole = BILLING_TO_ISP_ROLE[roleType] ?? roleType;
-		const template = ISP_ROLE_TEMPLATES[ispRole];
-		if (!template) {
-			continue;
-		}
-		try {
-			await db.organizationRole.upsert({
-				where: {
-					organizationId_role: { organizationId, role: roleType },
-				},
-				update: {},
-				create: {
-					organizationId,
-					role: roleType,
-					permission: JSON.stringify(template.permissions),
-				},
-			});
-		} catch (err) {
-			addError(
-				"employees",
-				`Failed to ensure role ${roleType}: ${err instanceof Error ? err.message : String(err)}`,
-			);
-		}
-	}
-}
-
 const MAX_ERRORS = 50;
 
 /** MySQL returns decimal columns as strings — parse to float safely. */
@@ -175,8 +38,7 @@ async function updateProgress(
 async function processBillingSync(
 	job: Job<BillingSyncJobData>,
 ): Promise<BillingSyncJobResult> {
-	const { operationId, organizationId, createEmployees, mapEmployees } =
-		job.data;
+	const { operationId, organizationId } = job.data;
 
 	const result = {
 		customers: { created: 0, updated: 0, skipped: 0, errors: 0 },
@@ -192,6 +54,7 @@ async function processBillingSync(
 		stockLogs: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		stationWorkers: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		addonInstallations: { created: 0, updated: 0, skipped: 0, errors: 0 },
+		reconciliation: { created: 0, updated: 0, skipped: 0, errors: 0 },
 		errors: [] as Array<{ phase: string; detail: string }>,
 	};
 
@@ -207,144 +70,7 @@ async function processBillingSync(
 			startedAt: new Date(),
 		});
 
-		// Pre-compute shared resources for employee phases
-		const hashedPassword = await hashPassword(DEFAULT_COLLECTOR_PASSWORD);
-
 		await withBillingConnection(async (conn) => {
-			// ── Phase 0: Create admin-confirmed employees ────────────
-			// For collectors: also create User + Account + Member so they can log in.
-
-			if (createEmployees.length > 0) {
-				const lastEmp = await db.employee.findFirst({
-					where: { organizationId },
-					orderBy: { employeeNumber: "desc" },
-					select: { employeeNumber: true },
-				});
-				let nextEmpNum = 1;
-				if (lastEmp) {
-					const match = lastEmp.employeeNumber.match(/EMP-(\d+)/);
-					if (match?.[1]) {
-						nextEmpNum = Number.parseInt(match[1], 10) + 1;
-					}
-				}
-
-				const ROLE_DEPT: Record<string, "BILLING" | "FIELD_OPS"> = {
-					collector: "BILLING",
-					worker: "FIELD_OPS",
-				};
-				const ROLE_POS: Record<string, string> = {
-					collector: "Collector",
-					worker: "Field Technician",
-				};
-
-				const roleTypesNeeded = new Set(
-					createEmployees.map((e) => e.role),
-				);
-				await ensureOrgRoles(organizationId, roleTypesNeeded, addError);
-
-				for (const emp of createEmployees) {
-					try {
-						const empNumber = `EMP-${String(nextEmpNum).padStart(5, "0")}`;
-						nextEmpNum++;
-
-						const email = `${emp.username.toLowerCase()}@libancom.local`;
-
-						const newEmployee = await db.employee.create({
-							data: {
-								organizationId,
-								employeeNumber: empNumber,
-								name: emp.username,
-								username: emp.username,
-								email,
-								phone: emp.phone,
-								department: ROLE_DEPT[emp.role] ?? "FIELD_OPS",
-								position:
-									ROLE_POS[emp.role] ?? "Field Technician",
-								status: "ACTIVE",
-								preferredLayout:
-									emp.role === "collector"
-										? "collector"
-										: "standard",
-								telegramChatId: emp.telegram ?? null,
-							},
-						});
-
-						if (
-							ISP_ROLE_TEMPLATES[
-								BILLING_TO_ISP_ROLE[emp.role] ?? emp.role
-							]
-						) {
-							await ensureEmployeeLogin({
-								organizationId,
-								employeeId: newEmployee.id,
-								name: emp.username,
-								email,
-								role: emp.role,
-								hashedPassword,
-							});
-						}
-					} catch (err) {
-						addError(
-							"employees",
-							`Failed to create ${emp.username}: ${err instanceof Error ? err.message : String(err)}`,
-						);
-					}
-				}
-			}
-
-			// ── Phase 0b: Ensure existing BILLING/FIELD_OPS employees have logins
-			// Employees matched from iRadius sync may exist without User accounts.
-
-			const employeesWithoutLogin = await db.employee.findMany({
-				where: {
-					organizationId,
-					department: { in: ["BILLING", "FIELD_OPS"] },
-					userId: null,
-				},
-				select: {
-					id: true,
-					name: true,
-					username: true,
-					department: true,
-				},
-			});
-
-			if (employeesWithoutLogin.length > 0) {
-				const rolesNeeded = new Set(
-					employeesWithoutLogin.map((e) =>
-						e.department === "BILLING" ? "collector" : "worker",
-					),
-				);
-				await ensureOrgRoles(organizationId, rolesNeeded, addError);
-
-				for (const emp of employeesWithoutLogin) {
-					try {
-						const uname =
-							emp.username ??
-							emp.name.toLowerCase().replace(/\s+/g, "");
-						const email = `${uname.toLowerCase()}@libancom.local`;
-						const role =
-							emp.department === "BILLING"
-								? "collector"
-								: "worker";
-
-						await ensureEmployeeLogin({
-							organizationId,
-							employeeId: emp.id,
-							name: emp.name,
-							email,
-							role,
-							hashedPassword,
-						});
-					} catch (err) {
-						addError(
-							"employees",
-							`Login for ${emp.name}: ${err instanceof Error ? err.message : String(err)}`,
-						);
-					}
-				}
-			}
-
 			// ── Phase 0c: Sync Telegram chat IDs from billing isplogin table
 			try {
 				const loginRows = await queryBilling(
@@ -406,14 +132,6 @@ async function processBillingSync(
 				}
 			}
 
-			// Apply admin-confirmed mappings (billing username → existing employee)
-			for (const mapping of mapEmployees) {
-				employeeNameMap.set(
-					mapping.billingUsername.toLowerCase(),
-					mapping.employeeId,
-				);
-			}
-
 			const customers = await db.customer.findMany({
 				where: { organizationId, username: { not: null } },
 				select: { id: true, username: true },
@@ -452,7 +170,7 @@ async function processBillingSync(
 
 			const johnRows = await queryBilling(
 				conn,
-				"SELECT id, username, name, `group`, account_price, discount, iptv_price, realip_price, collector, paid_account FROM john",
+				"SELECT id, username, name, `group`, account_price, discount, iptv_price, realip_price, paid_account FROM john",
 			);
 
 			await updateProgress(operationId, {
@@ -470,16 +188,11 @@ async function processBillingSync(
 						continue;
 					}
 
-					const collectorName = row["collector"] as string | null;
-					const collectorId = findEmployeeId(collectorName);
-
 					const accountPrice = toFloat(row["account_price"]);
 
 					await db.customer.update({
 						where: { id: customerId },
 						data: {
-							...(collectorId ? { collectorId } : {}),
-							...(collectorName ? { collectorName } : {}),
 							...(accountPrice > 0
 								? { monthlyRate: accountPrice }
 								: {}),
@@ -582,7 +295,7 @@ async function processBillingSync(
 
 			const paymentRows = await queryBilling(
 				conn,
-				"SELECT id, invoice_number, username, collector, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
+				"SELECT invoice_number, username, collector, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
 			);
 
 			await updateProgress(operationId, {
@@ -663,7 +376,7 @@ async function processBillingSync(
 						customerId,
 						billingCycleId: cycleId,
 						collectorId,
-						externalBillingId: row["id"] as number,
+						externalBillingId: row["invoice_number"] as number,
 						accountPrice: toFloat(row["account_price"]),
 						paidAmount: toFloat(row["paid_amount"]),
 						discount: toFloat(row["discount"]),
@@ -1195,7 +908,7 @@ async function processBillingSync(
 							title: `${taskType === "maintenance" ? "Maintenance" : "Uninstall"} #${billingId}`,
 							description: (row["message"] as string) ?? null,
 							category,
-							source: "LEGACY",
+							source: "MANUAL",
 							status,
 							customerId: customerId ?? null,
 							completedAt:
@@ -1526,6 +1239,145 @@ async function processBillingSync(
 				}
 			}
 		});
+
+		// ── Phase 14: Reconciliation ────────────────────────────
+		// Runs AFTER the billing DB connection is closed.
+		// Fixes data inconsistencies introduced by the raw import:
+		//  1. Open the current billing cycle (sync creates all as CLOSED)
+		//  2. Rebuild paidCurrentCycle from actual PROCESSED payments
+		//  3. Fill missing processedById on synced PROCESSED payments
+
+		await updateProgress(operationId, { phase: "reconciliation" });
+
+		const reconciliation = { fixed: 0, errors: 0 };
+
+		try {
+			// 1. Ensure the active billing cycle is OPEN
+			// Resolve active billing period (inlined to avoid circular dep on @repo/api)
+			const org = await db.organization.findUnique({
+				where: { id: organizationId },
+				select: { activeBillingYear: true, activeBillingMonth: true },
+			});
+			const now = new Date();
+			const activeYear = org?.activeBillingYear ?? now.getFullYear();
+			const activeMonth = org?.activeBillingMonth ?? now.getMonth() + 1;
+
+			const activeCycle = await db.billingCycle.findUnique({
+				where: {
+					organizationId_year_month: {
+						organizationId,
+						year: activeYear,
+						month: activeMonth,
+					},
+				},
+			});
+
+			if (activeCycle && activeCycle.status !== "OPEN") {
+				await db.billingCycle.update({
+					where: { id: activeCycle.id },
+					data: { status: "OPEN", closedAt: null },
+				});
+				reconciliation.fixed++;
+				logger.info("[Billing Sync] Opened active cycle", {
+					cycleId: activeCycle.id,
+					year: activeYear,
+					month: activeMonth,
+				});
+			}
+
+			await updateProgress(operationId, {
+				totalReconciled: 3,
+				processedReconciled: 1,
+			});
+
+			// 2. Rebuild paidCurrentCycle from non-stopped payments
+			// (mirrors rebuildPaidCurrentCycle from @repo/api — inlined here to avoid
+			// cross-package dependency; sync processes ALL customers, no dealer filter)
+			if (activeCycle) {
+				const resetCount = await db.customer.updateMany({
+					where: { organizationId, paidCurrentCycle: true },
+					data: { paidCurrentCycle: false },
+				});
+
+				const paidCustomerRows = await db.payment.findMany({
+					where: {
+						billingCycleId: activeCycle.id,
+						organizationId,
+						stoppedAccount: false,
+						status: { in: ["PENDING", "PARTIAL", "PROCESSED"] },
+					},
+					select: { customerId: true },
+					distinct: ["customerId"],
+				});
+
+				if (paidCustomerRows.length > 0) {
+					await db.customer.updateMany({
+						where: {
+							id: {
+								in: paidCustomerRows.map((p) => p.customerId),
+							},
+						},
+						data: { paidCurrentCycle: true },
+					});
+				}
+
+				const billingPeriodEnd = new Date(activeYear, activeMonth, 1);
+				const expiryPaid = await db.customer.updateMany({
+					where: {
+						organizationId,
+						paidCurrentCycle: false,
+						status: "ACTIVE",
+						expiresAt: { gte: billingPeriodEnd },
+					},
+					data: { paidCurrentCycle: true },
+				});
+
+				reconciliation.fixed++;
+				logger.info("[Billing Sync] Rebuilt paidCurrentCycle", {
+					reset: resetCount.count,
+					markedPaid: paidCustomerRows.length,
+					markedPaidByExpiry: expiryPaid.count,
+				});
+			}
+
+			await updateProgress(operationId, { processedReconciled: 2 });
+
+			// 3. Fill missing processedById on synced PROCESSED payments
+			// Find the org owner to use as the default processor
+			const orgOwner = await db.member.findFirst({
+				where: { organizationId, role: "owner" },
+				select: { userId: true },
+			});
+
+			if (orgOwner) {
+				const fixedPayments = await db.payment.updateMany({
+					where: {
+						organizationId,
+						status: "PROCESSED",
+						processedById: null,
+					},
+					data: { processedById: orgOwner.userId },
+				});
+
+				if (fixedPayments.count > 0) {
+					reconciliation.fixed++;
+					logger.info("[Billing Sync] Backfilled processedById", {
+						count: fixedPayments.count,
+					});
+				}
+			}
+
+			await updateProgress(operationId, { processedReconciled: 3 });
+		} catch (err) {
+			reconciliation.errors++;
+			addError(
+				"reconciliation",
+				`${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+
+		result.reconciliation.created = reconciliation.fixed;
+		result.reconciliation.errors = reconciliation.errors;
 
 		// ── Complete ─────────────────────────────────────────────
 		await updateProgress(operationId, {

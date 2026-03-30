@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
+import { StatCard, StatCardGroup } from "@shared/components/StatCard";
+import { StatusPieChart } from "@shared/components/StatusPieChart";
 import {
 	ActivityIcon,
 	AlertTriangleIcon,
@@ -9,55 +10,59 @@ import {
 } from "lucide-react";
 import { useWatcherStats } from "../hooks/use-executions";
 
+const STATUS_COLORS: Record<string, string> = {
+	Up: "var(--color-chart-3)",
+	Down: "var(--color-destructive)",
+	Unknown: "var(--color-chart-1)",
+};
+
 export function WatcherStatsCards() {
 	const stats = useWatcherStats();
 
+	const statusData = [
+		{ name: "Up", value: stats.up },
+		{ name: "Down", value: stats.down },
+		{ name: "Unknown", value: stats.unknown },
+	].filter((d) => d.value > 0);
+
+	const uptimeRate =
+		stats.total > 0 ? Math.round((stats.up / stats.total) * 100) : 0;
+
 	return (
-		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-					<CardTitle className="text-sm font-medium">Total</CardTitle>
-					<ActivityIcon className="size-4 text-muted-foreground" />
-				</CardHeader>
-				<CardContent>
-					<div className="text-2xl font-bold">{stats.total}</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-					<CardTitle className="text-sm font-medium">Up</CardTitle>
-					<CheckCircleIcon className="size-4 text-green-500" />
-				</CardHeader>
-				<CardContent>
-					<div className="text-2xl font-bold text-green-600">
-						{stats.up}
-					</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-					<CardTitle className="text-sm font-medium">Down</CardTitle>
-					<AlertTriangleIcon className="size-4 text-red-500" />
-				</CardHeader>
-				<CardContent>
-					<div className="text-2xl font-bold text-red-600">
-						{stats.down}
-					</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-					<CardTitle className="text-sm font-medium">
-						Unknown
-					</CardTitle>
-					<HelpCircleIcon className="size-4 text-muted-foreground" />
-				</CardHeader>
-				<CardContent>
-					<div className="text-2xl font-bold text-muted-foreground">
-						{stats.unknown}
-					</div>
-				</CardContent>
-			</Card>
+		<div className="space-y-4">
+			<StatCardGroup columns={4}>
+				<StatCard
+					title="Total Watchers"
+					value={stats.total}
+					icon={ActivityIcon}
+				/>
+				<StatCard
+					title="Up"
+					value={stats.up}
+					icon={CheckCircleIcon}
+					variant="success"
+				/>
+				<StatCard
+					title="Down"
+					value={stats.down}
+					icon={AlertTriangleIcon}
+					variant={stats.down > 0 ? "destructive" : "default"}
+				/>
+				<StatCard
+					title="Unknown"
+					value={stats.unknown}
+					icon={HelpCircleIcon}
+				/>
+			</StatCardGroup>
+
+			{stats.total > 0 && statusData.length > 1 && (
+				<StatusPieChart
+					title="Watcher Status"
+					data={statusData}
+					colorMap={STATUS_COLORS}
+					footer={`${uptimeRate}% healthy`}
+				/>
+			)}
 		</div>
 	);
 }

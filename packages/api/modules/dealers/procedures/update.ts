@@ -1,19 +1,17 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const updateDealer = protectedProcedure
+export const updateDealer = adminProcedure
 	.route({
 		method: "POST",
-		path: "/dealers/update",
+		path: "/admin/dealers/update",
 		tags: ["Dealers"],
-		summary: "Update a dealer",
+		summary: "Update a dealer (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
 			id: z.string(),
 			name: z.string().min(1).max(100).optional(),
 			username: z.string().max(100).optional(),
@@ -46,16 +44,9 @@ export const updateDealer = protectedProcedure
 			canChangeAccountType: z.boolean().optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"dealers",
-			"update",
-		);
-
+	.handler(async ({ input }) => {
 		const existing = await db.ispDealer.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: { id: input.id },
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {

@@ -27,7 +27,13 @@ import {
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
 
-export function TaskDetail({ taskId }: { taskId: string }) {
+export function TaskDetail({
+	taskId,
+	backPath = "/app/$organizationSlug/tasks/$taskId",
+}: {
+	taskId: string;
+	backPath?: string;
+}) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
@@ -106,7 +112,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 		<div>
 			<div className="mb-6 flex items-center gap-3">
 				<Link
-					to="/app/$organizationSlug/tasks/$taskId"
+					to={backPath}
 					params={{
 						organizationSlug: organizationSlug ?? "",
 						taskId,
@@ -115,7 +121,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 				>
 					<Button variant="ghost" size="sm">
 						<ArrowLeftIcon className="mr-1 size-4" />
-						Back to task
+						Back
 					</Button>
 				</Link>
 				<h1 className="text-2xl font-bold">Edit Task</h1>
@@ -344,7 +350,7 @@ export function TaskDetail({ taskId }: { taskId: string }) {
 
 				<div className="mt-6 flex items-center justify-end gap-3">
 					<Link
-						to="/app/$organizationSlug/tasks/$taskId"
+						to={backPath}
 						params={{
 							organizationSlug: organizationSlug ?? "",
 							taskId,

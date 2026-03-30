@@ -9,6 +9,7 @@ import {
 	getUserByEmail,
 } from "@repo/database";
 import type { Locale } from "@repo/i18n";
+import { queueOrgSetup } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { sendEmail } from "@repo/mail";
 import {
@@ -282,6 +283,12 @@ export const auth = betterAuth({
 							name: ctx.body?.name,
 							slug: ctx.body?.slug,
 						},
+					);
+					// Queue organization setup (seed defaults)
+					queueOrgSetup(organizationId).catch((err) =>
+						logger.warn("[auth] Failed to queue org setup", {
+							error: String(err),
+						}),
 					);
 				}
 			} else if (ctx.path.startsWith("/organization/accept-invitation")) {

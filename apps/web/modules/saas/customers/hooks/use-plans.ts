@@ -9,12 +9,15 @@ import {
 	useSuspenseQuery,
 } from "@tanstack/react-query";
 
-export function usePlans() {
+export function usePlans(filters?: { search?: string }) {
 	const organizationId = useOrganizationId();
 
 	const query = useSuspenseQuery(
 		orpc.servicePlans.list.queryOptions({
-			input: { organizationId: organizationId ?? "" },
+			input: {
+				organizationId: organizationId ?? "",
+				...filters,
+			},
 		}),
 	);
 

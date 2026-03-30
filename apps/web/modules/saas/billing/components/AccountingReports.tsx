@@ -1,25 +1,30 @@
 "use client";
 
-import { formatCurrency } from "@shared/lib/format";
+import { ChartCard } from "@shared/components/ChartCard";
+import { TOOLTIP_STYLE } from "@shared/components/StatusPieChart";
+import { formatCurrency, truncate } from "@shared/lib/format";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
+import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
+import { cn } from "@ui/lib";
 import {
 	DollarSignIcon,
 	ReceiptIcon,
 	TrendingUpIcon,
 	UsersIcon,
 } from "lucide-react";
-import { useState } from "react";
-import { useAccountingReports } from "../hooks/use-billing";
+import {
+	Bar,
+	BarChart,
+	CartesianGrid,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
+import { useAccountingReports, useCycleFilter } from "../hooks/use-billing";
+import { BillingCycleSelect } from "./BillingCycleSelect";
 
 export function AccountingReportsSkeleton() {
 	return (
@@ -35,9 +40,93 @@ export function AccountingReportsSkeleton() {
 	);
 }
 
+interface CollectorBreakdownRow {
+	collectorId: string;
+	name: string;
+	paymentCount: number;
+	totalCollected: number;
+	totalHandedOff: number;
+	balance: number;
+}
+
+const collectorColumns: ColumnDef<CollectorBreakdownRow, unknown>[] = [
+	{
+		accessorKey: "name",
+		header: "Collector",
+		cell: ({ row }) => (
+			<span className="font-medium">{row.original.name}</span>
+		),
+	},
+	{
+		accessorKey: "paymentCount",
+		header: "Payments",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-right block">
+				{row.original.paymentCount}
+			</span>
+		),
+	},
+	{
+		accessorKey: "totalCollected",
+		header: "Total Collected",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-right block">
+				{formatCurrency(row.original.totalCollected)}
+			</span>
+		),
+	},
+	{
+		accessorKey: "totalHandedOff",
+		header: "Handed Off",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-right block">
+				{formatCurrency(row.original.totalHandedOff)}
+			</span>
+		),
+	},
+	{
+		accessorKey: "balance",
+		header: "Balance",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span
+				className={cn(
+					"text-right block font-medium",
+					row.original.balance > 0 &&
+						"text-amber-600 dark:text-amber-400",
+				)}
+			>
+				{formatCurrency(row.original.balance)}
+			</span>
+		),
+	},
+];
+
 export function AccountingReports() {
-	const [scope, setScope] = useState<"month" | "all">("month");
-	const { data } = useAccountingReports(scope);
+	const {
+		cycleFilter,
+		setCycleFilter,
+		activeCycleId,
+		isAll,
+		options: cycleOptions,
+	} = useCycleFilter();
+
+	const scope = isAll ? "all" : "month";
+	const { data } = useAccountingReports(scope, activeCycleId);
+
+	const collectorChartData = data.collectorBreakdown
+		.sort((a, b) => b.totalCollected - a.totalCollected)
+		.slice(0, 8)
+		.map((c) => ({
+			name: truncate(c.name, 12),
+			fullName: c.name,
+			collected: c.totalCollected,
+			handedOff: c.totalHandedOff,
+			balance: c.balance,
+		}));
 
 	return (
 		<div className="space-y-6">
@@ -50,15 +139,13 @@ export function AccountingReports() {
 						Financial summary across collectors and expenses
 					</p>
 				</div>
-				<Tabs
-					value={scope}
-					onValueChange={(v) => setScope(v as "month" | "all")}
-				>
-					<TabsList>
-						<TabsTrigger value="month">This Month</TabsTrigger>
-						<TabsTrigger value="all">All Time</TabsTrigger>
-					</TabsList>
-				</Tabs>
+				<BillingCycleSelect
+					value={cycleFilter || activeCycleId || "all"}
+					onValueChange={setCycleFilter}
+					options={cycleOptions}
+					allLabel="All Time"
+					className="w-44"
+				/>
 			</div>
 
 			{/* Summary Cards */}
@@ -126,11 +213,92 @@ export function AccountingReports() {
 							{formatCurrency(data.grandTotal)}
 						</p>
 						<p className="text-xs text-muted-foreground">
-							Handed off − Expenses
+							Handed off &minus; Expenses
 						</p>
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Collector Comparison Chart */}
+			{collectorChartData.length > 0 && (
+				<ChartCard
+					title="Collector Comparison"
+					description="Collected vs. handed off per collector"
+				>
+					<div className="h-56">
+						<ResponsiveContainer width="100%" height="100%">
+							<BarChart
+								data={collectorChartData}
+								margin={{
+									left: 0,
+									right: 16,
+									top: 8,
+									bottom: 0,
+								}}
+							>
+								<CartesianGrid
+									strokeDasharray="3 3"
+									vertical={false}
+									stroke="var(--color-border)"
+								/>
+								<XAxis
+									dataKey="name"
+									tick={{
+										fontSize: 11,
+										fill: "var(--color-muted-foreground)",
+									}}
+									axisLine={false}
+									tickLine={false}
+								/>
+								<YAxis
+									tick={{
+										fontSize: 11,
+										fill: "var(--color-muted-foreground)",
+									}}
+									axisLine={false}
+									tickLine={false}
+									tickFormatter={(v: number) => `$${v}`}
+								/>
+								<Tooltip contentStyle={TOOLTIP_STYLE} />
+								<Bar
+									dataKey="collected"
+									fill="var(--color-chart-2)"
+									radius={[4, 4, 0, 0]}
+									maxBarSize={32}
+									name="collected"
+								/>
+								<Bar
+									dataKey="handedOff"
+									fill="var(--color-chart-3)"
+									radius={[4, 4, 0, 0]}
+									maxBarSize={32}
+									name="handedOff"
+								/>
+							</BarChart>
+						</ResponsiveContainer>
+					</div>
+					<div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+						<div className="flex items-center gap-1.5">
+							<div
+								className="size-2.5 rounded-full"
+								style={{
+									backgroundColor: "var(--color-chart-2)",
+								}}
+							/>
+							Collected
+						</div>
+						<div className="flex items-center gap-1.5">
+							<div
+								className="size-2.5 rounded-full"
+								style={{
+									backgroundColor: "var(--color-chart-3)",
+								}}
+							/>
+							Handed Off
+						</div>
+					</div>
+				</ChartCard>
+			)}
 
 			{/* Collector Breakdown Table */}
 			<Card>
@@ -140,57 +308,16 @@ export function AccountingReports() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Collector</TableHead>
-								<TableHead className="text-right">
-									Payments
-								</TableHead>
-								<TableHead className="text-right">
-									Total Collected
-								</TableHead>
-								<TableHead className="text-right">
-									Handed Off
-								</TableHead>
-								<TableHead className="text-right">
-									Balance
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{data.collectorBreakdown.length === 0 ? (
-								<TableRow>
-									<TableCell
-										colSpan={5}
-										className="text-center text-muted-foreground py-8"
-									>
-										No data for selected period
-									</TableCell>
-								</TableRow>
-							) : (
-								data.collectorBreakdown.map((c) => (
-									<TableRow key={c.collectorId}>
-										<TableCell className="font-medium">
-											{c.name}
-										</TableCell>
-										<TableCell className="text-right">
-											{c.paymentCount}
-										</TableCell>
-										<TableCell className="text-right">
-											{formatCurrency(c.totalCollected)}
-										</TableCell>
-										<TableCell className="text-right">
-											{formatCurrency(c.totalHandedOff)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatCurrency(c.balance)}
-										</TableCell>
-									</TableRow>
-								))
-							)}
-						</TableBody>
-					</Table>
+					<DataTable
+						columns={collectorColumns}
+						data={data.collectorBreakdown}
+						pageSize={10}
+						emptyState={
+							<p className="text-center text-muted-foreground py-8">
+								No data for selected period
+							</p>
+						}
+					/>
 				</CardContent>
 			</Card>
 		</div>

@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeViaCustomers,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -30,7 +33,7 @@ export const updateAccessPoint = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"accessPoints",
@@ -38,7 +41,11 @@ export const updateAccessPoint = protectedProcedure
 		);
 
 		const existing = await db.accessPoint.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...getDealerScopeViaCustomers(activeDealerId),
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {

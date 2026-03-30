@@ -12,13 +12,13 @@ import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import type { LucideIcon } from "lucide-react";
 import {
+	AlertTriangleIcon,
 	BanknoteIcon,
 	BotIcon,
 	ChevronDownIcon,
 	ClipboardListIcon,
 	DollarSignIcon,
 	EyeIcon,
-	HandshakeIcon,
 	HardHatIcon,
 	HeartIcon,
 	LayoutDashboardIcon,
@@ -88,7 +88,6 @@ export function NavBar() {
 		const customersScope = getScope("customers", "read");
 		const canReadCustomers = customersScope !== null;
 		const canReadEmployees = hasPermission("employees", "read");
-		const canReadDealers = hasPermission("dealers", "read");
 		const canReadTasks = hasPermission("tasks", "read");
 		const canReadAiAgents = hasPermission("aiAgents", "read");
 		const canReadWatchers = hasPermission("watchers", "read");
@@ -248,26 +247,14 @@ export function NavBar() {
 						},
 					]
 				: []),
-			// Operations — requires at least one of dealers/employees/tasks read
-			...(canReadDealers || canReadEmployees || canReadTasks
+			// Operations — requires at least one of employees/tasks read
+			...(canReadEmployees || canReadTasks
 				? [
 						{
 							id: "operations",
 							label: "Operations",
 							icon: ClipboardListIcon,
 							items: [
-								...(canReadDealers
-									? [
-											{
-												label: "Dealers",
-												href: `${basePath}/dealers`,
-												icon: HandshakeIcon,
-												isActive: under(
-													`${basePath}/dealers`,
-												),
-											},
-										]
-									: []),
 								...(canReadEmployees
 									? [
 											{
@@ -296,8 +283,8 @@ export function NavBar() {
 						},
 					]
 				: []),
-			// Intelligence — requires aiAgents or watchers read
-			...(canReadAiAgents || canReadWatchers
+			// Intelligence — requires aiAgents, watchers, or tasks read
+			...(canReadAiAgents || canReadWatchers || canReadTasks
 				? [
 						{
 							id: "intelligence",
@@ -320,6 +307,18 @@ export function NavBar() {
 												icon: MessageSquareIcon,
 												isActive: under(
 													`${basePath}/conversations`,
+												),
+											},
+										]
+									: []),
+								...(canReadTasks
+									? [
+											{
+												label: "Escalations",
+												href: `${basePath}/escalations`,
+												icon: AlertTriangleIcon,
+												isActive: under(
+													`${basePath}/escalations`,
 												),
 											},
 										]

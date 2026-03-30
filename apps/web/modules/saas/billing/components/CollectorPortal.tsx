@@ -2,7 +2,6 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { SearchInput } from "@shared/components/SearchInput";
-import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
@@ -19,7 +18,6 @@ import { Skeleton } from "@ui/components/skeleton";
 import {
 	BanknoteIcon,
 	CalendarXIcon,
-	ClockIcon,
 	UsersIcon,
 	WalletIcon,
 } from "lucide-react";
@@ -27,14 +25,18 @@ import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
 	useCustomerGroups,
-	usePayments,
 	useUnpaidCustomers,
 } from "../hooks/use-billing";
 import { CustomerCard, type UnpaidCustomer } from "./CustomerCard";
 import { PaymentSheet } from "./PaymentSheet";
 
+const POLL_INTERVAL = 30_000;
+
 function StatsStrip() {
-	const { data: stats, isLoading } = useCollectorStats();
+	const { data: stats, isLoading } = useCollectorStats(
+		undefined,
+		POLL_INTERVAL,
+	);
 
 	if (isLoading || !stats) {
 		return (
@@ -93,66 +95,6 @@ function StatsStrip() {
 	);
 }
 
-function TodayPayments() {
-	const { employee } = useActiveOrganization();
-	const dateFrom = useMemo(() => {
-		const d = new Date();
-		d.setHours(0, 0, 0, 0);
-		return d.toISOString();
-	}, []);
-	const { payments } = usePayments({
-		collectorId: employee?.id,
-		dateFrom,
-		page: 1,
-		pageSize: 50,
-	});
-
-	if (payments.length === 0) {
-		return null;
-	}
-
-	return (
-		<div className="space-y-2">
-			<h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-				<ClockIcon className="size-3.5" />
-				Today's Collections ({payments.length})
-			</h2>
-			<div className="space-y-1.5">
-				{payments.map((p) => (
-					<div
-						key={p.id}
-						className="flex items-center justify-between rounded-lg bg-card px-3 py-2 text-sm border"
-					>
-						<span className="truncate">
-							{displayName(
-								p.customer.firstName,
-								p.customer.lastName,
-							)}
-						</span>
-						<div className="flex items-center gap-2">
-							<Badge
-								variant={
-									p.status === "PROCESSED"
-										? "default"
-										: p.status === "STOPPED"
-											? "destructive"
-											: "secondary"
-								}
-								className="text-xs"
-							>
-								{p.status}
-							</Badge>
-							<span className="font-semibold tabular-nums">
-								{formatCurrency(p.paidAmount)}
-							</span>
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}
-
 export function CollectorPortal() {
 	const { employee } = useActiveOrganization();
 	const [search, setSearch] = useState("");
@@ -170,9 +112,11 @@ export function CollectorPortal() {
 		collectorId: employee?.id,
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,
+		excludeGroupName: groupFilter ? undefined : "free",
 		expiryTo: expiredOnly ? today : undefined,
 		page,
 		pageSize: 50,
+		refetchInterval: POLL_INTERVAL,
 	});
 
 	return (
@@ -203,11 +147,13 @@ export function CollectorPortal() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">All areas</SelectItem>
-							{groups.map((g) => (
-								<SelectItem key={g} value={g}>
-									{g}
-								</SelectItem>
-							))}
+							{groups
+								.filter((g) => g.toLowerCase() !== "free")
+								.map((g) => (
+									<SelectItem key={g} value={g}>
+										{g}
+									</SelectItem>
+								))}
 						</SelectContent>
 					</Select>
 					<Button
@@ -277,9 +223,6 @@ export function CollectorPortal() {
 					</Button>
 				</div>
 			)}
-
-			{/* Today's payments */}
-			<TodayPayments />
 
 			{/* Payment bottom sheet */}
 			<PaymentSheet

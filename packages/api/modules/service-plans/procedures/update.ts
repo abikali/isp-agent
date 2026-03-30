@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	getAuditContextFromHeaders,
 	servicePlanAudit,
@@ -27,7 +30,7 @@ export const updateServicePlan = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"servicePlans",
@@ -35,7 +38,11 @@ export const updateServicePlan = protectedProcedure
 		);
 
 		const existing = await db.servicePlan.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {

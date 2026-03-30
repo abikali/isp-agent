@@ -1,4 +1,4 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -21,7 +21,7 @@ export const listCollections = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -30,6 +30,7 @@ export const listCollections = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			collector: { dealerId: activeDealerId ?? NO_DEALER },
 		};
 
 		if (input.collectorId) {

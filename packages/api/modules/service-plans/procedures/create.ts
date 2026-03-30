@@ -25,7 +25,7 @@ export const createServicePlan = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"servicePlans",
@@ -35,6 +35,7 @@ export const createServicePlan = protectedProcedure
 		const plan = await db.servicePlan.create({
 			data: {
 				organizationId: input.organizationId,
+				dealerId: activeDealerId ?? null,
 				name: input.name,
 				description: input.description ?? null,
 				downloadSpeed: input.downloadSpeed,

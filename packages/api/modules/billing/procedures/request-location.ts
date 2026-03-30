@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
@@ -7,6 +8,8 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+
+const TELEGRAM_BOT_TOKEN = process.env["TELEGRAM_COLLECTOR_BOT_TOKEN"];
 
 export const requestLocation = protectedProcedure
 	.route({
@@ -22,14 +25,13 @@ export const requestLocation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
 			"collect",
 		);
 
-		// Look up the collector's employee record and telegram chat ID
 		const { employeeId } = await resolveCollectorScope(permCtx);
 		if (!employeeId) {
 			throw new ORPCError("BAD_REQUEST", {
@@ -46,6 +48,7 @@ export const requestLocation = protectedProcedure
 				where: {
 					id: input.customerId,
 					organizationId: input.organizationId,
+					...getDealerScopeFilter(activeDealerId),
 				},
 				select: {
 					firstName: true,
@@ -53,15 +56,10 @@ export const requestLocation = protectedProcedure
 					username: true,
 					latitude: true,
 					longitude: true,
+					address: true,
 				},
 			}),
 		]);
-
-		if (!employee?.telegramChatId) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Telegram not configured for your account",
-			});
-		}
 
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
@@ -80,46 +78,71 @@ export const requestLocation = protectedProcedure
 			customer.username ||
 			"Unknown";
 		const mapsLink = `https://www.google.com/maps?q=${customer.latitude},${customer.longitude}`;
-		const message = `Location for ${customerName}: ${mapsLink}`;
 
-		// Send via Telegram bot API
-		const apiUrl = process.env["TELEGRAM_ISP_API_URL"];
-		const apiKey = process.env["TELEGRAM_ISP_API_KEY"];
+		if (!employee?.telegramChatId) {
+			logger.warn("[Request Location] No Telegram chat ID for employee");
+			return { success: false, mapsLink };
+		}
 
-		if (!apiUrl || !apiKey) {
-			// Fallback: return the maps link so the frontend can open it directly
+		const botToken = TELEGRAM_BOT_TOKEN;
+
+		if (!botToken) {
 			logger.warn(
-				"[Request Location] Telegram API not configured, returning link only",
+				"[Request Location] TELEGRAM_COLLECTOR_BOT_TOKEN not configured",
 			);
 			return { success: false, mapsLink };
 		}
 
+		const chatId = employee.telegramChatId;
+
 		try {
-			const response = await fetch(`${apiUrl}/api/send-message`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"X-API-Key": apiKey,
+			// Send the location pin
+			const locationRes = await fetch(
+				`https://api.telegram.org/bot${botToken}/sendLocation`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						chat_id: chatId,
+						latitude: customer.latitude,
+						longitude: customer.longitude,
+					}),
+					signal: AbortSignal.timeout(10000),
 				},
+			);
+
+			if (!locationRes.ok) {
+				const body = await locationRes.text();
+				logger.warn("[Request Location] Telegram sendLocation failed", {
+					status: locationRes.status,
+					body,
+				});
+				return { success: false, mapsLink };
+			}
+
+			// Follow up with customer name + address + maps link
+			const lines = [`📍 ${customerName}`];
+			if (customer.address) {
+				lines.push(customer.address);
+			}
+			lines.push(mapsLink);
+
+			await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					worker_username: employee.telegramChatId,
-					message,
+					chat_id: chatId,
+					text: lines.join("\n"),
+					disable_web_page_preview: true,
 				}),
 				signal: AbortSignal.timeout(10000),
 			});
 
-			if (response.ok) {
-				logger.info("[Request Location] Sent via Telegram", {
-					customerId: input.customerId,
-					collectorId: employeeId,
-				});
-				return { success: true, mapsLink };
-			}
-
-			logger.warn("[Request Location] Telegram API error", {
-				status: response.status,
+			logger.info("[Request Location] Sent via Telegram", {
+				customerId: input.customerId,
+				collectorId: employeeId,
 			});
-			return { success: false, mapsLink };
+			return { success: true, mapsLink };
 		} catch (error) {
 			logger.warn("[Request Location] Failed to send", {
 				error: error instanceof Error ? error.message : String(error),

@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -34,7 +37,7 @@ export const listEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"employees",
@@ -43,6 +46,7 @@ export const listEmployees = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			...getDealerScopeFilter(activeDealerId),
 		};
 
 		if (input.status) {

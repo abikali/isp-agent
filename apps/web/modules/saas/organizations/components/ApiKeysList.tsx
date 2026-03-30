@@ -8,17 +8,12 @@ import {
 	useQueryClient,
 	useSuspenseQuery,
 } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { TrashIcon } from "lucide-react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { apiKeysQueryOptions } from "../hooks/use-api-keys";
 
@@ -51,6 +46,21 @@ export function ApiKeysListSkeleton() {
 	);
 }
 
+interface ApiKey {
+	id: string;
+	name: string;
+	keyPrefix: string;
+	lastUsedAt: Date | string | null;
+	expiresAt: Date | string | null;
+}
+
+const formatDate = (date: string | null | undefined) => {
+	if (!date) {
+		return "Never";
+	}
+	return new Date(date).toLocaleDateString();
+};
+
 export function ApiKeysList() {
 	const queryClient = useQueryClient();
 	const organizationId = useOrganizationId();
@@ -59,7 +69,7 @@ export function ApiKeysList() {
 	const { data } = useSuspenseQuery(
 		apiKeysQueryOptions(organizationId ?? ""),
 	);
-	const apiKeys = data?.apiKeys ?? [];
+	const apiKeys = (data?.apiKeys ?? []) as ApiKey[];
 
 	const revokeMutation = useMutation(orpc.apiKeys.revoke.mutationOptions());
 
@@ -79,12 +89,63 @@ export function ApiKeysList() {
 		}
 	};
 
-	const formatDate = (date: string | null | undefined) => {
-		if (!date) {
-			return "Never";
-		}
-		return new Date(date).toLocaleDateString();
-	};
+	// biome-ignore lint/correctness/useExhaustiveDependencies: handleRevoke is stable enough via isPending
+	const columns: ColumnDef<ApiKey, unknown>[] = useMemo(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Name",
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.name}</span>
+				),
+			},
+			{
+				accessorKey: "keyPrefix",
+				header: "Key Prefix",
+				cell: ({ row }) => (
+					<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
+						{row.original.keyPrefix}...
+					</code>
+				),
+			},
+			{
+				accessorKey: "lastUsedAt",
+				header: "Last Used",
+				cell: ({ row }) => (
+					<span className="text-muted-foreground">
+						{formatDate(row.original.lastUsedAt?.toString())}
+					</span>
+				),
+			},
+			{
+				accessorKey: "expiresAt",
+				header: "Expires",
+				cell: ({ row }) => (
+					<span className="text-muted-foreground">
+						{row.original.expiresAt
+							? formatDate(row.original.expiresAt.toString())
+							: "No expiration"}
+					</span>
+				),
+			},
+			{
+				id: "actions",
+				enableSorting: false,
+				meta: { className: "w-[80px]" },
+				cell: ({ row }) => (
+					<Button
+						variant="ghost"
+						size="icon"
+						onClick={() => handleRevoke(row.original.id)}
+						disabled={revokeMutation.isPending}
+					>
+						<TrashIcon className="size-4 text-destructive" />
+					</Button>
+				),
+			},
+		],
+		[revokeMutation.isPending],
+	);
 
 	if (!organizationId) {
 		return null;
@@ -95,63 +156,15 @@ export function ApiKeysList() {
 			title="API Keys"
 			description="Manage API keys for your organization"
 		>
-			{apiKeys.length === 0 ? (
-				<div className="py-8 text-center text-muted-foreground">
-					No API keys found
-				</div>
-			) : (
-				<div className="overflow-x-auto">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Name</TableHead>
-								<TableHead>Key Prefix</TableHead>
-								<TableHead>Last Used</TableHead>
-								<TableHead>Expires</TableHead>
-								<TableHead className="w-[80px]" />
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{apiKeys.map((apiKey) => (
-								<TableRow key={apiKey.id}>
-									<TableCell className="font-medium">
-										{apiKey.name}
-									</TableCell>
-									<TableCell>
-										<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm">
-											{apiKey.keyPrefix}...
-										</code>
-									</TableCell>
-									<TableCell className="text-muted-foreground">
-										{formatDate(
-											apiKey.lastUsedAt?.toString(),
-										)}
-									</TableCell>
-									<TableCell className="text-muted-foreground">
-										{apiKey.expiresAt
-											? formatDate(
-													apiKey.expiresAt.toString(),
-												)
-											: "No expiration"}
-									</TableCell>
-									<TableCell>
-										<Button
-											variant="ghost"
-											size="icon"
-											onClick={() =>
-												handleRevoke(apiKey.id)
-											}
-											disabled={revokeMutation.isPending}
-										>
-											<TrashIcon className="size-4 text-destructive" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+			<DataTable
+				columns={columns}
+				data={apiKeys}
+				emptyState={
+					<div className="py-8 text-center text-muted-foreground">
+						No API keys found
+					</div>
+				}
+			/>
 		</SettingsItem>
 	);
 }

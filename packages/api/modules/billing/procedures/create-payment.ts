@@ -1,16 +1,17 @@
 import { ORPCError } from "@orpc/server";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
 import {
+	getDealerScopeFilter,
 	getPermissionContext,
 	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
-import type { PaymentNoteCategory, PaymentStatus } from "@repo/database";
-import { db } from "@repo/database";
+import { db, type PaymentStatus, PaymentStatus as PS } from "@repo/database";
+import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { sendWhatsAppReceipt } from "../lib/whatsapp-receipt";
+import { resolveOrCreateBillingCycle } from "../lib/resolve-cycle";
 
 export const createPayment = protectedProcedure
 	.route({
@@ -29,18 +30,7 @@ export const createPayment = protectedProcedure
 			discount: z.number().finite().min(0).default(0),
 			freeAccount: z.boolean().default(false),
 			stoppedAccount: z.boolean().default(false),
-			noteCategory: z
-				.enum([
-					"DOWNGRADE",
-					"UPGRADE",
-					"DISCOUNT",
-					"REFERRAL",
-					"MOVED",
-					"POOR_SERVICE",
-					"CANT_PAY",
-					"TEMP_STOP",
-				])
-				.optional(),
+			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
 			customerMobile: z.string().optional(),
 		}),
@@ -71,11 +61,14 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Verify customer exists
+		const activeDealerId = member.activeDealerId ?? null;
+
+		// Verify customer exists (and belongs to active dealer if scoped)
 		const customer = await db.customer.findFirst({
 			where: {
 				id: input.customerId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 		});
 		if (!customer) {
@@ -98,26 +91,11 @@ export const createPayment = protectedProcedure
 		}
 
 		// Get or create current billing cycle
-		const now = new Date();
-		const year = now.getFullYear();
-		const month = now.getMonth() + 1;
-
-		const cycle = await db.billingCycle.upsert({
-			where: {
-				organizationId_year_month: {
-					organizationId: input.organizationId,
-					year,
-					month,
-				},
-			},
-			update: {},
-			create: {
-				organizationId: input.organizationId,
-				year,
-				month,
-				status: "OPEN",
-			},
-		});
+		const cycle = await resolveOrCreateBillingCycle(
+			input.organizationId,
+			member.activeBillingYear,
+			member.activeBillingMonth,
+		);
 
 		if (cycle.status === "CLOSED") {
 			throw new ORPCError("BAD_REQUEST", {
@@ -133,17 +111,51 @@ export const createPayment = protectedProcedure
 				(customer.realIpPrice ?? 0) -
 				input.discount;
 
-		let status: PaymentStatus = "PENDING";
+		// Require a note when paid amount differs from total due
+		const isAmountMismatch =
+			Math.abs(input.paidAmount - totalDue) >= 0.01 &&
+			!input.stoppedAccount &&
+			input.paidAmount > 0;
+
+		if (isAmountMismatch && !input.noteCategory && !input.notes?.trim()) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"A note category or note is required when the paid amount differs from the amount due",
+			});
+		}
+
+		let status: PaymentStatus = PS.PENDING;
 		if (input.stoppedAccount) {
-			status = "STOPPED";
-		} else if (Math.abs(input.paidAmount - totalDue) < 0.01) {
-			status = "PROCESSED";
-		} else if (input.paidAmount > 0 && input.paidAmount < totalDue) {
-			status = "PARTIAL";
+			status = PS.STOPPED;
+		} else if (
+			input.paidAmount > 0 &&
+			input.paidAmount < totalDue &&
+			Math.abs(input.paidAmount - totalDue) >= 0.01
+		) {
+			status = PS.PARTIAL;
 		}
 
 		// Create payment and mark customer as paid in a transaction
 		const payment = await db.$transaction(async (tx) => {
+			// Prevent duplicate payments for the same customer in the same cycle
+			if (!input.stoppedAccount) {
+				const existing = await tx.payment.findFirst({
+					where: {
+						customerId: input.customerId,
+						billingCycleId: cycle.id,
+						stoppedAccount: false,
+						status: { in: ["PENDING", "PARTIAL", "PROCESSED"] },
+					},
+					select: { id: true },
+				});
+				if (existing) {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"This customer already has a payment recorded for this billing cycle",
+					});
+				}
+			}
+
 			const newPayment = await tx.payment.create({
 				data: {
 					organizationId: input.organizationId,
@@ -156,16 +168,15 @@ export const createPayment = protectedProcedure
 					status,
 					freeAccount: input.freeAccount,
 					stoppedAccount: input.stoppedAccount,
-					noteCategory:
-						(input.noteCategory as PaymentNoteCategory) ?? null,
+					noteCategory: input.noteCategory ?? null,
 					notes: input.notes ?? null,
-					processedAt: status === "PROCESSED" ? now : null,
+					processedAt: null,
 				},
 			});
 
 			// Update customer mobile if provided and changed
 			const customerUpdateData: Record<string, unknown> = {};
-			if (!input.stoppedAccount) {
+			if (status === PS.PENDING || status === PS.PARTIAL) {
 				customerUpdateData["paidCurrentCycle"] = true;
 			}
 			if (
@@ -184,41 +195,19 @@ export const createPayment = protectedProcedure
 			return newPayment;
 		});
 
-		// Send WhatsApp receipt for non-stopped payments
-		let receiptSent = false;
+		// Queue WhatsApp receipt via background worker
 		if (!input.stoppedAccount) {
 			const phone =
 				input.customerMobile ?? customer.mobile ?? customer.phone;
 			if (phone) {
-				try {
-					const sent = await sendWhatsAppReceipt({
-						phone,
-						paymentId: payment.id,
-					});
-					if (sent) {
-						receiptSent = true;
-						await db.payment
-							.update({
-								where: { id: payment.id },
-								data: {
-									receiptSent: true,
-									receiptSentAt: new Date(),
-								},
-							})
-							.catch((err) =>
-								logger.warn(
-									"[WhatsApp Receipt] Failed to update payment record",
-									{ error: String(err) },
-								),
-							);
-					}
-				} catch (err) {
-					logger.warn("[WhatsApp Receipt] Unexpected error", {
-						error: String(err),
-					});
-				}
+				queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
+					(err) =>
+						logger.warn("[WhatsApp Receipt] Failed to queue job", {
+							error: String(err),
+						}),
+				);
 			}
 		}
 
-		return { payment, receiptSent };
+		return { payment };
 	});

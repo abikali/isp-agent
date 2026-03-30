@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeViaCustomers,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, stationAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -19,7 +22,7 @@ export const deleteStation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"stations",
@@ -27,7 +30,11 @@ export const deleteStation = protectedProcedure
 		);
 
 		const existing = await db.station.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...getDealerScopeViaCustomers(activeDealerId),
+			},
 			include: {
 				_count: {
 					select: { customers: true },

@@ -42,7 +42,7 @@ export const bulkImportEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"employees",
@@ -97,6 +97,7 @@ export const bulkImportEmployees = protectedProcedure
 				await db.employee.create({
 					data: {
 						organizationId: input.organizationId,
+						dealerId: activeDealerId ?? null,
 						employeeNumber,
 						name: row.name,
 						email: row.email ?? null,

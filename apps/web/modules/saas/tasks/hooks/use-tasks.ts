@@ -38,12 +38,17 @@ export function useTasks(filters: TaskFilters = {}) {
 	};
 }
 
-export function useTaskStats() {
+export function useTaskStats(
+	options: { sources?: ("MANUAL" | "AI_ESCALATION" | "LEGACY")[] } = {},
+) {
 	const organizationId = useOrganizationId();
 
 	return useSuspenseQuery(
 		orpc.tasks.stats.queryOptions({
-			input: { organizationId: organizationId ?? "" },
+			input: {
+				organizationId: organizationId ?? "",
+				...(options.sources ? { sources: options.sources } : {}),
+			},
 		}),
 	).data;
 }

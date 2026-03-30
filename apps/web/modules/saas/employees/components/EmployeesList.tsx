@@ -1,24 +1,16 @@
 "use client";
 
-import { Pagination } from "@saas/shared/components/Pagination";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { cn } from "@ui/lib";
+import { DataTable } from "@ui/components/data-table";
 import { PlusIcon, UploadIcon, UsersIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useEmployees } from "../hooks/use-employees";
 import { EMPLOYEE_DEPARTMENT_LABELS } from "../lib/constants";
 import { BulkExportButton } from "./BulkExportButton";
@@ -33,6 +25,20 @@ const statusMap: Record<string, "active" | "inactive" | "pending"> = {
 	INACTIVE: "inactive",
 	ON_LEAVE: "pending",
 };
+
+const PAGE_SIZE = 25;
+
+interface EmployeeRow {
+	id: string;
+	status: string;
+	employeeNumber: string;
+	name: string;
+	email: string | null;
+	position: string | null;
+	department: string | null;
+	stations: Array<{ station: { name: string } }>;
+	dealer: { name: string } | null;
+}
 
 export function EmployeesList({
 	organizationSlug,
@@ -67,8 +73,115 @@ export function EmployeesList({
 		page,
 	};
 
-	const { employees, total, totalPages, isLoading, isFetching } =
-		useEmployees(filters);
+	const { employees, total, isLoading, isFetching } = useEmployees(filters);
+
+	const columns = useMemo<ColumnDef<EmployeeRow, unknown>[]>(
+		() => [
+			{
+				id: "status",
+				enableSorting: false,
+				meta: { className: "w-10 pr-0" },
+				cell: ({ row }) => (
+					<StatusIndicator
+						status={statusMap[row.original.status] ?? "inactive"}
+						label=""
+						size="sm"
+					/>
+				),
+			},
+			{
+				id: "employeeNumber",
+				header: "Employee #",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<Link
+						to="/app/$organizationSlug/employees/$employeeId"
+						params={{
+							organizationSlug,
+							employeeId: row.original.id,
+						}}
+						className="font-mono text-xs text-primary hover:underline"
+						preload="intent"
+					>
+						{row.original.employeeNumber}
+					</Link>
+				),
+			},
+			{
+				id: "name",
+				header: "Name",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div>
+						<Link
+							to="/app/$organizationSlug/employees/$employeeId"
+							params={{
+								organizationSlug,
+								employeeId: row.original.id,
+							}}
+							className="font-medium hover:underline"
+							preload="intent"
+						>
+							{row.original.name}
+						</Link>
+						{row.original.email && (
+							<p className="text-xs text-muted-foreground">
+								{row.original.email}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				id: "position",
+				header: "Position",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) =>
+					row.original.position ?? (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "department",
+				header: "Department",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) =>
+					row.original.department ? (
+						(EMPLOYEE_DEPARTMENT_LABELS[row.original.department] ??
+						row.original.department)
+					) : (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "stations",
+				header: "Station(s)",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) =>
+					row.original.stations.length > 0 ? (
+						row.original.stations
+							.map((s) => s.station.name)
+							.join(", ")
+					) : (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
+				id: "dealer",
+				header: "Dealer",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) =>
+					row.original.dealer?.name ?? (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+		],
+		[organizationSlug],
+	);
 
 	return (
 		<PageShell
@@ -123,161 +236,41 @@ export function EmployeesList({
 				}}
 			/>
 
-			{isLoading ? (
-				<div className="rounded-xl shadow-card p-8 text-center text-muted-foreground">
-					Loading employees...
-				</div>
-			) : employees.length === 0 ? (
-				<EmptyState
-					icon={UsersIcon}
-					title={
-						total === 0 ? "No employees yet" : "No results found"
-					}
-					description={
-						total === 0
-							? "Add your first employee to get started."
-							: "Try adjusting your filters or search term."
-					}
-					action={
-						total === 0 ? (
-							<Button onClick={() => setShowCreate(true)}>
-								<PlusIcon className="mr-2 size-4" />
-								Add Employee
-							</Button>
-						) : undefined
-					}
-				/>
-			) : (
-				<>
-					<div
-						className={cn(
-							"rounded-xl shadow-card overflow-hidden transition-opacity",
-							isFetching && "opacity-60",
-						)}
-					>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-10" />
-									<TableHead>Employee #</TableHead>
-									<TableHead>Name</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Position
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Department
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Station(s)
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Dealer
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employees.map((employee) => (
-									<TableRow
-										key={employee.id}
-										className="hover:bg-muted/30 transition-colors"
-									>
-										<TableCell className="w-10 pr-0">
-											<StatusIndicator
-												status={
-													statusMap[
-														employee.status
-													] ?? "inactive"
-												}
-												label=""
-												size="sm"
-											/>
-										</TableCell>
-										<TableCell className="font-mono text-xs">
-											<Link
-												to="/app/$organizationSlug/employees/$employeeId"
-												params={{
-													organizationSlug,
-													employeeId: employee.id,
-												}}
-												className="text-primary hover:underline"
-												preload="intent"
-											>
-												{employee.employeeNumber}
-											</Link>
-										</TableCell>
-										<TableCell>
-											<div>
-												<Link
-													to="/app/$organizationSlug/employees/$employeeId"
-													params={{
-														organizationSlug,
-														employeeId: employee.id,
-													}}
-													className="font-medium hover:underline"
-													preload="intent"
-												>
-													{employee.name}
-												</Link>
-												{employee.email && (
-													<p className="text-xs text-muted-foreground">
-														{employee.email}
-													</p>
-												)}
-											</div>
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											{employee.position ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											{employee.department ? (
-												(EMPLOYEE_DEPARTMENT_LABELS[
-													employee.department
-												] ?? employee.department)
-											) : (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell">
-											{employee.stations.length > 0 ? (
-												employee.stations
-													.map((s) => s.station.name)
-													.join(", ")
-											) : (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden lg:table-cell">
-											{employee.dealer?.name ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-
-					{totalPages > 1 && (
-						<Pagination
-							className="mt-4"
-							totalItems={total}
-							itemsPerPage={25}
-							currentPage={page}
-							onChangeCurrentPage={setPage}
-						/>
-					)}
-				</>
-			)}
+			<DataTable
+				columns={columns}
+				data={employees}
+				pagination={{
+					totalItems: total,
+					currentPage: page,
+					itemsPerPage: PAGE_SIZE,
+					onPageChange: setPage,
+				}}
+				isLoading={isLoading}
+				isFetching={isFetching}
+				emptyState={
+					<EmptyState
+						icon={UsersIcon}
+						title={
+							total === 0
+								? "No employees yet"
+								: "No results found"
+						}
+						description={
+							total === 0
+								? "Add your first employee to get started."
+								: "Try adjusting your filters or search term."
+						}
+						action={
+							total === 0 ? (
+								<Button onClick={() => setShowCreate(true)}>
+									<PlusIcon className="mr-2 size-4" />
+									Add Employee
+								</Button>
+							) : undefined
+						}
+					/>
+				}
+			/>
 
 			<CreateEmployeeDialog
 				open={showCreate}

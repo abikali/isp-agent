@@ -1,10 +1,14 @@
 import {
+	getDealerScopeFilter,
+	getDealerScopeViaCustomer,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { sumOrZero } from "../lib/calculations";
+import { resolveBillingCycleId } from "../lib/resolve-cycle";
 
 export const getPaymentStats = protectedProcedure
 	.route({
@@ -20,32 +24,33 @@ export const getPaymentStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const {
+			permCtx,
+			activeDealerId,
+			activeBillingYear,
+			activeBillingMonth,
+		} = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
 			"view",
 		);
 
-		// Get or resolve current cycle
-		let cycleId = input.billingCycleId;
-		if (!cycleId) {
-			const now = new Date();
-			const cycle = await db.billingCycle.findUnique({
-				where: {
-					organizationId_year_month: {
-						organizationId: input.organizationId,
-						year: now.getFullYear(),
-						month: now.getMonth() + 1,
-					},
-				},
-			});
-			cycleId = cycle?.id;
-		}
+		const cycleId =
+			input.billingCycleId ??
+			(await resolveBillingCycleId(
+				input.organizationId,
+				activeBillingYear,
+				activeBillingMonth,
+			));
+
+		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		const baseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			...(cycleId ? { billingCycleId: cycleId } : {}),
+			...dealerViaCustomer,
 		};
 
 		const { scope, employeeId } = await resolveCollectorScope(permCtx);
@@ -65,10 +70,18 @@ export const getPaymentStats = protectedProcedure
 			totalCustomers,
 		] = await Promise.all([
 			db.payment.count({ where: baseWhere }),
-			db.payment.count({ where: { ...baseWhere, status: "PROCESSED" } }),
-			db.payment.count({ where: { ...baseWhere, status: "PENDING" } }),
-			db.payment.count({ where: { ...baseWhere, status: "PARTIAL" } }),
-			db.payment.count({ where: { ...baseWhere, status: "STOPPED" } }),
+			db.payment.count({
+				where: { ...baseWhere, status: PaymentStatus.PROCESSED },
+			}),
+			db.payment.count({
+				where: { ...baseWhere, status: PaymentStatus.PENDING },
+			}),
+			db.payment.count({
+				where: { ...baseWhere, status: PaymentStatus.PARTIAL },
+			}),
+			db.payment.count({
+				where: { ...baseWhere, status: PaymentStatus.STOPPED },
+			}),
 			db.payment.aggregate({
 				where: baseWhere,
 				_sum: { paidAmount: true },
@@ -84,12 +97,16 @@ export const getPaymentStats = protectedProcedure
 					organizationId: input.organizationId,
 					paidCurrentCycle: false,
 					status: "ACTIVE",
+					NOT: { groupName: { equals: "free", mode: "insensitive" } },
+					...dealerFilter,
 				},
 			}),
 			db.customer.count({
 				where: {
 					organizationId: input.organizationId,
 					status: "ACTIVE",
+					NOT: { groupName: { equals: "free", mode: "insensitive" } },
+					...dealerFilter,
 				},
 			}),
 		]);
@@ -108,7 +125,7 @@ export const getPaymentStats = protectedProcedure
 		const collectorBreakdown = byCollector.map((c) => ({
 			collectorId: c.collectorId,
 			collectorName: collectorMap.get(c.collectorId) ?? "Unknown",
-			totalCollected: c._sum.paidAmount ?? 0,
+			totalCollected: sumOrZero(c),
 			paymentCount: c._count,
 		}));
 
@@ -118,17 +135,22 @@ export const getPaymentStats = protectedProcedure
 			pendingPayments,
 			partialPayments,
 			stoppedPayments,
-			totalCollected: totalCollected._sum.paidAmount ?? 0,
+			totalCollected: sumOrZero(totalCollected),
 			collectorBreakdown,
 			unpaidCustomers,
 			totalCustomers,
 			paidPercentage:
 				totalCustomers > 0
-					? Math.round(
-							((totalCustomers - unpaidCustomers) /
-								totalCustomers) *
-								100,
-						)
+					? unpaidCustomers === 0
+						? 100
+						: Math.min(
+								99,
+								Math.round(
+									((totalCustomers - unpaidCustomers) /
+										totalCustomers) *
+										100,
+								),
+							)
 					: 0,
 		};
 	});

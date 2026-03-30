@@ -1,8 +1,9 @@
 "use client";
 
 import { emailSchema } from "@repo/api/lib/validation";
-import { useOrganizationId } from "@shared/lib/organization";
+import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
 import {
 	Dialog,
@@ -31,12 +32,19 @@ export function CreateDealerDialog({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
-	const organizationId = useOrganizationId();
 	const createDealer = useCreateDealer();
 	const { dealers: parentDealers } = useDealersQuery();
 
+	const { data: orgsData } = useQuery(
+		orpc.admin.organizations.list.queryOptions({
+			input: { limit: 100, offset: 0 },
+		}),
+	);
+	const organizations = orgsData?.organizations ?? [];
+
 	const form = useForm({
 		defaultValues: {
+			organizationId: "",
 			name: "",
 			username: "",
 			email: "",
@@ -48,12 +56,12 @@ export function CreateDealerDialog({
 			parentDealerId: "",
 		},
 		onSubmit: async ({ value }) => {
-			if (!organizationId) {
-				return;
-			}
 			try {
 				await createDealer.mutateAsync({
-					organizationId,
+					organizationId:
+						value.organizationId && value.organizationId !== "none"
+							? value.organizationId
+							: undefined,
 					name: value.name,
 					username: value.username || undefined,
 					email: value.email || undefined,
@@ -96,6 +104,35 @@ export function CreateDealerDialog({
 					}}
 					className="space-y-4"
 				>
+					<form.Field name="organizationId">
+						{(field) => (
+							<div className="space-y-2">
+								<Label>Organization</Label>
+								<Select
+									value={field.state.value}
+									onValueChange={field.handleChange}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="No organization (assign later)" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">
+											No organization (assign later)
+										</SelectItem>
+										{organizations.map((org) => (
+											<SelectItem
+												key={org.id}
+												value={org.id}
+											>
+												{org.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
+					</form.Field>
+
 					<form.Field name="name">
 						{(field) => (
 							<div className="space-y-2">

@@ -1,7 +1,17 @@
-import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import {
+	getDealerScopeViaCustomer,
+	NO_DEALER,
+	requirePermission,
+} from "@repo/api/lib/permission";
+import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	calculateInHandBalance,
+	sumAmountOrZero,
+	sumOrZero,
+} from "../lib/calculations";
+import { getCycleDateRange, resolveBillingCycleId } from "../lib/resolve-cycle";
 
 export const getAccountingReports = protectedProcedure
 	.route({
@@ -19,65 +29,93 @@ export const getAccountingReports = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"billing",
-			"manage",
-		);
+		const { activeDealerId, activeBillingYear, activeBillingMonth } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"billing",
+				"manage",
+			);
 
-		// Build date filter for "month" scope
-		const now = new Date();
-		const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-		const monthEnd = new Date(
-			now.getFullYear(),
-			now.getMonth() + 1,
-			0,
-			23,
-			59,
-			59,
-			999,
-		);
+		// Resolve cycle for "month" scope
+		let resolvedCycleId = input.billingCycleId;
+		let dateFilter: { gte: Date; lte: Date } | undefined;
 
-		const dateFilter =
-			input.scope === "month"
-				? { gte: monthStart, lte: monthEnd }
-				: undefined;
+		if (input.scope === "month") {
+			if (!resolvedCycleId) {
+				resolvedCycleId = await resolveBillingCycleId(
+					input.organizationId,
+					activeBillingYear,
+					activeBillingMonth,
+				);
+				// Derive date range from org's active billing period
+				const now = new Date();
+				const year = activeBillingYear ?? now.getFullYear();
+				const month = activeBillingMonth ?? now.getMonth() + 1;
+				dateFilter = getCycleDateRange(year, month);
+			} else {
+				// Specific cycle provided — derive date range from it
+				const cycle = await db.billingCycle.findUnique({
+					where: { id: resolvedCycleId },
+					select: { year: true, month: true },
+				});
+				if (cycle) {
+					dateFilter = getCycleDateRange(cycle.year, cycle.month);
+				}
+			}
+		}
 
 		const paymentWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			...getDealerScopeViaCustomer(activeDealerId),
 		};
+		const dealerFilter = activeDealerId ?? NO_DEALER;
 		const collectionWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			collector: { dealerId: dealerFilter },
 		};
 		const expenseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			status: "APPROVED",
+			submittedBy: { dealerId: dealerFilter },
 		};
 
+		if (resolvedCycleId) {
+			paymentWhere["billingCycleId"] = resolvedCycleId;
+		}
 		if (dateFilter) {
-			paymentWhere["paidAt"] = dateFilter;
 			collectionWhere["collectedAt"] = dateFilter;
 			expenseWhere["createdAt"] = dateFilter;
 		}
 
-		if (input.billingCycleId) {
-			paymentWhere["billingCycleId"] = input.billingCycleId;
-		}
-
 		// Get per-collector breakdown
-		const paymentsByCollector = await db.payment.groupBy({
-			by: ["collectorId"],
-			where: paymentWhere,
-			_sum: { paidAmount: true },
-			_count: true,
-		});
+		const pendingPaymentWhere: Record<string, unknown> = {
+			...paymentWhere,
+			status: PaymentStatus.PENDING,
+		};
 
-		const collectionsByCollector = await db.cashCollection.groupBy({
-			by: ["collectorId"],
-			where: collectionWhere,
-			_sum: { amount: true },
-		});
+		const [
+			paymentsByCollector,
+			pendingByCollector,
+			collectionsByCollector,
+		] = await Promise.all([
+			db.payment.groupBy({
+				by: ["collectorId"],
+				where: paymentWhere,
+				_sum: { paidAmount: true },
+				_count: true,
+			}),
+			db.payment.groupBy({
+				by: ["collectorId"],
+				where: pendingPaymentWhere,
+				_sum: { paidAmount: true },
+			}),
+			db.cashCollection.groupBy({
+				by: ["collectorId"],
+				where: collectionWhere,
+				_sum: { amount: true },
+			}),
+		]);
 
 		// Map collector IDs to names
 		const collectorIds = [
@@ -93,24 +131,29 @@ export const getAccountingReports = protectedProcedure
 		});
 		const collectorMap = new Map(collectors.map((c) => [c.id, c.name]));
 
-		// Build a map of handed-off amounts
+		// Build maps for handed-off amounts and pending balances
 		const handedOffMap = new Map(
 			collectionsByCollector.map((c) => [
 				c.collectorId,
-				c._sum.amount ?? 0,
+				sumAmountOrZero(c),
 			]),
 		);
+		const pendingMap = new Map(
+			pendingByCollector.map((p) => [p.collectorId, sumOrZero(p)]),
+		);
 
-		const collectorBreakdown = paymentsByCollector.map((p) => ({
-			collectorId: p.collectorId,
-			name: collectorMap.get(p.collectorId) ?? "Unknown",
-			totalCollected: p._sum.paidAmount ?? 0,
-			paymentCount: p._count,
-			totalHandedOff: handedOffMap.get(p.collectorId) ?? 0,
-			balance:
-				(p._sum.paidAmount ?? 0) -
-				(handedOffMap.get(p.collectorId) ?? 0),
-		}));
+		const collectorBreakdown = paymentsByCollector.map((p) => {
+			const pending = pendingMap.get(p.collectorId) ?? 0;
+			const handedOff = handedOffMap.get(p.collectorId) ?? 0;
+			return {
+				collectorId: p.collectorId,
+				name: collectorMap.get(p.collectorId) ?? "Unknown",
+				totalCollected: sumOrZero(p),
+				paymentCount: p._count,
+				totalHandedOff: handedOff,
+				balance: calculateInHandBalance(pending, handedOff),
+			};
+		});
 
 		// Totals
 		const totalCollected = collectorBreakdown.reduce(
@@ -127,7 +170,7 @@ export const getAccountingReports = protectedProcedure
 			where: expenseWhere,
 			_sum: { amount: true },
 		});
-		const totalExpenses = expensesAgg._sum.amount ?? 0;
+		const totalExpenses = sumAmountOrZero(expensesAgg);
 
 		const grandTotal = totalHandedOff - totalExpenses;
 

@@ -196,75 +196,6 @@ const ISP_ROLE_PERMISSIONS: Record<string, Record<string, string[]>> = {
  * Ensure a User + Member + OrganizationRole exists for an Employee.
  * Skips if employee has no email or already has a userId.
  */
-/**
- * Ensure a User + Member + OrganizationRole exists for a Dealer.
- * Skips if dealer has no email or already has a userId.
- */
-async function ensureDealerMembership(
-	dealerId: string,
-	email: string | null,
-	name: string,
-	organizationId: string,
-): Promise<void> {
-	if (!email) {
-		return;
-	}
-
-	const dealer = await db.ispDealer.findUnique({
-		where: { id: dealerId },
-		select: { userId: true },
-	});
-	if (dealer?.userId) {
-		return;
-	}
-
-	let targetUser = await db.user.findFirst({ where: { email } });
-	if (!targetUser) {
-		targetUser = await db.user.create({
-			data: {
-				name,
-				email,
-				emailVerified: false,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			},
-		});
-	}
-
-	const permissions = ISP_ROLE_PERMISSIONS["dealer"] ?? {};
-
-	await db.organizationRole.upsert({
-		where: { organizationId_role: { organizationId, role: "dealer" } },
-		update: {},
-		create: {
-			organizationId,
-			role: "dealer",
-			permission: JSON.stringify(permissions),
-		},
-	});
-
-	const existingMember = await db.member.findUnique({
-		where: {
-			organizationId_userId: { organizationId, userId: targetUser.id },
-		},
-	});
-	if (!existingMember) {
-		await db.member.create({
-			data: {
-				organizationId,
-				userId: targetUser.id,
-				role: "dealer",
-				createdAt: new Date(),
-			},
-		});
-	}
-
-	await db.ispDealer.update({
-		where: { id: dealerId },
-		data: { userId: targetUser.id },
-	});
-}
-
 async function ensureEmployeeMembership(
 	employeeId: string,
 	email: string | null,
@@ -371,11 +302,18 @@ async function updateProgress(
 async function processIRadiusSync(
 	job: Job<IRadiusSyncJobData>,
 ): Promise<IRadiusSyncJobResult> {
-	const { operationId, organizationId } = job.data;
+	const { operationId, mode } = job.data;
+
+	// For full sync mode, organizationId is required
+	// For dealers-only mode, it's not needed (global sync)
+	if (mode !== "dealers-only" && !job.data.organizationId) {
+		throw new Error("organizationId is required for full sync mode");
+	}
+	const organizationId = job.data.organizationId as string;
 
 	logger.info(`[iRadius Sync] Starting operation ${operationId}`, {
 		operationId,
-		organizationId,
+		organizationId: organizationId || "(global)",
 	});
 
 	await updateProgress(operationId, {
@@ -400,14 +338,23 @@ async function processIRadiusSync(
 				errors: [] as Array<{ phase: string; detail: string }>,
 			};
 
-			// ================================================================
-			// Phase 1: Service Plans
-			// ================================================================
-			await updateProgress(operationId, { phase: "plans" });
+			// Maps populated by Phases 1-5, referenced by later phases
+			const planMap = new Map<number, string>();
+			const planNames = new Map<number, string>();
+			const stationMap = new Map<number, string>();
+			const apMap = new Map<number, string>();
+			const nasHostMap = new Map<string, string>();
 
-			const accountTypes = await queryIRadius(
-				conn,
-				`SELECT Id, AccountTypeName, Rate, Commision, ParentCommision, DealerId,
+			// Phases 1-5 only run in full sync mode (need organizationId)
+			if (mode !== "dealers-only") {
+				// ================================================================
+				// Phase 1: Service Plans
+				// ================================================================
+				await updateProgress(operationId, { phase: "plans" });
+
+				const accountTypes = await queryIRadius(
+					conn,
+					`SELECT Id, AccountTypeName, Rate, Commision, ParentCommision, DealerId,
 					IpPoolName, BasicSpeedUp, BasicSpeedDown, ValidityPeriod,
 					CombinedMaxMonthlyUpAndDown, SeperateMaxDailyUp, SeperateMaxDailyDown,
 					SellingPrice, MaxUsers, CanShowOnUserInterface,
@@ -420,885 +367,900 @@ async function processIRadiusSync(
 					AccountTypeCategory, AdminId, CanExcludeQuotaByIpAddress, FupResetPrice,
 					AddressListId, DefaultAddressListIds, QueueTreeMode, NasId
 				FROM AccountType ORDER BY Id`,
-			);
+				);
 
-			await updateProgress(operationId, {
-				totalPlans: accountTypes.length,
-			});
+				await updateProgress(operationId, {
+					totalPlans: accountTypes.length,
+				});
 
-			const planMap = new Map<number, string>();
-			const existingPlans = await db.servicePlan.findMany({
-				where: { organizationId },
-				select: { id: true, name: true, externalId: true },
-			});
-			const planByExtId = new Map(
-				existingPlans
-					.filter((p) => p.externalId)
-					.map((p) => [p.externalId, p.id]),
-			);
-			const planByName = new Map(
-				existingPlans.map((p) => [p.name.toLowerCase(), p.id]),
-			);
+				const existingPlans = await db.servicePlan.findMany({
+					where: { organizationId },
+					select: { id: true, name: true, externalId: true },
+				});
+				const planByExtId = new Map(
+					existingPlans
+						.filter((p) => p.externalId)
+						.map((p) => [p.externalId, p.id]),
+				);
+				const planByName = new Map(
+					existingPlans.map((p) => [p.name.toLowerCase(), p.id]),
+				);
 
-			for (let i = 0; i < accountTypes.length; i++) {
-				const at = accountTypes[i];
-				if (!at) {
-					continue;
-				}
-				const name = at["AccountTypeName"] as string;
-				if (!name) {
-					continue;
-				}
-				const extId = String(at["Id"]);
-				const existing =
-					planByExtId.get(extId) ??
-					planByName.get(name.toLowerCase());
+				for (let i = 0; i < accountTypes.length; i++) {
+					const at = accountTypes[i];
+					if (!at) {
+						continue;
+					}
+					const name = at["AccountTypeName"] as string;
+					if (!name) {
+						continue;
+					}
+					const extId = String(at["Id"]);
+					const existing =
+						planByExtId.get(extId) ??
+						planByName.get(name.toLowerCase());
 
-				const planData = {
-					name,
-					externalId: extId,
-					downloadSpeed: kbpsToMbps(at["BasicSpeedDown"]),
-					uploadSpeed: kbpsToMbps(at["BasicSpeedUp"]),
-					monthlyPrice:
-						(at["SellingPrice"] as number) ??
-						(at["Rate"] as number) ??
-						0,
-					rate: (at["Rate"] as number) ?? null,
-					sellingPrice: (at["SellingPrice"] as number) ?? null,
-					validityPeriod:
-						(at["ValidityPeriod"] as number | null) ?? null,
-					monthlyQuota:
-						(at["CombinedMaxMonthlyUpAndDown"] as number | null) ??
-						null,
-					dailyQuotaUp:
-						(at["SeperateMaxDailyUp"] as number | null) ?? null,
-					dailyQuotaDown:
-						(at["SeperateMaxDailyDown"] as number | null) ?? null,
-					ipPoolName: (at["IpPoolName"] as string | null) ?? null,
-					maxUsers: (at["MaxUsers"] as number | null) ?? null,
-					visible: toBooleanFromBit(at["CanShowOnUserInterface"]),
-					commission: (at["Commision"] as number) ?? 0,
-					parentCommission: (at["ParentCommision"] as number) ?? 0,
-					dealerExternalId: at["DealerId"]
-						? String(at["DealerId"])
-						: null,
-					// iRadius AccountType fields
-					autoBindAccToMac: toBooleanFromBit(at["AutoBindAccToMac"]),
-					refundable: toBooleanFromBit(at["Refundable"]),
-					refundableByGb: toBooleanFromBit(at["RefundableByGB"]),
-					canChangeMac: toBooleanFromBit(at["CanChangeMac"]),
-					canChangeUserName: toBooleanFromBit(
-						at["CanChangeUserName"],
-					),
-					immediateRecharge: toBooleanFromBit(
-						at["ImmediateRecharge"],
-					),
-					preventBeforeRecharge: toBooleanFromBit(
-						at["PreventBeforeRecharge"],
-					),
-					totalSession: (at["TotalSession"] as number | null) ?? null,
-					totalSessionPeriodTypeId:
-						(at["TotalSessionPeriodTypeId"] as number | null) ??
-						null,
-					validityPeriodTypeId:
-						(at["ValidityPeriodTypeId"] as number | null) ?? null,
-					separateMaxMonthlyUp:
-						(at["SeperateMaxMonthlyUp"] as number | null) ?? null,
-					separateMaxMonthlyDown:
-						(at["SeperateMaxMonthlyDown"] as number | null) ?? null,
-					monthlyPoolAfterMax:
-						(at["MonthlyPoolAfterMax"] as string | null) ?? null,
-					ulDlForAutoFallBack: toBooleanFromBit(
-						at["UlDlForAutoFallBack"],
-					),
-					unlimitedTimeTo:
-						(at["UnlimtedTimeTo"] as string | null) ?? null,
-					unlimitedTimeFrom:
-						(at["UmlimitedTimeFrom"] as string | null) ?? null,
-					newIpPoolAfterMax:
-						(at["NewIpPoolAfterMax"] as string | null) ?? null,
-					combinedMaxUpAndDown:
-						(at["CombinedMaxUpAndDown"] as number | null) ?? null,
-					resetCounterTime:
-						(at["ResetCounterTime"] as string | null) ?? null,
-					expiryAccountPool:
-						(at["ExpiryAccountPool"] as string | null) ?? null,
-					ulDlMonthlyForAutoFallBack: toBooleanFromBit(
-						at["UlDlMonthlyForAutoFallBack"],
-					),
-					disablePoolName:
-						(at["DisablePoolName"] as string | null) ?? null,
-					proceraId: (at["ProceraId"] as number | null) ?? null,
-					expiryProceraId:
-						(at["ExpiryProceraId"] as number | null) ?? null,
-					accountTypeCategory:
-						(at["AccountTypeCategory"] as number | null) ?? null,
-					adminId: (at["AdminId"] as number | null) ?? null,
-					canExcludeQuotaByIpAddress: toBooleanFromBit(
-						at["CanExcludeQuotaByIpAddress"],
-					),
-					fupResetPrice:
-						(at["FupResetPrice"] as number | null) ?? null,
-					addressListId:
-						(at["AddressListId"] as number | null) ?? null,
-					defaultAddressListIds:
-						(at["DefaultAddressListIds"] as number | null) ?? null,
-					queueTreeMode: toBooleanFromBit(at["QueueTreeMode"]),
-					iRadiusNasId: (at["NasId"] as number | null) ?? null,
-				};
+					const planData = {
+						name,
+						externalId: extId,
+						downloadSpeed: kbpsToMbps(at["BasicSpeedDown"]),
+						uploadSpeed: kbpsToMbps(at["BasicSpeedUp"]),
+						monthlyPrice:
+							(at["SellingPrice"] as number) ??
+							(at["Rate"] as number) ??
+							0,
+						rate: (at["Rate"] as number) ?? null,
+						sellingPrice: (at["SellingPrice"] as number) ?? null,
+						validityPeriod:
+							(at["ValidityPeriod"] as number | null) ?? null,
+						monthlyQuota:
+							(at["CombinedMaxMonthlyUpAndDown"] as
+								| number
+								| null) ?? null,
+						dailyQuotaUp:
+							(at["SeperateMaxDailyUp"] as number | null) ?? null,
+						dailyQuotaDown:
+							(at["SeperateMaxDailyDown"] as number | null) ??
+							null,
+						ipPoolName: (at["IpPoolName"] as string | null) ?? null,
+						maxUsers: (at["MaxUsers"] as number | null) ?? null,
+						visible: toBooleanFromBit(at["CanShowOnUserInterface"]),
+						commission: (at["Commision"] as number) ?? 0,
+						parentCommission:
+							(at["ParentCommision"] as number) ?? 0,
+						dealerExternalId: at["DealerId"]
+							? String(at["DealerId"])
+							: null,
+						// iRadius AccountType fields
+						autoBindAccToMac: toBooleanFromBit(
+							at["AutoBindAccToMac"],
+						),
+						refundable: toBooleanFromBit(at["Refundable"]),
+						refundableByGb: toBooleanFromBit(at["RefundableByGB"]),
+						canChangeMac: toBooleanFromBit(at["CanChangeMac"]),
+						canChangeUserName: toBooleanFromBit(
+							at["CanChangeUserName"],
+						),
+						immediateRecharge: toBooleanFromBit(
+							at["ImmediateRecharge"],
+						),
+						preventBeforeRecharge: toBooleanFromBit(
+							at["PreventBeforeRecharge"],
+						),
+						totalSession:
+							(at["TotalSession"] as number | null) ?? null,
+						totalSessionPeriodTypeId:
+							(at["TotalSessionPeriodTypeId"] as number | null) ??
+							null,
+						validityPeriodTypeId:
+							(at["ValidityPeriodTypeId"] as number | null) ??
+							null,
+						separateMaxMonthlyUp:
+							(at["SeperateMaxMonthlyUp"] as number | null) ??
+							null,
+						separateMaxMonthlyDown:
+							(at["SeperateMaxMonthlyDown"] as number | null) ??
+							null,
+						monthlyPoolAfterMax:
+							(at["MonthlyPoolAfterMax"] as string | null) ??
+							null,
+						ulDlForAutoFallBack: toBooleanFromBit(
+							at["UlDlForAutoFallBack"],
+						),
+						unlimitedTimeTo:
+							(at["UnlimtedTimeTo"] as string | null) ?? null,
+						unlimitedTimeFrom:
+							(at["UmlimitedTimeFrom"] as string | null) ?? null,
+						newIpPoolAfterMax:
+							(at["NewIpPoolAfterMax"] as string | null) ?? null,
+						combinedMaxUpAndDown:
+							(at["CombinedMaxUpAndDown"] as number | null) ??
+							null,
+						resetCounterTime:
+							(at["ResetCounterTime"] as string | null) ?? null,
+						expiryAccountPool:
+							(at["ExpiryAccountPool"] as string | null) ?? null,
+						ulDlMonthlyForAutoFallBack: toBooleanFromBit(
+							at["UlDlMonthlyForAutoFallBack"],
+						),
+						disablePoolName:
+							(at["DisablePoolName"] as string | null) ?? null,
+						proceraId: (at["ProceraId"] as number | null) ?? null,
+						expiryProceraId:
+							(at["ExpiryProceraId"] as number | null) ?? null,
+						accountTypeCategory:
+							(at["AccountTypeCategory"] as number | null) ??
+							null,
+						adminId: (at["AdminId"] as number | null) ?? null,
+						canExcludeQuotaByIpAddress: toBooleanFromBit(
+							at["CanExcludeQuotaByIpAddress"],
+						),
+						fupResetPrice:
+							(at["FupResetPrice"] as number | null) ?? null,
+						addressListId:
+							(at["AddressListId"] as number | null) ?? null,
+						defaultAddressListIds:
+							(at["DefaultAddressListIds"] as number | null) ??
+							null,
+						queueTreeMode: toBooleanFromBit(at["QueueTreeMode"]),
+						iRadiusNasId: (at["NasId"] as number | null) ?? null,
+					};
 
-				if (existing) {
-					planMap.set(at["Id"] as number, existing);
-					await db.servicePlan
-						.update({ where: { id: existing }, data: planData })
-						.catch(() => {});
-					result.plans.updated++;
-				} else {
-					try {
-						const plan = await db.servicePlan.create({
-							data: {
-								organizationId,
-								...planData,
-							},
-						});
-						planMap.set(at["Id"] as number, plan.id);
-						result.plans.created++;
-					} catch (error) {
-						result.plans.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "plans",
-								detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+					if (existing) {
+						planMap.set(at["Id"] as number, existing);
+						await db.servicePlan
+							.update({ where: { id: existing }, data: planData })
+							.catch(() => {});
+						result.plans.updated++;
+					} else {
+						try {
+							const plan = await db.servicePlan.create({
+								data: {
+									organizationId,
+									...planData,
+								},
 							});
+							planMap.set(at["Id"] as number, plan.id);
+							result.plans.created++;
+						} catch (error) {
+							result.plans.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "plans",
+									detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
 						}
+					}
+
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedPlans: i,
+						});
 					}
 				}
 
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedPlans: i,
-					});
+				await updateProgress(operationId, {
+					processedPlans: accountTypes.length,
+				});
+
+				// Build plan name lookup for connection type inference
+				for (const at of accountTypes) {
+					if (at["AccountTypeName"]) {
+						planNames.set(
+							at["Id"] as number,
+							at["AccountTypeName"] as string,
+						);
+					}
 				}
-			}
 
-			await updateProgress(operationId, {
-				processedPlans: accountTypes.length,
-			});
+				// ================================================================
+				// Phase 2: Stations
+				// ================================================================
+				await updateProgress(operationId, { phase: "stations" });
 
-			// Build plan name lookup for connection type inference
-			const planNames = new Map<number, string>();
-			for (const at of accountTypes) {
-				if (at["AccountTypeName"]) {
-					planNames.set(
-						at["Id"] as number,
-						at["AccountTypeName"] as string,
-					);
-				}
-			}
-
-			// ================================================================
-			// Phase 2: Stations
-			// ================================================================
-			await updateProgress(operationId, { phase: "stations" });
-
-			const stations = await queryIRadius(
-				conn,
-				`SELECT Id, Name, Host, Port, SSHPort, Ip, Online, VlanId, Version, UpTime,
+				const stations = await queryIRadius(
+					conn,
+					`SELECT Id, Name, Host, Port, SSHPort, Ip, Online, VlanId, Version, UpTime,
 					UserName, Password, APUserName, APPassword, APAPIPort, APSSHPort,
 					BoardName, CpuLoad, Voltage, ScanStatus
 				FROM Station ORDER BY Id`,
-			);
+				);
 
-			await updateProgress(operationId, {
-				totalStations: stations.length,
-			});
+				await updateProgress(operationId, {
+					totalStations: stations.length,
+				});
 
-			const stationMap = new Map<number, string>();
-			const existingStations = await db.station.findMany({
-				where: { organizationId },
-				select: { id: true, name: true, externalId: true },
-			});
-			const stationByExtId = new Map(
-				existingStations
-					.filter((s) => s.externalId)
-					.map((s) => [s.externalId, s.id]),
-			);
-			const stationByName = new Map(
-				existingStations.map((s) => [s.name.toLowerCase(), s.id]),
-			);
+				const existingStations = await db.station.findMany({
+					where: { organizationId },
+					select: { id: true, name: true, externalId: true },
+				});
+				const stationByExtId = new Map(
+					existingStations
+						.filter((s) => s.externalId)
+						.map((s) => [s.externalId, s.id]),
+				);
+				const stationByName = new Map(
+					existingStations.map((s) => [s.name.toLowerCase(), s.id]),
+				);
 
-			for (let i = 0; i < stations.length; i++) {
-				const st = stations[i];
-				if (!st) {
-					continue;
-				}
-				const name = st["Name"] as string;
-				if (!name) {
-					continue;
-				}
-				const extId = String(st["Id"]);
-				const existing =
-					stationByExtId.get(extId) ??
-					stationByName.get(name.toLowerCase());
+				for (let i = 0; i < stations.length; i++) {
+					const st = stations[i];
+					if (!st) {
+						continue;
+					}
+					const name = st["Name"] as string;
+					if (!name) {
+						continue;
+					}
+					const extId = String(st["Id"]);
+					const existing =
+						stationByExtId.get(extId) ??
+						stationByName.get(name.toLowerCase());
 
-				const stationData = {
-					name,
-					externalId: extId,
-					address:
-						(st["Ip"] as string) ?? (st["Host"] as string) ?? null,
-					host: (st["Host"] as string) ?? null,
-					apiPort: (st["Port"] as number) ?? null,
-					sshPort: (st["SSHPort"] as number) ?? null,
-					vlanId: (st["VlanId"] as number) ?? null,
-					version: (st["Version"] as string) ?? null,
-					uptime: (st["UpTime"] as string) ?? null,
-					sshUsername: (st["UserName"] as string) ?? null,
-					sshPassword: (st["Password"] as string) ?? null,
-					apUsername: (st["APUserName"] as string) ?? null,
-					apPassword: (st["APPassword"] as string) ?? null,
-					apApiPort: (st["APAPIPort"] as number) ?? null,
-					apSshPort: (st["APSSHPort"] as number) ?? null,
-					boardName: (st["BoardName"] as string) ?? null,
-					cpuLoad: (st["CpuLoad"] as string) ?? null,
-					voltage: (st["Voltage"] as string) ?? null,
-					online: toBooleanFromBit(st["Online"]),
-					scanStatus: (st["ScanStatus"] as string) ?? null,
-				};
+					const stationData = {
+						name,
+						externalId: extId,
+						address:
+							(st["Ip"] as string) ??
+							(st["Host"] as string) ??
+							null,
+						host: (st["Host"] as string) ?? null,
+						apiPort: (st["Port"] as number) ?? null,
+						sshPort: (st["SSHPort"] as number) ?? null,
+						vlanId: (st["VlanId"] as number) ?? null,
+						version: (st["Version"] as string) ?? null,
+						uptime: (st["UpTime"] as string) ?? null,
+						sshUsername: (st["UserName"] as string) ?? null,
+						sshPassword: (st["Password"] as string) ?? null,
+						apUsername: (st["APUserName"] as string) ?? null,
+						apPassword: (st["APPassword"] as string) ?? null,
+						apApiPort: (st["APAPIPort"] as number) ?? null,
+						apSshPort: (st["APSSHPort"] as number) ?? null,
+						boardName: (st["BoardName"] as string) ?? null,
+						cpuLoad: (st["CpuLoad"] as string) ?? null,
+						voltage: (st["Voltage"] as string) ?? null,
+						online: toBooleanFromBit(st["Online"]),
+						scanStatus: toBooleanFromBit(st["ScanStatus"]),
+					};
 
-				if (existing) {
-					stationMap.set(st["Id"] as number, existing);
-					await db.station
-						.update({
-							where: { id: existing },
-							data: stationData,
-						})
-						.catch(() => {});
-					result.stations.updated++;
-				} else {
-					try {
-						const station = await db.station.create({
-							data: {
-								organizationId,
-								...stationData,
-							},
-						});
-						stationMap.set(st["Id"] as number, station.id);
-						result.stations.created++;
-					} catch (error) {
-						result.stations.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "stations",
-								detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+					if (existing) {
+						stationMap.set(st["Id"] as number, existing);
+						await db.station
+							.update({
+								where: { id: existing },
+								data: stationData,
+							})
+							.catch(() => {});
+						result.stations.updated++;
+					} else {
+						try {
+							const station = await db.station.create({
+								data: {
+									organizationId,
+									...stationData,
+								},
 							});
+							stationMap.set(st["Id"] as number, station.id);
+							result.stations.created++;
+						} catch (error) {
+							result.stations.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "stations",
+									detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
 						}
+					}
+
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedStations: i,
+						});
 					}
 				}
 
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedStations: i,
-					});
-				}
-			}
+				await updateProgress(operationId, {
+					processedStations: stations.length,
+				});
 
-			await updateProgress(operationId, {
-				processedStations: stations.length,
-			});
+				// ================================================================
+				// Phase 3: Access Points
+				// ================================================================
+				await updateProgress(operationId, { phase: "accessPoints" });
 
-			// ================================================================
-			// Phase 3: Access Points
-			// ================================================================
-			await updateProgress(operationId, { phase: "accessPoints" });
+				const accessPoints = await queryIRadius(
+					conn,
+					"SELECT Id, StationId, Name, MacAddress, `Interface`, IP, Online, `Signal`, UpTime, BoardName, Version, IsUbnt, AutoNegotioation, FullDuplex, ScanStatus FROM AccessPoint ORDER BY Id",
+				);
 
-			const accessPoints = await queryIRadius(
-				conn,
-				"SELECT Id, StationId, Name, MacAddress, `Interface`, IP, Online, `Signal`, UpTime, BoardName, Version, IsUbnt, AutoNegotioation, FullDuplex, ScanStatus FROM AccessPoint ORDER BY Id",
-			);
+				await updateProgress(operationId, {
+					totalAccessPoints: accessPoints.length,
+				});
 
-			await updateProgress(operationId, {
-				totalAccessPoints: accessPoints.length,
-			});
+				const existingAPs = await db.accessPoint.findMany({
+					where: { organizationId },
+					select: { id: true, externalId: true },
+				});
+				const apByExtId = new Map(
+					existingAPs
+						.filter((a) => a.externalId)
+						.map((a) => [a.externalId, a.id]),
+				);
 
-			const apMap = new Map<number, string>();
-			const existingAPs = await db.accessPoint.findMany({
-				where: { organizationId },
-				select: { id: true, externalId: true },
-			});
-			const apByExtId = new Map(
-				existingAPs
-					.filter((a) => a.externalId)
-					.map((a) => [a.externalId, a.id]),
-			);
+				for (let i = 0; i < accessPoints.length; i++) {
+					const ap = accessPoints[i];
+					if (!ap) {
+						continue;
+					}
+					const name = ap["Name"] as string;
+					if (!name) {
+						continue;
+					}
+					const extId = String(ap["Id"]);
+					const existing = apByExtId.get(extId);
 
-			for (let i = 0; i < accessPoints.length; i++) {
-				const ap = accessPoints[i];
-				if (!ap) {
-					continue;
-				}
-				const name = ap["Name"] as string;
-				if (!name) {
-					continue;
-				}
-				const extId = String(ap["Id"]);
-				const existing = apByExtId.get(extId);
+					const stationId = ap["StationId"]
+						? (stationMap.get(ap["StationId"] as number) ?? null)
+						: null;
 
-				const stationId = ap["StationId"]
-					? (stationMap.get(ap["StationId"] as number) ?? null)
-					: null;
+					const apData = {
+						name,
+						externalId: extId,
+						stationId,
+						macAddress: (ap["MacAddress"] as string) ?? null,
+						ipAddress: (ap["IP"] as string) ?? null,
+						signal: (ap["Signal"] as string) ?? null,
+						boardName: (ap["BoardName"] as string) ?? null,
+						version: (ap["Version"] as string) ?? null,
+						interface: (ap["Interface"] as string) ?? null,
+						uptime: (ap["UpTime"] as string) ?? null,
+						isUbiquiti: toBooleanFromBit(ap["IsUbnt"]),
+						online: toBooleanFromBit(ap["Online"]),
+						autoNegotiation: toBooleanFromBit(
+							ap["AutoNegotioation"],
+						),
+						fullDuplex: toBooleanFromBit(ap["FullDuplex"]),
+						scanStatus: toBooleanFromBit(ap["ScanStatus"]),
+					};
 
-				const apData = {
-					name,
-					externalId: extId,
-					stationId,
-					macAddress: (ap["MacAddress"] as string) ?? null,
-					ipAddress: (ap["IP"] as string) ?? null,
-					signal: (ap["Signal"] as string) ?? null,
-					boardName: (ap["BoardName"] as string) ?? null,
-					version: (ap["Version"] as string) ?? null,
-					interface: (ap["Interface"] as string) ?? null,
-					uptime: (ap["UpTime"] as string) ?? null,
-					isUbiquiti: toBooleanFromBit(ap["IsUbnt"]),
-					online: toBooleanFromBit(ap["Online"]),
-					autoNegotiation: toBooleanFromBit(ap["AutoNegotioation"]),
-					fullDuplex: toBooleanFromBit(ap["FullDuplex"]),
-					scanStatus: (ap["ScanStatus"] as string) ?? null,
-				};
-
-				if (existing) {
-					apMap.set(ap["Id"] as number, existing);
-					await db.accessPoint
-						.update({ where: { id: existing }, data: apData })
-						.catch(() => {});
-					result.accessPoints.updated++;
-				} else {
-					try {
-						const created = await db.accessPoint.create({
-							data: {
-								organizationId,
-								...apData,
-							},
-						});
-						apMap.set(ap["Id"] as number, created.id);
-						result.accessPoints.created++;
-					} catch (error) {
-						result.accessPoints.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "accessPoints",
-								detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+					if (existing) {
+						apMap.set(ap["Id"] as number, existing);
+						await db.accessPoint
+							.update({ where: { id: existing }, data: apData })
+							.catch(() => {});
+						result.accessPoints.updated++;
+					} else {
+						try {
+							const created = await db.accessPoint.create({
+								data: {
+									organizationId,
+									...apData,
+								},
 							});
+							apMap.set(ap["Id"] as number, created.id);
+							result.accessPoints.created++;
+						} catch (error) {
+							result.accessPoints.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "accessPoints",
+									detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
 						}
+					}
+
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedAccessPoints: i,
+						});
 					}
 				}
 
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedAccessPoints: i,
-					});
-				}
-			}
+				await updateProgress(operationId, {
+					processedAccessPoints: accessPoints.length,
+				});
 
-			await updateProgress(operationId, {
-				processedAccessPoints: accessPoints.length,
-			});
+				// ================================================================
+				// Phase 4: NAS Servers
+				// ================================================================
+				await updateProgress(operationId, { phase: "nas" });
 
-			// ================================================================
-			// Phase 4: NAS Servers
-			// ================================================================
-			await updateProgress(operationId, { phase: "nas" });
-
-			const nasServers = await queryIRadius(
-				conn,
-				`SELECT Id, ShortName, Host, SharedSecret, ApiPort, Active,
+				const nasServers = await queryIRadius(
+					conn,
+					`SELECT Id, ShortName, Host, SharedSecret, ApiPort, Active,
 					Description, ApiUserName, ApiPassword, OnlineUsers, FaultSession,
 					CountFaultSession, MinutesToRemoveNasFilter, NasTypeId, AdminId,
 					MikrotikNewVersion, SSHPort, SSHUserName, SSHPassword
 				FROM Nas ORDER BY Id`,
-			);
+				);
 
-			await updateProgress(operationId, {
-				totalNas: nasServers.length,
-			});
+				await updateProgress(operationId, {
+					totalNas: nasServers.length,
+				});
 
-			const nasHostMap = new Map<string, string>();
-			const existingNas = await db.ispNas.findMany({
-				where: { organizationId },
-				select: { id: true, externalId: true, host: true },
-			});
-			const nasByExtId = new Map(
-				existingNas
-					.filter((n) => n.externalId)
-					.map((n) => [n.externalId, n.id]),
-			);
-			// Pre-populate nasHostMap with existing NAS records
-			for (const n of existingNas) {
-				if (n.host) {
-					nasHostMap.set(n.host, n.id);
-				}
-			}
-
-			for (let i = 0; i < nasServers.length; i++) {
-				const nas = nasServers[i];
-				if (!nas) {
-					continue;
-				}
-				const name = (nas["ShortName"] as string) || `NAS-${nas["Id"]}`;
-				const extId = String(nas["Id"]);
-				const existing = nasByExtId.get(extId);
-
-				const nasData = {
-					name,
-					externalId: extId,
-					host: (nas["Host"] as string) ?? null,
-					sharedSecret: (nas["SharedSecret"] as string) ?? null,
-					apiPort: (nas["ApiPort"] as number) ?? null,
-					active: toBooleanFromBit(nas["Active"]),
-					description: (nas["Description"] as string) ?? null,
-					apiUserName: (nas["ApiUserName"] as string) ?? null,
-					apiPassword: (nas["ApiPassword"] as string) ?? null,
-					onlineUsers: (nas["OnlineUsers"] as number) ?? null,
-					faultSession: toBooleanFromBit(nas["FaultSession"]),
-					countFaultSession:
-						(nas["CountFaultSession"] as number) ?? null,
-					minutesToRemoveNasFilter:
-						(nas["MinutesToRemoveNasFilter"] as number) ?? null,
-					nasTypeId: (nas["NasTypeId"] as number) ?? null,
-					adminId: (nas["AdminId"] as number) ?? null,
-					mikrotikNewVersion: toBooleanFromBit(
-						nas["MikrotikNewVersion"],
-					),
-					sshPort: (nas["SSHPort"] as number) ?? null,
-					sshUserName: (nas["SSHUserName"] as string) ?? null,
-					sshPassword: (nas["SSHPassword"] as string) ?? null,
-				};
-
-				if (existing) {
-					await db.ispNas
-						.update({ where: { id: existing }, data: nasData })
-						.catch(() => {});
-					if (nasData.host) {
-						nasHostMap.set(nasData.host, existing);
+				const existingNas = await db.ispNas.findMany({
+					where: { organizationId },
+					select: { id: true, externalId: true, host: true },
+				});
+				const nasByExtId = new Map(
+					existingNas
+						.filter((n) => n.externalId)
+						.map((n) => [n.externalId, n.id]),
+				);
+				// Pre-populate nasHostMap with existing NAS records
+				for (const n of existingNas) {
+					if (n.host) {
+						nasHostMap.set(n.host, n.id);
 					}
-					result.nas.updated++;
-				} else {
-					try {
-						const created = await db.ispNas.create({
-							data: {
-								organizationId,
-								...nasData,
-							},
-						});
+				}
+
+				for (let i = 0; i < nasServers.length; i++) {
+					const nas = nasServers[i];
+					if (!nas) {
+						continue;
+					}
+					const name =
+						(nas["ShortName"] as string) || `NAS-${nas["Id"]}`;
+					const extId = String(nas["Id"]);
+					const existing = nasByExtId.get(extId);
+
+					const nasData = {
+						name,
+						externalId: extId,
+						host: (nas["Host"] as string) ?? null,
+						sharedSecret: (nas["SharedSecret"] as string) ?? null,
+						apiPort: (nas["ApiPort"] as number) ?? null,
+						active: toBooleanFromBit(nas["Active"]),
+						description: (nas["Description"] as string) ?? null,
+						apiUserName: (nas["ApiUserName"] as string) ?? null,
+						apiPassword: (nas["ApiPassword"] as string) ?? null,
+						onlineUsers: (nas["OnlineUsers"] as number) ?? null,
+						faultSession: toBooleanFromBit(nas["FaultSession"]),
+						countFaultSession:
+							(nas["CountFaultSession"] as number) ?? null,
+						minutesToRemoveNasFilter:
+							(nas["MinutesToRemoveNasFilter"] as number) ?? null,
+						nasTypeId: (nas["NasTypeId"] as number) ?? null,
+						adminId: (nas["AdminId"] as number) ?? null,
+						mikrotikNewVersion: toBooleanFromBit(
+							nas["MikrotikNewVersion"],
+						),
+						sshPort: (nas["SSHPort"] as number) ?? null,
+						sshUserName: (nas["SSHUserName"] as string) ?? null,
+						sshPassword: (nas["SSHPassword"] as string) ?? null,
+					};
+
+					if (existing) {
+						await db.ispNas
+							.update({ where: { id: existing }, data: nasData })
+							.catch(() => {});
 						if (nasData.host) {
-							nasHostMap.set(nasData.host, created.id);
+							nasHostMap.set(nasData.host, existing);
 						}
-						result.nas.created++;
-					} catch (error) {
-						result.nas.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "nas",
-								detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+						result.nas.updated++;
+					} else {
+						try {
+							const created = await db.ispNas.create({
+								data: {
+									organizationId,
+									...nasData,
+								},
 							});
+							if (nasData.host) {
+								nasHostMap.set(nasData.host, created.id);
+							}
+							result.nas.created++;
+						} catch (error) {
+							result.nas.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "nas",
+									detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
 						}
 					}
-				}
 
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedNas: i,
-					});
-				}
-			}
-
-			await updateProgress(operationId, {
-				processedNas: nasServers.length,
-			});
-
-			// ================================================================
-			// Phase 5: Routers
-			// ================================================================
-			await updateProgress(operationId, { phase: "routers" });
-
-			const routers = await queryIRadius(
-				conn,
-				"SELECT Id, StationId, AccessPointId, Name, Ip, MacAddress FROM Router ORDER BY Id",
-			);
-
-			await updateProgress(operationId, {
-				totalRouters: routers.length,
-			});
-
-			const existingRouters = await db.ispRouter.findMany({
-				where: { organizationId },
-				select: { id: true, externalId: true },
-			});
-			const routerByExtId = new Map(
-				existingRouters
-					.filter((r) => r.externalId)
-					.map((r) => [r.externalId, r.id]),
-			);
-
-			for (let i = 0; i < routers.length; i++) {
-				const rt = routers[i];
-				if (!rt) {
-					continue;
-				}
-				const name = (rt["Name"] as string) || `Router-${rt["Id"]}`;
-				const extId = String(rt["Id"]);
-				const existing = routerByExtId.get(extId);
-
-				const stationId = rt["StationId"]
-					? (stationMap.get(rt["StationId"] as number) ?? null)
-					: null;
-				const accessPointId = rt["AccessPointId"]
-					? (apMap.get(rt["AccessPointId"] as number) ?? null)
-					: null;
-
-				const routerData = {
-					name,
-					externalId: extId,
-					ipAddress: (rt["Ip"] as string) ?? null,
-					macAddress: (rt["MacAddress"] as string) ?? null,
-					stationId,
-					accessPointId,
-				};
-
-				if (existing) {
-					await db.ispRouter
-						.update({
-							where: { id: existing },
-							data: routerData,
-						})
-						.catch(() => {});
-					result.routers.updated++;
-				} else {
-					try {
-						await db.ispRouter.create({
-							data: {
-								organizationId,
-								...routerData,
-							},
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedNas: i,
 						});
-						result.routers.created++;
-					} catch (error) {
-						result.routers.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "routers",
-								detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
-							});
-						}
 					}
 				}
 
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedRouters: i,
-					});
-				}
-			}
+				await updateProgress(operationId, {
+					processedNas: nasServers.length,
+				});
 
-			await updateProgress(operationId, {
-				processedRouters: routers.length,
-			});
+				// ================================================================
+				// Phase 5: Routers
+				// ================================================================
+				await updateProgress(operationId, { phase: "routers" });
+
+				const routers = await queryIRadius(
+					conn,
+					"SELECT Id, StationId, AccessPointId, Name, Ip, MacAddress FROM Router ORDER BY Id",
+				);
+
+				await updateProgress(operationId, {
+					totalRouters: routers.length,
+				});
+
+				const existingRouters = await db.ispRouter.findMany({
+					where: { organizationId },
+					select: { id: true, externalId: true },
+				});
+				const routerByExtId = new Map(
+					existingRouters
+						.filter((r) => r.externalId)
+						.map((r) => [r.externalId, r.id]),
+				);
+
+				for (let i = 0; i < routers.length; i++) {
+					const rt = routers[i];
+					if (!rt) {
+						continue;
+					}
+					const name = (rt["Name"] as string) || `Router-${rt["Id"]}`;
+					const extId = String(rt["Id"]);
+					const existing = routerByExtId.get(extId);
+
+					const stationId = rt["StationId"]
+						? (stationMap.get(rt["StationId"] as number) ?? null)
+						: null;
+					const accessPointId = rt["AccessPointId"]
+						? (apMap.get(rt["AccessPointId"] as number) ?? null)
+						: null;
+
+					const routerData = {
+						name,
+						externalId: extId,
+						ipAddress: (rt["Ip"] as string) ?? null,
+						macAddress: (rt["MacAddress"] as string) ?? null,
+						stationId,
+						accessPointId,
+					};
+
+					if (existing) {
+						await db.ispRouter
+							.update({
+								where: { id: existing },
+								data: routerData,
+							})
+							.catch(() => {});
+						result.routers.updated++;
+					} else {
+						try {
+							await db.ispRouter.create({
+								data: {
+									organizationId,
+									...routerData,
+								},
+							});
+							result.routers.created++;
+						} catch (error) {
+							result.routers.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "routers",
+									detail: `"${name}": ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
+						}
+					}
+
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedRouters: i,
+						});
+					}
+				}
+
+				await updateProgress(operationId, {
+					processedRouters: routers.length,
+				});
+			} // end of phases 1-5 (skipped in dealers-only mode)
 
 			// ================================================================
 			// Phase 6: Dealers
+			// In "dealers-only" mode (admin sync) we fetch from iRadius and create/update.
+			// In normal org sync this phase is skipped — the org's activeDealerId is
+			// used directly for customer/employee dealer assignment.
 			// ================================================================
 			await updateProgress(operationId, { phase: "dealers" });
 
-			const dealerRows = await queryIRadius(
-				conn,
-				`SELECT u.Id, u.UserName, u.FirstName, u.LastName, u.Mobile, u.Phone,
-					u.MailAddress, u.ParentId, u.Archived,
-					d.Credit, d.Commision, d.CompanyName, d.CompanyAddress, d.CompanyPhone,
-					d.CompanyMobile, d.CompanyVatNumber, d.SmsSenderId, d.NotificationAmount,
-					d.FupResetPrice, d.ExtraOneGPPrice, d.ExtraOneGPCommision,
-					d.CanShowRate, d.CanShowSpeed, d.NoCharge, d.CanSendMail, d.CanSendSMS,
-					d.CanExportToExcel, d.CanAddDealer, d.CanDeleteUser, d.CanChangeAccountType,
-					d.NotifyBefore3Days, d.NotifyBefore2Days, d.NotifyBefore1Day,
-					d.ExtraGB, d.CanShowOnlineUsersSpeed, d.UserNotification,
-					d.CanMonitorLog, d.ChargeIfNotExpiry
-				FROM User u
-				INNER JOIN Dealer d ON d.UserId = u.Id
-				WHERE u.ProfileId = 2
-				ORDER BY u.Id`,
-			);
-
-			await updateProgress(operationId, {
-				totalDealers: dealerRows.length,
-			});
-
 			const dealerMap = new Map<number, string>();
-			const existingDealers = await db.ispDealer.findMany({
-				where: { organizationId },
-				select: { id: true, externalId: true },
-			});
-			const dealerByExtId = new Map(
-				existingDealers
-					.filter((d) => d.externalId)
-					.map((d) => [d.externalId, d.id]),
-			);
 
-			// Pass 1: Create/update all dealers without parent resolution
-			for (let i = 0; i < dealerRows.length; i++) {
-				const dr = dealerRows[i];
-				if (!dr) {
-					continue;
-				}
-				const dealerUserId = dr["Id"] as number;
-				const extId = String(dealerUserId);
-				const existing = dealerByExtId.get(extId);
+			if (mode === "dealers-only") {
+				// Admin-triggered global dealer sync: fetch from iRadius and create/update
+				// Dealers are stored without an organizationId — admins assign them later
+				const dealerRows = await queryIRadius(
+					conn,
+					`SELECT u.Id, u.UserName, u.FirstName, u.LastName, u.Mobile, u.Phone,
+						u.MailAddress, u.ParentId, u.Archived,
+						d.Credit, d.Commision, d.CompanyName, d.CompanyAddress, d.CompanyPhone,
+						d.CompanyMobile, d.CompanyVatNumber, d.SmsSenderId, d.NotificationAmount,
+						d.FupResetPrice, d.ExtraOneGPPrice, d.ExtraOneGPCommision,
+						d.CanShowRate, d.CanShowSpeed, d.NoCharge, d.CanSendMail, d.CanSendSMS,
+						d.CanExportToExcel, d.CanAddDealer, d.CanDeleteUser, d.CanChangeAccountType,
+						d.NotifyBefore3Days, d.NotifyBefore2Days, d.NotifyBefore1Day,
+						d.ExtraGB, d.CanShowOnlineUsersSpeed, d.UserNotification,
+						d.CanMonitorLog, d.ChargeIfNotExpiry
+					FROM User u
+					INNER JOIN Dealer d ON d.UserId = u.Id
+					WHERE u.ProfileId = 2
+					ORDER BY u.Id`,
+				);
 
-				const dealerData = {
-					name:
-						[dr["FirstName"], dr["LastName"]]
-							.filter(Boolean)
-							.join(" ")
-							.trim() || "Unknown",
-					externalId: extId,
-					username: (dr["UserName"] as string) || null,
-					email: (dr["MailAddress"] as string) || null,
-					phone:
-						(dr["Mobile"] as string) ||
-						(dr["Phone"] as string) ||
-						null,
-					companyName: (dr["CompanyName"] as string) || null,
-					companyAddress: (dr["CompanyAddress"] as string) || null,
-					companyPhone: (dr["CompanyPhone"] as string) || null,
-					companyMobile: (dr["CompanyMobile"] as string) || null,
-					companyVatNumber:
-						(dr["CompanyVatNumber"] as string) || null,
-					credit: (dr["Credit"] as number) ?? 0,
-					commission: (dr["Commision"] as number) ?? 0,
-					smsSenderId: (dr["SmsSenderId"] as string) || null,
-					notificationAmount:
-						(dr["NotificationAmount"] as number) ?? null,
-					fupResetPrice: (dr["FupResetPrice"] as number) ?? null,
-					extraOneGbPrice: (dr["ExtraOneGPPrice"] as number) ?? null,
-					extraOneGbCommission:
-						(dr["ExtraOneGPCommision"] as number) ?? null,
-					canShowRate: toBooleanFromBit(dr["CanShowRate"]),
-					canShowSpeed: toBooleanFromBit(dr["CanShowSpeed"]),
-					noCharge: toBooleanFromBit(dr["NoCharge"]),
-					canSendMail: toBooleanFromBit(dr["CanSendMail"]),
-					canSendSms: toBooleanFromBit(dr["CanSendSMS"]),
-					canExportToExcel: toBooleanFromBit(dr["CanExportToExcel"]),
-					canAddDealer: toBooleanFromBit(dr["CanAddDealer"]),
-					canDeleteUser: toBooleanFromBit(dr["CanDeleteUser"]),
-					canChangeAccountType: toBooleanFromBit(
-						dr["CanChangeAccountType"],
-					),
-					notifyBefore3Days: toBooleanFromBit(
-						dr["NotifyBefore3Days"],
-					),
-					notifyBefore2Days: toBooleanFromBit(
-						dr["NotifyBefore2Days"],
-					),
-					notifyBefore1Day: toBooleanFromBit(dr["NotifyBefore1Day"]),
-					extraGb: toBooleanFromBit(dr["ExtraGB"]),
-					canShowOnlineUsersSpeed: toBooleanFromBit(
-						dr["CanShowOnlineUsersSpeed"],
-					),
-					userNotification: toBooleanFromBit(dr["UserNotification"]),
-					canMonitorLog: toBooleanFromBit(dr["CanMonitorLog"]),
-					chargeIfNotExpiry: toBooleanFromBit(
-						dr["ChargeIfNotExpiry"],
-					),
-					status: dr["Archived"]
-						? ("INACTIVE" as const)
-						: ("ACTIVE" as const),
-				};
-
-				try {
-					let dealerRecordId: string;
-					if (existing) {
-						dealerMap.set(dealerUserId, existing);
-						await db.ispDealer.update({
-							where: { id: existing },
-							data: dealerData,
-						});
-						dealerRecordId = existing;
-						result.dealers.updated++;
-					} else {
-						const created = await db.ispDealer.create({
-							data: {
-								organizationId,
-								...dealerData,
-							},
-						});
-						dealerMap.set(dealerUserId, created.id);
-						dealerRecordId = created.id;
-						result.dealers.created++;
-					}
-
-					// Auto-create User + Member for this dealer
-					await ensureDealerMembership(
-						dealerRecordId,
-						dealerData.email,
-						dealerData.name,
-						organizationId,
-					);
-				} catch (error) {
-					result.dealers.errors++;
-					if (result.errors.length < 50) {
-						result.errors.push({
-							phase: "dealers",
-							detail: `Dealer ${dealerUserId} "${dr["UserName"]}": ${error instanceof Error ? error.message : "Unknown"}`,
-						});
-					}
-				}
-
-				if (i > 0 && i % 100 === 0) {
-					await updateProgress(operationId, {
-						processedDealers: i,
-					});
-				}
-			}
-
-			// Pass 2: Resolve dealer parent hierarchy (batched)
-			const parentUpdates = [];
-			for (const dr of dealerRows) {
-				if (!dr) {
-					continue;
-				}
-				const parentId = dr["ParentId"] as number | null;
-				if (!parentId) {
-					continue;
-				}
-				const dealerUserId = dr["Id"] as number;
-				const myId = dealerMap.get(dealerUserId);
-				const parentDealerId = dealerMap.get(parentId);
-				if (myId && parentDealerId) {
-					parentUpdates.push(
-						db.ispDealer.update({
-							where: { id: myId },
-							data: { parentDealerId },
-						}),
-					);
-				}
-			}
-			if (parentUpdates.length > 0) {
-				await db.$transaction(parentUpdates).catch((error) => {
-					logger.warn(
-						"[iRadius Sync] Dealer parent resolution partially failed",
-						{ error },
-					);
+				await updateProgress(operationId, {
+					totalDealers: dealerRows.length,
 				});
-			}
 
-			// Resolve ServicePlan.dealerId from dealerExternalId (batched)
-			const plansWithDealerExtId = await db.servicePlan.findMany({
-				where: {
-					organizationId,
-					dealerExternalId: { not: null },
-				},
-				select: { id: true, dealerExternalId: true },
-			});
-			const planDealerUpdates = [];
-			for (const plan of plansWithDealerExtId) {
-				if (plan.dealerExternalId) {
-					const resolvedDealerId = dealerMap.get(
-						Number(plan.dealerExternalId),
-					);
-					if (resolvedDealerId) {
-						planDealerUpdates.push(
-							db.servicePlan.update({
-								where: { id: plan.id },
-								data: { dealerId: resolvedDealerId },
+				// Look up ALL existing dealers globally (not scoped to any org)
+				const existingDealers = await db.ispDealer.findMany({
+					where: { externalId: { not: null } },
+					select: { id: true, externalId: true },
+				});
+				const dealerByExtId = new Map(
+					existingDealers
+						.filter((d) => d.externalId)
+						.map((d) => [d.externalId, d.id]),
+				);
+
+				// Pass 1: Create/update all dealers without parent resolution
+				for (let i = 0; i < dealerRows.length; i++) {
+					const dr = dealerRows[i];
+					if (!dr) {
+						continue;
+					}
+					const dealerUserId = dr["Id"] as number;
+					const extId = String(dealerUserId);
+					const existing = dealerByExtId.get(extId);
+
+					const dealerData = {
+						name:
+							[dr["FirstName"], dr["LastName"]]
+								.filter(Boolean)
+								.join(" ")
+								.trim() || "Unknown",
+						externalId: extId,
+						username: (dr["UserName"] as string) || null,
+						email: (dr["MailAddress"] as string) || null,
+						phone:
+							(dr["Mobile"] as string) ||
+							(dr["Phone"] as string) ||
+							null,
+						companyName: (dr["CompanyName"] as string) || null,
+						companyAddress:
+							(dr["CompanyAddress"] as string) || null,
+						companyPhone: (dr["CompanyPhone"] as string) || null,
+						companyMobile: (dr["CompanyMobile"] as string) || null,
+						companyVatNumber:
+							(dr["CompanyVatNumber"] as string) || null,
+						credit: (dr["Credit"] as number) ?? 0,
+						commission: (dr["Commision"] as number) ?? 0,
+						smsSenderId: (dr["SmsSenderId"] as string) || null,
+						notificationAmount:
+							(dr["NotificationAmount"] as number) ?? null,
+						fupResetPrice: (dr["FupResetPrice"] as number) ?? null,
+						extraOneGbPrice:
+							(dr["ExtraOneGPPrice"] as number) ?? null,
+						extraOneGbCommission:
+							(dr["ExtraOneGPCommision"] as number) ?? null,
+						canShowRate: toBooleanFromBit(dr["CanShowRate"]),
+						canShowSpeed: toBooleanFromBit(dr["CanShowSpeed"]),
+						noCharge: toBooleanFromBit(dr["NoCharge"]),
+						canSendMail: toBooleanFromBit(dr["CanSendMail"]),
+						canSendSms: toBooleanFromBit(dr["CanSendSMS"]),
+						canExportToExcel: toBooleanFromBit(
+							dr["CanExportToExcel"],
+						),
+						canAddDealer: toBooleanFromBit(dr["CanAddDealer"]),
+						canDeleteUser: toBooleanFromBit(dr["CanDeleteUser"]),
+						canChangeAccountType: toBooleanFromBit(
+							dr["CanChangeAccountType"],
+						),
+						notifyBefore3Days: toBooleanFromBit(
+							dr["NotifyBefore3Days"],
+						),
+						notifyBefore2Days: toBooleanFromBit(
+							dr["NotifyBefore2Days"],
+						),
+						notifyBefore1Day: toBooleanFromBit(
+							dr["NotifyBefore1Day"],
+						),
+						extraGb: toBooleanFromBit(dr["ExtraGB"]),
+						canShowOnlineUsersSpeed: toBooleanFromBit(
+							dr["CanShowOnlineUsersSpeed"],
+						),
+						userNotification: toBooleanFromBit(
+							dr["UserNotification"],
+						),
+						canMonitorLog: toBooleanFromBit(dr["CanMonitorLog"]),
+						chargeIfNotExpiry: toBooleanFromBit(
+							dr["ChargeIfNotExpiry"],
+						),
+						status: dr["Archived"]
+							? ("INACTIVE" as const)
+							: ("ACTIVE" as const),
+					};
+
+					try {
+						if (existing) {
+							dealerMap.set(dealerUserId, existing);
+							await db.ispDealer.update({
+								where: { id: existing },
+								data: dealerData,
+							});
+							result.dealers.updated++;
+						} else {
+							const created = await db.ispDealer.create({
+								data: dealerData,
+							});
+							dealerMap.set(dealerUserId, created.id);
+							result.dealers.created++;
+						}
+					} catch (error) {
+						result.dealers.errors++;
+						if (result.errors.length < 50) {
+							result.errors.push({
+								phase: "dealers",
+								detail: `Dealer ${dealerUserId} "${dr["UserName"]}": ${error instanceof Error ? error.message : "Unknown"}`,
+							});
+						}
+					}
+
+					if (i > 0 && i % 100 === 0) {
+						await updateProgress(operationId, {
+							processedDealers: i,
+						});
+					}
+				}
+
+				// Pass 2: Resolve dealer parent hierarchy (batched)
+				const parentUpdates = [];
+				for (const dr of dealerRows) {
+					if (!dr) {
+						continue;
+					}
+					const parentId = dr["ParentId"] as number | null;
+					if (!parentId) {
+						continue;
+					}
+					const dealerUserId = dr["Id"] as number;
+					const myId = dealerMap.get(dealerUserId);
+					const parentDealerId = dealerMap.get(parentId);
+					if (myId && parentDealerId) {
+						parentUpdates.push(
+							db.ispDealer.update({
+								where: { id: myId },
+								data: { parentDealerId },
 							}),
 						);
 					}
 				}
-			}
-			if (planDealerUpdates.length > 0) {
-				await db.$transaction(planDealerUpdates).catch((error) => {
-					logger.warn(
-						"[iRadius Sync] Plan dealer resolution partially failed",
-						{ error },
-					);
+				if (parentUpdates.length > 0) {
+					await db.$transaction(parentUpdates).catch((error) => {
+						logger.warn(
+							"[iRadius Sync] Dealer parent resolution partially failed",
+							{ error },
+						);
+					});
+				}
+
+				await updateProgress(operationId, {
+					processedDealers: dealerRows.length,
 				});
+
+				// Sub-phase: Dealer Accounts
+				const dealerAccountRows = await queryIRadius(
+					conn,
+					"SELECT Id, DealerId, Credit, Debit, OperationDate, Comment, Balance FROM DealerAccount ORDER BY DealerId, OperationDate",
+				);
+
+				await updateProgress(operationId, {
+					totalDealerAccounts: dealerAccountRows.length,
+				});
+
+				const batchSize = 500;
+				let processedDealerAccounts = 0;
+
+				for (let i = 0; i < dealerAccountRows.length; i += batchSize) {
+					const batch = dealerAccountRows.slice(i, i + batchSize);
+					const createData = [];
+
+					for (const da of batch) {
+						const dealerId = dealerMap.get(
+							da["DealerId"] as number,
+						);
+						if (!dealerId) {
+							result.dealerAccounts.skipped++;
+							continue;
+						}
+
+						const operationDate = safeDate(da["OperationDate"]);
+						if (!operationDate) {
+							result.dealerAccounts.skipped++;
+							continue;
+						}
+
+						createData.push({
+							dealerId,
+							externalId: String(da["Id"]),
+							credit: (da["Credit"] as number) ?? 0,
+							debit: (da["Debit"] as number) ?? 0,
+							balance: (da["Balance"] as number) ?? 0,
+							comment: (da["Comment"] as string) ?? null,
+							operationDate,
+						});
+					}
+
+					if (createData.length > 0) {
+						try {
+							const created =
+								await db.ispDealerAccount.createMany({
+									data: createData,
+									skipDuplicates: true,
+								});
+							result.dealerAccounts.created += created.count;
+						} catch (error) {
+							result.dealerAccounts.errors++;
+							if (result.errors.length < 50) {
+								result.errors.push({
+									phase: "dealerAccounts",
+									detail: `Batch ${Math.floor(i / batchSize) + 1}: ${error instanceof Error ? error.message : "Unknown"}`,
+								});
+							}
+						}
+					}
+
+					processedDealerAccounts += batch.length;
+					if (
+						processedDealerAccounts % 100 === 0 ||
+						i + batchSize >= dealerAccountRows.length
+					) {
+						await updateProgress(operationId, {
+							processedDealerAccounts,
+						});
+					}
+				}
+
+				await updateProgress(operationId, {
+					processedDealerAccounts: dealerAccountRows.length,
+				});
+
+				// In dealers-only mode, we're done — skip remaining phases
+				return result;
+			}
+
+			// Get the org's assigned dealer — used as fallback for records without a resolvable parent
+			const orgRecord = await db.organization.findUnique({
+				where: { id: organizationId },
+				select: { activeDealerId: true },
+			});
+			const activeDealerId = orgRecord?.activeDealerId ?? null;
+
+			// Build a lookup from iRadius dealer User.Id → our IspDealer.id
+			// so we can resolve ParentId on employees/customers to the correct dealer
+			const allDealers = await db.ispDealer.findMany({
+				where: { externalId: { not: null } },
+				select: { id: true, externalId: true },
+			});
+			for (const d of allDealers) {
+				if (d.externalId) {
+					dealerMap.set(Number(d.externalId), d.id);
+				}
 			}
 
 			await updateProgress(operationId, {
-				processedDealers: dealerRows.length,
-			});
-
-			// Sub-phase: Dealer Accounts
-			const dealerAccountRows = await queryIRadius(
-				conn,
-				"SELECT Id, DealerId, Credit, Debit, OperationDate, Comment, Balance FROM DealerAccount ORDER BY DealerId, OperationDate",
-			);
-
-			await updateProgress(operationId, {
-				totalDealerAccounts: dealerAccountRows.length,
+				totalDealers: 0,
+				processedDealers: 0,
 			});
 
 			const batchSize = 500;
-			let processedDealerAccounts = 0;
-
-			for (let i = 0; i < dealerAccountRows.length; i += batchSize) {
-				const batch = dealerAccountRows.slice(i, i + batchSize);
-				const createData = [];
-
-				for (const da of batch) {
-					const dealerId = dealerMap.get(da["DealerId"] as number);
-					if (!dealerId) {
-						result.dealerAccounts.skipped++;
-						continue;
-					}
-
-					const operationDate = safeDate(da["OperationDate"]);
-					if (!operationDate) {
-						result.dealerAccounts.skipped++;
-						continue;
-					}
-
-					createData.push({
-						organizationId,
-						dealerId,
-						externalId: String(da["Id"]),
-						credit: (da["Credit"] as number) ?? 0,
-						debit: (da["Debit"] as number) ?? 0,
-						balance: (da["Balance"] as number) ?? 0,
-						comment: (da["Comment"] as string) ?? null,
-						operationDate,
-					});
-				}
-
-				if (createData.length > 0) {
-					try {
-						const created = await db.ispDealerAccount.createMany({
-							data: createData,
-							skipDuplicates: true,
-						});
-						result.dealerAccounts.created += created.count;
-					} catch (error) {
-						result.dealerAccounts.errors++;
-						if (result.errors.length < 50) {
-							result.errors.push({
-								phase: "dealerAccounts",
-								detail: `Batch ${Math.floor(i / batchSize) + 1}: ${error instanceof Error ? error.message : "Unknown"}`,
-							});
-						}
-					}
-				}
-
-				processedDealerAccounts += batch.length;
-				if (
-					processedDealerAccounts % 100 === 0 ||
-					i + batchSize >= dealerAccountRows.length
-				) {
-					await updateProgress(operationId, {
-						processedDealerAccounts,
-					});
-				}
-			}
-
-			await updateProgress(operationId, {
-				processedDealerAccounts: dealerAccountRows.length,
-			});
 
 			// ================================================================
 			// Phase 7: Employees
@@ -1343,10 +1305,11 @@ async function processIRadiusSync(
 				const existingId = employeeByExtId.get(extId);
 				const profileId = emp["ProfileId"] as number;
 
+				// Resolve dealer from iRadius ParentId hierarchy, fall back to org's active dealer
 				const parentId = emp["ParentId"] as number | null;
-				const empDealerId = parentId
-					? (dealerMap.get(parentId) ?? null)
-					: null;
+				const empDealerId =
+					(parentId ? dealerMap.get(parentId) : null) ??
+					activeDealerId;
 
 				const employeeData = {
 					name:
@@ -1526,11 +1489,11 @@ async function processIRadiusSync(
 					? (apMap.get(u["AccessPointId"] as number) ?? null)
 					: null;
 
-				// FK resolution
-				const parentId = u["ParentId"] as number | null;
-				const dealerId = parentId
-					? (dealerMap.get(parentId) ?? null)
-					: null;
+				// Resolve dealer from iRadius ParentId, fall back to org's active dealer
+				const custParentId = u["ParentId"] as number | null;
+				const dealerId =
+					(custParentId ? dealerMap.get(custParentId) : null) ??
+					activeDealerId;
 				const collectorExtId = u["CollectorId"] as number | null;
 				const collectorId = collectorExtId
 					? (employeeMap.get(collectorExtId) ?? null)

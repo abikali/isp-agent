@@ -1,7 +1,6 @@
 "use client";
 
 export { ActiveSessionsBlock } from "./components/ActiveSessionsBlock";
-export { BillingSyncPreviewDialog } from "./components/BillingSyncPreviewDialog";
 export { BillingSyncSettings } from "./components/BillingSyncSettings";
 export { ChangeEmailForm } from "./components/ChangeEmailForm";
 export { ChangeNameForm } from "./components/ChangeNameForm";
@@ -10,6 +9,10 @@ export { ConnectedAccountsBlock } from "./components/ConnectedAccountsBlock";
 export { CustomerPortalButton } from "./components/CustomerPortalButton";
 export { DeleteAccountForm } from "./components/DeleteAccountForm";
 export { ExportDataForm } from "./components/ExportDataForm";
+export {
+	NoteCategoriesSettings,
+	NoteCategoriesSettingsSkeleton,
+} from "./components/NoteCategoriesSettings";
 export { NotificationPreferencesForm } from "./components/NotificationPreferencesForm";
 export { PasskeysBlock } from "./components/PasskeysBlock";
 export { RequestDeletionForm } from "./components/RequestDeletionForm";

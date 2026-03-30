@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -16,21 +19,24 @@ export const listCollectors = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
 			"view",
 		);
 
-		// Find employees who are assigned as collectors on any customer,
-		// or who have the BILLING department
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+
+		// Find employees who are assigned as collectors on customers
+		// scoped to the active dealer, or who have the BILLING department
+		// and belong to the active dealer
 		const collectors = await db.employee.findMany({
 			where: {
 				organizationId: input.organizationId,
 				OR: [
-					{ department: "BILLING" },
-					{ customerCollections: { some: {} } },
+					{ ...dealerFilter, department: "BILLING" },
+					{ customerCollections: { some: dealerFilter } },
 				],
 			},
 			select: {
@@ -39,7 +45,9 @@ export const listCollectors = protectedProcedure
 				phone: true,
 				department: true,
 				_count: {
-					select: { customerCollections: true },
+					select: {
+						customerCollections: { where: dealerFilter },
+					},
 				},
 			},
 			orderBy: { name: "asc" },

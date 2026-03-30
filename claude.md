@@ -343,7 +343,7 @@ const result = await orpcClient.customers.create({ organizationId, fullName: "..
 - Use package exports (`@repo/api`) not deep imports
 
 **Available Router Modules:**
-`admin`, `aiAgents`, `auth`, `customers`, `employees`, `newsletter`, `integrations`, `organizations`, `users`, `payments`, `audit`, `apiKeys`, `webhooks`, `featureFlags`, `notifications`, `sessions`, `security`, `servicePlans`, `stations`, `tasks`, `watchers`
+`accessPoints`, `admin`, `aiAgents`, `auth`, `billing`, `customers`, `dealers`, `employees`, `newsletter`, `integrations`, `organizations`, `users`, `payments`, `audit`, `apiKeys`, `webhooks`, `featureFlags`, `notifications`, `sessions`, `security`, `servicePlans`, `stations`, `tasks`, `watchers`
 
 ## Core Conventions
 
@@ -472,6 +472,16 @@ The `FieldError` component handles both zod schema errors (Standard Schema forma
 - Use generated clients from `@repo/database`; never instantiate Prisma directly
 - Auth helpers from `@repo/auth` for sessions, passkeys, organizations
 - **Prisma models**: Use PascalCase in schema with `@@map("table_name")` for DB mapping. Access via camelCase: `db.apiKey`, `db.profileLead`, `db.webhookDelivery`
+- **Prisma enums in client code**: Import from `@repo/database/enums` (NOT `@repo/database`). The main `@repo/database` export pulls in the Prisma client and `pg` driver, which crash in the browser. The `/enums` path exports only pure constants with zero Node.js dependencies.
+
+```typescript
+// In client components (apps/web)
+import { PaymentStatus } from "@repo/database/enums";  // ✅ browser-safe
+import { PaymentStatus } from "@repo/database";          // ❌ bundles pg into client
+
+// In server code (packages/api)
+import { PaymentStatus, db } from "@repo/database";      // ✅ fine on server
+```
 
 ### Database Schema Changes
 

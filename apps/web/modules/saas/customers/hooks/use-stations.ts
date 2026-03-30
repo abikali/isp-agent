@@ -9,12 +9,19 @@ import {
 	useSuspenseQuery,
 } from "@tanstack/react-query";
 
-export function useStations() {
+export function useStations(filters?: {
+	search?: string;
+	status?: "ACTIVE" | "MAINTENANCE" | "OFFLINE";
+	online?: boolean;
+}) {
 	const organizationId = useOrganizationId();
 
 	const query = useSuspenseQuery(
 		orpc.stations.list.queryOptions({
-			input: { organizationId: organizationId ?? "" },
+			input: {
+				organizationId: organizationId ?? "",
+				...filters,
+			},
 		}),
 	);
 

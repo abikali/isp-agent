@@ -1,13 +1,14 @@
 "use client";
 
-import { Pagination } from "@saas/shared/components/Pagination";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { displayName } from "@shared/lib/display-name";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	Dialog,
 	DialogContent,
@@ -17,18 +18,28 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { OctagonXIcon, PlayIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useReactivateAccount, useStoppedAccounts } from "../hooks/use-billing";
+
+const PAGE_SIZE = 25;
+
+interface StoppedPaymentRow {
+	id: string;
+	customer: {
+		firstName: string | null;
+		lastName: string | null;
+		username: string | null;
+		plan: { name: string } | null;
+		groupName: string | null;
+		expiresAt: string | Date | null;
+	};
+	collector: { name: string };
+	paidAt: string | Date;
+	noteCategory: string | null;
+	notes: string | null;
+}
 
 export function StoppedAccountsList() {
 	const [search, setSearch] = useState("");
@@ -40,10 +51,112 @@ export function StoppedAccountsList() {
 		currentExpiry: string | null;
 	} | null>(null);
 
-	const { payments, total, totalPages } = useStoppedAccounts({
+	const { payments, total } = useStoppedAccounts({
 		search: debouncedSearch || undefined,
 		page,
 	});
+
+	const columns = useMemo<ColumnDef<StoppedPaymentRow, unknown>[]>(
+		() => [
+			{
+				id: "customer",
+				header: "Customer",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<>
+						<div className="font-medium">
+							{displayName(
+								row.original.customer.firstName,
+								row.original.customer.lastName,
+							)}
+						</div>
+						<div className="text-xs text-muted-foreground">
+							{row.original.customer.username}
+						</div>
+					</>
+				),
+			},
+			{
+				id: "plan",
+				header: "Plan",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.customer.plan?.name ?? "\u2014"}
+					</span>
+				),
+			},
+			{
+				id: "group",
+				header: "Group",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.customer.groupName ?? "\u2014"}
+					</span>
+				),
+			},
+			{
+				id: "collector",
+				header: "Collector",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.collector.name}
+					</span>
+				),
+			},
+			{
+				id: "stoppedOn",
+				header: "Stopped On",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{new Date(row.original.paidAt).toLocaleDateString()}
+					</span>
+				),
+			},
+			{
+				id: "note",
+				header: "Note",
+				enableSorting: false,
+				meta: {
+					className:
+						"max-w-28 truncate text-xs text-muted-foreground",
+				},
+				cell: ({ row }) =>
+					row.original.noteCategory ?? row.original.notes ?? "\u2014",
+			},
+			{
+				id: "actions",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() =>
+							setReactivatePayment({
+								id: row.original.id,
+								customerName: displayName(
+									row.original.customer.firstName,
+									row.original.customer.lastName,
+								),
+								currentExpiry: row.original.customer.expiresAt
+									? (new Date(row.original.customer.expiresAt)
+											.toISOString()
+											.split("T")[0] ?? null)
+									: null,
+							})
+						}
+					>
+						<PlayIcon className="mr-1 size-3.5" />
+						Reactivate
+					</Button>
+				),
+			},
+		],
+		[],
+	);
 
 	return (
 		<PageShell
@@ -57,108 +170,23 @@ export function StoppedAccountsList() {
 					placeholder="Search customers..."
 				/>
 
-				{payments.length === 0 ? (
-					<EmptyState
-						icon={OctagonXIcon}
-						title="No stopped accounts"
-						description="No stopped accounts found."
-					/>
-				) : (
-					<div className="rounded-xl border bg-card">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Customer</TableHead>
-									<TableHead>Plan</TableHead>
-									<TableHead>Group</TableHead>
-									<TableHead>Collector</TableHead>
-									<TableHead>Stopped On</TableHead>
-									<TableHead>Note</TableHead>
-									<TableHead />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{payments.map((payment) => (
-									<TableRow key={payment.id}>
-										<TableCell>
-											<div className="font-medium">
-												{displayName(
-													payment.customer.firstName,
-													payment.customer.lastName,
-												)}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												{payment.customer.username}
-											</div>
-										</TableCell>
-										<TableCell className="text-sm">
-											{payment.customer.plan?.name ?? "—"}
-										</TableCell>
-										<TableCell className="text-sm">
-											{payment.customer.groupName ?? "—"}
-										</TableCell>
-										<TableCell className="text-sm">
-											{payment.collector.name}
-										</TableCell>
-										<TableCell className="text-sm">
-											{new Date(
-												payment.paidAt,
-											).toLocaleDateString()}
-										</TableCell>
-										<TableCell className="max-w-28 truncate text-xs text-muted-foreground">
-											{payment.noteCategory ??
-												payment.notes ??
-												"—"}
-										</TableCell>
-										<TableCell>
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() =>
-													setReactivatePayment({
-														id: payment.id,
-														customerName:
-															displayName(
-																payment.customer
-																	.firstName,
-																payment.customer
-																	.lastName,
-															),
-														currentExpiry: payment
-															.customer.expiresAt
-															? (new Date(
-																	payment
-																		.customer
-																		.expiresAt,
-																)
-																	.toISOString()
-																	.split(
-																		"T",
-																	)[0] ??
-																null)
-															: null,
-													})
-												}
-											>
-												<PlayIcon className="mr-1 size-3.5" />
-												Reactivate
-											</Button>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
-
-				{totalPages > 1 && (
-					<Pagination
-						totalItems={total}
-						itemsPerPage={25}
-						currentPage={page}
-						onChangeCurrentPage={setPage}
-					/>
-				)}
+				<DataTable
+					columns={columns}
+					data={payments}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: setPage,
+					}}
+					emptyState={
+						<EmptyState
+							icon={OctagonXIcon}
+							title="No stopped accounts"
+							description="No stopped accounts found."
+						/>
+					}
+				/>
 			</div>
 
 			{reactivatePayment && (

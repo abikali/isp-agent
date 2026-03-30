@@ -1,18 +1,17 @@
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const createDealer = protectedProcedure
+export const createDealer = adminProcedure
 	.route({
 		method: "POST",
-		path: "/dealers",
+		path: "/admin/dealers",
 		tags: ["Dealers"],
-		summary: "Create a new dealer",
+		summary: "Create a new dealer (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
+			organizationId: z.string().optional(),
 			name: z.string().min(1).max(100),
 			username: z.string().max(100).optional(),
 			email: z.string().email().optional(),
@@ -44,17 +43,10 @@ export const createDealer = protectedProcedure
 			canChangeAccountType: z.boolean().default(false),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"dealers",
-			"create",
-		);
-
+	.handler(async ({ input }) => {
 		const dealer = await db.ispDealer.create({
 			data: {
-				organizationId: input.organizationId,
+				organizationId: input.organizationId ?? null,
 				name: input.name,
 				username: input.username ?? null,
 				email: input.email ?? null,

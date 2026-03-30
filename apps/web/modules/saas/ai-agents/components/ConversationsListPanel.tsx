@@ -33,6 +33,7 @@ import {
 
 export interface ConversationItem {
 	id: string;
+	externalChatId: string;
 	contactName: string | null;
 	status: string;
 	pinned: boolean;
@@ -152,6 +153,10 @@ export function ConversationsListPanel({
 		const initials = getContactInitials(conv.contactName);
 		const avatarColor = getAvatarColor(conv.contactName);
 		const channelProvider = conv.channel?.provider;
+		const showPhoneNumber =
+			conv.channel?.provider &&
+			conv.channel.provider !== "web" &&
+			conv.externalChatId;
 
 		return (
 			<div className="flex w-full items-center gap-3 px-3 py-3 text-left">
@@ -174,13 +179,20 @@ export function ConversationsListPanel({
 				{/* Content */}
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center justify-between gap-2">
-						<div className="flex min-w-0 items-center gap-1.5">
-							{conv.pinned && (
-								<PinIcon className="size-3 shrink-0 text-primary" />
+						<div className="min-w-0">
+							<div className="flex items-center gap-1.5">
+								{conv.pinned && (
+									<PinIcon className="size-3 shrink-0 text-primary" />
+								)}
+								<span className="truncate text-sm font-medium">
+									{conv.contactName || "Unknown Contact"}
+								</span>
+							</div>
+							{showPhoneNumber && (
+								<span className="block truncate text-[11px] text-muted-foreground">
+									{conv.externalChatId}
+								</span>
 							)}
-							<span className="truncate text-sm font-medium">
-								{conv.contactName || "Unknown Contact"}
-							</span>
 						</div>
 						{conv.lastMessageAt && (
 							<span className="shrink-0 text-[11px] text-muted-foreground">

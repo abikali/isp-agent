@@ -1,159 +1,233 @@
 "use client";
 
+import { EmptyState } from "@shared/components/EmptyState";
+import { FilterBar } from "@shared/components/FilterBar";
+import { PageShell } from "@shared/components/PageShell";
+import { useDebouncedValue } from "@tanstack/react-pacer";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
-import { Card, CardContent } from "@ui/components/card";
-import { Input } from "@ui/components/input";
+import { DataTable } from "@ui/components/data-table";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
-import { SearchIcon, UsersIcon, WifiIcon } from "lucide-react";
-import { useState } from "react";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ui/components/select";
+import { UsersIcon, WifiIcon, WifiOffIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useAccessPoints } from "../hooks/use-access-points";
+import { useStationsQuery } from "../hooks/use-stations";
+
+type AccessPoint = ReturnType<typeof useAccessPoints>["accessPoints"][number];
 
 export function AccessPointsList() {
-	const { accessPoints } = useAccessPoints();
 	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
+	const [stationFilter, setStationFilter] = useState("");
+	const [onlineFilter, setOnlineFilter] = useState("");
+	const { accessPoints } = useAccessPoints({
+		search: debouncedSearch || undefined,
+		stationId: stationFilter || undefined,
+		online:
+			onlineFilter === "online"
+				? true
+				: onlineFilter === "offline"
+					? false
+					: undefined,
+	});
 
-	const filtered = search
-		? accessPoints.filter(
-				(ap) =>
-					ap.name.toLowerCase().includes(search.toLowerCase()) ||
-					ap.ipAddress
-						?.toLowerCase()
-						.includes(search.toLowerCase()) ||
-					ap.macAddress
-						?.toLowerCase()
-						.includes(search.toLowerCase()) ||
-					ap.station?.name
-						?.toLowerCase()
-						.includes(search.toLowerCase()),
-			)
-		: accessPoints;
+	const { stations } = useStationsQuery();
 
 	const onlineCount = accessPoints.filter((ap) => ap.online).length;
 
+	const activeFilterCount = (stationFilter ? 1 : 0) + (onlineFilter ? 1 : 0);
+
+	function resetFilters() {
+		setSearch("");
+		setStationFilter("");
+		setOnlineFilter("");
+	}
+
+	const columns = useMemo<ColumnDef<AccessPoint, unknown>[]>(
+		() => [
+			{
+				accessorKey: "name",
+				header: "Name",
+				cell: ({ row }) => (
+					<div>
+						<p className="font-medium">{row.original.name}</p>
+						{row.original.macAddress && (
+							<p className="font-mono text-xs text-muted-foreground">
+								{row.original.macAddress}
+							</p>
+						)}
+					</div>
+				),
+			},
+			{
+				accessorKey: "station",
+				header: "Station",
+				meta: { className: "hidden sm:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.station?.name ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "ipAddress",
+				header: "IP Address",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="font-mono text-xs">
+						{row.original.ipAddress ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "signal",
+				header: "Signal",
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.signal ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "boardName",
+				header: "Board",
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-xs">
+						{row.original.boardName ?? (
+							<span className="text-muted-foreground">
+								&mdash;
+							</span>
+						)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "online",
+				header: "Status",
+				cell: ({ row }) =>
+					row.original.online ? (
+						<Badge
+							variant="outline"
+							className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30"
+						>
+							<WifiIcon className="mr-1 size-3" />
+							Online
+						</Badge>
+					) : (
+						<Badge
+							variant="outline"
+							className="text-muted-foreground"
+						>
+							<WifiOffIcon className="mr-1 size-3" />
+							Offline
+						</Badge>
+					),
+			},
+			{
+				id: "customers",
+				header: "Customers",
+				enableSorting: false,
+				cell: ({ row }) => (
+					<span className="flex items-center gap-1 text-sm tabular-nums text-muted-foreground">
+						<UsersIcon className="size-3" />
+						{row.original._count.customers}
+					</span>
+				),
+			},
+		],
+		[],
+	);
+
 	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold">Access Points</h1>
-				<p className="text-muted-foreground">
-					{accessPoints.length} access points ({onlineCount} online)
-				</p>
-			</div>
+		<PageShell
+			title="Access Points"
+			description={`${accessPoints.length} access points (${onlineCount} online)`}
+		>
+			<FilterBar
+				searchPlaceholder="Search by name, IP, or MAC..."
+				searchValue={search}
+				onSearchChange={setSearch}
+				activeFilterCount={activeFilterCount}
+				onReset={resetFilters}
+			>
+				{stations.length > 0 && (
+					<Select
+						value={stationFilter || "all"}
+						onValueChange={(val) =>
+							setStationFilter(val === "all" ? "" : val)
+						}
+					>
+						<SelectTrigger className="w-[170px]">
+							<SelectValue placeholder="All stations" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All stations</SelectItem>
+							{stations.map((s) => (
+								<SelectItem key={s.id} value={s.id}>
+									{s.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				)}
+				<Select
+					value={onlineFilter || "all"}
+					onValueChange={(val) =>
+						setOnlineFilter(val === "all" ? "" : val)
+					}
+				>
+					<SelectTrigger className="w-[140px]">
+						<SelectValue placeholder="Connectivity" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All</SelectItem>
+						<SelectItem value="online">Online</SelectItem>
+						<SelectItem value="offline">Offline</SelectItem>
+					</SelectContent>
+				</Select>
+			</FilterBar>
 
-			<div className="mb-4">
-				<div className="relative max-w-sm">
-					<SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder="Search by name, IP, MAC, or station..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			{filtered.length === 0 ? (
-				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-					<WifiIcon className="mb-3 size-10 text-muted-foreground" />
-					<h3 className="mb-1 text-lg font-medium">
-						{search
-							? "No access points match your search"
-							: "No access points yet"}
-					</h3>
-					<p className="text-sm text-muted-foreground">
-						{search
-							? "Try a different search term."
-							: "Access points will appear here after syncing from iRadius."}
-					</p>
-				</div>
-			) : (
-				<Card>
-					<CardContent className="p-0">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Name</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Station
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										IP Address
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Signal
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Board
-									</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="text-right">
-										Customers
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{filtered.map((ap) => (
-									<TableRow key={ap.id}>
-										<TableCell>
-											<div>
-												<p className="font-medium">
-													{ap.name}
-												</p>
-												{ap.macAddress && (
-													<p className="font-mono text-xs text-muted-foreground">
-														{ap.macAddress}
-													</p>
-												)}
-											</div>
-										</TableCell>
-										<TableCell className="hidden text-sm sm:table-cell">
-											{ap.station?.name ?? (
-												<span className="text-muted-foreground">
-													-
-												</span>
-											)}
-										</TableCell>
-										<TableCell className="hidden font-mono text-xs md:table-cell">
-											{ap.ipAddress ?? "-"}
-										</TableCell>
-										<TableCell className="hidden text-sm lg:table-cell">
-											{ap.signal ?? "-"}
-										</TableCell>
-										<TableCell className="hidden text-xs lg:table-cell">
-											{ap.boardName ?? "-"}
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													ap.online
-														? "default"
-														: "destructive"
-												}
-											>
-												{ap.online
-													? "Online"
-													: "Offline"}
-											</Badge>
-										</TableCell>
-										<TableCell className="text-right">
-											<span className="flex items-center justify-end gap-1 text-sm text-muted-foreground">
-												<UsersIcon className="size-3" />
-												{ap._count.customers}
-											</span>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</CardContent>
-				</Card>
-			)}
-		</div>
+			<DataTable
+				columns={columns}
+				data={accessPoints}
+				emptyState={
+					accessPoints.length === 0 &&
+					!activeFilterCount &&
+					!debouncedSearch ? (
+						<EmptyState
+							icon={WifiIcon}
+							title="No access points yet"
+							description="Access points will appear here after syncing from iRadius."
+						/>
+					) : (
+						<EmptyState
+							icon={WifiIcon}
+							title="No results found"
+							description="Try adjusting your search or filters."
+						/>
+					)
+				}
+			/>
+		</PageShell>
 	);
 }

@@ -102,6 +102,15 @@ export async function verifyOrganizationMembership(
 				userId,
 			},
 		},
+		include: {
+			organization: {
+				select: {
+					activeDealerId: true,
+					activeBillingYear: true,
+					activeBillingMonth: true,
+				},
+			},
+		},
 	});
 
 	if (!member) {
@@ -113,5 +122,11 @@ export async function verifyOrganizationMembership(
 		member.role,
 	);
 
-	return { ...member, rolePermissions };
+	return {
+		...member,
+		rolePermissions,
+		activeDealerId: member.organization.activeDealerId,
+		activeBillingYear: member.organization.activeBillingYear,
+		activeBillingMonth: member.organization.activeBillingMonth,
+	};
 }

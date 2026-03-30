@@ -1,6 +1,7 @@
 "use client";
 
 import { useActiveOrganization } from "@saas/organizations/client";
+import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import {
@@ -22,7 +23,8 @@ import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useCreatePayment } from "../hooks/use-billing";
+import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
+import { calculateTotalDue } from "../lib/billing-utils";
 
 interface PaymentDialogProps {
 	open: boolean;
@@ -42,17 +44,6 @@ interface PaymentDialogProps {
 	};
 }
 
-const NOTE_CATEGORIES = [
-	{ value: "DOWNGRADE", label: "Downgrade" },
-	{ value: "UPGRADE", label: "Upgrade" },
-	{ value: "DISCOUNT", label: "Discount" },
-	{ value: "REFERRAL", label: "Friend Referral" },
-	{ value: "MOVED", label: "Moved House" },
-	{ value: "POOR_SERVICE", label: "Poor Service" },
-	{ value: "CANT_PAY", label: "Can't Pay" },
-	{ value: "TEMP_STOP", label: "Temporary Stop" },
-] as const;
-
 export function PaymentDialog({
 	open,
 	onOpenChange,
@@ -61,24 +52,23 @@ export function PaymentDialog({
 	const organizationId = useOrganizationId();
 	const { employee } = useActiveOrganization();
 	const createPayment = useCreatePayment();
+	const { data: noteCategoriesData } = useNoteCategories();
+	const noteCategories = noteCategoriesData?.categories ?? [];
 
 	const accountPrice =
 		customer.monthlyRate ?? customer.plan?.monthlyPrice ?? 0;
 	const iptvPrice = customer.iptvPrice ?? 0;
 	const realIpPrice = customer.realIpPrice ?? 0;
 	const discountAmount = customer.discount ?? 0;
+	const fullDue = calculateTotalDue(customer);
 
-	const [paidAmount, setPaidAmount] = useState(
-		String(accountPrice + iptvPrice + realIpPrice - discountAmount),
-	);
+	const [paidAmount, setPaidAmount] = useState(String(fullDue));
 	const [freeAccount, setFreeAccount] = useState(false);
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
 
-	const totalDue = freeAccount
-		? iptvPrice + realIpPrice
-		: accountPrice + iptvPrice + realIpPrice - discountAmount;
+	const totalDue = freeAccount ? iptvPrice + realIpPrice : fullDue;
 
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -98,9 +88,7 @@ export function PaymentDialog({
 				discount: discountAmount,
 				freeAccount,
 				stoppedAccount,
-				noteCategory: noteCategory
-					? (noteCategory as (typeof NOTE_CATEGORIES)[number]["value"])
-					: undefined,
+				noteCategory: noteCategory || undefined,
 				notes: notes || undefined,
 			},
 			{
@@ -145,7 +133,7 @@ export function PaymentDialog({
 							)}
 						</div>
 						<div className="mt-2 border-t pt-2 font-medium">
-							Total Due: ${totalDue.toFixed(2)}
+							Total Due: {formatCurrency(totalDue)}
 						</div>
 					</div>
 
@@ -193,12 +181,14 @@ export function PaymentDialog({
 								<SelectValue placeholder="Optional" />
 							</SelectTrigger>
 							<SelectContent>
-								{NOTE_CATEGORIES.map((cat) => (
+								{noteCategories.map((cat) => (
 									<SelectItem
 										key={cat.value}
 										value={cat.value}
 									>
-										{cat.label}
+										{cat.labelAr
+											? `${cat.label} (${cat.labelAr})`
+											: cat.label}
 									</SelectItem>
 								))}
 							</SelectContent>

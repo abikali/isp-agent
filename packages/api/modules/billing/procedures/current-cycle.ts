@@ -1,7 +1,7 @@
 import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { resolveOrCreateBillingCycle } from "../lib/resolve-cycle";
 
 export const getCurrentCycle = protectedProcedure
 	.route({
@@ -16,33 +16,19 @@ export const getCurrentCycle = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeBillingYear, activeBillingMonth } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"billing",
+				"view",
+			);
+
+		const cycle = await resolveOrCreateBillingCycle(
 			input.organizationId,
-			user.id,
-			"billing",
-			"view",
+			activeBillingYear,
+			activeBillingMonth,
 		);
-
-		const now = new Date();
-		const year = now.getFullYear();
-		const month = now.getMonth() + 1;
-
-		const cycle = await db.billingCycle.upsert({
-			where: {
-				organizationId_year_month: {
-					organizationId: input.organizationId,
-					year,
-					month,
-				},
-			},
-			update: {},
-			create: {
-				organizationId: input.organizationId,
-				year,
-				month,
-				status: "OPEN",
-			},
-		});
 
 		return { cycle };
 	});

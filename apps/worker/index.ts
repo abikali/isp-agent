@@ -6,9 +6,11 @@ import {
 	createEmailWorker,
 	createIntegrationSyncWorker,
 	createIRadiusSyncWorker,
+	createOrgSetupWorker,
 	createScheduledWorker,
 	createWatcherCheckWorker,
 	createWebhookWorker,
+	createWhatsAppReceiptWorker,
 	getRedisConnection,
 	setupScheduledJobs,
 } from "@repo/jobs";
@@ -29,6 +31,8 @@ async function main() {
 	const scheduledWorker = createScheduledWorker();
 	const iRadiusSyncWorker = createIRadiusSyncWorker();
 	const integrationSyncWorker = createIntegrationSyncWorker();
+	const orgSetupWorker = createOrgSetupWorker();
+	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -46,7 +50,9 @@ async function main() {
 			"webhook",
 			"scheduled",
 			"integration-sync",
+			"org-setup",
 			"watcher-check",
+			"whatsapp-receipt",
 		],
 	});
 
@@ -62,7 +68,9 @@ async function main() {
 			webhookWorker.close(),
 			scheduledWorker.close(),
 			integrationSyncWorker.close(),
+			orgSetupWorker.close(),
 			watcherCheckWorker.close(),
+			whatsAppReceiptWorker.close(),
 		]);
 
 		await closeConnection();

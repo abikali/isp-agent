@@ -3,31 +3,35 @@
 import { authClient } from "@repo/auth/client";
 import { getAdminPath } from "@saas/admin/lib/links";
 import { OrganizationLogo } from "@saas/organizations/client";
-import { Pagination, useConfirmationAlert } from "@saas/shared/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { Spinner } from "@shared/components/Spinner";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useLocation } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-	flexRender,
-	getCoreRowModel,
-	getPaginationRowModel,
-	useReactTable,
-} from "@tanstack/react-table";
+import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card } from "@ui/components/card";
+import { DataTable } from "@ui/components/data-table";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Input } from "@ui/components/input";
 import { Skeleton } from "@ui/components/skeleton";
-import { Table, TableBody, TableCell, TableRow } from "@ui/components/table";
-import { EditIcon, MoreVerticalIcon, PlusIcon, TrashIcon } from "lucide-react";
+import {
+	EditIcon,
+	HandshakeIcon,
+	MoreVerticalIcon,
+	PlusIcon,
+	ShieldAlertIcon,
+	TrashIcon,
+	UsersIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { withQuery } from "ufo";
@@ -37,10 +41,6 @@ const routeApi = getRouteApi("/_saas/app/_account/admin/organizations/");
 
 export const ADMIN_ORGANIZATIONS_ITEMS_PER_PAGE = 10;
 
-/**
- * Loading skeleton for the organization list.
- * Used as Suspense fallback when data is being fetched.
- */
 export function OrganizationListSkeleton() {
 	return (
 		<Card className="p-6">
@@ -78,7 +78,6 @@ export function OrganizationList() {
 	const { confirm } = useConfirmationAlert();
 	const queryClient = useQueryClient();
 
-	// URL state for filters with TanStack Router
 	const searchParams = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 
@@ -96,7 +95,6 @@ export function OrganizationList() {
 		[navigate],
 	);
 
-	// Use TanStack Pacer for debouncing - handles sync automatically
 	const [debouncedSearchTerm] = useDebouncedValue(searchTerm, {
 		wait: 300,
 		leading: true,
@@ -165,42 +163,87 @@ export function OrganizationList() {
 		[queryClient],
 	);
 
-	const columns: ColumnDef<
-		NonNullable<typeof data>["organizations"][number]
-	>[] = useMemo(
+	type Organization = NonNullable<typeof data>["organizations"][number];
+
+	const columns: ColumnDef<Organization, unknown>[] = useMemo(
 		() => [
 			{
-				accessorKey: "user",
-				header: "",
+				accessorKey: "name",
+				header: "Organization",
 				accessorFn: (row) => row.name,
 				cell: ({
 					row: {
 						original: { id, name, logo, membersCount },
 					},
 				}) => (
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-3">
 						<OrganizationLogo name={name} logoUrl={logo} />
 						<div className="leading-tight">
 							<Link
 								to={getOrganizationEditPath(id)}
-								className="block font-bold"
+								className="block font-medium hover:underline"
 							>
 								{name}
 							</Link>
-							<small>
+							<span className="text-xs text-muted-foreground">
 								{membersCount}{" "}
 								{membersCount === 1 ? "member" : "members"}
-							</small>
+							</span>
 						</div>
 					</div>
 				),
 			},
 			{
+				id: "dealer",
+				header: "Active Dealer",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const dealer = row.original.activeDealer;
+					if (dealer) {
+						return (
+							<Badge
+								variant="outline"
+								className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30"
+							>
+								<HandshakeIcon className="mr-1 size-3" />
+								{dealer.name}
+							</Badge>
+						);
+					}
+					return (
+						<Badge variant="destructive">
+							<ShieldAlertIcon className="mr-1 size-3" />
+							No dealer
+						</Badge>
+					);
+				},
+			},
+			{
+				id: "counts",
+				header: "Overview",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const org = row.original;
+					return (
+						<div className="flex items-center gap-3 text-xs text-muted-foreground">
+							<span className="tabular-nums" title="Customers">
+								{org.customersCount} customers
+							</span>
+							<span className="text-border">|</span>
+							<span className="tabular-nums" title="Employees">
+								{org.employeesCount} employees
+							</span>
+						</div>
+					);
+				},
+			},
+			{
 				accessorKey: "actions",
 				header: "",
+				enableSorting: false,
 				cell: ({
 					row: {
-						original: { id },
+						original: { id, slug },
 					},
 				}) => {
 					return (
@@ -211,7 +254,7 @@ export function OrganizationList() {
 										<MoreVerticalIcon className="size-4" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent>
+								<DropdownMenuContent align="end">
 									<DropdownMenuItem asChild>
 										<Link
 											to={getOrganizationEditPath(id)}
@@ -221,6 +264,18 @@ export function OrganizationList() {
 											Edit
 										</Link>
 									</DropdownMenuItem>
+									{slug && (
+										<DropdownMenuItem asChild>
+											<a
+												href={`/app/${slug}`}
+												className="flex items-center"
+											>
+												<UsersIcon className="mr-2 size-4" />
+												View as org
+											</a>
+										</DropdownMenuItem>
+									)}
+									<DropdownMenuSeparator />
 									<DropdownMenuItem
 										onClick={() =>
 											confirm({
@@ -254,14 +309,6 @@ export function OrganizationList() {
 		[data?.organizations],
 	);
 
-	const table = useReactTable({
-		data: organizations,
-		columns,
-		getCoreRowModel: getCoreRowModel(),
-		getPaginationRowModel: getPaginationRowModel(),
-		manualPagination: true,
-	});
-
 	return (
 		<Card className="p-6">
 			<div className="mb-4 flex items-center justify-between gap-6">
@@ -287,61 +334,27 @@ export function OrganizationList() {
 				)}
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableBody>
-						{table.getRowModel().rows?.length ? (
-							table.getRowModel().rows.map((row) => (
-								<TableRow
-									key={row.id}
-									data-state={
-										row.getIsSelected() && "selected"
-									}
-									className="group"
-								>
-									{row.getVisibleCells().map((cell) => (
-										<TableCell
-											key={cell.id}
-											className="py-2 group-first:rounded-t-md group-last:rounded-b-md"
-										>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : (
-							<TableRow>
-								<TableCell
-									colSpan={columns.length}
-									className="h-24 text-center"
-								>
-									{isLoading ? (
-										<div className="flex h-full items-center justify-center">
-											<Spinner className="mr-2 size-4 text-primary" />
-											Loading...
-										</div>
-									) : (
-										<p>No results.</p>
-									)}
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</div>
-
-			{!!data?.total && data.total > ITEMS_PER_PAGE && (
-				<Pagination
-					className="mt-4"
-					totalItems={data.total}
-					itemsPerPage={ITEMS_PER_PAGE}
-					currentPage={currentPage}
-					onChangeCurrentPage={setCurrentPage}
-				/>
-			)}
+			<DataTable
+				columns={columns}
+				data={organizations}
+				isLoading={isLoading}
+				isFetching={isFetching}
+				emptyState={
+					<p className="h-24 flex items-center justify-center text-muted-foreground">
+						No results.
+					</p>
+				}
+				pagination={
+					data?.total && data.total > ITEMS_PER_PAGE
+						? {
+								totalItems: data.total,
+								currentPage,
+								itemsPerPage: ITEMS_PER_PAGE,
+								onPageChange: setCurrentPage,
+							}
+						: undefined
+				}
+			/>
 		</Card>
 	);
 }

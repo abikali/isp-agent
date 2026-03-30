@@ -13,7 +13,6 @@ import { SearchIcon } from "lucide-react";
 import {
 	TASK_CATEGORY_OPTIONS,
 	TASK_PRIORITY_OPTIONS,
-	TASK_SOURCE_OPTIONS,
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
 
@@ -26,8 +25,6 @@ interface TaskFiltersProps {
 	onPriorityChange: (value: string) => void;
 	category: string;
 	onCategoryChange: (value: string) => void;
-	source: string;
-	onSourceChange: (value: string) => void;
 	employeeId: string;
 	onEmployeeIdChange: (value: string) => void;
 }
@@ -41,8 +38,6 @@ export function TaskFilters({
 	onPriorityChange,
 	category,
 	onCategoryChange,
-	source,
-	onSourceChange,
 	employeeId,
 	onEmployeeIdChange,
 }: TaskFiltersProps) {
@@ -95,20 +90,6 @@ export function TaskFilters({
 				<SelectContent>
 					<SelectItem value="all">All Categories</SelectItem>
 					{TASK_CATEGORY_OPTIONS.map((opt) => (
-						<SelectItem key={opt.value} value={opt.value}>
-							{opt.label}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-
-			<Select value={source} onValueChange={onSourceChange}>
-				<SelectTrigger className="w-[140px]">
-					<SelectValue placeholder="Source" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="all">All Sources</SelectItem>
-					{TASK_SOURCE_OPTIONS.map((opt) => (
 						<SelectItem key={opt.value} value={opt.value}>
 							{opt.label}
 						</SelectItem>

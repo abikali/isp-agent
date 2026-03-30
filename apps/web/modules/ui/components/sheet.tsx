@@ -59,6 +59,7 @@ const SheetContent = ({
 	<SheetPortal>
 		<SheetOverlay />
 		<SheetPrimitive.Content
+			aria-describedby={undefined}
 			className={sheetVariants({ side, className })}
 			{...props}
 		>

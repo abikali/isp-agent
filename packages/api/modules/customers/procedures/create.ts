@@ -40,7 +40,7 @@ export const createCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -55,6 +55,7 @@ export const createCustomer = protectedProcedure
 				accountNumber,
 				firstName: input.firstName,
 				lastName: input.lastName ?? null,
+				dealerId: activeDealerId ?? null,
 				fullName: [input.firstName, input.lastName]
 					.filter(Boolean)
 					.join(" "),

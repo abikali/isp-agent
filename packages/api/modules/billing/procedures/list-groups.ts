@@ -1,4 +1,8 @@
-import { getActionScope, requirePermission } from "@repo/api/lib/permission";
+import {
+	getActionScope,
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -16,7 +20,7 @@ export const listCustomerGroups = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -26,6 +30,7 @@ export const listCustomerGroups = protectedProcedure
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			groupName: { not: null },
+			...getDealerScopeFilter(activeDealerId),
 		};
 
 		// If scope is "own", only show groups for this collector's customers

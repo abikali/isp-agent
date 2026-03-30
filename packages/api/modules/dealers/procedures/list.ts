@@ -1,18 +1,18 @@
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const listDealers = protectedProcedure
+export const listDealers = adminProcedure
 	.route({
 		method: "GET",
-		path: "/dealers",
+		path: "/admin/dealers",
 		tags: ["Dealers"],
-		summary: "List dealers with pagination, search, and filters",
+		summary:
+			"List dealers with pagination, search, and filters (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
+			organizationId: z.string().optional(),
 			search: z.string().optional(),
 			status: z
 				.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"])
@@ -21,17 +21,12 @@ export const listDealers = protectedProcedure
 			pageSize: z.number().int().min(10).max(100).default(25),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"dealers",
-			"read",
-		);
+	.handler(async ({ input }) => {
+		const where: Record<string, unknown> = {};
 
-		const where: Record<string, unknown> = {
-			organizationId: input.organizationId,
-		};
+		if (input.organizationId) {
+			where["organizationId"] = input.organizationId;
+		}
 
 		if (input.status) {
 			where["status"] = input.status;

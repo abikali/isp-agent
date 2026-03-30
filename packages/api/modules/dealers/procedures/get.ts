@@ -1,34 +1,24 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const getDealer = protectedProcedure
+export const getDealer = adminProcedure
 	.route({
 		method: "GET",
-		path: "/dealers/{id}",
+		path: "/admin/dealers/{id}",
 		tags: ["Dealers"],
-		summary: "Get a single dealer",
+		summary: "Get a single dealer (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
 			id: z.string(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"dealers",
-			"read",
-		);
-
+	.handler(async ({ input }) => {
 		const dealer = await db.ispDealer.findFirst({
 			where: {
 				id: input.id,
-				organizationId: input.organizationId,
 			},
 			include: {
 				parentDealer: { select: { id: true, name: true } },

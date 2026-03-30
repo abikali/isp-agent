@@ -13,55 +13,76 @@ export const getTaskStats = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
+			sources: z
+				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]))
+				.optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input: { organizationId } }) => {
-		await requirePermission(organizationId, user.id, "tasks", "read");
+	.handler(async ({ context: { user }, input }) => {
+		const { organizationId } = input;
+		const { activeDealerId } = await requirePermission(
+			organizationId,
+			user.id,
+			"tasks",
+			"read",
+		);
 
-		const [
-			total,
-			open,
-			inProgress,
-			onHold,
-			completed,
-			cancelled,
-			overdue,
-			unassigned,
-		] = await Promise.all([
-			db.task.count({ where: { organizationId } }),
-			db.task.count({
-				where: { organizationId, status: "OPEN" },
-			}),
-			db.task.count({
-				where: { organizationId, status: "IN_PROGRESS" },
-			}),
-			db.task.count({
-				where: { organizationId, status: "ON_HOLD" },
-			}),
-			db.task.count({
-				where: { organizationId, status: "COMPLETED" },
-			}),
-			db.task.count({
-				where: { organizationId, status: "CANCELLED" },
+		const base: Record<string, unknown> = { organizationId };
+		if (input.sources) {
+			base["source"] = { in: input.sources };
+		}
+
+		// Dealer scoping: only count tasks belonging to the active dealer
+		if (activeDealerId) {
+			base["OR"] = [
+				{ customer: { dealerId: activeDealerId } },
+				{
+					customerId: null,
+					assignments: {
+						some: {
+							employee: { dealerId: activeDealerId },
+						},
+					},
+				},
+			];
+		} else {
+			// No dealer assigned — count nothing
+			base["id"] = { in: [] as string[] };
+		}
+
+		const [statusCounts, overdue, unassigned] = await Promise.all([
+			db.task.groupBy({
+				by: ["status"],
+				where: base,
+				_count: true,
 			}),
 			db.task.count({
 				where: {
-					organizationId,
+					...base,
 					dueDate: { lt: new Date() },
 					status: { notIn: ["COMPLETED", "CANCELLED"] },
 				},
 			}),
 			db.task.count({
 				where: {
-					organizationId,
+					...base,
 					assignments: { none: {} },
 					status: { notIn: ["COMPLETED", "CANCELLED"] },
 				},
 			}),
 		]);
 
+		const countByStatus = new Map(
+			statusCounts.map((s) => [s.status, s._count]),
+		);
+		const open = countByStatus.get("OPEN") ?? 0;
+		const inProgress = countByStatus.get("IN_PROGRESS") ?? 0;
+		const onHold = countByStatus.get("ON_HOLD") ?? 0;
+		const completed = countByStatus.get("COMPLETED") ?? 0;
+		const cancelled = countByStatus.get("CANCELLED") ?? 0;
+
 		return {
-			total,
+			total: open + inProgress + onHold + completed + cancelled,
 			open,
 			inProgress,
 			onHold,

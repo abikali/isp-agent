@@ -38,7 +38,19 @@ export const listTasks = protectedProcedure
 					"GENERAL",
 				])
 				.optional(),
-			source: z.enum(["MANUAL", "AI_ESCALATION"]).optional(),
+			source: z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]).optional(),
+			sources: z
+				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]))
+				.optional(),
+			followUpStatus: z
+				.enum([
+					"pending",
+					"contacted",
+					"promised",
+					"resolved",
+					"escalated",
+				])
+				.optional(),
 			employeeId: z.string().optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
@@ -51,7 +63,7 @@ export const listTasks = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
@@ -65,21 +77,45 @@ export const listTasks = protectedProcedure
 		// Composite own filter: tasks created by user OR assigned to user's employee
 		// Uses AND to avoid conflicting with the search OR clause
 		const scope = getActionScope(permCtx, "tasks", "read");
+		const andClauses: Record<string, unknown>[] = [];
 		if (scope === "own") {
 			const empId = await getUserEmployeeId(
 				input.organizationId,
 				user.id,
 			);
-			where["AND"] = [
-				{
-					OR: [
-						{ createdById: user.id },
-						...(empId
-							? [{ assignments: { some: { employeeId: empId } } }]
-							: []),
-					],
-				},
-			];
+			andClauses.push({
+				OR: [
+					{ createdById: user.id },
+					...(empId
+						? [{ assignments: { some: { employeeId: empId } } }]
+						: []),
+				],
+			});
+		}
+
+		// Dealer scoping: only show tasks whose customer belongs to the active dealer
+		// Tasks without a customer are also scoped — they need an assigned employee from the dealer
+		if (activeDealerId) {
+			andClauses.push({
+				OR: [
+					{ customer: { dealerId: activeDealerId } },
+					{
+						customerId: null,
+						assignments: {
+							some: {
+								employee: { dealerId: activeDealerId },
+							},
+						},
+					},
+				],
+			});
+		} else {
+			// No dealer assigned — show nothing
+			andClauses.push({ id: { in: [] as string[] } });
+		}
+
+		if (andClauses.length > 0) {
+			where["AND"] = andClauses;
 		}
 
 		if (input.status) {
@@ -97,8 +133,13 @@ export const listTasks = protectedProcedure
 		if (input.stationId) {
 			where["stationId"] = input.stationId;
 		}
-		if (input.source) {
+		if (input.sources) {
+			where["source"] = { in: input.sources };
+		} else if (input.source) {
 			where["source"] = input.source;
+		}
+		if (input.followUpStatus) {
+			where["followUpStatus"] = input.followUpStatus;
 		}
 		if (input.employeeId) {
 			where["assignments"] = {
@@ -132,6 +173,7 @@ export const listTasks = protectedProcedure
 					completedAt: true,
 					createdAt: true,
 					notes: true,
+					followUpStatus: true,
 					createdBy: {
 						select: {
 							id: true,
@@ -149,6 +191,18 @@ export const listTasks = protectedProcedure
 						select: {
 							id: true,
 							name: true,
+						},
+					},
+					conversation: {
+						select: {
+							id: true,
+							contactName: true,
+							agent: {
+								select: {
+									id: true,
+									name: true,
+								},
+							},
 						},
 					},
 					assignments: {

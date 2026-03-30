@@ -1,8 +1,9 @@
 import {
+	NO_DEALER,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -19,7 +20,12 @@ export const listPayments = protectedProcedure
 			billingCycleId: z.string().optional(),
 			collectorId: z.string().optional(),
 			status: z
-				.enum(["PENDING", "PROCESSED", "PARTIAL", "STOPPED"])
+				.enum([
+					PaymentStatus.PENDING,
+					PaymentStatus.PROCESSED,
+					PaymentStatus.PARTIAL,
+					PaymentStatus.STOPPED,
+				])
 				.optional(),
 			groupName: z.string().optional(),
 			search: z.string().optional(),
@@ -34,7 +40,7 @@ export const listPayments = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -43,6 +49,11 @@ export const listPayments = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+		};
+
+		// Build customer sub-filter (dealer scope + groupName + search)
+		const customerWhere: Record<string, unknown> = {
+			dealerId: activeDealerId ?? NO_DEALER,
 		};
 
 		const { scope, employeeId } = await resolveCollectorScope(permCtx);
@@ -59,7 +70,7 @@ export const listPayments = protectedProcedure
 			where["status"] = input.status;
 		}
 		if (input.groupName) {
-			where["customer"] = { groupName: input.groupName };
+			customerWhere["groupName"] = input.groupName;
 		}
 		if (input.dateFrom || input.dateTo) {
 			const paidAt: Record<string, unknown> = {};
@@ -72,30 +83,43 @@ export const listPayments = protectedProcedure
 			where["paidAt"] = paidAt;
 		}
 		if (input.search) {
-			where["customer"] = {
-				...(where["customer"] as Record<string, unknown> | undefined),
+			// Search by payment ID or customer fields
+			const searchLower = input.search.toLowerCase();
+			const customerSearch = {
+				...customerWhere,
 				OR: [
 					{
 						firstName: {
 							contains: input.search,
-							mode: "insensitive",
+							mode: "insensitive" as const,
 						},
 					},
 					{
 						lastName: {
 							contains: input.search,
-							mode: "insensitive",
+							mode: "insensitive" as const,
 						},
 					},
 					{
 						username: {
 							contains: input.search,
-							mode: "insensitive",
+							mode: "insensitive" as const,
 						},
 					},
-					{ mobile: { contains: input.search, mode: "insensitive" } },
+					{
+						mobile: {
+							contains: input.search,
+							mode: "insensitive" as const,
+						},
+					},
 				],
 			};
+			where["OR"] = [
+				{ id: { contains: searchLower, mode: "insensitive" as const } },
+				{ customer: customerSearch },
+			];
+		} else if (Object.keys(customerWhere).length > 0) {
+			where["customer"] = customerWhere;
 		}
 
 		const [payments, total] = await Promise.all([
@@ -131,6 +155,9 @@ export const listPayments = protectedProcedure
 					},
 					processedBy: {
 						select: { id: true, name: true },
+					},
+					billingCycle: {
+						select: { year: true, month: true },
 					},
 				},
 				orderBy: { [input.sortBy]: input.sortOrder },

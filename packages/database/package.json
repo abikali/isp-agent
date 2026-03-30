@@ -7,6 +7,10 @@
 			"types": "./index.ts",
 			"default": "./index.ts"
 		},
+		"./enums": {
+			"types": "./prisma/generated/enums.ts",
+			"default": "./prisma/generated/enums.ts"
+		},
 		"./iradius": {
 			"types": "./lib/iradius.ts",
 			"default": "./lib/iradius.ts"

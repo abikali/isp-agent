@@ -1,6 +1,5 @@
 import { config } from "@repo/config";
-import { PaymentsList, PaymentsListSkeleton } from "@saas/billing/client";
-import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PaymentsList } from "@saas/billing/client";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -16,9 +15,7 @@ export const Route = createFileRoute(
 function PaymentsPage() {
 	return (
 		<PermissionGate resource="billing" action="manage">
-			<AsyncBoundary fallback={<PaymentsListSkeleton />}>
-				<PaymentsList />
-			</AsyncBoundary>
+			<PaymentsList />
 		</PermissionGate>
 	);
 }

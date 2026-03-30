@@ -237,7 +237,13 @@ export async function requirePermission(
 		member.rolePermissions,
 	);
 	verifyPermission(permCtx, resource, action);
-	return { member, permCtx };
+	return {
+		member,
+		permCtx,
+		activeDealerId: member.activeDealerId ?? null,
+		activeBillingYear: member.activeBillingYear,
+		activeBillingMonth: member.activeBillingMonth,
+	};
 }
 
 /**
@@ -432,4 +438,50 @@ export async function verifyTaskOwnership(
 			message: `You can only ${action} your own tasks`,
 		});
 	}
+}
+
+// ─── Dealer Scoping Helpers ─────────────────────────────────────
+
+/**
+ * Sentinel value for "no dealer assigned" — matches zero records.
+ * When an org has no activeDealerId, no dealer-linked data should be visible.
+ */
+export const NO_DEALER = "__unassigned__";
+
+/**
+ * Build dealer scope filter for direct-dealer models (Customer, Employee, ServicePlan).
+ * When no dealer is assigned, returns a filter that matches nothing.
+ *
+ * @param activeDealerId - Pre-resolved from requirePermission to avoid extra DB query
+ */
+export function getDealerScopeFilter(
+	activeDealerId: string | null,
+): Record<string, unknown> {
+	return { dealerId: activeDealerId ?? NO_DEALER };
+}
+
+/**
+ * Build dealer scope filter for models that relate to dealers through a single `customer` relation.
+ * (e.g., Payment, Task with customerId)
+ *
+ * @param activeDealerId - Pre-resolved from requirePermission
+ */
+export function getDealerScopeViaCustomer(
+	activeDealerId: string | null,
+): Record<string, unknown> {
+	return { customer: { dealerId: activeDealerId ?? NO_DEALER } };
+}
+
+/**
+ * Build dealer scope filter for models that relate to dealers through a `customers` relation (many).
+ * (e.g., Station, AccessPoint)
+ *
+ * @param activeDealerId - Pre-resolved from requirePermission
+ */
+export function getDealerScopeViaCustomers(
+	activeDealerId: string | null,
+): Record<string, unknown> {
+	return {
+		customers: { some: { dealerId: activeDealerId ?? NO_DEALER } },
+	};
 }

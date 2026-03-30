@@ -106,7 +106,8 @@ export interface WatcherCheckJobResult {
 // iRadius sync job types
 export interface IRadiusSyncJobData {
 	operationId: string;
-	organizationId: string;
+	organizationId?: string | undefined;
+	mode?: "full" | "dealers-only" | undefined;
 }
 
 export interface IRadiusSyncJobResult {
@@ -114,20 +115,29 @@ export interface IRadiusSyncJobResult {
 	operationId: string;
 }
 
+// Organization setup job types
+export interface OrgSetupJobData {
+	organizationId: string;
+}
+
+export interface OrgSetupJobResult {
+	success: boolean;
+}
+
+// WhatsApp receipt job types
+export interface WhatsAppReceiptJobData {
+	phone: string;
+	paymentId: string;
+}
+
+export interface WhatsAppReceiptJobResult {
+	success: boolean;
+}
+
 // Billing sync job types
 export interface BillingSyncJobData {
 	operationId: string;
 	organizationId: string;
-	createEmployees: Array<{
-		username: string;
-		role: string;
-		phone: string | null;
-		telegram: string | null;
-	}>;
-	mapEmployees: Array<{
-		billingUsername: string;
-		employeeId: string;
-	}>;
 }
 
 export interface BillingSyncJobResult {

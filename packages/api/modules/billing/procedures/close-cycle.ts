@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -9,7 +10,7 @@ export const closeCycle = protectedProcedure
 		method: "POST",
 		path: "/billing/cycles/close",
 		tags: ["Billing"],
-		summary: "Close a billing cycle",
+		summary: "Close a billing cycle and reset customers for next month",
 	})
 	.input(
 		z.object({
@@ -18,7 +19,7 @@ export const closeCycle = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -41,13 +42,33 @@ export const closeCycle = protectedProcedure
 			});
 		}
 
-		const updated = await db.billingCycle.update({
-			where: { id: input.cycleId },
-			data: {
-				status: "CLOSED",
-				closedAt: new Date(),
-			},
+		const result = await db.$transaction(async (tx) => {
+			const updated = await tx.billingCycle.update({
+				where: { id: input.cycleId },
+				data: {
+					status: "CLOSED",
+					closedAt: new Date(),
+				},
+			});
+
+			const resetResult = await tx.customer.updateMany({
+				where: {
+					organizationId: input.organizationId,
+					paidCurrentCycle: true,
+					dealerId: activeDealerId ?? NO_DEALER,
+				},
+				data: { paidCurrentCycle: false },
+			});
+
+			return { cycle: updated, customersReset: resetResult.count };
 		});
 
-		return { cycle: updated };
+		logger.info(
+			`[Billing] Closed cycle ${cycle.year}/${cycle.month}, reset ${result.customersReset} customers`,
+		);
+
+		return {
+			cycle: result.cycle,
+			customersReset: result.customersReset,
+		};
 	});

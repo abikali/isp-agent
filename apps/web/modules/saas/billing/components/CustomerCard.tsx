@@ -8,16 +8,21 @@ import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import {
 	BanknoteIcon,
+	CalendarIcon,
+	CheckIcon,
 	ChevronDownIcon,
 	ChevronUpIcon,
+	CopyIcon,
 	MapPinIcon,
 	MessageCircleIcon,
+	NavigationIcon,
 	PhoneIcon,
 	SendIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useRequestLocation } from "../hooks/use-billing";
+import { calculateTotalDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 
 export interface UnpaidCustomer {
@@ -45,33 +50,36 @@ interface CustomerCardProps {
 	onPay: (customer: UnpaidCustomer) => void;
 }
 
-function getExpiryStatus(expiresAt: UnpaidCustomer["expiresAt"]): {
-	label: string;
-	variant: "destructive" | "secondary" | "outline";
-} {
-	if (!expiresAt) {
-		return { label: "No expiry", variant: "secondary" };
-	}
+function formatDateDMY(date: Date): string {
+	const d = String(date.getDate()).padStart(2, "0");
+	const m = String(date.getMonth() + 1).padStart(2, "0");
+	const y = date.getFullYear();
+	return `${d}/${m}/${y}`;
+}
 
-	const expiry = new Date(expiresAt);
-	const now = new Date();
-	const diffDays = Math.floor(
-		(expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+function CopyButton({ value }: { value: string }) {
+	const [copied, setCopied] = useState(false);
+
+	const handleCopy = useCallback(() => {
+		navigator.clipboard.writeText(value);
+		setCopied(true);
+		setTimeout(() => setCopied(false), 1500);
+	}, [value]);
+
+	return (
+		<button
+			type="button"
+			onClick={handleCopy}
+			className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+			title="Copy"
+		>
+			{copied ? (
+				<CheckIcon className="size-3 text-green-600" />
+			) : (
+				<CopyIcon className="size-3" />
+			)}
+		</button>
 	);
-
-	if (diffDays < 0) {
-		return {
-			label: `Expired ${Math.abs(diffDays)}d ago`,
-			variant: "destructive",
-		};
-	}
-	if (diffDays <= 7) {
-		return { label: `Expires in ${diffDays}d`, variant: "secondary" };
-	}
-	return {
-		label: expiry.toLocaleDateString(),
-		variant: "outline",
-	};
 }
 
 export function CustomerCard({ customer, onPay }: CustomerCardProps) {
@@ -80,15 +88,12 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const requestLocation = useRequestLocation();
 
 	const name = displayName(customer.firstName, customer.lastName);
-	const accountPrice =
-		customer.monthlyRate ?? customer.plan?.monthlyPrice ?? 0;
-	const totalDue =
-		accountPrice +
-		(customer.iptvPrice ?? 0) +
-		(customer.realIpPrice ?? 0) -
-		(customer.discount ?? 0);
+	const totalDue = calculateTotalDue(customer);
 
-	const expiry = getExpiryStatus(customer.expiresAt);
+	const expiry = getExpiryInfo(customer.expiresAt ?? null);
+	const expiryDateLabel = customer.expiresAt
+		? formatDateDMY(new Date(customer.expiresAt))
+		: "";
 	const waLink = formatWhatsAppLink(customer.mobile ?? customer.phone);
 	const phoneNumber = customer.mobile ?? customer.phone;
 	const hasLocation = customer.latitude && customer.longitude;
@@ -96,75 +101,121 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	return (
 		<Card className="overflow-hidden">
 			<CardContent className="p-4">
-				{/* Main info row */}
+				{/* Header: name + subtitle | amount */}
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0 flex-1">
 						<p className="truncate text-lg font-semibold leading-tight">
 							{name}
 						</p>
-						<p className="mt-0.5 text-sm text-muted-foreground">
-							{customer.plan?.name ?? "No plan"}
-						</p>
+						<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+							{customer.groupName && (
+								<span className="flex items-center gap-1">
+									<MapPinIcon className="size-3" />
+									{customer.groupName}
+								</span>
+							)}
+							<span className="flex items-center gap-1">
+								<CalendarIcon className="size-3" />
+								{expiryDateLabel || "No expiry"}
+							</span>
+						</div>
 					</div>
 					<div className="text-right shrink-0">
+						<p className="text-xs text-muted-foreground">
+							Amount due
+						</p>
 						<p className="text-lg font-bold tabular-nums">
 							{formatCurrency(totalDue)}
 						</p>
-						<Badge
-							variant={expiry.variant}
-							className="text-xs mt-0.5"
-						>
-							{expiry.label}
-						</Badge>
 					</div>
 				</div>
 
-				{/* Group tag */}
-				{customer.groupName && (
+				{/* Expiry warning badge (only when expired or expiring soon) */}
+				{expiry.label && (
 					<div className="mt-2">
-						<Badge variant="outline" className="text-xs">
-							{customer.groupName}
+						<Badge variant={expiry.variant} className="text-xs">
+							{expiry.label}
 						</Badge>
 					</div>
 				)}
 
 				{/* Expandable details */}
 				{expanded && (
-					<div className="mt-3 space-y-2 rounded-lg bg-muted/50 p-3 text-sm">
-						{customer.address && (
-							<p className="text-muted-foreground">
-								{customer.address}
-							</p>
-						)}
-						{phoneNumber && (
-							<p className="text-muted-foreground">
-								{phoneNumber}
-							</p>
-						)}
-						{customer.username && (
-							<p className="font-mono text-xs text-muted-foreground">
-								{customer.username}
-							</p>
-						)}
-						{(customer.discount ?? 0) > 0 && (
-							<p className="text-xs text-muted-foreground">
-								Discount:{" "}
-								{formatCurrency(customer.discount ?? 0)}
-							</p>
-						)}
-						{(customer.iptvPrice ?? 0) > 0 && (
-							<p className="text-xs text-muted-foreground">
-								IPTV: {formatCurrency(customer.iptvPrice ?? 0)}
-							</p>
-						)}
-						{(customer.realIpPrice ?? 0) > 0 && (
-							<p className="text-xs text-muted-foreground">
-								Real IP:{" "}
-								{formatCurrency(customer.realIpPrice ?? 0)}
-							</p>
-						)}
+					<div className="mt-3 rounded-lg bg-muted/50 p-3">
+						<div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+							{customer.address && (
+								<div className="col-span-2">
+									<p className="text-xs font-medium text-muted-foreground">
+										Address
+									</p>
+									<p className="flex items-center">
+										{customer.address}
+										<CopyButton value={customer.address} />
+									</p>
+								</div>
+							)}
+							{phoneNumber && (
+								<div>
+									<p className="text-xs font-medium text-muted-foreground">
+										Phone
+									</p>
+									<p className="flex items-center">
+										{phoneNumber}
+										<CopyButton value={phoneNumber} />
+									</p>
+								</div>
+							)}
+							{customer.username && (
+								<div>
+									<p className="text-xs font-medium text-muted-foreground">
+										Username
+									</p>
+									<p className="flex items-center font-mono text-xs">
+										{customer.username}
+										<CopyButton value={customer.username} />
+									</p>
+								</div>
+							)}
+							{(customer.discount ?? 0) > 0 && (
+								<div>
+									<p className="text-xs font-medium text-muted-foreground">
+										Discount
+									</p>
+									<p className="text-green-600 dark:text-green-400">
+										-
+										{formatCurrency(customer.discount ?? 0)}
+									</p>
+								</div>
+							)}
+							{(customer.iptvPrice ?? 0) > 0 && (
+								<div>
+									<p className="text-xs font-medium text-muted-foreground">
+										IPTV
+									</p>
+									<p>
+										{formatCurrency(
+											customer.iptvPrice ?? 0,
+										)}
+									</p>
+								</div>
+							)}
+							{(customer.realIpPrice ?? 0) > 0 && (
+								<div>
+									<p className="text-xs font-medium text-muted-foreground">
+										Real IP
+									</p>
+									<p>
+										{formatCurrency(
+											customer.realIpPrice ?? 0,
+										)}
+									</p>
+								</div>
+							)}
+						</div>
+
+						{/* Location actions */}
 						{hasLocation && (
-							<div className="flex gap-2">
+							<div className="mt-3 flex gap-2">
 								<Button
 									variant="outline"
 									size="sm"
@@ -176,8 +227,8 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 										target="_blank"
 										rel="noopener noreferrer"
 									>
-										<MapPinIcon className="mr-1.5 size-3.5" />
-										Navigate
+										<NavigationIcon className="mr-1.5 size-3.5" />
+										Get Directions
 									</a>
 								</Button>
 								<Button
@@ -201,7 +252,6 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 															"Location sent to Telegram",
 														);
 													} else {
-														// Fallback: open maps directly
 														window.open(
 															data.mapsLink,
 															"_blank",
@@ -221,7 +271,7 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 									<SendIcon className="mr-1.5 size-3.5" />
 									{requestLocation.isPending
 										? "Sending..."
-										: "Telegram"}
+										: "Send to Telegram"}
 								</Button>
 							</div>
 						)}
@@ -247,7 +297,11 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 							className="size-11 shrink-0"
 							asChild
 						>
-							<a href={`tel:${phoneNumber}`} aria-label="Call">
+							<a
+								href={`tel:${phoneNumber}`}
+								aria-label="Call customer"
+								title="Call"
+							>
 								<PhoneIcon className="size-4" />
 							</a>
 						</Button>
@@ -264,7 +318,8 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 								href={waLink}
 								target="_blank"
 								rel="noopener noreferrer"
-								aria-label="WhatsApp"
+								aria-label="Message on WhatsApp"
+								title="WhatsApp"
 							>
 								<MessageCircleIcon className="size-4" />
 							</a>
@@ -276,7 +331,8 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						size="icon"
 						className="size-11 shrink-0"
 						onClick={() => setExpanded(!expanded)}
-						aria-label={expanded ? "Show less" : "Show more"}
+						aria-label={expanded ? "Hide details" : "Show details"}
+						title={expanded ? "Hide details" : "Show details"}
 					>
 						{expanded ? (
 							<ChevronUpIcon className="size-4" />

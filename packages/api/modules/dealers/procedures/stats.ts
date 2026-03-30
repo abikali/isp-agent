@@ -1,30 +1,33 @@
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 
-export const getDealerStats = protectedProcedure
+export const getDealerStats = adminProcedure
 	.route({
 		method: "GET",
-		path: "/dealers/stats",
+		path: "/admin/dealers/stats",
 		tags: ["Dealers"],
-		summary: "Get dealer dashboard statistics",
+		summary: "Get dealer dashboard statistics (admin only)",
 	})
 	.input(
 		z.object({
-			organizationId: z.string(),
+			organizationId: z.string().optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input: { organizationId } }) => {
-		await requirePermission(organizationId, user.id, "dealers", "read");
+	.handler(async ({ input: { organizationId } }) => {
+		const base: Record<string, unknown> = {};
+
+		if (organizationId) {
+			base["organizationId"] = organizationId;
+		}
 
 		const [total, active, inactive] = await Promise.all([
-			db.ispDealer.count({ where: { organizationId } }),
+			db.ispDealer.count({ where: base }),
 			db.ispDealer.count({
-				where: { organizationId, status: "ACTIVE" },
+				where: { ...base, status: "ACTIVE" },
 			}),
 			db.ispDealer.count({
-				where: { organizationId, status: "INACTIVE" },
+				where: { ...base, status: "INACTIVE" },
 			}),
 		]);
 

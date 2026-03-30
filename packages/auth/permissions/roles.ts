@@ -29,7 +29,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
-		dealers: ["create", "read", "update", "delete"],
+
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
@@ -65,7 +65,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"assign",
 		],
 		tasks: ["create", "read", "update", "delete", "assign"],
-		dealers: ["create", "read", "update", "delete"],
+
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
 		// Integrations - full access
@@ -88,7 +88,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		accessPoints: ["read"],
 		employees: ["read"],
 		tasks: ["read"],
-		dealers: ["read"],
+
 		// Integrations - read only own
 		apiKeys: ["read:own"],
 		connections: ["read"],
@@ -158,7 +158,6 @@ export const owner = ac.newRole({
 		"delete:own",
 		"assign",
 	],
-	dealers: ["create", "read", "update", "delete"],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
@@ -234,7 +233,6 @@ export const admin = ac.newRole({
 		"delete:own",
 		"assign",
 	],
-	dealers: ["create", "read", "update", "delete"],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "update", "approve"],
 	// Integrations - full access
@@ -263,7 +261,6 @@ export const member = ac.newRole({
 	accessPoints: ["read"],
 	employees: ["read"],
 	tasks: ["read"],
-	dealers: ["read"],
 	// Integrations - read only
 	apiKeys: ["read", "read:own"],
 	connections: ["read"],
@@ -403,7 +400,7 @@ export const ISP_ROLE_TEMPLATES = {
 			stations: ["read", "update"],
 			accessPoints: ["read", "update"],
 			tasks: ["create", "read", "update", "delete", "assign"],
-			dealers: ["read"],
+
 			billing: ["view", "manage", "collect"],
 			inventory: ["create", "read", "update", "delete"],
 			installations: ["create", "read", "update", "approve"],

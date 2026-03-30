@@ -1,6 +1,5 @@
 "use client";
 
-import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
 	useMutation,
@@ -10,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 
 interface DealerListInput {
+	organizationId?: string | undefined;
 	search?: string | undefined;
 	status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING" | undefined;
 	page?: number | undefined;
@@ -17,11 +17,10 @@ interface DealerListInput {
 }
 
 export function useDealers(filters: DealerListInput = {}) {
-	const organizationId = useOrganizationId();
-
-	const input: Record<string, unknown> = {
-		organizationId: organizationId ?? "",
-	};
+	const input: Record<string, unknown> = {};
+	if (filters.organizationId) {
+		input["organizationId"] = filters.organizationId;
+	}
 	if (filters.search) {
 		input["search"] = filters.search;
 	}
@@ -36,9 +35,9 @@ export function useDealers(filters: DealerListInput = {}) {
 	}
 
 	const query = useQuery(
-		orpc.dealers.list.queryOptions({
+		orpc.admin.dealers.list.queryOptions({
 			input: input as Parameters<
-				typeof orpc.dealers.list.queryOptions
+				typeof orpc.admin.dealers.list.queryOptions
 			>[0]["input"],
 		}),
 	);
@@ -54,27 +53,35 @@ export function useDealers(filters: DealerListInput = {}) {
 	};
 }
 
-export function useDealerStats() {
-	const organizationId = useOrganizationId();
+export function useDealerStats(organizationId?: string) {
+	const input: Record<string, unknown> = {};
+	if (organizationId) {
+		input["organizationId"] = organizationId;
+	}
 
 	const query = useSuspenseQuery(
-		orpc.dealers.stats.queryOptions({
-			input: { organizationId: organizationId ?? "" },
+		orpc.admin.dealers.stats.queryOptions({
+			input: input as Parameters<
+				typeof orpc.admin.dealers.stats.queryOptions
+			>[0]["input"],
 		}),
 	);
 
 	return query.data;
 }
 
-export function useDealersQuery() {
-	const organizationId = useOrganizationId();
+export function useDealersQuery(organizationId?: string) {
+	const input: Record<string, unknown> = {};
+	if (organizationId) {
+		input["organizationId"] = organizationId;
+	}
 
 	const query = useQuery(
-		organizationId
-			? orpc.dealers.list.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["dealers", "list"]),
+		orpc.admin.dealers.list.queryOptions({
+			input: input as Parameters<
+				typeof orpc.admin.dealers.list.queryOptions
+			>[0]["input"],
+		}),
 	);
 
 	return {
@@ -87,10 +94,10 @@ export function useCreateDealer() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.dealers.create.mutationOptions(),
+		...orpc.admin.dealers.create.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.dealers.key(),
+				queryKey: orpc.admin.dealers.key(),
 			});
 		},
 	});
@@ -100,10 +107,10 @@ export function useUpdateDealer() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.dealers.update.mutationOptions(),
+		...orpc.admin.dealers.update.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.dealers.key(),
+				queryKey: orpc.admin.dealers.key(),
 			});
 		},
 	});
@@ -113,11 +120,51 @@ export function useDeleteDealer() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.dealers.delete.mutationOptions(),
+		...orpc.admin.dealers.delete.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.dealers.key(),
+				queryKey: orpc.admin.dealers.key(),
 			});
+		},
+	});
+}
+
+export function useSyncDealers() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.admin.dealers.sync.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.admin.dealers.key(),
+			});
+		},
+	});
+}
+
+export function useDealerSyncStatus(operationId: string | null) {
+	return useQuery({
+		...orpc.admin.dealers.syncStatus.queryOptions({
+			input: operationId ? { operationId } : {},
+		}),
+		refetchInterval: (query) => {
+			const status = query.state.data?.operation?.status;
+			if (status === "pending" || status === "in_progress") {
+				return 2000;
+			}
+			return false;
+		},
+	});
+}
+
+export function useSetActiveDealer() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.admin.dealers.setActive.mutationOptions(),
+		onSuccess: () => {
+			// Invalidate everything since dealer scope affects all data
+			queryClient.invalidateQueries();
 		},
 	});
 }

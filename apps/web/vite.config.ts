@@ -65,6 +65,7 @@ export default defineConfig(({ mode }) => {
 				"recharts",
 				"qrcode.react",
 				"@fingerprintjs/fingerprintjs",
+				"react-international-phone",
 			],
 			// Pre-bundle CJS packages to fix deprecation warnings
 			optimizeDeps: {

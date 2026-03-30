@@ -1,30 +1,46 @@
 "use client";
 
+import { ChartCard, ChartCardSkeleton } from "@shared/components/ChartCard";
 import {
 	StatCard as StatCardComponent,
 	StatCardGroup,
 	StatCardSkeleton,
 } from "@shared/components/StatCard";
+import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Badge } from "@ui/components/badge";
-import { Skeleton } from "@ui/components/skeleton";
+import { Progress } from "@ui/components/progress";
+import { cn } from "@ui/lib";
 import {
-	Activity,
-	AlertCircle,
 	AlertTriangle,
-	Bot,
 	DollarSign,
-	HandshakeIcon,
 	UserCheck,
 	Users,
 	UserX,
 	Wifi,
 	WifiOff,
 } from "lucide-react";
+
+const STATUS_COLORS: Record<string, string> = {
+	Online: "var(--color-chart-3)",
+	Offline: "var(--color-chart-1)",
+	Active: "var(--color-chart-3)",
+	Expired: "var(--color-chart-4)",
+	Inactive: "var(--color-chart-1)",
+	Suspended: "var(--color-chart-5)",
+	Pending: "var(--color-chart-6)",
+};
+
+const TASK_COLORS: Record<string, string> = {
+	Open: "var(--color-chart-2)",
+	"In Progress": "var(--color-chart-6)",
+	Completed: "var(--color-chart-3)",
+	Overdue: "var(--color-chart-4)",
+	"On Hold": "var(--color-chart-5)",
+};
 
 export function StatCards() {
 	const organizationId = useOrganizationId();
@@ -34,8 +50,39 @@ export function StatCards() {
 		useCustomerStatsQuery(organizationId);
 	const { stats: watcherStats, isLoading: isLoadingWatchers } =
 		useWatcherStatsQuery(organizationId);
-	const { agentCount, isLoading: isLoadingAgents } =
-		useAgentCountQuery(organizationId);
+	const { stats: taskStats, isLoading: isLoadingTasks } =
+		useTaskStatsQuery(organizationId);
+	const { stats: billingStats, isLoading: isLoadingBilling } =
+		useBillingStatsQuery(organizationId);
+
+	const networkData =
+		stats && stats.online + stats.offline > 0
+			? [
+					{ name: "Online", value: stats.online },
+					{ name: "Offline", value: stats.offline },
+				]
+			: [];
+
+	const customerStatusData =
+		stats && stats.total > 0
+			? [
+					{ name: "Active", value: stats.active },
+					{ name: "Expired", value: stats.expired },
+					{ name: "Inactive", value: stats.inactive },
+					{ name: "Suspended", value: stats.suspended },
+					{ name: "Pending", value: stats.pending },
+				].filter((d) => d.value > 0)
+			: [];
+
+	const taskStatusData = taskStats
+		? [
+				{ name: "Open", value: taskStats.open },
+				{ name: "In Progress", value: taskStats.inProgress },
+				{ name: "Completed", value: taskStats.completed },
+				{ name: "Overdue", value: taskStats.overdue },
+				{ name: "On Hold", value: taskStats.onHold },
+			].filter((d) => d.value > 0)
+		: [];
 
 	return (
 		<div className="space-y-6">
@@ -67,6 +114,7 @@ export function StatCards() {
 							title="Active"
 							value={stats?.active ?? 0}
 							icon={UserCheck}
+							variant="success"
 							description="Active accounts"
 						/>
 						<StatCardComponent
@@ -117,12 +165,6 @@ export function StatCards() {
 							description="Sum of active subscribers' rates"
 						/>
 						<StatCardComponent
-							title="Dealers"
-							value={stats?.dealerCount ?? 0}
-							icon={HandshakeIcon}
-							description="Top-level reseller partners"
-						/>
-						<StatCardComponent
 							title="Employees"
 							value={stats?.employeeCount ?? 0}
 							icon={Users}
@@ -132,140 +174,166 @@ export function StatCards() {
 				)}
 			</StatCardGroup>
 
-			{/* Infrastructure + Plan Distribution */}
+			{/* Charts Row */}
 			<div className="grid gap-4 lg:grid-cols-3">
-				<div className="rounded-xl bg-card p-6 shadow-card space-y-4">
-					<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-						Infrastructure
-					</h3>
-					<div className="space-y-3">
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2 text-sm">
-								<Activity className="size-4 text-muted-foreground" />
-								Watchers
-							</div>
-							{isLoadingWatchers ? (
-								<Skeleton className="h-5 w-16" />
-							) : (
-								<span className="text-sm font-medium">
-									{watcherStats?.total ?? 0} (
-									{watcherStats?.up ?? 0} up)
-								</span>
-							)}
-						</div>
-						{(watcherStats?.down ?? 0) > 0 && (
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2 text-sm text-destructive">
-									<AlertCircle className="size-4" />
-									Down
-								</div>
-								<span className="text-sm font-bold text-destructive">
-									{watcherStats?.down}
-								</span>
-							</div>
-						)}
-						<div className="flex items-center justify-between">
-							<div className="flex items-center gap-2 text-sm">
-								<Bot className="size-4 text-muted-foreground" />
-								AI Agents
-							</div>
-							{isLoadingAgents ? (
-								<Skeleton className="h-5 w-8" />
-							) : (
-								<span className="text-sm font-medium">
-									{agentCount}
-								</span>
-							)}
-						</div>
-					</div>
-				</div>
-
-				<div className="rounded-xl bg-card p-6 shadow-card lg:col-span-2 space-y-4">
-					<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-						Plan Distribution
-					</h3>
-					{isLoadingStats ? (
-						<div className="space-y-2">
-							{Array.from({ length: 5 }).map((_, i) => (
-								<Skeleton
-									key={`plan-skel-${i}`}
-									className="h-6 w-full"
-								/>
-							))}
-						</div>
-					) : stats?.planDistribution &&
-						stats.planDistribution.length > 0 ? (
-						<div className="space-y-2">
-							{stats.planDistribution.map((plan) => {
-								const pct =
-									stats.active > 0
-										? Math.round(
-												(plan.count / stats.active) *
-													100,
-											)
-										: 0;
-								return (
-									<div
-										key={plan.planName}
-										className="flex items-center gap-3"
-									>
-										<div className="flex-1">
-											<div className="flex items-center justify-between text-sm">
-												<span className="truncate">
-													{plan.planName}
-												</span>
-												<span className="ml-2 font-mono text-xs text-muted-foreground">
-													{plan.count}
-												</span>
-											</div>
-											<div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-												<div
-													className="h-full rounded-full bg-primary"
-													style={{
-														width: `${pct}%`,
-													}}
-												/>
-											</div>
-										</div>
-									</div>
-								);
-							})}
-						</div>
-					) : (
+				{isLoadingStats ? (
+					<ChartCardSkeleton />
+				) : networkData.length > 0 ? (
+					<StatusPieChart
+						title="Network Health"
+						data={networkData}
+						colorMap={STATUS_COLORS}
+						size="lg"
+						footer={
+							stats && stats.online + stats.offline > 0
+								? `${Math.round((stats.online / (stats.online + stats.offline)) * 100)}% uptime`
+								: undefined
+						}
+					/>
+				) : (
+					<ChartCard title="Network Health">
 						<p className="text-sm text-muted-foreground">
-							No plan data available
+							No connectivity data
 						</p>
-					)}
-				</div>
+					</ChartCard>
+				)}
+
+				{isLoadingStats ? (
+					<ChartCardSkeleton />
+				) : customerStatusData.length > 0 ? (
+					<StatusPieChart
+						title="Customer Status"
+						data={customerStatusData}
+						colorMap={STATUS_COLORS}
+						size="lg"
+					/>
+				) : (
+					<ChartCard title="Customer Status">
+						<p className="text-sm text-muted-foreground">
+							No customer data
+						</p>
+					</ChartCard>
+				)}
+
+				{isLoadingTasks ? (
+					<ChartCardSkeleton />
+				) : taskStats && taskStats.total > 0 ? (
+					<StatusPieChart
+						title="Tasks Overview"
+						data={taskStatusData}
+						colorMap={TASK_COLORS}
+						size="lg"
+						footer={
+							taskStats.unassigned > 0
+								? `${taskStats.unassigned} unassigned`
+								: undefined
+						}
+					/>
+				) : (
+					<ChartCard title="Tasks Overview">
+						<p className="text-sm text-muted-foreground">
+							No tasks yet
+						</p>
+					</ChartCard>
+				)}
 			</div>
 
-			{/* Top Dealers */}
-			{stats?.topDealers && stats.topDealers.length > 0 && (
-				<div className="rounded-xl bg-card p-6 shadow-card space-y-4">
-					<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-						Top Dealers
-					</h3>
-					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-						{stats.topDealers.map((dealer) => (
-							<Link
-								key={dealer.id}
-								to="/app/$organizationSlug/dealers/$dealerId"
-								params={{
-									organizationSlug: organizationSlug ?? "",
-									dealerId: dealer.id,
-								}}
-								className="flex items-center justify-between rounded-lg p-3 shadow-card transition-shadow hover:shadow-card-hover"
-							>
-								<span className="truncate text-sm font-medium">
-									{dealer.name}
+			{/* Billing + Dealers Row */}
+			<div className="grid gap-4 lg:grid-cols-2">
+				{/* Collection Progress */}
+				{isLoadingBilling ? (
+					<ChartCardSkeleton />
+				) : billingStats ? (
+					<ChartCard title="Billing Collection">
+						<div className="space-y-4">
+							<div className="flex items-baseline justify-between">
+								<span className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+									{formatCurrency(
+										billingStats.totalCollected,
+									)}
 								</span>
-								<Badge variant="secondary">
-									{dealer.customerCount}
-								</Badge>
-							</Link>
-						))}
+								<span className="text-sm text-muted-foreground">
+									collected this cycle
+								</span>
+							</div>
+							<div className="space-y-2">
+								<div className="flex items-center justify-between text-sm">
+									<span className="text-muted-foreground">
+										Collection rate
+									</span>
+									<span className="font-medium">
+										{billingStats.paidPercentage}%
+									</span>
+								</div>
+								<Progress
+									value={billingStats.paidPercentage}
+									className="h-2"
+								/>
+							</div>
+							<div className="grid grid-cols-3 gap-4 border-t pt-4">
+								<div className="text-center">
+									<div className="text-lg font-semibold tabular-nums">
+										{billingStats.processedPayments}
+									</div>
+									<div className="text-xs text-muted-foreground">
+										Processed
+									</div>
+								</div>
+								<div className="text-center">
+									<div
+										className={cn(
+											"text-lg font-semibold tabular-nums",
+											billingStats.pendingPayments > 0 &&
+												"text-amber-600 dark:text-amber-400",
+										)}
+									>
+										{billingStats.pendingPayments}
+									</div>
+									<div className="text-xs text-muted-foreground">
+										Pending
+									</div>
+								</div>
+								<div className="text-center">
+									<div
+										className={cn(
+											"text-lg font-semibold tabular-nums",
+											billingStats.unpaidCustomers > 0 &&
+												"text-red-600 dark:text-red-400",
+										)}
+									>
+										{billingStats.unpaidCustomers}
+									</div>
+									<div className="text-xs text-muted-foreground">
+										Unpaid
+									</div>
+								</div>
+							</div>
+						</div>
+					</ChartCard>
+				) : null}
+			</div>
+
+			{/* Watcher Alert Bar */}
+			{!isLoadingWatchers && watcherStats && watcherStats.down > 0 && (
+				<Link
+					to="/app/$organizationSlug/watchers"
+					params={{ organizationSlug: organizationSlug ?? "" }}
+					className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:hover:bg-red-950/50"
+				>
+					<AlertTriangle className="size-5 text-red-600 dark:text-red-400" />
+					<div>
+						<span className="text-sm font-medium text-red-700 dark:text-red-300">
+							{watcherStats.down} watcher
+							{watcherStats.down > 1 ? "s" : ""} down
+						</span>
+						<span className="ml-2 text-xs text-red-600/70 dark:text-red-400/70">
+							{watcherStats.up} of {watcherStats.total} up
+						</span>
 					</div>
-				</div>
+					<span className="ml-auto text-xs text-red-600/70 dark:text-red-400/70">
+						View watchers &rarr;
+					</span>
+				</Link>
 			)}
 		</div>
 	);
@@ -304,17 +372,32 @@ function useWatcherStatsQuery(organizationId: string | null) {
 	};
 }
 
-function useAgentCountQuery(organizationId: string | null) {
+function useTaskStatsQuery(organizationId: string | null) {
 	const query = useQuery(
 		organizationId
-			? orpc.aiAgents.listAgents.queryOptions({
+			? orpc.tasks.stats.queryOptions({
 					input: { organizationId },
 				})
-			: disabledQuery(["aiAgents", "listAgents"]),
+			: disabledQuery(["tasks", "stats"]),
 	);
 
 	return {
-		agentCount: query.data?.agents?.length ?? 0,
+		stats: query.data,
+		isLoading: query.isLoading,
+	};
+}
+
+function useBillingStatsQuery(organizationId: string | null) {
+	const query = useQuery(
+		organizationId
+			? orpc.billing.payments.stats.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "payments", "stats"]),
+	);
+
+	return {
+		stats: query.data,
 		isLoading: query.isLoading,
 	};
 }

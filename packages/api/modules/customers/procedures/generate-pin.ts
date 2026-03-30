@@ -1,7 +1,10 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import { hashPin } from "@repo/ai";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	customerAudit,
 	getAuditContextFromHeaders,
@@ -24,7 +27,7 @@ export const generateCustomerPin = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -35,6 +38,7 @@ export const generateCustomerPin = protectedProcedure
 			where: {
 				id: input.customerId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { id: true },
 		});

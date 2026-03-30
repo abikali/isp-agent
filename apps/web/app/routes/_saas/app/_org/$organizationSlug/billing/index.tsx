@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import {
+	BillingCycleManager,
 	BillingDashboard,
 	BillingDashboardSkeleton,
 } from "@saas/billing/client";
@@ -19,9 +20,12 @@ export const Route = createFileRoute(
 function BillingPage() {
 	return (
 		<PermissionGate resource="billing" action="manage">
-			<AsyncBoundary fallback={<BillingDashboardSkeleton />}>
-				<BillingDashboard />
-			</AsyncBoundary>
+			<div className="space-y-6">
+				<BillingCycleManager />
+				<AsyncBoundary fallback={<BillingDashboardSkeleton />}>
+					<BillingDashboard />
+				</AsyncBoundary>
+			</div>
 		</PermissionGate>
 	);
 }

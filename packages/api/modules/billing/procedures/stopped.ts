@@ -1,8 +1,13 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import {
+	getDealerScopeFilter,
+	getDealerScopeViaCustomer,
+	requirePermission,
+} from "@repo/api/lib/permission";
+import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { resolveBillingCycleId } from "../lib/resolve-cycle";
 
 export const listStoppedAccounts = protectedProcedure
 	.route({
@@ -22,24 +27,34 @@ export const listStoppedAccounts = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId, activeBillingYear, activeBillingMonth } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"billing",
+				"view",
+			);
+
+		const cycleId = await resolveBillingCycleId(
 			input.organizationId,
-			user.id,
-			"billing",
-			"view",
+			activeBillingYear,
+			activeBillingMonth,
 		);
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			stoppedAccount: true,
-			status: { not: "PROCESSED" },
+			status: { not: PaymentStatus.PROCESSED },
+			...(cycleId ? { billingCycleId: cycleId } : {}),
 		};
 
 		if (input.collectorId) {
 			where["collectorId"] = input.collectorId;
 		}
 
-		const customerWhere: Record<string, unknown> = {};
+		const customerWhere: Record<string, unknown> = {
+			...getDealerScopeFilter(activeDealerId),
+		};
 		if (input.search) {
 			customerWhere["OR"] = [
 				{ firstName: { contains: input.search, mode: "insensitive" } },
@@ -112,7 +127,7 @@ export const reactivateAccount = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -124,6 +139,7 @@ export const reactivateAccount = protectedProcedure
 				id: input.paymentId,
 				organizationId: input.organizationId,
 				stoppedAccount: true,
+				...getDealerScopeViaCustomer(activeDealerId),
 			},
 			include: { customer: true },
 		});
@@ -140,7 +156,7 @@ export const reactivateAccount = protectedProcedure
 				where: { id: input.paymentId },
 				data: {
 					stoppedAccount: false,
-					status: "PROCESSED",
+					status: PaymentStatus.PROCESSED,
 					processedAt: new Date(),
 					processedById: user.id,
 				},

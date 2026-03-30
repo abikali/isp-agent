@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
@@ -47,7 +48,7 @@ export const updateCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -55,7 +56,11 @@ export const updateCustomer = protectedProcedure
 		);
 
 		const existing = await db.customer.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {

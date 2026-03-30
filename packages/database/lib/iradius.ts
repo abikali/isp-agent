@@ -168,14 +168,12 @@ export async function testIRadiusConnection(): Promise<{
 	connected: boolean;
 	counts?: {
 		subscribers: number;
-		dealers: number;
 		employees: number;
 		accountTypes: number;
 		stations: number;
 		accessPoints: number;
 		balances: number;
 		invoices: number;
-		dealerAccounts: number;
 	};
 	error?: string;
 }> {
@@ -184,14 +182,12 @@ export async function testIRadiusConnection(): Promise<{
 			const [rows] = await conn.query<RowDataPacket[]>(
 				`SELECT
 					(SELECT COUNT(*) FROM User WHERE ProfileId = 4) as subscribers,
-					(SELECT COUNT(*) FROM User WHERE ProfileId = 2) as dealers,
 					(SELECT COUNT(*) FROM User WHERE ProfileId IN (1, 3, 6, 7, 8)) as employees,
 					(SELECT COUNT(*) FROM AccountType) as accountTypes,
 					(SELECT COUNT(*) FROM Station) as stations,
 					(SELECT COUNT(*) FROM AccessPoint) as accessPoints,
 					(SELECT COUNT(*) FROM UserBalance) as balances,
-					(SELECT COUNT(*) FROM Invoice) as invoices,
-					(SELECT COUNT(*) FROM DealerAccount) as dealerAccounts`,
+					(SELECT COUNT(*) FROM Invoice) as invoices`,
 			);
 			const row = rows[0];
 
@@ -199,14 +195,12 @@ export async function testIRadiusConnection(): Promise<{
 				connected: true,
 				counts: {
 					subscribers: (row?.["subscribers"] as number) ?? 0,
-					dealers: (row?.["dealers"] as number) ?? 0,
 					employees: (row?.["employees"] as number) ?? 0,
 					accountTypes: (row?.["accountTypes"] as number) ?? 0,
 					stations: (row?.["stations"] as number) ?? 0,
 					accessPoints: (row?.["accessPoints"] as number) ?? 0,
 					balances: (row?.["balances"] as number) ?? 0,
 					invoices: (row?.["invoices"] as number) ?? 0,
-					dealerAccounts: (row?.["dealerAccounts"] as number) ?? 0,
 				},
 			};
 		});

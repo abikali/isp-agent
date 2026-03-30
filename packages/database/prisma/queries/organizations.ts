@@ -13,7 +13,12 @@ export async function getOrganizations({
 		_count: {
 			select: {
 				members: true,
+				customers: true,
+				employees: true,
 			},
+		},
+		activeDealer: {
+			select: { id: true, name: true },
 		},
 	} as const;
 
@@ -33,6 +38,8 @@ export async function getOrganizations({
 	return orgs.map((org) => ({
 		...org,
 		membersCount: org._count.members,
+		customersCount: org._count.customers,
+		employeesCount: org._count.employees,
 	}));
 }
 
@@ -57,6 +64,15 @@ export async function getOrganizationById(id: string) {
 				},
 			},
 			invitations: true,
+			activeDealer: {
+				select: { id: true, name: true },
+			},
+			_count: {
+				select: {
+					customers: true,
+					employees: true,
+				},
+			},
 		},
 	});
 }

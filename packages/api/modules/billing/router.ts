@@ -6,19 +6,29 @@ import { createPayment } from "./procedures/create-payment";
 import { getCurrentCycle } from "./procedures/current-cycle";
 import { deleteCollection } from "./procedures/delete-collection";
 import { deletePayment } from "./procedures/delete-payment";
+import { getInvoice } from "./procedures/get-invoice";
 import { listCollections } from "./procedures/list-collections";
 import { listCollectors } from "./procedures/list-collectors";
 import { listCycles } from "./procedures/list-cycles";
 import { listCustomerGroups } from "./procedures/list-groups";
 import { listPayments } from "./procedures/list-payments";
 import { listUnpaidCustomers } from "./procedures/list-unpaid";
+import {
+	createNoteCategory,
+	deleteNoteCategory,
+	listNoteCategories,
+	updateNoteCategory,
+} from "./procedures/note-categories";
 import { getPaymentStats } from "./procedures/payment-stats";
 import {
 	bulkProcessPayments,
 	processPayment,
 } from "./procedures/process-payment";
+import { reopenCycle } from "./procedures/reopen-cycle";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
+import { resetCycle } from "./procedures/reset-cycle";
+import { setActiveCycle } from "./procedures/set-active-cycle";
 import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
 import {
 	getBillingSyncStatus,
@@ -32,6 +42,9 @@ export const billingRouter = {
 		current: getCurrentCycle,
 		list: listCycles,
 		close: closeCycle,
+		reopen: reopenCycle,
+		reset: resetCycle,
+		setActive: setActiveCycle,
 	},
 	payments: {
 		list: listPayments,
@@ -64,6 +77,13 @@ export const billingRouter = {
 	location: {
 		request: requestLocation,
 	},
+	noteCategories: {
+		list: listNoteCategories,
+		create: createNoteCategory,
+		update: updateNoteCategory,
+		delete: deleteNoteCategory,
+	},
+	invoice: getInvoice,
 	reports: getAccountingReports,
 	sync: {
 		test: testBilling,

@@ -49,7 +49,7 @@ export const bulkImportCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -87,6 +87,7 @@ export const bulkImportCustomers = protectedProcedure
 		const validRecords: Array<{
 			organizationId: string;
 			accountNumber: string;
+			dealerId: string | null;
 			firstName: string;
 			lastName: string | null;
 			fullName: string;
@@ -134,6 +135,7 @@ export const bulkImportCustomers = protectedProcedure
 				validRecords.push({
 					organizationId: input.organizationId,
 					accountNumber,
+					dealerId: activeDealerId ?? null,
 					firstName: row.firstName,
 					lastName: row.lastName ?? null,
 					fullName: [row.firstName, row.lastName]

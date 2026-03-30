@@ -1,5 +1,6 @@
 "use client";
 
+import { ChartCardSkeleton } from "@shared/components/ChartCard";
 import { StatCardGroup, StatCardSkeleton } from "@shared/components/StatCard";
 import { Skeleton } from "@ui/components/skeleton";
 
@@ -21,17 +22,25 @@ export function DashboardSkeleton() {
 			</StatCardGroup>
 
 			{/* Secondary Stats */}
-			<StatCardGroup columns={4}>
+			<StatCardGroup columns={5}>
+				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 			</StatCardGroup>
 
-			{/* Infrastructure + Plan Distribution */}
+			{/* Charts Row */}
 			<div className="grid gap-4 lg:grid-cols-3">
-				<Skeleton className="h-48 rounded-xl shadow-card" />
-				<Skeleton className="h-48 rounded-xl shadow-card lg:col-span-2" />
+				<ChartCardSkeleton />
+				<ChartCardSkeleton />
+				<ChartCardSkeleton />
+			</div>
+
+			{/* Billing + Dealers Row */}
+			<div className="grid gap-4 lg:grid-cols-2">
+				<ChartCardSkeleton />
+				<ChartCardSkeleton />
 			</div>
 
 			{/* Quick Actions */}
@@ -41,7 +50,7 @@ export function DashboardSkeleton() {
 					{Array.from({ length: 5 }).map((_, i) => (
 						<Skeleton
 							key={`action-${i}`}
-							className="h-20 rounded-xl shadow-card"
+							className="h-28 rounded-xl"
 						/>
 					))}
 				</div>

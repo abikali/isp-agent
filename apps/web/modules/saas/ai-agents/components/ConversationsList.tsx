@@ -51,6 +51,11 @@ export function ConversationsList({
 								<span className="font-medium">
 									{conv.contactName || "Unknown Contact"}
 								</span>
+								{conv.channel && conv.externalChatId && (
+									<span className="text-xs text-muted-foreground">
+										{conv.externalChatId}
+									</span>
+								)}
 								<Badge variant="outline" className="text-xs">
 									{conv.channel
 										? conv.channel.provider === "whatsapp"

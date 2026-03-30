@@ -1,4 +1,5 @@
 import {
+	getDealerScopeFilter,
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
@@ -32,7 +33,7 @@ export const bulkExportCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -48,6 +49,7 @@ export const bulkExportCustomers = protectedProcedure
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			...ownerFilter,
+			...getDealerScopeFilter(activeDealerId),
 		};
 		if (input.filters?.status) {
 			where["status"] = input.filters.status;

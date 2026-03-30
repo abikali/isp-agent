@@ -1,4 +1,5 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import { ORPCError } from "@orpc/server";
+import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -46,12 +47,29 @@ export const createTask = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
 			"create",
 		);
+
+		// Verify customer belongs to active dealer
+		if (input.customerId) {
+			const customer = await db.customer.findFirst({
+				where: {
+					id: input.customerId,
+					organizationId: input.organizationId,
+					dealerId: activeDealerId ?? NO_DEALER,
+				},
+				select: { id: true },
+			});
+			if (!customer) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Customer does not belong to your dealer",
+				});
+			}
+		}
 
 		const task = await db.task.create({
 			data: {

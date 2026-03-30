@@ -1,4 +1,5 @@
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
@@ -18,6 +19,7 @@ export const listUnpaidCustomers = protectedProcedure
 			organizationId: z.string(),
 			collectorId: z.string().optional(),
 			groupName: z.string().optional(),
+			excludeGroupName: z.string().optional(),
 			search: z.string().optional(),
 			expiryFrom: z.string().optional(),
 			expiryTo: z.string().optional(),
@@ -26,7 +28,7 @@ export const listUnpaidCustomers = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -37,6 +39,7 @@ export const listUnpaidCustomers = protectedProcedure
 			organizationId: input.organizationId,
 			paidCurrentCycle: false,
 			status: "ACTIVE",
+			...getDealerScopeFilter(activeDealerId),
 		};
 
 		const { scope, employeeId } = await resolveCollectorScope(permCtx);
@@ -47,6 +50,14 @@ export const listUnpaidCustomers = protectedProcedure
 		}
 		if (input.groupName) {
 			where["groupName"] = input.groupName;
+		}
+		if (input.excludeGroupName) {
+			where["NOT"] = {
+				groupName: {
+					equals: input.excludeGroupName,
+					mode: "insensitive",
+				},
+			};
 		}
 		if (input.search) {
 			where["OR"] = [
@@ -67,7 +78,7 @@ export const listUnpaidCustomers = protectedProcedure
 			where["expiresAt"] = expiresAt;
 		}
 
-		const [customers, total] = await Promise.all([
+		const [customers, total, aggregates] = await Promise.all([
 			db.customer.findMany({
 				where,
 				select: {
@@ -91,6 +102,7 @@ export const listUnpaidCustomers = protectedProcedure
 						select: { id: true, name: true, monthlyPrice: true },
 					},
 					collector: { select: { id: true, name: true } },
+					dealer: { select: { id: true, name: true } },
 					station: { select: { id: true, name: true } },
 				},
 				orderBy: { expiresAt: "asc" },
@@ -98,11 +110,39 @@ export const listUnpaidCustomers = protectedProcedure
 				take: input.pageSize,
 			}),
 			db.customer.count({ where }),
+			db.customer.aggregate({
+				where,
+				_sum: {
+					monthlyRate: true,
+					iptvPrice: true,
+					realIpPrice: true,
+					discount: true,
+				},
+				_count: {
+					_all: true,
+				},
+			}),
 		]);
+
+		// Count expired customers matching the same filters
+		const expiredCount = await db.customer.count({
+			where: {
+				...where,
+				expiresAt: { lt: new Date() },
+			},
+		});
+
+		const totalAmountDue =
+			(aggregates._sum.monthlyRate ?? 0) +
+			(aggregates._sum.iptvPrice ?? 0) +
+			(aggregates._sum.realIpPrice ?? 0) -
+			(aggregates._sum.discount ?? 0);
 
 		return {
 			customers,
 			total,
+			totalAmountDue,
+			expiredCount,
 			page: input.page,
 			pageSize: input.pageSize,
 			totalPages: Math.ceil(total / input.pageSize),

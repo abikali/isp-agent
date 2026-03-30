@@ -41,6 +41,7 @@
 		"@repo/audit": "workspace:*",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
+		"@repo/jobs": "workspace:*",
 		"@repo/i18n": "workspace:*",
 		"@repo/logs": "workspace:*",
 		"@repo/mail": "workspace:*",

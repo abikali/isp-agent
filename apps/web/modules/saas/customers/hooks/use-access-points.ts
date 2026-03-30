@@ -9,12 +9,19 @@ import {
 	useSuspenseQuery,
 } from "@tanstack/react-query";
 
-export function useAccessPoints() {
+export function useAccessPoints(filters?: {
+	search?: string;
+	stationId?: string;
+	online?: boolean;
+}) {
 	const organizationId = useOrganizationId();
 
 	const query = useSuspenseQuery(
 		orpc.accessPoints.list.queryOptions({
-			input: { organizationId: organizationId ?? "" },
+			input: {
+				organizationId: organizationId ?? "",
+				...filters,
+			},
 		}),
 	);
 

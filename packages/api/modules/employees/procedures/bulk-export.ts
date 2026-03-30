@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	employeeAudit,
 	getAuditContextFromHeaders,
@@ -37,7 +40,7 @@ export const bulkExportEmployees = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"employees",
@@ -46,6 +49,7 @@ export const bulkExportEmployees = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			...getDealerScopeFilter(activeDealerId),
 		};
 		if (input.filters?.status) {
 			where["status"] = input.filters.status;
