@@ -10,11 +10,9 @@ import {
 	sumAmountOrZero,
 	sumOrZero,
 } from "../lib/calculations";
-import {
-	getMonthDateRange,
-	resolveActiveBillingMonth,
-	resolveBillingMonthId,
-} from "../lib/resolve-month";
+import { resolveCollectorNames } from "../lib/queries";
+import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import { monthSpecSchema } from "../lib/schemas";
 
 export const getAccountingReports = protectedProcedure
 	.route({
@@ -25,13 +23,13 @@ export const getAccountingReports = protectedProcedure
 			"Accounting reports: collector breakdown, expenses, grand total",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			scope: z.enum(["month", "all"]).default("month"),
-			year: z.number().int().optional(),
-			month: z.number().int().min(1).max(12).optional(),
-			billingMonthId: z.string().optional(),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				scope: z.enum(["month", "all"]).default("month"),
+				billingMonthId: z.string().optional(),
+			})
+			.merge(monthSpecSchema),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { activeDealerId } = await requirePermission(
@@ -46,25 +44,13 @@ export const getAccountingReports = protectedProcedure
 		let dateFilter: { gte: Date; lte: Date } | undefined;
 
 		if (input.scope === "month") {
-			let year = input.year;
-			let month = input.month;
-			if (year == null || month == null) {
-				const active = await resolveActiveBillingMonth(
-					input.organizationId,
-				);
-				year = year ?? active.year;
-				month = month ?? active.month;
-				if (!resolvedMonthId) {
-					resolvedMonthId = active.id;
-				}
-			}
-
+			const { year, month, billingMonthId } = await resolveYearMonth(
+				input.organizationId,
+				input.year,
+				input.month,
+			);
 			if (!resolvedMonthId) {
-				resolvedMonthId = await resolveBillingMonthId(
-					input.organizationId,
-					year,
-					month,
-				);
+				resolvedMonthId = billingMonthId;
 			}
 
 			if (resolvedMonthId) {
@@ -132,11 +118,7 @@ export const getAccountingReports = protectedProcedure
 			]),
 		];
 
-		const collectors = await db.employee.findMany({
-			where: { id: { in: collectorIds } },
-			select: { id: true, name: true },
-		});
-		const collectorMap = new Map(collectors.map((c) => [c.id, c.name]));
+		const collectorMap = await resolveCollectorNames(collectorIds);
 
 		const handedOffMap = new Map(
 			collectionsByCollector.map((c) => [

@@ -67,6 +67,7 @@ import {
 	NOTE_CATEGORY_LABELS,
 	PAYMENT_STATUS_LABELS,
 } from "../lib/billing-utils";
+import { GroupSelect } from "./BillingFilters";
 
 export function CashCollectionPageSkeleton() {
 	return (
@@ -498,27 +499,15 @@ export function CashCollectionPage({
 									</SelectItem>
 								</SelectContent>
 							</Select>
-							<Select
-								value={groupFilter || "all"}
-								onValueChange={(val) => {
-									setGroupFilter(val === "all" ? "" : val);
+							<GroupSelect
+								value={groupFilter}
+								onChange={(val) => {
+									setGroupFilter(val);
 									setPage(1);
 								}}
-							>
-								<SelectTrigger className="w-40">
-									<SelectValue placeholder="Area" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All areas
-									</SelectItem>
-									{groups.map((g) => (
-										<SelectItem key={g} value={g}>
-											{g}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								groups={groups}
+								className="w-40"
+							/>
 						</div>
 
 						<PaymentsTable

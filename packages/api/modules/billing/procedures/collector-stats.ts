@@ -8,11 +8,12 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { sumOrZero } from "../lib/calculations";
 import {
-	collectorBalance,
-	sumAmountOrZero,
-	sumOrZero,
-} from "../lib/calculations";
+	countPaidCustomers,
+	fetchCollectorBalance,
+	unpaidCustomersWhere,
+} from "../lib/queries";
 import {
 	getMonthDateRange,
 	resolveActiveBillingMonth,
@@ -71,104 +72,50 @@ export const getCollectorStats = protectedProcedure
 			activeMonth.month,
 		);
 
-		// Allow null groupNames through — Prisma's NOT excludes nulls
-		const excludeFreeGroup = {
-			OR: [
-				{ groupName: null },
-				{
-					NOT: {
-						groupName: {
-							equals: "free",
-							mode: "insensitive" as const,
-						},
-					},
-				},
-			],
-		};
-
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
-		const [
-			unpaidCustomers,
-			paidCustomerIds,
-			totalPayments,
-			dailyPayments,
-			totalHandedOff,
-		] = await Promise.all([
-			// Unpaid customers: expiry up to this month (includes past-due), no COLLECTED payment
-			db.customer.count({
-				where: {
-					organizationId: input.organizationId,
+		const [unpaidCustomers, paidCustomers, balanceData, dailyPayments] =
+			await Promise.all([
+				// Unpaid customers: expiry up to this month (includes past-due), no COLLECTED payment
+				db.customer.count({
+					where: unpaidCustomersWhere(
+						input.organizationId,
+						activeMonth.id,
+						monthRange,
+						{ collectorId, dealerFilter },
+					),
+				}),
+				// Paid customers this month: distinct customerIds with COLLECTED payment
+				countPaidCustomers(input.organizationId, activeMonth.id, {
 					collectorId,
-					status: "ACTIVE",
-					expiresAt: { lte: monthRange.lte },
-					payments: {
-						none: {
-							billingMonthId: activeMonth.id,
-							status: "COLLECTED",
-						},
+					...dealerViaCustomer,
+				}),
+				// Balance: physical cash collected − handed off (not dealer-scoped)
+				fetchCollectorBalance(input.organizationId, collectorId),
+				// Daily collected (today only)
+				db.payment.aggregate({
+					where: {
+						organizationId: input.organizationId,
+						collectorId,
+						status: "COLLECTED",
+						paidAt: { gte: today, lt: tomorrow },
+						...dealerViaCustomer,
 					},
-					...excludeFreeGroup,
-					...dealerFilter,
-				},
-			}),
-			// Paid customers this month: distinct customerIds with COLLECTED payment
-			db.payment.findMany({
-				where: {
-					organizationId: input.organizationId,
-					collectorId,
-					status: "COLLECTED",
-					billingMonthId: activeMonth.id,
-					...dealerViaCustomer,
-				},
-				select: { customerId: true },
-				distinct: ["customerId"],
-			}),
-			// Total amount collected (all time, for balance calc — not dealer-scoped)
-			db.payment.aggregate({
-				where: {
-					organizationId: input.organizationId,
-					collectorId,
-					status: "COLLECTED",
-					workerId: null,
-				},
-				_sum: { paidAmount: true },
-			}),
-			// Daily collected (today only)
-			db.payment.aggregate({
-				where: {
-					organizationId: input.organizationId,
-					collectorId,
-					status: "COLLECTED",
-					paidAt: { gte: today, lt: tomorrow },
-					...dealerViaCustomer,
-				},
-				_sum: { paidAmount: true },
-				_count: true,
-			}),
-			// Total cash handed off
-			db.cashCollection.aggregate({
-				where: {
-					organizationId: input.organizationId,
-					collectorId,
-				},
-				_sum: { amount: true },
-			}),
-		]);
+					_sum: { paidAmount: true },
+					_count: true,
+				}),
+			]);
 
-		const totalCollected = sumOrZero(totalPayments);
-		const handedOff = sumAmountOrZero(totalHandedOff);
-		const paidCustomers = paidCustomerIds.length;
 		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		return {
 			collectorId,
 			totalCustomers,
 			paidCustomers,
-			totalCollected,
-			totalHandedOff: handedOff,
-			netBalance: collectorBalance(totalCollected, handedOff),
+			totalCollected: balanceData.totalCollected,
+			totalHandedOff: balanceData.totalHandedOff,
+			netBalance: balanceData.balance,
 			dailyCollected: sumOrZero(dailyPayments),
 			dailyCount: dailyPayments._count,
 		};

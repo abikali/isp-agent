@@ -8,6 +8,10 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
 import {
+	customersDueThisMonthWhere,
+	fetchCollectorBalanceBatch,
+} from "../lib/queries";
+import {
 	getMonthDateRange,
 	resolveActiveBillingMonth,
 } from "../lib/resolve-month";
@@ -83,30 +87,12 @@ export const listCollectors = protectedProcedure
 		//    collector as a performance/progress metric, regardless of who physically
 		//    collected the cash.
 		const [
-			collectedByCollector,
-			handoffsByCollector,
+			{ collectedMap, handedOffMap },
 			monthPayments,
 			monthDueByCollector,
 		] = await Promise.all([
 			// Balance: physical cash only (workerId: null), not dealer-scoped
-			db.payment.groupBy({
-				by: ["collectorId"],
-				where: {
-					organizationId: input.organizationId,
-					collectorId: { in: collectorIds },
-					status: "COLLECTED",
-					workerId: null,
-				},
-				_sum: { paidAmount: true },
-			}),
-			db.cashCollection.groupBy({
-				by: ["collectorId"],
-				where: {
-					organizationId: input.organizationId,
-					collectorId: { in: collectorIds },
-				},
-				_sum: { amount: true },
-			}),
+			fetchCollectorBalanceBatch(input.organizationId, collectorIds),
 			db.payment.groupBy({
 				by: ["collectorId"],
 				where: {
@@ -121,54 +107,16 @@ export const listCollectors = protectedProcedure
 			// Customers due this month per collector (expiry in month + paid this month)
 			db.customer.groupBy({
 				by: ["collectorId"],
-				where: {
-					organizationId: input.organizationId,
-					collectorId: { in: collectorIds },
-					status: "ACTIVE",
-					// Allow null groupNames — Prisma's NOT excludes nulls
-					AND: [
-						{
-							OR: [
-								{ groupName: null },
-								{
-									NOT: {
-										groupName: {
-											equals: "free",
-											mode: "insensitive",
-										},
-									},
-								},
-							],
-						},
-						{
-							OR: [
-								{ expiresAt: monthRange },
-								{
-									payments: {
-										some: {
-											billingMonthId: activeMonth.id,
-											status: "COLLECTED",
-										},
-									},
-								},
-							],
-						},
-					],
-					...dealerFilter,
-				},
+				where: customersDueThisMonthWhere(
+					input.organizationId,
+					activeMonth.id,
+					monthRange,
+					{ collectorIds, dealerFilter },
+				),
 				_count: true,
 			}),
 		]);
 
-		const collectedMap = new Map(
-			collectedByCollector.map((c) => [
-				c.collectorId,
-				c._sum.paidAmount ?? 0,
-			]),
-		);
-		const handoffsMap = new Map(
-			handoffsByCollector.map((c) => [c.collectorId, c._sum.amount ?? 0]),
-		);
 		const monthPaymentsMap = new Map(
 			monthPayments.map((c) => [c.collectorId, c._count]),
 		);
@@ -179,7 +127,7 @@ export const listCollectors = protectedProcedure
 		return {
 			collectors: collectors.map((c) => {
 				const totalCollected = collectedMap.get(c.id) ?? 0;
-				const totalHandedOff = handoffsMap.get(c.id) ?? 0;
+				const totalHandedOff = handedOffMap.get(c.id) ?? 0;
 				return {
 					id: c.id,
 					name: c.name,

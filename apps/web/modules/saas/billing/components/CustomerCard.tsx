@@ -22,7 +22,7 @@ import {
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useRequestLocation } from "../hooks/use-billing";
-import { calculateTotalDue, getExpiryInfo } from "../lib/billing-utils";
+import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 
 export interface UnpaidCustomer {
@@ -92,7 +92,7 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const requestLocation = useRequestLocation();
 
 	const name = displayName(customer.firstName, customer.lastName);
-	const monthlyDue = calculateTotalDue(customer);
+	const monthlyDue = customerMonthlyDue(customer);
 	const totalDue = customer.accumulatedDue ?? monthlyDue;
 	const pastDueMonths = customer.pastDueMonths ?? 0;
 	const unpaidMonths = customer.unpaidMonths ?? 1;

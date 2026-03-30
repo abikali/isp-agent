@@ -23,13 +23,6 @@ import {
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import { ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -47,6 +40,7 @@ import {
 	PAYMENT_STATUS_LABELS,
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
+import { CollectorSelect, GroupSelect } from "./BillingFilters";
 
 const PAGE_SIZE = 25;
 
@@ -89,11 +83,11 @@ export function PaymentsList() {
 		setPage(1);
 	};
 	const handleCollectorChange = (value: string) => {
-		setCollectorFilter(value === "all" ? undefined : value);
+		setCollectorFilter(value || undefined);
 		setPage(1);
 	};
 	const handleGroupChange = (value: string) => {
-		setGroupFilter(value === "all" ? undefined : value);
+		setGroupFilter(value || undefined);
 		setPage(1);
 	};
 	const handleMonthChange = (value: string) => {
@@ -339,39 +333,17 @@ export function PaymentsList() {
 						className="max-w-xs"
 					/>
 
-					<Select
-						value={collectorFilter ?? "all"}
-						onValueChange={handleCollectorChange}
-					>
-						<SelectTrigger className="w-[160px]">
-							<SelectValue placeholder="All Collectors" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Collectors</SelectItem>
-							{collectors.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<CollectorSelect
+						value={collectorFilter ?? ""}
+						onChange={handleCollectorChange}
+						collectors={collectors}
+					/>
 
-					<Select
-						value={groupFilter ?? "all"}
-						onValueChange={handleGroupChange}
-					>
-						<SelectTrigger className="w-[160px]">
-							<SelectValue placeholder="All Areas" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Areas</SelectItem>
-							{groups.map((g) => (
-								<SelectItem key={g} value={g}>
-									{g}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<GroupSelect
+						value={groupFilter ?? ""}
+						onChange={handleGroupChange}
+						groups={groups}
+					/>
 
 					<BillingCycleSelect
 						value={monthFilter || activeMonthId || "all"}

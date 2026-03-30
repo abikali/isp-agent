@@ -70,7 +70,7 @@ export {
 export {
 	buildCycleOptions,
 	type CycleOption,
-	calculateTotalDue,
+	customerMonthlyDue,
 	formatCycleLong,
 	formatCycleShort,
 	getPaymentStatusVariant,

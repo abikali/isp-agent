@@ -85,6 +85,36 @@ export async function resolveOrCreateBillingMonth(
 }
 
 /**
+ * Resolve year/month from optional input, falling back to the active
+ * billing month. Also returns the billingMonthId (avoids a second DB call
+ * when the active month was used as the fallback).
+ */
+export async function resolveYearMonth(
+	organizationId: string,
+	inputYear?: number,
+	inputMonth?: number,
+): Promise<{
+	year: number;
+	month: number;
+	billingMonthId?: string | undefined;
+}> {
+	if (inputYear != null && inputMonth != null) {
+		const billingMonthId = await resolveBillingMonthId(
+			organizationId,
+			inputYear,
+			inputMonth,
+		);
+		return { year: inputYear, month: inputMonth, billingMonthId };
+	}
+	const active = await resolveActiveBillingMonth(organizationId);
+	return {
+		year: inputYear ?? active.year,
+		month: inputMonth ?? active.month,
+		billingMonthId: active.id,
+	};
+}
+
+/**
  * Derive a date range for a billing month.
  */
 export function getMonthDateRange(year: number, month: number) {

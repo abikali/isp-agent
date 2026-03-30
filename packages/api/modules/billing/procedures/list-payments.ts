@@ -5,6 +5,8 @@ import {
 import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerSearchFilter } from "../lib/filters";
+import { paginationSchema } from "../lib/schemas";
 
 export const listPayments = protectedProcedure
 	.route({
@@ -14,24 +16,24 @@ export const listPayments = protectedProcedure
 		summary: "List payments with pagination and filters",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			billingMonthId: z.string().optional(),
-			collectorId: z.string().optional(),
-			status: z
-				.enum([PaymentStatus.COLLECTED, PaymentStatus.STOPPED])
-				.optional(),
-			groupName: z.string().optional(),
-			search: z.string().optional(),
-			dateFrom: z.string().datetime().optional(),
-			dateTo: z.string().datetime().optional(),
-			page: z.number().int().min(1).default(1),
-			pageSize: z.number().int().min(10).max(100).default(25),
-			sortBy: z
-				.enum(["paidAt", "paidAmount", "status"])
-				.default("paidAt"),
-			sortOrder: z.enum(["asc", "desc"]).default("desc"),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				billingMonthId: z.string().optional(),
+				collectorId: z.string().optional(),
+				status: z
+					.enum([PaymentStatus.COLLECTED, PaymentStatus.STOPPED])
+					.optional(),
+				groupName: z.string().optional(),
+				search: z.string().optional(),
+				dateFrom: z.string().datetime().optional(),
+				dateTo: z.string().datetime().optional(),
+				sortBy: z
+					.enum(["paidAt", "paidAmount", "status"])
+					.default("paidAt"),
+				sortOrder: z.enum(["asc", "desc"]).default("desc"),
+			})
+			.merge(paginationSchema()),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { permCtx, activeDealerId } = await requirePermission(
@@ -80,32 +82,7 @@ export const listPayments = protectedProcedure
 			const searchLower = input.search.toLowerCase();
 			const customerSearch = {
 				...customerWhere,
-				OR: [
-					{
-						firstName: {
-							contains: input.search,
-							mode: "insensitive" as const,
-						},
-					},
-					{
-						lastName: {
-							contains: input.search,
-							mode: "insensitive" as const,
-						},
-					},
-					{
-						username: {
-							contains: input.search,
-							mode: "insensitive" as const,
-						},
-					},
-					{
-						mobile: {
-							contains: input.search,
-							mode: "insensitive" as const,
-						},
-					},
-				],
+				...customerSearchFilter(input.search),
 			};
 			where["OR"] = [
 				{ id: { contains: searchLower, mode: "insensitive" as const } },

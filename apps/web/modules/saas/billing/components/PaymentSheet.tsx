@@ -28,7 +28,7 @@ import "react-international-phone/style.css";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
-import { calculateTotalDue } from "../lib/billing-utils";
+import { customerMonthlyDue } from "../lib/billing-utils";
 import type { UnpaidCustomer } from "./CustomerCard";
 
 interface PaymentSheetProps {
@@ -98,7 +98,7 @@ export function PaymentSheet({
 	useEffect(() => {
 		if (customerId && customer) {
 			const amount =
-				customer.accumulatedDue ?? calculateTotalDue(customer);
+				customer.accumulatedDue ?? customerMonthlyDue(customer);
 			setPaidAmount(String(amount));
 			setFreeAccount(false);
 			setStoppedAccount(false);
@@ -109,7 +109,7 @@ export function PaymentSheet({
 		}
 	}, [customerId]);
 
-	const monthlyDue = customer ? calculateTotalDue(customer) : 0;
+	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
 	const unpaidMonths = customer?.unpaidMonths ?? 1;
 	const pastDueMonths = customer?.pastDueMonths ?? 0;
 	const totalDue = freeAccount

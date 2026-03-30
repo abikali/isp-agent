@@ -7,10 +7,9 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import {
-	resolveActiveBillingMonth,
-	resolveBillingMonthId,
-} from "../lib/resolve-month";
+import { customerSearchFilter } from "../lib/filters";
+import { resolveYearMonth } from "../lib/resolve-month";
+import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
 export const listStoppedAccounts = protectedProcedure
 	.route({
@@ -20,16 +19,15 @@ export const listStoppedAccounts = protectedProcedure
 		summary: "List stopped/suspended accounts from payments",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			year: z.number().int().optional(),
-			month: z.number().int().min(1).max(12).optional(),
-			search: z.string().optional(),
-			groupName: z.string().optional(),
-			collectorId: z.string().optional(),
-			page: z.number().int().min(1).default(1),
-			pageSize: z.number().int().min(10).max(100).default(25),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				search: z.string().optional(),
+				groupName: z.string().optional(),
+				collectorId: z.string().optional(),
+			})
+			.merge(monthSpecSchema)
+			.merge(paginationSchema()),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { activeDealerId } = await requirePermission(
@@ -39,23 +37,11 @@ export const listStoppedAccounts = protectedProcedure
 			"view",
 		);
 
-		let year = input.year;
-		let month = input.month;
-		let monthId: string | undefined;
-		if (year == null || month == null) {
-			const active = await resolveActiveBillingMonth(
-				input.organizationId,
-			);
-			year = year ?? active.year;
-			month = month ?? active.month;
-			monthId = active.id;
-		} else {
-			monthId = await resolveBillingMonthId(
-				input.organizationId,
-				year,
-				month,
-			);
-		}
+		const { billingMonthId: monthId } = await resolveYearMonth(
+			input.organizationId,
+			input.year,
+			input.month,
+		);
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
@@ -71,11 +57,7 @@ export const listStoppedAccounts = protectedProcedure
 			...getDealerScopeFilter(activeDealerId),
 		};
 		if (input.search) {
-			customerWhere["OR"] = [
-				{ firstName: { contains: input.search, mode: "insensitive" } },
-				{ lastName: { contains: input.search, mode: "insensitive" } },
-				{ username: { contains: input.search, mode: "insensitive" } },
-			];
+			Object.assign(customerWhere, customerSearchFilter(input.search));
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;

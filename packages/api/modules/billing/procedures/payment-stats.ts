@@ -9,10 +9,12 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import {
-	getMonthDateRange,
-	resolveActiveBillingMonth,
-	resolveBillingMonthId,
-} from "../lib/resolve-month";
+	countPaidCustomers,
+	resolveCollectorNames,
+	unpaidCustomersWhere,
+} from "../lib/queries";
+import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import { monthSpecSchema } from "../lib/schemas";
 
 export const getPaymentStats = protectedProcedure
 	.route({
@@ -22,12 +24,12 @@ export const getPaymentStats = protectedProcedure
 		summary: "Get payment statistics for a billing month",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			billingMonthId: z.string().optional(),
-			year: z.number().int().optional(),
-			month: z.number().int().min(1).max(12).optional(),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				billingMonthId: z.string().optional(),
+			})
+			.merge(monthSpecSchema),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { permCtx, activeDealerId } = await requirePermission(
@@ -37,23 +39,18 @@ export const getPaymentStats = protectedProcedure
 			"view",
 		);
 
-		let year = input.year;
-		let month = input.month;
-		let resolvedMonthId: string | undefined;
-		if (year == null || month == null) {
-			const active = await resolveActiveBillingMonth(
-				input.organizationId,
-			);
-			year = year ?? active.year;
-			month = month ?? active.month;
-			resolvedMonthId = active.id;
-		}
+		const {
+			year,
+			month,
+			billingMonthId: resolvedMonthId,
+		} = await resolveYearMonth(
+			input.organizationId,
+			input.year,
+			input.month,
+		);
 		const monthRange = getMonthDateRange(year, month);
 
-		const monthId =
-			input.billingMonthId ??
-			resolvedMonthId ??
-			(await resolveBillingMonthId(input.organizationId, year, month));
+		const monthId = input.billingMonthId ?? resolvedMonthId;
 
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
@@ -69,35 +66,12 @@ export const getPaymentStats = protectedProcedure
 			baseWhere["collectorId"] = employeeId;
 		}
 
-		// Build the unpaid filter: active customers with expiry in this month
-		// who have no COLLECTED payment for this month
-		const unpaidWhere: Record<string, unknown> = {
-			organizationId: input.organizationId,
-			status: "ACTIVE",
-			// Allow null groupNames through — Prisma's NOT excludes nulls
-			OR: [
-				{ groupName: null },
-				{
-					NOT: {
-						groupName: { equals: "free", mode: "insensitive" },
-					},
-				},
-			],
-			expiresAt: monthRange,
-			...dealerFilter,
-		};
-		if (monthId) {
-			unpaidWhere["payments"] = {
-				none: { billingMonthId: monthId, status: "COLLECTED" },
-			};
-		}
-
 		const [
 			collectedPayments,
 			stoppedPayments,
 			totalCollected,
 			byCollector,
-			paidCustomerIds,
+			paidCustomers,
 			unpaidCustomers,
 		] = await Promise.all([
 			db.payment.count({
@@ -118,33 +92,29 @@ export const getPaymentStats = protectedProcedure
 			}),
 			// Paid customers: distinct customers with a COLLECTED payment this month
 			monthId
-				? db.payment.findMany({
-						where: {
-							...baseWhere,
-							status: "COLLECTED",
-						},
-						select: { customerId: true },
-						distinct: ["customerId"],
+				? countPaidCustomers(input.organizationId, monthId, {
+						...dealerViaCustomer,
 					})
-				: Promise.resolve([]),
-			// Unpaid customers: expiry falls in this month, no COLLECTED payment
-			db.customer.count({ where: unpaidWhere }),
+				: Promise.resolve(0),
+			// Unpaid customers: includes past-due (expiresAt <= month end, no COLLECTED payment)
+			monthId
+				? db.customer.count({
+						where: unpaidCustomersWhere(
+							input.organizationId,
+							monthId,
+							monthRange,
+							{ dealerFilter },
+						),
+					})
+				: Promise.resolve(0),
 		]);
 
-		const paidCustomers = paidCustomerIds.length;
 		// Total = those who paid (expiry already moved) + those still due (expiry in month)
 		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		// Resolve collector names
 		const collectorIds = byCollector.map((c) => c.collectorId);
-		const collectors =
-			collectorIds.length > 0
-				? await db.employee.findMany({
-						where: { id: { in: collectorIds } },
-						select: { id: true, name: true },
-					})
-				: [];
-		const collectorMap = new Map(collectors.map((c) => [c.id, c.name]));
+		const collectorMap = await resolveCollectorNames(collectorIds);
 
 		const collectorBreakdown = byCollector.map((c) => ({
 			collectorId: c.collectorId,

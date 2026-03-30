@@ -116,8 +116,12 @@ interface CustomerForBilling {
 	discount?: number | null;
 }
 
-/** Calculate total amount due for a customer based on their plan, addons, and discount. */
-export function calculateTotalDue(customer: CustomerForBilling): number {
+/**
+ * Calculate total amount due for a customer based on their plan, addons, and discount.
+ * Formula must stay in sync with the backend `customerMonthlyDue` in
+ * packages/api/modules/billing/lib/calculations.ts.
+ */
+export function customerMonthlyDue(customer: CustomerForBilling): number {
 	const accountPrice =
 		customer.monthlyRate ?? customer.plan?.monthlyPrice ?? 0;
 	return (

@@ -5,6 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { paginationSchema } from "../lib/schemas";
 
 export const getCollectorLedger = protectedProcedure
 	.route({
@@ -15,12 +16,12 @@ export const getCollectorLedger = protectedProcedure
 			"Get chronological transaction ledger for a collector (collections + handoffs)",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			collectorId: z.string(),
-			page: z.number().int().min(1).default(1),
-			pageSize: z.number().int().min(10).max(100).default(50),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				collectorId: z.string(),
+			})
+			.merge(paginationSchema(50)),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { activeDealerId } = await requirePermission(

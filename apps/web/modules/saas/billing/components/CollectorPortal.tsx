@@ -2,25 +2,11 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { SearchInput } from "@shared/components/SearchInput";
-import { formatCurrency } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	BanknoteIcon,
-	CalendarXIcon,
-	UsersIcon,
-	WalletIcon,
-} from "lucide-react";
+import { CalendarXIcon, UsersIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
@@ -28,6 +14,8 @@ import {
 	useCustomerGroups,
 	useUnpaidCustomers,
 } from "../hooks/use-billing";
+import { GroupSelect } from "./BillingFilters";
+import { BillingStatsCards } from "./BillingStatsCards";
 import { CustomerCard, type UnpaidCustomer } from "./CustomerCard";
 import { PaymentSheet } from "./PaymentSheet";
 
@@ -39,60 +27,12 @@ function StatsStrip() {
 		POLL_INTERVAL,
 	);
 
-	if (isLoading || !stats) {
-		return (
-			<div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<Skeleton key={i} className="h-24 min-w-[140px] flex-1" />
-				))}
-			</div>
-		);
-	}
-
 	return (
-		<div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
-			<Card className="min-w-[140px] flex-1 snap-start border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
-				<CardContent className="p-3">
-					<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-						<UsersIcon className="size-3.5" />
-						Bills
-					</div>
-					<p className="mt-1 text-2xl font-bold">
-						{stats.paidCustomers}
-						<span className="text-sm font-normal text-muted-foreground">
-							/{stats.totalCustomers}
-						</span>
-					</p>
-				</CardContent>
-			</Card>
-			<Card className="min-w-[140px] flex-1 snap-start border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
-				<CardContent className="p-3">
-					<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-						<WalletIcon className="size-3.5" />
-						In Hand
-					</div>
-					<p className="mt-1 text-2xl font-bold">
-						{formatCurrency(stats.netBalance)}
-					</p>
-				</CardContent>
-			</Card>
-			<Card className="min-w-[140px] flex-1 snap-start border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-				<CardContent className="p-3">
-					<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-						<BanknoteIcon className="size-3.5" />
-						Today
-					</div>
-					<p className="mt-1 text-2xl font-bold">
-						{formatCurrency(stats.dailyCollected)}
-					</p>
-					{stats.dailyCount > 0 && (
-						<Badge variant="secondary" className="text-xs mt-0.5">
-							{stats.dailyCount} bills
-						</Badge>
-					)}
-				</CardContent>
-			</Card>
-		</div>
+		<BillingStatsCards
+			stats={stats ?? null}
+			isLoading={isLoading}
+			compact
+		/>
 	);
 }
 
@@ -139,27 +79,16 @@ export function CollectorPortal() {
 					placeholder="Search customers..."
 				/>
 				<div className="flex gap-2">
-					<Select
+					<GroupSelect
 						value={groupFilter}
-						onValueChange={(val) => {
-							setGroupFilter(val === "all" ? "" : val);
+						onChange={(val) => {
+							setGroupFilter(val);
 							setPage(1);
 						}}
-					>
-						<SelectTrigger className="flex-1">
-							<SelectValue placeholder="All areas" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All areas</SelectItem>
-							{groups
-								.filter((g) => g.toLowerCase() !== "free")
-								.map((g) => (
-									<SelectItem key={g} value={g}>
-										{g}
-									</SelectItem>
-								))}
-						</SelectContent>
-					</Select>
+						groups={groups}
+						excludeFree
+						className="flex-1"
+					/>
 					<Button
 						variant={expiredOnly ? "primary" : "outline"}
 						size="md"

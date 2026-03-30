@@ -24,7 +24,7 @@ import { Textarea } from "@ui/components/textarea";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
-import { calculateTotalDue } from "../lib/billing-utils";
+import { customerMonthlyDue } from "../lib/billing-utils";
 
 interface PaymentDialogProps {
 	open: boolean;
@@ -60,7 +60,7 @@ export function PaymentDialog({
 	const iptvPrice = customer.iptvPrice ?? 0;
 	const realIpPrice = customer.realIpPrice ?? 0;
 	const discountAmount = customer.discount ?? 0;
-	const fullDue = calculateTotalDue(customer);
+	const fullDue = customerMonthlyDue(customer);
 
 	const [paidAmount, setPaidAmount] = useState(String(fullDue));
 	const [freeAccount, setFreeAccount] = useState(false);

@@ -12,13 +12,6 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { DataTable } from "@ui/components/data-table";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import {
 	Tooltip,
@@ -43,68 +36,16 @@ import {
 	useCustomerGroups,
 	useUnpaidCustomers,
 } from "../hooks/use-billing";
-import { calculateTotalDue, getExpiryInfo } from "../lib/billing-utils";
+import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
+import { CollectorSelect, GroupSelect } from "./BillingFilters";
+import { BillingStatsCards } from "./BillingStatsCards";
 import { PaymentDialog } from "./PaymentDialog";
 
 function CollectorStatsHeader() {
 	const { data: stats, isLoading } = useCollectorStats();
 
-	if (isLoading || !stats) {
-		return (
-			<div className="grid gap-3 grid-cols-3 mb-4">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<Skeleton key={i} className="h-20" />
-				))}
-			</div>
-		);
-	}
-
-	return (
-		<div className="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4">
-			<Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<UsersIcon className="h-4 w-4" />
-						Collected Bills
-					</div>
-					<div className="text-2xl font-bold">
-						{stats.paidCustomers}{" "}
-						<span className="text-base font-normal text-muted-foreground">
-							/ {stats.totalCustomers}
-						</span>
-					</div>
-				</CardContent>
-			</Card>
-			<Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<WalletIcon className="h-4 w-4" />
-						In Hand
-					</div>
-					<div className="text-2xl font-bold">
-						{formatCurrency(stats.netBalance)}
-					</div>
-				</CardContent>
-			</Card>
-			<Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<BanknoteIcon className="h-4 w-4" />
-						Today
-					</div>
-					<div className="text-2xl font-bold">
-						{formatCurrency(stats.dailyCollected)}
-						{stats.dailyCount > 0 && (
-							<Badge variant="secondary" className="ml-2 text-xs">
-								{stats.dailyCount} bills
-							</Badge>
-						)}
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	);
+	return <BillingStatsCards stats={stats ?? null} isLoading={isLoading} />;
 }
 
 function CollectionOverview({
@@ -363,7 +304,7 @@ function useUnpaidColumns({
 						customer.plan?.monthlyPrice ??
 						0;
 					const discount = customer.discount ?? 0;
-					const totalDue = calculateTotalDue(customer);
+					const totalDue = customerMonthlyDue(customer);
 
 					return (
 						<div className="text-right">
@@ -528,7 +469,7 @@ export function UnpaidCustomersList() {
 
 	// Calculate total amount due across visible page (for the footer)
 	const pageAmountDue = customers.reduce(
-		(sum, c) => sum + calculateTotalDue(c),
+		(sum, c) => sum + customerMonthlyDue(c),
 		0,
 	);
 
@@ -574,52 +515,26 @@ export function UnpaidCustomersList() {
 						className="sm:max-w-xs"
 					/>
 					<div className="flex flex-1 items-center gap-2">
-						<Select
-							value={groupFilter || "all"}
-							onValueChange={(val) => {
-								setGroupFilter(val === "all" ? "" : val);
+						<GroupSelect
+							value={groupFilter}
+							onChange={(val) => {
+								setGroupFilter(val);
 								setPage(1);
 							}}
-						>
-							<SelectTrigger className="w-[160px]">
-								<SelectValue placeholder="All areas" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All areas</SelectItem>
-								{groups
-									.filter((g) => g.toLowerCase() !== "free")
-									.map((g) => (
-										<SelectItem key={g} value={g}>
-											{g}
-										</SelectItem>
-									))}
-							</SelectContent>
-						</Select>
+							groups={groups}
+							excludeFree
+						/>
 
 						{isOrganizationAdmin && (
-							<Select
-								value={collectorFilter || "all"}
-								onValueChange={(val) => {
-									setCollectorFilter(
-										val === "all" ? "" : val,
-									);
+							<CollectorSelect
+								value={collectorFilter}
+								onChange={(val) => {
+									setCollectorFilter(val);
 									setPage(1);
 								}}
-							>
-								<SelectTrigger className="w-[180px]">
-									<SelectValue placeholder="All collectors" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All collectors
-									</SelectItem>
-									{collectors.map((c) => (
-										<SelectItem key={c.id} value={c.id}>
-											{c.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								collectors={collectors}
+								className="w-[180px]"
+							/>
 						)}
 
 						<Button

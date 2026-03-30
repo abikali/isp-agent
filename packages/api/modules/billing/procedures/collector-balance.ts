@@ -2,11 +2,11 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerMonthlyDue, sumOrZero } from "../lib/calculations";
 import {
-	collectorBalance,
-	sumAmountOrZero,
-	sumOrZero,
-} from "../lib/calculations";
+	customersDueThisMonthWhere,
+	fetchCollectorBalance,
+} from "../lib/queries";
 import {
 	getMonthDateRange,
 	resolveActiveBillingMonth,
@@ -42,56 +42,17 @@ export const getCollectorBalance = protectedProcedure
 			activeMonth.month,
 		);
 
-		// Balance is about physical cash — not dealer-scoped
-		const [paymentsAgg, collectionsAgg, monthCustomers, monthPaymentsAgg] =
+		const [balanceData, monthCustomers, monthPaymentsAgg] =
 			await Promise.all([
-				db.payment.aggregate({
-					where: {
-						organizationId: input.organizationId,
-						collectorId: input.collectorId,
-						status: "COLLECTED",
-						workerId: null,
-					},
-					_sum: { paidAmount: true },
-				}),
-				db.cashCollection.aggregate({
-					where: {
-						organizationId: input.organizationId,
-						collectorId: input.collectorId,
-					},
-					_sum: { amount: true },
-				}),
+				fetchCollectorBalance(input.organizationId, input.collectorId),
 				// Customers due this month: expiry falls in month range OR already paid
 				db.customer.findMany({
-					where: {
-						organizationId: input.organizationId,
-						collectorId: input.collectorId,
-						status: "ACTIVE",
-						OR: [
-							{ groupName: null },
-							{
-								NOT: {
-									groupName: {
-										equals: "free",
-										mode: "insensitive",
-									},
-								},
-							},
-						],
-						AND: {
-							OR: [
-								{ expiresAt: monthRange },
-								{
-									payments: {
-										some: {
-											billingMonthId: activeMonth.id,
-											status: "COLLECTED",
-										},
-									},
-								},
-							],
-						},
-					},
+					where: customersDueThisMonthWhere(
+						input.organizationId,
+						activeMonth.id,
+						monthRange,
+						{ collectorId: input.collectorId },
+					),
 					select: {
 						monthlyRate: true,
 						iptvPrice: true,
@@ -113,28 +74,18 @@ export const getCollectorBalance = protectedProcedure
 				}),
 			]);
 
-		const totalCollected = sumOrZero(paymentsAgg);
-		const totalHandedOff = sumAmountOrZero(collectionsAgg);
-		const balance = collectorBalance(totalCollected, totalHandedOff);
-
 		const monthBillCount = monthCustomers.length;
-		const monthAmountDue = monthCustomers.reduce((sum, c) => {
-			const base = c.monthlyRate ?? c.plan?.monthlyPrice ?? 0;
-			return (
-				sum +
-				base +
-				(c.iptvPrice ?? 0) +
-				(c.realIpPrice ?? 0) -
-				(c.discount ?? 0)
-			);
-		}, 0);
+		const monthAmountDue = monthCustomers.reduce(
+			(sum, c) => sum + customerMonthlyDue(c),
+			0,
+		);
 		const monthPaidCount = monthPaymentsAgg._count;
 		const monthAmountCollected = sumOrZero(monthPaymentsAgg);
 
 		return {
-			totalCollected,
-			totalHandedOff,
-			balance,
+			totalCollected: balanceData.totalCollected,
+			totalHandedOff: balanceData.totalHandedOff,
+			balance: balanceData.balance,
 			monthBillCount,
 			monthAmountDue,
 			monthPaidCount,

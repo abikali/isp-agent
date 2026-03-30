@@ -6,11 +6,10 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import {
-	getMonthDateRange,
-	resolveActiveBillingMonth,
-	resolveBillingMonthId,
-} from "../lib/resolve-month";
+import { customerMonthlyDue } from "../lib/calculations";
+import { customerSearchFilter, excludeGroupFilter } from "../lib/filters";
+import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
 export const listUnpaidCustomers = protectedProcedure
 	.route({
@@ -20,19 +19,18 @@ export const listUnpaidCustomers = protectedProcedure
 		summary: "List unpaid customers (computed from payment records)",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			year: z.number().int().optional(),
-			month: z.number().int().min(1).max(12).optional(),
-			collectorId: z.string().optional(),
-			groupName: z.string().optional(),
-			excludeGroupName: z.string().optional(),
-			search: z.string().optional(),
-			expiryFrom: z.string().optional(),
-			expiryTo: z.string().optional(),
-			page: z.number().int().min(1).default(1),
-			pageSize: z.number().int().min(10).max(100).default(50),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				collectorId: z.string().optional(),
+				groupName: z.string().optional(),
+				excludeGroupName: z.string().optional(),
+				search: z.string().optional(),
+				expiryFrom: z.string().optional(),
+				expiryTo: z.string().optional(),
+			})
+			.merge(monthSpecSchema)
+			.merge(paginationSchema(50)),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { permCtx, activeDealerId } = await requirePermission(
@@ -42,25 +40,11 @@ export const listUnpaidCustomers = protectedProcedure
 			"view",
 		);
 
-		// Default to the active billing month (latest unlocked), not the
-		// current calendar month — the active month may be ahead of today.
-		let year = input.year;
-		let month = input.month;
-		let billingMonthId: string | undefined;
-		if (year == null || month == null) {
-			const active = await resolveActiveBillingMonth(
-				input.organizationId,
-			);
-			year = year ?? active.year;
-			month = month ?? active.month;
-			billingMonthId = active.id;
-		} else {
-			billingMonthId = await resolveBillingMonthId(
-				input.organizationId,
-				year,
-				month,
-			);
-		}
+		const { year, month, billingMonthId } = await resolveYearMonth(
+			input.organizationId,
+			input.year,
+			input.month,
+		);
 		const monthRange = getMonthDateRange(year, month);
 
 		const where: Record<string, unknown> = {
@@ -92,56 +76,15 @@ export const listUnpaidCustomers = protectedProcedure
 			where["groupName"] = input.groupName;
 		}
 		if (input.excludeGroupName) {
-			// Use OR to allow null groupNames through — Prisma's NOT excludes nulls
-			const excludeFilter = {
-				OR: [
-					{ groupName: null },
-					{
-						NOT: {
-							groupName: {
-								equals: input.excludeGroupName,
-								mode: "insensitive",
-							},
-						},
-					},
-				],
-			};
 			where["AND"] = [
 				...((where["AND"] as unknown[]) ?? []),
-				excludeFilter,
+				excludeGroupFilter(input.excludeGroupName),
 			];
 		}
 		if (input.search) {
 			where["AND"] = [
 				...((where["AND"] as unknown[]) ?? []),
-				{
-					OR: [
-						{
-							firstName: {
-								contains: input.search,
-								mode: "insensitive",
-							},
-						},
-						{
-							lastName: {
-								contains: input.search,
-								mode: "insensitive",
-							},
-						},
-						{
-							username: {
-								contains: input.search,
-								mode: "insensitive",
-							},
-						},
-						{
-							mobile: {
-								contains: input.search,
-								mode: "insensitive",
-							},
-						},
-					],
-				},
+				customerSearchFilter(input.search),
 			];
 		}
 		if (input.expiryFrom || input.expiryTo) {
@@ -257,13 +200,7 @@ export const listUnpaidCustomers = protectedProcedure
 				const exp = customer.expiresAt
 					? new Date(customer.expiresAt)
 					: null;
-				const accountPrice =
-					customer.monthlyRate ?? customer.plan?.monthlyPrice ?? 0;
-				const monthlyDue =
-					accountPrice +
-					(customer.iptvPrice ?? 0) +
-					(customer.realIpPrice ?? 0) -
-					(customer.discount ?? 0);
+				const monthlyDue = customerMonthlyDue(customer);
 
 				if (!exp) {
 					return {

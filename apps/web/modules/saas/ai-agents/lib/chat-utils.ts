@@ -97,6 +97,24 @@ export function groupMessagesByDate<T extends MessageItem>(
 	return groups;
 }
 
+/** Format a phone number string as international format with + prefix. */
+export function formatPhoneNumber(
+	phone: string | null | undefined,
+): string | null {
+	if (!phone) {
+		return null;
+	}
+	// Already has + prefix
+	if (phone.startsWith("+")) {
+		return phone;
+	}
+	// Raw digits — add + prefix
+	if (/^\d+$/.test(phone)) {
+		return `+${phone}`;
+	}
+	return phone;
+}
+
 /** Extract initials from a contact name. */
 export function getContactInitials(name: string | null | undefined): string {
 	if (!name) {

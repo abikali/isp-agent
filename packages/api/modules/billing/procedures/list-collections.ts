@@ -2,6 +2,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { dateRangeSchema, paginationSchema } from "../lib/schemas";
 
 export const listCollections = protectedProcedure
 	.route({
@@ -11,14 +12,13 @@ export const listCollections = protectedProcedure
 		summary: "List cash collection records with optional filters",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			collectorId: z.string().optional(),
-			dateFrom: z.string().optional(),
-			dateTo: z.string().optional(),
-			page: z.number().int().min(1).default(1),
-			pageSize: z.number().int().min(10).max(100).default(25),
-		}),
+		z
+			.object({
+				organizationId: z.string(),
+				collectorId: z.string().optional(),
+			})
+			.merge(dateRangeSchema)
+			.merge(paginationSchema()),
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const { activeDealerId } = await requirePermission(
