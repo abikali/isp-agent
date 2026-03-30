@@ -69,12 +69,17 @@ export {
 } from "./hooks/use-billing";
 export {
 	buildCycleOptions,
+	type CustomerForBilling,
 	type CycleOption,
+	calculateTotalDue,
 	customerMonthlyDue,
+	extractPriceComponents,
 	formatCycleLong,
 	formatCycleShort,
 	getPaymentStatusVariant,
 	MONTH_NAMES,
 	MONTH_SHORT,
 	PAYMENT_STATUS_LABELS,
+	type PriceComponents,
+	parseAmount,
 } from "./lib/billing-utils";

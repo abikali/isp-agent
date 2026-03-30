@@ -2,13 +2,13 @@ import {
 	getDealerScopeFilter,
 	getDealerScopeViaCustomer,
 	requirePermission,
-	resolveCollectorScope,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import {
+	applyCollectorScope,
 	countPaidCustomers,
 	resolveCollectorNames,
 	unpaidCustomersWhere,
@@ -61,10 +61,7 @@ export const getPaymentStats = protectedProcedure
 			...dealerViaCustomer,
 		};
 
-		const { scope, employeeId } = await resolveCollectorScope(permCtx);
-		if (scope === "own" && employeeId) {
-			baseWhere["collectorId"] = employeeId;
-		}
+		await applyCollectorScope(baseWhere, permCtx);
 
 		const [
 			collectedPayments,

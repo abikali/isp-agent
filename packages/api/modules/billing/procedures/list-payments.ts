@@ -1,11 +1,9 @@
-import {
-	requirePermission,
-	resolveCollectorScope,
-} from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db, PaymentStatus } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { customerSearchFilter } from "../lib/filters";
+import { buildDateRangeFilter, customerSearchFilter } from "../lib/filters";
+import { applyCollectorScope } from "../lib/queries";
 import { paginationSchema } from "../lib/schemas";
 
 export const listPayments = protectedProcedure
@@ -52,12 +50,7 @@ export const listPayments = protectedProcedure
 			dealerId: activeDealerId ?? null,
 		};
 
-		const { scope, employeeId } = await resolveCollectorScope(permCtx);
-		if (scope === "own" && employeeId) {
-			where["collectorId"] = employeeId;
-		} else if (input.collectorId) {
-			where["collectorId"] = input.collectorId;
-		}
+		await applyCollectorScope(where, permCtx, input.collectorId);
 
 		if (input.billingMonthId) {
 			where["billingMonthId"] = input.billingMonthId;
@@ -68,15 +61,9 @@ export const listPayments = protectedProcedure
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;
 		}
-		if (input.dateFrom || input.dateTo) {
-			const paidAt: Record<string, unknown> = {};
-			if (input.dateFrom) {
-				paidAt["gte"] = new Date(input.dateFrom);
-			}
-			if (input.dateTo) {
-				paidAt["lte"] = new Date(input.dateTo);
-			}
-			where["paidAt"] = paidAt;
+		const dateRange = buildDateRangeFilter(input.dateFrom, input.dateTo);
+		if (dateRange) {
+			where["paidAt"] = dateRange;
 		}
 		if (input.search) {
 			const searchLower = input.search.toLowerCase();

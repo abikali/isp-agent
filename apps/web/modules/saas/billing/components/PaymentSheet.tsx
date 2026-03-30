@@ -28,7 +28,12 @@ import "react-international-phone/style.css";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
-import { customerMonthlyDue } from "../lib/billing-utils";
+import {
+	calculateTotalDue,
+	customerMonthlyDue,
+	extractPriceComponents,
+	parseAmount,
+} from "../lib/billing-utils";
 import type { UnpaidCustomer } from "./CustomerCard";
 
 interface PaymentSheetProps {
@@ -79,11 +84,8 @@ export function PaymentSheet({
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];
 
-	const accountPrice =
-		customer?.monthlyRate ?? customer?.plan?.monthlyPrice ?? 0;
-	const iptvPrice = customer?.iptvPrice ?? 0;
-	const realIpPrice = customer?.realIpPrice ?? 0;
-	const discountAmount = customer?.discount ?? 0;
+	const { accountPrice, iptvPrice, realIpPrice, discountAmount } =
+		extractPriceComponents(customer);
 
 	const [paidAmount, setPaidAmount] = useState("");
 	const [freeAccount, setFreeAccount] = useState(false);
@@ -97,8 +99,7 @@ export function PaymentSheet({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only reset form when a different customer is selected
 	useEffect(() => {
 		if (customerId && customer) {
-			const amount =
-				customer.accumulatedDue ?? customerMonthlyDue(customer);
+			const amount = calculateTotalDue(customer, { freeAccount: false });
 			setPaidAmount(String(amount));
 			setFreeAccount(false);
 			setStoppedAccount(false);
@@ -110,17 +111,14 @@ export function PaymentSheet({
 	}, [customerId]);
 
 	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
-	const unpaidMonths = customer?.unpaidMonths ?? 1;
 	const pastDueMonths = customer?.pastDueMonths ?? 0;
-	const totalDue = freeAccount
-		? (iptvPrice + realIpPrice) * unpaidMonths
-		: customer
-			? (customer.accumulatedDue ?? monthlyDue)
-			: 0;
+	const totalDue = customer
+		? calculateTotalDue(customer, { freeAccount })
+		: 0;
 
 	const stoppedMissingNote = stoppedAccount && !noteCategory && !notes.trim();
 
-	const amountNum = Number.parseFloat(paidAmount) || 0;
+	const amountNum = parseAmount(paidAmount);
 	const isAmountMismatch =
 		Math.abs(amountNum - totalDue) >= 0.01 &&
 		!stoppedAccount &&
@@ -148,7 +146,7 @@ export function PaymentSheet({
 				customerId: customer.id,
 				collectorId,
 				accountPrice,
-				paidAmount: Number.parseFloat(paidAmount) || 0,
+				paidAmount: parseAmount(paidAmount),
 				discount: discountAmount,
 				freeAccount,
 				stoppedAccount,
@@ -176,7 +174,7 @@ export function PaymentSheet({
 
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		const amount = Number.parseFloat(paidAmount) || 0;
+		const amount = parseAmount(paidAmount);
 		confirm({
 			title: `Collect ${formatCurrency(amount)}?`,
 			message: `From ${name}. This cannot be undone.`,
@@ -310,16 +308,15 @@ export function PaymentSheet({
 								checked={freeAccount}
 								onCheckedChange={(checked) => {
 									setFreeAccount(checked);
-									// Recalculate paid amount (accounting for accumulated months)
-									const perMonth = checked
-										? iptvPrice + realIpPrice
-										: accountPrice +
-											iptvPrice +
-											realIpPrice -
-											discountAmount;
-									setPaidAmount(
-										String(perMonth * unpaidMonths),
-									);
+									if (customer) {
+										setPaidAmount(
+											String(
+												calculateTotalDue(customer, {
+													freeAccount: checked,
+												}),
+											),
+										);
+									}
 								}}
 							/>
 							<span className="text-sm font-medium">
@@ -418,7 +415,7 @@ export function PaymentSheet({
 					>
 						{createPayment.isPending
 							? "Recording..."
-							: `Record Payment — ${formatCurrency(Number.parseFloat(paidAmount) || 0)}`}
+							: `Record Payment — ${formatCurrency(parseAmount(paidAmount))}`}
 					</Button>
 				</form>
 			</SheetContent>

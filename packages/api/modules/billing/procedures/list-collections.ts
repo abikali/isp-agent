@@ -2,6 +2,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { buildDateRangeFilter } from "../lib/filters";
 import { dateRangeSchema, paginationSchema } from "../lib/schemas";
 
 export const listCollections = protectedProcedure
@@ -37,17 +38,9 @@ export const listCollections = protectedProcedure
 			where["collectorId"] = input.collectorId;
 		}
 
-		if (input.dateFrom || input.dateTo) {
-			const collectedAt: Record<string, Date> = {};
-			if (input.dateFrom) {
-				collectedAt["gte"] = new Date(input.dateFrom);
-			}
-			if (input.dateTo) {
-				const to = new Date(input.dateTo);
-				to.setHours(23, 59, 59, 999);
-				collectedAt["lte"] = to;
-			}
-			where["collectedAt"] = collectedAt;
+		const dateRange = buildDateRangeFilter(input.dateFrom, input.dateTo);
+		if (dateRange) {
+			where["collectedAt"] = dateRange;
 		}
 
 		const [collections, total] = await Promise.all([

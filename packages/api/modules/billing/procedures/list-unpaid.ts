@@ -1,13 +1,17 @@
 import {
 	getDealerScopeFilter,
 	requirePermission,
-	resolveCollectorScope,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue } from "../lib/calculations";
-import { customerSearchFilter, excludeGroupFilter } from "../lib/filters";
+import {
+	customerSearchFilter,
+	EXCLUDE_FREE_GROUP,
+	excludeGroupFilter,
+} from "../lib/filters";
+import { applyCollectorScope } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
@@ -50,6 +54,7 @@ export const listUnpaidCustomers = protectedProcedure
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			status: "ACTIVE",
+			...EXCLUDE_FREE_GROUP,
 			// Customers whose expiry falls within or before this billing month
 			// (includes past-due customers from prior months)
 			expiresAt: { lte: monthRange.lte },
@@ -66,12 +71,7 @@ export const listUnpaidCustomers = protectedProcedure
 			};
 		}
 
-		const { scope, employeeId } = await resolveCollectorScope(permCtx);
-		if (scope === "own" && employeeId) {
-			where["collectorId"] = employeeId;
-		} else if (input.collectorId) {
-			where["collectorId"] = input.collectorId;
-		}
+		await applyCollectorScope(where, permCtx, input.collectorId);
 		if (input.groupName) {
 			where["groupName"] = input.groupName;
 		}
@@ -149,6 +149,8 @@ export const listUnpaidCustomers = protectedProcedure
 			},
 		});
 
+		// Same formula as customerMonthlyDue() but applied to aggregate sums.
+		// Mathematically equivalent: sum(a+b+c-d) = sum(a)+sum(b)+sum(c)-sum(d)
 		const totalAmountDue =
 			(aggregates._sum.monthlyRate ?? 0) +
 			(aggregates._sum.iptvPrice ?? 0) +
@@ -205,6 +207,7 @@ export const listUnpaidCustomers = protectedProcedure
 				if (!exp) {
 					return {
 						...customer,
+						monthlyDue,
 						unpaidMonths: 1,
 						accumulatedDue: monthlyDue,
 						pastDueMonths: 0,
@@ -240,6 +243,7 @@ export const listUnpaidCustomers = protectedProcedure
 
 				return {
 					...customer,
+					monthlyDue,
 					unpaidMonths: unpaidCount,
 					accumulatedDue: unpaidCount * monthlyDue,
 					pastDueMonths: pastDueCount,

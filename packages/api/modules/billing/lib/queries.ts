@@ -6,6 +6,8 @@
  * procedures (collector-balance, collector-stats, list-collectors, payment-stats, etc.).
  */
 
+import type { PermissionContext } from "@repo/api/lib/permission";
+import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
 import { EXCLUDE_FREE_GROUP } from "./filters";
@@ -223,6 +225,28 @@ export async function countPaidCustomers(
  * Fetch employee names for a list of collector IDs.
  * Returns a Map<collectorId, name>.
  */
+// ── Collector Scope ─────────────────────────────────────────────
+
+/**
+ * Apply collector scope filtering to a where clause.
+ * If the user has "own" scope, restricts to their employeeId.
+ * Otherwise allows an explicit collectorId filter from input.
+ */
+export async function applyCollectorScope(
+	where: Record<string, unknown>,
+	permCtx: PermissionContext,
+	inputCollectorId?: string | null,
+): Promise<void> {
+	const { scope, employeeId } = await resolveCollectorScope(permCtx);
+	if (scope === "own" && employeeId) {
+		where["collectorId"] = employeeId;
+	} else if (inputCollectorId) {
+		where["collectorId"] = inputCollectorId;
+	}
+}
+
+// ── Collector Name Resolution ───────────────────────────────────
+
 export async function resolveCollectorNames(
 	collectorIds: string[],
 ): Promise<Map<string, string>> {

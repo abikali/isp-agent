@@ -24,7 +24,11 @@ import { Textarea } from "@ui/components/textarea";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
-import { customerMonthlyDue } from "../lib/billing-utils";
+import {
+	calculateTotalDue,
+	extractPriceComponents,
+	parseAmount,
+} from "../lib/billing-utils";
 
 interface PaymentDialogProps {
 	open: boolean;
@@ -55,20 +59,17 @@ export function PaymentDialog({
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];
 
-	const accountPrice =
-		customer.monthlyRate ?? customer.plan?.monthlyPrice ?? 0;
-	const iptvPrice = customer.iptvPrice ?? 0;
-	const realIpPrice = customer.realIpPrice ?? 0;
-	const discountAmount = customer.discount ?? 0;
-	const fullDue = customerMonthlyDue(customer);
+	const { accountPrice, iptvPrice, realIpPrice, discountAmount } =
+		extractPriceComponents(customer);
+	const totalDueDefault = calculateTotalDue(customer, { freeAccount: false });
 
-	const [paidAmount, setPaidAmount] = useState(String(fullDue));
+	const [paidAmount, setPaidAmount] = useState(String(totalDueDefault));
 	const [freeAccount, setFreeAccount] = useState(false);
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
 
-	const totalDue = freeAccount ? iptvPrice + realIpPrice : fullDue;
+	const totalDue = calculateTotalDue(customer, { freeAccount });
 
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -84,7 +85,7 @@ export function PaymentDialog({
 				customerId: customer.id,
 				collectorId,
 				accountPrice,
-				paidAmount: Number.parseFloat(paidAmount) || 0,
+				paidAmount: parseAmount(paidAmount),
 				discount: discountAmount,
 				freeAccount,
 				stoppedAccount,

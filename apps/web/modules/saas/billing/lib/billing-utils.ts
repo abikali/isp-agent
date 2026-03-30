@@ -108,12 +108,59 @@ export function buildCycleOptions(
 
 // ─── Payment Utilities ─────────────────────────────────────────
 
-interface CustomerForBilling {
+export interface CustomerForBilling {
 	monthlyRate?: number | null;
 	plan?: { monthlyPrice?: number | null } | null;
 	iptvPrice?: number | null;
 	realIpPrice?: number | null;
 	discount?: number | null;
+}
+
+/** Extracted price components for a customer. */
+export interface PriceComponents {
+	accountPrice: number;
+	iptvPrice: number;
+	realIpPrice: number;
+	discountAmount: number;
+}
+
+/** Extract individual price components from a customer object. */
+export function extractPriceComponents(
+	customer: CustomerForBilling | null | undefined,
+): PriceComponents {
+	return {
+		accountPrice:
+			customer?.monthlyRate ?? customer?.plan?.monthlyPrice ?? 0,
+		iptvPrice: customer?.iptvPrice ?? 0,
+		realIpPrice: customer?.realIpPrice ?? 0,
+		discountAmount: customer?.discount ?? 0,
+	};
+}
+
+/**
+ * Calculate total amount due considering free account flag and multi-month debt.
+ * This is the single source of truth for totalDue in the frontend.
+ */
+export function calculateTotalDue(
+	customer: CustomerForBilling & {
+		accumulatedDue?: number | null;
+		unpaidMonths?: number | null;
+	},
+	opts: { freeAccount: boolean },
+): number {
+	const { iptvPrice, realIpPrice } = extractPriceComponents(customer);
+	const unpaidMonths = customer.unpaidMonths ?? 1;
+
+	if (opts.freeAccount) {
+		return (iptvPrice + realIpPrice) * unpaidMonths;
+	}
+
+	return customer.accumulatedDue ?? customerMonthlyDue(customer);
+}
+
+/** Parse a string amount to a number, defaulting to 0 on invalid input. */
+export function parseAmount(value: string): number {
+	return Number.parseFloat(value) || 0;
 }
 
 /**
