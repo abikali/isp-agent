@@ -1,7 +1,6 @@
 import {
 	getDealerScopeFilter,
 	getOwnershipFilterAsync,
-	NO_DEALER,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
@@ -117,15 +116,25 @@ export const getCustomerStats = protectedProcedure
 			// Scoped users have dynamic ownership filters that can't be safely embedded in raw SQL
 			ownerFilter
 				? Promise.resolve([{ total: 0 }] as [{ total: number | null }])
-				: db.$queryRaw<[{ total: number | null }]>`
-					SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
-					FROM "customer" c
-					INNER JOIN "service_plan" sp ON sp."id" = c."planId"
-					WHERE c."organizationId" = ${organizationId}
-					AND c."status" = 'ACTIVE'
-					AND c."monthlyRate" IS NULL
-					AND c."dealerId" = ${activeDealerId ?? NO_DEALER}
-				`,
+				: activeDealerId
+					? db.$queryRaw<[{ total: number | null }]>`
+						SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
+						FROM "customer" c
+						INNER JOIN "service_plan" sp ON sp."id" = c."planId"
+						WHERE c."organizationId" = ${organizationId}
+						AND c."status" = 'ACTIVE'
+						AND c."monthlyRate" IS NULL
+						AND c."dealerId" = ${activeDealerId}
+					`
+					: db.$queryRaw<[{ total: number | null }]>`
+						SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
+						FROM "customer" c
+						INNER JOIN "service_plan" sp ON sp."id" = c."planId"
+						WHERE c."organizationId" = ${organizationId}
+						AND c."status" = 'ACTIVE'
+						AND c."monthlyRate" IS NULL
+						AND c."dealerId" IS NULL
+					`,
 		]);
 
 		const planNameMap = new Map(plans.map((p) => [p.id, p.name]));

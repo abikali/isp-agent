@@ -361,6 +361,8 @@ const result = await orpcClient.customers.create({ organizationId, fullName: "..
 - `exactOptionalPropertyTypes` is enabled in backend packages but **disabled** in `apps/web`
 - `noUncheckedIndexedAccess` is enabled (indexed access returns `T | undefined`)
 - Prisma has `strictUndefinedChecks` preview feature enabled — explicitly pass `null` not `undefined` for nullable fields
+- **Prisma `NOT` excludes nulls**: `NOT: { field: { equals: value } }` also filters out rows where `field IS NULL`. To exclude a value while keeping nulls, wrap in OR: `OR: [{ field: null }, { NOT: { field: { equals: value } } }]`
+- **Prisma `where` key overwrites**: When building `where` objects dynamically, multiple assignments to `where["OR"]` overwrite each other. Use `where["AND"] = [...(where["AND"] ?? []), { OR: [...] }]` to combine multiple OR conditions safely
 
 ### React & TanStack Start
 - Add `"use client"` only when necessary for client-side interactivity
@@ -482,6 +484,11 @@ import { PaymentStatus } from "@repo/database";          // ❌ bundles pg into 
 // In server code (packages/api)
 import { PaymentStatus, db } from "@repo/database";      // ✅ fine on server
 ```
+
+### Billing Module Conventions
+
+- **Always use the active billing month**, not the current calendar month. The active month (latest unlocked `BillingMonth`) may differ from today's date. Use `resolveActiveBillingMonth(organizationId)` from `packages/api/modules/billing/lib/resolve-month.ts` as the default when no explicit year/month is provided.
+- **Never default to `new Date()` for year/month** in billing procedures. If `input.year`/`input.month` are optional, resolve the active billing month first and use its values as defaults.
 
 ### Database Schema Changes
 

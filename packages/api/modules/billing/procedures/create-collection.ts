@@ -6,7 +6,6 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { sumOrZero } from "../lib/calculations";
 
 export const createCollection = protectedProcedure
 	.route({
@@ -46,38 +45,18 @@ export const createCollection = protectedProcedure
 			});
 		}
 
-		// Atomic: validate pending balance + create handoff in one transaction
-		const collection = await db.$transaction(async (tx) => {
-			const pendingAgg = await tx.payment.aggregate({
-				where: {
-					organizationId: input.organizationId,
-					collectorId: input.collectorId,
-					status: "PENDING",
-				},
-				_sum: { paidAmount: true },
-			});
-
-			const availableBalance = Math.max(0, sumOrZero(pendingAgg));
-
-			if (input.amount > availableBalance + 0.01) {
-				throw new ORPCError("BAD_REQUEST", {
-					message: `Handoff amount ($${input.amount.toFixed(2)}) exceeds the collector's pending balance ($${availableBalance.toFixed(2)})`,
-				});
-			}
-
-			return tx.cashCollection.create({
-				data: {
-					organizationId: input.organizationId,
-					collectorId: input.collectorId,
-					amount: input.amount,
-					notes: input.notes ?? null,
-					type: "HANDOFF",
-					receivedById: user.id,
-				},
-				include: {
-					collector: { select: { id: true, name: true } },
-				},
-			});
+		const collection = await db.cashCollection.create({
+			data: {
+				organizationId: input.organizationId,
+				collectorId: input.collectorId,
+				amount: input.amount,
+				notes: input.notes ?? null,
+				type: "HANDOFF",
+				receivedById: user.id,
+			},
+			include: {
+				collector: { select: { id: true, name: true } },
+			},
 		});
 
 		return { collection };

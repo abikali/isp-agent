@@ -3,6 +3,7 @@ export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
 	INACTIVE: "Inactive",
 	SUSPENDED: "Suspended",
 	PENDING: "Pending",
+	EXPIRED: "Expired",
 };
 
 export const CUSTOMER_STATUS_OPTIONS = [
@@ -10,6 +11,7 @@ export const CUSTOMER_STATUS_OPTIONS = [
 	{ value: "INACTIVE", label: "Inactive" },
 	{ value: "SUSPENDED", label: "Suspended" },
 	{ value: "PENDING", label: "Pending" },
+	{ value: "EXPIRED", label: "Expired" },
 ] as const;
 
 export const CONNECTION_TYPE_LABELS: Record<string, string> = {

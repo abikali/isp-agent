@@ -23,7 +23,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { useAccountingReports, useCycleFilter } from "../hooks/use-billing";
+import { useAccountingReports, useMonthFilter } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 
 export function AccountingReportsSkeleton() {
@@ -107,15 +107,15 @@ const collectorColumns: ColumnDef<CollectorBreakdownRow, unknown>[] = [
 
 export function AccountingReports() {
 	const {
-		cycleFilter,
-		setCycleFilter,
-		activeCycleId,
+		monthFilter,
+		setMonthFilter,
+		activeMonthId,
 		isAll,
-		options: cycleOptions,
-	} = useCycleFilter();
+		options: monthOptions,
+	} = useMonthFilter();
 
 	const scope = isAll ? "all" : "month";
-	const { data } = useAccountingReports(scope, activeCycleId);
+	const { data } = useAccountingReports(scope, activeMonthId);
 
 	const collectorChartData = data.collectorBreakdown
 		.sort((a, b) => b.totalCollected - a.totalCollected)
@@ -140,9 +140,9 @@ export function AccountingReports() {
 					</p>
 				</div>
 				<BillingCycleSelect
-					value={cycleFilter || activeCycleId || "all"}
-					onValueChange={setCycleFilter}
-					options={cycleOptions}
+					value={monthFilter || activeMonthId || "all"}
+					onValueChange={setMonthFilter}
+					options={monthOptions}
 					allLabel="All Time"
 					className="w-44"
 				/>

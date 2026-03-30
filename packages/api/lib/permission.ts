@@ -241,8 +241,6 @@ export async function requirePermission(
 		member,
 		permCtx,
 		activeDealerId: member.activeDealerId ?? null,
-		activeBillingYear: member.activeBillingYear,
-		activeBillingMonth: member.activeBillingMonth,
 	};
 }
 
@@ -443,12 +441,6 @@ export async function verifyTaskOwnership(
 // ─── Dealer Scoping Helpers ─────────────────────────────────────
 
 /**
- * Sentinel value for "no dealer assigned" — matches zero records.
- * When an org has no activeDealerId, no dealer-linked data should be visible.
- */
-export const NO_DEALER = "__unassigned__";
-
-/**
  * Build dealer scope filter for direct-dealer models (Customer, Employee, ServicePlan).
  * When no dealer is assigned, returns a filter that matches nothing.
  *
@@ -457,7 +449,7 @@ export const NO_DEALER = "__unassigned__";
 export function getDealerScopeFilter(
 	activeDealerId: string | null,
 ): Record<string, unknown> {
-	return { dealerId: activeDealerId ?? NO_DEALER };
+	return { dealerId: activeDealerId ?? null };
 }
 
 /**
@@ -469,7 +461,7 @@ export function getDealerScopeFilter(
 export function getDealerScopeViaCustomer(
 	activeDealerId: string | null,
 ): Record<string, unknown> {
-	return { customer: { dealerId: activeDealerId ?? NO_DEALER } };
+	return { customer: { dealerId: activeDealerId ?? null } };
 }
 
 /**
@@ -482,6 +474,6 @@ export function getDealerScopeViaCustomers(
 	activeDealerId: string | null,
 ): Record<string, unknown> {
 	return {
-		customers: { some: { dealerId: activeDealerId ?? NO_DEALER } },
+		customers: { some: { dealerId: activeDealerId ?? null } },
 	};
 }

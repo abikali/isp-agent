@@ -11,7 +11,13 @@ import {
 
 interface CustomerListInput {
 	search?: string | undefined;
-	status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING" | undefined;
+	status?:
+		| "ACTIVE"
+		| "INACTIVE"
+		| "SUSPENDED"
+		| "PENDING"
+		| "EXPIRED"
+		| undefined;
 	planId?: string | undefined;
 	stationId?: string | undefined;
 	connectionType?:

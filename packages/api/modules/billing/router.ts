@@ -1,16 +1,16 @@
-import { closeCycle } from "./procedures/close-cycle";
 import { getCollectorBalance } from "./procedures/collector-balance";
+import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
 import { createCollection } from "./procedures/create-collection";
 import { createPayment } from "./procedures/create-payment";
-import { getCurrentCycle } from "./procedures/current-cycle";
+import { getCurrentMonth } from "./procedures/current-month";
 import { deleteCollection } from "./procedures/delete-collection";
 import { deletePayment } from "./procedures/delete-payment";
 import { getInvoice } from "./procedures/get-invoice";
 import { listCollections } from "./procedures/list-collections";
 import { listCollectors } from "./procedures/list-collectors";
-import { listCycles } from "./procedures/list-cycles";
 import { listCustomerGroups } from "./procedures/list-groups";
+import { listMonths } from "./procedures/list-months";
 import { listPayments } from "./procedures/list-payments";
 import { listUnpaidCustomers } from "./procedures/list-unpaid";
 import {
@@ -20,15 +20,8 @@ import {
 	updateNoteCategory,
 } from "./procedures/note-categories";
 import { getPaymentStats } from "./procedures/payment-stats";
-import {
-	bulkProcessPayments,
-	processPayment,
-} from "./procedures/process-payment";
-import { reopenCycle } from "./procedures/reopen-cycle";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
-import { resetCycle } from "./procedures/reset-cycle";
-import { setActiveCycle } from "./procedures/set-active-cycle";
 import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
 import {
 	getBillingSyncStatus,
@@ -36,23 +29,20 @@ import {
 	syncFromBilling,
 	testBilling,
 } from "./procedures/sync-billing";
+import { toggleMonthLock } from "./procedures/toggle-month-lock";
 
 export const billingRouter = {
-	cycles: {
-		current: getCurrentCycle,
-		list: listCycles,
-		close: closeCycle,
-		reopen: reopenCycle,
-		reset: resetCycle,
-		setActive: setActiveCycle,
+	months: {
+		current: getCurrentMonth,
+		list: listMonths,
+		toggleLock: toggleMonthLock,
 	},
 	payments: {
 		list: listPayments,
 		create: createPayment,
-		process: processPayment,
-		bulkProcess: bulkProcessPayments,
-		stats: getPaymentStats,
 		delete: deletePayment,
+		reactivate: reactivateAccount,
+		stats: getPaymentStats,
 	},
 	unpaid: {
 		list: listUnpaidCustomers,
@@ -62,11 +52,11 @@ export const billingRouter = {
 	},
 	stopped: {
 		list: listStoppedAccounts,
-		reactivate: reactivateAccount,
 	},
 	collectors: {
 		list: listCollectors,
 		balance: getCollectorBalance,
+		ledger: getCollectorLedger,
 		stats: getCollectorStats,
 	},
 	collections: {
@@ -85,6 +75,7 @@ export const billingRouter = {
 	},
 	invoice: getInvoice,
 	reports: getAccountingReports,
+	// @deprecated — Remove after final PHP billing migration
 	sync: {
 		test: testBilling,
 		preview: previewBillingSync,

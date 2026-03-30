@@ -41,7 +41,6 @@ import {
 import { Skeleton } from "@ui/components/skeleton";
 import {
 	BanknoteIcon,
-	CheckCircleIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	HandCoinsIcon,
@@ -54,16 +53,13 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-	useBulkProcessPayments,
 	useCollections,
 	useCollectorBalance,
 	useCollectors,
 	useCreateCollection,
 	useCustomerGroups,
-	useCycleFilter,
 	useDeleteCollection,
 	useDeletePayment,
-	useProcessPayment,
 } from "../hooks/use-billing";
 import {
 	formatCycleShort,
@@ -71,7 +67,6 @@ import {
 	NOTE_CATEGORY_LABELS,
 	PAYMENT_STATUS_LABELS,
 } from "../lib/billing-utils";
-import { BillingCycleSelect } from "./BillingCycleSelect";
 
 export function CashCollectionPageSkeleton() {
 	return (
@@ -88,10 +83,96 @@ export function CashCollectionPageSkeleton() {
 	);
 }
 
+export function CollectorPickerPage({ basePath }: { basePath: string }) {
+	const { data: collectorsData, isLoading } = useCollectors();
+	const collectors = collectorsData?.collectors ?? [];
+
+	return (
+		<div className="space-y-6">
+			<div>
+				<h2 className="text-2xl font-bold tracking-tight">
+					Cash Collection
+				</h2>
+				<p className="text-sm text-muted-foreground">
+					Select a collector to view their balance and record handoffs
+				</p>
+			</div>
+
+			{isLoading ? (
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: 6 }).map((_, i) => (
+						<Skeleton key={i} className="h-24" />
+					))}
+				</div>
+			) : collectors.length === 0 ? (
+				<Card>
+					<CardContent className="flex flex-col items-center gap-2 py-16 text-center">
+						<HandCoinsIcon className="size-12 text-muted-foreground/30" />
+						<p className="text-lg font-medium">
+							No collectors found
+						</p>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+					{collectors.map((c) => (
+						<a
+							key={c.id}
+							href={`${basePath}/${c.username ?? c.id}`}
+							className="block"
+						>
+							<Card className="transition-shadow hover:shadow-card-hover cursor-pointer">
+								<CardContent className="p-4">
+									<div className="flex items-center gap-3">
+										<div className="rounded-lg bg-muted/50 p-2">
+											<HandCoinsIcon className="size-4 text-muted-foreground" />
+										</div>
+										<div className="min-w-0 flex-1">
+											<p className="font-medium truncate">
+												{c.name}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{c.customerCount} customers
+											</p>
+										</div>
+									</div>
+									<div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3">
+										<div>
+											<p
+												className={`text-lg font-bold tabular-nums ${c.inHand > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+											>
+												{formatCurrency(c.inHand)}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												In hand
+											</p>
+										</div>
+										<div>
+											<p className="text-lg font-bold tabular-nums">
+												{c.monthCollected}
+												<span className="text-sm font-normal text-muted-foreground">
+													/{c.monthTotal}
+												</span>
+											</p>
+											<p className="text-xs text-muted-foreground">
+												Collected this month
+											</p>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						</a>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
 /** Non-suspense payments query for use inside this page */
 function useCollectorPayments(filters: {
 	collectorId: string | null;
-	billingCycleId?: string;
+	billingMonthId?: string;
 	status?: PaymentStatus;
 	groupName?: string;
 	search?: string;
@@ -106,7 +187,7 @@ function useCollectorPayments(filters: {
 					input: {
 						organizationId,
 						collectorId: filters.collectorId,
-						billingCycleId: filters.billingCycleId,
+						billingMonthId: filters.billingMonthId,
 						status: filters.status,
 						groupName: filters.groupName,
 						search: filters.search || undefined,
@@ -126,20 +207,18 @@ function useCollectorPayments(filters: {
 	);
 }
 
-export function CashCollectionPage() {
+export function CashCollectionPage({
+	collectorId,
+	collectorName,
+}: {
+	collectorId: string;
+	collectorName: string;
+}) {
 	const organizationId = useOrganizationId();
-	const [selectedCollector, setSelectedCollector] = useState<string>("");
 	const [page, setPage] = useState(1);
 	const [tab, setTab] = useState<"payments" | "handoffs">("payments");
 
-	// Payment filters
-	const {
-		cycleFilter,
-		setCycleFilter,
-		activeCycleId,
-		options: cycleOptions,
-	} = useCycleFilter();
-	const [statusFilter, setStatusFilter] = useState<string>("PENDING");
+	const [statusFilter, setStatusFilter] = useState<string>("");
 	const [groupFilter, setGroupFilter] = useState<string>("");
 	const [search, setSearch] = useState("");
 	const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -149,36 +228,13 @@ export function CashCollectionPage() {
 		return () => clearTimeout(timer);
 	}, [search]);
 
-	const { data: collectorsData } = useCollectors();
-	const collectors = collectorsData?.collectors ?? [];
 	const { groups } = useCustomerGroups();
 
-	// Resolve cycle date range for filtering handoff history
-	const activeCycle = useMemo(() => {
-		if (!activeCycleId) {
-			return null;
-		}
-		return cycleOptions.find((c) => c.value === activeCycleId) ?? null;
-	}, [activeCycleId, cycleOptions]);
-
-	const cycleDateRange = useMemo(() => {
-		if (!activeCycle) {
-			return {};
-		}
-		const start = new Date(activeCycle.year, activeCycle.month - 1, 1);
-		const end = new Date(activeCycle.year, activeCycle.month, 1);
-		return {
-			dateFrom: start.toISOString(),
-			dateTo: end.toISOString(),
-		};
-	}, [activeCycle]);
-
 	const { data: balanceData, isLoading: balanceLoading } =
-		useCollectorBalance(selectedCollector || null, activeCycleId);
+		useCollectorBalance(collectorId);
 
 	const { data: collectionsData } = useCollections({
-		collectorId: selectedCollector || undefined,
-		...cycleDateRange,
+		collectorId,
 		page: tab === "handoffs" ? page : 1,
 	});
 
@@ -187,8 +243,7 @@ export function CashCollectionPage() {
 		isLoading: paymentsLoading,
 		isFetching: paymentsFetching,
 	} = useCollectorPayments({
-		collectorId: selectedCollector || null,
-		billingCycleId: activeCycleId,
+		collectorId,
 		status: (statusFilter || undefined) as PaymentStatus | undefined,
 		groupName: groupFilter || undefined,
 		search: debouncedSearch || undefined,
@@ -196,16 +251,8 @@ export function CashCollectionPage() {
 		pageSize: 25,
 	});
 
-	const { data: pendingData } = useCollectorPayments({
-		collectorId: selectedCollector || null,
-		status: PaymentStatus.PENDING,
-	});
-	const pendingPayments = pendingData?.payments ?? [];
-
 	const createCollection = useCreateCollection();
 	const deleteCollection = useDeleteCollection();
-	const processPayment = useProcessPayment();
-	const bulkProcess = useBulkProcessPayments();
 
 	const balance = balanceData?.balance ?? 0;
 
@@ -215,13 +262,13 @@ export function CashCollectionPage() {
 			notes: "",
 		},
 		onSubmit: async ({ value }) => {
-			if (!organizationId || !selectedCollector) {
+			if (!organizationId) {
 				return;
 			}
 			toast.promise(
 				createCollection.mutateAsync({
 					organizationId,
-					collectorId: selectedCollector,
+					collectorId,
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
 				}),
@@ -261,546 +308,260 @@ export function CashCollectionPage() {
 		);
 	}
 
-	function handleProcessSingle(paymentId: string) {
-		if (!organizationId) {
-			return;
-		}
-		toast.promise(
-			processPayment.mutateAsync({ organizationId, paymentId }),
-			{
-				loading: "Processing...",
-				success: "Payment processed",
-				error: (err: { message?: string }) =>
-					err?.message ?? "Failed to process",
-			},
-		);
-	}
-
-	function handleProcessAllPending() {
-		if (!organizationId || pendingPayments.length === 0) {
-			return;
-		}
-		const paymentIds = pendingPayments.map((p) => p.id);
-		toast.promise(bulkProcess.mutateAsync({ organizationId, paymentIds }), {
-			loading: `Processing ${paymentIds.length} payments...`,
-			success: `${paymentIds.length} payments marked as processed`,
-			error: (err: { message?: string }) =>
-				err?.message ?? "Failed to process payments",
-		});
-	}
-
 	const payments = paymentsData?.payments ?? [];
-
-	const collectorName =
-		collectors.find((c) => c.id === selectedCollector)?.name ?? "";
 
 	return (
 		<div className="space-y-6">
-			{/* Header + Collector Selector */}
-			<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-				<div>
-					<h2 className="text-2xl font-bold tracking-tight">
-						Cash Collection
-					</h2>
-					<p className="text-sm text-muted-foreground">
-						Track what collectors owe and record handoffs
-					</p>
-				</div>
-				<div className="flex flex-col gap-2 sm:flex-row">
-					<Select
-						value={selectedCollector}
-						onValueChange={(val) => {
-							setSelectedCollector(val);
-							setPage(1);
-							setSearch("");
-							setDebouncedSearch("");
-							setStatusFilter("PENDING");
-							setGroupFilter("");
-						}}
-					>
-						<SelectTrigger className="w-full sm:w-64">
-							<SelectValue placeholder="Select collector..." />
-						</SelectTrigger>
-						<SelectContent>
-							{collectors.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<BillingCycleSelect
-						value={cycleFilter || activeCycleId || "all"}
-						onValueChange={(val) => {
-							setCycleFilter(val);
-							setPage(1);
-						}}
-						options={cycleOptions}
-						allLabel="All cycles"
-						className="w-full sm:w-40"
-					/>
-				</div>
+			{/* Header */}
+			<div>
+				<h2 className="text-2xl font-bold tracking-tight">
+					{collectorName}
+				</h2>
+				<p className="text-sm text-muted-foreground">
+					Cash collection and handoff tracking
+				</p>
 			</div>
 
-			{!selectedCollector ? (
-				<Card>
-					<CardContent className="flex flex-col items-center gap-2 py-16 text-center">
-						<HandCoinsIcon className="size-12 text-muted-foreground/30" />
-						<p className="text-lg font-medium">
-							Select a collector to get started
-						</p>
-						<p className="text-sm text-muted-foreground">
-							View their balance, recent collections, and record
-							cash handoffs.
+			{/* Balance + Stats Cards */}
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<Card
+					className={
+						balance > 0
+							? "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
+							: "border-muted"
+					}
+				>
+					<CardContent className="p-4">
+						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+							<WalletIcon className="size-3.5 text-amber-600" />
+							In Hand
+						</div>
+						{balanceLoading ? (
+							<Skeleton className="mt-1 h-7 w-24" />
+						) : (
+							<p className="mt-1 text-2xl font-bold tabular-nums">
+								{formatCurrency(balance)}
+							</p>
+						)}
+						<p className="mt-0.5 text-xs text-muted-foreground">
+							Cash not yet handed off
 						</p>
 					</CardContent>
 				</Card>
-			) : (
-				<>
-					{/* In Hand Card */}
-					<Card
-						className={
-							balance > 0
-								? "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
-								: "border-muted"
-						}
-					>
-						<CardContent className="p-4">
-							<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-								<WalletIcon className="size-3.5 text-amber-600" />
-								In Hand
-							</div>
-							{balanceLoading ? (
-								<Skeleton className="mt-1 h-7 w-24" />
-							) : (
-								<p className="mt-1 text-2xl font-bold tabular-nums">
-									{formatCurrency(balance)}
-								</p>
-							)}
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								Cash with collector, not yet processed
+				<Card className="border-muted">
+					<CardContent className="p-4">
+						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+							<ReceiptTextIcon className="size-3.5 text-blue-600" />
+							Bills This Month
+						</div>
+						{balanceLoading ? (
+							<Skeleton className="mt-1 h-7 w-24" />
+						) : (
+							<p className="mt-1 text-2xl font-bold tabular-nums">
+								{balanceData?.monthPaidCount ?? 0}
+								<span className="text-sm font-normal text-muted-foreground">
+									/{balanceData?.monthBillCount ?? 0}
+								</span>
 							</p>
-						</CardContent>
-					</Card>
+						)}
+						<p className="mt-0.5 text-xs text-muted-foreground">
+							Collected / total
+						</p>
+					</CardContent>
+				</Card>
+				<Card className="border-muted">
+					<CardContent className="p-4">
+						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+							<BanknoteIcon className="size-3.5 text-green-600" />
+							Collected
+						</div>
+						{balanceLoading ? (
+							<Skeleton className="mt-1 h-7 w-24" />
+						) : (
+							<p className="mt-1 text-2xl font-bold tabular-nums">
+								{formatCurrency(
+									balanceData?.monthAmountCollected ?? 0,
+								)}
+							</p>
+						)}
+						<p className="mt-0.5 text-xs text-muted-foreground">
+							Amount collected this month
+						</p>
+					</CardContent>
+				</Card>
+				<Card className="border-muted">
+					<CardContent className="p-4">
+						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+							<HandCoinsIcon className="size-3.5 text-muted-foreground" />
+							Amount Due
+						</div>
+						{balanceLoading ? (
+							<Skeleton className="mt-1 h-7 w-24" />
+						) : (
+							<p className="mt-1 text-2xl font-bold tabular-nums">
+								{formatCurrency(
+									balanceData?.monthAmountDue ?? 0,
+								)}
+							</p>
+						)}
+						<p className="mt-0.5 text-xs text-muted-foreground">
+							Total to collect this month
+						</p>
+					</CardContent>
+				</Card>
+			</div>
 
-					{/* Pending Payments & Handoff — unified card */}
-					<PendingPaymentsCard
-						pendingPayments={pendingPayments}
-						balance={balance}
-						onProcessSingle={handleProcessSingle}
-						onProcessAll={handleProcessAllPending}
-						handoffForm={form}
-						isSubmittingHandoff={isSubmitting}
-						onCollectAll={handleCollectAll}
-					/>
+			{/* Handoff form */}
+			<HandoffCard
+				balance={balance}
+				handoffForm={form}
+				isSubmittingHandoff={isSubmitting}
+				onCollectAll={handleCollectAll}
+			/>
 
-					{/* Tabs: Recent Payments / Handoff History */}
-					<div className="space-y-3">
-						<div className="flex gap-1 border-b">
-							<button
-								type="button"
-								onClick={() => {
-									setTab("payments");
+			{/* Tabs: Recent Payments / Handoff History */}
+			<div className="space-y-3">
+				<div className="flex gap-1 border-b">
+					<button
+						type="button"
+						onClick={() => {
+							setTab("payments");
+							setPage(1);
+						}}
+						className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+							tab === "payments"
+								? "border-primary text-primary"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<ReceiptTextIcon className="mr-1.5 inline size-3.5" />
+						Payments
+						{paymentsData?.total != null
+							? ` (${paymentsData.total})`
+							: ""}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							setTab("handoffs");
+							setPage(1);
+						}}
+						className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+							tab === "handoffs"
+								? "border-primary text-primary"
+								: "border-transparent text-muted-foreground hover:text-foreground"
+						}`}
+					>
+						<HandCoinsIcon className="mr-1.5 inline size-3.5" />
+						Handoff History
+						{collectionsData?.total
+							? ` (${collectionsData.total})`
+							: ""}
+					</button>
+				</div>
+
+				{tab === "payments" ? (
+					<>
+						{/* Payment Filters */}
+						<div className="flex flex-wrap gap-2">
+							<div className="relative">
+								<SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+								<Input
+									placeholder="Search customer..."
+									value={search}
+									onChange={(e) => {
+										setSearch(e.target.value);
+										setPage(1);
+									}}
+									className="w-48 pl-8"
+								/>
+							</div>
+							<Select
+								value={statusFilter || "all"}
+								onValueChange={(val) => {
+									setStatusFilter(val === "all" ? "" : val);
 									setPage(1);
 								}}
-								className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-									tab === "payments"
-										? "border-primary text-primary"
-										: "border-transparent text-muted-foreground hover:text-foreground"
-								}`}
 							>
-								<ReceiptTextIcon className="mr-1.5 inline size-3.5" />
-								Payments
-								{paymentsData?.total != null
-									? ` (${paymentsData.total})`
-									: ""}
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									setTab("handoffs");
+								<SelectTrigger className="w-36">
+									<SelectValue placeholder="Status" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">
+										All statuses
+									</SelectItem>
+									<SelectItem value={PaymentStatus.COLLECTED}>
+										Collected
+									</SelectItem>
+									<SelectItem value={PaymentStatus.STOPPED}>
+										Stopped
+									</SelectItem>
+								</SelectContent>
+							</Select>
+							<Select
+								value={groupFilter || "all"}
+								onValueChange={(val) => {
+									setGroupFilter(val === "all" ? "" : val);
 									setPage(1);
 								}}
-								className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-									tab === "handoffs"
-										? "border-primary text-primary"
-										: "border-transparent text-muted-foreground hover:text-foreground"
-								}`}
 							>
-								<HandCoinsIcon className="mr-1.5 inline size-3.5" />
-								Handoff History
-								{collectionsData?.total
-									? ` (${collectionsData.total})`
-									: ""}
-							</button>
+								<SelectTrigger className="w-40">
+									<SelectValue placeholder="Area" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">
+										All areas
+									</SelectItem>
+									{groups.map((g) => (
+										<SelectItem key={g} value={g}>
+											{g}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</div>
 
-						{tab === "payments" ? (
-							<>
-								{/* Payment Filters */}
-								<div className="flex flex-wrap gap-2">
-									<div className="relative">
-										<SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-										<Input
-											placeholder="Search customer..."
-											value={search}
-											onChange={(e) => {
-												setSearch(e.target.value);
-												setPage(1);
-											}}
-											className="w-48 pl-8"
-										/>
-									</div>
-									<Select
-										value={statusFilter || "all"}
-										onValueChange={(val) => {
-											setStatusFilter(
-												val === "all" ? "" : val,
-											);
-											setPage(1);
-										}}
-									>
-										<SelectTrigger className="w-36">
-											<SelectValue placeholder="Status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">
-												All statuses
-											</SelectItem>
-											<SelectItem
-												value={PaymentStatus.PROCESSED}
-											>
-												Processed
-											</SelectItem>
-											<SelectItem
-												value={PaymentStatus.PENDING}
-											>
-												Pending
-											</SelectItem>
-											<SelectItem
-												value={PaymentStatus.STOPPED}
-											>
-												Stopped
-											</SelectItem>
-											<SelectItem
-												value={PaymentStatus.PARTIAL}
-											>
-												Partial
-											</SelectItem>
-										</SelectContent>
-									</Select>
-									<Select
-										value={groupFilter || "all"}
-										onValueChange={(val) => {
-											setGroupFilter(
-												val === "all" ? "" : val,
-											);
-											setPage(1);
-										}}
-									>
-										<SelectTrigger className="w-40">
-											<SelectValue placeholder="Area" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">
-												All areas
-											</SelectItem>
-											{groups.map((g) => (
-												<SelectItem key={g} value={g}>
-													{g}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-
-								<PaymentsTable
-									payments={payments}
-									total={paymentsData?.total ?? 0}
-									page={page}
-									onPageChange={setPage}
-									isLoading={paymentsLoading}
-									isFetching={paymentsFetching}
-									collectorName={collectorName}
-								/>
-							</>
-						) : (
-							<HandoffsTable
-								collections={collectionsData?.collections ?? []}
-								total={collectionsData?.total ?? 0}
-								page={page}
-								onPageChange={setPage}
-								onDelete={handleDelete}
-							/>
-						)}
-					</div>
-				</>
-			)}
+						<PaymentsTable
+							payments={payments}
+							total={paymentsData?.total ?? 0}
+							page={page}
+							onPageChange={setPage}
+							isLoading={paymentsLoading}
+							isFetching={paymentsFetching}
+							collectorName={collectorName}
+						/>
+					</>
+				) : (
+					<HandoffsTable
+						collections={collectionsData?.collections ?? []}
+						total={collectionsData?.total ?? 0}
+						page={page}
+						onPageChange={setPage}
+						onDelete={handleDelete}
+					/>
+				)}
+			</div>
 		</div>
 	);
 }
 
-// ─── Pending Payments & Handoff Card ──────────────────────────────
+// ─── Handoff Card ──────────────────────────────────────────────────
 
-const PENDING_PAGE_SIZE = 10;
-
-interface PendingPayment {
-	id: string;
-	paidAmount: number;
-	paidAt: string | Date;
-	customer: {
-		firstName: string | null;
-		lastName: string | null;
-		groupName: string | null;
-	};
-	billingCycle: { year: number; month: number } | null;
-}
-
-function PendingPaymentsCard({
-	pendingPayments,
+function HandoffCard({
 	balance,
-	onProcessSingle,
-	onProcessAll,
 	handoffForm,
 	isSubmittingHandoff,
 	onCollectAll,
 }: {
-	pendingPayments: PendingPayment[];
 	balance: number;
-	onProcessSingle: (paymentId: string) => void;
-	onProcessAll: () => void;
-	// biome-ignore lint/suspicious/noExplicitAny: TanStack Form generic type is complex
+	// biome-ignore lint/suspicious/noExplicitAny: TanStack Form generic is too complex to type inline
 	handoffForm: any;
 	isSubmittingHandoff: boolean;
 	onCollectAll: () => void;
 }) {
-	const [pendingSearch, setPendingSearch] = useState("");
-	const [pendingPage, setPendingPage] = useState(1);
-
-	function handlePendingSearch(value: string) {
-		setPendingSearch(value);
-		setPendingPage(1);
-	}
-
-	// Filter pending payments by search
-	const filteredPending = useMemo(() => {
-		if (!pendingSearch) {
-			return pendingPayments;
-		}
-		const q = pendingSearch.toLowerCase();
-		return pendingPayments.filter((p) => {
-			const name = displayName(
-				p.customer.firstName,
-				p.customer.lastName,
-			).toLowerCase();
-			const group = (p.customer.groupName ?? "").toLowerCase();
-			return name.includes(q) || group.includes(q);
-		});
-	}, [pendingPayments, pendingSearch]);
-
-	// Paginate
-	const totalPendingPages = Math.ceil(
-		filteredPending.length / PENDING_PAGE_SIZE,
-	);
-	const paginatedPending = filteredPending.slice(
-		(pendingPage - 1) * PENDING_PAGE_SIZE,
-		pendingPage * PENDING_PAGE_SIZE,
-	);
-
-	const pendingTotal = pendingPayments.reduce(
-		(sum, p) => sum + p.paidAmount,
-		0,
-	);
-	const isEmpty = pendingPayments.length === 0;
-
 	return (
 		<Card className="border-amber-200/60 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/10 overflow-hidden">
-			{/* Header */}
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-4 pb-3">
-				<div className="flex items-center gap-2">
-					<div className="flex size-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/40">
-						<WalletIcon className="size-4 text-amber-600" />
-					</div>
-					<div>
-						<h3 className="text-sm font-semibold">
-							With Collector
-						</h3>
-						<p className="text-xs text-muted-foreground">
-							{isEmpty
-								? "No pending payments"
-								: `${pendingPayments.length} payment${pendingPayments.length !== 1 ? "s" : ""} \u00b7 ${formatCurrency(pendingTotal)}`}
-						</p>
-					</div>
-				</div>
-
-				{!isEmpty && (
-					<AlertDialog>
-						<AlertDialogTrigger asChild>
-							<Button
-								size="sm"
-								className="ml-auto gap-1.5 bg-green-600 text-white hover:bg-green-700"
-							>
-								<CheckCircleIcon className="size-3.5" />
-								Process All
-							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>
-									Process all pending payments?
-								</AlertDialogTitle>
-								<AlertDialogDescription>
-									This will mark {pendingPayments.length}{" "}
-									payment
-									{pendingPayments.length !== 1 ? "s" : ""}{" "}
-									totalling {formatCurrency(pendingTotal)} as
-									processed.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction onClick={onProcessAll}>
-									Process All
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
-				)}
-			</div>
-
-			{/* Search — only show when there are enough payments */}
-			{pendingPayments.length > 5 && (
-				<div className="px-4 pb-3">
-					<div className="relative">
-						<SearchIcon className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-						<Input
-							placeholder="Search pending payments..."
-							value={pendingSearch}
-							onChange={(e) =>
-								handlePendingSearch(e.target.value)
-							}
-							className="h-8 pl-8 text-sm bg-background/60"
-						/>
-					</div>
-				</div>
-			)}
-
-			{/* Payment rows */}
-			{!isEmpty && (
-				<div className="px-4 pb-3">
-					<div className="space-y-1.5">
-						{paginatedPending.map((p) => (
-							<div
-								key={p.id}
-								className="group flex items-center justify-between rounded-lg bg-background/80 px-3 py-2.5 text-sm border border-amber-200/40 dark:border-amber-900/30 transition-colors hover:bg-background"
-							>
-								<div className="min-w-0">
-									<span className="font-medium">
-										{displayName(
-											p.customer.firstName,
-											p.customer.lastName,
-										)}
-									</span>
-									{p.customer.groupName && (
-										<span className="ml-1.5 text-xs text-muted-foreground">
-											{p.customer.groupName}
-										</span>
-									)}
-									<div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
-										{p.billingCycle && (
-											<span>
-												{formatCycleLabel(
-													p.billingCycle,
-												)}
-											</span>
-										)}
-										<span>
-											{new Date(
-												p.paidAt,
-											).toLocaleDateString()}
-										</span>
-									</div>
-								</div>
-								<div className="flex items-center gap-1 shrink-0 ml-3">
-									<span className="font-semibold tabular-nums mr-1">
-										{formatCurrency(p.paidAmount)}
-									</span>
-									<Button
-										variant="ghost"
-										size="icon"
-										className="size-7 text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/30"
-										onClick={() => onProcessSingle(p.id)}
-										title="Mark as processed"
-									>
-										<CheckCircleIcon className="size-3.5" />
-									</Button>
-									<a
-										href={`/invoice/${p.id}`}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent"
-									>
-										<ReceiptTextIcon className="size-3.5" />
-									</a>
-								</div>
-							</div>
-						))}
-					</div>
-
-					{/* Pagination */}
-					{totalPendingPages > 1 && (
-						<div className="flex items-center justify-between pt-2 mt-1">
-							<p className="text-xs text-muted-foreground">
-								{(pendingPage - 1) * PENDING_PAGE_SIZE + 1}–
-								{Math.min(
-									pendingPage * PENDING_PAGE_SIZE,
-									filteredPending.length,
-								)}{" "}
-								of {filteredPending.length}
-							</p>
-							<div className="flex items-center gap-1">
-								<Button
-									variant="ghost"
-									size="icon"
-									className="size-7"
-									disabled={pendingPage <= 1}
-									onClick={() => setPendingPage((p) => p - 1)}
-								>
-									<ChevronLeftIcon className="size-3.5" />
-								</Button>
-								<span className="text-xs tabular-nums text-muted-foreground px-1">
-									{pendingPage}/{totalPendingPages}
-								</span>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="size-7"
-									disabled={pendingPage >= totalPendingPages}
-									onClick={() => setPendingPage((p) => p + 1)}
-								>
-									<ChevronRightIcon className="size-3.5" />
-								</Button>
-							</div>
-						</div>
-					)}
-				</div>
-			)}
-
-			{/* Empty state */}
-			{isEmpty && (
-				<div className="flex flex-col items-center gap-1.5 px-4 pb-5 text-center">
-					<CheckCircleIcon className="size-8 text-green-500/40" />
-					<p className="text-sm font-medium text-muted-foreground">
-						All caught up
-					</p>
-					<p className="text-xs text-muted-foreground">
-						No pending payments with this collector.
-					</p>
-				</div>
-			)}
-
-			{/* Handoff form — integrated as card footer */}
-			<div className="border-t border-amber-200/40 dark:border-amber-900/30 bg-background/40 px-4 py-3">
+			<div className="px-4 py-3">
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -894,11 +655,10 @@ interface Payment {
 		username: string | null;
 		groupName: string | null;
 	};
-	billingCycle: { year: number; month: number } | null;
+	billingMonth: { year: number; month: number } | null;
 }
 
 function getPaymentColumns(actions: {
-	onProcess: (paymentId: string) => void;
 	onDelete: (paymentId: string) => void;
 }): ColumnDef<Payment, unknown>[] {
 	return [
@@ -944,11 +704,7 @@ function getPaymentColumns(actions: {
 			cell: ({ row }) => (
 				<Badge
 					variant={getPaymentStatusVariant(row.original.status)}
-					className={
-						row.original.status === PaymentStatus.PENDING
-							? "text-xs border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-							: "text-xs"
-					}
+					className="text-xs"
 				>
 					{PAYMENT_STATUS_LABELS[row.original.status] ??
 						row.original.status}
@@ -956,12 +712,12 @@ function getPaymentColumns(actions: {
 			),
 		},
 		{
-			accessorKey: "billingCycle",
+			accessorKey: "billingMonth",
 			header: "Month",
 			cell: ({ row }) => (
 				<span className="text-muted-foreground">
-					{row.original.billingCycle
-						? formatCycleLabel(row.original.billingCycle)
+					{row.original.billingMonth
+						? formatCycleLabel(row.original.billingMonth)
 						: "\u2014"}
 				</span>
 			),
@@ -1013,17 +769,6 @@ function getPaymentColumns(actions: {
 			meta: { className: "w-20" },
 			cell: ({ row }) => (
 				<div className="flex items-center gap-0.5">
-					{row.original.status === PaymentStatus.PENDING && (
-						<Button
-							variant="ghost"
-							size="icon"
-							className="size-8 text-green-600 hover:text-green-700"
-							onClick={() => actions.onProcess(row.original.id)}
-							title="Mark as processed"
-						>
-							<CheckCircleIcon className="size-4" />
-						</Button>
-					)}
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -1045,19 +790,6 @@ function getPaymentColumns(actions: {
 									View Invoice
 								</a>
 							</DropdownMenuItem>
-							{row.original.status === PaymentStatus.PENDING && (
-								<>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										onClick={() =>
-											actions.onProcess(row.original.id)
-										}
-									>
-										<CheckCircleIcon className="mr-2 size-4 text-green-600" />
-										Mark as Processed
-									</DropdownMenuItem>
-								</>
-							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
@@ -1096,29 +828,11 @@ function PaymentsTable({
 	collectorName: string;
 }) {
 	const organizationId = useOrganizationId();
-	const processPayment = useProcessPayment();
 	const deletePayment = useDeletePayment();
 
 	const columns = useMemo(
 		() =>
 			getPaymentColumns({
-				onProcess: (paymentId) => {
-					if (!organizationId) {
-						return;
-					}
-					toast.promise(
-						processPayment.mutateAsync({
-							organizationId,
-							paymentId,
-						}),
-						{
-							loading: "Processing payment...",
-							success: "Payment marked as processed",
-							error: (err: { message?: string }) =>
-								err?.message ?? "Failed to process payment",
-						},
-					);
-				},
 				onDelete: (paymentId) => {
 					if (!organizationId) {
 						return;
@@ -1137,7 +851,7 @@ function PaymentsTable({
 					);
 				},
 			}),
-		[organizationId, processPayment, deletePayment],
+		[organizationId, deletePayment],
 	);
 
 	const totalPages = Math.ceil(total / PAYMENTS_PER_PAGE);
@@ -1195,9 +909,21 @@ function PaymentsTable({
 
 // ─── Handoff History Table ─────────────────────────────────────────
 
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+	HANDOFF: "Handoff",
+	EXPENSE_DEDUCTION: "Expense",
+	STOCK_RECEIVED: "Stock Received",
+	INSTALLATION_COST: "Installation",
+	DEALER_PAYMENT: "Dealer Payment",
+	ADMIN_TRANSFER: "Transfer",
+	NEW_USER_SETUP: "New User Setup",
+	OTHER: "Other",
+};
+
 interface Collection {
 	id: string;
 	amount: number;
+	type: string;
 	notes: string | null;
 	collectedAt: string | Date;
 	collector: { name: string };
@@ -1222,10 +948,22 @@ function HandoffsTable({
 	const columns: ColumnDef<Collection, unknown>[] = useMemo(
 		() => [
 			{
+				accessorKey: "type",
+				header: "Type",
+				cell: ({ row }) => (
+					<Badge variant="outline" className="text-xs font-normal">
+						{COLLECTION_TYPE_LABELS[row.original.type] ??
+							row.original.type}
+					</Badge>
+				),
+			},
+			{
 				accessorKey: "amount",
 				header: "Amount",
 				cell: ({ row }) => (
-					<span className="font-semibold tabular-nums">
+					<span
+						className={`font-semibold tabular-nums ${row.original.amount < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+					>
 						{formatCurrency(row.original.amount)}
 					</span>
 				),

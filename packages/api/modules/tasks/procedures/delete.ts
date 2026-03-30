@@ -1,6 +1,5 @@
 import { ORPCError } from "@orpc/server";
 import {
-	NO_DEALER,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -48,7 +47,7 @@ export const deleteTask = protectedProcedure
 		// Dealer scoping: if task has a customer, it must belong to the active dealer
 		if (
 			existing.customerId &&
-			existing.customer?.dealerId !== (activeDealerId ?? NO_DEALER)
+			existing.customer?.dealerId !== (activeDealerId ?? null)
 		) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",

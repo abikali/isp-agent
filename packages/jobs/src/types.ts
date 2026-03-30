@@ -135,9 +135,19 @@ export interface WhatsAppReceiptJobResult {
 }
 
 // Billing sync job types
+export interface EmployeeMapping {
+	action: "skip" | "create" | "map";
+	targetEmployeeId?: string | undefined;
+	createName?: string | undefined;
+	role?: string | undefined;
+	phone?: string | undefined;
+	telegram?: string | undefined;
+}
+
 export interface BillingSyncJobData {
 	operationId: string;
 	organizationId: string;
+	employeeMappings?: Record<string, EmployeeMapping> | undefined;
 }
 
 export interface BillingSyncJobResult {

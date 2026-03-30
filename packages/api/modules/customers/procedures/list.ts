@@ -19,7 +19,7 @@ export const listCustomers = protectedProcedure
 			organizationId: z.string(),
 			search: z.string().optional(),
 			status: z
-				.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"])
+				.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING", "EXPIRED"])
 				.optional(),
 			planId: z.string().optional(),
 			stationId: z.string().optional(),
@@ -54,7 +54,10 @@ export const listCustomers = protectedProcedure
 			...getDealerScopeFilter(activeDealerId),
 		};
 
-		if (input.status) {
+		if (input.status === "EXPIRED") {
+			where["status"] = "ACTIVE";
+			where["expiresAt"] = { lt: new Date() };
+		} else if (input.status) {
 			where["status"] = input.status;
 		}
 		if (input.planId) {
@@ -88,6 +91,7 @@ export const listCustomers = protectedProcedure
 				select: {
 					id: true,
 					accountNumber: true,
+					username: true,
 					firstName: true,
 					lastName: true,
 					email: true,

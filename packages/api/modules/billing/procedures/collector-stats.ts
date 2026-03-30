@@ -5,14 +5,18 @@ import {
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
-import { db, PaymentStatus } from "@repo/database";
+import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
-	calculateInHandBalance,
+	collectorBalance,
 	sumAmountOrZero,
 	sumOrZero,
 } from "../lib/calculations";
+import {
+	getMonthDateRange,
+	resolveActiveBillingMonth,
+} from "../lib/resolve-month";
 
 export const getCollectorStats = protectedProcedure
 	.route({
@@ -29,7 +33,6 @@ export const getCollectorStats = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		// Use billing:view for basic access check (collectors have this)
 		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
@@ -54,67 +57,81 @@ export const getCollectorStats = protectedProcedure
 			});
 		}
 
-		// All queries in parallel
 		const today = new Date();
 		today.setHours(0, 0, 0, 0);
 		const tomorrow = new Date(today);
 		tomorrow.setDate(tomorrow.getDate() + 1);
 
+		// Use the active billing month (latest unlocked), not the calendar month
+		const activeMonth = await resolveActiveBillingMonth(
+			input.organizationId,
+		);
+		const monthRange = getMonthDateRange(
+			activeMonth.year,
+			activeMonth.month,
+		);
+
+		// Allow null groupNames through — Prisma's NOT excludes nulls
 		const excludeFreeGroup = {
-			NOT: {
-				groupName: { equals: "free", mode: "insensitive" as const },
-			},
+			OR: [
+				{ groupName: null },
+				{
+					NOT: {
+						groupName: {
+							equals: "free",
+							mode: "insensitive" as const,
+						},
+					},
+				},
+			],
 		};
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
 		const [
-			totalCustomers,
-			paidCustomers,
+			unpaidCustomers,
+			paidCustomerIds,
 			totalPayments,
-			pendingPayments,
 			dailyPayments,
 			totalHandedOff,
 		] = await Promise.all([
-			// Total customers assigned to this collector (excluding free group)
+			// Unpaid customers: expiry up to this month (includes past-due), no COLLECTED payment
 			db.customer.count({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
 					status: "ACTIVE",
+					expiresAt: { lte: monthRange.lte },
+					payments: {
+						none: {
+							billingMonthId: activeMonth.id,
+							status: "COLLECTED",
+						},
+					},
 					...excludeFreeGroup,
 					...dealerFilter,
 				},
 			}),
-			// Paid customers this cycle (excluding free group)
-			db.customer.count({
+			// Paid customers this month: distinct customerIds with COLLECTED payment
+			db.payment.findMany({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
-					status: "ACTIVE",
-					paidCurrentCycle: true,
-					...excludeFreeGroup,
-					...dealerFilter,
+					status: "COLLECTED",
+					billingMonthId: activeMonth.id,
+					...dealerViaCustomer,
 				},
+				select: { customerId: true },
+				distinct: ["customerId"],
 			}),
-			// Total amount collected (all time)
+			// Total amount collected (all time, for balance calc — not dealer-scoped)
 			db.payment.aggregate({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
-					...dealerViaCustomer,
-				},
-				_sum: { paidAmount: true },
-				_count: true,
-			}),
-			// Pending payments — cash physically with the collector
-			db.payment.aggregate({
-				where: {
-					organizationId: input.organizationId,
-					collectorId,
-					status: PaymentStatus.PENDING,
-					...dealerViaCustomer,
+					status: "COLLECTED",
+					workerId: null,
 				},
 				_sum: { paidAmount: true },
 			}),
@@ -123,6 +140,7 @@ export const getCollectorStats = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
+					status: "COLLECTED",
 					paidAt: { gte: today, lt: tomorrow },
 					...dealerViaCustomer,
 				},
@@ -141,7 +159,8 @@ export const getCollectorStats = protectedProcedure
 
 		const totalCollected = sumOrZero(totalPayments);
 		const handedOff = sumAmountOrZero(totalHandedOff);
-		const pending = sumOrZero(pendingPayments);
+		const paidCustomers = paidCustomerIds.length;
+		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		return {
 			collectorId,
@@ -149,7 +168,7 @@ export const getCollectorStats = protectedProcedure
 			paidCustomers,
 			totalCollected,
 			totalHandedOff: handedOff,
-			netBalance: calculateInHandBalance(pending, handedOff),
+			netBalance: collectorBalance(totalCollected, handedOff),
 			dailyCollected: sumOrZero(dailyPayments),
 			dailyCount: dailyPayments._count,
 		};

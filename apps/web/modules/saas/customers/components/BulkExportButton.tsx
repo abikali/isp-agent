@@ -8,7 +8,13 @@ import { downloadCsv } from "../lib/csv-utils";
 
 interface BulkExportButtonProps {
 	filters?: {
-		status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING" | undefined;
+		status?:
+			| "ACTIVE"
+			| "INACTIVE"
+			| "SUSPENDED"
+			| "PENDING"
+			| "EXPIRED"
+			| undefined;
 		planId?: string | undefined;
 		stationId?: string | undefined;
 	};

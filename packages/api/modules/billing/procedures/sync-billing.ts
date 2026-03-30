@@ -112,17 +112,20 @@ export const previewBillingSync = protectedProcedure
 			}
 
 			// Payments — skipped if customer OR collector not found
+			// Also track unmatched worker names (for workerId mapping)
 			const paymentRows = await queryBilling(
 				conn,
-				"SELECT username, collector FROM john_payment",
+				"SELECT username, collector, worker FROM john_payment",
 			);
 			const unmatchedPaymentCollectors = new Set<string>();
 			const unmatchedPaymentCustomers = new Set<string>();
+			const unmatchedPaymentWorkers = new Set<string>();
 			let paymentMatched = 0;
 			let paymentSkipped = 0;
 			for (const row of paymentRows) {
 				const username = row["username"] as string | null;
 				const collector = row["collector"] as string | null;
+				const worker = row["worker"] as string | null;
 				const custOk = hasCustomer(username);
 				const collOk = hasEmployee(collector);
 				if (custOk && collOk) {
@@ -135,6 +138,10 @@ export const previewBillingSync = protectedProcedure
 					if (!collOk && collector) {
 						unmatchedPaymentCollectors.add(collector);
 					}
+				}
+				// Track unmatched workers (these don't cause skips, but need mapping for balance)
+				if (worker?.trim() && !hasEmployee(worker.trim())) {
+					unmatchedPaymentWorkers.add(worker.trim());
 				}
 			}
 
@@ -209,6 +216,7 @@ export const previewBillingSync = protectedProcedure
 			const allUnmatchedEmployees = new Set<string>();
 			for (const s of [
 				unmatchedPaymentCollectors,
+				unmatchedPaymentWorkers,
 				unmatchedCollectionCollectors,
 				unmatchedExpenseWorkers,
 				unmatchedInstallWorkers,
@@ -226,6 +234,29 @@ export const previewBillingSync = protectedProcedure
 			]) {
 				for (const name of s) {
 					allUnmatchedCustomers.add(name);
+				}
+			}
+
+			// Fetch role/phone info for unmatched employees from isplogin
+			const employeeInfoMap = new Map<
+				string,
+				{ role: string; phone: string | null; telegram: string | null }
+			>();
+			if (allUnmatchedEmployees.size > 0) {
+				const loginRows = await queryBilling(
+					conn,
+					"SELECT username, role, phone, telegram FROM isplogin",
+				);
+				for (const row of loginRows) {
+					const username = row["username"] as string | null;
+					const role = row["role"] as string | null;
+					if (username && role) {
+						employeeInfoMap.set(username.toLowerCase(), {
+							role,
+							phone: (row["phone"] as string) ?? null,
+							telegram: (row["telegram"] as string) ?? null,
+						});
+					}
 				}
 			}
 
@@ -313,7 +344,17 @@ export const previewBillingSync = protectedProcedure
 						unmatchedEmployees: [...unmatchedInstallWorkers].sort(),
 					},
 				},
-				unmatchedEmployees: [...allUnmatchedEmployees].sort(),
+				unmatchedEmployees: [...allUnmatchedEmployees]
+					.sort()
+					.map((name) => {
+						const info = employeeInfoMap.get(name.toLowerCase());
+						return {
+							username: name,
+							role: info?.role ?? null,
+							phone: info?.phone ?? null,
+							telegram: info?.telegram ?? null,
+						};
+					}),
 				unmatchedCustomers: customersWithDealers(
 					[...allUnmatchedCustomers].sort(),
 				),
@@ -332,7 +373,24 @@ export const syncFromBilling = protectedProcedure
 		tags: ["Billing"],
 		summary: "Queue a full data sync from billing system",
 	})
-	.input(z.object({ organizationId: z.string() }))
+	.input(
+		z.object({
+			organizationId: z.string(),
+			employeeMappings: z
+				.record(
+					z.string(),
+					z.object({
+						action: z.enum(["skip", "create", "map"]),
+						targetEmployeeId: z.string().optional(),
+						createName: z.string().optional(),
+						role: z.string().optional(),
+						phone: z.string().optional(),
+						telegram: z.string().optional(),
+					}),
+				)
+				.optional(),
+		}),
+	)
 	.handler(async ({ context: { user }, input }) => {
 		await requirePermission(
 			input.organizationId,
@@ -364,6 +422,7 @@ export const syncFromBilling = protectedProcedure
 		await queueBillingSync({
 			operationId: operation.id,
 			organizationId: input.organizationId,
+			employeeMappings: input.employeeMappings,
 		});
 
 		return { operationId: operation.id };

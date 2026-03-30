@@ -7,12 +7,26 @@ import {
 	useTestBilling,
 } from "@saas/billing/client";
 import { SettingsItem } from "@saas/shared/components/SettingsItem";
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@ui/components/dialog";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ui/components/select";
 import {
 	AlertTriangleIcon,
 	CheckCircle2Icon,
@@ -48,6 +62,13 @@ interface PhasePreview {
 	unmatchedEmployees: string[];
 }
 
+interface UnmatchedEmployee {
+	username: string;
+	role: string | null;
+	phone: string | null;
+	telegram: string | null;
+}
+
 interface PreviewData {
 	phases: {
 		customers: PhasePreview;
@@ -56,7 +77,7 @@ interface PreviewData {
 		expenses: PhasePreview;
 		installations: PhasePreview;
 	};
-	unmatchedEmployees: string[];
+	unmatchedEmployees: UnmatchedEmployee[];
 	unmatchedCustomers: UnmatchedCustomer[];
 }
 
@@ -136,16 +157,88 @@ export function BillingSyncSettings() {
 		}
 	}
 
+	const [showMappingModal, setShowMappingModal] = useState(false);
+	const [pendingMappings, setPendingMappings] = useState<
+		Record<
+			string,
+			{
+				action: "skip" | "create" | "map";
+				targetEmployeeId?: string;
+				createName?: string;
+				role?: string;
+				phone?: string;
+				telegram?: string;
+			}
+		>
+	>({});
+
 	async function handleStartSync() {
 		if (!organizationId) {
 			return;
 		}
+
+		// Auto-run preview if we don't have one yet
+		let currentPreview = preview;
+		if (!currentPreview) {
+			try {
+				currentPreview = (await previewSync.mutateAsync({
+					organizationId,
+				})) as PreviewData;
+				setPreview(currentPreview);
+			} catch (error) {
+				setConnectionError(
+					error instanceof Error ? error.message : "Preview failed",
+				);
+				return;
+			}
+		}
+
+		// If there are unmatched employees, show the mapping modal
+		if (currentPreview.unmatchedEmployees.length > 0 && !showMappingModal) {
+			const initial: typeof pendingMappings = {};
+			for (const emp of currentPreview.unmatchedEmployees) {
+				initial[emp.username] = {
+					action: "skip",
+					role: emp.role ?? undefined,
+					phone: emp.phone ?? undefined,
+					telegram: emp.telegram ?? undefined,
+				};
+			}
+			setPendingMappings(initial);
+			setShowMappingModal(true);
+			return;
+		}
+
+		startSync(pendingMappings);
+	}
+
+	async function startSync(
+		mappings?: Record<
+			string,
+			{
+				action: "skip" | "create" | "map";
+				targetEmployeeId?: string;
+				createName?: string;
+				role?: string;
+				phone?: string;
+				telegram?: string;
+			}
+		>,
+	) {
+		if (!organizationId) {
+			return;
+		}
 		try {
+			const hasNonSkipMappings =
+				mappings &&
+				Object.values(mappings).some((m) => m.action !== "skip");
 			const result = await syncFromBilling.mutateAsync({
 				organizationId,
+				employeeMappings: hasNonSkipMappings ? mappings : undefined,
 			});
 			setOperationId(result.operationId);
 			setPreview(null);
+			setShowMappingModal(false);
 		} catch (error) {
 			setConnectionError(
 				error instanceof Error ? error.message : "Failed to start sync",
@@ -283,7 +376,194 @@ export function BillingSyncSettings() {
 					)}
 				</div>
 			</SettingsItem>
+
+			{/* Employee Mapping Modal */}
+			<EmployeeMappingModal
+				open={showMappingModal}
+				onOpenChange={setShowMappingModal}
+				unmatchedEmployees={preview?.unmatchedEmployees ?? []}
+				mappings={pendingMappings}
+				onMappingsChange={setPendingMappings}
+				onConfirm={() => startSync(pendingMappings)}
+				isSubmitting={syncFromBilling.isPending}
+			/>
 		</>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Employee Mapping Modal
+// ---------------------------------------------------------------------------
+
+interface MappingEntry {
+	action: "skip" | "create" | "map";
+	targetEmployeeId?: string;
+	createName?: string;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+	worker: "Field Worker",
+	collector: "Collector",
+	followup: "Follow-up",
+	accounting: "Accounting",
+	dealer: "Dealer",
+	admin: "Admin",
+};
+
+function EmployeeMappingModal({
+	open,
+	onOpenChange,
+	unmatchedEmployees,
+	mappings,
+	onMappingsChange,
+	onConfirm,
+	isSubmitting,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	unmatchedEmployees: UnmatchedEmployee[];
+	mappings: Record<string, MappingEntry>;
+	onMappingsChange: (m: Record<string, MappingEntry>) => void;
+	onConfirm: () => void;
+	isSubmitting: boolean;
+}) {
+	const organizationId = useOrganizationId();
+	const { data: employeesData } = useQuery(
+		organizationId
+			? orpc.employees.list.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["employees", "list"]),
+	);
+	const allEmployees = employeesData?.employees ?? [];
+
+	function updateMapping(name: string, partial: Partial<MappingEntry>) {
+		const current = mappings[name] ?? { action: "skip" as const };
+		onMappingsChange({ ...mappings, [name]: { ...current, ...partial } });
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+				<DialogHeader>
+					<DialogTitle>Resolve Unmatched Employees</DialogTitle>
+					<p className="text-sm text-muted-foreground">
+						{unmatchedEmployees.length} employee name
+						{unmatchedEmployees.length !== 1 ? "s" : ""} from the
+						billing system could not be matched. Choose how to
+						handle each one.
+					</p>
+				</DialogHeader>
+
+				<div className="space-y-3">
+					{unmatchedEmployees.map((emp) => {
+						const mapping = mappings[emp.username] ?? {
+							action: "skip",
+						};
+						return (
+							<div
+								key={emp.username}
+								className="rounded-lg border p-3 space-y-2"
+							>
+								<div className="flex items-center justify-between gap-2">
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
+											<p className="font-mono text-sm font-medium">
+												{emp.username}
+											</p>
+											{emp.role && (
+												<Badge
+													variant="secondary"
+													className="text-xs"
+												>
+													{ROLE_LABELS[emp.role] ??
+														emp.role}
+												</Badge>
+											)}
+										</div>
+										{emp.phone && (
+											<p className="text-xs text-muted-foreground mt-0.5">
+												{emp.phone}
+											</p>
+										)}
+									</div>
+									<Select
+										value={mapping.action}
+										onValueChange={(
+											val: "skip" | "create" | "map",
+										) => {
+											updateMapping(emp.username, {
+												action: val,
+												createName:
+													val === "create"
+														? emp.username
+														: undefined,
+												targetEmployeeId: undefined,
+											});
+										}}
+									>
+										<SelectTrigger className="w-32">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="skip">
+												Skip
+											</SelectItem>
+											<SelectItem value="create">
+												Create New
+											</SelectItem>
+											<SelectItem value="map">
+												Map To...
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+
+								{mapping.action === "map" && (
+									<Select
+										value={mapping.targetEmployeeId ?? ""}
+										onValueChange={(val) => {
+											updateMapping(emp.username, {
+												targetEmployeeId: val,
+											});
+										}}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder="Select existing employee..." />
+										</SelectTrigger>
+										<SelectContent>
+											{allEmployees.map((e) => (
+												<SelectItem
+													key={e.id}
+													value={e.id}
+												>
+													{e.name}
+													{e.department
+														? ` — ${e.department}`
+														: ""}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								)}
+							</div>
+						);
+					})}
+				</div>
+
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+					>
+						Cancel
+					</Button>
+					<Button onClick={onConfirm} disabled={isSubmitting}>
+						{isSubmitting ? "Starting..." : "Start Sync"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

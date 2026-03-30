@@ -77,6 +77,7 @@ export const createEmployee = protectedProcedure
 				organizationId: input.organizationId,
 				dealerId: activeDealerId ?? null,
 				employeeNumber,
+				preferredLayout: "collector",
 				name: input.name,
 				email: normalizedEmail ?? null,
 				phone: input.phone ?? null,

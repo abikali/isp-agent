@@ -8,17 +8,21 @@ import {
 	type IspRoleTemplate,
 } from "@repo/auth/permissions";
 import { db } from "@repo/database";
+import { hashPassword } from "@repo/utils/password";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
+const DEFAULT_PASSWORD = "123456";
+
 /**
  * Invite an Employee to log in by creating an org membership with an ISP role.
- * The employee must have an email address and not already be linked to a User.
+ * Uses the employee's username (defaults to iRadius username) as the login credential.
+ * The user is created with a default password and auto-verified (no email verification).
  *
  * Flow:
- * 1. Validate employee exists, has email, not already linked
+ * 1. Validate employee exists, has a username, not already linked
  * 2. Ensure the ISP role exists in the org's custom roles (create if missing)
- * 3. Find or create User by email
+ * 3. Find or create User by username (with default password, auto-verified)
  * 4. Create Member with the ISP role
  * 5. Link Employee.userId → User.id
  */
@@ -34,6 +38,7 @@ export const inviteEmployee = protectedProcedure
 			organizationId: z.string(),
 			employeeId: z.string(),
 			role: z.enum(["collector", "field_tech", "dealer", "manager"]),
+			username: z.string().min(1, "Username is required"),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -57,26 +62,20 @@ export const inviteEmployee = protectedProcedure
 				message: "Employee not found",
 			});
 		}
-		if (!employee.email) {
-			throw new ORPCError("BAD_REQUEST", {
-				message:
-					"Employee must have an email address before being invited to log in",
-			});
-		}
 		if (employee.userId) {
 			throw new ORPCError("CONFLICT", {
 				message: "Employee already has a login account",
 			});
 		}
 
-		const normalizedEmail = employee.email.trim().toLowerCase();
+		const loginUsername = input.username.trim().toLowerCase();
 
-		// Check if another employee in this org already uses this email for login
+		// Check if another employee in this org already uses this username for login
 		const otherLinkedEmployee = await db.employee.findFirst({
 			where: {
 				organizationId: input.organizationId,
-				email: {
-					equals: normalizedEmail,
+				username: {
+					equals: loginUsername,
 					mode: "insensitive",
 				},
 				userId: { not: null },
@@ -85,7 +84,7 @@ export const inviteEmployee = protectedProcedure
 		});
 		if (otherLinkedEmployee) {
 			throw new ORPCError("CONFLICT", {
-				message: `Email "${normalizedEmail}" is already used for login by another employee (${otherLinkedEmployee.name})`,
+				message: `Username "${loginUsername}" is already used for login by another employee (${otherLinkedEmployee.name})`,
 			});
 		}
 
@@ -117,11 +116,11 @@ export const inviteEmployee = protectedProcedure
 			},
 		});
 
-		// 3. Find or create User by email
+		// 3. Find or create User by username
 		let targetUser = await db.user.findFirst({
 			where: {
-				email: {
-					equals: normalizedEmail,
+				username: {
+					equals: loginUsername,
 					mode: "insensitive",
 				},
 			},
@@ -139,18 +138,35 @@ export const inviteEmployee = protectedProcedure
 			});
 			if (existingMember) {
 				throw new ORPCError("CONFLICT", {
-					message: `A user with email "${normalizedEmail}" is already a member of this organization`,
+					message: `A user with username "${loginUsername}" is already a member of this organization`,
 				});
 			}
 		} else {
-			// Create a new user account (they'll set password via magic link / reset)
+			// Create a new user with default password, auto-verified
+			const passwordHash = await hashPassword(DEFAULT_PASSWORD);
+			const now = new Date();
+
 			targetUser = await db.user.create({
 				data: {
 					name: employee.name,
-					email: normalizedEmail,
-					emailVerified: false,
-					createdAt: new Date(),
-					updatedAt: new Date(),
+					email: `${loginUsername}@employee.local`,
+					username: loginUsername,
+					emailVerified: true,
+					onboardingComplete: true,
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
+
+			// Create credential account with default password
+			await db.account.create({
+				data: {
+					accountId: targetUser.id,
+					providerId: "credential",
+					userId: targetUser.id,
+					password: passwordHash,
+					createdAt: now,
+					updatedAt: now,
 				},
 			});
 		}
@@ -174,6 +190,6 @@ export const inviteEmployee = protectedProcedure
 		return {
 			userId: targetUser.id,
 			role: input.role,
-			email: normalizedEmail,
+			username: loginUsername,
 		};
 	});

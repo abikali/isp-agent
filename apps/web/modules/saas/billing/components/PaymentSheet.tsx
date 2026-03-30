@@ -97,7 +97,9 @@ export function PaymentSheet({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only reset form when a different customer is selected
 	useEffect(() => {
 		if (customerId && customer) {
-			setPaidAmount(String(calculateTotalDue(customer)));
+			const amount =
+				customer.accumulatedDue ?? calculateTotalDue(customer);
+			setPaidAmount(String(amount));
 			setFreeAccount(false);
 			setStoppedAccount(false);
 			setNoteCategory("");
@@ -107,10 +109,13 @@ export function PaymentSheet({
 		}
 	}, [customerId]);
 
+	const monthlyDue = customer ? calculateTotalDue(customer) : 0;
+	const unpaidMonths = customer?.unpaidMonths ?? 1;
+	const pastDueMonths = customer?.pastDueMonths ?? 0;
 	const totalDue = freeAccount
-		? iptvPrice + realIpPrice
+		? (iptvPrice + realIpPrice) * unpaidMonths
 		: customer
-			? calculateTotalDue(customer)
+			? (customer.accumulatedDue ?? monthlyDue)
 			: 0;
 
 	const stoppedMissingNote = stoppedAccount && !noteCategory && !notes.trim();
@@ -213,6 +218,32 @@ export function PaymentSheet({
 								</p>
 							</div>
 						</div>
+						{/* Past due breakdown */}
+						{pastDueMonths > 0 && (
+							<div className="border-t pt-2 space-y-0.5 text-xs">
+								<div className="flex justify-between text-destructive font-medium">
+									<span>
+										Past due ({pastDueMonths}{" "}
+										{pastDueMonths === 1
+											? "month"
+											: "months"}
+										)
+									</span>
+									<span className="tabular-nums">
+										{formatCurrency(
+											pastDueMonths * monthlyDue,
+										)}
+									</span>
+								</div>
+								<div className="flex justify-between text-muted-foreground">
+									<span>This month</span>
+									<span className="tabular-nums">
+										{formatCurrency(monthlyDue)}
+									</span>
+								</div>
+							</div>
+						)}
+						{/* Price breakdown */}
 						{(discountAmount > 0 ||
 							iptvPrice > 0 ||
 							realIpPrice > 0) && (
@@ -279,14 +310,16 @@ export function PaymentSheet({
 								checked={freeAccount}
 								onCheckedChange={(checked) => {
 									setFreeAccount(checked);
-									// Recalculate paid amount
-									const newTotal = checked
+									// Recalculate paid amount (accounting for accumulated months)
+									const perMonth = checked
 										? iptvPrice + realIpPrice
 										: accountPrice +
 											iptvPrice +
 											realIpPrice -
 											discountAmount;
-									setPaidAmount(String(newTotal));
+									setPaidAmount(
+										String(perMonth * unpaidMonths),
+									);
 								}}
 							/>
 							<span className="text-sm font-medium">

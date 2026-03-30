@@ -273,24 +273,24 @@ export function StatCards() {
 							<div className="grid grid-cols-3 gap-4 border-t pt-4">
 								<div className="text-center">
 									<div className="text-lg font-semibold tabular-nums">
-										{billingStats.processedPayments}
+										{billingStats.collectedPayments}
 									</div>
 									<div className="text-xs text-muted-foreground">
-										Processed
+										Collected
 									</div>
 								</div>
 								<div className="text-center">
 									<div
 										className={cn(
 											"text-lg font-semibold tabular-nums",
-											billingStats.pendingPayments > 0 &&
+											billingStats.stoppedPayments > 0 &&
 												"text-amber-600 dark:text-amber-400",
 										)}
 									>
-										{billingStats.pendingPayments}
+										{billingStats.stoppedPayments}
 									</div>
 									<div className="text-xs text-muted-foreground">
-										Pending
+										Stopped
 									</div>
 								</div>
 								<div className="text-center">

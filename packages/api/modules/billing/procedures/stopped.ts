@@ -4,10 +4,13 @@ import {
 	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db, PaymentStatus } from "@repo/database";
+import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { resolveBillingCycleId } from "../lib/resolve-cycle";
+import {
+	resolveActiveBillingMonth,
+	resolveBillingMonthId,
+} from "../lib/resolve-month";
 
 export const listStoppedAccounts = protectedProcedure
 	.route({
@@ -19,6 +22,8 @@ export const listStoppedAccounts = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
+			year: z.number().int().optional(),
+			month: z.number().int().min(1).max(12).optional(),
 			search: z.string().optional(),
 			groupName: z.string().optional(),
 			collectorId: z.string().optional(),
@@ -27,25 +32,35 @@ export const listStoppedAccounts = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId, activeBillingYear, activeBillingMonth } =
-			await requirePermission(
-				input.organizationId,
-				user.id,
-				"billing",
-				"view",
-			);
-
-		const cycleId = await resolveBillingCycleId(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
-			activeBillingYear,
-			activeBillingMonth,
+			user.id,
+			"billing",
+			"view",
 		);
+
+		let year = input.year;
+		let month = input.month;
+		let monthId: string | undefined;
+		if (year == null || month == null) {
+			const active = await resolveActiveBillingMonth(
+				input.organizationId,
+			);
+			year = year ?? active.year;
+			month = month ?? active.month;
+			monthId = active.id;
+		} else {
+			monthId = await resolveBillingMonthId(
+				input.organizationId,
+				year,
+				month,
+			);
+		}
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
-			stoppedAccount: true,
-			status: { not: PaymentStatus.PROCESSED },
-			...(cycleId ? { billingCycleId: cycleId } : {}),
+			status: "STOPPED",
+			...(monthId ? { billingMonthId: monthId } : {}),
 		};
 
 		if (input.collectorId) {
@@ -138,7 +153,7 @@ export const reactivateAccount = protectedProcedure
 			where: {
 				id: input.paymentId,
 				organizationId: input.organizationId,
-				stoppedAccount: true,
+				status: "STOPPED",
 				...getDealerScopeViaCustomer(activeDealerId),
 			},
 			include: { customer: true },
@@ -151,14 +166,11 @@ export const reactivateAccount = protectedProcedure
 		}
 
 		await db.$transaction(async (tx) => {
-			// Update payment status
+			// Change payment from STOPPED to COLLECTED
 			await tx.payment.update({
 				where: { id: input.paymentId },
 				data: {
-					stoppedAccount: false,
-					status: PaymentStatus.PROCESSED,
-					processedAt: new Date(),
-					processedById: user.id,
+					status: "COLLECTED",
 				},
 			});
 
@@ -167,7 +179,6 @@ export const reactivateAccount = protectedProcedure
 				where: { id: payment.customerId },
 				data: {
 					status: "ACTIVE",
-					paidCurrentCycle: true,
 					...(input.customExpiry
 						? { expiresAt: new Date(input.customExpiry) }
 						: {}),

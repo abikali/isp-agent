@@ -1260,6 +1260,32 @@ async function processIRadiusSync(
 				processedDealers: 0,
 			});
 
+			// Backfill dealerId on service plans that have dealerExternalId but no dealerId
+			const plansToBackfill = await db.servicePlan.findMany({
+				where: {
+					organizationId,
+					dealerId: null,
+					dealerExternalId: { not: null },
+				},
+				select: { id: true, dealerExternalId: true },
+			});
+			await Promise.all(
+				plansToBackfill.flatMap((plan) => {
+					const resolvedDealerId = dealerMap.get(
+						Number(plan.dealerExternalId),
+					);
+					if (!resolvedDealerId) {
+						return [];
+					}
+					return db.servicePlan
+						.update({
+							where: { id: plan.id },
+							data: { dealerId: resolvedDealerId },
+						})
+						.catch(() => {});
+				}),
+			);
+
 			const batchSize = 500;
 
 			// ================================================================
@@ -1347,6 +1373,7 @@ async function processIRadiusSync(
 							data: {
 								organizationId,
 								employeeNumber,
+								preferredLayout: "collector",
 								...employeeData,
 							},
 						});

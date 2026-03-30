@@ -11,65 +11,65 @@ import {
 import { useState } from "react";
 import { buildCycleOptions } from "../lib/billing-utils";
 
-// ─── Billing Cycles ─────────────────────────────────────────────
+// ─── Billing Months ─────────────────────────────────────────────
 
-export function useCurrentCycle() {
+export function useCurrentMonth() {
 	const organizationId = useOrganizationId();
 
 	return useQuery(
 		organizationId
-			? orpc.billing.cycles.current.queryOptions({
+			? orpc.billing.months.current.queryOptions({
 					input: { organizationId },
 				})
-			: disabledQuery(["billing", "cycles", "current"]),
+			: disabledQuery(["billing", "months", "current"]),
 	);
 }
 
-export function useBillingCycles() {
+export function useBillingMonths() {
 	const organizationId = useOrganizationId();
 
 	return useQuery(
 		organizationId
-			? orpc.billing.cycles.list.queryOptions({
+			? orpc.billing.months.list.queryOptions({
 					input: { organizationId },
 				})
-			: disabledQuery(["billing", "cycles", "list"]),
+			: disabledQuery(["billing", "months", "list"]),
 	);
 }
 
-// ─── Cycle Filter (shared state for cycle dropdowns) ────────────
+// ─── Month Filter (shared state for month dropdowns) ────────────
 
-export function useCycleFilter() {
-	const [cycleFilter, setCycleFilter] = useState<string>("");
-	const { data: currentCycleData } = useCurrentCycle();
-	const { data: cyclesData } = useBillingCycles();
+export function useMonthFilter() {
+	const [monthFilter, setMonthFilter] = useState<string>("");
+	const { data: currentMonthData } = useCurrentMonth();
+	const { data: monthsData } = useBillingMonths();
 
-	const options = buildCycleOptions(cyclesData?.cycles ?? []);
-	const isAll = cycleFilter === "all";
-	const activeCycleId = isAll
+	const options = buildCycleOptions(monthsData?.months ?? []);
+	const isAll = monthFilter === "all";
+	const activeMonthId = isAll
 		? undefined
-		: cycleFilter || currentCycleData?.cycle?.id;
+		: monthFilter || currentMonthData?.month?.id;
 
 	return {
-		cycleFilter,
-		setCycleFilter,
-		activeCycleId,
+		monthFilter,
+		setMonthFilter,
+		activeMonthId,
 		isAll,
 		options,
-		currentCycleId: currentCycleData?.cycle?.id,
+		currentMonthId: currentMonthData?.month?.id,
 	};
 }
 
 // ─── Payment Stats (suspense) ───────────────────────────────────
 
-export function usePaymentStats(billingCycleId?: string) {
+export function usePaymentStats(billingMonthId?: string) {
 	const organizationId = useOrganizationId();
 
 	const query = useSuspenseQuery(
 		orpc.billing.payments.stats.queryOptions({
 			input: {
 				organizationId: organizationId ?? "",
-				billingCycleId,
+				billingMonthId,
 			},
 		}),
 	);
@@ -79,13 +79,13 @@ export function usePaymentStats(billingCycleId?: string) {
 
 // ─── Payment Stats (non-suspense) ───────────────────────────────
 
-export function usePaymentStatsQuery(billingCycleId?: string) {
+export function usePaymentStatsQuery(billingMonthId?: string) {
 	const organizationId = useOrganizationId();
 
 	return useQuery(
 		organizationId
 			? orpc.billing.payments.stats.queryOptions({
-					input: { organizationId, billingCycleId },
+					input: { organizationId, billingMonthId },
 				})
 			: disabledQuery(["billing", "payments", "stats"]),
 	);
@@ -110,7 +110,7 @@ export function useCustomerGroups() {
 // ─── Payments List (suspense) ───────────────────────────────────
 
 export function usePayments(filters: {
-	billingCycleId?: string;
+	billingMonthId?: string;
 	collectorId?: string;
 	status?: PaymentStatus;
 	groupName?: string;
@@ -148,7 +148,7 @@ export function usePayments(filters: {
 // ─── Payments List (non-suspense) ──────────────────────────────
 
 export function usePaymentsQuery(filters: {
-	billingCycleId?: string;
+	billingMonthId?: string;
 	collectorId?: string;
 	status?: PaymentStatus;
 	groupName?: string;
@@ -187,6 +187,8 @@ export function usePaymentsQuery(filters: {
 // ─── Unpaid Customers (suspense) ────────────────────────────────
 
 export function useUnpaidCustomers(filters: {
+	year?: number;
+	month?: number;
 	collectorId?: string;
 	groupName?: string;
 	excludeGroupName?: string;
@@ -231,6 +233,8 @@ export function useUnpaidCustomers(filters: {
 // ─── Stopped Accounts (suspense) ────────────────────────────────
 
 export function useStoppedAccounts(filters: {
+	year?: number;
+	month?: number;
 	search?: string;
 	groupName?: string;
 	collectorId?: string;
@@ -277,79 +281,14 @@ export function useCreatePayment() {
 	});
 }
 
-export function useProcessPayment() {
+export function useToggleMonthLock() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.billing.payments.process.mutationOptions(),
+		...orpc.billing.months.toggleLock.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
-			});
-		},
-	});
-}
-
-export function useBulkProcessPayments() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.payments.bulkProcess.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
-			});
-		},
-	});
-}
-
-export function useCloseCycle() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.cycles.close.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
-			});
-		},
-	});
-}
-
-export function useReopenCycle() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.cycles.reopen.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
-			});
-		},
-	});
-}
-
-export function useResetCycle() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.cycles.reset.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
-			});
-		},
-	});
-}
-
-export function useSetActiveCycle() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.cycles.setActive.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
+				queryKey: orpc.billing.months.key(),
 			});
 		},
 	});
@@ -359,7 +298,7 @@ export function useReactivateAccount() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.billing.stopped.reactivate.mutationOptions(),
+		...orpc.billing.payments.reactivate.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.key(),
@@ -385,18 +324,35 @@ export function useCollectors() {
 	);
 }
 
-export function useCollectorBalance(
-	collectorId: string | null,
-	billingCycleId?: string,
-) {
+export function useCollectorBalance(collectorId: string | null) {
 	const organizationId = useOrganizationId();
 
 	return useQuery(
 		organizationId && collectorId
 			? orpc.billing.collectors.balance.queryOptions({
-					input: { organizationId, collectorId, billingCycleId },
+					input: { organizationId, collectorId },
 				})
 			: disabledQuery(["billing", "collectors", "balance"]),
+	);
+}
+
+export function useCollectorLedger(
+	collectorId: string | null,
+	filters?: { page?: number; pageSize?: number },
+) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId && collectorId
+			? orpc.billing.collectors.ledger.queryOptions({
+					input: {
+						organizationId,
+						collectorId,
+						page: filters?.page ?? 1,
+						pageSize: filters?.pageSize ?? 25,
+					},
+				})
+			: disabledQuery(["billing", "collectors", "ledger"]),
 	);
 }
 
@@ -448,7 +404,10 @@ export function useCreateCollection() {
 		...orpc.billing.collections.create.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
+				queryKey: orpc.billing.collections.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.collectors.key(),
 			});
 		},
 	});
@@ -461,7 +420,10 @@ export function useDeleteCollection() {
 		...orpc.billing.collections.delete.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.key(),
+				queryKey: orpc.billing.collections.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.collectors.key(),
 			});
 		},
 	});
@@ -498,7 +460,7 @@ export function useDeletePayment() {
 
 export function useAccountingReports(
 	scope: "month" | "all" = "month",
-	billingCycleId?: string,
+	billingMonthId?: string,
 ) {
 	const organizationId = useOrganizationId();
 
@@ -507,7 +469,7 @@ export function useAccountingReports(
 			input: {
 				organizationId: organizationId ?? "",
 				scope,
-				billingCycleId,
+				billingMonthId,
 			},
 		}),
 	);

@@ -106,8 +106,6 @@ export async function verifyOrganizationMembership(
 			organization: {
 				select: {
 					activeDealerId: true,
-					activeBillingYear: true,
-					activeBillingMonth: true,
 				},
 			},
 		},
@@ -126,7 +124,5 @@ export async function verifyOrganizationMembership(
 		...member,
 		rolePermissions,
 		activeDealerId: member.organization.activeDealerId,
-		activeBillingYear: member.organization.activeBillingYear,
-		activeBillingMonth: member.organization.activeBillingMonth,
 	};
 }

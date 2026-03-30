@@ -15,12 +15,12 @@ export function sumAmountOrZero(agg: { _sum: { amount?: number | null } }) {
 
 /**
  * Calculate the net balance a collector currently holds.
- * This is the amount of cash still physically with the collector:
- * pending payments minus what they've already handed off.
+ * Balance = total collected - total handed off.
+ * Can be negative if over-handoff occurred (admin error).
  */
-export function calculateInHandBalance(
-	pendingTotal: number,
-	handedOffTotal: number,
+export function collectorBalance(
+	totalCollected: number,
+	totalHandedOff: number,
 ): number {
-	return Math.max(0, pendingTotal - handedOffTotal);
+	return totalCollected - totalHandedOff;
 }

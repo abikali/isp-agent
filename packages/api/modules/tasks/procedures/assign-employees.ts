@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -43,10 +43,9 @@ export const assignEmployees = protectedProcedure
 		}
 
 		// Dealer scoping: if task has a customer, it must belong to the active dealer
-		const dealerFilter = activeDealerId ?? NO_DEALER;
 		if (
 			existing.customerId &&
-			existing.customer?.dealerId !== dealerFilter
+			existing.customer?.dealerId !== (activeDealerId ?? null)
 		) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
@@ -59,7 +58,7 @@ export const assignEmployees = protectedProcedure
 				where: {
 					id: { in: input.employeeIds },
 					organizationId: input.organizationId,
-					dealerId: dealerFilter,
+					dealerId: activeDealerId ?? null,
 				},
 			});
 			if (validCount !== input.employeeIds.length) {

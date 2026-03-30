@@ -21,7 +21,12 @@ import { Skeleton } from "@ui/components/skeleton";
 import { OctagonXIcon, PlayIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useReactivateAccount, useStoppedAccounts } from "../hooks/use-billing";
+import {
+	useMonthFilter,
+	useReactivateAccount,
+	useStoppedAccounts,
+} from "../hooks/use-billing";
+import { BillingCycleSelect } from "./BillingCycleSelect";
 
 const PAGE_SIZE = 25;
 
@@ -50,8 +55,16 @@ export function StoppedAccountsList() {
 		customerName: string;
 		currentExpiry: string | null;
 	} | null>(null);
+	const { monthFilter, setMonthFilter, options } = useMonthFilter();
+
+	// Extract year/month from the selected billing month option
+	const selectedOption = options.find((o) => o.value === monthFilter);
+	const filterYear = selectedOption?.year;
+	const filterMonth = selectedOption?.month;
 
 	const { payments, total } = useStoppedAccounts({
+		year: filterYear,
+		month: filterMonth,
 		search: debouncedSearch || undefined,
 		page,
 	});
@@ -164,11 +177,19 @@ export function StoppedAccountsList() {
 			description={`${total} stopped accounts`}
 		>
 			<div className="space-y-4">
-				<SearchInput
-					value={search}
-					onChange={setSearch}
-					placeholder="Search customers..."
-				/>
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+					<SearchInput
+						value={search}
+						onChange={setSearch}
+						placeholder="Search customers..."
+						className="sm:max-w-xs"
+					/>
+					<BillingCycleSelect
+						options={options}
+						value={monthFilter}
+						onValueChange={setMonthFilter}
+					/>
+				</div>
 
 				<DataTable
 					columns={columns}

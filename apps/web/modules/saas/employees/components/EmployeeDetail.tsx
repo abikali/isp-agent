@@ -83,6 +83,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 	const [showAssignStations, setShowAssignStations] = useState(false);
 	const [showInvite, setShowInvite] = useState(false);
 	const [inviteRole, setInviteRole] = useState("collector");
+	const [inviteUsername, setInviteUsername] = useState("");
 
 	const { data } = useSuspenseQuery(
 		orpc.employees.get.queryOptions({
@@ -194,13 +195,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 							type="button"
 							variant="outline"
 							size="sm"
-							onClick={() => setShowInvite(true)}
-							disabled={!employee.email}
-							title={
-								!employee.email
-									? "Employee needs an email address first"
-									: undefined
-							}
+							onClick={() => {
+								setInviteUsername(employee.username ?? "");
+								setShowInvite(true);
+							}}
 						>
 							<LogInIcon className="mr-1 size-3.5" />
 							Invite to Login
@@ -759,9 +757,19 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 					<div className="space-y-4">
 						<p className="text-sm text-muted-foreground">
 							Create a login account for{" "}
-							<strong>{employee.name}</strong> ({employee.email}).
-							They'll receive an email to set their password.
+							<strong>{employee.name}</strong>. The default
+							password is <code>123456</code>.
 						</p>
+						<div>
+							<Label>Username</Label>
+							<Input
+								value={inviteUsername}
+								onChange={(e) =>
+									setInviteUsername(e.target.value)
+								}
+								placeholder="Login username"
+							/>
+						</div>
 						<div>
 							<Label>Role</Label>
 							<Select
@@ -787,7 +795,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 						<Button
 							type="button"
 							className="w-full"
-							disabled={inviteEmployee.isPending}
+							disabled={
+								inviteEmployee.isPending ||
+								!inviteUsername.trim()
+							}
 							onClick={() => {
 								if (!organizationId) {
 									return;
@@ -799,6 +810,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 										| "collector"
 										| "field_tech"
 										| "manager",
+									username: inviteUsername.trim(),
 								});
 
 								toast.promise(mutation, {

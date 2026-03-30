@@ -41,7 +41,7 @@ export const getInvoice = publicProcedure
 						logo: true,
 					},
 				},
-				billingCycle: {
+				billingMonth: {
 					select: {
 						year: true,
 						month: true,

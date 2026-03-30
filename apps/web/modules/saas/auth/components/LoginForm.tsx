@@ -32,13 +32,9 @@ import { useSession } from "../hooks/use-session";
 import { LoginModeSwitch } from "./LoginModeSwitch";
 import { SocialSigninButton } from "./SocialSigninButton";
 
-/** Allow bare usernames (e.g. "collalewe") in addition to emails. */
-function normalizeLoginEmail(value: string): string {
-	const trimmed = value.trim();
-	if (!trimmed) {
-		return trimmed;
-	}
-	return trimmed.includes("@") ? trimmed : `${trimmed}@libancom.local`;
+/** Check if the login input is an email or a bare username. */
+function isEmail(value: string): boolean {
+	return value.includes("@");
 }
 
 const formSchema = z.union([
@@ -80,13 +76,20 @@ export function LoginForm() {
 		} as FormValues,
 		onSubmit: async ({ value }) => {
 			setRootError(null);
-			const email = normalizeLoginEmail(value.email);
+			const loginInput = value.email.trim();
 			try {
 				if (value.mode === "password") {
-					const { data, error } = await authClient.signIn.email({
-						...value,
-						email,
-					});
+					const { data, error } = isEmail(loginInput)
+						? await authClient.signIn.email({
+								email: loginInput,
+								password:
+									"password" in value ? value.password : "",
+							})
+						: await authClient.signIn.username({
+								username: loginInput,
+								password:
+									"password" in value ? value.password : "",
+							});
 
 					if (error) {
 						throw error;
@@ -111,8 +114,7 @@ export function LoginForm() {
 					router.replace(redirectPath);
 				} else {
 					const { error } = await authClient.signIn.magicLink({
-						...value,
-						email,
+						email: loginInput,
 						callbackURL: redirectPath,
 					});
 

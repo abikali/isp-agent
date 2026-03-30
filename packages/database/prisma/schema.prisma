@@ -281,7 +281,7 @@ model Organization {
   servicePlans         ServicePlan[]
   stations             Station[]
   tasks                Task[]
-  billingCycles        BillingCycle[]
+  billingMonths        BillingMonth[]
   payments             Payment[]
   cashCollections      CashCollection[]
   expenses             Expense[]
@@ -292,10 +292,6 @@ model Organization {
   uninstalledItems     UninstalledItem[]
   billingSyncOps           BillingSyncOperation[]
   noteCategories           NoteCategory[]
-
-  // Active billing period (null = current calendar month)
-  activeBillingYear  Int?
-  activeBillingMonth Int?
 
   // Dealer scoping (null = show all dealers' data)
   activeDealerId String?    @unique
@@ -446,7 +442,6 @@ model User {
   tasksCreated        Task[]             @relation("taskCreator")
   employee            Employee?          @relation("EmployeeUser")
   dealer              IspDealer?         @relation("DealerUser")
-  paymentsProcessed   Payment[]          @relation("PaymentProcessor")
   cashCollectionsReceived CashCollection[] @relation("CashReceiver")
   expensesApproved    Expense[]          @relation("ExpenseApprover")
   stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
@@ -1113,9 +1108,6 @@ model Customer {
   installations  Installation[]
   followups      Followup[]
 
-  // Billing workflow
-  paidCurrentCycle Boolean @default(false)
-
   @@unique([organizationId, accountNumber])
   @@unique([organizationId, externalId])
   @@unique([organizationId, email])
@@ -1475,6 +1467,7 @@ model Employee {
   customerWorkerAssignments Customer[]        @relation("CustomerWorker")
   transactionCollections CustomerTransaction[] @relation("TransactionCollector")
   paymentsCollected     Payment[]             @relation("PaymentCollector")
+  paymentsAsWorker      Payment[]             @relation("PaymentWorker")
   cashCollections       CashCollection[]      @relation("CashCollector")
   expensesSubmitted     Expense[]             @relation("ExpenseSubmitter")
   workerStock           WorkerStock[]
@@ -1564,16 +1557,8 @@ model TaskAssignment {
 
 // ─── Billing Enums ─────────────────────────────────────────────────
 
-enum BillingCycleStatus {
-  OPEN
-  CLOSED
-  ARCHIVED
-}
-
 enum PaymentStatus {
-  PENDING
-  PROCESSED
-  PARTIAL
+  COLLECTED
   STOPPED
 }
 
@@ -1597,6 +1582,12 @@ model NoteCategory {
 enum CashCollectionType {
   HANDOFF
   EXPENSE_DEDUCTION
+  STOCK_RECEIVED
+  INSTALLATION_COST
+  DEALER_PAYMENT
+  ADMIN_TRANSFER
+  NEW_USER_SETUP
+  OTHER
 }
 
 enum ExpenseStatus {
@@ -1622,16 +1613,14 @@ enum StockAction {
 
 // ─── Billing ───────────────────────────────────────────────────────
 
-model BillingCycle {
-  id             String             @id @default(cuid())
+model BillingMonth {
+  id             String   @id @default(cuid())
   organizationId String
   year           Int
   month          Int
-  status         BillingCycleStatus @default(OPEN)
-  openedAt       DateTime           @default(now())
-  closedAt       DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  locked         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   payments     Payment[]
@@ -1642,39 +1631,37 @@ model BillingCycle {
 }
 
 model Payment {
-  id              String               @id @default(cuid())
+  id              String        @id @default(cuid())
   organizationId  String
   customerId      String
-  billingCycleId  String
+  billingMonthId  String        @map("billingCycleId")
   collectorId     String
   accountPrice    Float
   paidAmount      Float
-  discount        Float                @default(0)
-  status          PaymentStatus        @default(PENDING)
-  freeAccount     Boolean              @default(false)
-  stoppedAccount  Boolean              @default(false)
+  discount        Float         @default(0)
+  status          PaymentStatus @default(COLLECTED)
+  freeAccount     Boolean       @default(false)
+  workerId        String?
   noteCategory    String?
-  notes           String?              @db.Text
-  receiptSent     Boolean              @default(false)
+  notes           String?       @db.Text
+  receiptSent     Boolean       @default(false)
   receiptSentAt   DateTime?
-  paidAt          DateTime             @default(now())
-  processedAt       DateTime?
-  processedById     String?
-  externalBillingId Int?               @map("external_billing_id")
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  paidAt          DateTime      @default(now())
+  externalBillingId Int?        @map("external_billing_id")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  billingCycle BillingCycle  @relation(fields: [billingCycleId], references: [id], onDelete: Cascade)
+  billingMonth BillingMonth @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
   collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
-  processedBy  User?        @relation("PaymentProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+  worker       Employee?    @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
-  @@index([organizationId, billingCycleId])
+  @@index([organizationId, billingMonthId])
+  @@index([workerId])
   @@index([customerId])
   @@index([collectorId])
-  @@index([processedById])
   @@index([status])
   @@map("payment")
 }

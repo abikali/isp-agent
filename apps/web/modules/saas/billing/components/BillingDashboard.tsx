@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveOrganization } from "@saas/organizations/client";
 import { ChartCard } from "@shared/components/ChartCard";
 import {
 	StatCard,
@@ -28,24 +29,27 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { usePaymentStats } from "../hooks/use-billing";
+import { useCurrentMonth, usePaymentStats } from "../hooks/use-billing";
 
 const PAYMENT_COLORS: Record<string, string> = {
-	Processed: "var(--color-chart-3)",
-	Pending: "var(--color-chart-4)",
-	Partial: "var(--color-chart-6)",
+	Collected: "var(--color-chart-3)",
 	Stopped: "var(--color-destructive)",
 };
 
 export function BillingDashboard() {
-	const stats = usePaymentStats();
+	const { data: currentMonthData } = useCurrentMonth();
+	const stats = usePaymentStats(currentMonthData?.month?.id);
+	const { activeOrganization } = useActiveOrganization();
+	const basePath = activeOrganization
+		? `/app/${activeOrganization.slug}/billing`
+		: "/app";
 
 	const paymentStatusData = [
-		{ name: "Processed", value: stats.processedPayments },
-		{ name: "Pending", value: stats.pendingPayments },
-		{ name: "Partial", value: stats.partialPayments },
+		{ name: "Collected", value: stats.collectedPayments },
 		{ name: "Stopped", value: stats.stoppedPayments },
 	].filter((d) => d.value > 0);
+
+	const totalPayments = stats.collectedPayments + stats.stoppedPayments;
 
 	const collectorData = stats.collectorBreakdown
 		.sort((a, b) => b.totalCollected - a.totalCollected)
@@ -66,18 +70,21 @@ export function BillingDashboard() {
 					value={formatCurrency(stats.totalCollected)}
 					icon={DollarSignIcon}
 					variant="success"
+					href={`${basePath}/payments`}
 				/>
 				<StatCard
 					title="Paid"
 					value={`${stats.paidPercentage}%`}
 					icon={PercentIcon}
 					description={`${stats.totalCustomers - stats.unpaidCustomers} of ${stats.totalCustomers} active customers`}
+					href={`${basePath}/payments`}
 				/>
 				<StatCard
 					title="Unpaid"
 					value={stats.unpaidCustomers}
 					icon={UsersIcon}
 					variant={stats.unpaidCustomers > 0 ? "warning" : "default"}
+					href={`${basePath}/collect`}
 				/>
 				<StatCard
 					title="Stopped"
@@ -86,6 +93,7 @@ export function BillingDashboard() {
 					variant={
 						stats.stoppedPayments > 0 ? "destructive" : "default"
 					}
+					href={`${basePath}/stopped`}
 				/>
 			</StatCardGroup>
 
@@ -107,7 +115,10 @@ export function BillingDashboard() {
 							className="h-3"
 						/>
 						<div className="grid grid-cols-2 gap-4 pt-2">
-							<div>
+							<a
+								href={`${basePath}/payments`}
+								className="rounded-md p-1 -m-1 transition-colors hover:bg-muted/50"
+							>
 								<div className="text-lg font-semibold tabular-nums text-green-600 dark:text-green-400">
 									{stats.totalCustomers -
 										stats.unpaidCustomers}
@@ -115,8 +126,11 @@ export function BillingDashboard() {
 								<div className="text-xs text-muted-foreground">
 									Paid
 								</div>
-							</div>
-							<div>
+							</a>
+							<a
+								href={`${basePath}/collect`}
+								className="rounded-md p-1 -m-1 transition-colors hover:bg-muted/50"
+							>
 								<div
 									className={cn(
 										"text-lg font-semibold tabular-nums",
@@ -129,7 +143,7 @@ export function BillingDashboard() {
 								<div className="text-xs text-muted-foreground">
 									Remaining
 								</div>
-							</div>
+							</a>
 						</div>
 					</div>
 				</ChartCard>
@@ -140,7 +154,7 @@ export function BillingDashboard() {
 						title="Payment Status"
 						data={paymentStatusData}
 						colorMap={PAYMENT_COLORS}
-						footer={`${stats.totalPayments} total payments`}
+						footer={`${totalPayments} total payments`}
 						size="lg"
 					/>
 				)}

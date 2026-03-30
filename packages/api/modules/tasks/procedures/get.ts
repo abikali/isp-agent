@@ -1,6 +1,5 @@
 import { ORPCError } from "@orpc/server";
 import {
-	NO_DEALER,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -121,7 +120,7 @@ export const getTask = protectedProcedure
 		// Dealer scoping: if task has a customer, it must belong to the active dealer
 		if (
 			task.customerId &&
-			task.customer?.dealerId !== (activeDealerId ?? NO_DEALER)
+			task.customer?.dealerId !== (activeDealerId ?? null)
 		) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",

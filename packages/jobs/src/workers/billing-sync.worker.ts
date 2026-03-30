@@ -38,7 +38,7 @@ async function updateProgress(
 async function processBillingSync(
 	job: Job<BillingSyncJobData>,
 ): Promise<BillingSyncJobResult> {
-	const { operationId, organizationId } = job.data;
+	const { operationId, organizationId, employeeMappings } = job.data;
 
 	const result = {
 		customers: { created: 0, updated: 0, skipped: 0, errors: 0 },
@@ -116,12 +116,19 @@ async function processBillingSync(
 
 			// ── Build lookup maps ────────────────────────────────────
 
+			const org = await db.organization.findUnique({
+				where: { id: organizationId },
+				select: { activeDealerId: true },
+			});
+
 			const employees = await db.employee.findMany({
 				where: { organizationId },
 				select: { id: true, name: true, username: true, userId: true },
 			});
 			const employeeNameMap = new Map<string, string>();
 			const employeeUserIdMap = new Map<string, string>();
+			// Names to skip during lookup (user explicitly chose "skip" in mapping UI)
+			const skippedEmployeeNames = new Set<string>();
 			for (const emp of employees) {
 				employeeNameMap.set(emp.name.toLowerCase(), emp.id);
 				if (emp.username) {
@@ -129,6 +136,63 @@ async function processBillingSync(
 				}
 				if (emp.userId) {
 					employeeUserIdMap.set(emp.id, emp.userId);
+				}
+			}
+
+			// Apply employee mappings from the sync UI
+			if (employeeMappings) {
+				for (const [legacyName, mapping] of Object.entries(
+					employeeMappings,
+				)) {
+					const key = legacyName.toLowerCase();
+					if (mapping.action === "skip") {
+						skippedEmployeeNames.add(key);
+					} else if (
+						mapping.action === "map" &&
+						mapping.targetEmployeeId
+					) {
+						employeeNameMap.set(key, mapping.targetEmployeeId);
+					} else if (mapping.action === "create") {
+						// Map legacy role to department
+						const departmentMap: Record<
+							string,
+							Prisma.EmployeeCreateInput["department"]
+						> = {
+							worker: "FIELD_OPS",
+							collector: "BILLING",
+							followup: "CUSTOMER_SERVICE",
+							accounting: "MANAGEMENT",
+						};
+						const department =
+							departmentMap[mapping.role ?? ""] ?? null;
+						const position = mapping.role ?? null;
+
+						const telegram =
+							mapping.telegram &&
+							mapping.telegram !== "0" &&
+							mapping.telegram !== ""
+								? mapping.telegram
+								: null;
+
+						// Create a new employee record under the active dealer
+						const newEmployee = await db.employee.create({
+							data: {
+								organizationId,
+								employeeNumber: legacyName,
+								name: mapping.createName ?? legacyName,
+								username: legacyName,
+								dealerId: org?.activeDealerId ?? null,
+								department,
+								position,
+								phone: mapping.phone ?? null,
+								telegramChatId: telegram,
+							},
+						});
+						employeeNameMap.set(key, newEmployee.id);
+						logger.info(
+							`[Billing Sync] Created employee for mapping: ${legacyName} → ${newEmployee.id}`,
+						);
+					}
 				}
 			}
 
@@ -152,7 +216,11 @@ async function processBillingSync(
 				if (!name) {
 					return null;
 				}
-				return employeeNameMap.get(name.toLowerCase()) ?? null;
+				const key = name.toLowerCase();
+				if (skippedEmployeeNames.has(key)) {
+					return null;
+				}
+				return employeeNameMap.get(key) ?? null;
 			}
 
 			function findCustomerId(
@@ -202,7 +270,6 @@ async function processBillingSync(
 							...(row["group"]
 								? { groupName: row["group"] as string }
 								: {}),
-							paidCurrentCycle: Number(row["paid_account"]) === 1,
 						},
 					});
 
@@ -295,25 +362,25 @@ async function processBillingSync(
 
 			const paymentRows = await queryBilling(
 				conn,
-				"SELECT invoice_number, username, collector, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
+				"SELECT invoice_number, username, collector, worker, account_price, paid_amount, discount, free_account, stopped_account, `timestamp`, note, processed FROM john_payment ORDER BY `timestamp` ASC",
 			);
 
 			await updateProgress(operationId, {
 				totalPayments: paymentRows.length,
 			});
 
-			const billingCycleMap = new Map<string, string>();
-			async function getOrCreateCycleId(date: Date): Promise<string> {
+			const billingMonthMap = new Map<string, string>();
+			async function getOrCreateMonthId(date: Date): Promise<string> {
 				const year = date.getFullYear();
 				const month = date.getMonth() + 1;
 				const key = `${year}-${month}`;
 
-				const cached = billingCycleMap.get(key);
+				const cached = billingMonthMap.get(key);
 				if (cached) {
 					return cached;
 				}
 
-				const cycle = await db.billingCycle.upsert({
+				const billingMonth = await db.billingMonth.upsert({
 					where: {
 						organizationId_year_month: {
 							organizationId,
@@ -322,10 +389,10 @@ async function processBillingSync(
 						},
 					},
 					update: {},
-					create: { organizationId, year, month, status: "CLOSED" },
+					create: { organizationId, year, month, locked: true },
 				});
-				billingCycleMap.set(key, cycle.id);
-				return cycle.id;
+				billingMonthMap.set(key, billingMonth.id);
+				return billingMonth.id;
 			}
 
 			let processedPayments = 0;
@@ -354,16 +421,12 @@ async function processBillingSync(
 					const paidAt = timestamp
 						? new Date(String(timestamp))
 						: new Date();
-					const cycleId = await getOrCreateCycleId(paidAt);
+					const monthId = await getOrCreateMonthId(paidAt);
 
 					const stopped = Number(row["stopped_account"]) === 1;
-					const processed = Number(row["processed"]) === 1;
-					let status: "PENDING" | "PROCESSED" | "STOPPED" = "PENDING";
-					if (stopped) {
-						status = "STOPPED";
-					} else if (processed) {
-						status = "PROCESSED";
-					}
+					const status: "COLLECTED" | "STOPPED" = stopped
+						? "STOPPED"
+						: "COLLECTED";
 
 					const invoiceNum = row["invoice_number"];
 					const note = row["note"] as string | null;
@@ -371,10 +434,15 @@ async function processBillingSync(
 						? `Invoice #${invoiceNum}${note ? ` — ${note}` : ""}`
 						: note;
 
+					const workerName = row["worker"] as string | null;
+					const workerId = workerName?.trim()
+						? findEmployeeId(workerName.trim())
+						: null;
+
 					paymentBatch.push({
 						organizationId,
 						customerId,
-						billingCycleId: cycleId,
+						billingMonthId: monthId,
 						collectorId,
 						externalBillingId: row["invoice_number"] as number,
 						accountPrice: toFloat(row["account_price"]),
@@ -382,10 +450,9 @@ async function processBillingSync(
 						discount: toFloat(row["discount"]),
 						status,
 						freeAccount: Number(row["free_account"]) === 1,
-						stoppedAccount: stopped,
+						workerId: workerId ?? null,
 						notes: notes ?? null,
 						paidAt,
-						processedAt: status === "PROCESSED" ? paidAt : null,
 					});
 
 					result.payments.created++;
@@ -417,7 +484,7 @@ async function processBillingSync(
 			}
 			await updateProgress(operationId, { processedPayments });
 
-			// ── Phase 3: Cash Collections ────────────────────────────
+			// ── Phase 3: Cash Collections (full worker financial ledger) ─
 
 			await updateProgress(operationId, { phase: "collections" });
 
@@ -446,13 +513,34 @@ async function processBillingSync(
 
 					const billingId = row["id"] as number;
 					const date = row["date"] as Date | string | null;
+					const note = (row["note"] as string) ?? "";
+
+					// Categorize entry by note pattern
+					let type: Prisma.CashCollectionCreateManyInput["type"] =
+						"OTHER";
+					if (note === "wasil" || note.startsWith("wasil")) {
+						type = "HANDOFF";
+					} else if (note.includes("bought")) {
+						type = "STOCK_RECEIVED";
+					} else if (note.startsWith("Approved installation")) {
+						type = "INSTALLATION_COST";
+					} else if (note.startsWith("Dealer")) {
+						type = "DEALER_PAYMENT";
+					} else if (
+						note.startsWith("Transfer From Admin") ||
+						note.startsWith("Wish Transfer")
+					) {
+						type = "ADMIN_TRANSFER";
+					} else if (note.includes("created the user")) {
+						type = "NEW_USER_SETUP";
+					}
 
 					collectionBatch.push({
 						organizationId,
 						collectorId,
 						amount: toFloat(row["collect_amount"]),
-						notes: (row["note"] as string) ?? null,
-						type: "HANDOFF",
+						notes: note || null,
+						type,
 						externalBillingId: billingId,
 						collectedAt: date ? new Date(String(date)) : new Date(),
 					});
@@ -1244,25 +1332,19 @@ async function processBillingSync(
 		// Runs AFTER the billing DB connection is closed.
 		// Fixes data inconsistencies introduced by the raw import:
 		//  1. Open the current billing cycle (sync creates all as CLOSED)
-		//  2. Rebuild paidCurrentCycle from actual PROCESSED payments
-		//  3. Fill missing processedById on synced PROCESSED payments
+		// Reconciliation: unlock the current billing month so it's usable
 
 		await updateProgress(operationId, { phase: "reconciliation" });
 
 		const reconciliation = { fixed: 0, errors: 0 };
 
 		try {
-			// 1. Ensure the active billing cycle is OPEN
-			// Resolve active billing period (inlined to avoid circular dep on @repo/api)
-			const org = await db.organization.findUnique({
-				where: { id: organizationId },
-				select: { activeBillingYear: true, activeBillingMonth: true },
-			});
 			const now = new Date();
-			const activeYear = org?.activeBillingYear ?? now.getFullYear();
-			const activeMonth = org?.activeBillingMonth ?? now.getMonth() + 1;
+			const activeYear = now.getFullYear();
+			const activeMonth = now.getMonth() + 1;
 
-			const activeCycle = await db.billingCycle.findUnique({
+			// Ensure the current month's billing record exists and is unlocked
+			const activeMonthRecord = await db.billingMonth.upsert({
 				where: {
 					organizationId_year_month: {
 						organizationId,
@@ -1270,104 +1352,26 @@ async function processBillingSync(
 						month: activeMonth,
 					},
 				},
-			});
-
-			if (activeCycle && activeCycle.status !== "OPEN") {
-				await db.billingCycle.update({
-					where: { id: activeCycle.id },
-					data: { status: "OPEN", closedAt: null },
-				});
-				reconciliation.fixed++;
-				logger.info("[Billing Sync] Opened active cycle", {
-					cycleId: activeCycle.id,
+				update: { locked: false },
+				create: {
+					organizationId,
 					year: activeYear,
 					month: activeMonth,
-				});
-			}
+					locked: false,
+				},
+			});
+
+			reconciliation.fixed++;
+			logger.info("[Billing Sync] Ensured active month is unlocked", {
+				monthId: activeMonthRecord.id,
+				year: activeYear,
+				month: activeMonth,
+			});
 
 			await updateProgress(operationId, {
-				totalReconciled: 3,
+				totalReconciled: 1,
 				processedReconciled: 1,
 			});
-
-			// 2. Rebuild paidCurrentCycle from non-stopped payments
-			// (mirrors rebuildPaidCurrentCycle from @repo/api — inlined here to avoid
-			// cross-package dependency; sync processes ALL customers, no dealer filter)
-			if (activeCycle) {
-				const resetCount = await db.customer.updateMany({
-					where: { organizationId, paidCurrentCycle: true },
-					data: { paidCurrentCycle: false },
-				});
-
-				const paidCustomerRows = await db.payment.findMany({
-					where: {
-						billingCycleId: activeCycle.id,
-						organizationId,
-						stoppedAccount: false,
-						status: { in: ["PENDING", "PARTIAL", "PROCESSED"] },
-					},
-					select: { customerId: true },
-					distinct: ["customerId"],
-				});
-
-				if (paidCustomerRows.length > 0) {
-					await db.customer.updateMany({
-						where: {
-							id: {
-								in: paidCustomerRows.map((p) => p.customerId),
-							},
-						},
-						data: { paidCurrentCycle: true },
-					});
-				}
-
-				const billingPeriodEnd = new Date(activeYear, activeMonth, 1);
-				const expiryPaid = await db.customer.updateMany({
-					where: {
-						organizationId,
-						paidCurrentCycle: false,
-						status: "ACTIVE",
-						expiresAt: { gte: billingPeriodEnd },
-					},
-					data: { paidCurrentCycle: true },
-				});
-
-				reconciliation.fixed++;
-				logger.info("[Billing Sync] Rebuilt paidCurrentCycle", {
-					reset: resetCount.count,
-					markedPaid: paidCustomerRows.length,
-					markedPaidByExpiry: expiryPaid.count,
-				});
-			}
-
-			await updateProgress(operationId, { processedReconciled: 2 });
-
-			// 3. Fill missing processedById on synced PROCESSED payments
-			// Find the org owner to use as the default processor
-			const orgOwner = await db.member.findFirst({
-				where: { organizationId, role: "owner" },
-				select: { userId: true },
-			});
-
-			if (orgOwner) {
-				const fixedPayments = await db.payment.updateMany({
-					where: {
-						organizationId,
-						status: "PROCESSED",
-						processedById: null,
-					},
-					data: { processedById: orgOwner.userId },
-				});
-
-				if (fixedPayments.count > 0) {
-					reconciliation.fixed++;
-					logger.info("[Billing Sync] Backfilled processedById", {
-						count: fixedPayments.count,
-					});
-				}
-			}
-
-			await updateProgress(operationId, { processedReconciled: 3 });
 		} catch (err) {
 			reconciliation.errors++;
 			addError(

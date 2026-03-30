@@ -9,19 +9,28 @@ import {
 	useFullOrganizationSuspense,
 } from "@saas/organizations/lib/api";
 import { UserAvatar } from "@shared/components/UserAvatar";
-import { useQueryClient } from "@tanstack/react-query";
+import { orpc } from "@shared/lib/orpc";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@ui/components/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
+import { Input } from "@ui/components/input";
+import { Label } from "@ui/components/label";
 import { Skeleton } from "@ui/components/skeleton";
-import { LogOutIcon, MoreVerticalIcon, TrashIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { KeyIcon, LogOutIcon, MoreVerticalIcon, TrashIcon } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ORGANIZATION_MEMBER_ROLES } from "../hooks/member-roles";
 import { OrganizationRoleSelect } from "./OrganizationRoleSelect";
@@ -78,6 +87,35 @@ export function OrganizationMembersList({
 		| undefined;
 	const userIsOrganizationAdmin = isOrganizationAdmin(organization, user);
 	const members = organization?.members ?? [];
+
+	// Fetch member details with usernames
+	const { data: memberDetails } = useQuery(
+		orpc.organizations.listMembers.queryOptions({
+			input: { organizationId },
+		}),
+	);
+
+	// Build a map of userId → username for quick lookup
+	const usernameMap = useMemo(() => {
+		const map = new Map<string, string | null>();
+		if (memberDetails?.members) {
+			for (const m of memberDetails.members) {
+				map.set(m.userId, m.user.username);
+			}
+		}
+		return map;
+	}, [memberDetails]);
+
+	const [passwordDialog, setPasswordDialog] = useState<{
+		open: boolean;
+		userId: string;
+		userName: string;
+	}>({ open: false, userId: "", userName: "" });
+	const [newPassword, setNewPassword] = useState("");
+
+	const changePasswordMutation = useMutation({
+		...orpc.organizations.changeMemberPassword.mutationOptions(),
+	});
 
 	const updateMemberRole = useCallback(
 		async (memberId: string, role: string) => {
@@ -143,6 +181,7 @@ export function OrganizationMembersList({
 					if (!member.user) {
 						return null;
 					}
+					const username = usernameMap.get(member.userId);
 					return (
 						<div className="flex items-center gap-2">
 							<UserAvatar
@@ -154,7 +193,13 @@ export function OrganizationMembersList({
 									{member.user.name}
 								</strong>
 								<small className="text-foreground/60">
-									{member.user.email}
+									{username ? (
+										<span className="font-mono">
+											{username}
+										</span>
+									) : (
+										member.user.email
+									)}
 								</small>
 							</div>
 						</div>
@@ -191,6 +236,21 @@ export function OrganizationMembersList({
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent>
+											<DropdownMenuItem
+												onClick={() => {
+													setNewPassword("");
+													setPasswordDialog({
+														open: true,
+														userId: member.userId,
+														userName:
+															member.user?.name ??
+															"",
+													});
+												}}
+											>
+												<KeyIcon className="mr-2 size-4" />
+												Change Password
+											</DropdownMenuItem>
 											{member.userId !== user?.id && (
 												<DropdownMenuItem
 													disabled={
@@ -246,21 +306,88 @@ export function OrganizationMembersList({
 			organization,
 			updateMemberRole,
 			removeMember,
+			usernameMap,
 		],
 	);
 
 	return (
-		<DataTable
-			columns={columns}
-			data={members}
-			pageSize={20}
-			emptyState={
-				<div className="rounded-md border">
-					<div className="h-24 flex items-center justify-center text-muted-foreground">
-						No members found
+		<>
+			<DataTable
+				columns={columns}
+				data={members}
+				pageSize={20}
+				emptyState={
+					<div className="rounded-md border">
+						<div className="h-24 flex items-center justify-center text-muted-foreground">
+							No members found
+						</div>
 					</div>
-				</div>
-			}
-		/>
+				}
+			/>
+
+			<Dialog
+				open={passwordDialog.open}
+				onOpenChange={(open) =>
+					setPasswordDialog((prev) => ({ ...prev, open }))
+				}
+			>
+				<DialogContent className="sm:max-w-sm">
+					<DialogHeader>
+						<DialogTitle>Change Password</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							Set a new password for{" "}
+							<strong>{passwordDialog.userName}</strong>.
+						</p>
+						<div>
+							<Label>New Password</Label>
+							<Input
+								type="text"
+								value={newPassword}
+								onChange={(e) => setNewPassword(e.target.value)}
+								placeholder="Enter new password"
+							/>
+						</div>
+						<Button
+							type="button"
+							className="w-full"
+							disabled={
+								changePasswordMutation.isPending ||
+								!newPassword.trim()
+							}
+							onClick={() => {
+								const mutation =
+									changePasswordMutation.mutateAsync({
+										organizationId,
+										userId: passwordDialog.userId,
+										newPassword: newPassword.trim(),
+									});
+
+								toast.promise(mutation, {
+									loading: "Changing password...",
+									success: () => {
+										setPasswordDialog({
+											open: false,
+											userId: "",
+											userName: "",
+										});
+										setNewPassword("");
+										return "Password changed successfully";
+									},
+									error: (error: { message?: string }) =>
+										error.message ??
+										"Failed to change password",
+								});
+							}}
+						>
+							{changePasswordMutation.isPending
+								? "Changing..."
+								: "Change Password"}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }

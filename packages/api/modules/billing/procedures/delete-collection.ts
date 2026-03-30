@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -29,7 +29,7 @@ export const deleteCollection = protectedProcedure
 			where: {
 				id: input.collectionId,
 				organizationId: input.organizationId,
-				collector: { dealerId: activeDealerId ?? NO_DEALER },
+				collector: { dealerId: activeDealerId ?? null },
 			},
 		});
 

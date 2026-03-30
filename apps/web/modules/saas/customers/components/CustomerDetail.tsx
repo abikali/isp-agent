@@ -557,14 +557,18 @@ function OverviewTab({
 							<div className="space-y-2">
 								<Label>Collector</Label>
 								<Select
-									value={field.state.value}
-									onValueChange={field.handleChange}
+									value={field.state.value || "none"}
+									onValueChange={(v) =>
+										field.handleChange(
+											v === "none" ? "" : v,
+										)
+									}
 								>
 									<SelectTrigger>
 										<SelectValue placeholder="Select collector" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="">
+										<SelectItem value="none">
 											<span className="text-muted-foreground">
 												None
 											</span>

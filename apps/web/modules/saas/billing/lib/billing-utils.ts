@@ -142,9 +142,7 @@ export const NOTE_CATEGORY_LABELS: Record<string, string> = {
 
 /** Human-readable labels for payment statuses. */
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-	[PaymentStatus.PENDING]: "With Collector",
-	[PaymentStatus.PROCESSED]: "Processed",
-	[PaymentStatus.PARTIAL]: "Partial",
+	[PaymentStatus.COLLECTED]: "Collected",
 	[PaymentStatus.STOPPED]: "Stopped",
 };
 
@@ -153,12 +151,10 @@ export function getPaymentStatusVariant(
 	status: PaymentStatus,
 ): "default" | "destructive" | "outline" | "secondary" {
 	switch (status) {
-		case PaymentStatus.PROCESSED:
+		case PaymentStatus.COLLECTED:
 			return "default";
 		case PaymentStatus.STOPPED:
 			return "destructive";
-		case PaymentStatus.PENDING:
-			return "outline";
 		default:
 			return "secondary";
 	}

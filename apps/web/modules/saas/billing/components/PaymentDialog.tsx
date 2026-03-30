@@ -207,10 +207,19 @@ export function PaymentDialog({
 						/>
 					</div>
 
+					{stoppedAccount && !noteCategory && !notes.trim() && (
+						<p className="text-sm font-medium text-destructive">
+							Note required for stopped accounts
+						</p>
+					)}
+
 					<Button
 						type="submit"
 						className="w-full"
-						disabled={createPayment.isPending}
+						disabled={
+							createPayment.isPending ||
+							(stoppedAccount && !noteCategory && !notes.trim())
+						}
 					>
 						{createPayment.isPending
 							? "Recording..."

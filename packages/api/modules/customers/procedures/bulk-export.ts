@@ -24,7 +24,13 @@ export const bulkExportCustomers = protectedProcedure
 			filters: z
 				.object({
 					status: z
-						.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING"])
+						.enum([
+							"ACTIVE",
+							"INACTIVE",
+							"SUSPENDED",
+							"PENDING",
+							"EXPIRED",
+						])
 						.optional(),
 					planId: z.string().optional(),
 					stationId: z.string().optional(),
@@ -51,7 +57,10 @@ export const bulkExportCustomers = protectedProcedure
 			...ownerFilter,
 			...getDealerScopeFilter(activeDealerId),
 		};
-		if (input.filters?.status) {
+		if (input.filters?.status === "EXPIRED") {
+			where["status"] = "ACTIVE";
+			where["expiresAt"] = { lt: new Date() };
+		} else if (input.filters?.status) {
 			where["status"] = input.filters.status;
 		}
 		if (input.filters?.planId) {

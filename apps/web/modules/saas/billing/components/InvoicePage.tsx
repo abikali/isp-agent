@@ -8,7 +8,6 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import {
 	AlertCircleIcon,
 	CheckCircleIcon,
-	ClockIcon,
 	DownloadIcon,
 	PrinterIcon,
 } from "lucide-react";
@@ -42,7 +41,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	const { payment } = data;
 	const customer = payment.customer;
 	const org = payment.organization;
-	const cycle = payment.billingCycle;
+	const cycle = payment.billingMonth;
 
 	const iptvPrice = customer.iptvPrice ?? 0;
 	const realIpPrice = customer.realIpPrice ?? 0;
@@ -260,17 +259,11 @@ function formatUSD(value: number): string {
 
 function getStatusConfig(status: PaymentStatus) {
 	switch (status) {
-		case PaymentStatus.PROCESSED:
+		case PaymentStatus.COLLECTED:
 			return {
 				label: "Paid",
 				icon: CheckCircleIcon,
 				className: "bg-green-100 text-green-700",
-			};
-		case PaymentStatus.PARTIAL:
-			return {
-				label: "Partial Payment",
-				icon: AlertCircleIcon,
-				className: "bg-yellow-100 text-yellow-700",
 			};
 		case PaymentStatus.STOPPED:
 			return {
@@ -280,8 +273,8 @@ function getStatusConfig(status: PaymentStatus) {
 			};
 		default:
 			return {
-				label: "Pending",
-				icon: ClockIcon,
+				label: status,
+				icon: AlertCircleIcon,
 				className: "bg-gray-100 text-gray-700",
 			};
 	}

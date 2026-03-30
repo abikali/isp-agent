@@ -24,6 +24,7 @@ import {
 import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
+	useCurrentMonth,
 	useCustomerGroups,
 	useUnpaidCustomers,
 } from "../hooks/use-billing";
@@ -104,11 +105,14 @@ export function CollectorPortal() {
 	const [page, setPage] = useState(1);
 	const [selectedCustomer, setSelectedCustomer] =
 		useState<UnpaidCustomer | null>(null);
-
+	const { data: currentMonthData } = useCurrentMonth();
+	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
 
 	const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 	const { customers, total, totalPages } = useUnpaidCustomers({
+		year: activeMonth?.year,
+		month: activeMonth?.month,
 		collectorId: employee?.id,
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,

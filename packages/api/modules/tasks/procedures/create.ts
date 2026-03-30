@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { NO_DEALER, requirePermission } from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -60,7 +60,7 @@ export const createTask = protectedProcedure
 				where: {
 					id: input.customerId,
 					organizationId: input.organizationId,
-					dealerId: activeDealerId ?? NO_DEALER,
+					dealerId: activeDealerId ?? null,
 				},
 				select: { id: true },
 			});

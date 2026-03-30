@@ -31,16 +31,15 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
-import { CheckIcon, ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useCollectors,
 	useCustomerGroups,
-	useCycleFilter,
 	useDeletePayment,
+	useMonthFilter,
 	usePaymentsQuery,
-	useProcessPayment,
 } from "../hooks/use-billing";
 import {
 	getPaymentStatusVariant,
@@ -78,11 +77,11 @@ export function PaymentsList() {
 	const [groupFilter, setGroupFilter] = useState<string | undefined>();
 	const [page, setPage] = useState(1);
 	const {
-		cycleFilter,
-		setCycleFilter,
-		activeCycleId,
-		options: cycleOptions,
-	} = useCycleFilter();
+		monthFilter,
+		setMonthFilter,
+		activeMonthId,
+		options: monthOptions,
+	} = useMonthFilter();
 
 	// Reset page when filters change
 	const handleStatusChange = (s: PaymentStatus | undefined) => {
@@ -97,8 +96,8 @@ export function PaymentsList() {
 		setGroupFilter(value === "all" ? undefined : value);
 		setPage(1);
 	};
-	const handleCycleChange = (value: string) => {
-		setCycleFilter(value);
+	const handleMonthChange = (value: string) => {
+		setMonthFilter(value);
 		setPage(1);
 	};
 
@@ -107,7 +106,7 @@ export function PaymentsList() {
 		status: statusFilter,
 		collectorId: collectorFilter,
 		groupName: groupFilter,
-		billingCycleId: activeCycleId,
+		billingMonthId: activeMonthId,
 		page,
 		pageSize: PAGE_SIZE,
 	});
@@ -117,14 +116,13 @@ export function PaymentsList() {
 	const collectors = collectorsData?.collectors ?? [];
 
 	const organizationId = useOrganizationId();
-	const processPayment = useProcessPayment();
 	const deletePayment = useDeletePayment();
 
 	const hasActiveFilters =
 		!!statusFilter ||
 		!!collectorFilter ||
 		!!groupFilter ||
-		(!!cycleFilter && cycleFilter !== "all") ||
+		(!!monthFilter && monthFilter !== "all") ||
 		!!search;
 
 	const resetFilters = () => {
@@ -132,7 +130,7 @@ export function PaymentsList() {
 		setStatusFilter(undefined);
 		setCollectorFilter(undefined);
 		setGroupFilter(undefined);
-		setCycleFilter("");
+		setMonthFilter("");
 		setPage(1);
 	};
 
@@ -259,32 +257,6 @@ export function PaymentsList() {
 				enableSorting: false,
 				cell: ({ row }) => (
 					<div className="flex items-center gap-1">
-						{row.original.status !== PaymentStatus.PROCESSED &&
-							organizationId && (
-								<Button
-									size="sm"
-									variant="ghost"
-									disabled={processPayment.isPending}
-									onClick={() =>
-										processPayment.mutate(
-											{
-												organizationId,
-												paymentId: row.original.id,
-											},
-											{
-												onSuccess: () =>
-													toast.success(
-														"Payment processed",
-													),
-												onError: (error) =>
-													toast.error(error.message),
-											},
-										)
-									}
-								>
-									<CheckIcon className="size-3.5" />
-								</Button>
-							)}
 						{organizationId && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
@@ -346,7 +318,7 @@ export function PaymentsList() {
 				),
 			},
 		],
-		[organizationId, processPayment, deletePayment],
+		[organizationId, deletePayment],
 	);
 
 	return (
@@ -402,10 +374,10 @@ export function PaymentsList() {
 					</Select>
 
 					<BillingCycleSelect
-						value={cycleFilter || activeCycleId || "all"}
-						onValueChange={handleCycleChange}
-						options={cycleOptions}
-						allLabel="All Cycles"
+						value={monthFilter || activeMonthId || "all"}
+						onValueChange={handleMonthChange}
+						options={monthOptions}
+						allLabel="All Months"
 					/>
 
 					{hasActiveFilters && (
@@ -425,9 +397,7 @@ export function PaymentsList() {
 					{(
 						[
 							"all",
-							PaymentStatus.PENDING,
-							PaymentStatus.PROCESSED,
-							PaymentStatus.PARTIAL,
+							PaymentStatus.COLLECTED,
 							PaymentStatus.STOPPED,
 						] as const
 					).map((s) => (

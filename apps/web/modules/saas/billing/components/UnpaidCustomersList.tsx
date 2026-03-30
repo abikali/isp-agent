@@ -39,6 +39,7 @@ import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
 	useCollectors,
+	useCurrentMonth,
 	useCustomerGroups,
 	useUnpaidCustomers,
 } from "../hooks/use-billing";
@@ -503,6 +504,8 @@ export function UnpaidCustomersList() {
 	>(null);
 
 	const isCollector = !isOrganizationAdmin && !!employee?.id;
+	const { data: currentMonthData } = useCurrentMonth();
+	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
 	const { data: collectorsData } = useCollectors();
 	const collectors = collectorsData?.collectors ?? [];
@@ -510,6 +513,8 @@ export function UnpaidCustomersList() {
 
 	const { customers, total, totalAmountDue, expiredCount, isLoading } =
 		useUnpaidCustomers({
+			year: activeMonth?.year,
+			month: activeMonth?.month,
 			collectorId: isOrganizationAdmin
 				? collectorFilter || undefined
 				: employee?.id,

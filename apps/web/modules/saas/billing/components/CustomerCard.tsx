@@ -43,6 +43,10 @@ export interface UnpaidCustomer {
 	longitude?: number | null;
 	plan?: { name: string; monthlyPrice?: number | null } | null;
 	collector?: { id: string; name: string } | null;
+	unpaidMonths?: number;
+	accumulatedDue?: number;
+	pastDueMonths?: number;
+	pastDueAmount?: number;
 }
 
 interface CustomerCardProps {
@@ -88,7 +92,10 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const requestLocation = useRequestLocation();
 
 	const name = displayName(customer.firstName, customer.lastName);
-	const totalDue = calculateTotalDue(customer);
+	const monthlyDue = calculateTotalDue(customer);
+	const totalDue = customer.accumulatedDue ?? monthlyDue;
+	const pastDueMonths = customer.pastDueMonths ?? 0;
+	const unpaidMonths = customer.unpaidMonths ?? 1;
 
 	const expiry = getExpiryInfo(customer.expiresAt ?? null);
 	const expiryDateLabel = customer.expiresAt
@@ -122,20 +129,35 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 					</div>
 					<div className="text-right shrink-0">
 						<p className="text-xs text-muted-foreground">
-							Amount due
+							{pastDueMonths > 0 ? "Total due" : "Amount due"}
 						</p>
 						<p className="text-lg font-bold tabular-nums">
 							{formatCurrency(totalDue)}
 						</p>
+						{unpaidMonths > 1 && (
+							<p className="text-xs text-muted-foreground tabular-nums">
+								{formatCurrency(monthlyDue)}/mo &times;{" "}
+								{unpaidMonths}
+							</p>
+						)}
 					</div>
 				</div>
 
-				{/* Expiry warning badge (only when expired or expiring soon) */}
-				{expiry.label && (
-					<div className="mt-2">
-						<Badge variant={expiry.variant} className="text-xs">
-							{expiry.label}
-						</Badge>
+				{/* Badges: past due + expiry warning */}
+				{(pastDueMonths > 0 || expiry.label) && (
+					<div className="mt-2 flex flex-wrap gap-1.5">
+						{pastDueMonths > 0 && (
+							<Badge variant="destructive" className="text-xs">
+								{pastDueMonths}{" "}
+								{pastDueMonths === 1 ? "month" : "months"} past
+								due
+							</Badge>
+						)}
+						{expiry.label && (
+							<Badge variant={expiry.variant} className="text-xs">
+								{expiry.label}
+							</Badge>
+						)}
 					</div>
 				)}
 

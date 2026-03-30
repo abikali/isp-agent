@@ -6,12 +6,12 @@ import {
 	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
-import { db, type PaymentStatus, PaymentStatus as PS } from "@repo/database";
+import { db } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { resolveOrCreateBillingCycle } from "../lib/resolve-cycle";
+import { resolveActiveBillingMonth } from "../lib/resolve-month";
 
 export const createPayment = protectedProcedure
 	.route({
@@ -90,26 +90,36 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Get or create current billing cycle
-		const cycle = await resolveOrCreateBillingCycle(
+		// Use the active billing month (latest unlocked)
+		const billingMonth = await resolveActiveBillingMonth(
 			input.organizationId,
-			member.activeBillingYear,
-			member.activeBillingMonth,
 		);
 
-		if (cycle.status === "CLOSED") {
+		if (billingMonth.locked) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Cannot create payments in a closed billing cycle",
+				message: "Cannot create payments in a locked billing month",
 			});
 		}
 
-		// Determine payment status
+		// Determine total due for validation
 		const totalDue = input.freeAccount
 			? (customer.iptvPrice ?? 0) + (customer.realIpPrice ?? 0)
 			: input.accountPrice +
 				(customer.iptvPrice ?? 0) +
 				(customer.realIpPrice ?? 0) -
 				input.discount;
+
+		// Require a note for stopped accounts
+		if (
+			input.stoppedAccount &&
+			!input.noteCategory &&
+			!input.notes?.trim()
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"A note category or note is required when marking an account as stopped",
+			});
+		}
 
 		// Require a note when paid amount differs from total due
 		const isAmountMismatch =
@@ -124,34 +134,25 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		let status: PaymentStatus = PS.PENDING;
-		if (input.stoppedAccount) {
-			status = PS.STOPPED;
-		} else if (
-			input.paidAmount > 0 &&
-			input.paidAmount < totalDue &&
-			Math.abs(input.paidAmount - totalDue) >= 0.01
-		) {
-			status = PS.PARTIAL;
-		}
+		const status = input.stoppedAccount ? "STOPPED" : "COLLECTED";
 
-		// Create payment and mark customer as paid in a transaction
+		// Create payment in a transaction
 		const payment = await db.$transaction(async (tx) => {
-			// Prevent duplicate payments for the same customer in the same cycle
+			// Prevent duplicate payments for the same customer in the same month
+			// (stopped entries are always allowed — a customer can be stopped and later collected)
 			if (!input.stoppedAccount) {
 				const existing = await tx.payment.findFirst({
 					where: {
 						customerId: input.customerId,
-						billingCycleId: cycle.id,
-						stoppedAccount: false,
-						status: { in: ["PENDING", "PARTIAL", "PROCESSED"] },
+						billingMonthId: billingMonth.id,
+						status: "COLLECTED",
 					},
 					select: { id: true },
 				});
 				if (existing) {
 					throw new ORPCError("CONFLICT", {
 						message:
-							"This customer already has a payment recorded for this billing cycle",
+							"This customer already has a payment recorded for this billing month",
 					});
 				}
 			}
@@ -160,35 +161,26 @@ export const createPayment = protectedProcedure
 				data: {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
-					billingCycleId: cycle.id,
+					billingMonthId: billingMonth.id,
 					collectorId: input.collectorId,
 					accountPrice: input.accountPrice,
 					paidAmount: input.paidAmount,
 					discount: input.discount,
 					status,
 					freeAccount: input.freeAccount,
-					stoppedAccount: input.stoppedAccount,
 					noteCategory: input.noteCategory ?? null,
 					notes: input.notes ?? null,
-					processedAt: null,
 				},
 			});
 
 			// Update customer mobile if provided and changed
-			const customerUpdateData: Record<string, unknown> = {};
-			if (status === PS.PENDING || status === PS.PARTIAL) {
-				customerUpdateData["paidCurrentCycle"] = true;
-			}
 			if (
 				input.customerMobile &&
 				input.customerMobile !== customer.mobile
 			) {
-				customerUpdateData["mobile"] = input.customerMobile;
-			}
-			if (Object.keys(customerUpdateData).length > 0) {
 				await tx.customer.update({
 					where: { id: input.customerId },
-					data: customerUpdateData,
+					data: { mobile: input.customerMobile },
 				});
 			}
 
@@ -196,17 +188,14 @@ export const createPayment = protectedProcedure
 		});
 
 		// Queue WhatsApp receipt via background worker
-		if (!input.stoppedAccount) {
-			const phone =
-				input.customerMobile ?? customer.mobile ?? customer.phone;
-			if (phone) {
-				queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
-					(err) =>
-						logger.warn("[WhatsApp Receipt] Failed to queue job", {
-							error: String(err),
-						}),
-				);
-			}
+		const phone = input.customerMobile ?? customer.mobile ?? customer.phone;
+		if (phone) {
+			queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
+				(err) =>
+					logger.warn("[WhatsApp Receipt] Failed to queue job", {
+						error: String(err),
+					}),
+			);
 		}
 
 		return { payment };

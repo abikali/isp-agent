@@ -20,16 +20,22 @@ import { CustomerFilters } from "./CustomerFilters";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
 
-type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+type CustomerStatus =
+	| "ACTIVE"
+	| "INACTIVE"
+	| "SUSPENDED"
+	| "PENDING"
+	| "EXPIRED";
 
 const statusMap: Record<
 	string,
-	"active" | "inactive" | "suspended" | "pending"
+	"active" | "inactive" | "suspended" | "pending" | "expired"
 > = {
 	ACTIVE: "active",
 	INACTIVE: "inactive",
 	SUSPENDED: "suspended",
 	PENDING: "pending",
+	EXPIRED: "expired",
 };
 
 const PAGE_SIZE = 25;
@@ -38,6 +44,7 @@ interface CustomerRow {
 	id: string;
 	status: string;
 	accountNumber: string;
+	username: string | null;
 	firstName: string | null;
 	lastName: string | null;
 	email: string | null;
@@ -140,6 +147,20 @@ export function CustomersList({
 						)}
 					</div>
 				),
+			},
+			{
+				id: "username",
+				header: "Username",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) =>
+					row.original.username ? (
+						<span className="font-mono text-xs">
+							{row.original.username}
+						</span>
+					) : (
+						<span className="text-muted-foreground">-</span>
+					),
 			},
 			{
 				id: "plan",

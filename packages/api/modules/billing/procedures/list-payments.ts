@@ -1,5 +1,4 @@
 import {
-	NO_DEALER,
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
@@ -17,15 +16,10 @@ export const listPayments = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
-			billingCycleId: z.string().optional(),
+			billingMonthId: z.string().optional(),
 			collectorId: z.string().optional(),
 			status: z
-				.enum([
-					PaymentStatus.PENDING,
-					PaymentStatus.PROCESSED,
-					PaymentStatus.PARTIAL,
-					PaymentStatus.STOPPED,
-				])
+				.enum([PaymentStatus.COLLECTED, PaymentStatus.STOPPED])
 				.optional(),
 			groupName: z.string().optional(),
 			search: z.string().optional(),
@@ -53,7 +47,7 @@ export const listPayments = protectedProcedure
 
 		// Build customer sub-filter (dealer scope + groupName + search)
 		const customerWhere: Record<string, unknown> = {
-			dealerId: activeDealerId ?? NO_DEALER,
+			dealerId: activeDealerId ?? null,
 		};
 
 		const { scope, employeeId } = await resolveCollectorScope(permCtx);
@@ -63,8 +57,8 @@ export const listPayments = protectedProcedure
 			where["collectorId"] = input.collectorId;
 		}
 
-		if (input.billingCycleId) {
-			where["billingCycleId"] = input.billingCycleId;
+		if (input.billingMonthId) {
+			where["billingMonthId"] = input.billingMonthId;
 		}
 		if (input.status) {
 			where["status"] = input.status;
@@ -83,7 +77,6 @@ export const listPayments = protectedProcedure
 			where["paidAt"] = paidAt;
 		}
 		if (input.search) {
-			// Search by payment ID or customer fields
 			const searchLower = input.search.toLowerCase();
 			const customerSearch = {
 				...customerWhere,
@@ -132,12 +125,10 @@ export const listPayments = protectedProcedure
 					discount: true,
 					status: true,
 					freeAccount: true,
-					stoppedAccount: true,
 					noteCategory: true,
 					notes: true,
 					receiptSent: true,
 					paidAt: true,
-					processedAt: true,
 					customer: {
 						select: {
 							id: true,
@@ -153,10 +144,7 @@ export const listPayments = protectedProcedure
 					collector: {
 						select: { id: true, name: true },
 					},
-					processedBy: {
-						select: { id: true, name: true },
-					},
-					billingCycle: {
+					billingMonth: {
 						select: { year: true, month: true },
 					},
 				},

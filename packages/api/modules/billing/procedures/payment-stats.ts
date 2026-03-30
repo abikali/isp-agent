@@ -4,52 +4,63 @@ import {
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
-import { db, PaymentStatus } from "@repo/database";
+import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
-import { resolveBillingCycleId } from "../lib/resolve-cycle";
+import {
+	getMonthDateRange,
+	resolveActiveBillingMonth,
+	resolveBillingMonthId,
+} from "../lib/resolve-month";
 
 export const getPaymentStats = protectedProcedure
 	.route({
 		method: "GET",
 		path: "/billing/payments/stats",
 		tags: ["Billing"],
-		summary: "Get payment statistics for a billing cycle",
+		summary: "Get payment statistics for a billing month",
 	})
 	.input(
 		z.object({
 			organizationId: z.string(),
-			billingCycleId: z.string().optional(),
+			billingMonthId: z.string().optional(),
+			year: z.number().int().optional(),
+			month: z.number().int().min(1).max(12).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const {
-			permCtx,
-			activeDealerId,
-			activeBillingYear,
-			activeBillingMonth,
-		} = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
 			"view",
 		);
 
-		const cycleId =
-			input.billingCycleId ??
-			(await resolveBillingCycleId(
+		let year = input.year;
+		let month = input.month;
+		let resolvedMonthId: string | undefined;
+		if (year == null || month == null) {
+			const active = await resolveActiveBillingMonth(
 				input.organizationId,
-				activeBillingYear,
-				activeBillingMonth,
-			));
+			);
+			year = year ?? active.year;
+			month = month ?? active.month;
+			resolvedMonthId = active.id;
+		}
+		const monthRange = getMonthDateRange(year, month);
+
+		const monthId =
+			input.billingMonthId ??
+			resolvedMonthId ??
+			(await resolveBillingMonthId(input.organizationId, year, month));
 
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		const baseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
-			...(cycleId ? { billingCycleId: cycleId } : {}),
+			...(monthId ? { billingMonthId: monthId } : {}),
 			...dealerViaCustomer,
 		};
 
@@ -58,58 +69,71 @@ export const getPaymentStats = protectedProcedure
 			baseWhere["collectorId"] = employeeId;
 		}
 
+		// Build the unpaid filter: active customers with expiry in this month
+		// who have no COLLECTED payment for this month
+		const unpaidWhere: Record<string, unknown> = {
+			organizationId: input.organizationId,
+			status: "ACTIVE",
+			// Allow null groupNames through — Prisma's NOT excludes nulls
+			OR: [
+				{ groupName: null },
+				{
+					NOT: {
+						groupName: { equals: "free", mode: "insensitive" },
+					},
+				},
+			],
+			expiresAt: monthRange,
+			...dealerFilter,
+		};
+		if (monthId) {
+			unpaidWhere["payments"] = {
+				none: { billingMonthId: monthId, status: "COLLECTED" },
+			};
+		}
+
 		const [
-			totalPayments,
-			processedPayments,
-			pendingPayments,
-			partialPayments,
+			collectedPayments,
 			stoppedPayments,
 			totalCollected,
 			byCollector,
+			paidCustomerIds,
 			unpaidCustomers,
-			totalCustomers,
 		] = await Promise.all([
-			db.payment.count({ where: baseWhere }),
 			db.payment.count({
-				where: { ...baseWhere, status: PaymentStatus.PROCESSED },
+				where: { ...baseWhere, status: "COLLECTED" },
 			}),
 			db.payment.count({
-				where: { ...baseWhere, status: PaymentStatus.PENDING },
-			}),
-			db.payment.count({
-				where: { ...baseWhere, status: PaymentStatus.PARTIAL },
-			}),
-			db.payment.count({
-				where: { ...baseWhere, status: PaymentStatus.STOPPED },
+				where: { ...baseWhere, status: "STOPPED" },
 			}),
 			db.payment.aggregate({
-				where: baseWhere,
+				where: { ...baseWhere, status: "COLLECTED" },
 				_sum: { paidAmount: true },
 			}),
 			db.payment.groupBy({
 				by: ["collectorId"],
-				where: baseWhere,
+				where: { ...baseWhere, status: "COLLECTED" },
 				_sum: { paidAmount: true },
 				_count: true,
 			}),
-			db.customer.count({
-				where: {
-					organizationId: input.organizationId,
-					paidCurrentCycle: false,
-					status: "ACTIVE",
-					NOT: { groupName: { equals: "free", mode: "insensitive" } },
-					...dealerFilter,
-				},
-			}),
-			db.customer.count({
-				where: {
-					organizationId: input.organizationId,
-					status: "ACTIVE",
-					NOT: { groupName: { equals: "free", mode: "insensitive" } },
-					...dealerFilter,
-				},
-			}),
+			// Paid customers: distinct customers with a COLLECTED payment this month
+			monthId
+				? db.payment.findMany({
+						where: {
+							...baseWhere,
+							status: "COLLECTED",
+						},
+						select: { customerId: true },
+						distinct: ["customerId"],
+					})
+				: Promise.resolve([]),
+			// Unpaid customers: expiry falls in this month, no COLLECTED payment
+			db.customer.count({ where: unpaidWhere }),
 		]);
+
+		const paidCustomers = paidCustomerIds.length;
+		// Total = those who paid (expiry already moved) + those still due (expiry in month)
+		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		// Resolve collector names
 		const collectorIds = byCollector.map((c) => c.collectorId);
@@ -130,27 +154,16 @@ export const getPaymentStats = protectedProcedure
 		}));
 
 		return {
-			totalPayments,
-			processedPayments,
-			pendingPayments,
-			partialPayments,
+			collectedPayments,
 			stoppedPayments,
 			totalCollected: sumOrZero(totalCollected),
 			collectorBreakdown,
+			paidCustomers,
 			unpaidCustomers,
 			totalCustomers,
 			paidPercentage:
 				totalCustomers > 0
-					? unpaidCustomers === 0
-						? 100
-						: Math.min(
-								99,
-								Math.round(
-									((totalCustomers - unpaidCustomers) /
-										totalCustomers) *
-										100,
-								),
-							)
+					? Math.floor((paidCustomers / totalCustomers) * 100)
 					: 0,
 		};
 	});
