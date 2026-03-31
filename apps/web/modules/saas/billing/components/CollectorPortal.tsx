@@ -6,8 +6,8 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Skeleton } from "@ui/components/skeleton";
-import { CalendarXIcon, UsersIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { UsersIcon } from "lucide-react";
+import { useState } from "react";
 import {
 	useCollectorStats,
 	useCurrentMonth,
@@ -41,7 +41,6 @@ export function CollectorPortal() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [groupFilter, setGroupFilter] = useState<string>("");
-	const [expiredOnly, setExpiredOnly] = useState(false);
 	const [page, setPage] = useState(1);
 	const [selectedCustomer, setSelectedCustomer] =
 		useState<UnpaidCustomer | null>(null);
@@ -49,7 +48,6 @@ export function CollectorPortal() {
 	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
 
-	const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 	const { customers, total, totalPages } = useUnpaidCustomers({
 		year: activeMonth?.year,
 		month: activeMonth?.month,
@@ -57,7 +55,6 @@ export function CollectorPortal() {
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,
 		excludeGroupName: groupFilter ? undefined : "free",
-		expiryTo: expiredOnly ? today : undefined,
 		page,
 		pageSize: 50,
 		refetchInterval: POLL_INTERVAL,
@@ -69,7 +66,7 @@ export function CollectorPortal() {
 			<StatsStrip />
 
 			{/* Filters */}
-			<div className="space-y-2">
+			<div className="flex gap-2">
 				<SearchInput
 					value={search}
 					onChange={(val) => {
@@ -77,31 +74,18 @@ export function CollectorPortal() {
 						setPage(1);
 					}}
 					placeholder="Search customers..."
+					className="flex-1"
 				/>
-				<div className="flex gap-2">
-					<GroupSelect
-						value={groupFilter}
-						onChange={(val) => {
-							setGroupFilter(val);
-							setPage(1);
-						}}
-						groups={groups}
-						excludeFree
-						className="flex-1"
-					/>
-					<Button
-						variant={expiredOnly ? "primary" : "outline"}
-						size="md"
-						className="shrink-0"
-						onClick={() => {
-							setExpiredOnly(!expiredOnly);
-							setPage(1);
-						}}
-					>
-						<CalendarXIcon className="mr-1.5 size-3.5" />
-						Expired
-					</Button>
-				</div>
+				<GroupSelect
+					value={groupFilter}
+					onChange={(val) => {
+						setGroupFilter(val);
+						setPage(1);
+					}}
+					groups={groups}
+					excludeFree
+					className="w-[140px]"
+				/>
 			</div>
 
 			{/* Customer count */}

@@ -19,6 +19,10 @@ export {
 	CollectorPickerPage,
 } from "./components/CashCollectionPage";
 export {
+	CollectorPayments,
+	CollectorPaymentsSkeleton,
+} from "./components/CollectorPayments";
+export {
 	CollectorPortal,
 	CollectorPortalSkeleton,
 } from "./components/CollectorPortal";

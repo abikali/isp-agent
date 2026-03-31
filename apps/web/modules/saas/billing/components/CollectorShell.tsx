@@ -4,8 +4,10 @@ import { authClient } from "@repo/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useRouter } from "@shared/hooks/router";
 import { useTheme } from "@shared/hooks/use-theme";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
-import { LogOutIcon } from "lucide-react";
+import { cn } from "@ui/lib";
+import { LogOutIcon, ReceiptTextIcon, UsersIcon } from "lucide-react";
 import { type PropsWithChildren, useEffect, useRef } from "react";
 
 export function CollectorShell({ children }: PropsWithChildren) {
@@ -30,11 +32,25 @@ export function CollectorShell({ children }: PropsWithChildren) {
 		router.navigate({ to: "/login" });
 	}
 
+	const matchRoute = useMatchRoute();
+	const orgSlug = activeOrganization?.slug ?? "";
+	const params = { organizationSlug: orgSlug };
+	const isHome = matchRoute({
+		to: "/collect/$organizationSlug",
+		params,
+		fuzzy: false,
+	});
+	const isPayments = matchRoute({
+		to: "/collect/$organizationSlug/payments",
+		params,
+		fuzzy: false,
+	});
+
 	return (
 		<div className="min-h-[100dvh] bg-muted/30">
-			{/* Simple top bar */}
-			<header className="sticky top-0 z-30 border-b bg-background px-4 py-3">
-				<div className="flex items-center justify-between">
+			{/* Top bar */}
+			<header className="sticky top-0 z-30 bg-background">
+				<div className="flex items-center justify-between border-b px-4 py-3">
 					<div className="min-w-0">
 						<h1 className="truncate text-base font-semibold">
 							{activeOrganization?.name ?? ""}
@@ -55,6 +71,35 @@ export function CollectorShell({ children }: PropsWithChildren) {
 						<LogOutIcon className="size-4" />
 					</Button>
 				</div>
+				{/* Navigation tabs */}
+				<nav className="flex border-b">
+					<Link
+						to="/collect/$organizationSlug"
+						params={params}
+						className={cn(
+							"flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors",
+							isHome
+								? "border-b-2 border-primary text-primary"
+								: "text-muted-foreground",
+						)}
+					>
+						<UsersIcon className="size-4" />
+						Collect
+					</Link>
+					<Link
+						to="/collect/$organizationSlug/payments"
+						params={params}
+						className={cn(
+							"flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-medium transition-colors",
+							isPayments
+								? "border-b-2 border-primary text-primary"
+								: "text-muted-foreground",
+						)}
+					>
+						<ReceiptTextIcon className="size-4" />
+						My Payments
+					</Link>
+				</nav>
 			</header>
 
 			{/* Main content — full width, no sidebar */}
