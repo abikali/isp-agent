@@ -985,8 +985,9 @@ model Customer {
   firstName         String?
   lastName          String?
   email             String?
-  phone             String?         // iRadius User.Phone
-  mobile            String?         // iRadius User.Mobile
+  phone             String?         // iRadius User.Phone (legacy, kept for sync)
+  mobile            String?         // Cached primary phone (auto-set from phones array)
+  phones            Json            @default("[]") // [{ number: string, primary: boolean }]
   address           String?
   username          String?
   planId            String?

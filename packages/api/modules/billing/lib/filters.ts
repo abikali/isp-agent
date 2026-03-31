@@ -63,6 +63,7 @@ export function customerSearchFilter(search: string) {
 			{ lastName: { contains: search, mode: "insensitive" as const } },
 			{ username: { contains: search, mode: "insensitive" as const } },
 			{ mobile: { contains: search, mode: "insensitive" as const } },
+			{ phone: { contains: search, mode: "insensitive" as const } },
 		],
 	};
 }

@@ -14,6 +14,7 @@ import {
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
+import { PhoneInput } from "@ui/components/phone-input";
 import {
 	Select,
 	SelectContent,
@@ -22,6 +23,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
+import { PlusIcon, XIcon } from "lucide-react";
 import { useCreateCustomer } from "../hooks/use-customers";
 import { usePlansQuery } from "../hooks/use-plans";
 import { useStationsQuery } from "../hooks/use-stations";
@@ -29,6 +31,82 @@ import {
 	CONNECTION_TYPE_OPTIONS,
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
+
+const MAX_PHONES = 5;
+
+// biome-ignore lint/suspicious/noExplicitAny: TanStack Form generic types are complex; the form shape is known at usage site
+function PhoneFieldsCreate({ form }: { form: any }) {
+	const phones: Array<{ number: string; primary: boolean }> =
+		form.getFieldValue("phones") ?? [{ number: "", primary: true }];
+
+	function updatePhones(
+		updated: Array<{ number: string; primary: boolean }>,
+	) {
+		form.setFieldValue("phones", updated);
+	}
+
+	return (
+		<div className="space-y-2">
+			<Label>Phone Numbers</Label>
+			<div className="space-y-2">
+				{phones.map((phone, index) => (
+					<div key={index} className="flex items-center gap-1.5">
+						<PhoneInput
+							value={phone.number}
+							onChange={(val: string) => {
+								const updated = phones.map((p, i) =>
+									i === index ? { ...p, number: val } : p,
+								);
+								updatePhones(updated);
+							}}
+							className="flex-1 min-w-0"
+						/>
+						{phones.length > 1 && (
+							<Button
+								type="button"
+								variant="outline"
+								size="icon"
+								className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
+								onClick={() => {
+									const updated = phones.filter(
+										(_, i) => i !== index,
+									);
+									const first = updated[0];
+									if (phones[index]?.primary && first) {
+										updated[0] = {
+											...first,
+											primary: true,
+										};
+									}
+									updatePhones(updated);
+								}}
+							>
+								<XIcon className="size-4" />
+							</Button>
+						)}
+					</div>
+				))}
+				{phones.length < MAX_PHONES && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-7 text-xs"
+						onClick={() =>
+							updatePhones([
+								...phones,
+								{ number: "", primary: false },
+							])
+						}
+					>
+						<PlusIcon className="size-3.5 mr-1" />
+						Add phone
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
 
 export function CreateCustomerDialog({
 	open,
@@ -47,7 +125,10 @@ export function CreateCustomerDialog({
 			firstName: "",
 			lastName: "",
 			email: "",
-			phone: "",
+			phones: [{ number: "", primary: true }] as Array<{
+				number: string;
+				primary: boolean;
+			}>,
 			address: "",
 			username: "",
 			planId: "",
@@ -69,7 +150,7 @@ export function CreateCustomerDialog({
 				firstName: value.firstName,
 				lastName: value.lastName || undefined,
 				email: value.email || undefined,
-				phone: value.phone || undefined,
+				phones: value.phones.filter((p) => p.number.trim() !== ""),
 				address: value.address || undefined,
 				username: value.username || undefined,
 				planId: value.planId || undefined,
@@ -191,21 +272,9 @@ export function CreateCustomerDialog({
 								);
 							}}
 						</form.Field>
-						<form.Field name="phone">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-phone">Phone</Label>
-									<Input
-										id="cust-phone"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
 					</div>
+
+					<PhoneFieldsCreate form={form} />
 
 					<form.Field name="address">
 						{(field) => (

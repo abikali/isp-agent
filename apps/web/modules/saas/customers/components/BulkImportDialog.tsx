@@ -448,7 +448,9 @@ function PreviewRow({ row, index }: { row: CsvRow; index: number }) {
 				{row.email ?? <span className="text-muted-foreground">-</span>}
 			</TableCell>
 			<TableCell className="hidden text-xs sm:table-cell">
-				{row.phone ?? <span className="text-muted-foreground">-</span>}
+				{row.mobile ?? row.phone ?? (
+					<span className="text-muted-foreground">-</span>
+				)}
 			</TableCell>
 			<TableCell className="hidden text-xs md:table-cell">
 				{row.planName ?? (

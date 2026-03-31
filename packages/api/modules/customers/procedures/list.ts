@@ -97,6 +97,7 @@ export const listCustomers = protectedProcedure
 					email: true,
 					phone: true,
 					mobile: true,
+					phones: true,
 					status: true,
 					connectionType: true,
 					ipAddress: true,

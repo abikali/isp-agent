@@ -4,6 +4,7 @@ export interface CsvRow {
 	firstName: string;
 	lastName?: string | undefined;
 	email?: string | undefined;
+	mobile?: string | undefined;
 	phone?: string | undefined;
 	address?: string | undefined;
 	username?: string | undefined;
@@ -165,6 +166,11 @@ export function parseCsv(csvText: string): ParseResult {
 			}
 		}
 
+		const mobile = getField(fields, headerMap, "Mobile");
+		if (mobile) {
+			row.mobile = mobile;
+		}
+
 		const phone = getField(fields, headerMap, "Phone");
 		if (phone) {
 			row.phone = phone;
@@ -255,11 +261,11 @@ export function parseCsv(csvText: string): ParseResult {
 export function generateCsvTemplate(): string {
 	const header = CSV_HEADERS.join(",");
 	const sampleRows = [
-		'Ahmad,Khalil,ahmad.khalil@email.com,+961 71 123 456,"Beirut, Hamra St. Block 5",akhalil,Fiber 50Mbps,Hamra Tower,FIBER,10.0.1.101,AA:BB:CC:11:22:33,45.00,1,Residential customer',
-		"Sara,Nassar,sara.nassar@email.com,+961 76 654 321,Tripoli Mina District,snassar,Wireless 25Mbps,Mina Station,WIRELESS,10.0.2.55,DD:EE:FF:44:55:66,30.00,15,Business owner",
-		"Omar,Haddad,omar.h@email.com,+961 03 987 654,Jounieh Main Road,ohaddad,Fiber 100Mbps,Jounieh Central,FIBER,10.0.3.200,11:22:33:AA:BB:CC,75.00,10,Premium plan - upgraded from 50Mbps",
-		"Nour,Fakhoury,nour.f@email.com,+961 70 111 222,Saida Old City,nfakhoury,DSL 10Mbps,Saida Hub,DSL,10.0.4.30,77:88:99:DD:EE:FF,20.00,5,",
-		"Rami,Karam,,+961 78 333 444,Baalbek Center,rkaram,Cable 30Mbps,Baalbek Node,CABLE,10.0.5.88,AB:CD:EF:12:34:56,35.00,20,No email on file",
+		'Ahmad,Khalil,ahmad.khalil@email.com,+961 71 123 456,+961 01 234 567,"Beirut, Hamra St. Block 5",akhalil,Fiber 50Mbps,Hamra Tower,FIBER,10.0.1.101,AA:BB:CC:11:22:33,45.00,1,Residential customer',
+		"Sara,Nassar,sara.nassar@email.com,+961 76 654 321,,Tripoli Mina District,snassar,Wireless 25Mbps,Mina Station,WIRELESS,10.0.2.55,DD:EE:FF:44:55:66,30.00,15,Business owner",
+		"Omar,Haddad,omar.h@email.com,+961 03 987 654,,Jounieh Main Road,ohaddad,Fiber 100Mbps,Jounieh Central,FIBER,10.0.3.200,11:22:33:AA:BB:CC,75.00,10,Premium plan - upgraded from 50Mbps",
+		"Nour,Fakhoury,nour.f@email.com,+961 70 111 222,,Saida Old City,nfakhoury,DSL 10Mbps,Saida Hub,DSL,10.0.4.30,77:88:99:DD:EE:FF,20.00,5,",
+		"Rami,Karam,,+961 78 333 444,,Baalbek Center,rkaram,Cable 30Mbps,Baalbek Node,CABLE,10.0.5.88,AB:CD:EF:12:34:56,35.00,20,No email on file",
 	];
 	return [header, ...sampleRows].join("\n");
 }

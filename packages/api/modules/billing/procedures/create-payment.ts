@@ -6,7 +6,7 @@ import {
 	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { sendOrganizationNotification } from "@repo/notifications";
@@ -33,8 +33,17 @@ export const createPayment = protectedProcedure
 			stoppedAccount: z.boolean().default(false),
 			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
-			customerMobile: z.string().optional(),
-			customerPhone: z.string().nullable().optional(),
+			customerPhones: z
+				.array(
+					z.object({
+						number: z.string().max(50),
+						primary: z.boolean(),
+					}),
+				)
+				.max(MAX_PHONES)
+				.optional(),
+			customerLatitude: z.number().finite().optional(),
+			customerLongitude: z.number().finite().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -169,24 +178,25 @@ export const createPayment = protectedProcedure
 				},
 			});
 
-			// Update customer phone fields if changed
-			const phoneUpdates: Record<string, string | null> = {};
-			if (
-				input.customerMobile &&
-				input.customerMobile !== customer.mobile
-			) {
-				phoneUpdates["mobile"] = input.customerMobile;
+			// Update customer fields if changed (phones, location)
+			const customerUpdates: Record<string, unknown> = {};
+			if (input.customerPhones && input.customerPhones.length > 0) {
+				customerUpdates["phones"] = input.customerPhones;
+				customerUpdates["mobile"] = getPrimaryPhone(
+					input.customerPhones,
+				);
 			}
 			if (
-				input.customerPhone !== undefined &&
-				input.customerPhone !== customer.phone
+				input.customerLatitude !== undefined &&
+				input.customerLongitude !== undefined
 			) {
-				phoneUpdates["phone"] = input.customerPhone;
+				customerUpdates["latitude"] = input.customerLatitude;
+				customerUpdates["longitude"] = input.customerLongitude;
 			}
-			if (Object.keys(phoneUpdates).length > 0) {
+			if (Object.keys(customerUpdates).length > 0) {
 				await tx.customer.update({
 					where: { id: input.customerId },
-					data: phoneUpdates,
+					data: customerUpdates,
 				});
 			}
 
@@ -202,7 +212,9 @@ export const createPayment = protectedProcedure
 		});
 
 		// Queue WhatsApp receipt via background worker
-		const phone = input.customerMobile ?? customer.mobile ?? customer.phone;
+		const phone = input.customerPhones
+			? getPrimaryPhone(input.customerPhones)
+			: (customer.mobile ?? customer.phone);
 		if (phone) {
 			queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
 				(err) =>

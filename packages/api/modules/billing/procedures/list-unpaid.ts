@@ -108,6 +108,7 @@ export const listUnpaidCustomers = protectedProcedure
 					username: true,
 					mobile: true,
 					phone: true,
+					phones: true,
 					address: true,
 					groupName: true,
 					expiresAt: true,

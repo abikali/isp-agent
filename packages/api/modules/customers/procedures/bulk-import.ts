@@ -12,6 +12,7 @@ const importRowSchema = z.object({
 	firstName: z.string().min(1),
 	lastName: z.string().optional(),
 	email: z.string().email().optional(),
+	mobile: z.string().optional(),
 	phone: z.string().optional(),
 	address: z.string().optional(),
 	username: z.string().optional(),
@@ -92,6 +93,7 @@ export const bulkImportCustomers = protectedProcedure
 			lastName: string | null;
 			fullName: string;
 			email: string | null;
+			mobile: string | null;
 			phone: string | null;
 			address: string | null;
 			username: string | null;
@@ -142,6 +144,7 @@ export const bulkImportCustomers = protectedProcedure
 						.filter(Boolean)
 						.join(" "),
 					email: row.email ?? null,
+					mobile: row.mobile ?? null,
 					phone: row.phone ?? null,
 					address: row.address ?? null,
 					username: row.username ?? null,

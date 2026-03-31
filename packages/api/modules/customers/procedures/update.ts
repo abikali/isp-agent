@@ -8,7 +8,7 @@ import {
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
-import { db } from "@repo/database";
+import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -26,8 +26,18 @@ export const updateCustomer = protectedProcedure
 			firstName: z.string().min(1).max(100).optional(),
 			lastName: z.string().max(100).nullable().optional(),
 			email: z.string().email().optional(),
-			phone: z.string().max(50).optional(),
+			phones: z
+				.array(
+					z.object({
+						number: z.string().max(50),
+						primary: z.boolean(),
+					}),
+				)
+				.max(MAX_PHONES)
+				.optional(),
 			address: z.string().max(500).optional(),
+			latitude: z.number().finite().nullable().optional(),
+			longitude: z.number().finite().nullable().optional(),
 			username: z.string().max(100).optional(),
 			planId: z.string().nullable().optional(),
 			stationId: z.string().nullable().optional(),
@@ -93,8 +103,15 @@ export const updateCustomer = protectedProcedure
 		if (input.email !== undefined) {
 			updateData["email"] = input.email ?? null;
 		}
-		if (input.phone !== undefined) {
-			updateData["phone"] = input.phone ?? null;
+		if (input.phones !== undefined) {
+			updateData["phones"] = input.phones;
+			updateData["mobile"] = getPrimaryPhone(input.phones);
+		}
+		if (input.latitude !== undefined) {
+			updateData["latitude"] = input.latitude ?? null;
+		}
+		if (input.longitude !== undefined) {
+			updateData["longitude"] = input.longitude ?? null;
 		}
 		if (input.address !== undefined) {
 			updateData["address"] = input.address ?? null;

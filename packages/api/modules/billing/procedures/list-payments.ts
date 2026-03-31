@@ -98,6 +98,7 @@ export const listPayments = protectedProcedure
 							lastName: true,
 							username: true,
 							mobile: true,
+							phone: true,
 							groupName: true,
 							expiresAt: true,
 							plan: { select: { id: true, name: true } },

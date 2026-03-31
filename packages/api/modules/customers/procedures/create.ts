@@ -3,7 +3,7 @@ import {
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
-import { db } from "@repo/database";
+import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { generateAccountNumber } from "../lib/account-number";
@@ -21,7 +21,15 @@ export const createCustomer = protectedProcedure
 			firstName: z.string().min(1).max(100),
 			lastName: z.string().max(100).optional(),
 			email: z.string().email().optional(),
-			phone: z.string().max(50).optional(),
+			phones: z
+				.array(
+					z.object({
+						number: z.string().max(50),
+						primary: z.boolean(),
+					}),
+				)
+				.max(MAX_PHONES)
+				.optional(),
 			address: z.string().max(500).optional(),
 			username: z.string().max(100).optional(),
 			planId: z.string().optional(),
@@ -60,7 +68,8 @@ export const createCustomer = protectedProcedure
 					.filter(Boolean)
 					.join(" "),
 				email: input.email ?? null,
-				phone: input.phone ?? null,
+				phones: input.phones ?? [],
+				mobile: input.phones ? getPrimaryPhone(input.phones) : null,
 				address: input.address ?? null,
 				username: input.username ?? null,
 				planId: input.planId ?? null,

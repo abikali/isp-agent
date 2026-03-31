@@ -40,6 +40,7 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
+import { PhoneInput } from "@ui/components/phone-input";
 import {
 	Select,
 	SelectContent,
@@ -52,9 +53,13 @@ import {
 	ActivityIcon,
 	DollarSignIcon,
 	FileTextIcon,
+	MapPinIcon,
+	NavigationIcon,
 	NetworkIcon,
+	PlusIcon,
 	ServerIcon,
 	UserIcon,
+	XIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -94,12 +99,15 @@ type EmployeeItem = Awaited<
 >["employees"][number];
 
 function getCustomerFormDefaults(customer: CustomerData) {
+	const phones = Array.isArray(customer.phones)
+		? (customer.phones as Array<{ number: string; primary: boolean }>)
+		: [];
+
 	return {
 		firstName: customer.firstName ?? "",
 		lastName: customer.lastName ?? "",
 		email: customer.email ?? "",
-		phone: customer.phone ?? "",
-		mobile: customer.mobile ?? "",
+		phones: phones.length > 0 ? phones : [{ number: "", primary: true }],
 		address: customer.address ?? "",
 		username: customer.username ?? "",
 		planId: customer.planId ?? "",
@@ -193,7 +201,7 @@ export function CustomerDetail({
 					firstName: value.firstName,
 					lastName: value.lastName || undefined,
 					email: value.email || undefined,
-					phone: value.phone || undefined,
+					phones: value.phones.filter((p) => p.number.trim() !== ""),
 					address: value.address || undefined,
 					username: value.username || undefined,
 					planId: value.planId || null,
@@ -405,6 +413,105 @@ export function CustomerDetail({
 	);
 }
 
+// ─── Phone Field Group ────────────────────────────────────────────────
+
+const MAX_PHONES = 5;
+
+function PhoneFieldGroup({ form }: { form: CustomerForm }) {
+	const phones = useStore(form.store, (s) => s.values.phones);
+
+	function updatePhone(index: number, number: string) {
+		const updated = phones.map((p, i) =>
+			i === index ? { ...p, number } : p,
+		);
+		form.setFieldValue("phones", updated);
+	}
+
+	function addPhone() {
+		if (phones.length < MAX_PHONES) {
+			form.setFieldValue("phones", [
+				...phones,
+				{ number: "", primary: false },
+			]);
+		}
+	}
+
+	function removePhone(index: number) {
+		if (phones.length <= 1) {
+			return;
+		}
+		const updated = phones.filter((_, i) => i !== index);
+		// If removed phone was primary, make first one primary
+		const first = updated[0];
+		if (phones[index]?.primary && first) {
+			updated[0] = { ...first, primary: true };
+		}
+		form.setFieldValue("phones", updated);
+	}
+
+	function setPrimary(index: number) {
+		const updated = phones.map((p, i) => ({
+			...p,
+			primary: i === index,
+		}));
+		form.setFieldValue("phones", updated);
+	}
+
+	return (
+		<div className="col-span-2 space-y-2">
+			<Label>Phone Numbers</Label>
+			<div className="space-y-2">
+				{phones.map((phone, index) => (
+					<div key={index} className="flex items-center gap-1.5">
+						<PhoneInput
+							value={phone.number}
+							onChange={(val) => updatePhone(index, val)}
+							className="flex-1 min-w-0"
+						/>
+						<Button
+							type="button"
+							variant={phone.primary ? "primary" : "outline"}
+							size="sm"
+							className="shrink-0 h-9 text-xs px-2"
+							title={
+								phone.primary
+									? "Primary number"
+									: "Set as primary"
+							}
+							onClick={() => setPrimary(index)}
+						>
+							{phone.primary ? "Primary" : "Set primary"}
+						</Button>
+						{phones.length > 1 && (
+							<Button
+								type="button"
+								variant="outline"
+								size="icon"
+								className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
+								onClick={() => removePhone(index)}
+							>
+								<XIcon className="size-4" />
+							</Button>
+						)}
+					</div>
+				))}
+				{phones.length < MAX_PHONES && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-7 text-xs"
+						onClick={addPhone}
+					>
+						<PlusIcon className="size-3.5 mr-1" />
+						Add phone
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+}
+
 // ─── Tab Content Components ────────────────────────────────────────────
 
 function OverviewTab({
@@ -464,32 +571,7 @@ function OverviewTab({
 							</div>
 						)}
 					</form.Field>
-					<form.Field name="phone">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Phone</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-					<form.Field name="mobile">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Mobile</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
+					<PhoneFieldGroup form={form} />
 					<form.Field name="address">
 						{(field) => (
 							<div className="space-y-2">
@@ -1046,15 +1128,29 @@ function ActivityTab({
 }: ActivityTabProps) {
 	return (
 		<>
-			{(customer.latitude || customer.longitude) && (
+			{customer.latitude && customer.longitude && (
 				<DetailSection title="Location">
-					<PropertyList
-						columns={2}
-						items={[
-							{ label: "Latitude", value: customer.latitude },
-							{ label: "Longitude", value: customer.longitude },
-						]}
-					/>
+					<div className="flex items-center gap-3">
+						<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+							<MapPinIcon className="size-4 text-primary" />
+						</div>
+						<div className="min-w-0 flex-1">
+							<p className="text-sm tabular-nums text-muted-foreground">
+								{customer.latitude.toFixed(6)},{" "}
+								{customer.longitude.toFixed(6)}
+							</p>
+						</div>
+						<Button variant="outline" size="sm" asChild>
+							<a
+								href={`https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								<NavigationIcon className="mr-1.5 size-3.5" />
+								Get Directions
+							</a>
+						</Button>
+					</div>
 				</DetailSection>
 			)}
 

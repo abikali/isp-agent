@@ -1,4 +1,5 @@
 import {
+	buildPhonesFromSync,
 	type ConnectionType,
 	type CustomerStatus,
 	db,
@@ -1548,7 +1549,17 @@ async function processIRadiusSync(
 					lastName: (u["LastName"] as string) || null,
 					email: (u["MailAddress"] as string) || null,
 					mobile: (u["Mobile"] as string) || null,
-					phone: (u["Phone"] as string) || null,
+					phone:
+						((u["Phone"] as string) || "").split(",")[0]?.trim() ||
+						null,
+					phones: JSON.parse(
+						JSON.stringify(
+							buildPhonesFromSync(
+								(u["Mobile"] as string) || null,
+								(u["Phone"] as string) || null,
+							),
+						),
+					),
 					address: (u["Address"] as string) || null,
 					username: (u["UserName"] as string) || null,
 					planId,

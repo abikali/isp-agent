@@ -46,6 +46,7 @@ export const CSV_HEADERS = [
 	"First Name",
 	"Last Name",
 	"Email",
+	"Mobile",
 	"Phone",
 	"Address",
 	"Username",

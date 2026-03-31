@@ -32,6 +32,7 @@ export interface UnpaidCustomer {
 	username?: string | null;
 	mobile?: string | null;
 	phone?: string | null;
+	phones?: unknown;
 	address?: string | null;
 	groupName?: string | null;
 	expiresAt?: string | Date | null;
@@ -71,18 +72,19 @@ function CopyButton({ value }: { value: string }) {
 	}, [value]);
 
 	return (
-		<button
-			type="button"
+		<Button
+			variant="ghost"
+			size="icon"
 			onClick={handleCopy}
-			className="ml-1 inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+			className="ml-1 size-5 text-muted-foreground"
 			title="Copy"
 		>
 			{copied ? (
-				<CheckIcon className="size-3 text-green-600" />
+				<CheckIcon className="size-3 text-success" />
 			) : (
 				<CopyIcon className="size-3" />
 			)}
-		</button>
+		</Button>
 	);
 }
 
@@ -203,7 +205,7 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 									<p className="text-xs font-medium text-muted-foreground">
 										Discount
 									</p>
-									<p className="text-green-600 dark:text-green-400">
+									<p className="text-success">
 										-
 										{formatCurrency(customer.discount ?? 0)}
 									</p>
@@ -333,7 +335,7 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						<Button
 							variant="outline"
 							size="icon"
-							className="size-11 shrink-0 text-green-600"
+							className="size-11 shrink-0 text-success"
 							asChild
 						>
 							<a

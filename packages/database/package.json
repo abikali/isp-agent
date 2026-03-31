@@ -11,6 +11,10 @@
 			"types": "./prisma/generated/enums.ts",
 			"default": "./prisma/generated/enums.ts"
 		},
+		"./phones": {
+			"types": "./lib/phones.ts",
+			"default": "./lib/phones.ts"
+		},
 		"./iradius": {
 			"types": "./lib/iradius.ts",
 			"default": "./lib/iradius.ts"

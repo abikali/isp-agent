@@ -3,27 +3,25 @@
 import { authClient } from "@repo/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useRouter } from "@shared/hooks/router";
+import { useTheme } from "@shared/hooks/use-theme";
 import { Button } from "@ui/components/button";
 import { LogOutIcon } from "lucide-react";
-import { type PropsWithChildren, useEffect } from "react";
+import { type PropsWithChildren, useEffect, useRef } from "react";
 
 export function CollectorShell({ children }: PropsWithChildren) {
 	const { activeOrganization, employee } = useActiveOrganization();
 	const router = useRouter();
+	const { theme, setTheme } = useTheme();
+	const previousTheme = useRef(theme);
 
 	// Force light mode for collector portal
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only run on mount/unmount to toggle theme
 	useEffect(() => {
-		const root = document.documentElement;
-		const hadDark = root.classList.contains("dark");
-		root.classList.remove("dark");
-		root.classList.add("light");
+		previousTheme.current = theme;
+		setTheme("light");
 
 		return () => {
-			// Restore previous theme on unmount
-			root.classList.remove("light");
-			if (hadDark) {
-				root.classList.add("dark");
-			}
+			setTheme(previousTheme.current);
 		};
 	}, []);
 

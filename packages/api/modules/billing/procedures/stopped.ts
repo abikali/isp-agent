@@ -84,6 +84,7 @@ export const listStoppedAccounts = protectedProcedure
 							lastName: true,
 							username: true,
 							mobile: true,
+							phone: true,
 							groupName: true,
 							expiresAt: true,
 							status: true,
