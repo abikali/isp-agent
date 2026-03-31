@@ -9,6 +9,12 @@ import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
+	isValidPhone,
+	PhoneInput,
+	stripPhone,
+	toInternationalPhone,
+} from "@ui/components/phone-input";
+import {
 	Select,
 	SelectContent,
 	SelectItem,
@@ -23,8 +29,7 @@ import {
 } from "@ui/components/sheet";
 import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
-import { PhoneInput } from "react-international-phone";
-import "react-international-phone/style.css";
+import { PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
@@ -42,35 +47,7 @@ interface PaymentSheetProps {
 	customer: UnpaidCustomer | null;
 }
 
-/**
- * Normalize a phone number to +961XXXXXXXX format for the phone input.
- * Handles raw digits like "70442737" → "+96170442737"
- */
-function toInternationalPhone(phone: string): string {
-	const digits = phone.replace(/\D/g, "");
-	if (digits.startsWith("961")) {
-		return `+${digits}`;
-	}
-	if (digits.startsWith("0")) {
-		return `+961${digits.slice(1)}`;
-	}
-	if (digits.length <= 8) {
-		return `+961${digits}`;
-	}
-	return `+${digits}`;
-}
-
-/**
- * Strip all non-digit chars except leading +, remove spaces.
- * Result: "+96170442737"
- */
-function stripPhone(phone: string): string {
-	const cleaned = phone.replace(/[\s\-()]/g, "");
-	if (cleaned.startsWith("+")) {
-		return `+${cleaned.slice(1).replace(/\D/g, "")}`;
-	}
-	return cleaned.replace(/\D/g, "");
-}
+const MAX_PHONES = 2;
 
 export function PaymentSheet({
 	open,
@@ -92,7 +69,7 @@ export function PaymentSheet({
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
-	const [customerMobile, setCustomerMobile] = useState("");
+	const [phones, setPhones] = useState<string[]>([""]);
 	// Reset form when a different customer is selected
 	const customerId = customer?.id;
 
@@ -105,8 +82,11 @@ export function PaymentSheet({
 			setStoppedAccount(false);
 			setNoteCategory("");
 			setNotes("");
-			const rawPhone = customer?.mobile ?? customer?.phone ?? "";
-			setCustomerMobile(rawPhone ? toInternationalPhone(rawPhone) : "");
+			// Initialize phones from customer.mobile and customer.phone
+			const rawPhones = [customer.mobile, customer.phone]
+				.filter(Boolean)
+				.map((p) => toInternationalPhone(p as string));
+			setPhones(rawPhones.length > 0 ? rawPhones : [""]);
 		}
 	}, [customerId]);
 
@@ -126,19 +106,45 @@ export function PaymentSheet({
 	const mismatchMissingNote =
 		isAmountMismatch && !noteCategory && !notes.trim();
 
+	const hasValidPhone = phones.some((p) => isValidPhone(p));
+
+	function updatePhone(index: number, value: string) {
+		setPhones((prev) => prev.map((p, i) => (i === index ? value : p)));
+	}
+
+	function addPhone() {
+		if (phones.length < MAX_PHONES) {
+			setPhones((prev) => [...prev, ""]);
+		}
+	}
+
+	function removePhone(index: number) {
+		if (phones.length > 1) {
+			setPhones((prev) => prev.filter((_, i) => i !== index));
+		}
+	}
+
 	function doSubmit() {
 		const collectorId = employee?.id ?? customer?.collector?.id;
 		if (!organizationId || !collectorId || !customer) {
 			return;
 		}
 
-		const originalMobile = customer.mobile ?? customer.phone;
-		const cleanedMobile = stripPhone(customerMobile);
-		const originalCleaned = originalMobile
+		// Determine if mobile (phones[0]) changed
+		const originalMobile = customer.mobile;
+		const newMobile = stripPhone(phones[0] ?? "");
+		const originalMobileCleaned = originalMobile
 			? stripPhone(toInternationalPhone(originalMobile))
 			: "";
-		const mobileChanged =
-			cleanedMobile && cleanedMobile !== originalCleaned;
+		const mobileChanged = newMobile && newMobile !== originalMobileCleaned;
+
+		// Determine if phone (phones[1]) changed
+		const originalPhone = customer.phone;
+		const newPhone = stripPhone(phones[1] ?? "");
+		const originalPhoneCleaned = originalPhone
+			? stripPhone(toInternationalPhone(originalPhone))
+			: "";
+		const phoneChanged = newPhone !== originalPhoneCleaned;
 
 		createPayment.mutate(
 			{
@@ -152,7 +158,8 @@ export function PaymentSheet({
 				stoppedAccount,
 				noteCategory: noteCategory || undefined,
 				notes: notes || undefined,
-				customerMobile: mobileChanged ? cleanedMobile : undefined,
+				customerMobile: mobileChanged ? newMobile : undefined,
+				customerPhone: phoneChanged ? newPhone || null : undefined,
 			},
 			{
 				onSuccess: (data) => {
@@ -191,41 +198,38 @@ export function PaymentSheet({
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent side="bottom" className="overflow-y-auto">
-				<SheetHeader className="pb-2">
-					<SheetTitle className="text-left">
+			<SheetContent
+				side="bottom"
+				className="overflow-y-auto p-4 pt-3 gap-2"
+				onOpenAutoFocus={(e) => e.preventDefault()}
+			>
+				<SheetHeader className="pb-0">
+					<SheetTitle className="text-left text-base">
 						Record Payment
 					</SheetTitle>
 				</SheetHeader>
 
-				<form onSubmit={handleSubmit} className="space-y-4 pb-6">
+				<form onSubmit={handleSubmit} className="space-y-3 pb-4">
 					{/* Customer summary */}
-					<div className="rounded-lg bg-muted/50 p-3 space-y-2">
+					<div className="rounded-lg bg-muted/50 p-2.5 space-y-1.5">
 						<div className="flex items-center justify-between">
-							<div>
-								<p className="text-base font-semibold">
-									{name}
-								</p>
-							</div>
+							<p className="text-sm font-semibold">{name}</p>
 							<div className="text-right">
-								<p className="text-xs text-muted-foreground">
+								<p className="text-[10px] text-muted-foreground leading-none">
 									Total due
 								</p>
-								<p className="text-xl font-bold tabular-nums">
+								<p className="text-lg font-bold tabular-nums">
 									{formatCurrency(totalDue)}
 								</p>
 							</div>
 						</div>
 						{/* Past due breakdown */}
 						{pastDueMonths > 0 && (
-							<div className="border-t pt-2 space-y-0.5 text-xs">
+							<div className="border-t pt-1.5 space-y-0.5 text-xs">
 								<div className="flex justify-between text-destructive font-medium">
 									<span>
 										Past due ({pastDueMonths}{" "}
-										{pastDueMonths === 1
-											? "month"
-											: "months"}
-										)
+										{pastDueMonths === 1 ? "mo" : "mos"})
 									</span>
 									<span className="tabular-nums">
 										{formatCurrency(
@@ -245,9 +249,9 @@ export function PaymentSheet({
 						{(discountAmount > 0 ||
 							iptvPrice > 0 ||
 							realIpPrice > 0) && (
-							<div className="border-t pt-2 space-y-0.5 text-xs text-muted-foreground">
+							<div className="border-t pt-1.5 space-y-0.5 text-xs text-muted-foreground">
 								<div className="flex justify-between">
-									<span>Plan price</span>
+									<span>Plan</span>
 									<span className="tabular-nums">
 										{formatCurrency(accountPrice)}
 									</span>
@@ -280,11 +284,9 @@ export function PaymentSheet({
 						)}
 					</div>
 
-					{/* Amount paid — large input */}
+					{/* Amount paid */}
 					<div>
-						<Label htmlFor="sheet-paidAmount" className="text-base">
-							Amount Paid
-						</Label>
+						<Label htmlFor="sheet-paidAmount">Amount Paid</Label>
 						<Input
 							id="sheet-paidAmount"
 							type="number"
@@ -293,15 +295,15 @@ export function PaymentSheet({
 							inputMode="decimal"
 							value={paidAmount}
 							onChange={(e) => setPaidAmount(e.target.value)}
-							className="mt-1 h-14 text-2xl font-bold tabular-nums"
+							className="mt-1 h-11 text-xl font-bold tabular-nums"
 						/>
 					</div>
 
-					{/* Toggles — large touch targets */}
-					<div className="flex gap-6">
+					{/* Toggles */}
+					<div className="flex gap-5">
 						<label
 							htmlFor="sheet-freeAccount"
-							className="flex items-center gap-3 cursor-pointer"
+							className="flex items-center gap-2 cursor-pointer"
 						>
 							<Switch
 								id="sheet-freeAccount"
@@ -319,86 +321,126 @@ export function PaymentSheet({
 									}
 								}}
 							/>
-							<span className="text-sm font-medium">
-								Free Account
-							</span>
+							<span className="text-sm">Free</span>
 						</label>
 						<label
 							htmlFor="sheet-stoppedAccount"
-							className="flex items-center gap-3 cursor-pointer"
+							className="flex items-center gap-2 cursor-pointer"
 						>
 							<Switch
 								id="sheet-stoppedAccount"
 								checked={stoppedAccount}
 								onCheckedChange={setStoppedAccount}
 							/>
-							<span className="text-sm font-medium">Stopped</span>
+							<span className="text-sm">Stopped</span>
 						</label>
 					</div>
 
-					{/* Phone number with country code */}
-					<div>
-						<Label>Customer Phone</Label>
-						<PhoneInput
-							defaultCountry="lb"
-							value={customerMobile}
-							onChange={(phone) => setCustomerMobile(phone)}
-							inputClassName="!h-9 !text-sm !w-full !rounded-md !border-input !bg-transparent !shadow-xs"
-							countrySelectorStyleProps={{
-								buttonClassName:
-									"!h-9 !rounded-l-md !border-input !bg-transparent !shadow-xs !px-2",
-							}}
-							className="mt-1"
-							placeholder="Phone number"
-						/>
-					</div>
-
-					{/* Note category */}
-					<div>
-						<Label>Note Category</Label>
-						<Select
-							value={noteCategory}
-							onValueChange={setNoteCategory}
-						>
-							<SelectTrigger className="mt-1">
-								<SelectValue placeholder="Optional" />
-							</SelectTrigger>
-							<SelectContent>
-								{noteCategories.map((cat) => (
-									<SelectItem
-										key={cat.value}
-										value={cat.value}
+					{/* Phone numbers */}
+					<div className="space-y-1.5">
+						<Label>
+							Phone <span className="text-destructive">*</span>
+						</Label>
+						{phones.map((phone, index) => (
+							<div
+								key={index}
+								className="flex items-center gap-1"
+							>
+								<PhoneInput
+									value={phone}
+									onChange={(val) => updatePhone(index, val)}
+									className="flex-1"
+								/>
+								{/* Show + on last row when under max, or X when multiple */}
+								{phones.length > 1 ? (
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon"
+										className="shrink-0 size-9 text-muted-foreground hover:text-destructive"
+										onClick={() => removePhone(index)}
 									>
-										{cat.labelAr
-											? `${cat.label} (${cat.labelAr})`
-											: cat.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+										<XIcon className="size-4" />
+									</Button>
+								) : phones.length < MAX_PHONES ? (
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon"
+										className="shrink-0 size-9 text-muted-foreground"
+										onClick={addPhone}
+									>
+										<PlusIcon className="size-4" />
+									</Button>
+								) : null}
+							</div>
+						))}
+						{/* When multiple phones, show + on last row */}
+						{phones.length > 1 && phones.length < MAX_PHONES && (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								className="text-muted-foreground h-7 text-xs"
+								onClick={addPhone}
+							>
+								<PlusIcon className="size-3.5" />
+								Add phone
+							</Button>
+						)}
+						{!hasValidPhone && (
+							<p className="text-xs text-destructive">
+								At least one phone number is required
+							</p>
+						)}
 					</div>
 
-					{/* Notes */}
-					<div>
-						<Label htmlFor="sheet-notes">Notes</Label>
-						<Textarea
-							id="sheet-notes"
-							value={notes}
-							onChange={(e) => setNotes(e.target.value)}
-							placeholder="Optional note..."
-							rows={2}
-							className="mt-1"
-						/>
+					{/* Note category + notes in a row */}
+					<div className="grid grid-cols-2 gap-2">
+						<div>
+							<Label>Category</Label>
+							<Select
+								value={noteCategory}
+								onValueChange={setNoteCategory}
+							>
+								<SelectTrigger className="mt-1">
+									<SelectValue placeholder="Optional" />
+								</SelectTrigger>
+								<SelectContent>
+									{noteCategories.map((cat) => (
+										<SelectItem
+											key={cat.value}
+											value={cat.value}
+										>
+											{cat.labelAr
+												? `${cat.label} (${cat.labelAr})`
+												: cat.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<Label htmlFor="sheet-notes">Notes</Label>
+							<Textarea
+								id="sheet-notes"
+								value={notes}
+								onChange={(e) => setNotes(e.target.value)}
+								placeholder="Optional..."
+								rows={1}
+								className="mt-1 min-h-9 resize-none"
+							/>
+						</div>
 					</div>
 
 					{stoppedMissingNote && (
-						<p className="text-sm font-medium text-destructive">
+						<p className="text-xs font-medium text-destructive">
 							Note required for stopped accounts
 						</p>
 					)}
 
 					{mismatchMissingNote && (
-						<p className="text-sm font-medium text-destructive">
+						<p className="text-xs font-medium text-destructive">
 							Note required when amount differs from total due
 						</p>
 					)}
@@ -411,7 +453,8 @@ export function PaymentSheet({
 						disabled={
 							createPayment.isPending ||
 							stoppedMissingNote ||
-							mismatchMissingNote
+							mismatchMissingNote ||
+							!hasValidPhone
 						}
 					>
 						{createPayment.isPending

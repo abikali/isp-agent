@@ -33,6 +33,7 @@ export const createPayment = protectedProcedure
 			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
 			customerMobile: z.string().optional(),
+			customerPhone: z.string().nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -173,14 +174,24 @@ export const createPayment = protectedProcedure
 				},
 			});
 
-			// Update customer mobile if provided and changed
+			// Update customer phone fields if changed
+			const phoneUpdates: Record<string, string | null> = {};
 			if (
 				input.customerMobile &&
 				input.customerMobile !== customer.mobile
 			) {
+				phoneUpdates["mobile"] = input.customerMobile;
+			}
+			if (
+				input.customerPhone !== undefined &&
+				input.customerPhone !== customer.phone
+			) {
+				phoneUpdates["phone"] = input.customerPhone;
+			}
+			if (Object.keys(phoneUpdates).length > 0) {
 				await tx.customer.update({
 					where: { id: input.customerId },
-					data: { mobile: input.customerMobile },
+					data: phoneUpdates,
 				});
 			}
 
