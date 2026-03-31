@@ -149,10 +149,10 @@ export const reactivateAccount = protectedProcedure
 		}
 
 		await db.$transaction(async (tx) => {
-			// Clear the stopped flag on the payment
-			await tx.payment.update({
+			// Delete the stopped payment so the customer appears as unpaid
+			// in the collector portal and can be collected normally.
+			await tx.payment.delete({
 				where: { id: input.paymentId },
-				data: { stoppedAccount: false },
 			});
 
 			// Reactivate customer
