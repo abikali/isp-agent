@@ -214,7 +214,7 @@ export function NavBar() {
 										]
 									: []),
 								{
-									label: "Collect",
+									label: "Unpaid Bills",
 									href: `${basePath}/billing/collect`,
 									icon: BanknoteIcon,
 									isActive: under(
@@ -224,7 +224,7 @@ export function NavBar() {
 								...(canManageBilling
 									? [
 											{
-												label: "Payments",
+												label: "Paid Bills",
 												href: `${basePath}/billing/payments`,
 												icon: ListIcon,
 												isActive: under(
