@@ -93,7 +93,9 @@ export const listUnpaidCustomers = protectedProcedure
 				expiresAt["gte"] = new Date(input.expiryFrom);
 			}
 			if (input.expiryTo) {
-				expiresAt["lte"] = new Date(input.expiryTo);
+				const to = new Date(input.expiryTo);
+				to.setHours(23, 59, 59, 999);
+				expiresAt["lte"] = to;
 			}
 			where["expiresAt"] = expiresAt;
 		}
