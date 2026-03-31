@@ -38,8 +38,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
+import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
-import { Label } from "@ui/components/label";
 import { PhoneInput } from "@ui/components/phone-input";
 import {
 	Select,
@@ -48,6 +48,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import { Separator } from "@ui/components/separator";
 import { Textarea } from "@ui/components/textarea";
 import {
 	ActivityIcon,
@@ -126,7 +127,6 @@ function getCustomerFormDefaults(customer: CustomerData) {
 
 type CustomerFormValues = ReturnType<typeof getCustomerFormDefaults>;
 
-// TanStack Form's ReactFormExtendedApi requires all validator type params to be specified
 type CustomerForm = ReactFormExtendedApi<
 	CustomerFormValues,
 	undefined | FormValidateOrFn<CustomerFormValues>,
@@ -142,21 +142,6 @@ type CustomerForm = ReactFormExtendedApi<
 	unknown
 >;
 
-interface ActivityTabProps {
-	customer: CustomerData;
-	customerId: string;
-	organizationId: string | null;
-	generatedPin: string | null;
-	setGeneratedPin: (pin: string | null) => void;
-	showSetPin: boolean;
-	setShowSetPin: (show: boolean) => void;
-	manualPin: string;
-	setManualPin: (pin: string) => void;
-	handleSetPin: () => void;
-	generatePin: ReturnType<typeof useGenerateCustomerPin>;
-	resetPin: ReturnType<typeof useResetCustomerPin>;
-}
-
 export function CustomerDetail({
 	customerId,
 	organizationSlug,
@@ -167,15 +152,9 @@ export function CustomerDetail({
 	const organizationId = useOrganizationId();
 	const updateCustomer = useUpdateCustomer();
 	const deleteCustomer = useDeleteCustomer();
-	const generatePin = useGenerateCustomerPin();
-	const resetPin = useResetCustomerPin();
-	const setPin = useSetCustomerPin();
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
-	const [generatedPin, setGeneratedPin] = useState<string | null>(null);
-	const [showSetPin, setShowSetPin] = useState(false);
-	const [manualPin, setManualPin] = useState("");
 
 	const { data } = useSuspenseQuery(
 		orpc.customers.get.queryOptions({
@@ -241,25 +220,6 @@ export function CustomerDetail({
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
-
-	function handleSetPin() {
-		if (!organizationId || !/^\d{6}$/.test(manualPin)) {
-			return;
-		}
-		toast.promise(
-			setPin.mutateAsync({ organizationId, customerId, pin: manualPin }),
-			{
-				loading: "Setting PIN...",
-				success: () => {
-					setShowSetPin(false);
-					setManualPin("");
-					return "PIN set successfully";
-				},
-				error: (err: { message?: string }) =>
-					err?.message ?? "Failed to set PIN",
-			},
-		);
-	}
 
 	const statusType =
 		customer.status === "ACTIVE"
@@ -386,16 +346,6 @@ export function CustomerDetail({
 								<ActivityTab
 									customer={customer}
 									customerId={customerId}
-									organizationId={organizationId}
-									generatedPin={generatedPin}
-									setGeneratedPin={setGeneratedPin}
-									showSetPin={showSetPin}
-									setShowSetPin={setShowSetPin}
-									manualPin={manualPin}
-									setManualPin={setManualPin}
-									handleSetPin={handleSetPin}
-									generatePin={generatePin}
-									resetPin={resetPin}
 								/>
 							),
 						},
@@ -441,7 +391,6 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 			return;
 		}
 		const updated = phones.filter((_, i) => i !== index);
-		// If removed phone was primary, make first one primary
 		const first = updated[0];
 		if (phones[index]?.primary && first) {
 			updated[0] = { ...first, primary: true };
@@ -458,8 +407,8 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 	}
 
 	return (
-		<div className="col-span-2 space-y-2">
-			<Label>Phone Numbers</Label>
+		<div className="space-y-2">
+			<FieldLabel>Phone Numbers</FieldLabel>
 			<div className="space-y-2">
 				{phones.map((phone, index) => (
 					<div key={index} className="flex items-center gap-1.5">
@@ -528,153 +477,244 @@ function OverviewTab({
 	employees: EmployeeItem[];
 }) {
 	return (
-		<>
-			<DetailSection title="Personal Information">
-				<FieldGroup columns={2}>
-					<form.Field name="firstName">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>First Name</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-					<form.Field name="lastName">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Last Name</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-					<form.Field name="email">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Email</Label>
-								<Input
-									type="email"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-					<PhoneFieldGroup form={form} />
-					<form.Field name="address">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Address</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-				</FieldGroup>
-			</DetailSection>
+		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+			{/* Left column: Personal info — takes 2/3 on large screens */}
+			<div className="lg:col-span-2 space-y-6">
+				<DetailSection
+					title="Personal Information"
+					description="Customer identity and contact details"
+				>
+					<FieldGroup columns={2}>
+						<form.Field name="firstName">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="firstName">
+										First Name
+									</FieldLabel>
+									<Input
+										id="firstName"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="First name"
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="lastName">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="lastName">
+										Last Name
+									</FieldLabel>
+									<Input
+										id="lastName"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Last name"
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="email">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="email">
+										Email
+									</FieldLabel>
+									<Input
+										id="email"
+										type="email"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="customer@example.com"
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="address">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="address">
+										Address
+									</FieldLabel>
+									<Input
+										id="address"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Street address"
+									/>
+								</Field>
+							)}
+						</form.Field>
+					</FieldGroup>
 
-			<DetailSection title="Service & Connection">
-				<FieldGroup columns={3}>
-					<form.Field name="planId">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Plan</Label>
-								<Select
-									value={field.state.value}
-									onValueChange={field.handleChange}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select plan" />
-									</SelectTrigger>
-									<SelectContent>
-										{plans.map((p) => (
-											<SelectItem key={p.id} value={p.id}>
-												{p.name}
+					<Separator />
+
+					<PhoneFieldGroup form={form} />
+				</DetailSection>
+
+				<DetailSection
+					title="Service & Connection"
+					description="Plan, station, and network configuration"
+				>
+					<FieldGroup columns={3}>
+						<form.Field name="planId">
+							{(field) => (
+								<Field>
+									<FieldLabel>Plan</FieldLabel>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select plan" />
+										</SelectTrigger>
+										<SelectContent>
+											{plans.map((p) => (
+												<SelectItem
+													key={p.id}
+													value={p.id}
+												>
+													{p.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="stationId">
+							{(field) => (
+								<Field>
+									<FieldLabel>Station</FieldLabel>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select station" />
+										</SelectTrigger>
+										<SelectContent>
+											{stations.map((s) => (
+												<SelectItem
+													key={s.id}
+													value={s.id}
+												>
+													{s.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="collectorId">
+							{(field) => (
+								<Field>
+									<FieldLabel>Collector</FieldLabel>
+									<Select
+										value={field.state.value || "none"}
+										onValueChange={(v) =>
+											field.handleChange(
+												v === "none" ? "" : v,
+											)
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select collector" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">
+												<span className="text-muted-foreground">
+													None
+												</span>
 											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
+											{employees.map((e) => (
+												<SelectItem
+													key={e.id}
+													value={e.id}
+												>
+													{e.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="connectionType">
+							{(field) => (
+								<Field>
+									<FieldLabel>Connection Type</FieldLabel>
+									<Select
+										value={field.state.value}
+										onValueChange={(value) =>
+											field.handleChange(
+												value as typeof field.state.value,
+											)
+										}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select type" />
+										</SelectTrigger>
+										<SelectContent>
+											{CONNECTION_TYPE_OPTIONS.map(
+												(opt) => (
+													<SelectItem
+														key={opt.value}
+														value={opt.value}
+													>
+														{opt.label}
+													</SelectItem>
+												),
+											)}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="username">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="username">
+										PPPoE Username
+									</FieldLabel>
+									<Input
+										id="username"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="PPPoE username"
+									/>
+								</Field>
+							)}
+						</form.Field>
+						{customer.accessPoint && (
+							<ReadOnlyField
+								label="Access Point"
+								value={customer.accessPoint.name}
+							/>
 						)}
-					</form.Field>
-					<form.Field name="stationId">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Station</Label>
-								<Select
-									value={field.state.value}
-									onValueChange={field.handleChange}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select station" />
-									</SelectTrigger>
-									<SelectContent>
-										{stations.map((s) => (
-											<SelectItem key={s.id} value={s.id}>
-												{s.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-					</form.Field>
-					<form.Field name="collectorId">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Collector</Label>
-								<Select
-									value={field.state.value || "none"}
-									onValueChange={(v) =>
-										field.handleChange(
-											v === "none" ? "" : v,
-										)
-									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select collector" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">
-											<span className="text-muted-foreground">
-												None
-											</span>
-										</SelectItem>
-										{employees.map((e) => (
-											<SelectItem key={e.id} value={e.id}>
-												{e.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-					</form.Field>
-					{customer.accessPoint && (
-						<ReadOnlyField
-							label="Access Point"
-							value={customer.accessPoint.name}
-						/>
-					)}
+					</FieldGroup>
+				</DetailSection>
+			</div>
+
+			{/* Right column: Status & Notes — takes 1/3 on large screens */}
+			<div className="space-y-6">
+				<DetailSection title="Status">
 					<form.Field name="status">
 						{(field) => (
-							<div className="space-y-2">
-								<Label>Status</Label>
+							<Field>
+								<FieldLabel>Account Status</FieldLabel>
 								<Select
 									value={field.state.value}
 									onValueChange={(value) =>
@@ -697,74 +737,37 @@ function OverviewTab({
 										))}
 									</SelectContent>
 								</Select>
-							</div>
+							</Field>
 						)}
 					</form.Field>
-					<form.Field name="connectionType">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Connection Type</Label>
-								<Select
-									value={field.state.value}
-									onValueChange={(value) =>
-										field.handleChange(
-											value as typeof field.state.value,
-										)
-									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select type" />
-									</SelectTrigger>
-									<SelectContent>
-										{CONNECTION_TYPE_OPTIONS.map((opt) => (
-											<SelectItem
-												key={opt.value}
-												value={opt.value}
-											>
-												{opt.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-					</form.Field>
-					<form.Field name="username">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>PPPoE Username</Label>
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-				</FieldGroup>
-			</DetailSection>
+				</DetailSection>
 
-			<DetailSection title="Notes">
-				<form.Field name="notes">
-					{(field) => (
-						<Textarea
-							value={field.state.value}
-							onChange={(e) => field.handleChange(e.target.value)}
-							rows={3}
-							placeholder="Add notes about this customer..."
-						/>
-					)}
-				</form.Field>
-			</DetailSection>
-		</>
+				<DetailSection title="Notes">
+					<form.Field name="notes">
+						{(field) => (
+							<Textarea
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								rows={5}
+								placeholder="Add notes about this customer..."
+							/>
+						)}
+					</form.Field>
+				</DetailSection>
+			</div>
+		</div>
 	);
 }
 
 function NetworkTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>
-			<DetailSection title="Connection Details">
+			<DetailSection
+				title="Connection Details"
+				description="IP, MAC, and NAS configuration"
+			>
 				<PropertyList
 					columns={3}
 					items={[
@@ -822,8 +825,11 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 				/>
 			</DetailSection>
 
-			<DetailSection title="Status Flags">
-				<div className="flex flex-wrap gap-4">
+			<DetailSection
+				title="Status Flags"
+				description="Current feature toggles and account flags"
+			>
+				<div className="flex flex-wrap gap-4 mb-3">
 					<StatusIndicator
 						status={customer.online ? "online" : "offline"}
 						variant="badge"
@@ -833,8 +839,14 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 					columns={4}
 					items={[
 						{ label: "FUP Mode", value: customer.fupMode },
-						{ label: "Auto Renew", value: customer.automaticRenew },
-						{ label: "Simultaneous", value: customer.simultaneous },
+						{
+							label: "Auto Renew",
+							value: customer.automaticRenew,
+						},
+						{
+							label: "Simultaneous",
+							value: customer.simultaneous,
+						},
 						{
 							label: "AP Electrical",
 							value: customer.apElectrical,
@@ -853,7 +865,10 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 				/>
 			</DetailSection>
 
-			<DetailSection title="Override Settings">
+			<DetailSection
+				title="Override Settings"
+				description="Account-level overrides for recharge and expiry"
+			>
 				<PropertyList
 					columns={3}
 					items={[
@@ -938,13 +953,19 @@ function BillingTab({
 }) {
 	return (
 		<>
-			<DetailSection title="Billing">
+			<DetailSection
+				title="Billing"
+				description="Monthly rate, billing cycle, and balance"
+			>
 				<FieldGroup columns={3}>
 					<form.Field name="monthlyRate">
 						{(field) => (
-							<div className="space-y-2">
-								<Label>Monthly Rate ($)</Label>
+							<Field>
+								<FieldLabel htmlFor="monthlyRate">
+									Monthly Rate ($)
+								</FieldLabel>
 								<Input
+									id="monthlyRate"
 									type="number"
 									min={0}
 									step="0.01"
@@ -954,14 +975,20 @@ function BillingTab({
 									}
 									placeholder="Use plan price"
 								/>
-							</div>
+								<FieldDescription>
+									Leave empty to use plan default
+								</FieldDescription>
+							</Field>
 						)}
 					</form.Field>
 					<form.Field name="billingDay">
 						{(field) => (
-							<div className="space-y-2">
-								<Label>Billing Day (1-28)</Label>
+							<Field>
+								<FieldLabel htmlFor="billingDay">
+									Billing Day
+								</FieldLabel>
 								<Input
+									id="billingDay"
 									type="number"
 									min={1}
 									max={28}
@@ -969,15 +996,22 @@ function BillingTab({
 									onChange={(e) =>
 										field.handleChange(e.target.value)
 									}
+									placeholder="1–28"
 								/>
-							</div>
+								<FieldDescription>
+									Day of month (1–28)
+								</FieldDescription>
+							</Field>
 						)}
 					</form.Field>
 					<form.Field name="balance">
 						{(field) => (
-							<div className="space-y-2">
-								<Label>Balance ($)</Label>
+							<Field>
+								<FieldLabel htmlFor="balance">
+									Balance ($)
+								</FieldLabel>
 								<Input
+									id="balance"
 									type="number"
 									step="0.01"
 									value={field.state.value}
@@ -985,91 +1019,108 @@ function BillingTab({
 										field.handleChange(e.target.value)
 									}
 								/>
-							</div>
+							</Field>
 						)}
 					</form.Field>
 				</FieldGroup>
-				<FieldGroup columns={4}>
-					<ReadOnlyField
-						label="Discount"
-						value={
-							customer.discount > 0
-								? formatCurrency(customer.discount)
-								: null
-						}
-					/>
-					<ReadOnlyField
-						label="IPTV Price"
-						value={
-							customer.iptvPrice > 0
-								? formatCurrency(customer.iptvPrice)
-								: null
-						}
-					/>
-					<ReadOnlyField
-						label="Real IP Price"
-						value={
-							customer.realIpPrice > 0
-								? formatCurrency(customer.realIpPrice)
-								: null
-						}
-					/>
-					<ReadOnlyField
-						label="Deduct Money"
-						value={customer.deductMoney}
-					/>
-				</FieldGroup>
+
+				{(customer.discount > 0 ||
+					customer.iptvPrice > 0 ||
+					customer.realIpPrice > 0 ||
+					customer.deductMoney) && (
+					<>
+						<Separator />
+						<FieldGroup columns={4}>
+							<ReadOnlyField
+								label="Discount"
+								value={
+									customer.discount > 0
+										? formatCurrency(customer.discount)
+										: null
+								}
+							/>
+							<ReadOnlyField
+								label="IPTV Price"
+								value={
+									customer.iptvPrice > 0
+										? formatCurrency(customer.iptvPrice)
+										: null
+								}
+							/>
+							<ReadOnlyField
+								label="Real IP Price"
+								value={
+									customer.realIpPrice > 0
+										? formatCurrency(customer.realIpPrice)
+										: null
+								}
+							/>
+							<ReadOnlyField
+								label="Deduct Money"
+								value={customer.deductMoney}
+							/>
+						</FieldGroup>
+					</>
+				)}
 			</DetailSection>
 
-			<DetailSection title="Monthly Usage">
-				<FieldGroup columns={4}>
-					<MetricDisplay
-						label="Download"
-						value={customer.downloadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Upload"
-						value={customer.uploadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Daily Download"
-						value={customer.dailyDownloadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Daily Upload"
-						value={customer.dailyUploadBytes ?? 0}
-						format="bytes"
-					/>
-				</FieldGroup>
-			</DetailSection>
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<DetailSection
+					title="Monthly Usage"
+					description="Current period bandwidth consumption"
+				>
+					<FieldGroup columns={2}>
+						<MetricDisplay
+							label="Download"
+							value={customer.downloadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Upload"
+							value={customer.uploadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Daily Download"
+							value={customer.dailyDownloadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Daily Upload"
+							value={customer.dailyUploadBytes ?? 0}
+							format="bytes"
+						/>
+					</FieldGroup>
+				</DetailSection>
 
-			<DetailSection title="Free Usage Quotas">
-				<FieldGroup columns={4}>
-					<MetricDisplay
-						label="Free Download"
-						value={customer.freeDownloadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Free Upload"
-						value={customer.freeUploadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Free Daily DL"
-						value={customer.freeDailyDownloadBytes ?? 0}
-						format="bytes"
-					/>
-					<MetricDisplay
-						label="Free Daily UL"
-						value={customer.freeDailyUploadBytes ?? 0}
-						format="bytes"
-					/>
-				</FieldGroup>
-			</DetailSection>
+				<DetailSection
+					title="Free Usage Quotas"
+					description="Included allowances before metering"
+				>
+					<FieldGroup columns={2}>
+						<MetricDisplay
+							label="Free Download"
+							value={customer.freeDownloadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Free Upload"
+							value={customer.freeUploadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Free Daily DL"
+							value={customer.freeDailyDownloadBytes ?? 0}
+							format="bytes"
+						/>
+						<MetricDisplay
+							label="Free Daily UL"
+							value={customer.freeDailyUploadBytes ?? 0}
+							format="bytes"
+						/>
+					</FieldGroup>
+				</DetailSection>
+			</div>
 
 			<DetailSection title="Extra Quotas">
 				<PropertyList
@@ -1115,21 +1166,44 @@ function FinancialTab({ customerId }: { customerId: string }) {
 function ActivityTab({
 	customer,
 	customerId,
-	organizationId,
-	generatedPin,
-	setGeneratedPin,
-	showSetPin,
-	setShowSetPin,
-	manualPin,
-	setManualPin,
-	handleSetPin,
-	generatePin,
-	resetPin,
-}: ActivityTabProps) {
+}: {
+	customer: CustomerData;
+	customerId: string;
+}) {
+	const organizationId = useOrganizationId();
+	const generatePin = useGenerateCustomerPin();
+	const resetPin = useResetCustomerPin();
+	const setPin = useSetCustomerPin();
+	const [generatedPin, setGeneratedPin] = useState<string | null>(null);
+	const [showSetPin, setShowSetPin] = useState(false);
+	const [manualPin, setManualPin] = useState("");
+
+	function handleSetPin() {
+		if (!organizationId || !/^\d{6}$/.test(manualPin)) {
+			return;
+		}
+		toast.promise(
+			setPin.mutateAsync({ organizationId, customerId, pin: manualPin }),
+			{
+				loading: "Setting PIN...",
+				success: () => {
+					setShowSetPin(false);
+					setManualPin("");
+					return "PIN set successfully";
+				},
+				error: (err: { message?: string }) =>
+					err?.message ?? "Failed to set PIN",
+			},
+		);
+	}
+
 	return (
 		<>
 			{customer.latitude && customer.longitude && (
-				<DetailSection title="Location">
+				<DetailSection
+					title="Location"
+					description="GPS coordinates from last known location"
+				>
 					<div className="flex items-center gap-3">
 						<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
 							<MapPinIcon className="size-4 text-primary" />
@@ -1154,11 +1228,14 @@ function ActivityTab({
 				</DetailSection>
 			)}
 
-			<DetailSection title="Security — Account PIN">
+			<DetailSection
+				title="Account PIN"
+				description="6-digit PIN for customer self-service access"
+			>
 				<div className="space-y-3">
 					<p className="text-sm text-muted-foreground">
 						{customer.pin
-							? `PIN is set: ${customer.pin}`
+							? `Current PIN: ${customer.pin}`
 							: "No PIN configured"}
 					</p>
 					<div className="flex flex-wrap gap-2">
@@ -1275,7 +1352,10 @@ function ActivityTab({
 function SyncTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>
-			<DetailSection title="iRadius Metadata">
+			<DetailSection
+				title="iRadius Metadata"
+				description="Synced data from the external iRadius system"
+			>
 				<PropertyList
 					columns={3}
 					items={[
