@@ -273,7 +273,7 @@ export function PaymentSheet({
 									</div>
 								)}
 								{discountAmount > 0 && (
-									<div className="flex justify-between text-green-600 dark:text-green-400">
+									<div className="flex justify-between text-success">
 										<span>Discount</span>
 										<span className="tabular-nums">
 											-{formatCurrency(discountAmount)}
@@ -449,7 +449,7 @@ export function PaymentSheet({
 						type="submit"
 						variant="ghost"
 						size="lg"
-						className="w-full text-base font-semibold bg-green-600 hover:bg-green-700 text-white shadow-sm"
+						className="w-full text-base font-semibold bg-success hover:bg-success/90 text-success-foreground shadow-sm"
 						disabled={
 							createPayment.isPending ||
 							stoppedMissingNote ||
