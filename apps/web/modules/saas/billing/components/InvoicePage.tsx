@@ -1,6 +1,5 @@
 "use client";
 
-import { PaymentStatus } from "@repo/database/enums";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { orpc } from "@shared/lib/orpc";
 import type { DehydratedState } from "@tanstack/react-query";
@@ -56,7 +55,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	);
 	const billingPeriod = `${monthName} ${cycle.year}`;
 
-	const statusConfig = getStatusConfig(payment.status);
+	const statusConfig = getStatusConfig(payment.stoppedAccount);
 
 	const customerName = [customer.firstName, customer.lastName]
 		.filter(Boolean)
@@ -257,27 +256,19 @@ function formatUSD(value: number): string {
 	return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function getStatusConfig(status: PaymentStatus) {
-	switch (status) {
-		case PaymentStatus.COLLECTED:
-			return {
-				label: "Paid",
-				icon: CheckCircleIcon,
-				className: "bg-green-100 text-green-700",
-			};
-		case PaymentStatus.STOPPED:
-			return {
-				label: "Stopped",
-				icon: AlertCircleIcon,
-				className: "bg-red-100 text-red-700",
-			};
-		default:
-			return {
-				label: status,
-				icon: AlertCircleIcon,
-				className: "bg-gray-100 text-gray-700",
-			};
+function getStatusConfig(stoppedAccount: boolean) {
+	if (stoppedAccount) {
+		return {
+			label: "Stopped",
+			icon: AlertCircleIcon,
+			className: "bg-red-100 text-red-700",
+		};
 	}
+	return {
+		label: "Paid",
+		icon: CheckCircleIcon,
+		className: "bg-green-100 text-green-700",
+	};
 }
 
 function InvoiceSkeleton() {

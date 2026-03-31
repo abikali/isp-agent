@@ -1,5 +1,5 @@
 import { requirePermission } from "@repo/api/lib/permission";
-import { db, PaymentStatus } from "@repo/database";
+import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { buildDateRangeFilter, customerSearchFilter } from "../lib/filters";
@@ -19,15 +19,13 @@ export const listPayments = protectedProcedure
 				organizationId: z.string(),
 				billingMonthId: z.string().optional(),
 				collectorId: z.string().optional(),
-				status: z
-					.enum([PaymentStatus.COLLECTED, PaymentStatus.STOPPED])
-					.optional(),
+				stoppedAccount: z.boolean().optional(),
 				groupName: z.string().optional(),
 				search: z.string().optional(),
 				dateFrom: z.string().datetime().optional(),
 				dateTo: z.string().datetime().optional(),
 				sortBy: z
-					.enum(["paidAt", "paidAmount", "status"])
+					.enum(["paidAt", "paidAmount", "stoppedAccount"])
 					.default("paidAt"),
 				sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			})
@@ -55,8 +53,8 @@ export const listPayments = protectedProcedure
 		if (input.billingMonthId) {
 			where["billingMonthId"] = input.billingMonthId;
 		}
-		if (input.status) {
-			where["status"] = input.status;
+		if (input.stoppedAccount !== undefined) {
+			where["stoppedAccount"] = input.stoppedAccount;
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;
@@ -87,8 +85,8 @@ export const listPayments = protectedProcedure
 					accountPrice: true,
 					paidAmount: true,
 					discount: true,
-					status: true,
 					freeAccount: true,
+					stoppedAccount: true,
 					noteCategory: true,
 					notes: true,
 					receiptSent: true,

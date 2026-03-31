@@ -61,12 +61,11 @@ export const listUnpaidCustomers = protectedProcedure
 			...getDealerScopeFilter(activeDealerId),
 		};
 
-		// Exclude customers who have a COLLECTED payment for this month
+		// Exclude customers who have any payment for this month
 		if (billingMonthId) {
 			where["payments"] = {
 				none: {
 					billingMonthId,
-					status: "COLLECTED",
 				},
 			};
 		}
@@ -182,7 +181,6 @@ export const listUnpaidCustomers = protectedProcedure
 				db.payment.findMany({
 					where: {
 						customerId: { in: customerIds },
-						status: "COLLECTED",
 					},
 					select: { customerId: true, billingMonthId: true },
 				}),

@@ -1,6 +1,5 @@
 "use client";
 
-import { PaymentStatus } from "@repo/database/enums";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
@@ -63,9 +62,9 @@ import {
 } from "../hooks/use-billing";
 import {
 	formatCycleShort,
+	getPaymentStatusLabel,
 	getPaymentStatusVariant,
 	NOTE_CATEGORY_LABELS,
-	PAYMENT_STATUS_LABELS,
 } from "../lib/billing-utils";
 import { GroupSelect } from "./BillingFilters";
 
@@ -174,7 +173,7 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 function useCollectorPayments(filters: {
 	collectorId: string | null;
 	billingMonthId?: string;
-	status?: PaymentStatus;
+	stoppedAccount?: boolean;
 	groupName?: string;
 	search?: string;
 	page?: number;
@@ -189,7 +188,7 @@ function useCollectorPayments(filters: {
 						organizationId,
 						collectorId: filters.collectorId,
 						billingMonthId: filters.billingMonthId,
-						status: filters.status,
+						stoppedAccount: filters.stoppedAccount,
 						groupName: filters.groupName,
 						search: filters.search || undefined,
 						page: filters.page ?? 1,
@@ -203,7 +202,7 @@ function useCollectorPayments(filters: {
 					"payments",
 					"list",
 					"collector",
-					filters.status ?? "all",
+					String(filters.stoppedAccount ?? "all"),
 				]),
 	);
 }
@@ -239,13 +238,20 @@ export function CashCollectionPage({
 		page: tab === "handoffs" ? page : 1,
 	});
 
+	const stoppedAccount =
+		statusFilter === "stopped"
+			? true
+			: statusFilter === "collected"
+				? false
+				: undefined;
+
 	const {
 		data: paymentsData,
 		isLoading: paymentsLoading,
 		isFetching: paymentsFetching,
 	} = useCollectorPayments({
 		collectorId,
-		status: (statusFilter || undefined) as PaymentStatus | undefined,
+		stoppedAccount,
 		groupName: groupFilter || undefined,
 		search: debouncedSearch || undefined,
 		page,
@@ -491,10 +497,10 @@ export function CashCollectionPage({
 									<SelectItem value="all">
 										All statuses
 									</SelectItem>
-									<SelectItem value={PaymentStatus.COLLECTED}>
+									<SelectItem value="collected">
 										Collected
 									</SelectItem>
-									<SelectItem value={PaymentStatus.STOPPED}>
+									<SelectItem value="stopped">
 										Stopped
 									</SelectItem>
 								</SelectContent>
@@ -633,7 +639,7 @@ interface Payment {
 	paidAmount: number;
 	accountPrice: number;
 	discount: number;
-	status: PaymentStatus;
+	stoppedAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
 	paidAt: string | Date;
@@ -688,15 +694,16 @@ function getPaymentColumns(actions: {
 			),
 		},
 		{
-			accessorKey: "status",
+			accessorKey: "stoppedAccount",
 			header: "Status",
 			cell: ({ row }) => (
 				<Badge
-					variant={getPaymentStatusVariant(row.original.status)}
+					variant={getPaymentStatusVariant(
+						row.original.stoppedAccount,
+					)}
 					className="text-xs"
 				>
-					{PAYMENT_STATUS_LABELS[row.original.status] ??
-						row.original.status}
+					{getPaymentStatusLabel(row.original.stoppedAccount)}
 				</Badge>
 			),
 		},

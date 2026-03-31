@@ -9,6 +9,7 @@ import {
 import { db } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { sendOrganizationNotification } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
@@ -135,27 +136,21 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		const status = input.stoppedAccount ? "STOPPED" : "COLLECTED";
-
 		// Create payment in a transaction
 		const payment = await db.$transaction(async (tx) => {
 			// Prevent duplicate payments for the same customer in the same month
-			// (stopped entries are always allowed — a customer can be stopped and later collected)
-			if (!input.stoppedAccount) {
-				const existing = await tx.payment.findFirst({
-					where: {
-						customerId: input.customerId,
-						billingMonthId: billingMonth.id,
-						status: "COLLECTED",
-					},
-					select: { id: true },
+			const existing = await tx.payment.findFirst({
+				where: {
+					customerId: input.customerId,
+					billingMonthId: billingMonth.id,
+				},
+				select: { id: true },
+			});
+			if (existing) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This customer already has a payment recorded for this billing month",
 				});
-				if (existing) {
-					throw new ORPCError("CONFLICT", {
-						message:
-							"This customer already has a payment recorded for this billing month",
-					});
-				}
 			}
 
 			const newPayment = await tx.payment.create({
@@ -167,8 +162,8 @@ export const createPayment = protectedProcedure
 					accountPrice: input.accountPrice,
 					paidAmount: input.paidAmount,
 					discount: input.discount,
-					status,
 					freeAccount: input.freeAccount,
+					stoppedAccount: input.stoppedAccount,
 					noteCategory: input.noteCategory ?? null,
 					notes: input.notes ?? null,
 				},
@@ -195,6 +190,14 @@ export const createPayment = protectedProcedure
 				});
 			}
 
+			// If stopped, deactivate the customer
+			if (input.stoppedAccount) {
+				await tx.customer.update({
+					where: { id: input.customerId },
+					data: { status: "INACTIVE" },
+				});
+			}
+
 			return newPayment;
 		});
 
@@ -207,6 +210,54 @@ export const createPayment = protectedProcedure
 						error: String(err),
 					}),
 			);
+		}
+
+		// If stopped, notify admins and create a task to disable on iRadius
+		if (input.stoppedAccount) {
+			const customerName =
+				[customer.firstName, customer.lastName]
+					.filter(Boolean)
+					.join(" ") || customer.username;
+
+			const org = await db.organization.findFirst({
+				where: { id: input.organizationId },
+				select: { slug: true },
+			});
+
+			const orgSlug = org?.slug ?? "";
+
+			// Fire-and-forget notification
+			sendOrganizationNotification(input.organizationId, {
+				category: "monitoring",
+				type: "warning",
+				title: "Account Stop Requested",
+				message: `${customerName} requested to stop their subscription`,
+				link: `/app/${orgSlug}/billing/stopped`,
+			}).catch((err) =>
+				logger.warn("[Stopped Account] Failed to send notification", {
+					error: String(err),
+				}),
+			);
+
+			// Fire-and-forget task creation
+			db.task
+				.create({
+					data: {
+						organizationId: input.organizationId,
+						title: `Disable ${customerName} on iRadius`,
+						description: `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop their subscription. Please disable their account on iRadius.`,
+						priority: "HIGH",
+						status: "OPEN",
+						category: "BILLING",
+						customerId: input.customerId,
+						createdById: user.id,
+					},
+				})
+				.catch((err) =>
+					logger.warn("[Stopped Account] Failed to create task", {
+						error: String(err),
+					}),
+				);
 		}
 
 		return { payment };

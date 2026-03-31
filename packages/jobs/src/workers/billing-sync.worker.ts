@@ -423,10 +423,7 @@ async function processBillingSync(
 						: new Date();
 					const monthId = await getOrCreateMonthId(paidAt);
 
-					const stopped = Number(row["stopped_account"]) === 1;
-					const status: "COLLECTED" | "STOPPED" = stopped
-						? "STOPPED"
-						: "COLLECTED";
+					const stoppedAccount = Number(row["stopped_account"]) === 1;
 
 					const invoiceNum = row["invoice_number"];
 					const note = row["note"] as string | null;
@@ -448,8 +445,8 @@ async function processBillingSync(
 						accountPrice: toFloat(row["account_price"]),
 						paidAmount: toFloat(row["paid_amount"]),
 						discount: toFloat(row["discount"]),
-						status,
 						freeAccount: Number(row["free_account"]) === 1,
+						stoppedAccount,
 						workerId: workerId ?? null,
 						notes: notes ?? null,
 						paidAt,

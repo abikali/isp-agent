@@ -1,6 +1,5 @@
 "use client";
 
-import { PaymentStatus } from "@repo/database/enums";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -35,9 +34,9 @@ import {
 	usePaymentsQuery,
 } from "../hooks/use-billing";
 import {
+	getPaymentStatusLabel,
 	getPaymentStatusVariant,
 	NOTE_CATEGORY_LABELS,
-	PAYMENT_STATUS_LABELS,
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
@@ -54,7 +53,7 @@ interface PaymentRow {
 	collector: { id: string; name: string };
 	paidAt: string | Date;
 	paidAmount: number;
-	status: PaymentStatus;
+	stoppedAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
 }
@@ -62,9 +61,7 @@ interface PaymentRow {
 export function PaymentsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
-	const [statusFilter, setStatusFilter] = useState<
-		PaymentStatus | undefined
-	>();
+	const [stoppedFilter, setStoppedFilter] = useState<boolean | undefined>();
 	const [collectorFilter, setCollectorFilter] = useState<
 		string | undefined
 	>();
@@ -78,8 +75,8 @@ export function PaymentsList() {
 	} = useMonthFilter();
 
 	// Reset page when filters change
-	const handleStatusChange = (s: PaymentStatus | undefined) => {
-		setStatusFilter(s);
+	const handleStoppedChange = (s: boolean | undefined) => {
+		setStoppedFilter(s);
 		setPage(1);
 	};
 	const handleCollectorChange = (value: string) => {
@@ -97,7 +94,7 @@ export function PaymentsList() {
 
 	const { payments, total, isLoading, isFetching } = usePaymentsQuery({
 		search: debouncedSearch || undefined,
-		status: statusFilter,
+		stoppedAccount: stoppedFilter,
 		collectorId: collectorFilter,
 		groupName: groupFilter,
 		billingMonthId: activeMonthId,
@@ -113,7 +110,7 @@ export function PaymentsList() {
 	const deletePayment = useDeletePayment();
 
 	const hasActiveFilters =
-		!!statusFilter ||
+		stoppedFilter !== undefined ||
 		!!collectorFilter ||
 		!!groupFilter ||
 		(!!monthFilter && monthFilter !== "all") ||
@@ -121,7 +118,7 @@ export function PaymentsList() {
 
 	const resetFilters = () => {
 		setSearch("");
-		setStatusFilter(undefined);
+		setStoppedFilter(undefined);
 		setCollectorFilter(undefined);
 		setGroupFilter(undefined);
 		setMonthFilter("");
@@ -203,10 +200,11 @@ export function PaymentsList() {
 				enableSorting: false,
 				cell: ({ row }) => (
 					<Badge
-						variant={getPaymentStatusVariant(row.original.status)}
+						variant={getPaymentStatusVariant(
+							row.original.stoppedAccount,
+						)}
 					>
-						{PAYMENT_STATUS_LABELS[row.original.status] ??
-							row.original.status}
+						{getPaymentStatusLabel(row.original.stoppedAccount)}
 					</Badge>
 				),
 			},
@@ -368,26 +366,30 @@ export function PaymentsList() {
 				<div className="flex flex-wrap gap-1">
 					{(
 						[
-							"all",
-							PaymentStatus.COLLECTED,
-							PaymentStatus.STOPPED,
+							{ key: "all", label: "All", value: undefined },
+							{
+								key: "collected",
+								label: "Collected",
+								value: false,
+							},
+							{
+								key: "stopped",
+								label: "Stopped",
+								value: true,
+							},
 						] as const
 					).map((s) => (
 						<Button
-							key={s}
+							key={s.key}
 							size="sm"
 							variant={
-								(statusFilter ?? "all") === s
+								stoppedFilter === s.value
 									? "secondary"
 									: "outline"
 							}
-							onClick={() =>
-								handleStatusChange(s === "all" ? undefined : s)
-							}
+							onClick={() => handleStoppedChange(s.value)}
 						>
-							{s === "all"
-								? "All"
-								: (PAYMENT_STATUS_LABELS[s] ?? s)}
+							{s.label}
 						</Button>
 					))}
 				</div>

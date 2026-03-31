@@ -75,44 +75,64 @@ export const getCollectorStats = protectedProcedure
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
-		const [unpaidCustomers, paidCustomers, balanceData, dailyPayments] =
-			await Promise.all([
-				// Unpaid customers: expiry up to this month (includes past-due), no COLLECTED payment
-				db.customer.count({
-					where: unpaidCustomersWhere(
-						input.organizationId,
-						activeMonth.id,
-						monthRange,
-						{ collectorId, dealerFilter },
-					),
-				}),
-				// Paid customers this month: distinct customerIds with COLLECTED payment
-				countPaidCustomers(input.organizationId, activeMonth.id, {
-					collectorId,
-					...dealerViaCustomer,
-				}),
-				// Balance: physical cash collected − handed off (not dealer-scoped)
-				fetchCollectorBalance(input.organizationId, collectorId),
-				// Daily collected (today only)
-				db.payment.aggregate({
+		const [
+			unpaidCustomers,
+			paidCustomers,
+			stoppedCustomers,
+			balanceData,
+			dailyPayments,
+		] = await Promise.all([
+			// Unpaid customers: expiry up to this month (includes past-due), no payment at all
+			db.customer.count({
+				where: unpaidCustomersWhere(
+					input.organizationId,
+					activeMonth.id,
+					monthRange,
+					{ collectorId, dealerFilter },
+				),
+			}),
+			// Paid customers this month: distinct customerIds with a payment
+			countPaidCustomers(input.organizationId, activeMonth.id, {
+				collectorId,
+				...dealerViaCustomer,
+			}),
+			// Stopped customers this month: distinct customerIds with stoppedAccount payment
+			db.payment
+				.findMany({
 					where: {
 						organizationId: input.organizationId,
+						billingMonthId: activeMonth.id,
 						collectorId,
-						status: "COLLECTED",
-						paidAt: { gte: today, lt: tomorrow },
+						stoppedAccount: true,
 						...dealerViaCustomer,
 					},
-					_sum: { paidAmount: true },
-					_count: true,
-				}),
-			]);
+					select: { customerId: true },
+					distinct: ["customerId"],
+				})
+				.then((ids) => ids.length),
+			// Balance: physical cash collected − handed off (not dealer-scoped)
+			fetchCollectorBalance(input.organizationId, collectorId),
+			// Daily collected (today only)
+			db.payment.aggregate({
+				where: {
+					organizationId: input.organizationId,
+					collectorId,
+					paidAt: { gte: today, lt: tomorrow },
+					...dealerViaCustomer,
+				},
+				_sum: { paidAmount: true },
+				_count: true,
+			}),
+		]);
 
-		const totalCustomers = paidCustomers + unpaidCustomers;
+		const totalCustomers =
+			paidCustomers + stoppedCustomers + unpaidCustomers;
 
 		return {
 			collectorId,
 			totalCustomers,
 			paidCustomers,
+			stoppedCustomers,
 			totalCollected: balanceData.totalCollected,
 			totalHandedOff: balanceData.totalHandedOff,
 			netBalance: balanceData.balance,

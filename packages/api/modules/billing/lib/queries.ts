@@ -134,7 +134,6 @@ export function customersDueThisMonthWhere(
 					payments: {
 						some: {
 							billingMonthId,
-							status: "COLLECTED",
 						},
 					},
 				},
@@ -181,7 +180,6 @@ export function unpaidCustomersWhere(
 		payments: {
 			none: {
 				billingMonthId,
-				status: "COLLECTED",
 			},
 		},
 	};

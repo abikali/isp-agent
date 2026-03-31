@@ -3,8 +3,6 @@
  * across billing components.
  */
 
-import { PaymentStatus } from "@repo/database/enums";
-
 // ─── Cycle Constants & Formatting ──────────────────────────────
 
 export const MONTH_SHORT = [
@@ -191,24 +189,16 @@ export const NOTE_CATEGORY_LABELS: Record<string, string> = {
 	TEMP_STOP: "Temp Stop",
 };
 
-/** Human-readable labels for payment statuses. */
-export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
-	[PaymentStatus.COLLECTED]: "Collected",
-	[PaymentStatus.STOPPED]: "Stopped",
-};
-
-/** Returns the badge variant for a given payment status. */
+/** Returns the badge variant based on whether the account was stopped. */
 export function getPaymentStatusVariant(
-	status: PaymentStatus,
-): "default" | "destructive" | "outline" | "secondary" {
-	switch (status) {
-		case PaymentStatus.COLLECTED:
-			return "default";
-		case PaymentStatus.STOPPED:
-			return "destructive";
-		default:
-			return "secondary";
-	}
+	stoppedAccount: boolean,
+): "default" | "destructive" {
+	return stoppedAccount ? "destructive" : "default";
+}
+
+/** Returns the label for a payment based on stopped status. */
+export function getPaymentStatusLabel(stoppedAccount: boolean): string {
+	return stoppedAccount ? "Stopped" : "Collected";
 }
 
 /** Expiry status information for a customer account. */

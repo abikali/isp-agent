@@ -76,10 +76,10 @@ export {
 	extractPriceComponents,
 	formatCycleLong,
 	formatCycleShort,
+	getPaymentStatusLabel,
 	getPaymentStatusVariant,
 	MONTH_NAMES,
 	MONTH_SHORT,
-	PAYMENT_STATUS_LABELS,
 	type PriceComponents,
 	parseAmount,
 } from "./lib/billing-utils";

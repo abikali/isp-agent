@@ -45,7 +45,7 @@ export const listStoppedAccounts = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
-			status: "STOPPED",
+			stoppedAccount: true,
 			...(monthId ? { billingMonthId: monthId } : {}),
 		};
 
@@ -135,7 +135,7 @@ export const reactivateAccount = protectedProcedure
 			where: {
 				id: input.paymentId,
 				organizationId: input.organizationId,
-				status: "STOPPED",
+				stoppedAccount: true,
 				...getDealerScopeViaCustomer(activeDealerId),
 			},
 			include: { customer: true },
@@ -148,12 +148,10 @@ export const reactivateAccount = protectedProcedure
 		}
 
 		await db.$transaction(async (tx) => {
-			// Change payment from STOPPED to COLLECTED
+			// Clear the stopped flag on the payment
 			await tx.payment.update({
 				where: { id: input.paymentId },
-				data: {
-					status: "COLLECTED",
-				},
+				data: { stoppedAccount: false },
 			});
 
 			// Reactivate customer

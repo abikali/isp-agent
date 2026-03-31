@@ -1559,7 +1559,6 @@ model TaskAssignment {
 
 enum PaymentStatus {
   COLLECTED
-  STOPPED
 }
 
 model NoteCategory {
@@ -1641,6 +1640,7 @@ model Payment {
   discount        Float         @default(0)
   status          PaymentStatus @default(COLLECTED)
   freeAccount     Boolean       @default(false)
+  stoppedAccount  Boolean       @default(false)
   workerId        String?
   noteCategory    String?
   notes           String?       @db.Text
@@ -1662,7 +1662,7 @@ model Payment {
   @@index([workerId])
   @@index([customerId])
   @@index([collectorId])
-  @@index([status])
+  @@index([stoppedAccount])
   @@map("payment")
 }
 

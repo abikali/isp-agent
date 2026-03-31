@@ -72,28 +72,28 @@ export const getPaymentStats = protectedProcedure
 			unpaidCustomers,
 		] = await Promise.all([
 			db.payment.count({
-				where: { ...baseWhere, status: "COLLECTED" },
+				where: { ...baseWhere, stoppedAccount: false },
 			}),
 			db.payment.count({
-				where: { ...baseWhere, status: "STOPPED" },
+				where: { ...baseWhere, stoppedAccount: true },
 			}),
 			db.payment.aggregate({
-				where: { ...baseWhere, status: "COLLECTED" },
+				where: baseWhere,
 				_sum: { paidAmount: true },
 			}),
 			db.payment.groupBy({
 				by: ["collectorId"],
-				where: { ...baseWhere, status: "COLLECTED" },
+				where: baseWhere,
 				_sum: { paidAmount: true },
 				_count: true,
 			}),
-			// Paid customers: distinct customers with a COLLECTED payment this month
+			// Paid customers: distinct customers with a payment this month
 			monthId
 				? countPaidCustomers(input.organizationId, monthId, {
 						...dealerViaCustomer,
 					})
 				: Promise.resolve(0),
-			// Unpaid customers: includes past-due (expiresAt <= month end, no COLLECTED payment)
+			// Unpaid customers: includes past-due (expiresAt <= month end, no payment)
 			monthId
 				? db.customer.count({
 						where: unpaidCustomersWhere(
@@ -106,8 +106,25 @@ export const getPaymentStats = protectedProcedure
 				: Promise.resolve(0),
 		]);
 
-		// Total = those who paid (expiry already moved) + those still due (expiry in month)
-		const totalCustomers = paidCustomers + unpaidCustomers;
+		// Stopped customers: distinct customers with a stoppedAccount payment this month
+		const stoppedCustomers = monthId
+			? await db.payment
+					.findMany({
+						where: {
+							organizationId: input.organizationId,
+							billingMonthId: monthId,
+							stoppedAccount: true,
+							...dealerViaCustomer,
+						},
+						select: { customerId: true },
+						distinct: ["customerId"],
+					})
+					.then((ids) => ids.length)
+			: 0;
+
+		// Total = paid + stopped + still unpaid
+		const totalCustomers =
+			paidCustomers + stoppedCustomers + unpaidCustomers;
 
 		// Resolve collector names
 		const collectorIds = byCollector.map((c) => c.collectorId);

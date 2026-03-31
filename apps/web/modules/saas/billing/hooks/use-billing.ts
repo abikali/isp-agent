@@ -1,5 +1,4 @@
 "use client";
-import type { PaymentStatus } from "@repo/database/enums";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
@@ -112,7 +111,7 @@ export function useCustomerGroups() {
 export function usePayments(filters: {
 	billingMonthId?: string;
 	collectorId?: string;
-	status?: PaymentStatus;
+	stoppedAccount?: boolean;
 	groupName?: string;
 	search?: string;
 	dateFrom?: string;
@@ -150,7 +149,7 @@ export function usePayments(filters: {
 export function usePaymentsQuery(filters: {
 	billingMonthId?: string;
 	collectorId?: string;
-	status?: PaymentStatus;
+	stoppedAccount?: boolean;
 	groupName?: string;
 	search?: string;
 	dateFrom?: string;
