@@ -41,7 +41,8 @@ export function CollectorPortal() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [groupFilter, setGroupFilter] = useState<string>("");
-	const [selectedDay, setSelectedDay] = useState<number | null>(null);
+	const [dayFrom, setDayFrom] = useState<number | null>(null);
+	const [dayTo, setDayTo] = useState<number | null>(null);
 	const [page, setPage] = useState(1);
 	const [selectedCustomer, setSelectedCustomer] =
 		useState<UnpaidCustomer | null>(null);
@@ -71,11 +72,38 @@ export function CollectorPortal() {
 		return days;
 	}, [activeMonth]);
 
-	// Convert selected day to expiry date string
-	const expiryDate =
-		selectedDay && activeMonth
-			? `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`
-			: undefined;
+	function handleDayTap(day: number) {
+		if (dayFrom === null) {
+			// First tap — set "from"
+			setDayFrom(day);
+			setDayTo(null);
+		} else if (dayTo === null) {
+			if (day === dayFrom) {
+				// Tap same day — clear
+				setDayFrom(null);
+			} else if (day < dayFrom) {
+				// Tap earlier day — new "from", old from becomes "to"
+				setDayTo(dayFrom);
+				setDayFrom(day);
+			} else {
+				// Tap later day — set "to"
+				setDayTo(day);
+			}
+		} else {
+			// Range already selected — start fresh
+			setDayFrom(day);
+			setDayTo(null);
+		}
+		setPage(1);
+	}
+
+	// Convert selected days to date strings
+	function dayToDate(day: number | null) {
+		if (!day || !activeMonth) {
+			return undefined;
+		}
+		return `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+	}
 
 	const { customers, total, totalPages } = useUnpaidCustomers({
 		year: activeMonth?.year,
@@ -84,8 +112,8 @@ export function CollectorPortal() {
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,
 		excludeGroupName: groupFilter ? undefined : "free",
-		expiryFrom: expiryDate,
-		expiryTo: expiryDate,
+		expiryFrom: dayToDate(dayFrom),
+		expiryTo: dayToDate(dayTo ?? dayFrom),
 		page,
 		pageSize: 50,
 		refetchInterval: POLL_INTERVAL,
@@ -120,18 +148,19 @@ export function CollectorPortal() {
 					/>
 				</div>
 
-				{/* Day picker — horizontal scroll of days in the active month */}
+				{/* Day picker — horizontal scroll, tap to select from/to range */}
 				{monthDays.length > 0 && (
 					<div className="-mx-4 px-4">
-						<div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+						<div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
 							<button
 								type="button"
 								onClick={() => {
-									setSelectedDay(null);
+									setDayFrom(null);
+									setDayTo(null);
 									setPage(1);
 								}}
 								className={`flex shrink-0 flex-col items-center rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-									selectedDay === null
+									dayFrom === null
 										? "bg-primary text-primary-foreground"
 										: "bg-muted/60 text-muted-foreground"
 								}`}
@@ -141,30 +170,41 @@ export function CollectorPortal() {
 									&bull;
 								</span>
 							</button>
-							{monthDays.map(({ day, label, weekday }) => (
-								<button
-									key={day}
-									type="button"
-									onClick={() => {
-										setSelectedDay(
-											selectedDay === day ? null : day,
-										);
-										setPage(1);
-									}}
-									className={`flex shrink-0 flex-col items-center rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-										selectedDay === day
-											? "bg-primary text-primary-foreground"
-											: "bg-muted/60 text-muted-foreground"
-									}`}
-								>
-									<span className="text-[10px]">
-										{weekday}
-									</span>
-									<span className="text-sm font-semibold">
-										{label}
-									</span>
-								</button>
-							))}
+							{monthDays.map(({ day, label, weekday }) => {
+								const rangeStart = dayFrom ?? 0;
+								const rangeEnd = dayTo ?? dayFrom ?? 0;
+								const isEndpoint =
+									day === dayFrom || day === dayTo;
+								const isInRange =
+									rangeStart > 0 &&
+									day >= rangeStart &&
+									day <= rangeEnd;
+
+								let style = "bg-muted/60 text-muted-foreground";
+								if (isEndpoint) {
+									style =
+										"bg-primary text-primary-foreground";
+								} else if (isInRange) {
+									style =
+										"bg-primary/15 text-primary font-medium";
+								}
+
+								return (
+									<button
+										key={day}
+										type="button"
+										onClick={() => handleDayTap(day)}
+										className={`flex shrink-0 flex-col items-center rounded-lg px-2.5 py-1.5 text-xs transition-colors ${style}`}
+									>
+										<span className="text-[10px]">
+											{weekday}
+										</span>
+										<span className="text-sm font-semibold">
+											{label}
+										</span>
+									</button>
+								);
+							})}
 						</div>
 					</div>
 				)}
