@@ -125,20 +125,20 @@ function PhoneInput({
 	const entry = COUNTRY_CODES.find((c) => c.dialCode === dialCode);
 
 	return (
-		<div className={cn("flex gap-0", className)}>
+		<div className={cn("flex min-w-0", className)}>
 			<Select
 				value={dialCode}
 				onValueChange={handleDialCodeChange}
 				disabled={disabled}
 			>
-				<SelectTrigger className="w-[5.5rem] shrink-0 rounded-r-none border-r-0 gap-1 px-2">
+				<SelectTrigger className="w-[4.5rem] shrink-0 rounded-r-none border-r-0 gap-0.5 px-1.5">
 					<SelectValue>
 						{entry ? (
 							<span className="flex items-center gap-1">
 								<span className="text-base leading-none">
 									{entry.flag}
 								</span>
-								<span className="text-xs text-muted-foreground">
+								<span className="text-[11px] text-muted-foreground">
 									{entry.dialCode}
 								</span>
 							</span>
@@ -170,7 +170,7 @@ function PhoneInput({
 				onChange={handleLocalChange}
 				placeholder={placeholder}
 				disabled={disabled}
-				className="rounded-l-none"
+				className="min-w-0 rounded-l-none"
 			/>
 		</div>
 	);

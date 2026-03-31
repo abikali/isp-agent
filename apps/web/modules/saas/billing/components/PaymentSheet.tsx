@@ -209,9 +209,9 @@ export function PaymentSheet({
 					</SheetTitle>
 				</SheetHeader>
 
-				<form onSubmit={handleSubmit} className="space-y-3 pb-4">
+				<form onSubmit={handleSubmit} className="space-y-4 pb-4">
 					{/* Customer summary */}
-					<div className="rounded-lg bg-muted/50 p-2.5 space-y-1.5">
+					<div className="rounded-lg bg-muted/50 p-3 space-y-2">
 						<div className="flex items-center justify-between">
 							<p className="text-sm font-semibold">{name}</p>
 							<div className="text-right">
@@ -225,7 +225,7 @@ export function PaymentSheet({
 						</div>
 						{/* Past due breakdown */}
 						{pastDueMonths > 0 && (
-							<div className="border-t pt-1.5 space-y-0.5 text-xs">
+							<div className="border-t pt-2 space-y-0.5 text-xs">
 								<div className="flex justify-between text-destructive font-medium">
 									<span>
 										Past due ({pastDueMonths}{" "}
@@ -249,7 +249,7 @@ export function PaymentSheet({
 						{(discountAmount > 0 ||
 							iptvPrice > 0 ||
 							realIpPrice > 0) && (
-							<div className="border-t pt-1.5 space-y-0.5 text-xs text-muted-foreground">
+							<div className="border-t pt-2 space-y-0.5 text-xs text-muted-foreground">
 								<div className="flex justify-between">
 									<span>Plan</span>
 									<span className="tabular-nums">
@@ -284,80 +284,85 @@ export function PaymentSheet({
 						)}
 					</div>
 
-					{/* Amount paid */}
-					<div>
-						<Label htmlFor="sheet-paidAmount">Amount Paid</Label>
-						<Input
-							id="sheet-paidAmount"
-							type="number"
-							step="0.01"
-							min="0"
-							inputMode="decimal"
-							value={paidAmount}
-							onChange={(e) => setPaidAmount(e.target.value)}
-							className="mt-1 h-11 text-xl font-bold tabular-nums"
-						/>
-					</div>
-
-					{/* Toggles */}
-					<div className="flex gap-5">
-						<label
-							htmlFor="sheet-freeAccount"
-							className="flex items-center gap-2 cursor-pointer"
-						>
-							<Switch
-								id="sheet-freeAccount"
-								checked={freeAccount}
-								onCheckedChange={(checked) => {
-									setFreeAccount(checked);
-									if (customer) {
-										setPaidAmount(
-											String(
-												calculateTotalDue(customer, {
-													freeAccount: checked,
-												}),
-											),
-										);
-									}
-								}}
+					{/* Amount paid + toggles row */}
+					<div className="flex items-end gap-3">
+						<div className="flex-1">
+							<Label htmlFor="sheet-paidAmount">
+								Amount Paid
+							</Label>
+							<Input
+								id="sheet-paidAmount"
+								type="number"
+								step="0.01"
+								min="0"
+								inputMode="decimal"
+								value={paidAmount}
+								onChange={(e) => setPaidAmount(e.target.value)}
+								className="mt-1 h-11 text-xl font-bold tabular-nums"
 							/>
-							<span className="text-sm">Free</span>
-						</label>
-						<label
-							htmlFor="sheet-stoppedAccount"
-							className="flex items-center gap-2 cursor-pointer"
-						>
-							<Switch
-								id="sheet-stoppedAccount"
-								checked={stoppedAccount}
-								onCheckedChange={setStoppedAccount}
-							/>
-							<span className="text-sm">Stopped</span>
-						</label>
+						</div>
+						<div className="flex items-center gap-4 pb-1.5">
+							<label
+								htmlFor="sheet-freeAccount"
+								className="flex items-center gap-2 cursor-pointer"
+							>
+								<Switch
+									id="sheet-freeAccount"
+									checked={freeAccount}
+									onCheckedChange={(checked) => {
+										setFreeAccount(checked);
+										if (customer) {
+											setPaidAmount(
+												String(
+													calculateTotalDue(
+														customer,
+														{
+															freeAccount:
+																checked,
+														},
+													),
+												),
+											);
+										}
+									}}
+								/>
+								<span className="text-sm">Free</span>
+							</label>
+							<label
+								htmlFor="sheet-stoppedAccount"
+								className="flex items-center gap-2 cursor-pointer"
+							>
+								<Switch
+									id="sheet-stoppedAccount"
+									checked={stoppedAccount}
+									onCheckedChange={setStoppedAccount}
+								/>
+								<span className="text-sm">Stopped</span>
+							</label>
+						</div>
 					</div>
 
 					{/* Phone numbers */}
-					<div className="space-y-1.5">
+					<div className="space-y-2">
 						<Label>
 							Phone <span className="text-destructive">*</span>
 						</Label>
 						{phones.map((phone, index) => (
 							<div
 								key={index}
-								className="flex items-center gap-1"
+								className="flex items-center gap-1.5"
 							>
 								<PhoneInput
 									value={phone}
 									onChange={(val) => updatePhone(index, val)}
-									className="flex-1"
+									className="flex-1 min-w-0"
 								/>
-								{/* Show + on last row when under max, or X when multiple */}
 								{phones.length > 1 ? (
 									<Button
 										type="button"
-										variant="ghost"
+										variant="outline"
 										size="icon"
-										className="shrink-0 size-9 text-muted-foreground hover:text-destructive"
+										className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
 										onClick={() => removePhone(index)}
 									>
 										<XIcon className="size-4" />
@@ -365,9 +370,9 @@ export function PaymentSheet({
 								) : phones.length < MAX_PHONES ? (
 									<Button
 										type="button"
-										variant="ghost"
+										variant="outline"
 										size="icon"
-										className="shrink-0 size-9 text-muted-foreground"
+										className="shrink-0 size-9"
 										onClick={addPhone}
 									>
 										<PlusIcon className="size-4" />
@@ -375,16 +380,15 @@ export function PaymentSheet({
 								) : null}
 							</div>
 						))}
-						{/* When multiple phones, show + on last row */}
 						{phones.length > 1 && phones.length < MAX_PHONES && (
 							<Button
 								type="button"
-								variant="ghost"
+								variant="outline"
 								size="sm"
-								className="text-muted-foreground h-7 text-xs"
+								className="h-7 text-xs"
 								onClick={addPhone}
 							>
-								<PlusIcon className="size-3.5" />
+								<PlusIcon className="size-3.5 mr-1" />
 								Add phone
 							</Button>
 						)}
@@ -395,42 +399,42 @@ export function PaymentSheet({
 						)}
 					</div>
 
-					{/* Note category + notes in a row */}
-					<div className="grid grid-cols-2 gap-2">
-						<div>
-							<Label>Category</Label>
-							<Select
-								value={noteCategory}
-								onValueChange={setNoteCategory}
-							>
-								<SelectTrigger className="mt-1">
-									<SelectValue placeholder="Optional" />
-								</SelectTrigger>
-								<SelectContent>
-									{noteCategories.map((cat) => (
-										<SelectItem
-											key={cat.value}
-											value={cat.value}
-										>
-											{cat.labelAr
-												? `${cat.label} (${cat.labelAr})`
-												: cat.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div>
-							<Label htmlFor="sheet-notes">Notes</Label>
-							<Textarea
-								id="sheet-notes"
-								value={notes}
-								onChange={(e) => setNotes(e.target.value)}
-								placeholder="Optional..."
-								rows={1}
-								className="mt-1 min-h-9 resize-none"
-							/>
-						</div>
+					{/* Category */}
+					<div>
+						<Label>Category</Label>
+						<Select
+							value={noteCategory}
+							onValueChange={setNoteCategory}
+						>
+							<SelectTrigger className="mt-1">
+								<SelectValue placeholder="Optional" />
+							</SelectTrigger>
+							<SelectContent>
+								{noteCategories.map((cat) => (
+									<SelectItem
+										key={cat.value}
+										value={cat.value}
+									>
+										{cat.labelAr
+											? `${cat.label} (${cat.labelAr})`
+											: cat.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					{/* Notes — full width */}
+					<div>
+						<Label htmlFor="sheet-notes">Notes</Label>
+						<Textarea
+							id="sheet-notes"
+							value={notes}
+							onChange={(e) => setNotes(e.target.value)}
+							placeholder="Optional..."
+							rows={2}
+							className="mt-1 resize-none"
+						/>
 					</div>
 
 					{stoppedMissingNote && (
@@ -447,7 +451,6 @@ export function PaymentSheet({
 
 					<Button
 						type="submit"
-						variant="ghost"
 						size="lg"
 						className="w-full text-base font-semibold bg-success hover:bg-success/90 text-success-foreground shadow-sm"
 						disabled={
