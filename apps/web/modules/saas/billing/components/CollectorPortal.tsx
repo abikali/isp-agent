@@ -6,8 +6,8 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Skeleton } from "@ui/components/skeleton";
-import { UsersIcon } from "lucide-react";
-import { useState } from "react";
+import { CalendarIcon, UsersIcon, XIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
 	useCurrentMonth,
@@ -41,12 +41,31 @@ export function CollectorPortal() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [groupFilter, setGroupFilter] = useState<string>("");
+	const [expiryFrom, setExpiryFrom] = useState("");
+	const [expiryTo, setExpiryTo] = useState("");
 	const [page, setPage] = useState(1);
 	const [selectedCustomer, setSelectedCustomer] =
 		useState<UnpaidCustomer | null>(null);
 	const { data: currentMonthData } = useCurrentMonth();
 	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
+
+	// Clamp date pickers to active month boundaries
+	const monthBounds = useMemo(() => {
+		if (!activeMonth) {
+			return { min: "", max: "" };
+		}
+		const y = activeMonth.year;
+		const m = activeMonth.month;
+		const start = new Date(y, m - 1, 1);
+		const end = new Date(y, m, 0);
+		return {
+			min: start.toISOString().slice(0, 10),
+			max: end.toISOString().slice(0, 10),
+		};
+	}, [activeMonth]);
+
+	const hasDateFilter = expiryFrom || expiryTo;
 
 	const { customers, total, totalPages } = useUnpaidCustomers({
 		year: activeMonth?.year,
@@ -55,6 +74,8 @@ export function CollectorPortal() {
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,
 		excludeGroupName: groupFilter ? undefined : "free",
+		expiryFrom: expiryFrom || undefined,
+		expiryTo: expiryTo || undefined,
 		page,
 		pageSize: 50,
 		refetchInterval: POLL_INTERVAL,
@@ -66,26 +87,80 @@ export function CollectorPortal() {
 			<StatsStrip />
 
 			{/* Filters */}
-			<div className="flex gap-2">
-				<SearchInput
-					value={search}
-					onChange={(val) => {
-						setSearch(val);
-						setPage(1);
-					}}
-					placeholder="Search customers..."
-					className="flex-1"
-				/>
-				<GroupSelect
-					value={groupFilter}
-					onChange={(val) => {
-						setGroupFilter(val);
-						setPage(1);
-					}}
-					groups={groups}
-					excludeFree
-					className="w-[140px]"
-				/>
+			<div className="space-y-2">
+				<div className="flex gap-2">
+					<SearchInput
+						value={search}
+						onChange={(val) => {
+							setSearch(val);
+							setPage(1);
+						}}
+						placeholder="Search customers..."
+						className="flex-1"
+					/>
+					<GroupSelect
+						value={groupFilter}
+						onChange={(val) => {
+							setGroupFilter(val);
+							setPage(1);
+						}}
+						groups={groups}
+						excludeFree
+						className="w-[140px]"
+					/>
+				</div>
+
+				{/* Date range filter */}
+				<div className="flex items-center gap-2">
+					<div className="relative flex-1">
+						<CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+						<input
+							type="date"
+							value={expiryFrom}
+							min={monthBounds.min}
+							max={expiryTo || monthBounds.max}
+							onChange={(e) => {
+								setExpiryFrom(e.target.value);
+								setPage(1);
+							}}
+							className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pl-8 pr-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							aria-label="From date"
+						/>
+					</div>
+					<span className="shrink-0 text-xs text-muted-foreground">
+						to
+					</span>
+					<div className="relative flex-1">
+						<CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+						<input
+							type="date"
+							value={expiryTo}
+							min={expiryFrom || monthBounds.min}
+							max={monthBounds.max}
+							onChange={(e) => {
+								setExpiryTo(e.target.value);
+								setPage(1);
+							}}
+							className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pl-8 pr-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+							aria-label="To date"
+						/>
+					</div>
+					{hasDateFilter && (
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-9 shrink-0"
+							onClick={() => {
+								setExpiryFrom("");
+								setExpiryTo("");
+								setPage(1);
+							}}
+							aria-label="Clear dates"
+						>
+							<XIcon className="size-4" />
+						</Button>
+					)}
+				</div>
 			</div>
 
 			{/* Customer count */}
