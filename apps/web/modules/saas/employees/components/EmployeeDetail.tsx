@@ -109,6 +109,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 				: "",
 			status: employee.status,
 			preferredLayout: employee.preferredLayout ?? "standard",
+			telegramChatId: employee.telegramChatId ?? "",
 			notes: employee.notes ?? "",
 		},
 		onSubmit: async ({ value }) => {
@@ -136,6 +137,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 					preferredLayout: value.preferredLayout as
 						| "standard"
 						| "collector",
+					telegramChatId: value.telegramChatId || null,
 					notes: value.notes || null,
 				}),
 				{
@@ -249,13 +251,20 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 							icon: UserIcon,
 							content: (
 								<>
-									<DetailSection title="Personal Information">
+									{/* ── Personal Information ── */}
+									<DetailSection
+										title="Personal Information"
+										description="Basic contact details for this employee."
+									>
 										<FieldGroup columns={3}>
 											<form.Field name="name">
 												{(field) => (
 													<div className="space-y-2">
-														<Label>Name</Label>
+														<Label htmlFor="emp-name">
+															Name *
+														</Label>
 														<Input
+															id="emp-name"
 															value={
 																field.state
 																	.value
@@ -266,6 +275,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																		.value,
 																)
 															}
+															placeholder="Full name"
 														/>
 													</div>
 												)}
@@ -274,15 +284,11 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 												name="email"
 												validators={{
 													onBlur: ({ value }) => {
-														const normalizedValue =
-															value.trim();
-														if (!normalizedValue) {
+														const v = value.trim();
+														if (!v) {
 															return undefined;
 														}
-
-														return isValidEmail(
-															normalizedValue,
-														)
+														return isValidEmail(v)
 															? undefined
 															: "Please enter a valid email address";
 													},
@@ -294,11 +300,13 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 															.isTouched &&
 														field.state.meta.errors
 															.length > 0;
-
 													return (
 														<div className="space-y-2">
-															<Label>Email</Label>
+															<Label htmlFor="emp-email">
+																Email
+															</Label>
 															<Input
+																id="emp-email"
 																type="email"
 																value={
 																	field.state
@@ -317,6 +325,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																	hasErrors ||
 																	undefined
 																}
+																placeholder="email@example.com"
 															/>
 															{hasErrors && (
 																<FieldError
@@ -335,8 +344,11 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 											<form.Field name="phone">
 												{(field) => (
 													<div className="space-y-2">
-														<Label>Phone</Label>
+														<Label htmlFor="emp-phone">
+															Phone
+														</Label>
 														<Input
+															id="emp-phone"
 															value={
 																field.state
 																	.value
@@ -347,6 +359,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																		.value,
 																)
 															}
+															placeholder="+961 ..."
 														/>
 													</div>
 												)}
@@ -354,13 +367,20 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 										</FieldGroup>
 									</DetailSection>
 
-									<DetailSection title="Employment">
+									{/* ── Employment Details ── */}
+									<DetailSection
+										title="Employment"
+										description="Role, department, and employment status."
+									>
 										<FieldGroup columns={2}>
 											<form.Field name="position">
 												{(field) => (
 													<div className="space-y-2">
-														<Label>Position</Label>
+														<Label htmlFor="emp-position">
+															Position
+														</Label>
 														<Input
+															id="emp-position"
 															value={
 																field.state
 																	.value
@@ -371,6 +391,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 																		.value,
 																)
 															}
+															placeholder="e.g. Network Technician"
 														/>
 													</div>
 												)}
@@ -391,7 +412,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 															}
 														>
 															<SelectTrigger>
-																<SelectValue placeholder="None" />
+																<SelectValue placeholder="Select department" />
 															</SelectTrigger>
 															<SelectContent>
 																{EMPLOYEE_DEPARTMENT_OPTIONS.map(
@@ -418,8 +439,11 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 											<form.Field name="hireDate">
 												{(field) => (
 													<div className="space-y-2">
-														<Label>Hire Date</Label>
+														<Label htmlFor="emp-hire">
+															Hire Date
+														</Label>
 														<Input
+															id="emp-hire"
 															type="date"
 															value={
 																field.state
@@ -477,6 +501,15 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 													</div>
 												)}
 											</form.Field>
+										</FieldGroup>
+									</DetailSection>
+
+									{/* ── Portal & Notifications ── */}
+									<DetailSection
+										title="Portal & Notifications"
+										description="Configure how this employee interacts with the system."
+									>
+										<FieldGroup columns={2}>
 											<form.Field name="preferredLayout">
 												{(field) => (
 													<div className="space-y-2">
@@ -516,9 +549,38 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 													</div>
 												)}
 											</form.Field>
+											<form.Field name="telegramChatId">
+												{(field) => (
+													<div className="space-y-2">
+														<Label htmlFor="emp-telegram">
+															Telegram Chat ID
+														</Label>
+														<Input
+															id="emp-telegram"
+															value={
+																field.state
+																	.value
+															}
+															onChange={(e) =>
+																field.handleChange(
+																	e.target
+																		.value,
+																)
+															}
+															placeholder="e.g. 123456789"
+														/>
+														<p className="text-xs text-muted-foreground">
+															Used to send
+															notifications via
+															Telegram bot.
+														</p>
+													</div>
+												)}
+											</form.Field>
 										</FieldGroup>
 									</DetailSection>
 
+									{/* ── Notes ── */}
 									<DetailSection title="Notes">
 										<form.Field name="notes">
 											{(field) => (
@@ -530,38 +592,58 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 														)
 													}
 													rows={3}
-													placeholder="Add notes..."
+													placeholder="Internal notes about this employee..."
 												/>
 											)}
 										</form.Field>
 									</DetailSection>
 
-									{employee.externalId && (
-										<DetailSection title="iRadius Info">
+									{/* ── iRadius / External System Info (read-only) ── */}
+									{(employee.externalId ||
+										employee.dealer) && (
+										<DetailSection
+											title="External System"
+											description="Synced from iRadius. These fields are read-only."
+										>
 											<PropertyList
 												columns={3}
 												items={[
-													{
-														label: "External ID",
-														value: employee.externalId,
-														mono: true,
-													},
-													{
-														label: "Username",
-														value: employee.username,
-														mono: true,
-													},
-													{
-														label: "iRadius Profile",
-														value: employee.iRadiusProfile,
-													},
-													{
-														label: "Dealer",
-														value: employee.dealer
-															? employee.dealer
-																	.name
-															: null,
-													},
+													...(employee.externalId
+														? [
+																{
+																	label: "External ID",
+																	value: employee.externalId,
+																	mono: true,
+																},
+															]
+														: []),
+													...(employee.username
+														? [
+																{
+																	label: "Username",
+																	value: employee.username,
+																	mono: true,
+																},
+															]
+														: []),
+													...(employee.iRadiusProfile
+														? [
+																{
+																	label: "iRadius Profile",
+																	value: employee.iRadiusProfile,
+																},
+															]
+														: []),
+													...(employee.dealer
+														? [
+																{
+																	label: "Dealer",
+																	value: employee
+																		.dealer
+																		.name,
+																},
+															]
+														: []),
 												]}
 											/>
 										</DetailSection>
@@ -580,6 +662,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 								<>
 									<DetailSection
 										title="Assigned Stations"
+										description="Stations this employee can access and manage."
 										action={
 											<Button
 												variant="outline"
@@ -632,7 +715,10 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 										)}
 									</DetailSection>
 
-									<DetailSection title="Assigned Tasks">
+									<DetailSection
+										title="Assigned Tasks"
+										description="Recent tasks assigned to this employee."
+									>
 										{employee.taskAssignments.length ===
 										0 ? (
 											<p className="text-sm text-muted-foreground">

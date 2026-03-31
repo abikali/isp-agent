@@ -40,6 +40,7 @@ export const updateEmployee = protectedProcedure
 			status: z.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"]).optional(),
 			notes: z.string().max(5000).nullable().optional(),
 			preferredLayout: z.enum(["standard", "collector"]).optional(),
+			telegramChatId: z.string().max(100).nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -114,6 +115,9 @@ export const updateEmployee = protectedProcedure
 		}
 		if (input.preferredLayout !== undefined) {
 			updateData["preferredLayout"] = input.preferredLayout;
+		}
+		if (input.telegramChatId !== undefined) {
+			updateData["telegramChatId"] = input.telegramChatId ?? null;
 		}
 
 		const employee = await db.employee.update({
