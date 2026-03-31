@@ -91,10 +91,10 @@ export const getCollectorStats = protectedProcedure
 					{ collectorId, dealerFilter },
 				),
 			}),
-			// Paid customers this month: distinct customerIds with a non-stopped payment
+			// Paid customers this month: distinct customerIds with any payment
+			// (includes stopped — if they paid, it counts)
 			countPaidCustomers(input.organizationId, activeMonth.id, {
 				collectorId,
-				stoppedAccount: false,
 				...dealerViaCustomer,
 			}),
 			// Stopped customers this month: distinct customerIds with stoppedAccount payment
@@ -127,8 +127,8 @@ export const getCollectorStats = protectedProcedure
 			}),
 		]);
 
-		// Stopped customers are excluded from the denominator — they're no
-		// longer expected to pay, so the ratio is "paid / those who owe".
+		// Stopped+paid customers count as "paid" (collector has the cash).
+		// unpaidCustomersWhere already excludes anyone with a payment (including stopped).
 		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		return {
