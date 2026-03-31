@@ -57,48 +57,55 @@ function parsePhone(value: string): { dialCode: string; localNumber: string } {
 	if (digits.startsWith("+")) {
 		for (const dc of DIAL_CODES_DESC) {
 			if (digits.startsWith(dc)) {
-				return { dialCode: dc, localNumber: digits.slice(dc.length) };
+				let local = digits.slice(dc.length);
+				// Re-add trunk prefix for Lebanese numbers stored without it
+				if (
+					dc === "+961" &&
+					local.length > 0 &&
+					!local.startsWith("0")
+				) {
+					local = `0${local}`;
+				}
+				return { dialCode: dc, localNumber: local };
 			}
 		}
 		// Unknown prefix — keep as-is with default code
 		return { dialCode: "+961", localNumber: digits.replace(/^\+/, "") };
 	}
 
-	// No + prefix — assume Lebanon
-	const raw = digits.replace(/^0/, ""); // strip leading 0
-	return { dialCode: "+961", localNumber: raw };
+	// No + prefix — keep local number as-is (preserve leading 0)
+	return { dialCode: "+961", localNumber: digits };
 }
 
 /**
- * Normalize a phone number to international format.
- * "70442737" → "+96170442737"
+ * Convert a phone value to proper international format.
+ * Strips trunk prefix (leading 0) from the local number.
+ * "+96103123456" → "+9613123456", "03123456" → "+9613123456"
  */
 function toInternationalPhone(phone: string): string {
 	const { dialCode, localNumber } = parsePhone(phone);
-	return `${dialCode}${localNumber}`;
+	const stripped = localNumber.replace(/^0/, "");
+	return `${dialCode}${stripped}`;
 }
 
 /**
- * Strip all non-digit chars except leading +.
- * "+961 70 442 737" → "+96170442737"
+ * Strip formatting and normalize to international format for storage/API use.
+ * "+961 03 123 456" → "+9613123456"
  */
 function stripPhone(phone: string): string {
-	const cleaned = phone.replace(/[\s\-()]/g, "");
-	if (cleaned.startsWith("+")) {
-		return `+${cleaned.slice(1).replace(/\D/g, "")}`;
-	}
-	return cleaned.replace(/\D/g, "");
+	return toInternationalPhone(phone);
 }
 
 /** Validate a phone number for the detected country using libphonenumber-js */
 function isValidPhone(phone: string): boolean {
-	const { dialCode, localNumber } = parsePhone(phone);
-	if (localNumber.replace(/\D/g, "").length === 0) {
+	const international = toInternationalPhone(phone);
+	if (international.replace(/\D/g, "").length <= 3) {
 		return false;
 	}
+	const { dialCode } = parsePhone(phone);
 	const country = COUNTRY_CODES.find((c) => c.dialCode === dialCode);
 	return isValidPhoneNumber(
-		`${dialCode}${localNumber}`,
+		international,
 		country?.code as Parameters<typeof isValidPhoneNumber>[1],
 	);
 }
