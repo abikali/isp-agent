@@ -2,7 +2,6 @@
 
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
-import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -17,11 +16,8 @@ import {
 	MessageCircleIcon,
 	NavigationIcon,
 	PhoneIcon,
-	SendIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
-import { useRequestLocation } from "../hooks/use-billing";
 import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 
@@ -90,9 +86,6 @@ function CopyButton({ value }: { value: string }) {
 
 export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const [expanded, setExpanded] = useState(false);
-	const organizationId = useOrganizationId();
-	const requestLocation = useRequestLocation();
-
 	const name = displayName(customer.firstName, customer.lastName);
 	const monthlyDue = customerMonthlyDue(customer);
 	const totalDue = customer.accumulatedDue ?? monthlyDue;
@@ -128,6 +121,11 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 								{expiryDateLabel || "No expiry"}
 							</span>
 						</div>
+						{customer.address && (
+							<p className="mt-1 truncate text-sm text-muted-foreground">
+								{customer.address}
+							</p>
+						)}
 					</div>
 					<div className="text-right shrink-0">
 						<p className="text-xs text-muted-foreground">
@@ -254,48 +252,6 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 										<NavigationIcon className="mr-1.5 size-3.5" />
 										Get Directions
 									</a>
-								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									className="flex-1"
-									disabled={requestLocation.isPending}
-									onClick={() => {
-										if (!organizationId) {
-											return;
-										}
-										requestLocation.mutate(
-											{
-												organizationId,
-												customerId: customer.id,
-											},
-											{
-												onSuccess: (data) => {
-													if (data.success) {
-														toast.success(
-															"Location sent to Telegram",
-														);
-													} else {
-														window.open(
-															data.mapsLink,
-															"_blank",
-														);
-														toast.info(
-															"Telegram not available, opened Maps",
-														);
-													}
-												},
-												onError: (error) => {
-													toast.error(error.message);
-												},
-											},
-										);
-									}}
-								>
-									<SendIcon className="mr-1.5 size-3.5" />
-									{requestLocation.isPending
-										? "Sending..."
-										: "Send to Telegram"}
 								</Button>
 							</div>
 						)}
