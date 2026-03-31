@@ -126,35 +126,23 @@ export function customersDueThisMonthWhere(
 	const where: Record<string, unknown> = {
 		organizationId,
 		...EXCLUDE_FREE_GROUP,
-		AND: [
-			// Either active, or inactive but paid real money (stopped-with-pay)
-			{
-				OR: [
-					{ status: "ACTIVE" },
-					{
-						payments: {
-							some: {
-								billingMonthId,
-								paidAmount: { gt: 0 },
-							},
-						},
+		AND: {
+			OR: [
+				// Unpaid customers due this month (active, expiry in range, no payment)
+				{
+					status: "ACTIVE",
+					expiresAt: monthRange,
+					payments: { none: { billingMonthId } },
+				},
+				// Customers who actually paid real money (any status — covers
+				// stopped-with-pay, free-with-pay, and normal payments)
+				{
+					payments: {
+						some: { billingMonthId, paidAmount: { gt: 0 } },
 					},
-				],
-			},
-			// Due this month (expiry in range) or already has a payment
-			{
-				OR: [
-					{ expiresAt: monthRange },
-					{
-						payments: {
-							some: {
-								billingMonthId,
-							},
-						},
-					},
-				],
-			},
-		],
+				},
+			],
+		},
 	};
 
 	if (opts?.collectorId) {
