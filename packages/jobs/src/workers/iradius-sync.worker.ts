@@ -81,20 +81,28 @@ function kbpsToMbps(kbps: unknown): number {
  * Pre-fetch the current max sequential number for the org, then return
  * a synchronous function that increments a counter in memory.
  * Avoids N+1 queries (one per record).
+ *
+ * Uses numeric extraction instead of string sorting to avoid
+ * lexicographic issues (e.g. "EMP-1" sorting after "EMP-00050").
  */
 async function createNumberGenerator(config: {
 	organizationId: string;
 	prefix: string;
-	findLast: (orgId: string) => Promise<string | null>;
+	findAll: (orgId: string) => Promise<string[]>;
 }): Promise<() => string> {
-	const lastValue = await config.findLast(config.organizationId);
-	let nextNumber = 1;
-	if (lastValue) {
-		const match = lastValue.match(new RegExp(`${config.prefix}-(\\d+)`));
+	const allValues = await config.findAll(config.organizationId);
+	const pattern = new RegExp(`${config.prefix}-(\\d+)`);
+	let maxNumber = 0;
+	for (const value of allValues) {
+		const match = value.match(pattern);
 		if (match?.[1]) {
-			nextNumber = Number.parseInt(match[1], 10) + 1;
+			const num = Number.parseInt(match[1], 10);
+			if (num > maxNumber) {
+				maxNumber = num;
+			}
 		}
 	}
+	let nextNumber = maxNumber + 1;
 	return () => {
 		const num = nextNumber;
 		nextNumber++;
@@ -108,13 +116,12 @@ async function createAccountNumberGenerator(
 	return createNumberGenerator({
 		organizationId,
 		prefix: "ACC",
-		findLast: async (orgId) => {
-			const last = await db.customer.findFirst({
+		findAll: async (orgId) => {
+			const rows = await db.customer.findMany({
 				where: { organizationId: orgId },
-				orderBy: { accountNumber: "desc" },
 				select: { accountNumber: true },
 			});
-			return last?.accountNumber ?? null;
+			return rows.map((r) => r.accountNumber);
 		},
 	});
 }
@@ -125,13 +132,12 @@ async function createEmployeeNumberGenerator(
 	return createNumberGenerator({
 		organizationId,
 		prefix: "EMP",
-		findLast: async (orgId) => {
-			const last = await db.employee.findFirst({
+		findAll: async (orgId) => {
+			const rows = await db.employee.findMany({
 				where: { organizationId: orgId },
-				orderBy: { employeeNumber: "desc" },
 				select: { employeeNumber: true },
 			});
-			return last?.employeeNumber ?? null;
+			return rows.map((r) => r.employeeNumber);
 		},
 	});
 }
