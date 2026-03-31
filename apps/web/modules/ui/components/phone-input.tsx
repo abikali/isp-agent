@@ -9,6 +9,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { cn } from "@ui/lib";
+import { isValidPhoneNumber } from "libphonenumber-js";
 
 const COUNTRY_CODES = [
 	{
@@ -89,11 +90,17 @@ function stripPhone(phone: string): string {
 	return cleaned.replace(/\D/g, "");
 }
 
-/** Check if a phone value has enough digits to be valid */
+/** Validate a phone number for the detected country using libphonenumber-js */
 function isValidPhone(phone: string): boolean {
-	const { localNumber } = parsePhone(phone);
-	const digits = localNumber.replace(/\D/g, "");
-	return digits.length >= 6;
+	const { dialCode, localNumber } = parsePhone(phone);
+	if (localNumber.replace(/\D/g, "").length === 0) {
+		return false;
+	}
+	const country = COUNTRY_CODES.find((c) => c.dialCode === dialCode);
+	return isValidPhoneNumber(
+		`${dialCode}${localNumber}`,
+		country?.code as Parameters<typeof isValidPhoneNumber>[1],
+	);
 }
 
 interface PhoneInputProps {

@@ -113,6 +113,7 @@ export function PaymentSheet({
 		: 0;
 
 	const stoppedMissingNote = stoppedAccount && !noteCategory && !notes.trim();
+	const freeMissingNote = freeAccount && !noteCategory && !notes.trim();
 
 	const amountNum = parseAmount(paidAmount);
 	const isAmountMismatch =
@@ -224,9 +225,13 @@ export function PaymentSheet({
 		e.preventDefault();
 		const amount = parseAmount(paidAmount);
 		confirm({
-			title: `Collect ${formatCurrency(amount)}?`,
-			message: `From ${name}. This cannot be undone.`,
-			confirmLabel: "Confirm Payment",
+			title: stoppedAccount
+				? "Stop account?"
+				: `Collect ${formatCurrency(amount)}?`,
+			message: stoppedAccount
+				? `Mark ${name} as stopped. This cannot be undone.`
+				: `From ${name}. This cannot be undone.`,
+			confirmLabel: stoppedAccount ? "Confirm Stop" : "Confirm Payment",
 			onConfirm: () => handleAfterConfirm(),
 		});
 	}
@@ -352,6 +357,7 @@ export function PaymentSheet({
 									onChange={(e) =>
 										setPaidAmount(e.target.value)
 									}
+									disabled={stoppedAccount}
 									className="mt-1 h-11 text-xl font-bold tabular-nums"
 								/>
 							</div>
@@ -389,7 +395,23 @@ export function PaymentSheet({
 									<Switch
 										id="sheet-stoppedAccount"
 										checked={stoppedAccount}
-										onCheckedChange={setStoppedAccount}
+										onCheckedChange={(checked) => {
+											setStoppedAccount(checked);
+											if (checked) {
+												setPaidAmount("0");
+											} else if (customer) {
+												setPaidAmount(
+													String(
+														calculateTotalDue(
+															customer,
+															{
+																freeAccount,
+															},
+														),
+													),
+												);
+											}
+										}}
 									/>
 									<span className="text-sm">Stopped</span>
 								</label>
@@ -402,51 +424,68 @@ export function PaymentSheet({
 								Phone{" "}
 								<span className="text-destructive">*</span>
 							</Label>
-							{phones.map((phone, index) => (
-								<div
-									key={index}
-									className="flex items-center gap-1.5"
-								>
-									<PhoneInput
-										value={phone.number}
-										onChange={(val) =>
-											updatePhone(index, val)
-										}
-										className="flex-1 min-w-0"
-									/>
-									<Button
-										type="button"
-										variant={
-											phone.primary
-												? "primary"
-												: "outline"
-										}
-										size="sm"
-										className="shrink-0 h-9 text-xs px-2"
-										title={
-											phone.primary
-												? "Primary number"
-												: "Set as primary"
-										}
-										onClick={() => setPrimary(index)}
-									>
-										{phone.primary
-											? "Primary"
-											: "Set primary"}
-									</Button>
-									{phones.length > 1 && (
-										<Button
-											type="button"
-											variant="outline"
-											size="icon"
-											className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
-											onClick={() => removePhone(index)}
-										>
-											<XIcon className="size-4" />
-										</Button>
-									)}
-								</div>
-							))}
+							{phones.map((phone, index) => {
+								const hasValue =
+									stripPhone(phone.number).length > 0;
+								const invalid =
+									hasValue && !isValidPhone(phone.number);
+								return (
+									<div key={index} className="space-y-1">
+										<div className="flex items-center gap-1.5">
+											<PhoneInput
+												value={phone.number}
+												onChange={(val) =>
+													updatePhone(index, val)
+												}
+												className="flex-1 min-w-0"
+												aria-invalid={
+													invalid || undefined
+												}
+											/>
+											<Button
+												type="button"
+												variant={
+													phone.primary
+														? "primary"
+														: "outline"
+												}
+												size="sm"
+												className="shrink-0 h-9 text-xs px-2"
+												title={
+													phone.primary
+														? "Primary number"
+														: "Set as primary"
+												}
+												onClick={() =>
+													setPrimary(index)
+												}
+											>
+												{phone.primary
+													? "Primary"
+													: "Set primary"}
+											</Button>
+											{phones.length > 1 && (
+												<Button
+													type="button"
+													variant="outline"
+													size="icon"
+													className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
+													onClick={() =>
+														removePhone(index)
+													}
+												>
+													<XIcon className="size-4" />
+												</Button>
+											)}
+										</div>
+										{invalid && (
+											<p className="text-xs text-destructive">
+												Invalid phone number
+											</p>
+										)}
+									</div>
+								);
+							})}
 							{phones.length < MAX_PHONES && (
 								<Button
 									type="button"
@@ -510,6 +549,12 @@ export function PaymentSheet({
 							</p>
 						)}
 
+						{freeMissingNote && (
+							<p className="text-xs font-medium text-destructive">
+								Note required for free accounts
+							</p>
+						)}
+
 						{mismatchMissingNote && (
 							<p className="text-xs font-medium text-destructive">
 								Note required when amount differs from total due
@@ -523,6 +568,7 @@ export function PaymentSheet({
 							disabled={
 								createPayment.isPending ||
 								stoppedMissingNote ||
+								freeMissingNote ||
 								mismatchMissingNote ||
 								!hasValidPhone
 							}
