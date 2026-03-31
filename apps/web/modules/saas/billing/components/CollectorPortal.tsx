@@ -6,7 +6,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Skeleton } from "@ui/components/skeleton";
-import { CalendarIcon, UsersIcon, XIcon } from "lucide-react";
+import { UsersIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
 	useCollectorStats,
@@ -41,8 +41,7 @@ export function CollectorPortal() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [groupFilter, setGroupFilter] = useState<string>("");
-	const [expiryFrom, setExpiryFrom] = useState("");
-	const [expiryTo, setExpiryTo] = useState("");
+	const [selectedDay, setSelectedDay] = useState<number | null>(null);
 	const [page, setPage] = useState(1);
 	const [selectedCustomer, setSelectedCustomer] =
 		useState<UnpaidCustomer | null>(null);
@@ -50,22 +49,33 @@ export function CollectorPortal() {
 	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
 
-	// Clamp date pickers to active month boundaries
-	const monthBounds = useMemo(() => {
+	// Build list of days in the active month
+	const monthDays = useMemo(() => {
 		if (!activeMonth) {
-			return { min: "", max: "" };
+			return [];
 		}
-		const y = activeMonth.year;
-		const m = activeMonth.month;
-		const start = new Date(y, m - 1, 1);
-		const end = new Date(y, m, 0);
-		return {
-			min: start.toISOString().slice(0, 10),
-			max: end.toISOString().slice(0, 10),
-		};
+		const daysInMonth = new Date(
+			activeMonth.year,
+			activeMonth.month,
+			0,
+		).getDate();
+		const days: { day: number; label: string; weekday: string }[] = [];
+		for (let d = 1; d <= daysInMonth; d++) {
+			const date = new Date(activeMonth.year, activeMonth.month - 1, d);
+			days.push({
+				day: d,
+				label: String(d),
+				weekday: date.toLocaleDateString("en-US", { weekday: "short" }),
+			});
+		}
+		return days;
 	}, [activeMonth]);
 
-	const hasDateFilter = expiryFrom || expiryTo;
+	// Convert selected day to expiry date string
+	const expiryDate =
+		selectedDay && activeMonth
+			? `${activeMonth.year}-${String(activeMonth.month).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`
+			: undefined;
 
 	const { customers, total, totalPages } = useUnpaidCustomers({
 		year: activeMonth?.year,
@@ -74,8 +84,8 @@ export function CollectorPortal() {
 		search: debouncedSearch || undefined,
 		groupName: groupFilter || undefined,
 		excludeGroupName: groupFilter ? undefined : "free",
-		expiryFrom: expiryFrom || undefined,
-		expiryTo: expiryTo || undefined,
+		expiryFrom: expiryDate,
+		expiryTo: expiryDate,
 		page,
 		pageSize: 50,
 		refetchInterval: POLL_INTERVAL,
@@ -110,57 +120,54 @@ export function CollectorPortal() {
 					/>
 				</div>
 
-				{/* Date range filter */}
-				<div className="flex items-center gap-2">
-					<div className="relative flex-1">
-						<CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-						<input
-							type="date"
-							value={expiryFrom}
-							min={monthBounds.min}
-							max={expiryTo || monthBounds.max}
-							onChange={(e) => {
-								setExpiryFrom(e.target.value);
-								setPage(1);
-							}}
-							className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pl-8 pr-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-							aria-label="From date"
-						/>
+				{/* Day picker — horizontal scroll of days in the active month */}
+				{monthDays.length > 0 && (
+					<div className="-mx-4 px-4">
+						<div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+							<button
+								type="button"
+								onClick={() => {
+									setSelectedDay(null);
+									setPage(1);
+								}}
+								className={`flex shrink-0 flex-col items-center rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+									selectedDay === null
+										? "bg-primary text-primary-foreground"
+										: "bg-muted/60 text-muted-foreground"
+								}`}
+							>
+								<span className="text-[10px]">All</span>
+								<span className="text-sm font-semibold">
+									&bull;
+								</span>
+							</button>
+							{monthDays.map(({ day, label, weekday }) => (
+								<button
+									key={day}
+									type="button"
+									onClick={() => {
+										setSelectedDay(
+											selectedDay === day ? null : day,
+										);
+										setPage(1);
+									}}
+									className={`flex shrink-0 flex-col items-center rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
+										selectedDay === day
+											? "bg-primary text-primary-foreground"
+											: "bg-muted/60 text-muted-foreground"
+									}`}
+								>
+									<span className="text-[10px]">
+										{weekday}
+									</span>
+									<span className="text-sm font-semibold">
+										{label}
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
-					<span className="shrink-0 text-xs text-muted-foreground">
-						to
-					</span>
-					<div className="relative flex-1">
-						<CalendarIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-						<input
-							type="date"
-							value={expiryTo}
-							min={expiryFrom || monthBounds.min}
-							max={monthBounds.max}
-							onChange={(e) => {
-								setExpiryTo(e.target.value);
-								setPage(1);
-							}}
-							className="flex h-9 w-full rounded-md border border-input bg-transparent py-1 pl-8 pr-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-							aria-label="To date"
-						/>
-					</div>
-					{hasDateFilter && (
-						<Button
-							variant="ghost"
-							size="icon"
-							className="size-9 shrink-0"
-							onClick={() => {
-								setExpiryFrom("");
-								setExpiryTo("");
-								setPage(1);
-							}}
-							aria-label="Clear dates"
-						>
-							<XIcon className="size-4" />
-						</Button>
-					)}
-				</div>
+				)}
 			</div>
 
 			{/* Customer count */}
