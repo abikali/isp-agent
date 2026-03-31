@@ -90,9 +90,11 @@ export const listCollectors = protectedProcedure
 			{ collectedMap, handedOffMap },
 			monthPayments,
 			monthDueByCollector,
+			stoppedByCollector,
 		] = await Promise.all([
 			// Balance: physical cash only (workerId: null), not dealer-scoped
 			fetchCollectorBalanceBatch(input.organizationId, collectorIds),
+			// Collected this month: only payments with real money (excludes stopped-no-pay)
 			db.payment.groupBy({
 				by: ["collectorId"],
 				where: {
@@ -100,11 +102,12 @@ export const listCollectors = protectedProcedure
 					collectorId: { in: collectorIds },
 					billingMonthId: activeMonth.id,
 					status: "COLLECTED",
+					paidAmount: { gt: 0 },
 					...dealerViaCustomer,
 				},
 				_count: true,
 			}),
-			// Customers due this month per collector (expiry in month + paid this month)
+			// Customers due this month per collector (includes stopped-with-pay)
 			db.customer.groupBy({
 				by: ["collectorId"],
 				where: customersDueThisMonthWhere(
@@ -115,6 +118,18 @@ export const listCollectors = protectedProcedure
 				),
 				_count: true,
 			}),
+			// Stopped accounts this month per collector (for admin badge)
+			db.payment.groupBy({
+				by: ["collectorId"],
+				where: {
+					organizationId: input.organizationId,
+					collectorId: { in: collectorIds },
+					billingMonthId: activeMonth.id,
+					stoppedAccount: true,
+					...dealerViaCustomer,
+				},
+				_count: true,
+			}),
 		]);
 
 		const monthPaymentsMap = new Map(
@@ -122,6 +137,9 @@ export const listCollectors = protectedProcedure
 		);
 		const monthDueMap = new Map(
 			monthDueByCollector.map((c) => [c.collectorId, c._count]),
+		);
+		const stoppedMap = new Map(
+			stoppedByCollector.map((c) => [c.collectorId, c._count]),
 		);
 
 		return {
@@ -138,6 +156,7 @@ export const listCollectors = protectedProcedure
 					inHand: collectorBalance(totalCollected, totalHandedOff),
 					monthCollected: monthPaymentsMap.get(c.id) ?? 0,
 					monthTotal: monthDueMap.get(c.id) ?? 0,
+					stoppedCount: stoppedMap.get(c.id) ?? 0,
 				};
 			}),
 		};
