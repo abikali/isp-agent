@@ -405,8 +405,9 @@ export function PaymentSheet({
 
 					<Button
 						type="submit"
+						variant="ghost"
 						size="lg"
-						className="w-full text-base font-semibold bg-green-600 hover:bg-green-700"
+						className="w-full text-base font-semibold bg-green-600 hover:bg-green-700 text-white shadow-sm"
 						disabled={
 							createPayment.isPending ||
 							stoppedMissingNote ||
