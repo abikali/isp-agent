@@ -9,7 +9,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { cn } from "@ui/lib";
-import { isValidPhoneNumber } from "libphonenumber-js";
+import { isValidPhoneNumber } from "libphonenumber-js/max";
 
 const COUNTRY_CODES = [
 	{
