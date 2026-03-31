@@ -443,6 +443,10 @@ export function useRequestLocation() {
 	return useMutation(orpc.billing.location.request.mutationOptions());
 }
 
+export function useNotifyLocationNeeded() {
+	return useMutation(orpc.billing.location.notifyNeeded.mutationOptions());
+}
+
 // ─── Delete Payment ─────────────────────────────────────────────
 
 export function useDeletePayment() {

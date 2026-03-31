@@ -19,6 +19,7 @@ import {
 	listNoteCategories,
 	updateNoteCategory,
 } from "./procedures/note-categories";
+import { notifyLocationNeeded } from "./procedures/notify-location-needed";
 import { getPaymentStats } from "./procedures/payment-stats";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
@@ -68,6 +69,7 @@ export const billingRouter = {
 	},
 	location: {
 		request: requestLocation,
+		notifyNeeded: notifyLocationNeeded,
 	},
 	noteCategories: {
 		list: listNoteCategories,

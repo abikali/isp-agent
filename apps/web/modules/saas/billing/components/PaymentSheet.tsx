@@ -32,7 +32,11 @@ import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
+import {
+	useCreatePayment,
+	useNoteCategories,
+	useNotifyLocationNeeded,
+} from "../hooks/use-billing";
 import {
 	calculateTotalDue,
 	customerMonthlyDue,
@@ -58,6 +62,7 @@ export function PaymentSheet({
 	const organizationId = useOrganizationId();
 	const { employee } = useActiveOrganization();
 	const createPayment = useCreatePayment();
+	const notifyLocation = useNotifyLocationNeeded();
 	const { confirm } = useConfirmationAlert();
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];
@@ -258,6 +263,25 @@ export function PaymentSheet({
 					doSubmit({ latitude, longitude });
 				}}
 				onSkip={() => {
+					const collectorId = employee?.id ?? customer?.collector?.id;
+					if (organizationId && customer && collectorId) {
+						notifyLocation.mutate(
+							{
+								organizationId,
+								customerId: customer.id,
+								employeeId: collectorId,
+							},
+							{
+								onSuccess: (data) => {
+									if (data.reason === "no-telegram") {
+										toast.error(
+											"Your account has no Telegram ID configured. Ask an admin to set it up.",
+										);
+									}
+								},
+							},
+						);
+					}
 					doSubmit();
 				}}
 			/>

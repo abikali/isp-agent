@@ -134,6 +134,17 @@ export interface WhatsAppReceiptJobResult {
 	success: boolean;
 }
 
+// Telegram location notification job types
+export interface TelegramLocationJobData {
+	employeeId: string;
+	customerId: string;
+	organizationId: string;
+}
+
+export interface TelegramLocationJobResult {
+	success: boolean;
+}
+
 // Billing sync job types
 export interface EmployeeMapping {
 	action: "skip" | "create" | "map";

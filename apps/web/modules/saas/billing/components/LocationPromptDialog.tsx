@@ -8,7 +8,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { CrosshairIcon, LoaderIcon, MapPinIcon } from "lucide-react";
+import { CrosshairIcon, LoaderIcon, MapPinIcon, SendIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 interface LocationPromptDialogProps {
@@ -133,12 +133,13 @@ export function LocationPromptDialog({
 					</Button>
 
 					<Button
-						variant="ghost"
-						size="sm"
-						className="text-muted-foreground"
+						variant="outline"
+						size="lg"
+						className="w-full gap-2 text-muted-foreground"
 						onClick={onSkip}
 					>
-						I'm not at the customer's location
+						<SendIcon className="size-4" />
+						Skip & remind me on Telegram
 					</Button>
 				</div>
 			</DialogContent>

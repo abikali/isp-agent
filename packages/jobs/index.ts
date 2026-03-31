@@ -11,6 +11,7 @@ export {
 export { queueContactSync } from "./src/jobs/integration-sync.jobs";
 export { queueIRadiusSync } from "./src/jobs/iradius-sync.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
+export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
 export {
 	queueWebhooks,
@@ -56,6 +57,11 @@ export {
 	setupScheduledJobs,
 } from "./src/queues/scheduled.queue";
 export {
+	closeTelegramLocationQueue,
+	getTelegramLocationQueue,
+	TELEGRAM_LOCATION_QUEUE_NAME,
+} from "./src/queues/telegram-location.queue";
+export {
 	closeWatcherCheckQueue,
 	getWatcherCheckQueue,
 	WATCHER_CHECK_QUEUE_NAME,
@@ -88,6 +94,8 @@ export type {
 	OrgSetupJobResult,
 	ScheduledJobData,
 	ScheduledJobResult,
+	TelegramLocationJobData,
+	TelegramLocationJobResult,
 	WatcherCheckJobData,
 	WatcherCheckJobResult,
 	WebhookJobData,
@@ -103,6 +111,7 @@ export { createIntegrationSyncWorker } from "./src/workers/integration-sync.work
 export { createIRadiusSyncWorker } from "./src/workers/iradius-sync.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
+export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
 export {
 	createWatcherCheckWorker,
 	type WatcherCheckWorkerDeps,
@@ -120,6 +129,7 @@ import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
 import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
+import { closeTelegramLocationQueue } from "./src/queues/telegram-location.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
 import { closeWebhookQueue } from "./src/queues/webhook.queue";
 import { closeWhatsAppReceiptQueue } from "./src/queues/whatsapp-receipt.queue";
@@ -138,6 +148,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeOrgSetupQueue(),
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),
+		closeTelegramLocationQueue(),
 		closeWhatsAppReceiptQueue(),
 		closeWebhookQueue(),
 	]);
