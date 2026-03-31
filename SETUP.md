@@ -93,29 +93,6 @@ Set `REDIS_URL=redis://localhost:6379` in your `.env` file.
 
 ## Production Deployment
 
-### Docker Deployment
-
-1. Create production environment file:
-
-```bash
-cp .env.example .env.prod
-# Edit .env.prod with production values
-```
-
-2. Build and start services:
-
-```bash
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
-```
-
-3. Run database migrations:
-
-```bash
-docker-compose -f docker-compose.prod.yml run --rm migrate
-```
-
-### Manual Deployment
-
 1. Build the application:
 
 ```bash
