@@ -198,7 +198,7 @@ export function CreateCustomerDialog({
 					}}
 					className="space-y-4"
 				>
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="firstName">
 							{(field) => (
 								<div className="space-y-2">
@@ -233,7 +233,7 @@ export function CreateCustomerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field
 							name="email"
 							validators={{
@@ -291,7 +291,7 @@ export function CreateCustomerDialog({
 						)}
 					</form.Field>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="planId">
 							{(field) => (
 								<div className="space-y-2">
@@ -344,7 +344,7 @@ export function CreateCustomerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="status">
 							{(field) => (
 								<div className="space-y-2">
@@ -401,7 +401,7 @@ export function CreateCustomerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="username">
 							{(field) => (
 								<div className="space-y-2">
@@ -434,7 +434,7 @@ export function CreateCustomerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="monthlyRate">
 							{(field) => (
 								<div className="space-y-2">
