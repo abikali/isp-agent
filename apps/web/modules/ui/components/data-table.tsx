@@ -11,7 +11,7 @@ declare module "@tanstack/react-table" {
 	}
 }
 
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
 import {
 	flexRender,
 	getCoreRowModel,
@@ -64,6 +64,9 @@ interface DataTableProps<TData> {
 
 	/** Content shown when data is empty and not loading */
 	emptyState?: ReactNode;
+
+	/** Per-row className (e.g. for color-coding flagged rows) */
+	getRowClassName?: (row: Row<TData>) => string | undefined;
 
 	/** Additional className for the outer container */
 	className?: string;
@@ -121,6 +124,7 @@ export function DataTable<TData>({
 	isLoading,
 	isFetching,
 	emptyState,
+	getRowClassName,
 	className,
 }: DataTableProps<TData>) {
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -223,7 +227,10 @@ export function DataTable<TData>({
 							rows.map((row) => (
 								<TableRow
 									key={row.id}
-									className="hover:bg-muted/30 transition-colors"
+									className={cn(
+										"hover:bg-muted/30 transition-colors",
+										getRowClassName?.(row),
+									)}
 								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell

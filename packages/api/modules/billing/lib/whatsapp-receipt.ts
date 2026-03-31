@@ -1,18 +1,5 @@
 import { logger } from "@repo/logs";
-
-/**
- * Normalize a Lebanese phone number to international format (961XXXXXXXX).
- */
-function normalizeLebanonPhone(phone: string): string {
-	const digits = phone.replace(/\D/g, "");
-	if (digits.startsWith("961")) {
-		return digits;
-	}
-	if (digits.startsWith("0")) {
-		return `961${digits.slice(1)}`;
-	}
-	return `961${digits}`;
-}
+import { normalizePhone } from "@repo/utils";
 
 /**
  * Send a WhatsApp payment receipt via the WPBox API.
@@ -32,7 +19,7 @@ export async function sendWhatsAppReceipt(params: {
 		return false;
 	}
 
-	const phone = normalizeLebanonPhone(params.phone);
+	const phone = normalizePhone(params.phone);
 	if (phone.length < 10) {
 		logger.warn("[WhatsApp Receipt] Invalid phone number", { phone });
 		return false;

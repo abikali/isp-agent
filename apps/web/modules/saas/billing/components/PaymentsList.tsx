@@ -23,7 +23,7 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
-import { ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
+import { CheckIcon, ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -32,10 +32,14 @@ import {
 	useDeletePayment,
 	useMonthFilter,
 	usePaymentsQuery,
+	useReviewPayment,
 } from "../hooks/use-billing";
 import {
+	FLAG_LEGEND,
+	getPaymentRowClassName,
 	getPaymentStatusLabel,
 	getPaymentStatusVariant,
+	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
@@ -53,9 +57,11 @@ interface PaymentRow {
 	collector: { id: string; name: string };
 	paidAt: string | Date;
 	paidAmount: number;
+	freeAccount: boolean;
 	stoppedAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
+	reviewedAt: string | Date | null;
 }
 
 export function PaymentsList() {
@@ -108,6 +114,10 @@ export function PaymentsList() {
 
 	const organizationId = useOrganizationId();
 	const deletePayment = useDeletePayment();
+	const reviewPayment = useReviewPayment();
+
+	const rowClassName = (row: { original: PaymentRow }) =>
+		getPaymentRowClassName(row.original);
 
 	const hasActiveFilters =
 		stoppedFilter !== undefined ||
@@ -249,6 +259,32 @@ export function PaymentsList() {
 				enableSorting: false,
 				cell: ({ row }) => (
 					<div className="flex items-center gap-1">
+						{organizationId && isUnreviewed(row.original) && (
+							<Button
+								size="sm"
+								variant="ghost"
+								className="text-emerald-600"
+								title="Mark as reviewed"
+								onClick={() =>
+									reviewPayment.mutate(
+										{
+											organizationId,
+											paymentId: row.original.id,
+										},
+										{
+											onSuccess: () =>
+												toast.success(
+													"Marked as reviewed",
+												),
+											onError: (error) =>
+												toast.error(error.message),
+										},
+									)
+								}
+							>
+								<CheckIcon className="size-3.5" />
+							</Button>
+						)}
 						{organizationId && (
 							<AlertDialog>
 								<AlertDialogTrigger asChild>
@@ -310,7 +346,7 @@ export function PaymentsList() {
 				),
 			},
 		],
-		[organizationId, deletePayment],
+		[organizationId, deletePayment, reviewPayment],
 	);
 
 	return (
@@ -394,11 +430,24 @@ export function PaymentsList() {
 					))}
 				</div>
 
+				{/* Legend */}
+				<div className="flex items-center gap-4 text-xs text-muted-foreground">
+					{FLAG_LEGEND.map((f) => (
+						<div key={f.type} className="flex items-center gap-1.5">
+							<span
+								className={`inline-block size-2.5 rounded-sm ${f.className}`}
+							/>
+							<span>{f.label}</span>
+						</div>
+					))}
+				</div>
+
 				<DataTable
 					columns={columns}
 					data={payments}
 					isLoading={isLoading}
 					isFetching={isFetching}
+					getRowClassName={rowClassName}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

@@ -201,6 +201,68 @@ export function getPaymentStatusLabel(stoppedAccount: boolean): string {
 	return stoppedAccount ? "Stopped" : "Collected";
 }
 
+// ─── Payment Flag Detection ──────────────────────────────────
+
+export type PaymentFlagType = "stopped" | "free" | "mismatch";
+
+interface FlaggablePayment {
+	freeAccount: boolean;
+	stoppedAccount: boolean;
+	noteCategory: string | null;
+	reviewedAt: string | Date | null;
+}
+
+/** Determine the flag type for a payment, or null if normal. */
+export function getPaymentFlagType(
+	payment: FlaggablePayment,
+): PaymentFlagType | null {
+	if (payment.stoppedAccount) {
+		return "stopped";
+	}
+	if (payment.freeAccount) {
+		return "free";
+	}
+	if (payment.noteCategory) {
+		return "mismatch";
+	}
+	return null;
+}
+
+/** Whether a payment needs admin review. */
+export function isUnreviewed(payment: FlaggablePayment): boolean {
+	return getPaymentFlagType(payment) !== null && !payment.reviewedAt;
+}
+
+const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
+	stopped: "border-l-4 border-l-destructive bg-destructive/5",
+	free: "border-l-4 border-l-blue-500 bg-blue-500/5",
+	mismatch: "border-l-4 border-l-amber-500 bg-amber-500/5",
+};
+
+/** Row className for a flagged payment (unreviewed gets color, reviewed gets faint). */
+export function getPaymentRowClassName(
+	payment: FlaggablePayment,
+): string | undefined {
+	const flag = getPaymentFlagType(payment);
+	if (!flag) {
+		return undefined;
+	}
+	if (payment.reviewedAt) {
+		return "opacity-60";
+	}
+	return FLAG_ROW_CLASSES[flag];
+}
+
+export const FLAG_LEGEND: {
+	type: PaymentFlagType;
+	label: string;
+	className: string;
+}[] = [
+	{ type: "stopped", label: "Stopped", className: "bg-destructive" },
+	{ type: "free", label: "Free", className: "bg-blue-500" },
+	{ type: "mismatch", label: "Amount Mismatch", className: "bg-amber-500" },
+];
+
 /** Expiry status information for a customer account. */
 export interface ExpiryInfo {
 	diffDays: number;

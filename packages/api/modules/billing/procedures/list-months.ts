@@ -3,6 +3,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
+import { EXCLUDE_STOPPED } from "../lib/filters";
 
 export const listMonths = protectedProcedure
 	.route({
@@ -27,6 +28,7 @@ export const listMonths = protectedProcedure
 		const paymentFilter = {
 			customer: { dealerId: activeDealerId ?? null },
 			status: "COLLECTED" as const,
+			...EXCLUDE_STOPPED,
 		};
 
 		const [months, paymentSums] = await Promise.all([
@@ -46,6 +48,7 @@ export const listMonths = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					status: "COLLECTED",
+					...EXCLUDE_STOPPED,
 					customer: { dealerId: activeDealerId ?? null },
 				},
 				_sum: { paidAmount: true },

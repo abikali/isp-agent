@@ -132,6 +132,12 @@ export const createPayment = protectedProcedure
 			});
 		}
 
+		if (input.freeAccount && input.stoppedAccount) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "A free account cannot be marked as stopped",
+			});
+		}
+
 		// Require a note when paid amount differs from total due
 		const isAmountMismatch =
 			Math.abs(input.paidAmount - totalDue) >= 0.01 &&
@@ -212,16 +218,18 @@ export const createPayment = protectedProcedure
 		});
 
 		// Queue WhatsApp receipt via background worker
-		const phone = input.customerPhones
-			? getPrimaryPhone(input.customerPhones)
-			: (customer.mobile ?? customer.phone);
-		if (phone) {
-			queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
-				(err) =>
-					logger.warn("[WhatsApp Receipt] Failed to queue job", {
-						error: String(err),
-					}),
-			);
+		if (!input.stoppedAccount || input.paidAmount > 0) {
+			const phone = input.customerPhones
+				? getPrimaryPhone(input.customerPhones)
+				: (customer.mobile ?? customer.phone);
+			if (phone) {
+				queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
+					(err) =>
+						logger.warn("[WhatsApp Receipt] Failed to queue job", {
+							error: String(err),
+						}),
+				);
+			}
 		}
 
 		// If stopped, notify admins and create a task to disable on iRadius
@@ -252,12 +260,17 @@ export const createPayment = protectedProcedure
 			);
 
 			// Fire-and-forget task creation
+			const taskDescription =
+				input.paidAmount > 0
+					? `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop their subscription. Please disable their account on iRadius.`
+					: `Customer "${customerName}" (${customer.username}) requested to stop their subscription without payment. Please disable their account on iRadius.`;
+
 			db.task
 				.create({
 					data: {
 						organizationId: input.organizationId,
 						title: `Disable ${customerName} on iRadius`,
-						description: `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop their subscription. Please disable their account on iRadius.`,
+						description: taskDescription,
 						priority: "HIGH",
 						status: "OPEN",
 						category: "BILLING",

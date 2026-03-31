@@ -45,6 +45,7 @@ export const getCollectorLedger = protectedProcedure
 					id: true,
 					paidAmount: true,
 					paidAt: true,
+					stoppedAccount: true,
 					customer: {
 						select: {
 							firstName: true,
@@ -76,7 +77,7 @@ export const getCollectorLedger = protectedProcedure
 		// Merge into a single chronological ledger
 		type LedgerEntry = {
 			id: string;
-			type: "collection" | "handoff";
+			type: "collection" | "handoff" | "stopped";
 			amount: number;
 			date: Date;
 			description: string;
@@ -85,7 +86,9 @@ export const getCollectorLedger = protectedProcedure
 		const ledger: LedgerEntry[] = [
 			...payments.map((p) => ({
 				id: p.id,
-				type: "collection" as const,
+				type: p.stoppedAccount
+					? ("stopped" as const)
+					: ("collection" as const),
 				amount: p.paidAmount,
 				date: p.paidAt,
 				description: `${p.customer.firstName} ${p.customer.lastName}`,

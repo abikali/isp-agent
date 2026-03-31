@@ -57,24 +57,16 @@ function parsePhone(value: string): { dialCode: string; localNumber: string } {
 	if (digits.startsWith("+")) {
 		for (const dc of DIAL_CODES_DESC) {
 			if (digits.startsWith(dc)) {
-				let local = digits.slice(dc.length);
-				// Re-add trunk prefix for Lebanese numbers stored without it
-				if (
-					dc === "+961" &&
-					local.length > 0 &&
-					!local.startsWith("0")
-				) {
-					local = `0${local}`;
-				}
-				return { dialCode: dc, localNumber: local };
+				return { dialCode: dc, localNumber: digits.slice(dc.length) };
 			}
 		}
 		// Unknown prefix — keep as-is with default code
 		return { dialCode: "+961", localNumber: digits.replace(/^\+/, "") };
 	}
 
-	// No + prefix — keep local number as-is (preserve leading 0)
-	return { dialCode: "+961", localNumber: digits };
+	// No + prefix — assume Lebanon, strip trunk prefix
+	const raw = digits.replace(/^0/, "");
+	return { dialCode: "+961", localNumber: raw };
 }
 
 /**

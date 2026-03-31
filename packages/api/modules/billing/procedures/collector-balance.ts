@@ -3,6 +3,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue, sumOrZero } from "../lib/calculations";
+import { EXCLUDE_STOPPED } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalance,
@@ -61,13 +62,14 @@ export const getCollectorBalance = protectedProcedure
 						plan: { select: { monthlyPrice: true } },
 					},
 				}),
-				// Amount collected this month by this collector
+				// Amount collected this month by this collector (excludes stopped)
 				db.payment.aggregate({
 					where: {
 						organizationId: input.organizationId,
 						collectorId: input.collectorId,
 						billingMonthId: activeMonth.id,
 						status: "COLLECTED",
+						...EXCLUDE_STOPPED,
 					},
 					_sum: { paidAmount: true },
 					_count: true,

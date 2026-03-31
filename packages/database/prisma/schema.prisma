@@ -1647,6 +1647,7 @@ model Payment {
   notes           String?       @db.Text
   receiptSent     Boolean       @default(false)
   receiptSentAt   DateTime?
+  reviewedAt      DateTime?
   paidAt          DateTime      @default(now())
   externalBillingId Int?        @map("external_billing_id")
   createdAt       DateTime      @default(now())

@@ -165,7 +165,14 @@ export function PaymentDialog({
 							<Switch
 								id="stoppedAccount"
 								checked={stoppedAccount}
-								onCheckedChange={setStoppedAccount}
+								onCheckedChange={(checked) => {
+									setStoppedAccount(checked);
+									if (checked) {
+										setPaidAmount("0");
+									} else {
+										setPaidAmount(String(totalDue));
+									}
+								}}
 							/>
 							<Label htmlFor="stoppedAccount">Stopped</Label>
 						</div>

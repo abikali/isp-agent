@@ -9,6 +9,7 @@ import { customerMonthlyDue } from "../lib/calculations";
 import {
 	customerSearchFilter,
 	EXCLUDE_FREE_GROUP,
+	EXCLUDE_STOPPED,
 	excludeGroupFilter,
 } from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
@@ -182,6 +183,7 @@ export const listUnpaidCustomers = protectedProcedure
 				db.payment.findMany({
 					where: {
 						customerId: { in: customerIds },
+						...EXCLUDE_STOPPED,
 					},
 					select: { customerId: true, billingMonthId: true },
 				}),

@@ -22,6 +22,7 @@ import {
 import { getPaymentStats } from "./procedures/payment-stats";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
+import { reviewPayment } from "./procedures/review-payment";
 import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
 import {
 	getBillingSyncStatus,
@@ -41,6 +42,7 @@ export const billingRouter = {
 		list: listPayments,
 		create: createPayment,
 		delete: deletePayment,
+		review: reviewPayment,
 		reactivate: reactivateAccount,
 		stats: getPaymentStats,
 	},

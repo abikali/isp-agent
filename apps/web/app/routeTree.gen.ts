@@ -42,6 +42,7 @@ import { Route as SaasAppOrgOrganizationSlugRouteImport } from "./routes/_saas/a
 import { Route as SaasAppFullbleedOrganizationSlugRouteImport } from "./routes/_saas/app/_fullbleed/$organizationSlug"
 import { Route as SaasAppAccountSettingsRouteImport } from "./routes/_saas/app/_account/settings"
 import { Route as SaasAppAccountAdminRouteImport } from "./routes/_saas/app/_account/admin"
+import { Route as CollectorCollectOrganizationSlugPaymentsRouteImport } from "./routes/_collector/collect/$organizationSlug/payments"
 import { Route as SaasAppOrgOrganizationSlugIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/index"
 import { Route as SaasAppAccountSettingsIndexRouteImport } from "./routes/_saas/app/_account/settings/index"
 import { Route as SaasAppAccountAdminIndexRouteImport } from "./routes/_saas/app/_account/admin/index"
@@ -274,6 +275,12 @@ const SaasAppAccountAdminRoute = SaasAppAccountAdminRouteImport.update({
   path: "/admin",
   getParentRoute: () => SaasAppAccountRoute,
 } as any)
+const CollectorCollectOrganizationSlugPaymentsRoute =
+  CollectorCollectOrganizationSlugPaymentsRouteImport.update({
+    id: "/payments",
+    path: "/payments",
+    getParentRoute: () => CollectorCollectOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugIndexRoute =
   SaasAppOrgOrganizationSlugIndexRouteImport.update({
     id: "/",
@@ -640,6 +647,7 @@ export interface FileRoutesByFullPath {
   "/legal/$": typeof MarketingLegalSplatRoute
   "/organization-invitation/$invitationId": typeof SaasOrganizationInvitationInvitationIdRoute
   "/blog": typeof MarketingBlogIndexRoute
+  "/collect/$organizationSlug/payments": typeof CollectorCollectOrganizationSlugPaymentsRoute
   "/app/admin": typeof SaasAppAccountAdminRouteWithChildren
   "/app/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
@@ -726,6 +734,7 @@ export interface FileRoutesByTo {
   "/legal/$": typeof MarketingLegalSplatRoute
   "/organization-invitation/$invitationId": typeof SaasOrganizationInvitationInvitationIdRoute
   "/blog": typeof MarketingBlogIndexRoute
+  "/collect/$organizationSlug/payments": typeof CollectorCollectOrganizationSlugPaymentsRoute
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugIndexRoute
   "/app/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
@@ -814,6 +823,7 @@ export interface FileRoutesById {
   "/_saas/app/_account": typeof SaasAppAccountRouteWithChildren
   "/_saas/organization-invitation/$invitationId": typeof SaasOrganizationInvitationInvitationIdRoute
   "/_marketing/blog/": typeof MarketingBlogIndexRoute
+  "/_collector/collect/$organizationSlug/payments": typeof CollectorCollectOrganizationSlugPaymentsRoute
   "/_saas/app/_account/admin": typeof SaasAppAccountAdminRouteWithChildren
   "/_saas/app/_account/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/_saas/app/_fullbleed/$organizationSlug": typeof SaasAppFullbleedOrganizationSlugRoute
@@ -904,6 +914,7 @@ export interface FileRouteTypes {
     | "/legal/$"
     | "/organization-invitation/$invitationId"
     | "/blog"
+    | "/collect/$organizationSlug/payments"
     | "/app/admin"
     | "/app/settings"
     | "/app/$organizationSlug"
@@ -990,6 +1001,7 @@ export interface FileRouteTypes {
     | "/legal/$"
     | "/organization-invitation/$invitationId"
     | "/blog"
+    | "/collect/$organizationSlug/payments"
     | "/app/$organizationSlug"
     | "/collect/$organizationSlug"
     | "/app/admin/feature-flags"
@@ -1077,6 +1089,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_account"
     | "/_saas/organization-invitation/$invitationId"
     | "/_marketing/blog/"
+    | "/_collector/collect/$organizationSlug/payments"
     | "/_saas/app/_account/admin"
     | "/_saas/app/_account/settings"
     | "/_saas/app/_fullbleed/$organizationSlug"
@@ -1400,6 +1413,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/app/admin"
       preLoaderRoute: typeof SaasAppAccountAdminRouteImport
       parentRoute: typeof SaasAppAccountRoute
+    }
+    "/_collector/collect/$organizationSlug/payments": {
+      id: "/_collector/collect/$organizationSlug/payments"
+      path: "/payments"
+      fullPath: "/collect/$organizationSlug/payments"
+      preLoaderRoute: typeof CollectorCollectOrganizationSlugPaymentsRouteImport
+      parentRoute: typeof CollectorCollectOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/": {
       id: "/_saas/app/_org/$organizationSlug/"
@@ -1815,11 +1835,14 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface CollectorCollectOrganizationSlugRouteChildren {
+  CollectorCollectOrganizationSlugPaymentsRoute: typeof CollectorCollectOrganizationSlugPaymentsRoute
   CollectorCollectOrganizationSlugIndexRoute: typeof CollectorCollectOrganizationSlugIndexRoute
 }
 
 const CollectorCollectOrganizationSlugRouteChildren: CollectorCollectOrganizationSlugRouteChildren =
   {
+    CollectorCollectOrganizationSlugPaymentsRoute:
+      CollectorCollectOrganizationSlugPaymentsRoute,
     CollectorCollectOrganizationSlugIndexRoute:
       CollectorCollectOrganizationSlugIndexRoute,
   }

@@ -90,6 +90,7 @@ export const listPayments = protectedProcedure
 					noteCategory: true,
 					notes: true,
 					receiptSent: true,
+					reviewedAt: true,
 					paidAt: true,
 					customer: {
 						select: {

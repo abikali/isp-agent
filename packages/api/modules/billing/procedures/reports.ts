@@ -10,6 +10,7 @@ import {
 	sumAmountOrZero,
 	sumOrZero,
 } from "../lib/calculations";
+import { EXCLUDE_STOPPED } from "../lib/filters";
 import { resolveCollectorNames } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 import { monthSpecSchema } from "../lib/schemas";
@@ -74,6 +75,7 @@ export const getAccountingReports = protectedProcedure
 		const paymentWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			status: "COLLECTED",
+			...EXCLUDE_STOPPED,
 			...getDealerScopeViaCustomer(activeDealerId),
 		};
 		const collectionWhere: Record<string, unknown> = {

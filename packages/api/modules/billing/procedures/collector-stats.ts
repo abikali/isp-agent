@@ -91,10 +91,11 @@ export const getCollectorStats = protectedProcedure
 					{ collectorId, dealerFilter },
 				),
 			}),
-			// Paid customers this month: distinct customerIds with any payment
-			// (includes stopped — if they paid, it counts)
+			// Paid customers this month: distinct customerIds with real payment
+			// (paidAmount > 0 — includes stopped-with-pay, excludes stopped-no-pay)
 			countPaidCustomers(input.organizationId, activeMonth.id, {
 				collectorId,
+				paidAmount: { gt: 0 },
 				...dealerViaCustomer,
 			}),
 			// Stopped customers this month: distinct customerIds with stoppedAccount payment
@@ -113,12 +114,13 @@ export const getCollectorStats = protectedProcedure
 				.then((ids) => ids.length),
 			// Balance: physical cash collected − handed off (not dealer-scoped)
 			fetchCollectorBalance(input.organizationId, collectorId),
-			// Daily collected (today only)
+			// Daily collected (today only) — only real cash, not stopped-no-pay
 			db.payment.aggregate({
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
 					workerId: null,
+					paidAmount: { gt: 0 },
 					paidAt: { gte: today, lt: tomorrow },
 					...dealerViaCustomer,
 				},

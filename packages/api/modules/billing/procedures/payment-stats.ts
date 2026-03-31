@@ -7,6 +7,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
+import { EXCLUDE_STOPPED } from "../lib/filters";
 import {
 	applyCollectorScope,
 	countPaidCustomers,
@@ -63,6 +64,8 @@ export const getPaymentStats = protectedProcedure
 
 		await applyCollectorScope(baseWhere, permCtx);
 
+		const collectedWhere = { ...baseWhere, ...EXCLUDE_STOPPED };
+
 		const [
 			collectedPayments,
 			stoppedPayments,
@@ -70,26 +73,28 @@ export const getPaymentStats = protectedProcedure
 			byCollector,
 			paidCustomers,
 			unpaidCustomers,
+			unreviewedCount,
 		] = await Promise.all([
 			db.payment.count({
-				where: { ...baseWhere, stoppedAccount: false },
+				where: collectedWhere,
 			}),
 			db.payment.count({
 				where: { ...baseWhere, stoppedAccount: true },
 			}),
 			db.payment.aggregate({
-				where: baseWhere,
+				where: collectedWhere,
 				_sum: { paidAmount: true },
 			}),
 			db.payment.groupBy({
 				by: ["collectorId"],
-				where: baseWhere,
+				where: collectedWhere,
 				_sum: { paidAmount: true },
 				_count: true,
 			}),
-			// Paid customers: distinct customers with a payment this month
+			// Paid customers: distinct customers with a non-stopped payment this month
 			monthId
 				? countPaidCustomers(input.organizationId, monthId, {
+						...EXCLUDE_STOPPED,
 						...dealerViaCustomer,
 					})
 				: Promise.resolve(0),
@@ -104,6 +109,20 @@ export const getPaymentStats = protectedProcedure
 						),
 					})
 				: Promise.resolve(0),
+			// Flagged payments awaiting admin review
+			db.payment.count({
+				where: {
+					organizationId: input.organizationId,
+					...(monthId ? { billingMonthId: monthId } : {}),
+					...dealerViaCustomer,
+					reviewedAt: null,
+					OR: [
+						{ freeAccount: true },
+						{ stoppedAccount: true },
+						{ noteCategory: { not: null } },
+					],
+				},
+			}),
 		]);
 
 		// Stopped customers: distinct customers with a stoppedAccount payment this month
@@ -140,6 +159,7 @@ export const getPaymentStats = protectedProcedure
 		return {
 			collectedPayments,
 			stoppedPayments,
+			unreviewedCount,
 			totalCollected: sumOrZero(totalCollected),
 			collectorBreakdown,
 			paidCustomers,

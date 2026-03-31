@@ -1,5 +1,6 @@
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { normalizePhone } from "@repo/utils";
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { WHATSAPP_RECEIPT_QUEUE_NAME } from "../queues/whatsapp-receipt.queue";
@@ -7,17 +8,6 @@ import type {
 	WhatsAppReceiptJobData,
 	WhatsAppReceiptJobResult,
 } from "../types";
-
-function normalizeLebanonPhone(phone: string): string {
-	const digits = phone.replace(/\D/g, "");
-	if (digits.startsWith("961")) {
-		return digits;
-	}
-	if (digits.startsWith("0")) {
-		return `961${digits.slice(1)}`;
-	}
-	return `961${digits}`;
-}
 
 export function createWhatsAppReceiptWorker(): Worker<
 	WhatsAppReceiptJobData,
@@ -34,7 +24,7 @@ export function createWhatsAppReceiptWorker(): Worker<
 				return { success: false };
 			}
 
-			const phone = normalizeLebanonPhone(rawPhone);
+			const phone = normalizePhone(rawPhone);
 			if (phone.length < 10) {
 				logger.warn("[WhatsApp Receipt] Invalid phone number", {
 					phone,

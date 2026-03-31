@@ -7,6 +7,9 @@ import {
 	usePermissionScope,
 } from "@saas/organizations/client";
 import { Logo } from "@shared/components/Logo";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
+import { orpc } from "@shared/lib/orpc";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
@@ -44,6 +47,7 @@ interface NavItem {
 	href: string;
 	icon: LucideIcon;
 	isActive: boolean;
+	badge?: number;
 }
 
 interface NavGroup {
@@ -64,6 +68,16 @@ export function NavBar() {
 	const hasPermission = useCanAccess();
 	const getScope = usePermissionScope();
 	const { useSidebarLayout } = config.ui.saas;
+	const organizationId = useOrganizationId();
+
+	const { data: statsData } = useQuery(
+		organizationId
+			? orpc.billing.payments.stats.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "stats"]),
+	);
+	const unreviewedCount = statsData?.unreviewedCount ?? 0;
 
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
@@ -216,6 +230,7 @@ export function NavBar() {
 												isActive: under(
 													`${basePath}/billing/payments`,
 												),
+												badge: unreviewedCount,
 											},
 											{
 												label: "Stopped",
@@ -350,6 +365,7 @@ export function NavBar() {
 		isOrganizationAdmin,
 		hasPermission,
 		getScope,
+		unreviewedCount,
 	]);
 
 	const bottomLinks: NavItem[] = useMemo(() => {
@@ -664,7 +680,12 @@ function NavLink({
 					item.isActive ? "text-foreground" : "text-muted-foreground",
 				)}
 			/>
-			<span>{item.label}</span>
+			<span className="flex-1">{item.label}</span>
+			{item.badge != null && item.badge > 0 && (
+				<span className="ml-auto inline-flex size-5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
+					{item.badge > 9 ? "9+" : item.badge}
+				</span>
+			)}
 		</Link>
 	);
 }
