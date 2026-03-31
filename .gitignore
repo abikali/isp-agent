@@ -50,3 +50,6 @@ config/nginx/certs/*.pem
 config/nginx/certs/*.key
 !config/nginx/certs/README.md
 iradius-export.json
+
+# backups
+backups/

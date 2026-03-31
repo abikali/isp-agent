@@ -131,7 +131,7 @@ function PhoneInput({
 				onValueChange={handleDialCodeChange}
 				disabled={disabled}
 			>
-				<SelectTrigger className="w-[4.5rem] shrink-0 rounded-r-none border-r-0 gap-0.5 px-1.5">
+				<SelectTrigger className="w-[5rem] shrink-0 rounded-r-none border-r-0 gap-0.5 px-1.5 [&>svg]:hidden">
 					<SelectValue>
 						{entry ? (
 							<span className="flex items-center gap-1">
