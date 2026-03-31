@@ -19,7 +19,7 @@ import { BillingStatsCards } from "./BillingStatsCards";
 import { CustomerCard, type UnpaidCustomer } from "./CustomerCard";
 import { PaymentSheet } from "./PaymentSheet";
 
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 10_000;
 
 function StatsStrip() {
 	const { data: stats, isLoading } = useCollectorStats(
