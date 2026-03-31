@@ -17,7 +17,7 @@ export function CollectorPayments() {
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [page, setPage] = useState(1);
 
-	const { payments, total, totalPages, isLoading } = usePaymentsQuery({
+	const { payments, total, totalPages, isLoading, error } = usePaymentsQuery({
 		collectorId: employee?.id,
 		search: debouncedSearch || undefined,
 		page,
@@ -35,6 +35,16 @@ export function CollectorPayments() {
 				}}
 				placeholder="Search by name..."
 			/>
+
+			{/* Error */}
+			{error && (
+				<Card>
+					<CardContent className="py-6 text-center text-sm text-destructive">
+						Failed to load payments:{" "}
+						{error.message || "Unknown error"}
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Count */}
 			<p className="text-sm text-muted-foreground">

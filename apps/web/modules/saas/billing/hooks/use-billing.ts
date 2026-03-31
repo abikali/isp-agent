@@ -180,6 +180,7 @@ export function usePaymentsQuery(filters: {
 		totalPages: query.data?.totalPages ?? 0,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
+		error: query.error,
 	};
 }
 
@@ -450,6 +451,21 @@ export function useDeletePayment() {
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+// ─── Review ─────────────────────────────────────────────────────
+
+export function useReviewPayment() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.review.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
 			});
 		},
 	});
