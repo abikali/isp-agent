@@ -127,6 +127,8 @@ export function customersDueThisMonthWhere(
 		organizationId,
 		status: "ACTIVE",
 		...EXCLUDE_FREE_GROUP,
+		// Exclude customers with a stopped payment — they're no longer due
+		payments: { none: { billingMonthId, stoppedAccount: true } },
 		AND: {
 			OR: [
 				{ expiresAt: monthRange },
@@ -134,6 +136,7 @@ export function customersDueThisMonthWhere(
 					payments: {
 						some: {
 							billingMonthId,
+							stoppedAccount: false,
 						},
 					},
 				},

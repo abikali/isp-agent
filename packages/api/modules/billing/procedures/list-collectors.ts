@@ -100,6 +100,7 @@ export const listCollectors = protectedProcedure
 					collectorId: { in: collectorIds },
 					billingMonthId: activeMonth.id,
 					status: "COLLECTED",
+					stoppedAccount: false,
 					...dealerViaCustomer,
 				},
 				_count: true,
