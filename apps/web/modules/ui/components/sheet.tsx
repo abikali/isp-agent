@@ -60,7 +60,7 @@ const SheetContent = ({
 		<SheetOverlay />
 		<SheetPrimitive.Content
 			aria-describedby={undefined}
-			className={sheetVariants({ side, className })}
+			className={cn(sheetVariants({ side }), className)}
 			{...props}
 		>
 			{children}
