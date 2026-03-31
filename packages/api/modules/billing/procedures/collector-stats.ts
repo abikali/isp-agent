@@ -117,6 +117,7 @@ export const getCollectorStats = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					collectorId,
+					workerId: null,
 					paidAt: { gte: today, lt: tomorrow },
 					...dealerViaCustomer,
 				},
