@@ -189,6 +189,44 @@ export const NOTE_CATEGORY_LABELS: Record<string, string> = {
 	TEMP_STOP: "Temp Stop",
 };
 
+/** Returns the badge variant for the payment flag type. */
+export function getPaymentFlagVariant(
+	payment: FlaggablePayment,
+): "default" | "destructive" | "warning" | "info" | "success" {
+	const flag = getPaymentFlagType(payment);
+	if (flag === "stopped") {
+		return "destructive";
+	}
+	if (flag === "free") {
+		return "info";
+	}
+	if (flag === "overpaid") {
+		return "success";
+	}
+	if (flag === "underpaid") {
+		return "warning";
+	}
+	return "default";
+}
+
+/** Returns the display label for a payment's flag/status. */
+export function getPaymentFlagLabel(payment: FlaggablePayment): string {
+	const flag = getPaymentFlagType(payment);
+	if (flag === "stopped") {
+		return "Stopped";
+	}
+	if (flag === "free") {
+		return "Free";
+	}
+	if (flag === "overpaid") {
+		return "Overpaid";
+	}
+	if (flag === "underpaid") {
+		return "Underpaid";
+	}
+	return "Collected";
+}
+
 /** Returns the badge variant based on whether the account was stopped. */
 export function getPaymentStatusVariant(
 	stoppedAccount: boolean,
@@ -203,13 +241,26 @@ export function getPaymentStatusLabel(stoppedAccount: boolean): string {
 
 // ─── Payment Flag Detection ──────────────────────────────────
 
-export type PaymentFlagType = "stopped" | "free" | "mismatch";
+export type PaymentFlagType = "stopped" | "free" | "overpaid" | "underpaid";
 
 interface FlaggablePayment {
 	freeAccount: boolean;
 	stoppedAccount: boolean;
+	paidAmount: number;
+	accountPrice: number;
+	discount: number;
 	noteCategory: string | null;
 	reviewedAt: string | Date | null;
+}
+
+/** Whether the paid amount differs from what was expected (accountPrice - discount). */
+export function isAmountMismatch(payment: {
+	paidAmount: number;
+	accountPrice: number;
+	discount: number;
+}): boolean {
+	const expected = payment.accountPrice - payment.discount;
+	return Math.abs(payment.paidAmount - expected) > 0.01;
 }
 
 /** Determine the flag type for a payment, or null if normal. */
@@ -222,8 +273,9 @@ export function getPaymentFlagType(
 	if (payment.freeAccount) {
 		return "free";
 	}
-	if (payment.noteCategory) {
-		return "mismatch";
+	if (isAmountMismatch(payment)) {
+		const expected = payment.accountPrice - payment.discount;
+		return payment.paidAmount > expected ? "overpaid" : "underpaid";
 	}
 	return null;
 }
@@ -234,9 +286,12 @@ export function isUnreviewed(payment: FlaggablePayment): boolean {
 }
 
 const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
-	stopped: "border-l-4 border-l-destructive bg-destructive/5",
-	free: "border-l-4 border-l-blue-500 bg-blue-500/5",
-	mismatch: "border-l-4 border-l-amber-500 bg-amber-500/5",
+	stopped: "border-l-4 border-l-red-600 bg-red-100 dark:bg-red-950",
+	free: "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950",
+	overpaid:
+		"border-l-4 border-l-emerald-600 bg-emerald-100 dark:bg-emerald-950",
+	underpaid:
+		"border-l-4 border-l-orange-500 bg-orange-100 dark:bg-orange-950",
 };
 
 /** Row className for a flagged payment (unreviewed gets color, reviewed gets faint). */
@@ -258,9 +313,10 @@ export const FLAG_LEGEND: {
 	label: string;
 	className: string;
 }[] = [
-	{ type: "stopped", label: "Stopped", className: "bg-destructive" },
-	{ type: "free", label: "Free", className: "bg-blue-500" },
-	{ type: "mismatch", label: "Amount Mismatch", className: "bg-amber-500" },
+	{ type: "stopped", label: "Stopped", className: "bg-red-600" },
+	{ type: "free", label: "Free", className: "bg-blue-600" },
+	{ type: "overpaid", label: "Overpaid", className: "bg-emerald-600" },
+	{ type: "underpaid", label: "Underpaid", className: "bg-orange-500" },
 ];
 
 /** Expiry status information for a customer account. */

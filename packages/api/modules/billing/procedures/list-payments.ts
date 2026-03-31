@@ -20,6 +20,12 @@ export const listPayments = protectedProcedure
 				billingMonthId: z.string().optional(),
 				collectorId: z.string().optional(),
 				stoppedAccount: z.boolean().optional(),
+				freeAccount: z.boolean().optional(),
+				amountMismatch: z
+					.enum(["any", "overpaid", "underpaid"])
+					.optional(),
+				unreviewedOnly: z.boolean().optional(),
+				noteCategory: z.string().optional(),
 				groupName: z.string().optional(),
 				search: z.string().optional(),
 				dateFrom: z.string().datetime().optional(),
@@ -56,6 +62,37 @@ export const listPayments = protectedProcedure
 		if (input.stoppedAccount !== undefined) {
 			where["stoppedAccount"] = input.stoppedAccount;
 		}
+		if (input.freeAccount !== undefined) {
+			where["freeAccount"] = input.freeAccount;
+		}
+		if (input.unreviewedOnly) {
+			where["reviewedAt"] = null;
+			// Get IDs of amount-mismatch payments to include in unreviewedOnly filter
+			const mismatchIdsForReview = await db.$queryRaw<{ id: string }[]>`
+				SELECT id FROM "payment"
+				WHERE "organizationId" = ${input.organizationId}
+				  AND "freeAccount" = false
+				  AND "stoppedAccount" = false
+				  AND ABS("paidAmount" - ("accountPrice" - "discount")) > 0.01
+				  AND "reviewedAt" IS NULL
+			`;
+			const mismatchIds = mismatchIdsForReview.map((r) => r.id);
+			where["AND"] = [
+				...((where["AND"] as unknown[]) ?? []),
+				{
+					OR: [
+						{ freeAccount: true },
+						{ stoppedAccount: true },
+						...(mismatchIds.length > 0
+							? [{ id: { in: mismatchIds } }]
+							: []),
+					],
+				},
+			];
+		}
+		if (input.noteCategory) {
+			where["noteCategory"] = input.noteCategory;
+		}
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;
 		}
@@ -69,12 +106,52 @@ export const listPayments = protectedProcedure
 				...customerWhere,
 				...customerSearchFilter(input.search),
 			};
-			where["OR"] = [
-				{ id: { contains: searchLower, mode: "insensitive" as const } },
-				{ customer: customerSearch },
+			where["AND"] = [
+				...((where["AND"] as unknown[]) ?? []),
+				{
+					OR: [
+						{
+							id: {
+								contains: searchLower,
+								mode: "insensitive" as const,
+							},
+						},
+						{ customer: customerSearch },
+					],
+				},
 			];
 		} else if (Object.keys(customerWhere).length > 0) {
 			where["customer"] = customerWhere;
+		}
+
+		// For amount mismatch, we need to get IDs via raw SQL then filter
+		if (input.amountMismatch) {
+			const direction =
+				input.amountMismatch === "overpaid"
+					? `AND "paidAmount" > ("accountPrice" - "discount" + 0.01)`
+					: input.amountMismatch === "underpaid"
+						? `AND "paidAmount" < ("accountPrice" - "discount" - 0.01)`
+						: `AND ABS("paidAmount" - ("accountPrice" - "discount")) > 0.01`;
+
+			const mismatchIds = await db.$queryRawUnsafe<{ id: string }[]>(
+				`SELECT id FROM "payment"
+				WHERE "organizationId" = $1
+				  AND "freeAccount" = false
+				  AND "stoppedAccount" = false
+				  ${direction}`,
+				input.organizationId,
+			);
+			const ids = mismatchIds.map((r) => r.id);
+			if (ids.length === 0) {
+				return {
+					payments: [],
+					total: 0,
+					page: input.page,
+					pageSize: input.pageSize,
+					totalPages: 0,
+				};
+			}
+			where["id"] = { in: ids };
 		}
 
 		const [payments, total] = await Promise.all([
@@ -100,6 +177,7 @@ export const listPayments = protectedProcedure
 							username: true,
 							mobile: true,
 							phone: true,
+							address: true,
 							groupName: true,
 							expiresAt: true,
 							plan: { select: { id: true, name: true } },

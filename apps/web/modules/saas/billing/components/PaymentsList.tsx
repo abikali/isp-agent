@@ -22,8 +22,32 @@ import {
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
-import { CheckIcon, ListIcon, RotateCcwIcon, TrashIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
+import {
+	AlertTriangleIcon,
+	ArrowDownIcon,
+	ArrowUpIcon,
+	CheckCircle2Icon,
+	CheckIcon,
+	CircleDotIcon,
+	FilterIcon,
+	ListIcon,
+	RotateCcwIcon,
+	TrashIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -31,14 +55,16 @@ import {
 	useCustomerGroups,
 	useDeletePayment,
 	useMonthFilter,
+	usePaymentStatsQuery,
 	usePaymentsQuery,
 	useReviewPayment,
 } from "../hooks/use-billing";
 import {
 	FLAG_LEGEND,
+	getPaymentFlagLabel,
+	getPaymentFlagVariant,
 	getPaymentRowClassName,
-	getPaymentStatusLabel,
-	getPaymentStatusVariant,
+	isAmountMismatch,
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
@@ -46,6 +72,16 @@ import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 
 const PAGE_SIZE = 25;
+
+type PaymentTypeFilter =
+	| "all"
+	| "collected"
+	| "stopped"
+	| "free"
+	| "overpaid"
+	| "underpaid"
+	| "mismatch"
+	| "needs_review";
 
 interface PaymentRow {
 	id: string;
@@ -56,7 +92,9 @@ interface PaymentRow {
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
+	accountPrice: number;
 	paidAmount: number;
+	discount: number;
 	freeAccount: boolean;
 	stoppedAccount: boolean;
 	noteCategory: string | null;
@@ -64,14 +102,123 @@ interface PaymentRow {
 	reviewedAt: string | Date | null;
 }
 
+function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
+	const { data: stats } = usePaymentStatsQuery(billingMonthId);
+
+	if (!stats) {
+		return null;
+	}
+
+	return (
+		<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+			<StatCard
+				label="Collected"
+				value={formatCurrency(stats.totalCollected)}
+				sub={`${stats.collectedPayments} payments`}
+				className="text-emerald-600 dark:text-emerald-400"
+			/>
+			<StatCard
+				label="Stopped"
+				value={String(stats.stoppedPayments)}
+				sub="accounts"
+				className="text-red-600 dark:text-red-400"
+			/>
+			<StatCard
+				label="Unpaid"
+				value={String(stats.unpaidCustomers)}
+				sub="customers"
+				className="text-orange-600 dark:text-orange-400"
+			/>
+			<StatCard
+				label="Needs Review"
+				value={String(stats.unreviewedCount)}
+				sub="flagged"
+				className={
+					stats.unreviewedCount > 0
+						? "text-amber-600 dark:text-amber-400"
+						: "text-muted-foreground"
+				}
+			/>
+		</div>
+	);
+}
+
+function StatCard({
+	label,
+	value,
+	sub,
+	className,
+}: {
+	label: string;
+	value: string;
+	sub: string;
+	className?: string;
+}) {
+	return (
+		<div className="rounded-lg border bg-card px-4 py-3">
+			<p className="text-xs font-medium text-muted-foreground">{label}</p>
+			<p className={`text-lg font-bold tabular-nums ${className ?? ""}`}>
+				{value}
+			</p>
+			<p className="text-xs text-muted-foreground">{sub}</p>
+		</div>
+	);
+}
+
+const TYPE_FILTERS: {
+	key: PaymentTypeFilter;
+	label: string;
+	icon?: typeof CheckCircle2Icon;
+}[] = [
+	{ key: "all", label: "All" },
+	{ key: "collected", label: "Collected", icon: CheckCircle2Icon },
+	{ key: "stopped", label: "Stopped", icon: CircleDotIcon },
+	{ key: "free", label: "Free" },
+	{ key: "mismatch", label: "All Mismatch", icon: AlertTriangleIcon },
+	{ key: "overpaid", label: "Overpaid", icon: ArrowUpIcon },
+	{ key: "underpaid", label: "Underpaid", icon: ArrowDownIcon },
+	{ key: "needs_review", label: "Needs Review", icon: FilterIcon },
+];
+
+const NOTE_CATEGORIES = Object.entries(NOTE_CATEGORY_LABELS);
+
+function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
+	stoppedAccount?: boolean;
+	freeAccount?: boolean;
+	unreviewedOnly?: boolean;
+	amountMismatch?: "any" | "overpaid" | "underpaid";
+} {
+	switch (typeFilter) {
+		case "collected":
+			return { stoppedAccount: false, freeAccount: false };
+		case "stopped":
+			return { stoppedAccount: true };
+		case "free":
+			return { freeAccount: true };
+		case "mismatch":
+			return { amountMismatch: "any" };
+		case "overpaid":
+			return { amountMismatch: "overpaid" };
+		case "underpaid":
+			return { amountMismatch: "underpaid" };
+		case "needs_review":
+			return { unreviewedOnly: true };
+		default:
+			return {};
+	}
+}
+
 export function PaymentsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
-	const [stoppedFilter, setStoppedFilter] = useState<boolean | undefined>();
+	const [typeFilter, setTypeFilter] = useState<PaymentTypeFilter>("all");
 	const [collectorFilter, setCollectorFilter] = useState<
 		string | undefined
 	>();
 	const [groupFilter, setGroupFilter] = useState<string | undefined>();
+	const [noteCategoryFilter, setNoteCategoryFilter] = useState<
+		string | undefined
+	>();
 	const [page, setPage] = useState(1);
 	const {
 		monthFilter,
@@ -81,26 +228,34 @@ export function PaymentsList() {
 	} = useMonthFilter();
 
 	// Reset page when filters change
-	const handleStoppedChange = (s: boolean | undefined) => {
-		setStoppedFilter(s);
-		setPage(1);
+	const resetPage = () => setPage(1);
+	const handleTypeChange = (t: PaymentTypeFilter) => {
+		setTypeFilter(t);
+		resetPage();
 	};
 	const handleCollectorChange = (value: string) => {
 		setCollectorFilter(value || undefined);
-		setPage(1);
+		resetPage();
 	};
 	const handleGroupChange = (value: string) => {
 		setGroupFilter(value || undefined);
-		setPage(1);
+		resetPage();
 	};
 	const handleMonthChange = (value: string) => {
 		setMonthFilter(value);
-		setPage(1);
+		resetPage();
 	};
+	const handleNoteCategoryChange = (value: string) => {
+		setNoteCategoryFilter(value === "all" ? undefined : value);
+		resetPage();
+	};
+
+	const queryTypeFilters = deriveQueryFilters(typeFilter);
 
 	const { payments, total, isLoading, isFetching } = usePaymentsQuery({
 		search: debouncedSearch || undefined,
-		stoppedAccount: stoppedFilter,
+		...queryTypeFilters,
+		noteCategory: noteCategoryFilter,
 		collectorId: collectorFilter,
 		groupName: groupFilter,
 		billingMonthId: activeMonthId,
@@ -120,17 +275,19 @@ export function PaymentsList() {
 		getPaymentRowClassName(row.original);
 
 	const hasActiveFilters =
-		stoppedFilter !== undefined ||
+		typeFilter !== "all" ||
 		!!collectorFilter ||
 		!!groupFilter ||
+		!!noteCategoryFilter ||
 		(!!monthFilter && monthFilter !== "all") ||
 		!!search;
 
 	const resetFilters = () => {
 		setSearch("");
-		setStoppedFilter(undefined);
+		setTypeFilter("all");
 		setCollectorFilter(undefined);
 		setGroupFilter(undefined);
+		setNoteCategoryFilter(undefined);
 		setMonthFilter("");
 		setPage(1);
 	};
@@ -198,25 +355,52 @@ export function PaymentsList() {
 				header: "Amount",
 				enableSorting: false,
 				meta: { className: "text-right" },
-				cell: ({ row }) => (
-					<span className="font-semibold tabular-nums">
-						{formatCurrency(row.original.paidAmount)}
-					</span>
-				),
+				cell: ({ row }) => {
+					const p = row.original;
+					const mismatch = isAmountMismatch(p);
+					const expected = p.accountPrice - p.discount;
+					return (
+						<div className="text-right">
+							<span className="font-semibold tabular-nums">
+								{formatCurrency(p.paidAmount)}
+							</span>
+							{mismatch && (
+								<div className="text-xs text-muted-foreground tabular-nums">
+									of {formatCurrency(expected)}
+								</div>
+							)}
+						</div>
+					);
+				},
 			},
 			{
 				id: "status",
 				header: "Status",
 				enableSorting: false,
-				cell: ({ row }) => (
-					<Badge
-						variant={getPaymentStatusVariant(
-							row.original.stoppedAccount,
-						)}
-					>
-						{getPaymentStatusLabel(row.original.stoppedAccount)}
-					</Badge>
-				),
+				cell: ({ row }) => {
+					const payment = row.original;
+					const variant = getPaymentFlagVariant(payment);
+					const label = getPaymentFlagLabel(payment);
+					const needsReview = isUnreviewed(payment);
+					return (
+						<div className="flex items-center gap-1.5">
+							<Badge variant={variant}>{label}</Badge>
+							{needsReview && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="relative flex size-2">
+											<span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+											<span className="relative inline-flex size-2 rounded-full bg-amber-500" />
+										</span>
+									</TooltipTrigger>
+									<TooltipContent>
+										Needs review
+									</TooltipContent>
+								</Tooltip>
+							)}
+						</div>
+					);
+				},
 			},
 			{
 				id: "note",
@@ -260,42 +444,57 @@ export function PaymentsList() {
 				cell: ({ row }) => (
 					<div className="flex items-center gap-1">
 						{organizationId && isUnreviewed(row.original) && (
-							<Button
-								size="sm"
-								variant="ghost"
-								className="text-emerald-600"
-								title="Mark as reviewed"
-								onClick={() =>
-									reviewPayment.mutate(
-										{
-											organizationId,
-											paymentId: row.original.id,
-										},
-										{
-											onSuccess: () =>
-												toast.success(
-													"Marked as reviewed",
-												),
-											onError: (error) =>
-												toast.error(error.message),
-										},
-									)
-								}
-							>
-								<CheckIcon className="size-3.5" />
-							</Button>
-						)}
-						{organizationId && (
-							<AlertDialog>
-								<AlertDialogTrigger asChild>
+							<Tooltip>
+								<TooltipTrigger asChild>
 									<Button
 										size="sm"
 										variant="ghost"
-										className="text-destructive"
+										className="text-emerald-600"
+										onClick={() =>
+											reviewPayment.mutate(
+												{
+													organizationId,
+													paymentId: row.original.id,
+												},
+												{
+													onSuccess: () =>
+														toast.success(
+															"Marked as reviewed",
+														),
+													onError: (error) =>
+														toast.error(
+															error.message,
+														),
+												},
+											)
+										}
 									>
-										<TrashIcon className="size-3.5" />
+										<CheckIcon className="size-3.5" />
 									</Button>
-								</AlertDialogTrigger>
+								</TooltipTrigger>
+								<TooltipContent>
+									Mark as reviewed
+								</TooltipContent>
+							</Tooltip>
+						)}
+						{organizationId && (
+							<AlertDialog>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<AlertDialogTrigger asChild>
+											<Button
+												size="sm"
+												variant="ghost"
+												className="text-destructive"
+											>
+												<TrashIcon className="size-3.5" />
+											</Button>
+										</AlertDialogTrigger>
+									</TooltipTrigger>
+									<TooltipContent>
+										Delete payment
+									</TooltipContent>
+								</Tooltip>
 								<AlertDialogContent>
 									<AlertDialogHeader>
 										<AlertDialogTitle>
@@ -355,7 +554,10 @@ export function PaymentsList() {
 			description={isLoading ? "Loading..." : `${total} payment records`}
 		>
 			<div className="space-y-4">
-				{/* Search + Filters */}
+				{/* Stats Summary */}
+				<StatsBar billingMonthId={activeMonthId} />
+
+				{/* Search + Dropdown Filters */}
 				<div className="flex flex-wrap items-center gap-3">
 					<SearchInput
 						value={search}
@@ -363,7 +565,7 @@ export function PaymentsList() {
 							setSearch(v);
 							setPage(1);
 						}}
-						placeholder="Search by customer or invoice..."
+						placeholder="Search customer or invoice..."
 						className="max-w-xs"
 					/>
 
@@ -386,6 +588,23 @@ export function PaymentsList() {
 						allLabel="All Months"
 					/>
 
+					<Select
+						value={noteCategoryFilter ?? "all"}
+						onValueChange={handleNoteCategoryChange}
+					>
+						<SelectTrigger className="w-[160px]">
+							<SelectValue placeholder="All categories" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All categories</SelectItem>
+							{NOTE_CATEGORIES.map(([key, label]) => (
+								<SelectItem key={key} value={key}>
+									{label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+
 					{hasActiveFilters && (
 						<Button
 							variant="ghost"
@@ -398,70 +617,65 @@ export function PaymentsList() {
 					)}
 				</div>
 
-				{/* Status Buttons */}
-				<div className="flex flex-wrap gap-1">
-					{(
-						[
-							{ key: "all", label: "All", value: undefined },
-							{
-								key: "collected",
-								label: "Collected",
-								value: false,
-							},
-							{
-								key: "stopped",
-								label: "Stopped",
-								value: true,
-							},
-						] as const
-					).map((s) => (
-						<Button
-							key={s.key}
-							size="sm"
-							variant={
-								stoppedFilter === s.value
-									? "secondary"
-									: "outline"
-							}
-							onClick={() => handleStoppedChange(s.value)}
-						>
-							{s.label}
-						</Button>
-					))}
+				{/* Type Filter Buttons */}
+				<div className="flex flex-wrap items-center gap-4">
+					<div className="flex flex-wrap gap-1">
+						{TYPE_FILTERS.map((f) => {
+							const active = typeFilter === f.key;
+							return (
+								<Button
+									key={f.key}
+									size="sm"
+									variant={active ? "secondary" : "outline"}
+									onClick={() => handleTypeChange(f.key)}
+								>
+									{f.icon && (
+										<f.icon className="mr-1 size-3.5" />
+									)}
+									{f.label}
+								</Button>
+							);
+						})}
+					</div>
+
+					{/* Legend */}
+					<div className="flex items-center gap-4 text-xs text-muted-foreground">
+						{FLAG_LEGEND.map((f) => (
+							<div
+								key={f.type}
+								className="flex items-center gap-1.5"
+							>
+								<span
+									className={`inline-block size-2.5 rounded-sm ${f.className}`}
+								/>
+								<span>{f.label}</span>
+							</div>
+						))}
+					</div>
 				</div>
 
-				{/* Legend */}
-				<div className="flex items-center gap-4 text-xs text-muted-foreground">
-					{FLAG_LEGEND.map((f) => (
-						<div key={f.type} className="flex items-center gap-1.5">
-							<span
-								className={`inline-block size-2.5 rounded-sm ${f.className}`}
+				<TooltipProvider>
+					<DataTable
+						columns={columns}
+						data={payments}
+						isLoading={isLoading}
+						isFetching={isFetching}
+						getRowClassName={rowClassName}
+						pagination={{
+							totalItems: total,
+							currentPage: page,
+							itemsPerPage: PAGE_SIZE,
+							onPageChange: setPage,
+						}}
+						emptyState={
+							<EmptyState
+								icon={ListIcon}
+								title="No payments"
+								description="No payment records match your filters."
 							/>
-							<span>{f.label}</span>
-						</div>
-					))}
-				</div>
-
-				<DataTable
-					columns={columns}
-					data={payments}
-					isLoading={isLoading}
-					isFetching={isFetching}
-					getRowClassName={rowClassName}
-					pagination={{
-						totalItems: total,
-						currentPage: page,
-						itemsPerPage: PAGE_SIZE,
-						onPageChange: setPage,
-					}}
-					emptyState={
-						<EmptyState
-							icon={ListIcon}
-							title="No payments"
-							description="No payment records match your filters."
-						/>
-					}
-				/>
+						}
+					/>
+				</TooltipProvider>
 			</div>
 		</PageShell>
 	);
@@ -471,6 +685,12 @@ export function PaymentsListSkeleton() {
 	return (
 		<PageShell title="Payments" description="Loading...">
 			<div className="space-y-4">
+				{/* Stats skeleton */}
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					{Array.from({ length: 4 }).map((_, i) => (
+						<Skeleton key={i} className="h-20 rounded-lg" />
+					))}
+				</div>
 				<Skeleton className="h-10 w-full" />
 				<div className="rounded-xl border bg-card p-4">
 					{Array.from({ length: 5 }).map((_, i) => (

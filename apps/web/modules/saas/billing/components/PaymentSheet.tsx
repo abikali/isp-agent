@@ -279,10 +279,10 @@ export function PaymentSheet({
 							<div className="flex items-center justify-between">
 								<p className="text-sm font-semibold">{name}</p>
 								<div className="text-right">
-									<p className="text-[10px] text-muted-foreground leading-none">
+									<p className="text-xs text-destructive/70 leading-none">
 										Total due
 									</p>
-									<p className="text-lg font-bold tabular-nums">
+									<p className="text-xl font-bold tabular-nums text-destructive">
 										{formatCurrency(totalDue)}
 									</p>
 								</div>

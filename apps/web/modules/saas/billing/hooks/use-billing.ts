@@ -112,6 +112,10 @@ export function usePayments(filters: {
 	billingMonthId?: string;
 	collectorId?: string;
 	stoppedAccount?: boolean;
+	freeAccount?: boolean;
+	unreviewedOnly?: boolean;
+	noteCategory?: string;
+	amountMismatch?: "any" | "overpaid" | "underpaid";
 	groupName?: string;
 	search?: string;
 	dateFrom?: string;
@@ -150,6 +154,10 @@ export function usePaymentsQuery(filters: {
 	billingMonthId?: string;
 	collectorId?: string;
 	stoppedAccount?: boolean;
+	freeAccount?: boolean;
+	unreviewedOnly?: boolean;
+	noteCategory?: string;
+	amountMismatch?: "any" | "overpaid" | "underpaid";
 	groupName?: string;
 	search?: string;
 	dateFrom?: string;

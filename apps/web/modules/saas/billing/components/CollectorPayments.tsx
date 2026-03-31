@@ -11,7 +11,10 @@ import {
 	CheckCircleIcon,
 	GiftIcon,
 	Loader2Icon,
+	MapPinIcon,
+	PhoneIcon,
 	ReceiptTextIcon,
+	UserIcon,
 	XCircleIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -180,6 +183,9 @@ interface PaymentRowProps {
 			firstName?: string | null;
 			lastName?: string | null;
 			username?: string | null;
+			mobile?: string | null;
+			phone?: string | null;
+			address?: string | null;
 		} | null;
 	};
 }
@@ -194,47 +200,84 @@ function PaymentRow({ payment }: PaymentRowProps) {
 
 	const isStopped = payment.stoppedAccount;
 	const isFree = payment.freeAccount;
+	const phone = payment.customer?.mobile || payment.customer?.phone;
+
+	const rowClassName = isStopped
+		? "border-l-4 border-l-red-600 bg-red-100 dark:bg-red-950"
+		: isFree
+			? "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950"
+			: "";
 
 	return (
-		<div className="flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5">
-			{/* Status icon */}
-			{isStopped ? (
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-					<XCircleIcon className="size-4 text-destructive" />
-				</div>
-			) : isFree ? (
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
-					<GiftIcon className="size-4 text-blue-500" />
-				</div>
-			) : (
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10">
-					<CheckCircleIcon className="size-4 text-success" />
-				</div>
-			)}
-
-			{/* Details */}
-			<div className="min-w-0 flex-1">
-				<p className="truncate text-sm font-medium">{name}</p>
-				{(isStopped || isFree) && (
-					<p className="text-[11px]">
-						{isStopped && (
-							<span className="rounded bg-destructive/10 px-1 py-0.5 text-[10px] font-medium text-destructive">
-								Stopped
-							</span>
-						)}
-						{isFree && (
-							<span className="rounded bg-blue-500/10 px-1 py-0.5 text-[10px] font-medium text-blue-600">
-								Free
-							</span>
-						)}
-					</p>
+		<div
+			className={`rounded-lg border bg-background px-3 py-2.5 ${rowClassName}`}
+		>
+			<div className="flex items-start gap-3">
+				{/* Status icon */}
+				{isStopped ? (
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 mt-0.5">
+						<XCircleIcon className="size-4 text-destructive" />
+					</div>
+				) : isFree ? (
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 mt-0.5">
+						<GiftIcon className="size-4 text-blue-500" />
+					</div>
+				) : (
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 mt-0.5">
+						<CheckCircleIcon className="size-4 text-success" />
+					</div>
 				)}
-			</div>
 
-			{/* Amount */}
-			<p className="shrink-0 text-sm font-bold tabular-nums">
-				{formatCurrency(payment.paidAmount)}
-			</p>
+				{/* Details */}
+				<div className="min-w-0 flex-1 space-y-1">
+					<div className="flex items-start justify-between gap-2">
+						<p className="truncate text-sm font-semibold">{name}</p>
+						<p className="shrink-0 text-sm font-bold tabular-nums">
+							{formatCurrency(payment.paidAmount)}
+						</p>
+					</div>
+
+					{payment.customer?.username && (
+						<div className="flex items-center gap-1.5 text-muted-foreground">
+							<UserIcon className="size-3 shrink-0" />
+							<span className="truncate text-xs">
+								{payment.customer.username}
+							</span>
+						</div>
+					)}
+
+					{phone && (
+						<div className="flex items-center gap-1.5 text-muted-foreground">
+							<PhoneIcon className="size-3 shrink-0" />
+							<span className="truncate text-xs">{phone}</span>
+						</div>
+					)}
+
+					{payment.customer?.address && (
+						<div className="flex items-center gap-1.5 text-muted-foreground">
+							<MapPinIcon className="size-3 shrink-0" />
+							<span className="truncate text-xs">
+								{payment.customer.address}
+							</span>
+						</div>
+					)}
+
+					{(isStopped || isFree) && (
+						<div className="flex gap-1 pt-0.5">
+							{isStopped && (
+								<span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+									Stopped
+								</span>
+							)}
+							{isFree && (
+								<span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+									Free
+								</span>
+							)}
+						</div>
+					)}
+				</div>
+			</div>
 		</div>
 	);
 }
