@@ -234,8 +234,8 @@ export const createPayment = protectedProcedure
 			return newPayment;
 		});
 
-		// Queue WhatsApp receipt via background worker
-		if (!input.stoppedAccount || input.paidAmount > 0) {
+		// Queue WhatsApp receipt via background worker (skip for stopped accounts)
+		if (!input.stoppedAccount) {
 			const phone = input.customerPhones
 				? getPrimaryPhone(input.customerPhones)
 				: (customer.mobile ?? customer.phone);
