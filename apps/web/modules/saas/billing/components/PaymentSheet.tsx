@@ -30,7 +30,7 @@ import {
 import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCreatePayment, useNoteCategories } from "../hooks/use-billing";
 import {
@@ -70,9 +70,10 @@ export function PaymentSheet({
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
+	const phoneIdRef = useRef(0);
 	const [phones, setPhones] = useState<
-		Array<{ number: string; primary: boolean }>
-	>([{ number: "", primary: true }]);
+		Array<{ id: number; number: string; primary: boolean }>
+	>([{ id: 0, number: "", primary: true }]);
 	// Reset form when a different customer is selected
 	const customerId = customer?.id;
 
@@ -86,9 +87,11 @@ export function PaymentSheet({
 			setNoteCategory("");
 			setNotes("");
 			// Initialize phones from customer.phones array (or fallback to mobile/phone)
+			phoneIdRef.current = 0;
 			const parsed = Array.isArray(customer.phones)
 				? customer.phones.map(
 						(p: { number: string; primary: boolean }) => ({
+							id: phoneIdRef.current++,
 							number: toInternationalPhone(p.number),
 							primary: p.primary,
 						}),
@@ -96,11 +99,14 @@ export function PaymentSheet({
 				: [customer.mobile, customer.phone]
 						.filter(Boolean)
 						.map((p, i) => ({
+							id: phoneIdRef.current++,
 							number: toInternationalPhone(p as string),
 							primary: i === 0,
 						}));
 			setPhones(
-				parsed.length > 0 ? parsed : [{ number: "", primary: true }],
+				parsed.length > 0
+					? parsed
+					: [{ id: phoneIdRef.current++, number: "", primary: true }],
 			);
 			setShowLocationPrompt(false);
 		}
@@ -112,16 +118,16 @@ export function PaymentSheet({
 		? calculateTotalDue(customer, { freeAccount })
 		: 0;
 
-	const stoppedMissingNote = stoppedAccount && !noteCategory && !notes.trim();
-	const freeMissingNote = freeAccount && !noteCategory && !notes.trim();
+	const missingNote = !noteCategory && !notes.trim();
+	const stoppedMissingNote = stoppedAccount && missingNote;
+	const freeMissingNote = freeAccount && missingNote;
 
 	const amountNum = parseAmount(paidAmount);
 	const isAmountMismatch =
 		Math.abs(amountNum - totalDue) >= 0.01 &&
 		!stoppedAccount &&
 		amountNum > 0;
-	const mismatchMissingNote =
-		isAmountMismatch && !noteCategory && !notes.trim();
+	const mismatchMissingNote = isAmountMismatch && missingNote;
 
 	const hasValidPhone = phones.some((p) => isValidPhone(p.number));
 
@@ -133,7 +139,10 @@ export function PaymentSheet({
 
 	function addPhone() {
 		if (phones.length < MAX_PHONES) {
-			setPhones((prev) => [...prev, { number: "", primary: false }]);
+			setPhones((prev) => [
+				...prev,
+				{ id: ++phoneIdRef.current, number: "", primary: false },
+			]);
 		}
 	}
 
@@ -369,6 +378,7 @@ export function PaymentSheet({
 									<Switch
 										id="sheet-freeAccount"
 										checked={freeAccount}
+										disabled={stoppedAccount}
 										onCheckedChange={(checked) => {
 											setFreeAccount(checked);
 											if (customer) {
@@ -395,6 +405,7 @@ export function PaymentSheet({
 									<Switch
 										id="sheet-stoppedAccount"
 										checked={stoppedAccount}
+										disabled={freeAccount}
 										onCheckedChange={(checked) => {
 											setStoppedAccount(checked);
 											if (checked) {
@@ -430,7 +441,7 @@ export function PaymentSheet({
 								const invalid =
 									hasValue && !isValidPhone(phone.number);
 								return (
-									<div key={index} className="space-y-1">
+									<div key={phone.id} className="space-y-1">
 										<div className="flex items-center gap-1.5">
 											<PhoneInput
 												value={phone.number}
