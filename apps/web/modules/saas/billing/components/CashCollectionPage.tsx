@@ -59,6 +59,7 @@ import {
 	useCustomerGroups,
 	useDeleteCollection,
 	useDeletePayment,
+	useMonthFilter,
 } from "../hooks/use-billing";
 import {
 	formatCycleShort,
@@ -66,6 +67,7 @@ import {
 	getPaymentStatusVariant,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
+import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
 
 export function CashCollectionPageSkeleton() {
@@ -229,6 +231,12 @@ export function CashCollectionPage({
 	}, [search]);
 
 	const { groups } = useCustomerGroups();
+	const {
+		monthFilter,
+		setMonthFilter,
+		activeMonthId,
+		options: monthOptions,
+	} = useMonthFilter();
 
 	const { data: balanceData, isLoading: balanceLoading } =
 		useCollectorBalance(collectorId);
@@ -251,6 +259,7 @@ export function CashCollectionPage({
 		isFetching: paymentsFetching,
 	} = useCollectorPayments({
 		collectorId,
+		billingMonthId: activeMonthId,
 		stoppedAccount,
 		groupName: groupFilter || undefined,
 		search: debouncedSearch || undefined,
@@ -513,6 +522,15 @@ export function CashCollectionPage({
 								}}
 								groups={groups}
 								className="w-40"
+							/>
+							<BillingCycleSelect
+								value={monthFilter || activeMonthId || ""}
+								onValueChange={(val) => {
+									setMonthFilter(val);
+									setPage(1);
+								}}
+								options={monthOptions}
+								allLabel="All Months"
 							/>
 						</div>
 
