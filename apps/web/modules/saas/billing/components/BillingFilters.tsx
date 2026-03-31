@@ -19,7 +19,7 @@ export function CollectorSelect({
 	value,
 	onChange,
 	collectors,
-	className = "w-[160px]",
+	className = "w-full sm:w-[160px]",
 }: CollectorSelectProps) {
 	return (
 		<Select
@@ -55,7 +55,7 @@ export function GroupSelect({
 	onChange,
 	groups,
 	excludeFree,
-	className = "w-[160px]",
+	className = "w-full sm:w-[160px]",
 }: GroupSelectProps) {
 	const filteredGroups = excludeFree
 		? groups.filter((g) => g.toLowerCase() !== "free")

@@ -444,13 +444,13 @@ export function NavBar() {
 
 	return (
 		<nav
-			className={cn("w-full", {
-				"w-full md:fixed md:top-0 md:left-0 md:h-full md:w-[280px] md:bg-background":
+			className={cn("w-full border-b border-border/50 md:border-b-0", {
+				"w-full md:fixed md:top-0 md:left-0 md:h-full md:w-[280px] md:border-r md:border-border/50 md:bg-background":
 					useSidebarLayout,
 			})}
 		>
 			<div
-				className={cn("container max-w-6xl py-4", {
+				className={cn("container max-w-6xl px-3 py-3 sm:px-6 sm:py-4", {
 					"md:flex md:h-full md:flex-col md:px-4 md:pt-6 md:pb-0":
 						useSidebarLayout,
 				})}
@@ -496,7 +496,7 @@ export function NavBar() {
 				{/* Mobile: Horizontal scrollable menu */}
 				<ul
 					className={cn(
-						"no-scrollbar -mx-4 -mb-4 mt-6 flex list-none items-center justify-start gap-1 overflow-x-auto px-4 text-sm",
+						"no-scrollbar -mx-3 -mb-3 mt-4 flex list-none items-center justify-start gap-1 overflow-x-auto px-3 pb-0 text-sm sm:-mx-6 sm:-mb-4 sm:mt-6 sm:px-6",
 						{ "md:hidden": useSidebarLayout },
 					)}
 				>

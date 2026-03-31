@@ -63,7 +63,7 @@ export function StatsTile({
 			</CardHeader>
 			<CardContent>
 				<div className="flex items-center justify-between">
-					<strong className="font-bold text-2xl">
+					<strong className="font-bold text-xl sm:text-2xl">
 						{formattedValue}
 						{context && <small>{context}</small>}
 					</strong>

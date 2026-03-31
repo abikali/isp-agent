@@ -20,7 +20,7 @@ export function SearchInput({
 	return (
 		<div
 			className={cn(
-				"relative min-w-[200px] flex-1 sm:max-w-xs",
+				"relative w-full flex-1 sm:min-w-[200px] sm:max-w-xs",
 				className,
 			)}
 		>

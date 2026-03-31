@@ -178,7 +178,7 @@ export function NotificationPreferencesForm() {
 								<p className="text-sm text-muted-foreground">
 									{category.description}
 								</p>
-								<div className="mt-4 flex flex-wrap gap-6">
+								<div className="mt-4 flex flex-wrap gap-4 sm:gap-6">
 									<div className="flex items-center gap-2">
 										<Switch
 											id={`${category.id}-inapp`}

@@ -24,7 +24,7 @@ export function PageShell({
 	children,
 }: PageShellProps) {
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4 sm:space-y-6">
 			{backTo && (
 				<Link
 					to={backTo}
@@ -35,10 +35,10 @@ export function PageShell({
 					{backLabel ?? "Back"}
 				</Link>
 			)}
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
 				<div className="min-w-0 space-y-1">
-					<div className="flex items-center gap-3">
-						<h1 className="truncate text-2xl font-semibold tracking-tight">
+					<div className="flex flex-wrap items-center gap-2 sm:gap-3">
+						<h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
 							{title}
 						</h1>
 						{badges}
@@ -55,7 +55,7 @@ export function PageShell({
 					)}
 				</div>
 				{actions && (
-					<div className="flex shrink-0 items-center gap-2">
+					<div className="flex shrink-0 flex-wrap items-center gap-2">
 						{actions}
 					</div>
 				)}

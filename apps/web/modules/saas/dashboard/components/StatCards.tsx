@@ -246,8 +246,8 @@ export function StatCards() {
 				) : billingStats ? (
 					<ChartCard title="Billing Collection">
 						<div className="space-y-4">
-							<div className="flex items-baseline justify-between">
-								<span className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+							<div className="flex flex-wrap items-baseline justify-between gap-x-2">
+								<span className="text-xl sm:text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
 									{formatCurrency(
 										billingStats.totalCollected,
 									)}
@@ -270,7 +270,7 @@ export function StatCards() {
 									className="h-2"
 								/>
 							</div>
-							<div className="grid grid-cols-3 gap-4 border-t pt-4">
+							<div className="grid grid-cols-3 gap-2 sm:gap-4 border-t pt-4">
 								<div className="text-center">
 									<div className="text-lg font-semibold tabular-nums">
 										{billingStats.collectedPayments}
@@ -320,8 +320,8 @@ export function StatCards() {
 					params={{ organizationSlug: organizationSlug ?? "" }}
 					className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:hover:bg-red-950/50"
 				>
-					<AlertTriangle className="size-5 text-red-600 dark:text-red-400" />
-					<div>
+					<AlertTriangle className="size-5 shrink-0 text-red-600 dark:text-red-400" />
+					<div className="min-w-0">
 						<span className="text-sm font-medium text-red-700 dark:text-red-300">
 							{watcherStats.down} watcher
 							{watcherStats.down > 1 ? "s" : ""} down
@@ -330,7 +330,7 @@ export function StatCards() {
 							{watcherStats.up} of {watcherStats.total} up
 						</span>
 					</div>
-					<span className="ml-auto text-xs text-red-600/70 dark:text-red-400/70">
+					<span className="ml-auto hidden shrink-0 text-xs text-red-600/70 sm:inline dark:text-red-400/70">
 						View watchers &rarr;
 					</span>
 				</Link>

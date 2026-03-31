@@ -100,7 +100,7 @@ export function MessageBubble({
 			<div
 				className={cn("flex", isUser ? "justify-start" : "justify-end")}
 			>
-				<div className="max-w-[75%] rounded-lg bg-muted/50 px-3 py-1.5">
+				<div className="max-w-[85%] rounded-lg bg-muted/50 px-3 py-1.5 sm:max-w-[75%]">
 					<p className="text-sm italic text-muted-foreground">
 						This message was deleted
 					</p>
@@ -124,7 +124,7 @@ export function MessageBubble({
 				isUser ? "justify-start" : "justify-end",
 			)}
 		>
-			<div className="relative max-w-[75%]">
+			<div className="relative max-w-[85%] sm:max-w-[75%]">
 				{/* Bubble tail */}
 				{isUser && (
 					<div className="absolute -left-1.5 top-0 size-3 overflow-hidden">
@@ -241,7 +241,7 @@ export function MessageBubble({
 								</div>
 							)
 						) : (
-							<p className="whitespace-pre-wrap text-sm leading-relaxed">
+							<p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
 								{content}
 							</p>
 						))}
@@ -408,7 +408,7 @@ function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
 		.replace(/\b\w/g, (c) => c.toUpperCase());
 
 	return (
-		<div className="rounded-md border bg-background/50 text-xs">
+		<div className="min-w-0 overflow-hidden rounded-md border bg-background/50 text-xs">
 			<button
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
@@ -458,7 +458,7 @@ function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
 export function TypingBubble() {
 	return (
 		<div className="flex justify-end">
-			<div className="relative max-w-[75%]">
+			<div className="relative max-w-[85%] sm:max-w-[75%]">
 				<div className="absolute -right-1.5 top-0 size-3 overflow-hidden">
 					<div className="absolute left-0 top-0 size-3 origin-top-left -rotate-45 bg-primary/10" />
 				</div>

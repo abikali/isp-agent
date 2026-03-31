@@ -102,7 +102,7 @@ function DealerSyncPanel() {
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="space-y-3">
-				<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<p className="text-sm text-muted-foreground">
 						Import or update all dealers from iRadius. Dealers can
 						then be assigned to organizations.
@@ -110,7 +110,7 @@ function DealerSyncPanel() {
 					<Button
 						onClick={handleSync}
 						disabled={isActive || syncDealers.isPending}
-						className="shrink-0"
+						className="shrink-0 w-full sm:w-auto"
 					>
 						{isActive ? (
 							<>

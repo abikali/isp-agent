@@ -43,7 +43,9 @@ export const Route = createFileRoute("/_marketing/blog/$")({
 	notFoundComponent: () => (
 		<div className="container max-w-6xl pt-32 pb-24">
 			<div className="text-center">
-				<h1 className="font-bold text-4xl">Post not found</h1>
+				<h1 className="font-bold text-2xl sm:text-4xl">
+					Post not found
+				</h1>
 				<p className="mt-4 text-muted-foreground">
 					The blog post you're looking for doesn't exist.
 				</p>
@@ -67,9 +69,9 @@ function BlogPostPage() {
 					<Link to="/blog">&larr; Back to Blog</Link>
 				</div>
 
-				<h1 className="font-bold text-4xl">{title}</h1>
+				<h1 className="font-bold text-2xl sm:text-4xl">{title}</h1>
 
-				<div className="mt-4 flex items-center justify-start gap-6">
+				<div className="mt-4 flex flex-wrap items-center justify-start gap-x-6 gap-y-2">
 					{authorName && (
 						<div className="flex items-center">
 							{authorImage && (
@@ -89,7 +91,7 @@ function BlogPostPage() {
 						</div>
 					)}
 
-					<div className="mr-0 ml-auto">
+					<div>
 						<p className="text-sm opacity-30">
 							{Intl.DateTimeFormat("en-US").format(
 								new Date(date),
@@ -98,7 +100,7 @@ function BlogPostPage() {
 					</div>
 
 					{tags && (
-						<div className="flex flex-1 flex-wrap gap-2">
+						<div className="flex flex-wrap gap-2">
 							{tags.map((tag: string) => (
 								<span
 									key={tag}

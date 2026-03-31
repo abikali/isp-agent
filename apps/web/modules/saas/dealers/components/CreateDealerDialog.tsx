@@ -149,7 +149,7 @@ export function CreateDealerDialog({
 						)}
 					</form.Field>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<form.Field name="username">
 							{(field) => (
 								<div className="space-y-2">
@@ -206,7 +206,7 @@ export function CreateDealerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<form.Field name="phone">
 							{(field) => (
 								<div className="space-y-2">
@@ -256,7 +256,7 @@ export function CreateDealerDialog({
 						)}
 					</form.Field>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<form.Field name="companyPhone">
 							{(field) => (
 								<div className="space-y-2">

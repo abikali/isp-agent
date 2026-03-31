@@ -63,7 +63,9 @@ export function AgentStats({
 						<stat.icon className="size-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent>
-						<p className="text-2xl font-bold">{stat.value}</p>
+						<p className="text-xl sm:text-2xl font-bold">
+							{stat.value}
+						</p>
 						<p className="text-xs text-muted-foreground">
 							{stat.description}
 						</p>

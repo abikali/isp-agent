@@ -102,8 +102,8 @@ export function BillingDashboard() {
 				{/* Collection Progress */}
 				<ChartCard title="Collection Progress">
 					<div className="space-y-4">
-						<div className="flex items-baseline justify-between">
-							<span className="text-3xl font-bold tabular-nums">
+						<div className="flex flex-wrap items-baseline justify-between gap-x-2">
+							<span className="text-2xl sm:text-3xl font-bold tabular-nums">
 								{stats.paidPercentage}%
 							</span>
 							<span className="text-sm text-muted-foreground">
@@ -192,7 +192,7 @@ export function BillingDashboard() {
 									<YAxis
 										dataKey="name"
 										type="category"
-										width={100}
+										width={70}
 										tick={{
 											fontSize: 11,
 											fill: "var(--color-muted-foreground)",

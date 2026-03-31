@@ -47,9 +47,9 @@ export function ChannelCard({ channel, onDelete }: ChannelCardProps) {
 	return (
 		<TooltipProvider>
 			<div className="rounded-lg border border-border p-4 transition-colors hover:bg-muted/30">
-				<div className="flex items-start justify-between">
-					<div>
-						<div className="flex items-center gap-2">
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0 flex-1">
+						<div className="flex flex-wrap items-center gap-2">
 							<h4 className="font-medium">{channel.name}</h4>
 							<Badge variant="outline">
 								{channel.provider === "whatsapp"
@@ -114,7 +114,7 @@ export function ChannelCard({ channel, onDelete }: ChannelCardProps) {
 				</div>
 
 				<div className="mt-3 flex items-center gap-2">
-					<code className="flex-1 truncate rounded bg-muted px-2 py-1 text-xs">
+					<code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">
 						{channel.webhookUrl}
 					</code>
 					<Tooltip>

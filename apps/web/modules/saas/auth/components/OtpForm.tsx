@@ -106,48 +106,50 @@ export function OtpForm() {
 								<FieldLabel htmlFor="code">
 									Verification code
 								</FieldLabel>
-								<InputOTP
-									maxLength={6}
-									value={field.state.value}
-									onChange={(value) => {
-										field.handleChange(value);
-										// Auto-submit when 6 digits entered
-										if (value.length === 6) {
-											form.handleSubmit();
-										}
-									}}
-									autoComplete="one-time-code"
-								>
-									<InputOTPGroup>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={0}
-										/>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={1}
-										/>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={2}
-										/>
-									</InputOTPGroup>
-									<InputOTPSeparator className="opacity-40" />
-									<InputOTPGroup>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={3}
-										/>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={4}
-										/>
-										<InputOTPSlot
-											className="size-10 text-lg"
-											index={5}
-										/>
-									</InputOTPGroup>
-								</InputOTP>
+								<div className="flex justify-center">
+									<InputOTP
+										maxLength={6}
+										value={field.state.value}
+										onChange={(value) => {
+											field.handleChange(value);
+											// Auto-submit when 6 digits entered
+											if (value.length === 6) {
+												form.handleSubmit();
+											}
+										}}
+										autoComplete="one-time-code"
+									>
+										<InputOTPGroup>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={0}
+											/>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={1}
+											/>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={2}
+											/>
+										</InputOTPGroup>
+										<InputOTPSeparator className="opacity-40" />
+										<InputOTPGroup>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={3}
+											/>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={4}
+											/>
+											<InputOTPSlot
+												className="size-9 text-base sm:size-10 sm:text-lg"
+												index={5}
+											/>
+										</InputOTPGroup>
+									</InputOTP>
+								</div>
 								{hasErrors && (
 									<FieldError
 										errors={field.state.meta.errors}

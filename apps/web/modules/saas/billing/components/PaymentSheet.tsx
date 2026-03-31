@@ -350,9 +350,9 @@ export function PaymentSheet({
 							)}
 						</div>
 
-						{/* Amount paid + toggles row */}
-						<div className="flex items-end gap-3">
-							<div className="flex-1">
+						{/* Amount paid + toggles */}
+						<div className="space-y-3">
+							<div>
 								<Label htmlFor="sheet-paidAmount">
 									Amount Paid
 								</Label>
@@ -369,7 +369,7 @@ export function PaymentSheet({
 									className="mt-1 h-11 text-xl font-bold tabular-nums"
 								/>
 							</div>
-							<div className="flex items-center gap-4 pb-1.5">
+							<div className="flex items-center gap-4">
 								<label
 									htmlFor="sheet-freeAccount"
 									className="flex items-center gap-2 cursor-pointer"

@@ -26,14 +26,17 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 
 	return (
 		<div>
-			<div className="mb-6 flex items-center justify-between">
+			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h1 className="text-2xl font-bold">AI Agents</h1>
 					<p className="text-muted-foreground">
 						Manage your chat agents for WhatsApp and Telegram
 					</p>
 				</div>
-				<Button onClick={() => setShowCreate(true)}>
+				<Button
+					onClick={() => setShowCreate(true)}
+					className="w-full sm:w-auto"
+				>
 					<PlusIcon className="mr-2 size-4" />
 					Create Agent
 				</Button>
@@ -67,18 +70,20 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 						>
 							<Card className="transition-colors hover:border-primary/50">
 								<CardHeader>
-									<div className="flex items-start justify-between">
-										<CardTitle className="text-base">
+									<div className="flex items-start justify-between gap-2">
+										<CardTitle className="min-w-0 truncate text-base">
 											{agent.name}
 										</CardTitle>
-										<div className="flex items-center gap-1.5">
+										<div className="flex shrink-0 items-center gap-1.5">
 											{agent.maintenanceMode && (
 												<Badge
 													variant="outline"
 													className="border-amber-500/50 text-amber-600 dark:text-amber-400"
 												>
 													<AlertTriangleIcon className="mr-1 size-3" />
-													Maintenance
+													<span className="hidden sm:inline">
+														Maintenance
+													</span>
 												</Badge>
 											)}
 											<Badge

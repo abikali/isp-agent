@@ -25,7 +25,7 @@ export function BillingCycleSelect({
 	options,
 	allLabel,
 	placeholder = "Billing cycle",
-	className = "w-[150px]",
+	className = "w-full sm:w-[150px]",
 }: BillingCycleSelectProps) {
 	return (
 		<Select value={value} onValueChange={onValueChange}>

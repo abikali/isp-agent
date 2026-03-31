@@ -469,7 +469,7 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 
 									{dealer.dealerAccounts.length > 0 && (
 										<DetailSection title="Account Transactions">
-											<div className="rounded-xl shadow-card overflow-hidden">
+											<div className="rounded-xl shadow-card overflow-x-auto">
 												<Table>
 													<TableHeader>
 														<TableRow>
@@ -662,7 +662,7 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 												<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 													Service Plans
 												</p>
-												<div className="rounded-xl shadow-card overflow-hidden">
+												<div className="rounded-xl shadow-card overflow-x-auto">
 													<Table>
 														<TableHeader>
 															<TableRow>

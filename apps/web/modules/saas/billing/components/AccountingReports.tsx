@@ -30,7 +30,7 @@ export function AccountingReportsSkeleton() {
 	return (
 		<div className="space-y-6">
 			<Skeleton className="h-8 w-48" />
-			<div className="grid gap-4 md:grid-cols-4">
+			<div className="grid gap-4 grid-cols-2 md:grid-cols-4">
 				{Array.from({ length: 4 }).map((_, i) => (
 					<Skeleton key={i} className="h-28" />
 				))}
@@ -130,7 +130,7 @@ export function AccountingReports() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h2 className="text-2xl font-bold tracking-tight">
 						Accounting Reports
@@ -144,12 +144,12 @@ export function AccountingReports() {
 					onValueChange={setMonthFilter}
 					options={monthOptions}
 					allLabel="All Time"
-					className="w-44"
+					className="w-full sm:w-44"
 				/>
 			</div>
 
 			{/* Summary Cards */}
-			<div className="grid gap-4 md:grid-cols-4">
+			<div className="grid gap-4 grid-cols-2 md:grid-cols-4">
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
 						<CardTitle className="text-sm font-medium">
@@ -158,7 +158,7 @@ export function AccountingReports() {
 						<DollarSignIcon className="h-4 w-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent>
-						<p className="text-2xl font-bold">
+						<p className="text-xl sm:text-2xl font-bold">
 							{formatCurrency(data.totalCollected)}
 						</p>
 						<p className="text-xs text-muted-foreground">
@@ -175,7 +175,7 @@ export function AccountingReports() {
 						<UsersIcon className="h-4 w-4 text-muted-foreground" />
 					</CardHeader>
 					<CardContent>
-						<p className="text-2xl font-bold">
+						<p className="text-xl sm:text-2xl font-bold">
 							{formatCurrency(data.totalHandedOff)}
 						</p>
 						<p className="text-xs text-muted-foreground">

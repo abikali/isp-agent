@@ -89,7 +89,7 @@ export function TaskStats({
 					<ChartCard title="At a Glance">
 						<div className="grid grid-cols-2 gap-4">
 							<div className="rounded-lg bg-muted/50 p-3 text-center">
-								<div className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
+								<div className="text-xl sm:text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
 									{completionRate}%
 								</div>
 								<div className="text-xs text-muted-foreground">
@@ -97,7 +97,7 @@ export function TaskStats({
 								</div>
 							</div>
 							<div className="rounded-lg bg-muted/50 p-3 text-center">
-								<div className="text-2xl font-bold tabular-nums">
+								<div className="text-xl sm:text-2xl font-bold tabular-nums">
 									{stats.open +
 										stats.inProgress +
 										stats.onHold}
@@ -107,7 +107,7 @@ export function TaskStats({
 								</div>
 							</div>
 							<div className="rounded-lg bg-muted/50 p-3 text-center">
-								<div className="text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+								<div className="text-xl sm:text-2xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
 									{stats.overdue}
 								</div>
 								<div className="text-xs text-muted-foreground">
@@ -115,7 +115,7 @@ export function TaskStats({
 								</div>
 							</div>
 							<div className="rounded-lg bg-muted/50 p-3 text-center">
-								<div className="text-2xl font-bold tabular-nums">
+								<div className="text-xl sm:text-2xl font-bold tabular-nums">
 									{stats.onHold}
 								</div>
 								<div className="text-xs text-muted-foreground">

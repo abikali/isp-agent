@@ -165,7 +165,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 			backTo={`/app/${organizationSlug}/employees`}
 			backLabel="Employees"
 			subtitle={
-				<span className="flex items-center gap-3">
+				<span className="flex flex-wrap items-center gap-2 sm:gap-3">
 					<span className="font-mono">{employee.employeeNumber}</span>
 					<StatusIndicator
 						status={statusType}
@@ -183,7 +183,7 @@ export function EmployeeDetail({ employeeId }: { employeeId: string }) {
 				</span>
 			}
 			actions={
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					{employee.userId ? (
 						<Badge
 							variant="outline"

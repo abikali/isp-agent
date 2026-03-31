@@ -39,22 +39,22 @@ function AgentDetailPage() {
 	return (
 		<PermissionGate resource="aiAgents" action="read">
 			<Tabs defaultValue="settings" className="space-y-6">
-				<TabsList className="w-full justify-start">
+				<TabsList className="w-full justify-start overflow-x-auto">
 					<TabsTrigger value="settings" className="gap-1.5">
 						<SettingsIcon className="size-3.5" />
-						Settings
+						<span className="hidden sm:inline">Settings</span>
 					</TabsTrigger>
 					<TabsTrigger value="integrations" className="gap-1.5">
 						<Share2Icon className="size-3.5" />
-						Integrations
+						<span className="hidden sm:inline">Integrations</span>
 					</TabsTrigger>
 					<TabsTrigger value="conversations" className="gap-1.5">
 						<MessageSquareIcon className="size-3.5" />
-						Conversations
+						<span className="hidden sm:inline">Conversations</span>
 					</TabsTrigger>
 					<TabsTrigger value="stats" className="gap-1.5">
 						<BarChartIcon className="size-3.5" />
-						Stats
+						<span className="hidden sm:inline">Stats</span>
 					</TabsTrigger>
 				</TabsList>
 

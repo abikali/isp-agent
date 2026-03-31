@@ -225,9 +225,9 @@ export function NotificationSettings({
 						{value.channels.map((channel, index) => (
 							<div
 								key={`${channel.type}-${channel.email ?? channel.channelId ?? index}`}
-								className="flex items-center justify-between rounded-md border px-3 py-2"
+								className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
 							>
-								<div className="flex items-center gap-2">
+								<div className="flex min-w-0 items-center gap-2">
 									<Switch
 										checked={channel.enabled}
 										onCheckedChange={() =>
@@ -240,7 +240,7 @@ export function NotificationSettings({
 									) : (
 										<MessageSquareIcon className="size-4 text-muted-foreground" />
 									)}
-									<div className="text-sm">
+									<div className="min-w-0 truncate text-sm">
 										<span className="capitalize">
 											{channel.type}
 										</span>
@@ -272,7 +272,7 @@ export function NotificationSettings({
 				)}
 
 				{addingType === null ? (
-					<div className="flex gap-2">
+					<div className="flex flex-wrap gap-2">
 						<Button
 							type="button"
 							variant="outline"

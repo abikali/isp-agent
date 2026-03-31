@@ -123,9 +123,13 @@ export function ActiveSessionsBlock() {
 							size="sm"
 							onClick={handleRevokeAllOthers}
 							disabled={revokeAllOthersMutation.isPending}
+							className="w-full sm:w-auto"
 						>
 							<LogOutIcon className="mr-2 size-4" />
-							Sign Out All Other Sessions
+							<span className="sm:inline hidden">
+								Sign Out All Other Sessions
+							</span>
+							<span className="sm:hidden">Sign Out Others</span>
 						</Button>
 					</div>
 				)}
@@ -155,7 +159,7 @@ export function ActiveSessionsBlock() {
 											<DeviceIcon className="size-5 text-muted-foreground" />
 										</div>
 										<div className="min-w-0 flex-1">
-											<div className="flex items-center gap-2">
+											<div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
 												<strong className="text-sm">
 													{session.browser} on{" "}
 													{session.os}
@@ -177,8 +181,8 @@ export function ActiveSessionsBlock() {
 													</Badge>
 												)}
 											</div>
-											<div className="flex items-center gap-2 text-muted-foreground text-xs">
-												<BrowserIcon className="size-3" />
+											<div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-muted-foreground text-xs">
+												<BrowserIcon className="size-3 shrink-0" />
 												<span>{session.device}</span>
 												{session.ipAddress && (
 													<>

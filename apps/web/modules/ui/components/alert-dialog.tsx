@@ -32,9 +32,9 @@ const AlertDialogContent = ({
 		<AlertDialogOverlay />
 		<AlertDialogPrimitive.Content
 			className={cn(
-				"fixed top-[50%] left-[50%] z-50 flex w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4",
+				"fixed top-[50%] left-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 sm:w-full",
 				"max-h-[calc(100dvh-2rem)] overflow-y-auto",
-				"border bg-background p-6 shadow-lg duration-200 sm:rounded-lg",
+				"rounded-xl border bg-background p-4 shadow-lg duration-200 sm:p-6 sm:rounded-lg",
 				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 				"data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
 				"data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",

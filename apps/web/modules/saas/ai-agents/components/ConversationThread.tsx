@@ -86,7 +86,7 @@ export function ConversationThread({
 						>
 							<div
 								className={cn(
-									"max-w-[75%] rounded-lg px-4 py-2",
+									"max-w-[85%] rounded-lg px-3 py-2 sm:max-w-[75%] sm:px-4",
 									msg.role === "user"
 										? "bg-muted text-foreground"
 										: "bg-primary text-primary-foreground",
@@ -94,7 +94,7 @@ export function ConversationThread({
 								)}
 							>
 								{msg.role === "user" ? (
-									<p className="whitespace-pre-wrap text-sm">
+									<p className="whitespace-pre-wrap break-words text-sm">
 										{msg.content}
 									</p>
 								) : (

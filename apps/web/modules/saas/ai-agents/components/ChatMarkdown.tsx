@@ -17,7 +17,7 @@ export const ChatMarkdown = memo(function ChatMarkdown({
 	return (
 		<div
 			className={cn(
-				"chat-markdown text-[14px] leading-relaxed",
+				"chat-markdown min-w-0 break-words text-[14px] leading-relaxed",
 				className,
 			)}
 		>

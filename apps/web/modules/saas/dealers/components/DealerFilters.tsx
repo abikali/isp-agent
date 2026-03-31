@@ -34,7 +34,7 @@ export function DealerFilters({
 			onReset={() => onStatusChange("all")}
 		>
 			<Select value={status} onValueChange={onStatusChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Status" />
 				</SelectTrigger>
 				<SelectContent>

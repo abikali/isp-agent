@@ -58,7 +58,7 @@ export function EmployeeFilters({
 			onReset={handleReset}
 		>
 			<Select value={status} onValueChange={onStatusChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Status" />
 				</SelectTrigger>
 				<SelectContent>
@@ -72,7 +72,7 @@ export function EmployeeFilters({
 			</Select>
 
 			<Select value={department} onValueChange={onDepartmentChange}>
-				<SelectTrigger className="w-[160px]">
+				<SelectTrigger className="w-full sm:w-[160px]">
 					<SelectValue placeholder="Department" />
 				</SelectTrigger>
 				<SelectContent>
@@ -86,7 +86,7 @@ export function EmployeeFilters({
 			</Select>
 
 			<Select value={stationId} onValueChange={onStationIdChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Station" />
 				</SelectTrigger>
 				<SelectContent>

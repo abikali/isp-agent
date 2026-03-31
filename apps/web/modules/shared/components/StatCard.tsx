@@ -45,7 +45,7 @@ export function StatCard({
 	const content = (
 		<div
 			className={cn(
-				"rounded-xl bg-card p-5 shadow-card transition-shadow",
+				"rounded-xl bg-card p-3 sm:p-5 shadow-card transition-shadow",
 				href && "hover:shadow-card-hover cursor-pointer",
 			)}
 		>
@@ -73,7 +73,7 @@ export function StatCard({
 			<div className="mt-3 flex items-baseline gap-2">
 				<span
 					className={cn(
-						"text-2xl font-bold tabular-nums",
+						"text-xl sm:text-2xl font-bold tabular-nums",
 						variantColor[variant],
 					)}
 				>
@@ -124,7 +124,7 @@ export function StatCardGroup({ children, columns = 4 }: StatCardGroupProps) {
 
 export function StatCardSkeleton() {
 	return (
-		<div className="rounded-xl bg-card p-5 shadow-card">
+		<div className="rounded-xl bg-card p-3 sm:p-5 shadow-card">
 			<div className="flex items-center justify-between">
 				<Skeleton className="h-4 w-20" />
 				<Skeleton className="size-8 rounded-lg" />

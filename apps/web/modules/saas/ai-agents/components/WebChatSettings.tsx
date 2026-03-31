@@ -63,13 +63,13 @@ export function WebChatSettings({
 		<TooltipProvider>
 			<Card>
 				<CardHeader>
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div className="flex items-center gap-3">
-							<div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
 								<GlobeIcon className="size-5 text-primary" />
 							</div>
-							<div>
-								<div className="flex items-center gap-2">
+							<div className="min-w-0">
+								<div className="flex flex-wrap items-center gap-2">
 									<CardTitle>Web Chat</CardTitle>
 									<Badge
 										variant={
@@ -103,7 +103,7 @@ export function WebChatSettings({
 							<Input
 								value={chatUrl}
 								readOnly
-								className="font-mono text-sm"
+								className="min-w-0 font-mono text-xs sm:text-sm"
 							/>
 							<Tooltip>
 								<TooltipTrigger asChild>

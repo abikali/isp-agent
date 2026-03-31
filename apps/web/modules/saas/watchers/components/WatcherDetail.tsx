@@ -126,21 +126,23 @@ export function WatcherDetail({
 				</Button>
 			</div>
 
-			<div className="mb-6 flex items-start justify-between">
-				<div>
-					<div className="flex items-center gap-3">
-						<h1 className="text-2xl font-bold">{watcher.name}</h1>
+			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+				<div className="min-w-0">
+					<div className="flex flex-wrap items-center gap-2 sm:gap-3">
+						<h1 className="text-xl font-bold sm:text-2xl">
+							{watcher.name}
+						</h1>
 						<WatcherStatusBadge
 							status={
 								watcher.enabled ? watcher.status : "unknown"
 							}
 						/>
 					</div>
-					<p className="mt-1 text-muted-foreground">
+					<p className="mt-1 truncate text-sm text-muted-foreground">
 						{watcher.target}
 					</p>
 				</div>
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					<Button
 						variant="outline"
 						size="sm"
@@ -307,7 +309,7 @@ function NotificationSettingsCard({
 
 	return (
 		<Card className="mb-6">
-			<CardHeader className="flex flex-row items-center justify-between">
+			<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<CardTitle className="text-sm font-medium">
 						Notification Settings
@@ -317,7 +319,12 @@ function NotificationSettingsCard({
 						issues
 					</CardDescription>
 				</div>
-				<Button variant="outline" size="sm" onClick={onEditToggle}>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={onEditToggle}
+					className="w-full sm:w-auto"
+				>
 					{editing ? (
 						"Cancel"
 					) : (

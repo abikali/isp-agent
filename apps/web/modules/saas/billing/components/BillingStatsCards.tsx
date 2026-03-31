@@ -30,7 +30,7 @@ export function BillingStatsCards({
 				className={
 					compact
 						? "flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
-						: "grid gap-3 grid-cols-3 mb-4"
+						: "grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4"
 				}
 			>
 				{Array.from({ length: 3 }).map((_, i) => (
@@ -66,7 +66,7 @@ export function BillingStatsCards({
 						<UsersIcon className={iconClass} />
 						{compact ? "Bills" : "Collected Bills"}
 					</div>
-					<p className="mt-1 text-2xl font-bold">
+					<p className="mt-1 text-xl sm:text-2xl font-bold">
 						{stats.paidCustomers}
 						<span className="text-sm font-normal text-muted-foreground">
 							/{stats.totalCustomers}
@@ -82,7 +82,7 @@ export function BillingStatsCards({
 						<WalletIcon className={iconClass} />
 						In Hand
 					</div>
-					<p className="mt-1 text-2xl font-bold">
+					<p className="mt-1 text-xl sm:text-2xl font-bold">
 						{formatCurrency(stats.netBalance)}
 					</p>
 				</CardContent>
@@ -95,7 +95,7 @@ export function BillingStatsCards({
 						<BanknoteIcon className={iconClass} />
 						Today
 					</div>
-					<p className="mt-1 text-2xl font-bold">
+					<p className="mt-1 text-xl sm:text-2xl font-bold">
 						{formatCurrency(stats.dailyCollected)}
 					</p>
 					{stats.dailyCount > 0 && (

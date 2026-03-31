@@ -72,7 +72,7 @@ function useTaskColumns(organizationSlug: string) {
 				id: "task",
 				header: "Task",
 				enableSorting: false,
-				meta: { className: "w-[40%]" },
+				meta: { className: "w-full sm:w-[40%]" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (
@@ -167,6 +167,7 @@ function useTaskColumns(organizationSlug: string) {
 				id: "status",
 				header: "Status",
 				enableSorting: false,
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (
@@ -185,6 +186,7 @@ function useTaskColumns(organizationSlug: string) {
 				id: "priority",
 				header: "Priority",
 				enableSorting: false,
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (

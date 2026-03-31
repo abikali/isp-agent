@@ -70,7 +70,7 @@ function ChoosePlanPage() {
 	return (
 		<AuthWrapper contentClass="max-w-5xl">
 			<div className="mb-4 text-center">
-				<h1 className="text-center font-bold text-2xl lg:text-3xl">
+				<h1 className="text-center font-bold text-xl sm:text-2xl lg:text-3xl">
 					Choose Your Plan
 				</h1>
 				<p className="text-muted-foreground text-sm lg:text-base">

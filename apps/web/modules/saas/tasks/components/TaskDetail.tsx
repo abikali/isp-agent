@@ -110,7 +110,7 @@ export function TaskDetail({
 
 	return (
 		<div>
-			<div className="mb-6 flex items-center gap-3">
+			<div className="mb-6 flex flex-wrap items-center gap-3">
 				<Link
 					to={backPath}
 					params={{
@@ -173,7 +173,7 @@ export function TaskDetail({
 									</div>
 								)}
 							</form.Field>
-							<div className="grid grid-cols-2 gap-4">
+							<div className="grid gap-4 sm:grid-cols-2">
 								<form.Field name="status">
 									{(field) => (
 										<div className="space-y-2">
@@ -241,7 +241,7 @@ export function TaskDetail({
 									)}
 								</form.Field>
 							</div>
-							<div className="grid grid-cols-2 gap-4">
+							<div className="grid gap-4 sm:grid-cols-2">
 								<form.Field name="category">
 									{(field) => (
 										<div className="space-y-2">

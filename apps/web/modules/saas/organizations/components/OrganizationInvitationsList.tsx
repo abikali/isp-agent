@@ -41,14 +41,14 @@ export function OrganizationInvitationsListSkeleton() {
 				{Array.from({ length: 2 }).map((_, i) => (
 					<div
 						key={i}
-						className="flex items-center justify-between p-4"
+						className="flex items-center justify-between gap-2 p-4"
 					>
-						<div className="space-y-1">
-							<Skeleton className="h-4 w-48" />
-							<Skeleton className="h-3 w-32" />
+						<div className="space-y-1 min-w-0">
+							<Skeleton className="h-4 w-32 sm:w-48" />
+							<Skeleton className="h-3 w-24 sm:w-32" />
 						</div>
-						<div className="flex gap-2">
-							<Skeleton className="h-9 w-24" />
+						<div className="flex gap-2 shrink-0">
+							<Skeleton className="h-9 w-20 sm:w-24 hidden sm:block" />
 							<Skeleton className="size-9" />
 						</div>
 					</div>

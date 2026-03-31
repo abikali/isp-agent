@@ -227,7 +227,7 @@ export function ConversationDetailPanel({
 						{formatPhoneNumber(conversation?.contactId) && (
 							<button
 								type="button"
-								className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-copy"
+								className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-copy sm:inline-block"
 								onClick={() => {
 									const phone = formatPhoneNumber(
 										conversation?.contactId,

@@ -18,7 +18,7 @@ interface InvoicePageProps {
 
 export function InvoicePage({ paymentId, dehydratedState }: InvoicePageProps) {
 	return (
-		<div className="invoice-page min-h-screen bg-gray-100 py-8 px-4 print:bg-white print:py-0 print:px-0">
+		<div className="invoice-page min-h-screen bg-gray-100 py-4 px-2 sm:py-8 sm:px-4 print:bg-white print:py-0 print:px-0">
 			<AsyncBoundary
 				fallback={<InvoiceSkeleton />}
 				dehydratedState={dehydratedState}
@@ -71,7 +71,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 		<div className="mx-auto max-w-lg">
 			<div className="invoice-card bg-white rounded-2xl shadow-lg overflow-hidden print:shadow-none print:rounded-none">
 				{/* Header */}
-				<div className="invoice-header bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8 text-white text-center print:py-6">
+				<div className="invoice-header bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-6 sm:px-6 sm:py-8 text-white text-center print:py-6">
 					{org.logo ? (
 						<img
 							src={org.logo}
@@ -99,7 +99,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 				</div>
 
 				{/* Invoice Info */}
-				<div className="px-6 pt-6 pb-4">
+				<div className="px-4 pt-4 pb-4 sm:px-6 sm:pt-6">
 					<div className="flex justify-between text-sm text-gray-500 border-b pb-4">
 						<div>
 							<p className="text-xs uppercase tracking-wider text-gray-400">
@@ -224,7 +224,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 				</div>
 
 				{/* Footer */}
-				<div className="bg-gray-50 px-6 py-4 text-center text-xs text-gray-400 print:bg-white print:border-t">
+				<div className="bg-gray-50 px-4 py-4 sm:px-6 text-center text-xs text-gray-400 print:bg-white print:border-t">
 					Thank you for your payment
 				</div>
 			</div>

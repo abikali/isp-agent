@@ -78,7 +78,7 @@ export function CreateRoleDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+			<DialogContent className="max-h-[90vh] w-full max-w-3xl overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>Create Custom Role</DialogTitle>
 					<DialogDescription>

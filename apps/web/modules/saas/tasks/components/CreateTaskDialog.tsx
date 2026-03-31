@@ -134,7 +134,7 @@ export function CreateTaskDialog({
 						)}
 					</form.Field>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="priority">
 							{(field) => (
 								<div className="space-y-2">
@@ -191,7 +191,7 @@ export function CreateTaskDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid grid-cols-2 gap-4">
+					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="dueDate">
 							{(field) => (
 								<div className="space-y-2">

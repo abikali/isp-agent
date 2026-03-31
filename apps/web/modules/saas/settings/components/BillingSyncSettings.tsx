@@ -444,7 +444,7 @@ function EmployeeMappingModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+			<DialogContent className="w-full max-w-2xl max-h-[80vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>Resolve Unmatched Employees</DialogTitle>
 					<p className="text-sm text-muted-foreground">
@@ -465,16 +465,16 @@ function EmployeeMappingModal({
 								key={emp.username}
 								className="rounded-lg border p-3 space-y-2"
 							>
-								<div className="flex items-center justify-between gap-2">
+								<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
 									<div className="min-w-0 flex-1">
 										<div className="flex items-center gap-2">
-											<p className="font-mono text-sm font-medium">
+											<p className="font-mono text-sm font-medium truncate">
 												{emp.username}
 											</p>
 											{emp.role && (
 												<Badge
 													variant="secondary"
-													className="text-xs"
+													className="text-xs shrink-0"
 												>
 													{ROLE_LABELS[emp.role] ??
 														emp.role}
@@ -502,7 +502,7 @@ function EmployeeMappingModal({
 											});
 										}}
 									>
-										<SelectTrigger className="w-32">
+										<SelectTrigger className="w-full sm:w-32">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -632,12 +632,18 @@ function SyncPreview({ preview }: { preview: PreviewData }) {
 									)}
 									<span>{PHASE_LABELS[key] ?? key}</span>
 								</div>
-								<div className="flex items-center gap-2">
-									<Badge variant="secondary">
+								<div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
+									<Badge
+										variant="secondary"
+										className="text-xs"
+									>
 										{phase.matched.toLocaleString()} matched
 									</Badge>
 									{phase.skipped > 0 && (
-										<Badge variant="destructive">
+										<Badge
+											variant="destructive"
+											className="text-xs"
+										>
 											{phase.skipped.toLocaleString()}{" "}
 											skipped
 										</Badge>

@@ -45,7 +45,7 @@ function useEscalationColumns(organizationSlug: string) {
 				id: "escalation",
 				header: "Escalation",
 				enableSorting: false,
-				meta: { className: "w-[35%]" },
+				meta: { className: "w-full sm:w-[35%]" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (
@@ -90,6 +90,7 @@ function useEscalationColumns(organizationSlug: string) {
 				id: "contact",
 				header: "Contact / Customer",
 				enableSorting: false,
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (
@@ -133,6 +134,7 @@ function useEscalationColumns(organizationSlug: string) {
 				id: "status",
 				header: "Status",
 				enableSorting: false,
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (
@@ -151,6 +153,7 @@ function useEscalationColumns(organizationSlug: string) {
 				id: "priority",
 				header: "Priority",
 				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
 					return (

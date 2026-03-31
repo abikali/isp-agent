@@ -276,7 +276,7 @@ function WebChatInner({
 														)}
 													>
 														{isUser ? (
-															<p className="whitespace-pre-wrap text-[14px] leading-relaxed">
+															<p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed">
 																{part.text}
 															</p>
 														) : (

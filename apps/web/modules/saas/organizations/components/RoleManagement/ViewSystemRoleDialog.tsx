@@ -39,7 +39,7 @@ export function ViewSystemRoleDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+			<DialogContent className="max-h-[90vh] w-full max-w-3xl overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						{roleLabel} Permissions

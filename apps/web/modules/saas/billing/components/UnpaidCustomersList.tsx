@@ -61,8 +61,8 @@ function CollectionOverview({
 }) {
 	if (isLoading && total === 0) {
 		return (
-			<div className="grid gap-3 grid-cols-3 mb-4">
-				{Array.from({ length: 3 }).map((_, i) => (
+			<div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
+				{Array.from({ length: 4 }).map((_, i) => (
 					<Skeleton key={i} className="h-20" />
 				))}
 			</div>
@@ -79,7 +79,7 @@ function CollectionOverview({
 						<UsersIcon className="h-4 w-4" />
 						Unpaid
 					</div>
-					<div className="text-2xl font-bold tabular-nums">
+					<div className="text-xl sm:text-2xl font-bold tabular-nums">
 						{total}
 					</div>
 				</CardContent>
@@ -90,7 +90,7 @@ function CollectionOverview({
 						<DollarSignIcon className="h-4 w-4" />
 						To Collect
 					</div>
-					<div className="text-2xl font-bold tabular-nums">
+					<div className="text-xl sm:text-2xl font-bold tabular-nums">
 						{formatCurrency(totalAmountDue)}
 					</div>
 				</CardContent>
@@ -101,7 +101,7 @@ function CollectionOverview({
 						<CalendarXIcon className="h-4 w-4" />
 						Expired
 					</div>
-					<div className="text-2xl font-bold tabular-nums">
+					<div className="text-xl sm:text-2xl font-bold tabular-nums">
 						{expiredCount}
 						{total > 0 && (
 							<span className="text-sm font-normal text-muted-foreground ml-1">
@@ -117,7 +117,7 @@ function CollectionOverview({
 						<WalletIcon className="h-4 w-4" />
 						Avg. Due
 					</div>
-					<div className="text-2xl font-bold tabular-nums">
+					<div className="text-xl sm:text-2xl font-bold tabular-nums">
 						{formatCurrency(avgDue)}
 					</div>
 				</CardContent>
@@ -514,7 +514,7 @@ export function UnpaidCustomersList() {
 						placeholder="Search by name, username, or phone..."
 						className="sm:max-w-xs"
 					/>
-					<div className="flex flex-1 items-center gap-2">
+					<div className="flex flex-1 flex-wrap items-center gap-2">
 						<GroupSelect
 							value={groupFilter}
 							onChange={(val) => {
@@ -533,7 +533,7 @@ export function UnpaidCustomersList() {
 									setPage(1);
 								}}
 								collectors={collectors}
-								className="w-[180px]"
+								className="w-full sm:w-[180px]"
 							/>
 						)}
 
@@ -592,7 +592,7 @@ export function UnpaidCustomersList() {
 					/>
 
 					{customers.length > 0 && (
-						<div className="flex items-center justify-between px-1 pt-2 text-sm text-muted-foreground">
+						<div className="flex flex-col gap-1 px-1 pt-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
 							<span>
 								Showing {customers.length} of {total} unpaid
 							</span>
@@ -623,10 +623,10 @@ export function UnpaidCustomersListSkeleton() {
 	return (
 		<PageShell title="Collect Payments" description="Loading...">
 			<div className="space-y-4">
-				<div className="flex gap-2">
-					<Skeleton className="h-10 w-64" />
-					<Skeleton className="h-10 w-40" />
-					<Skeleton className="h-10 w-44" />
+				<div className="flex flex-col gap-2 sm:flex-row">
+					<Skeleton className="h-10 w-full sm:w-64" />
+					<Skeleton className="h-10 w-full sm:w-40" />
+					<Skeleton className="h-10 w-full sm:w-44" />
 					<Skeleton className="h-10 w-24" />
 				</div>
 				<div className="rounded-xl border bg-card">

@@ -160,7 +160,7 @@ function OrganizationLayout() {
 
 function NoDealerAssigned({ organizationName }: { organizationName: string }) {
 	return (
-		<div className="flex min-h-[60vh] items-center justify-center p-8">
+		<div className="flex min-h-[60vh] items-center justify-center p-4 sm:p-8">
 			<div className="mx-auto max-w-md text-center">
 				<div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
 					<ShieldAlertIcon className="size-8 text-amber-600" />

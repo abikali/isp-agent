@@ -13,10 +13,10 @@ export function EmployeesListSkeleton() {
 					/>
 				))}
 			</div>
-			<div className="mb-4 flex items-center gap-4">
-				<Skeleton className="h-10 w-64" />
-				<Skeleton className="h-10 w-32" />
-				<Skeleton className="ml-auto h-10 w-32" />
+			<div className="mb-4 flex flex-wrap items-center gap-4">
+				<Skeleton className="h-10 w-full sm:w-64" />
+				<Skeleton className="hidden h-10 w-32 sm:block" />
+				<Skeleton className="h-10 w-32 sm:ml-auto" />
 			</div>
 			<div className="space-y-2">
 				{Array.from({ length: 5 }).map((_, i) => (

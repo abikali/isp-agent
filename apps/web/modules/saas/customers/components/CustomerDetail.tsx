@@ -236,7 +236,7 @@ export function CustomerDetail({
 			backTo={`/app/${organizationSlug}/customers`}
 			backLabel="Customers"
 			subtitle={
-				<span className="flex items-center gap-3">
+				<span className="flex flex-wrap items-center gap-2 sm:gap-3">
 					<span className="font-mono">{customer.accountNumber}</span>
 					<StatusIndicator status={statusType} variant="badge" />
 					{customer.online && (

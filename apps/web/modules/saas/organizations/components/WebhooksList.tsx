@@ -117,7 +117,7 @@ export function WebhooksList() {
 				accessorKey: "url",
 				header: "Endpoint",
 				cell: ({ row }) => (
-					<span className="max-w-[200px] truncate block font-mono text-sm">
+					<span className="max-w-[150px] sm:max-w-[200px] truncate block font-mono text-sm">
 						{row.original.url}
 					</span>
 				),
@@ -125,6 +125,7 @@ export function WebhooksList() {
 			{
 				accessorKey: "events",
 				header: "Events",
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => (
 					<div className="flex flex-wrap gap-1">
 						{row.original.events.slice(0, 2).map((event) => (
@@ -147,6 +148,7 @@ export function WebhooksList() {
 			{
 				accessorKey: "enabled",
 				header: "Status",
+				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<Badge
 						variant={row.original.enabled ? "default" : "secondary"}

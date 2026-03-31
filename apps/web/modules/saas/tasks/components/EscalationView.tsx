@@ -185,7 +185,7 @@ export function EscalationView({ taskId }: { taskId: string }) {
 							</CardTitle>
 						</CardHeader>
 						<CardContent>
-							<dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+							<dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
 								<div>
 									<dt className="text-muted-foreground">
 										Follow-up Status
@@ -212,7 +212,7 @@ export function EscalationView({ taskId }: { taskId: string }) {
 												)
 											}
 										>
-											<SelectTrigger className="h-8 w-[160px]">
+											<SelectTrigger className="h-8 w-full sm:w-[160px]">
 												<SelectValue />
 											</SelectTrigger>
 											<SelectContent>

@@ -81,7 +81,7 @@ export function CustomerStats() {
 				/>
 			</StatCardGroup>
 
-			<div className="grid gap-4 lg:grid-cols-3">
+			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 				{/* Status Breakdown */}
 				{statusData.length > 0 && (
 					<StatusPieChart
@@ -94,7 +94,7 @@ export function CustomerStats() {
 				{/* Plan Distribution */}
 				{planData.length > 0 && (
 					<ChartCard title="Top Plans" className="lg:col-span-2">
-						<div className="h-48">
+						<div className="h-40 sm:h-48">
 							<ResponsiveContainer width="100%" height="100%">
 								<BarChart
 									data={planData}
@@ -123,7 +123,7 @@ export function CustomerStats() {
 									<YAxis
 										dataKey="name"
 										type="category"
-										width={110}
+										width={70}
 										tick={{
 											fontSize: 11,
 											fill: "var(--color-muted-foreground)",

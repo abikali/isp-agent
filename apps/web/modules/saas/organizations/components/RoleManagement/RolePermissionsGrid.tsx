@@ -250,7 +250,7 @@ export function RolePermissionsGrid({
 											)}
 										>
 											{/* Resource header */}
-											<div className="flex items-center justify-between px-4 py-3">
+											<div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3">
 												<div className="flex items-center gap-3">
 													<Checkbox
 														checked={
@@ -293,7 +293,7 @@ export function RolePermissionsGrid({
 											{counts.enabled > 0 && (
 												<>
 													<Separator />
-													<div className="px-4 py-3">
+													<div className="px-3 sm:px-4 py-3">
 														<div className="flex flex-wrap gap-2">
 															{baseActions.map(
 																(action) => {
@@ -389,7 +389,7 @@ export function RolePermissionsGrid({
 											{counts.enabled === 0 && (
 												<>
 													<Separator className="opacity-40" />
-													<div className="px-4 py-2.5">
+													<div className="px-3 sm:px-4 py-2.5">
 														<div className="flex flex-wrap gap-1.5">
 															{baseActions.map(
 																(action) => (

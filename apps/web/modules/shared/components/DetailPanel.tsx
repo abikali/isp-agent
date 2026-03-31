@@ -26,14 +26,14 @@ export function DetailPanel({ tabs, defaultTab }: DetailPanelProps) {
 	const defaultValue = defaultTab ?? visibleTabs[0]?.id ?? "";
 
 	return (
-		<Tabs defaultValue={defaultValue} className="space-y-6">
-			<div className="border-b border-border">
+		<Tabs defaultValue={defaultValue} className="space-y-4 sm:space-y-6">
+			<div className="-mx-1 overflow-x-auto border-b border-border px-1">
 				<TabsList className="h-auto gap-1 bg-transparent p-0">
 					{visibleTabs.map((tab) => (
 						<TabsTrigger
 							key={tab.id}
 							value={tab.id}
-							className="rounded-t-lg border-0 px-4 py-2.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+							className="shrink-0 rounded-t-lg border-0 px-3 py-2 text-sm font-medium text-muted-foreground sm:px-4 sm:py-2.5 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
 						>
 							{tab.icon && <tab.icon className="mr-2 size-4" />}
 							{tab.label}
@@ -80,11 +80,11 @@ export function DetailSection({
 	return (
 		<div
 			className={cn(
-				"rounded-xl bg-card p-6 shadow-card space-y-4",
+				"rounded-xl bg-card p-4 shadow-card space-y-4 sm:p-6",
 				className,
 			)}
 		>
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
 						{title}

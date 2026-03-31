@@ -12,7 +12,7 @@ export function AuthWrapper({
 	contentClass,
 }: PropsWithChildren<{ contentClass?: string }>) {
 	return (
-		<div className="flex min-h-screen w-full py-6">
+		<div className="flex min-h-screen w-full px-4 py-6 sm:px-6">
 			<div className="flex w-full flex-col items-center justify-between gap-8">
 				<div className="container">
 					<div className="flex items-center justify-between">
@@ -29,7 +29,7 @@ export function AuthWrapper({
 				<div className="container flex justify-center">
 					<main
 						className={cn(
-							"w-full max-w-md rounded-3xl bg-card text-card-foreground p-6 border lg:p-8",
+							"w-full max-w-md rounded-2xl bg-card text-card-foreground p-4 border sm:rounded-3xl sm:p-6 lg:p-8",
 							contentClass,
 						)}
 					>

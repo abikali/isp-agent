@@ -291,7 +291,7 @@ export function StationsList() {
 						setStatusFilter(val === "all" ? "" : val)
 					}
 				>
-					<SelectTrigger className="w-[150px]">
+					<SelectTrigger className="w-full sm:w-[150px]">
 						<SelectValue placeholder="All Status" />
 					</SelectTrigger>
 					<SelectContent>
@@ -309,7 +309,7 @@ export function StationsList() {
 						setOnlineFilter(val === "all" ? "" : val)
 					}
 				>
-					<SelectTrigger className="w-[140px]">
+					<SelectTrigger className="w-full sm:w-[140px]">
 						<SelectValue placeholder="Connectivity" />
 					</SelectTrigger>
 					<SelectContent>

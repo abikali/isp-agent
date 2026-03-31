@@ -558,7 +558,7 @@ export function PaymentsList() {
 				<StatsBar billingMonthId={activeMonthId} />
 
 				{/* Search + Dropdown Filters */}
-				<div className="flex flex-wrap items-center gap-3">
+				<div className="flex flex-wrap items-center gap-2 sm:gap-3">
 					<SearchInput
 						value={search}
 						onChange={(v) => {
@@ -566,7 +566,7 @@ export function PaymentsList() {
 							setPage(1);
 						}}
 						placeholder="Search customer or invoice..."
-						className="max-w-xs"
+						className="w-full sm:max-w-xs"
 					/>
 
 					<CollectorSelect
@@ -592,7 +592,7 @@ export function PaymentsList() {
 						value={noteCategoryFilter ?? "all"}
 						onValueChange={handleNoteCategoryChange}
 					>
-						<SelectTrigger className="w-[160px]">
+						<SelectTrigger className="w-full sm:w-[160px]">
 							<SelectValue placeholder="All categories" />
 						</SelectTrigger>
 						<SelectContent>
@@ -618,7 +618,7 @@ export function PaymentsList() {
 				</div>
 
 				{/* Type Filter Buttons */}
-				<div className="flex flex-wrap items-center gap-4">
+				<div className="space-y-2">
 					<div className="flex flex-wrap gap-1">
 						{TYPE_FILTERS.map((f) => {
 							const active = typeFilter === f.key;
@@ -639,7 +639,7 @@ export function PaymentsList() {
 					</div>
 
 					{/* Legend */}
-					<div className="flex items-center gap-4 text-xs text-muted-foreground">
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
 						{FLAG_LEGEND.map((f) => (
 							<div
 								key={f.type}

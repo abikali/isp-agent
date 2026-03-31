@@ -216,12 +216,12 @@ export function UserList() {
 							name={row.original.name ?? row.original.email}
 							avatarUrl={row.original.image}
 						/>
-						<div className="leading-tight">
-							<strong className="block">
+						<div className="min-w-0 leading-tight">
+							<strong className="block truncate">
 								{row.original.name ?? row.original.email}
 							</strong>
-							<small className="flex items-center gap-1 text-foreground/60">
-								<span className="block">
+							<small className="flex flex-wrap items-center gap-1 text-foreground/60">
+								<span className="block truncate max-w-[200px] sm:max-w-none">
 									{!!row.original.name && row.original.email}
 								</span>
 								<EmailVerified
@@ -332,7 +332,7 @@ export function UserList() {
 	const users = useMemo(() => data?.users ?? [], [data?.users]);
 
 	return (
-		<Card className="p-6">
+		<Card className="p-3 sm:p-6">
 			<h2 className="mb-4 font-semibold text-2xl">Users</h2>
 			<div className="relative mb-4">
 				<Input

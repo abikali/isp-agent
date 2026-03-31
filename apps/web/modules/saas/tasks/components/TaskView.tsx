@@ -150,7 +150,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 							<CardTitle className="text-base">Details</CardTitle>
 						</CardHeader>
 						<CardContent>
-							<dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+							<dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
 								{task.dueDate && (
 									<div>
 										<dt className="text-muted-foreground">

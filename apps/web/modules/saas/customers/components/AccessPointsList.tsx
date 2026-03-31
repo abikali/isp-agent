@@ -177,7 +177,7 @@ export function AccessPointsList() {
 							setStationFilter(val === "all" ? "" : val)
 						}
 					>
-						<SelectTrigger className="w-[170px]">
+						<SelectTrigger className="w-full sm:w-[170px]">
 							<SelectValue placeholder="All stations" />
 						</SelectTrigger>
 						<SelectContent>
@@ -196,7 +196,7 @@ export function AccessPointsList() {
 						setOnlineFilter(val === "all" ? "" : val)
 					}
 				>
-					<SelectTrigger className="w-[140px]">
+					<SelectTrigger className="w-full sm:w-[140px]">
 						<SelectValue placeholder="Connectivity" />
 					</SelectTrigger>
 					<SelectContent>

@@ -36,7 +36,7 @@ export function FinalCTA() {
 				>
 					<motion.h2
 						variants={fadeUpVariants}
-						className="font-bold text-4xl tracking-tight md:text-5xl lg:text-6xl"
+						className="font-bold text-3xl tracking-tight sm:text-4xl md:text-5xl lg:text-6xl"
 					>
 						Ready to{" "}
 						<span className="bg-gradient-to-r from-highlight to-orange-400 bg-clip-text text-transparent">

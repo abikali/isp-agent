@@ -170,7 +170,7 @@ export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 								}}
 							>
 								<SelectTrigger
-									className="w-[180px]"
+									className="w-full sm:w-[180px]"
 									aria-label="Action"
 								>
 									<SelectValue placeholder="All actions" />
@@ -204,13 +204,13 @@ export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 								<TableHead className="min-w-[120px]">
 									Action
 								</TableHead>
-								<TableHead className="min-w-[120px]">
+								<TableHead className="hidden md:table-cell min-w-[120px]">
 									Resource
 								</TableHead>
 								<TableHead className="min-w-[120px]">
 									Timestamp
 								</TableHead>
-								<TableHead className="min-w-[100px]">
+								<TableHead className="hidden sm:table-cell min-w-[100px]">
 									IP Address
 								</TableHead>
 							</TableRow>
@@ -269,7 +269,7 @@ export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 												{formatActionLabel(log.action)}
 											</Badge>
 										</TableCell>
-										<TableCell>
+										<TableCell className="hidden md:table-cell">
 											<div>
 												<span className="block text-muted-foreground text-sm capitalize">
 													{log.resourceType}
@@ -293,7 +293,7 @@ export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 												)}
 											</span>
 										</TableCell>
-										<TableCell>
+										<TableCell className="hidden sm:table-cell">
 											<span className="font-mono text-muted-foreground text-xs">
 												{log.ipAddress ?? "-"}
 											</span>

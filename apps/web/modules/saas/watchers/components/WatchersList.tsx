@@ -20,15 +20,18 @@ export function WatchersList({
 
 	return (
 		<div>
-			<div className="mb-6 flex items-center justify-between">
+			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
-					<h1 className="text-2xl font-bold">Watchers</h1>
-					<p className="text-muted-foreground">
+					<h1 className="text-xl font-bold sm:text-2xl">Watchers</h1>
+					<p className="text-sm text-muted-foreground">
 						Monitor your infrastructure and get notified when
 						something goes down
 					</p>
 				</div>
-				<Button onClick={() => setShowCreate(true)}>
+				<Button
+					onClick={() => setShowCreate(true)}
+					className="w-full sm:w-auto"
+				>
 					<PlusIcon className="mr-2 size-4" />
 					Create Watcher
 				</Button>

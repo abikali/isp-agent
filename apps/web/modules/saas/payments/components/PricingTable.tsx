@@ -156,15 +156,18 @@ export function PricingTable({
 						return (
 							<div
 								key={planId}
-								className={cn("rounded-3xl border p-6", {
-									"border-2 border-primary": recommended,
-								})}
+								className={cn(
+									"rounded-2xl border p-4 sm:rounded-3xl sm:p-6",
+									{
+										"border-2 border-primary": recommended,
+									},
+								)}
 								data-test="price-table-plan"
 							>
 								<div className="flex h-full flex-col justify-between gap-4">
 									<div>
 										{recommended && (
-											<div className="-mt-9 flex justify-center">
+											<div className="-mt-7 flex justify-center sm:-mt-9">
 												<div className="mb-2 flex h-6 w-auto items-center gap-1.5 rounded-full bg-primary px-2 py-1 font-semibold text-primary-foreground text-xs">
 													<StarIcon className="size-3" />
 													Recommended

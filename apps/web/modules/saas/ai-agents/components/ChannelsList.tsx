@@ -32,7 +32,7 @@ export function ChannelsList({
 	return (
 		<Card>
 			<CardHeader>
-				<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<CardTitle>Channels</CardTitle>
 						<CardDescription>
@@ -43,6 +43,7 @@ export function ChannelsList({
 						variant="outline"
 						size="sm"
 						onClick={() => setShowCreate(true)}
+						className="w-full sm:w-auto"
 					>
 						<PlusIcon className="mr-2 size-4" />
 						Add Channel

@@ -12,7 +12,7 @@ const TabsList = ({
 }: React.ComponentProps<typeof TabsPrimitive.List>) => (
 	<TabsPrimitive.List
 		className={cn(
-			"inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+			"inline-flex h-10 w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground sm:w-auto sm:justify-center",
 			className,
 		)}
 		{...props}

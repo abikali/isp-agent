@@ -111,6 +111,7 @@ export function ApiKeysList() {
 			{
 				accessorKey: "lastUsedAt",
 				header: "Last Used",
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
 						{formatDate(row.original.lastUsedAt?.toString())}
@@ -120,6 +121,7 @@ export function ApiKeysList() {
 			{
 				accessorKey: "expiresAt",
 				header: "Expires",
+				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
 						{row.original.expiresAt

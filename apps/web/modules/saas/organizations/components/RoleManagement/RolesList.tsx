@@ -142,13 +142,13 @@ export function RolesList({ organizationId, onEditRole }: RolesListProps) {
 						return (
 							<div
 								key={role}
-								className="group flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+								className="group flex items-center justify-between gap-2 rounded-lg border bg-card p-3 sm:p-4 transition-colors hover:bg-accent/50"
 							>
-								<div className="flex items-center gap-3">
-									<div className="flex size-9 items-center justify-center rounded-lg bg-muted">
+								<div className="flex items-center gap-3 min-w-0">
+									<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
 										<Icon className="size-4 text-muted-foreground" />
 									</div>
-									<div>
+									<div className="min-w-0">
 										<div className="flex items-center gap-2">
 											<span className="text-sm font-medium">
 												{
@@ -164,7 +164,7 @@ export function RolesList({ organizationId, onEditRole }: RolesListProps) {
 												System
 											</Badge>
 										</div>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-xs text-muted-foreground truncate">
 											{SYSTEM_ROLE_DESCRIPTIONS[role]}
 										</p>
 									</div>
@@ -204,14 +204,14 @@ export function RolesList({ organizationId, onEditRole }: RolesListProps) {
 							return (
 								<div
 									key={role.id}
-									className="group flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+									className="group flex items-center justify-between gap-2 rounded-lg border bg-card p-3 sm:p-4 transition-colors hover:bg-accent/50"
 								>
-									<div className="flex items-center gap-3">
-										<div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+									<div className="flex items-center gap-3 min-w-0">
+										<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
 											<ShieldIcon className="size-4 text-primary" />
 										</div>
-										<div>
-											<span className="text-sm font-medium">
+										<div className="min-w-0">
+											<span className="text-sm font-medium block truncate">
 												{role.name}
 											</span>
 											<p className="text-xs text-muted-foreground">

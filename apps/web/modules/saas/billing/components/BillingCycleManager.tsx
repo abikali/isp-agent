@@ -93,7 +93,7 @@ export function BillingCycleManager() {
 			<CardContent className="py-5">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					{/* Active period */}
-					<div className="px-3 text-center min-w-[160px]">
+					<div className="px-3 text-center sm:min-w-[160px]">
 						<div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
 							Active Period
 						</div>
@@ -104,7 +104,7 @@ export function BillingCycleManager() {
 
 					{/* Stats */}
 					{paymentCount > 0 && (
-						<div className="flex items-center gap-4 text-sm">
+						<div className="flex items-center justify-center gap-4 text-sm">
 							<div className="flex items-center gap-1.5">
 								<ReceiptIcon className="size-3.5 text-muted-foreground" />
 								<span className="font-semibold tabular-nums">
@@ -124,7 +124,7 @@ export function BillingCycleManager() {
 					)}
 
 					{/* Lock/Unlock Action */}
-					<div className="flex items-center gap-2">
+					<div className="flex items-center justify-center gap-2 sm:justify-end">
 						{isLocked ? (
 							<UnlockConfirmDialog
 								label={activeLabel}

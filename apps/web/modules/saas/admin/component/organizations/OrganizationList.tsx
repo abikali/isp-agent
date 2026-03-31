@@ -310,11 +310,11 @@ export function OrganizationList() {
 	);
 
 	return (
-		<Card className="p-6">
-			<div className="mb-4 flex items-center justify-between gap-6">
+		<Card className="p-3 sm:p-6">
+			<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<h2 className="font-semibold text-2xl">Organizations</h2>
 
-				<Button asChild>
+				<Button asChild className="w-full sm:w-auto">
 					<Link to={getAdminPath("/organizations/new")}>
 						<PlusIcon className="mr-1.5 size-4" />
 						Create Organization

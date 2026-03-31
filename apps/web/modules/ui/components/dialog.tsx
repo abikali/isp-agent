@@ -62,7 +62,7 @@ const DialogContent = ({
 			className={cn(
 				"fixed left-[50%] top-[50%] z-50 flex w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 sm:w-full",
 				"max-h-[calc(100dvh-2rem)] overflow-y-auto",
-				"rounded-xl border border-border bg-background p-6 shadow-lg",
+				"rounded-xl border border-border bg-background p-4 shadow-lg sm:p-6",
 				"duration-200",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out",
 				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",

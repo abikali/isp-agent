@@ -121,7 +121,7 @@ export function FeatureFlagsList() {
 
 	return (
 		<>
-			<Card className="p-6">
+			<Card className="p-3 sm:p-6">
 				<Input
 					type="search"
 					placeholder="Search feature flags..."
@@ -139,10 +139,10 @@ export function FeatureFlagsList() {
 						{filteredFlags?.map((flag) => (
 							<div
 								key={flag.id}
-								className="flex items-center justify-between rounded-lg border p-4"
+								className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
 							>
-								<div className="flex-1">
-									<div className="flex items-center gap-2">
+								<div className="min-w-0 flex-1">
+									<div className="flex flex-wrap items-center gap-2">
 										<h3 className="font-medium">
 											{flag.name}
 										</h3>
@@ -163,7 +163,7 @@ export function FeatureFlagsList() {
 											</Badge>
 										)}
 									</div>
-									<p className="mt-1 font-mono text-muted-foreground text-sm">
+									<p className="mt-1 font-mono text-muted-foreground text-sm break-all">
 										{flag.key}
 									</p>
 									{flag.description && (

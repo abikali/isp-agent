@@ -377,13 +377,13 @@ export function AgentSettings({
 				{/* Header with status toggle */}
 				<Card className="mb-6">
 					<CardHeader>
-						<div className="flex items-center justify-between">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 							<div className="flex items-center gap-3">
-								<div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+								<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
 									<BotIcon className="size-5 text-primary" />
 								</div>
-								<div>
-									<CardTitle className="text-lg">
+								<div className="min-w-0">
+									<CardTitle className="truncate text-lg">
 										{agent.name}
 									</CardTitle>
 									<CardDescription>
@@ -424,16 +424,16 @@ export function AgentSettings({
 							className={`mb-6 ${modeField.state.value ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
 						>
 							<CardHeader>
-								<div className="flex items-center justify-between">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 									<div className="flex items-center gap-3">
 										<div
-											className={`flex size-10 items-center justify-center rounded-lg ${modeField.state.value ? "bg-amber-100 dark:bg-amber-900/50" : "bg-muted"}`}
+											className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${modeField.state.value ? "bg-amber-100 dark:bg-amber-900/50" : "bg-muted"}`}
 										>
 											<AlertTriangleIcon
 												className={`size-5 ${modeField.state.value ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
 											/>
 										</div>
-										<div>
+										<div className="min-w-0">
 											<CardTitle className="text-lg">
 												Maintenance Mode
 											</CardTitle>
@@ -443,7 +443,7 @@ export function AgentSettings({
 											</CardDescription>
 										</div>
 									</div>
-									<div className="flex items-center gap-2">
+									<div className="flex shrink-0 items-center gap-2">
 										<Badge
 											variant={
 												modeField.state.value
@@ -498,16 +498,16 @@ export function AgentSettings({
 					{(enabledField) => (
 						<Card className="mb-6">
 							<CardHeader>
-								<div className="flex items-center justify-between">
+								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 									<div className="flex items-center gap-3">
 										<div
-											className={`flex size-10 items-center justify-center rounded-lg ${enabledField.state.value ? "bg-blue-100 dark:bg-blue-900/50" : "bg-muted"}`}
+											className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${enabledField.state.value ? "bg-blue-100 dark:bg-blue-900/50" : "bg-muted"}`}
 										>
 											<HandIcon
 												className={`size-5 ${enabledField.state.value ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
 											/>
 										</div>
-										<div>
+										<div className="min-w-0">
 											<CardTitle className="text-lg">
 												Human Takeover
 											</CardTitle>
@@ -517,7 +517,7 @@ export function AgentSettings({
 											</CardDescription>
 										</div>
 									</div>
-									<div className="flex items-center gap-2">
+									<div className="flex shrink-0 items-center gap-2">
 										<Badge
 											variant={
 												enabledField.state.value
@@ -664,7 +664,7 @@ export function AgentSettings({
 									<form.Field name="systemPrompt">
 										{(field) => (
 											<Field>
-												<div className="flex items-center justify-between">
+												<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 													<FieldLabel htmlFor="settings-prompt">
 														System Prompt
 														<FieldHint text="Instructions that define how the agent behaves. This is the core personality and rules for your agent." />
@@ -677,6 +677,7 @@ export function AgentSettings({
 														onClick={
 															handleGeneratePrompt
 														}
+														className="w-full sm:w-auto"
 													>
 														{isGenerating ? (
 															<Loader2Icon className="size-3.5 animate-spin" />
@@ -845,7 +846,7 @@ export function AgentSettings({
 															key={section.id}
 															className="rounded-lg border p-4 space-y-3"
 														>
-															<div className="flex items-center justify-between">
+															<div className="flex flex-wrap items-center justify-between gap-2">
 																<div className="flex items-center gap-2">
 																	<Switch
 																		checked={
@@ -1287,7 +1288,7 @@ export function AgentSettings({
 																className="mt-0.5"
 															/>
 															<div className="flex-1 min-w-0">
-																<div className="flex items-center gap-2">
+																<div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
 																	<label
 																		htmlFor={`tool-${tool.id}`}
 																		className="text-sm font-medium cursor-pointer"
@@ -1296,7 +1297,7 @@ export function AgentSettings({
 																			tool.name
 																		}
 																	</label>
-																	<code className="text-[10px] text-muted-foreground/70 font-mono">
+																	<code className="hidden text-[10px] text-muted-foreground/70 font-mono sm:inline">
 																		{
 																			tool.id
 																		}

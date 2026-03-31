@@ -355,7 +355,7 @@ export function CashCollectionPage({
 						{balanceLoading ? (
 							<Skeleton className="mt-1 h-7 w-24" />
 						) : (
-							<p className="mt-1 text-2xl font-bold tabular-nums">
+							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
 								{formatCurrency(balance)}
 							</p>
 						)}
@@ -373,7 +373,7 @@ export function CashCollectionPage({
 						{balanceLoading ? (
 							<Skeleton className="mt-1 h-7 w-24" />
 						) : (
-							<p className="mt-1 text-2xl font-bold tabular-nums">
+							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
 								{balanceData?.monthPaidCount ?? 0}
 								<span className="text-sm font-normal text-muted-foreground">
 									/{balanceData?.monthBillCount ?? 0}
@@ -394,7 +394,7 @@ export function CashCollectionPage({
 						{balanceLoading ? (
 							<Skeleton className="mt-1 h-7 w-24" />
 						) : (
-							<p className="mt-1 text-2xl font-bold tabular-nums">
+							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
 								{formatCurrency(
 									balanceData?.monthAmountCollected ?? 0,
 								)}
@@ -414,7 +414,7 @@ export function CashCollectionPage({
 						{balanceLoading ? (
 							<Skeleton className="mt-1 h-7 w-24" />
 						) : (
-							<p className="mt-1 text-2xl font-bold tabular-nums">
+							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
 								{formatCurrency(
 									balanceData?.monthAmountDue ?? 0,
 								)}
@@ -480,7 +480,7 @@ export function CashCollectionPage({
 					<>
 						{/* Payment Filters */}
 						<div className="flex flex-wrap gap-2">
-							<div className="relative">
+							<div className="relative min-w-0 flex-1 sm:flex-none">
 								<SearchIcon className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
 								<Input
 									placeholder="Search customer..."
@@ -489,7 +489,7 @@ export function CashCollectionPage({
 										setSearch(e.target.value);
 										setPage(1);
 									}}
-									className="w-48 pl-8"
+									className="w-full sm:w-48 pl-8"
 								/>
 							</div>
 							<Select
@@ -499,7 +499,7 @@ export function CashCollectionPage({
 									setPage(1);
 								}}
 							>
-								<SelectTrigger className="w-36">
+								<SelectTrigger className="w-full sm:w-36">
 									<SelectValue placeholder="Status" />
 								</SelectTrigger>
 								<SelectContent>
@@ -521,7 +521,7 @@ export function CashCollectionPage({
 									setPage(1);
 								}}
 								groups={groups}
-								className="w-40"
+								className="w-full sm:w-40"
 							/>
 							<BillingCycleSelect
 								value={monthFilter || activeMonthId || ""}
@@ -889,7 +889,7 @@ function PaymentsTable({
 				}
 			/>
 			{totalPages > 1 && (
-				<div className="flex items-center justify-between px-1 pt-4">
+				<div className="flex flex-col gap-2 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between">
 					<p className="text-sm text-muted-foreground">
 						{(page - 1) * PAYMENTS_PER_PAGE + 1}–
 						{Math.min(page * PAYMENTS_PER_PAGE, total)} of {total}

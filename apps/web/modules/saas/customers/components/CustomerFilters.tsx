@@ -66,7 +66,7 @@ export function CustomerFilters({
 			onReset={handleReset}
 		>
 			<Select value={status} onValueChange={onStatusChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Status" />
 				</SelectTrigger>
 				<SelectContent>
@@ -80,7 +80,7 @@ export function CustomerFilters({
 			</Select>
 
 			<Select value={planId} onValueChange={onPlanIdChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Plan" />
 				</SelectTrigger>
 				<SelectContent>
@@ -94,7 +94,7 @@ export function CustomerFilters({
 			</Select>
 
 			<Select value={stationId} onValueChange={onStationIdChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Station" />
 				</SelectTrigger>
 				<SelectContent>
@@ -111,7 +111,7 @@ export function CustomerFilters({
 				value={connectionType}
 				onValueChange={onConnectionTypeChange}
 			>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Connection" />
 				</SelectTrigger>
 				<SelectContent>

@@ -44,7 +44,9 @@ export const Route = createFileRoute("/_marketing/legal/$")({
 	notFoundComponent: () => (
 		<div className="container max-w-6xl pt-32 pb-24">
 			<div className="text-center">
-				<h1 className="font-bold text-4xl">Page not found</h1>
+				<h1 className="font-bold text-2xl sm:text-4xl">
+					Page not found
+				</h1>
 				<p className="mt-4 text-muted-foreground">
 					The page you're looking for doesn't exist.
 				</p>
@@ -61,7 +63,9 @@ function LegalPage() {
 	return (
 		<div className="container max-w-6xl pt-32 pb-24">
 			<div className="mx-auto mb-12 max-w-2xl">
-				<h1 className="text-center font-bold text-4xl">{title}</h1>
+				<h1 className="text-center font-bold text-2xl sm:text-4xl">
+					{title}
+				</h1>
 			</div>
 
 			<PostContent content={body} />

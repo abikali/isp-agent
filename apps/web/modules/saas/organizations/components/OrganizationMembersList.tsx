@@ -47,17 +47,17 @@ export function OrganizationMembersListSkeleton() {
 				{Array.from({ length: 3 }).map((_, i) => (
 					<div
 						key={i}
-						className="flex items-center justify-between p-4"
+						className="flex items-center justify-between gap-2 p-4"
 					>
-						<div className="flex items-center gap-2">
-							<Skeleton className="size-10 rounded-full" />
-							<div className="space-y-1">
-								<Skeleton className="h-4 w-32" />
-								<Skeleton className="h-3 w-48" />
+						<div className="flex items-center gap-2 min-w-0">
+							<Skeleton className="size-10 shrink-0 rounded-full" />
+							<div className="space-y-1 min-w-0">
+								<Skeleton className="h-4 w-24 sm:w-32" />
+								<Skeleton className="h-3 w-32 sm:w-48" />
 							</div>
 						</div>
-						<div className="flex gap-2">
-							<Skeleton className="h-9 w-24" />
+						<div className="flex gap-2 shrink-0">
+							<Skeleton className="h-9 w-20 sm:w-24 hidden sm:block" />
 							<Skeleton className="size-9" />
 						</div>
 					</div>
@@ -183,16 +183,17 @@ export function OrganizationMembersList({
 					}
 					const username = usernameMap.get(member.userId);
 					return (
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-2 min-w-0">
 							<UserAvatar
 								name={member.user.name ?? member.user.email}
 								avatarUrl={member.user.image}
+								className="shrink-0"
 							/>
-							<div>
-								<strong className="block">
+							<div className="min-w-0">
+								<strong className="block truncate">
 									{member.user.name}
 								</strong>
-								<small className="text-foreground/60">
+								<small className="text-foreground/60 block truncate">
 									{username ? (
 										<span className="font-mono">
 											{username}

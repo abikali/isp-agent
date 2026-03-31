@@ -45,14 +45,14 @@ export function ConversationsList({
 					className="block"
 					preload="intent"
 				>
-					<div className="flex items-center gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
+					<div className="flex items-center gap-3 rounded-lg border border-border p-3 sm:gap-4 sm:p-4 transition-colors hover:bg-muted/50">
 						<div className="min-w-0 flex-1">
-							<div className="flex items-center gap-2">
-								<span className="font-medium">
+							<div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+								<span className="font-medium truncate">
 									{conv.contactName || "Unknown Contact"}
 								</span>
 								{conv.channel && conv.externalChatId && (
-									<span className="text-xs text-muted-foreground">
+									<span className="hidden text-xs text-muted-foreground sm:inline">
 										{conv.externalChatId}
 									</span>
 								)}

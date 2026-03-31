@@ -45,7 +45,7 @@ export function TaskFilters({
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
-			<div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+			<div className="relative w-full sm:min-w-[200px] sm:max-w-xs sm:flex-1">
 				<SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					placeholder="Search tasks..."
@@ -56,7 +56,7 @@ export function TaskFilters({
 			</div>
 
 			<Select value={status} onValueChange={onStatusChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Status" />
 				</SelectTrigger>
 				<SelectContent>
@@ -70,7 +70,7 @@ export function TaskFilters({
 			</Select>
 
 			<Select value={priority} onValueChange={onPriorityChange}>
-				<SelectTrigger className="w-[130px]">
+				<SelectTrigger className="w-full sm:w-[130px]">
 					<SelectValue placeholder="Priority" />
 				</SelectTrigger>
 				<SelectContent>
@@ -84,7 +84,7 @@ export function TaskFilters({
 			</Select>
 
 			<Select value={category} onValueChange={onCategoryChange}>
-				<SelectTrigger className="w-[140px]">
+				<SelectTrigger className="w-full sm:w-[140px]">
 					<SelectValue placeholder="Category" />
 				</SelectTrigger>
 				<SelectContent>
@@ -98,7 +98,7 @@ export function TaskFilters({
 			</Select>
 
 			<Select value={employeeId} onValueChange={onEmployeeIdChange}>
-				<SelectTrigger className="w-[150px]">
+				<SelectTrigger className="w-full sm:w-[150px]">
 					<SelectValue placeholder="Assignee" />
 				</SelectTrigger>
 				<SelectContent>

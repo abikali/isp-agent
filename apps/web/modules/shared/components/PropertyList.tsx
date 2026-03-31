@@ -34,7 +34,12 @@ export function PropertyList({ items, columns = 3 }: PropertyListProps) {
 	}
 
 	return (
-		<dl className={cn("grid gap-x-8 gap-y-3", columnClass[columns])}>
+		<dl
+			className={cn(
+				"grid gap-x-4 gap-y-3 sm:gap-x-8",
+				columnClass[columns],
+			)}
+		>
 			{visibleItems.map((item) => (
 				<PropertyItem key={item.label} {...item} />
 			))}
@@ -96,7 +101,12 @@ export function PropertyListSkeleton({
 	columns = 3,
 }: PropertyListSkeletonProps) {
 	return (
-		<div className={cn("grid gap-x-8 gap-y-3", columnClass[columns])}>
+		<div
+			className={cn(
+				"grid gap-x-4 gap-y-3 sm:gap-x-8",
+				columnClass[columns],
+			)}
+		>
 			{Array.from({ length: count }).map((_, i) => (
 				<div key={`prop-skel-${i}`} className="space-y-1">
 					<Skeleton className="h-3 w-16" />
