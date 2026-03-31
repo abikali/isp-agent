@@ -366,7 +366,6 @@ export function PaymentSheet({
 									onChange={(e) =>
 										setPaidAmount(e.target.value)
 									}
-									disabled={stoppedAccount}
 									className="mt-1 h-11 text-xl font-bold tabular-nums"
 								/>
 							</div>
