@@ -2,7 +2,6 @@
 
 import { authClient } from "@repo/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
-import { useRouter } from "@shared/hooks/router";
 import { useTheme } from "@shared/hooks/use-theme";
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
@@ -12,7 +11,6 @@ import { type PropsWithChildren, useEffect, useRef } from "react";
 
 export function CollectorShell({ children }: PropsWithChildren) {
 	const { activeOrganization, employee } = useActiveOrganization();
-	const router = useRouter();
 	const { theme, setTheme } = useTheme();
 	const previousTheme = useRef(theme);
 
@@ -29,7 +27,10 @@ export function CollectorShell({ children }: PropsWithChildren) {
 
 	async function handleLogout() {
 		await authClient.signOut();
-		router.navigate({ to: "/login" });
+		window.location.href = new URL(
+			"/login",
+			window.location.origin,
+		).toString();
 	}
 
 	const matchRoute = useMatchRoute();

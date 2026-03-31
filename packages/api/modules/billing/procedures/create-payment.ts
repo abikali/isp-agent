@@ -31,6 +31,7 @@ export const createPayment = protectedProcedure
 			discount: z.number().finite().min(0).default(0),
 			freeAccount: z.boolean().default(false),
 			stoppedAccount: z.boolean().default(false),
+			workerId: z.string().optional(),
 			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
 			customerPhones: z
@@ -99,6 +100,21 @@ export const createPayment = protectedProcedure
 			throw new ORPCError("NOT_FOUND", {
 				message: "Collector not found",
 			});
+		}
+
+		// Verify worker exists if provided
+		if (input.workerId) {
+			const worker = await db.employee.findFirst({
+				where: {
+					id: input.workerId,
+					organizationId: input.organizationId,
+				},
+			});
+			if (!worker) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Worker not found",
+				});
+			}
 		}
 
 		// Use the active billing month (latest unlocked)
@@ -179,6 +195,7 @@ export const createPayment = protectedProcedure
 					discount: input.discount,
 					freeAccount: input.freeAccount,
 					stoppedAccount: input.stoppedAccount,
+					workerId: input.workerId ?? null,
 					noteCategory: input.noteCategory ?? null,
 					notes: input.notes ?? null,
 				},
