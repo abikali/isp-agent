@@ -40,6 +40,7 @@ export const deletePayment = protectedProcedure
 				customerId: true,
 				collectorId: true,
 				paidAmount: true,
+				stoppedAccount: true,
 			},
 		});
 
@@ -52,6 +53,15 @@ export const deletePayment = protectedProcedure
 		await db.payment.delete({
 			where: { id: input.paymentId },
 		});
+
+		// If the payment had marked the customer as stopped (INACTIVE),
+		// restore the customer back to ACTIVE so they reappear in the unpaid list
+		if (payment.stoppedAccount) {
+			await db.customer.update({
+				where: { id: payment.customerId },
+				data: { status: "ACTIVE" },
+			});
+		}
 
 		// Warn if collector has handoff records — deleting a payment can cause
 		// balance discrepancies (handoff amount may now exceed collected total)
