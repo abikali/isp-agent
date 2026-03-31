@@ -303,7 +303,7 @@ export function getPaymentRowClassName(
 		return undefined;
 	}
 	if (payment.reviewedAt) {
-		return "opacity-60";
+		return "border-l-4 border-l-muted-foreground/30 bg-muted/50";
 	}
 	return FLAG_ROW_CLASSES[flag];
 }
