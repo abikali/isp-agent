@@ -128,6 +128,7 @@ export interface OrgSetupJobResult {
 export interface WhatsAppReceiptJobData {
 	phone: string;
 	paymentId: string;
+	source?: "auto" | "manual" | undefined;
 }
 
 export interface WhatsAppReceiptJobResult {

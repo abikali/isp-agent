@@ -167,6 +167,7 @@ export const listPayments = protectedProcedure
 					noteCategory: true,
 					notes: true,
 					receiptSent: true,
+					activityLog: true,
 					reviewedAt: true,
 					paidAt: true,
 					customer: {

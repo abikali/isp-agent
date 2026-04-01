@@ -47,7 +47,9 @@ import {
 	CircleDotIcon,
 	FilterIcon,
 	ListIcon,
+	MessageSquareIcon,
 	RotateCcwIcon,
+	SendIcon,
 	TrashIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -59,6 +61,7 @@ import {
 	useMonthFilter,
 	usePaymentStatsQuery,
 	usePaymentsQuery,
+	useResendReceipt,
 	useReviewPayment,
 } from "../hooks/use-billing";
 import {
@@ -91,6 +94,15 @@ type PaymentTypeFilter =
 	| "mismatch"
 	| "needs_review";
 
+interface ActivityLogEntry {
+	action: string;
+	status: "success" | "failed" | "skipped";
+	statusCode?: number;
+	error?: string;
+	detail?: string;
+	timestamp: string;
+}
+
 interface PaymentRow {
 	id: string;
 	customer: {
@@ -107,6 +119,8 @@ interface PaymentRow {
 	stoppedAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
+	receiptSent: boolean;
+	activityLog: unknown;
 	reviewedAt: string | Date | null;
 }
 
@@ -258,6 +272,7 @@ export function PaymentsList() {
 	const organizationId = useOrganizationId();
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
+	const resendReceipt = useResendReceipt();
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -427,6 +442,214 @@ export function PaymentsList() {
 				},
 			},
 			{
+				id: "receipt",
+				header: "Receipt",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => {
+					const p = row.original;
+					if (p.stoppedAccount) {
+						return (
+							<span className="text-xs text-muted-foreground">
+								—
+							</span>
+						);
+					}
+					const log = Array.isArray(p.activityLog)
+						? (p.activityLog as ActivityLogEntry[])
+						: [];
+					const receiptEntries = log.filter(
+						(e) =>
+							typeof e.action === "string" &&
+							e.action.startsWith("whatsapp_receipt"),
+					);
+					const lastEntry = receiptEntries[receiptEntries.length - 1];
+
+					if (p.receiptSent) {
+						return (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+										<CheckCircle2Icon className="size-3.5" />
+										Sent
+									</span>
+								</TooltipTrigger>
+								<TooltipContent
+									side="left"
+									className="max-w-xs text-xs"
+								>
+									{receiptEntries.length > 0 ? (
+										<div className="space-y-1">
+											{receiptEntries.map((e, i) => (
+												<div
+													key={i}
+													className="flex items-center gap-1.5"
+												>
+													<span
+														className={
+															e.status ===
+															"success"
+																? "text-emerald-400"
+																: "text-red-400"
+														}
+													>
+														{e.status === "success"
+															? "✓"
+															: "✗"}
+													</span>
+													<span>
+														{e.action ===
+														"whatsapp_receipt_manual"
+															? "Manual"
+															: "Auto"}
+													</span>
+													{e.detail && (
+														<span className="text-muted-foreground">
+															→ {e.detail}
+														</span>
+													)}
+													{e.error && (
+														<span className="text-red-400">
+															({e.error})
+														</span>
+													)}
+													<span className="text-muted-foreground">
+														{new Date(
+															e.timestamp,
+														).toLocaleTimeString()}
+													</span>
+												</div>
+											))}
+										</div>
+									) : (
+										"Receipt sent"
+									)}
+								</TooltipContent>
+							</Tooltip>
+						);
+					}
+
+					if (lastEntry && lastEntry.status === "failed") {
+						return (
+							<div className="flex items-center gap-1">
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<span className="inline-flex items-center gap-1 text-xs text-destructive">
+											<AlertTriangleIcon className="size-3.5" />
+											Failed
+										</span>
+									</TooltipTrigger>
+									<TooltipContent
+										side="left"
+										className="max-w-xs text-xs"
+									>
+										{lastEntry.error ??
+											`HTTP ${lastEntry.statusCode}`}
+									</TooltipContent>
+								</Tooltip>
+								{organizationId && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="sm"
+												variant="ghost"
+												className="size-7 p-0 text-blue-600"
+												disabled={
+													resendReceipt.isPending
+												}
+												onClick={() =>
+													resendReceipt.mutate(
+														{
+															organizationId,
+															paymentId: p.id,
+														},
+														{
+															onSuccess: () =>
+																toast.success(
+																	"Receipt resend queued",
+																),
+															onError: (error) =>
+																toast.error(
+																	error.message,
+																),
+														},
+													)
+												}
+											>
+												<SendIcon className="size-3.5" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											Resend receipt
+										</TooltipContent>
+									</Tooltip>
+								)}
+							</div>
+						);
+					}
+
+					if (lastEntry && lastEntry.status === "skipped") {
+						return (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+										<MessageSquareIcon className="size-3.5" />
+										Skipped
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="left">
+									{lastEntry.error ?? "Skipped"}
+								</TooltipContent>
+							</Tooltip>
+						);
+					}
+
+					// No log entries yet — pending or no receipt attempted
+					return (
+						<div className="flex items-center gap-1">
+							<span className="text-xs text-muted-foreground">
+								Pending
+							</span>
+							{organizationId && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											size="sm"
+											variant="ghost"
+											className="size-7 p-0 text-blue-600"
+											disabled={resendReceipt.isPending}
+											onClick={() =>
+												resendReceipt.mutate(
+													{
+														organizationId,
+														paymentId: p.id,
+													},
+													{
+														onSuccess: () =>
+															toast.success(
+																"Receipt resend queued",
+															),
+														onError: (error) =>
+															toast.error(
+																error.message,
+															),
+													},
+												)
+											}
+										>
+											<SendIcon className="size-3.5" />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>
+										Send receipt
+									</TooltipContent>
+								</Tooltip>
+							)}
+						</div>
+					);
+				},
+			},
+			{
 				id: "actions",
 				enableSorting: false,
 				cell: ({ row }) => (
@@ -533,7 +756,7 @@ export function PaymentsList() {
 				),
 			},
 		],
-		[organizationId, deletePayment, reviewPayment],
+		[organizationId, deletePayment, reviewPayment, resendReceipt],
 	);
 
 	return (

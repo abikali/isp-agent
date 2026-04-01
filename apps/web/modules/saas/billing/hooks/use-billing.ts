@@ -491,6 +491,21 @@ export function useReviewPayment() {
 	});
 }
 
+// ─── Resend Receipt ────────────────────────────────────────────
+
+export function useResendReceipt() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.resendReceipt.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+		},
+	});
+}
+
 // ─── Reports ────────────────────────────────────────────────────
 
 export function useAccountingReports(

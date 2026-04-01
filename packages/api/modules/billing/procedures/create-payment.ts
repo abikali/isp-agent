@@ -236,6 +236,28 @@ export const createPayment = protectedProcedure
 			return newPayment;
 		});
 
+		// Log payment creation activity
+		const collectorName = collector.name;
+		db.payment
+			.update({
+				where: { id: payment.id },
+				data: {
+					activityLog: [
+						{
+							action: "payment_created",
+							status: "success" as const,
+							detail: `Recorded by ${collectorName}`,
+							timestamp: new Date().toISOString(),
+						},
+					],
+				},
+			})
+			.catch((err) =>
+				logger.warn("[Payment] Failed to log creation activity", {
+					error: String(err),
+				}),
+			);
+
 		// Queue WhatsApp receipt via background worker (skip for stopped accounts)
 		if (!input.stoppedAccount) {
 			const phone = input.customerPhones

@@ -23,6 +23,7 @@ import { notifyLocationNeeded } from "./procedures/notify-location-needed";
 import { getPaymentStats } from "./procedures/payment-stats";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
+import { resendReceipt } from "./procedures/resend-receipt";
 import { reviewPayment } from "./procedures/review-payment";
 import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
 import {
@@ -44,6 +45,7 @@ export const billingRouter = {
 		create: createPayment,
 		delete: deletePayment,
 		review: reviewPayment,
+		resendReceipt: resendReceipt,
 		reactivate: reactivateAccount,
 		stats: getPaymentStats,
 	},
