@@ -21,6 +21,7 @@ import type {
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -34,6 +35,7 @@ import {
 } from "@ui/components/alert-dialog";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	Dialog,
 	DialogContent,
@@ -50,14 +52,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { Textarea } from "@ui/components/textarea";
 import {
 	CheckCircle2Icon,
@@ -69,7 +63,7 @@ import {
 	UserIcon,
 	UsersIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useDeleteEmployee,
@@ -913,6 +907,86 @@ function OverviewTab({
 
 // ─── Customers Tab ─────────────────────────────────────────────────────
 
+type CustomerCollection = EmployeeData["customerCollections"][number];
+type WorkerAssignment = EmployeeData["customerWorkerAssignments"][number];
+
+interface CustomerRowShape {
+	id: string;
+	firstName: string | null;
+	lastName: string | null;
+	accountNumber: string;
+	status: string;
+}
+
+function baseCustomerColumns<T extends CustomerRowShape>(
+	organizationSlug: string,
+): ColumnDef<T, unknown>[] {
+	return [
+		{
+			accessorKey: "firstName",
+			header: "Customer",
+			cell: ({ row }) => (
+				<Link
+					to="/app/$organizationSlug/customers/$customerId"
+					params={{ organizationSlug, customerId: row.original.id }}
+					className="text-sm font-medium hover:underline"
+					preload="intent"
+				>
+					{displayName(row.original.firstName, row.original.lastName)}
+				</Link>
+			),
+		},
+		{
+			accessorKey: "accountNumber",
+			header: "Account #",
+			meta: { className: "hidden sm:table-cell" },
+			cell: ({ row }) => (
+				<span className="font-mono text-sm">
+					{row.original.accountNumber}
+				</span>
+			),
+		},
+		{
+			accessorKey: "status",
+			header: "Status",
+			cell: ({ row }) => (
+				<Badge variant="outline">
+					{CUSTOMER_STATUS_LABELS[row.original.status] ??
+						row.original.status}
+				</Badge>
+			),
+		},
+	];
+}
+
+function useCollectorColumns(organizationSlug: string) {
+	return useMemo<ColumnDef<CustomerCollection, unknown>[]>(
+		() => [
+			...baseCustomerColumns<CustomerCollection>(organizationSlug),
+			{
+				accessorKey: "monthlyRate",
+				header: "Monthly Rate",
+				meta: { className: "hidden md:table-cell text-right" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.monthlyRate != null
+							? formatCurrency(row.original.monthlyRate)
+							: "-"}
+					</span>
+				),
+			},
+		],
+		[organizationSlug],
+	);
+}
+
+function useWorkerColumns(organizationSlug: string) {
+	return useMemo<ColumnDef<WorkerAssignment, unknown>[]>(
+		() => baseCustomerColumns<WorkerAssignment>(organizationSlug),
+		[organizationSlug],
+	);
+}
+
 function CustomersTab({
 	employee,
 	organizationSlug,
@@ -920,130 +994,137 @@ function CustomersTab({
 	employee: EmployeeData;
 	organizationSlug: string;
 }) {
+	const collectorColumns = useCollectorColumns(organizationSlug);
+	const workerColumns = useWorkerColumns(organizationSlug);
+
 	return (
 		<>
 			<DetailSection
 				title="Collecting For"
 				description={`${employee.customerCollections.length} customer${employee.customerCollections.length !== 1 ? "s" : ""} assigned for payment collection`}
 			>
-				{employee.customerCollections.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No customers assigned as collector.
-					</p>
-				) : (
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Customer</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Account #
-									</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="hidden md:table-cell text-right">
-										Monthly Rate
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.customerCollections.map((c) => (
-									<TableRow key={c.id}>
-										<TableCell>
-											<Link
-												to="/app/$organizationSlug/customers/$customerId"
-												params={{
-													organizationSlug,
-													customerId: c.id,
-												}}
-												className="text-sm font-medium hover:underline"
-												preload="intent"
-											>
-												{displayName(
-													c.firstName,
-													c.lastName,
-												)}
-											</Link>
-										</TableCell>
-										<TableCell className="hidden sm:table-cell font-mono text-sm">
-											{c.accountNumber}
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline">
-												{CUSTOMER_STATUS_LABELS[
-													c.status
-												] ?? c.status}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-right text-sm">
-											{c.monthlyRate != null
-												? formatCurrency(c.monthlyRate)
-												: "-"}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
+				<DataTable
+					columns={collectorColumns}
+					data={employee.customerCollections}
+					pageSize={10}
+					emptyState={
+						<p className="text-sm text-muted-foreground">
+							No customers assigned as collector.
+						</p>
+					}
+				/>
 			</DetailSection>
 
 			<DetailSection
 				title="Field Worker For"
 				description={`${employee.customerWorkerAssignments.length} customer${employee.customerWorkerAssignments.length !== 1 ? "s" : ""} assigned for field work`}
 			>
-				{employee.customerWorkerAssignments.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No customers assigned as field worker.
-					</p>
-				) : (
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Customer</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Account #
-									</TableHead>
-									<TableHead>Status</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.customerWorkerAssignments.map((c) => (
-									<TableRow key={c.id}>
-										<TableCell>
-											<Link
-												to="/app/$organizationSlug/customers/$customerId"
-												params={{
-													organizationSlug,
-													customerId: c.id,
-												}}
-												className="text-sm font-medium hover:underline"
-												preload="intent"
-											>
-												{displayName(
-													c.firstName,
-													c.lastName,
-												)}
-											</Link>
-										</TableCell>
-										<TableCell className="hidden sm:table-cell font-mono text-sm">
-											{c.accountNumber}
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline">
-												{CUSTOMER_STATUS_LABELS[
-													c.status
-												] ?? c.status}
-											</Badge>
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
+				<DataTable
+					columns={workerColumns}
+					data={employee.customerWorkerAssignments}
+					pageSize={10}
+					emptyState={
+						<p className="text-sm text-muted-foreground">
+							No customers assigned as field worker.
+						</p>
+					}
+				/>
 			</DetailSection>
 		</>
+	);
+}
+
+type TaskAssignment = EmployeeData["taskAssignments"][number];
+
+function TasksSection({
+	employee,
+	organizationSlug,
+}: {
+	employee: EmployeeData;
+	organizationSlug: string;
+}) {
+	const columns = useMemo<ColumnDef<TaskAssignment, unknown>[]>(
+		() => [
+			{
+				accessorFn: (row) => row.task.title,
+				id: "title",
+				header: "Title",
+				cell: ({ row }) => {
+					const task = row.original.task;
+					return (
+						<Link
+							to={
+								task.source === "AI_ESCALATION"
+									? "/app/$organizationSlug/escalations/$taskId"
+									: "/app/$organizationSlug/tasks/$taskId"
+							}
+							params={{ organizationSlug, taskId: task.id }}
+							className="text-sm font-medium hover:underline"
+							preload="intent"
+						>
+							{task.title}
+						</Link>
+					);
+				},
+			},
+			{
+				accessorFn: (row) => row.task.status,
+				id: "status",
+				header: "Status",
+				cell: ({ row }) => (
+					<Badge variant="outline">
+						{TASK_STATUS_LABELS[row.original.task.status] ??
+							row.original.task.status}
+					</Badge>
+				),
+			},
+			{
+				accessorFn: (row) => row.task.priority,
+				id: "priority",
+				header: "Priority",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{TASK_PRIORITY_LABELS[row.original.task.priority] ??
+							row.original.task.priority}
+					</span>
+				),
+			},
+			{
+				accessorFn: (row) => row.task.dueDate,
+				id: "dueDate",
+				header: "Due Date",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.task.dueDate
+							? new Date(
+									row.original.task.dueDate,
+								).toLocaleDateString()
+							: "-"}
+					</span>
+				),
+			},
+		],
+		[organizationSlug],
+	);
+
+	return (
+		<DetailSection
+			title="Assigned Tasks"
+			description="Recent tasks assigned to this employee"
+		>
+			<DataTable
+				columns={columns}
+				data={employee.taskAssignments}
+				pageSize={10}
+				emptyState={
+					<p className="text-sm text-muted-foreground">
+						No tasks assigned.
+					</p>
+				}
+			/>
+		</DetailSection>
 	);
 }
 
@@ -1108,77 +1189,115 @@ function AssignmentsTab({
 				)}
 			</DetailSection>
 
-			<DetailSection
-				title="Assigned Tasks"
-				description="Recent tasks assigned to this employee"
-			>
-				{employee.taskAssignments.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No tasks assigned.
-					</p>
-				) : (
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Title</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Priority
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Due Date
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.taskAssignments.map((ta) => (
-									<TableRow key={ta.task.id}>
-										<TableCell>
-											<Link
-												to={
-													ta.task.source ===
-													"AI_ESCALATION"
-														? "/app/$organizationSlug/escalations/$taskId"
-														: "/app/$organizationSlug/tasks/$taskId"
-												}
-												params={{
-													organizationSlug,
-													taskId: ta.task.id,
-												}}
-												className="text-sm font-medium hover:underline"
-												preload="intent"
-											>
-												{ta.task.title}
-											</Link>
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline">
-												{TASK_STATUS_LABELS[
-													ta.task.status
-												] ?? ta.task.status}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-sm">
-											{TASK_PRIORITY_LABELS[
-												ta.task.priority
-											] ?? ta.task.priority}
-										</TableCell>
-										<TableCell className="hidden text-sm md:table-cell">
-											{ta.task.dueDate
-												? new Date(
-														ta.task.dueDate,
-													).toLocaleDateString()
-												: "-"}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
-			</DetailSection>
+			<TasksSection
+				employee={employee}
+				organizationSlug={organizationSlug}
+			/>
 		</>
+	);
+}
+
+type PaymentCollected = EmployeeData["paymentsCollected"][number];
+
+function PaymentsSection({
+	employee,
+	organizationSlug,
+}: {
+	employee: EmployeeData;
+	organizationSlug: string;
+}) {
+	const columns = useMemo<ColumnDef<PaymentCollected, unknown>[]>(
+		() => [
+			{
+				accessorFn: (row) => row.customer.firstName,
+				id: "customer",
+				header: "Customer",
+				cell: ({ row }) => {
+					const p = row.original;
+					return (
+						<div>
+							<Link
+								to="/app/$organizationSlug/customers/$customerId"
+								params={{
+									organizationSlug,
+									customerId: p.customer.id,
+								}}
+								className="text-sm font-medium hover:underline"
+								preload="intent"
+							>
+								{displayName(
+									p.customer.firstName,
+									p.customer.lastName,
+								)}
+							</Link>
+							<p className="text-xs text-muted-foreground font-mono">
+								{p.customer.accountNumber}
+							</p>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: "paidAmount",
+				header: "Amount",
+				meta: { className: "text-right" },
+				cell: ({ row }) => (
+					<span className="font-medium text-sm tabular-nums">
+						{formatCurrency(row.original.paidAmount)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "accountPrice",
+				header: "Price",
+				meta: { className: "hidden sm:table-cell text-right" },
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground tabular-nums">
+						{formatCurrency(row.original.accountPrice)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "status",
+				header: "Status",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<Badge variant="outline">
+						{PAYMENT_STATUS_LABELS[row.original.status] ??
+							row.original.status}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "paidAt",
+				header: "Date",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{new Date(row.original.paidAt).toLocaleDateString()}
+					</span>
+				),
+			},
+		],
+		[organizationSlug],
+	);
+
+	return (
+		<DetailSection
+			title="Recent Payments"
+			description="Latest payments collected by this employee"
+		>
+			<DataTable
+				columns={columns}
+				data={employee.paymentsCollected}
+				pageSize={10}
+				emptyState={
+					<p className="text-sm text-muted-foreground">
+						No payments collected.
+					</p>
+				}
+			/>
+		</DetailSection>
 	);
 }
 
@@ -1229,81 +1348,10 @@ function FinancialTab({
 				</FieldGroup>
 			</DetailSection>
 
-			<DetailSection
-				title="Recent Payments"
-				description="Latest payments collected by this employee"
-			>
-				{employee.paymentsCollected.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No payments collected.
-					</p>
-				) : (
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Customer</TableHead>
-									<TableHead className="text-right">
-										Amount
-									</TableHead>
-									<TableHead className="hidden sm:table-cell text-right">
-										Price
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Status
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Date
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.paymentsCollected.map((p) => (
-									<TableRow key={p.id}>
-										<TableCell>
-											<Link
-												to="/app/$organizationSlug/customers/$customerId"
-												params={{
-													organizationSlug,
-													customerId: p.customer.id,
-												}}
-												className="text-sm font-medium hover:underline"
-												preload="intent"
-											>
-												{displayName(
-													p.customer.firstName,
-													p.customer.lastName,
-												)}
-											</Link>
-											<p className="text-xs text-muted-foreground font-mono">
-												{p.customer.accountNumber}
-											</p>
-										</TableCell>
-										<TableCell className="text-right font-medium text-sm tabular-nums">
-											{formatCurrency(p.paidAmount)}
-										</TableCell>
-										<TableCell className="hidden sm:table-cell text-right text-sm text-muted-foreground tabular-nums">
-											{formatCurrency(p.accountPrice)}
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											<Badge variant="outline">
-												{PAYMENT_STATUS_LABELS[
-													p.status
-												] ?? p.status}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-sm">
-											{new Date(
-												p.paidAt,
-											).toLocaleDateString()}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
-			</DetailSection>
+			<PaymentsSection
+				employee={employee}
+				organizationSlug={organizationSlug}
+			/>
 
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<DetailSection
@@ -1383,6 +1431,134 @@ function FinancialTab({
 
 // ─── Inventory Tab ─────────────────────────────────────────────────────
 
+type WorkerStock = EmployeeData["workerStock"][number];
+type Installation = EmployeeData["installationsDone"][number];
+
+const stockColumns: ColumnDef<WorkerStock, unknown>[] = [
+	{
+		accessorFn: (row) => row.stockItem.name,
+		id: "item",
+		header: "Item",
+		cell: ({ row }) => (
+			<span className="text-sm font-medium">
+				{row.original.stockItem.name}
+			</span>
+		),
+	},
+	{
+		accessorKey: "quantity",
+		header: "Qty",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-sm tabular-nums">
+				{row.original.quantity}
+			</span>
+		),
+	},
+	{
+		accessorKey: "unitPrice",
+		header: "Unit Price",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-sm tabular-nums">
+				{formatCurrency(row.original.unitPrice)}
+			</span>
+		),
+	},
+	{
+		id: "total",
+		header: "Total",
+		meta: { className: "text-right" },
+		cell: ({ row }) => (
+			<span className="text-sm font-medium tabular-nums">
+				{formatCurrency(row.original.quantity * row.original.unitPrice)}
+			</span>
+		),
+	},
+];
+
+function useInstallationColumns(organizationSlug: string) {
+	return useMemo<ColumnDef<Installation, unknown>[]>(
+		() => [
+			{
+				accessorFn: (row) => row.customer.firstName,
+				id: "customer",
+				header: "Customer",
+				cell: ({ row }) => {
+					const inst = row.original;
+					return (
+						<div>
+							<Link
+								to="/app/$organizationSlug/customers/$customerId"
+								params={{
+									organizationSlug,
+									customerId: inst.customer.id,
+								}}
+								className="text-sm font-medium hover:underline"
+								preload="intent"
+							>
+								{displayName(
+									inst.customer.firstName,
+									inst.customer.lastName,
+								)}
+							</Link>
+							<p className="text-xs text-muted-foreground font-mono">
+								{inst.customer.accountNumber}
+							</p>
+						</div>
+					);
+				},
+			},
+			{
+				accessorFn: (row) => row.stockItem?.name,
+				id: "item",
+				header: "Item",
+				meta: { className: "hidden sm:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{row.original.stockItem?.name ?? "-"}
+						{row.original.quantity > 1 &&
+							` x${row.original.quantity}`}
+					</span>
+				),
+			},
+			{
+				accessorKey: "price",
+				header: "Price",
+				meta: { className: "hidden md:table-cell text-right" },
+				cell: ({ row }) => (
+					<span className="text-sm tabular-nums">
+						{formatCurrency(row.original.price)}
+					</span>
+				),
+			},
+			{
+				accessorKey: "status",
+				header: "Status",
+				cell: ({ row }) => (
+					<Badge variant="outline">
+						{INSTALLATION_STATUS_LABELS[row.original.status] ??
+							row.original.status}
+					</Badge>
+				),
+			},
+			{
+				accessorKey: "installedAt",
+				header: "Date",
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm">
+						{new Date(
+							row.original.installedAt,
+						).toLocaleDateString()}
+					</span>
+				),
+			},
+		],
+		[organizationSlug],
+	);
+}
+
 function InventoryTab({
 	employee,
 	organizationSlug,
@@ -1390,6 +1566,8 @@ function InventoryTab({
 	employee: EmployeeData;
 	organizationSlug: string;
 }) {
+	const installationColumns = useInstallationColumns(organizationSlug);
+
 	const totalStockValue = employee.workerStock.reduce(
 		(sum, s) => sum + s.quantity * s.unitPrice,
 		0,
@@ -1410,44 +1588,11 @@ function InventoryTab({
 							secondary={`${employee.workerStock.length} item${employee.workerStock.length !== 1 ? "s" : ""}`}
 						/>
 					</div>
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Item</TableHead>
-									<TableHead className="text-right">
-										Qty
-									</TableHead>
-									<TableHead className="text-right">
-										Unit Price
-									</TableHead>
-									<TableHead className="text-right">
-										Total
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.workerStock.map((s) => (
-									<TableRow key={s.id}>
-										<TableCell className="text-sm font-medium">
-											{s.stockItem.name}
-										</TableCell>
-										<TableCell className="text-right text-sm tabular-nums">
-											{s.quantity}
-										</TableCell>
-										<TableCell className="text-right text-sm tabular-nums">
-											{formatCurrency(s.unitPrice)}
-										</TableCell>
-										<TableCell className="text-right text-sm font-medium tabular-nums">
-											{formatCurrency(
-												s.quantity * s.unitPrice,
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
+					<DataTable
+						columns={stockColumns}
+						data={employee.workerStock}
+						pageSize={10}
+					/>
 				</DetailSection>
 			)}
 
@@ -1455,77 +1600,16 @@ function InventoryTab({
 				title="Installations"
 				description="Recent installations performed by this employee"
 			>
-				{employee.installationsDone.length === 0 ? (
-					<p className="text-sm text-muted-foreground">
-						No installations recorded.
-					</p>
-				) : (
-					<div className="rounded-xl shadow-card overflow-hidden">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Customer</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Item
-									</TableHead>
-									<TableHead className="hidden md:table-cell text-right">
-										Price
-									</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Date
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{employee.installationsDone.map((inst) => (
-									<TableRow key={inst.id}>
-										<TableCell>
-											<Link
-												to="/app/$organizationSlug/customers/$customerId"
-												params={{
-													organizationSlug,
-													customerId:
-														inst.customer.id,
-												}}
-												className="text-sm font-medium hover:underline"
-												preload="intent"
-											>
-												{displayName(
-													inst.customer.firstName,
-													inst.customer.lastName,
-												)}
-											</Link>
-											<p className="text-xs text-muted-foreground font-mono">
-												{inst.customer.accountNumber}
-											</p>
-										</TableCell>
-										<TableCell className="hidden sm:table-cell text-sm">
-											{inst.stockItem?.name ?? "-"}
-											{inst.quantity > 1 &&
-												` x${inst.quantity}`}
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
-											{formatCurrency(inst.price)}
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline">
-												{INSTALLATION_STATUS_LABELS[
-													inst.status
-												] ?? inst.status}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell text-sm">
-											{new Date(
-												inst.installedAt,
-											).toLocaleDateString()}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
+				<DataTable
+					columns={installationColumns}
+					data={employee.installationsDone}
+					pageSize={10}
+					emptyState={
+						<p className="text-sm text-muted-foreground">
+							No installations recorded.
+						</p>
+					}
+				/>
 			</DetailSection>
 		</>
 	);

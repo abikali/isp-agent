@@ -1,6 +1,8 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
+import { DataTable } from "@ui/components/data-table";
 import {
 	Dialog,
 	DialogContent,
@@ -9,14 +11,6 @@ import {
 	DialogTitle,
 } from "@ui/components/dialog";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { formatDistanceToNow } from "date-fns";
 import {
 	AlertCircleIcon,
@@ -101,6 +95,76 @@ function SyncTypeBadge({ type }: { type: string }) {
 	}
 }
 
+const syncHistoryColumns: ColumnDef<SyncOperationItem, unknown>[] = [
+	{
+		accessorKey: "status",
+		header: "Status",
+		enableSorting: false,
+		cell: ({ row }) => <SyncStatusBadge status={row.original.status} />,
+	},
+	{
+		accessorKey: "type",
+		header: "Type",
+		enableSorting: false,
+		cell: ({ row }) => <SyncTypeBadge type={row.original.type} />,
+	},
+	{
+		accessorKey: "totalContacts",
+		header: "Contacts",
+		enableSorting: false,
+		cell: ({ row }) => (
+			<span className="font-medium">{row.original.totalContacts}</span>
+		),
+	},
+	{
+		id: "result",
+		header: "Result",
+		enableSorting: false,
+		cell: ({ row }) => {
+			const op = row.original;
+			if (op.status === "completed") {
+				return (
+					<span className="text-sm">
+						<span className="text-green-600">
+							{op.successCount} synced
+						</span>
+						{op.errorCount > 0 && (
+							<>
+								{" / "}
+								<span className="text-destructive">
+									{op.errorCount} failed
+								</span>
+							</>
+						)}
+					</span>
+				);
+			}
+			if (op.status === "failed") {
+				return (
+					<span className="text-sm text-destructive">
+						Sync failed
+					</span>
+				);
+			}
+			return <span className="text-sm text-muted-foreground">—</span>;
+		},
+	},
+	{
+		accessorKey: "completedAt",
+		header: "Time",
+		enableSorting: false,
+		cell: ({ row }) => {
+			const op = row.original;
+			const date = op.completedAt ?? op.startedAt ?? op.createdAt;
+			return (
+				<span className="text-muted-foreground text-sm whitespace-nowrap">
+					{formatDistanceToNow(new Date(date), { addSuffix: true })}
+				</span>
+			);
+		},
+	},
+];
+
 export function SyncHistoryDialog({
 	connectionId,
 	open,
@@ -150,118 +214,22 @@ export function SyncHistoryDialog({
 				</DialogHeader>
 
 				<div className="py-4">
-					{isHistoryLoading ? (
-						<div className="space-y-3">
-							{Array.from({ length: 3 }).map((_, i) => (
-								<div
-									key={i}
-									className="flex items-center gap-4"
-								>
-									<Skeleton className="h-6 w-20" />
-									<Skeleton className="h-6 w-24" />
-									<Skeleton className="h-6 flex-1" />
-									<Skeleton className="h-6 w-16" />
-								</div>
-							))}
-						</div>
-					) : history.length === 0 ? (
-						<div className="text-center py-8 text-muted-foreground">
-							<ClockIcon className="mx-auto size-8 mb-2 opacity-50" />
-							<p>No sync history yet</p>
-							<p className="text-sm">
-								Sync operations will appear here once you start
-								syncing
-							</p>
-						</div>
-					) : (
-						<div className="overflow-x-auto">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>Status</TableHead>
-										<TableHead>Type</TableHead>
-										<TableHead>Contacts</TableHead>
-										<TableHead>Result</TableHead>
-										<TableHead>Time</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{history.map((op) => (
-										<TableRow key={op.id}>
-											<TableCell>
-												<SyncStatusBadge
-													status={op.status}
-												/>
-											</TableCell>
-											<TableCell>
-												<SyncTypeBadge type={op.type} />
-											</TableCell>
-											<TableCell className="font-medium">
-												{op.totalContacts}
-											</TableCell>
-											<TableCell>
-												{op.status === "completed" ? (
-													<span className="text-sm">
-														<span className="text-green-600">
-															{op.successCount}{" "}
-															synced
-														</span>
-														{op.errorCount > 0 && (
-															<>
-																{" / "}
-																<span className="text-destructive">
-																	{
-																		op.errorCount
-																	}{" "}
-																	failed
-																</span>
-															</>
-														)}
-													</span>
-												) : op.status === "failed" ? (
-													<span className="text-sm text-destructive">
-														Sync failed
-													</span>
-												) : (
-													<span className="text-sm text-muted-foreground">
-														—
-													</span>
-												)}
-											</TableCell>
-											<TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-												{op.completedAt
-													? formatDistanceToNow(
-															new Date(
-																op.completedAt,
-															),
-															{
-																addSuffix: true,
-															},
-														)
-													: op.startedAt
-														? formatDistanceToNow(
-																new Date(
-																	op.startedAt,
-																),
-																{
-																	addSuffix: true,
-																},
-															)
-														: formatDistanceToNow(
-																new Date(
-																	op.createdAt,
-																),
-																{
-																	addSuffix: true,
-																},
-															)}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-					)}
+					<DataTable
+						columns={syncHistoryColumns}
+						data={history}
+						isLoading={isHistoryLoading}
+						pageSize={10}
+						emptyState={
+							<div className="text-center py-8 text-muted-foreground">
+								<ClockIcon className="mx-auto size-8 mb-2 opacity-50" />
+								<p>No sync history yet</p>
+								<p className="text-sm">
+									Sync operations will appear here once you
+									start syncing
+								</p>
+							</div>
+						}
+					/>
 				</div>
 			</DialogContent>
 		</Dialog>

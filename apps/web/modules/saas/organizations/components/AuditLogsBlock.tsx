@@ -1,13 +1,14 @@
 "use client";
 
-import { Pagination, SettingsItem } from "@saas/shared/client";
-import { Spinner } from "@shared/components/Spinner";
+import { SettingsItem } from "@saas/shared/client";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import {
 	Select,
 	SelectContent,
@@ -15,14 +16,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { format } from "date-fns";
 import { FilterIcon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -80,6 +73,96 @@ function getActionBadgeVariant(
 	const prefix = action.split(".")[0];
 	return prefix ? (actionPrefixVariants[prefix] ?? "outline") : "outline";
 }
+
+const auditLogColumns: ColumnDef<AuditLogEntry, unknown>[] = [
+	{
+		accessorKey: "user",
+		header: "User",
+		enableSorting: false,
+		cell: ({ row }) => {
+			const log = row.original;
+			if (!log.user) {
+				return (
+					<span className="text-muted-foreground text-sm">
+						System
+					</span>
+				);
+			}
+			return (
+				<div className="flex items-center gap-2">
+					<UserAvatar
+						name={log.user.name ?? log.user.email}
+						avatarUrl={log.user.image}
+						className="size-7 shrink-0"
+					/>
+					<div className="min-w-0">
+						<p className="truncate font-medium text-sm">
+							{log.user.name}
+						</p>
+						<p className="truncate text-muted-foreground text-xs">
+							{log.user.email}
+						</p>
+					</div>
+				</div>
+			);
+		},
+	},
+	{
+		accessorKey: "action",
+		header: "Action",
+		enableSorting: false,
+		cell: ({ row }) => (
+			<Badge
+				variant={getActionBadgeVariant(row.original.action)}
+				className="whitespace-nowrap text-xs"
+			>
+				{formatActionLabel(row.original.action)}
+			</Badge>
+		),
+	},
+	{
+		accessorKey: "resourceType",
+		header: "Resource",
+		enableSorting: false,
+		meta: { className: "hidden md:table-cell" },
+		cell: ({ row }) => {
+			const log = row.original;
+			return (
+				<div>
+					<span className="block text-muted-foreground text-sm capitalize">
+						{log.resourceType}
+					</span>
+					{log.resourceId && (
+						<span className="block font-mono text-muted-foreground/70 text-xs">
+							{log.resourceId.slice(0, 8)}...
+						</span>
+					)}
+				</div>
+			);
+		},
+	},
+	{
+		accessorKey: "createdAt",
+		header: "Timestamp",
+		enableSorting: false,
+		cell: ({ row }) => (
+			<span className="whitespace-nowrap text-muted-foreground text-sm">
+				{format(new Date(row.original.createdAt), "MMM d, HH:mm")}
+			</span>
+		),
+	},
+	{
+		accessorKey: "ipAddress",
+		header: "IP Address",
+		enableSorting: false,
+		meta: { className: "hidden sm:table-cell" },
+		cell: ({ row }) => (
+			<span className="font-mono text-muted-foreground text-xs">
+				{row.original.ipAddress ?? "-"}
+			</span>
+		),
+	},
+];
 
 export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 	const searchParams = routeApi.useSearch();
@@ -193,139 +276,22 @@ export function AuditLogsBlock({ organizationId }: { organizationId: string }) {
 					</div>
 				)}
 
-				{/* Table */}
-				<div className="overflow-x-auto rounded-md border">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="min-w-[180px]">
-									User
-								</TableHead>
-								<TableHead className="min-w-[120px]">
-									Action
-								</TableHead>
-								<TableHead className="hidden md:table-cell min-w-[120px]">
-									Resource
-								</TableHead>
-								<TableHead className="min-w-[120px]">
-									Timestamp
-								</TableHead>
-								<TableHead className="hidden sm:table-cell min-w-[100px]">
-									IP Address
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{isLoading ? (
-								<TableRow>
-									<TableCell
-										colSpan={5}
-										className="h-24 text-center"
-									>
-										<div className="flex items-center justify-center">
-											<Spinner className="mr-2 size-4 text-primary" />
-											Loading...
-										</div>
-									</TableCell>
-								</TableRow>
-							) : logs.length > 0 ? (
-								logs.map((log) => (
-									<TableRow key={log.id}>
-										<TableCell>
-											{log.user ? (
-												<div className="flex items-center gap-2">
-													<UserAvatar
-														name={
-															log.user.name ??
-															log.user.email
-														}
-														avatarUrl={
-															log.user.image
-														}
-														className="size-7 shrink-0"
-													/>
-													<div className="min-w-0">
-														<p className="truncate font-medium text-sm">
-															{log.user.name}
-														</p>
-														<p className="truncate text-muted-foreground text-xs">
-															{log.user.email}
-														</p>
-													</div>
-												</div>
-											) : (
-												<span className="text-muted-foreground text-sm">
-													System
-												</span>
-											)}
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={getActionBadgeVariant(
-													log.action,
-												)}
-												className="whitespace-nowrap text-xs"
-											>
-												{formatActionLabel(log.action)}
-											</Badge>
-										</TableCell>
-										<TableCell className="hidden md:table-cell">
-											<div>
-												<span className="block text-muted-foreground text-sm capitalize">
-													{log.resourceType}
-												</span>
-												{log.resourceId && (
-													<span className="block font-mono text-muted-foreground/70 text-xs">
-														{log.resourceId.slice(
-															0,
-															8,
-														)}
-														...
-													</span>
-												)}
-											</div>
-										</TableCell>
-										<TableCell>
-											<span className="whitespace-nowrap text-muted-foreground text-sm">
-												{format(
-													new Date(log.createdAt),
-													"MMM d, HH:mm",
-												)}
-											</span>
-										</TableCell>
-										<TableCell className="hidden sm:table-cell">
-											<span className="font-mono text-muted-foreground text-xs">
-												{log.ipAddress ?? "-"}
-											</span>
-										</TableCell>
-									</TableRow>
-								))
-							) : (
-								<TableRow>
-									<TableCell
-										colSpan={5}
-										className="h-24 text-center"
-									>
-										<p className="text-muted-foreground">
-											No audit logs found
-										</p>
-									</TableCell>
-								</TableRow>
-							)}
-						</TableBody>
-					</Table>
-				</div>
-
-				{/* Pagination */}
-				{data?.total && data.total > ITEMS_PER_PAGE && (
-					<Pagination
-						className="mt-4"
-						totalItems={data.total}
-						itemsPerPage={ITEMS_PER_PAGE}
-						currentPage={currentPage}
-						onChangeCurrentPage={setCurrentPage}
-					/>
-				)}
+				<DataTable
+					columns={auditLogColumns}
+					data={logs}
+					isLoading={isLoading}
+					pagination={{
+						totalItems: data?.total ?? 0,
+						currentPage,
+						itemsPerPage: ITEMS_PER_PAGE,
+						onPageChange: setCurrentPage,
+					}}
+					emptyState={
+						<div className="rounded-xl border bg-card py-12 text-center text-muted-foreground">
+							No audit logs found
+						</div>
+					}
+				/>
 			</div>
 		</SettingsItem>
 	);

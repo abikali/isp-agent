@@ -6,11 +6,13 @@ import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { formatCurrency } from "@shared/lib/format";
-import { orpc } from "@shared/lib/orpc";
+import { orpc, type orpcClient } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
@@ -21,14 +23,6 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Switch } from "@ui/components/switch";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import {
 	BuildingIcon,
 	DollarSignIcon,
@@ -58,6 +52,80 @@ const PERMISSION_LABELS: Record<string, string> = {
 	canMonitorLog: "Monitor Log",
 	chargeIfNotExpiry: "Charge If Not Expired",
 };
+
+type DealerAccount = NonNullable<
+	Awaited<ReturnType<typeof orpcClient.admin.dealers.get>>["dealer"]
+>["dealerAccounts"][number];
+
+type ServicePlan = NonNullable<
+	Awaited<ReturnType<typeof orpcClient.admin.dealers.get>>["dealer"]
+>["servicePlans"][number];
+
+const accountColumns: ColumnDef<DealerAccount, unknown>[] = [
+	{
+		accessorKey: "operationDate",
+		header: "Date",
+		cell: ({ row }) => (
+			<span className="text-sm">
+				{row.original.operationDate
+					? new Date(row.original.operationDate).toLocaleDateString()
+					: "-"}
+			</span>
+		),
+	},
+	{
+		accessorKey: "credit",
+		header: "Credit",
+		cell: ({ row }) => (
+			<span className="text-sm font-mono">
+				{formatCurrency(row.original.credit ?? 0)}
+			</span>
+		),
+	},
+	{
+		accessorKey: "debit",
+		header: "Debit",
+		cell: ({ row }) => (
+			<span className="text-sm font-mono">
+				{formatCurrency(row.original.debit ?? 0)}
+			</span>
+		),
+	},
+	{
+		accessorKey: "balance",
+		header: "Balance",
+		cell: ({ row }) => (
+			<span className="text-sm font-mono">
+				{formatCurrency(row.original.balance ?? 0)}
+			</span>
+		),
+	},
+	{
+		accessorKey: "comment",
+		header: "Comment",
+		meta: { className: "hidden md:table-cell" },
+		cell: ({ row }) => (
+			<span className="text-sm">{row.original.comment ?? "-"}</span>
+		),
+	},
+];
+
+const planColumns: ColumnDef<ServicePlan, unknown>[] = [
+	{
+		accessorKey: "name",
+		header: "Name",
+		cell: ({ row }) => <span className="text-sm">{row.original.name}</span>,
+	},
+	{
+		accessorKey: "monthlyPrice",
+		header: "Monthly Price",
+		cell: ({ row }) => (
+			<span className="text-sm font-mono">
+				{formatCurrency(row.original.monthlyPrice ?? 0)}
+			</span>
+		),
+	},
+];
 
 export function DealerDetail({ dealerId }: { dealerId: string }) {
 	const updateDealer = useUpdateDealer();
@@ -469,79 +537,11 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 
 									{dealer.dealerAccounts.length > 0 && (
 										<DetailSection title="Account Transactions">
-											<div className="rounded-xl shadow-card overflow-x-auto">
-												<Table>
-													<TableHeader>
-														<TableRow>
-															<TableHead>
-																Date
-															</TableHead>
-															<TableHead>
-																Credit
-															</TableHead>
-															<TableHead>
-																Debit
-															</TableHead>
-															<TableHead>
-																Balance
-															</TableHead>
-															<TableHead className="hidden md:table-cell">
-																Comment
-															</TableHead>
-														</TableRow>
-													</TableHeader>
-													<TableBody>
-														{dealer.dealerAccounts.map(
-															(account) => (
-																<TableRow
-																	key={
-																		account.id
-																	}
-																>
-																	<TableCell className="text-sm">
-																		{account.operationDate
-																			? new Date(
-																					account.operationDate,
-																				).toLocaleDateString()
-																			: "-"}
-																	</TableCell>
-																	<TableCell className="text-sm font-mono">
-																		$
-																		{(
-																			account.credit ??
-																			0
-																		).toFixed(
-																			2,
-																		)}
-																	</TableCell>
-																	<TableCell className="text-sm font-mono">
-																		$
-																		{(
-																			account.debit ??
-																			0
-																		).toFixed(
-																			2,
-																		)}
-																	</TableCell>
-																	<TableCell className="text-sm font-mono">
-																		$
-																		{(
-																			account.balance ??
-																			0
-																		).toFixed(
-																			2,
-																		)}
-																	</TableCell>
-																	<TableCell className="hidden text-sm md:table-cell">
-																		{account.comment ??
-																			"-"}
-																	</TableCell>
-																</TableRow>
-															),
-														)}
-													</TableBody>
-												</Table>
-											</div>
+											<DataTable
+												columns={accountColumns}
+												data={dealer.dealerAccounts}
+												pageSize={10}
+											/>
 										</DetailSection>
 									)}
 								</>
@@ -662,47 +662,11 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 												<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
 													Service Plans
 												</p>
-												<div className="rounded-xl shadow-card overflow-x-auto">
-													<Table>
-														<TableHeader>
-															<TableRow>
-																<TableHead>
-																	Name
-																</TableHead>
-																<TableHead>
-																	Monthly
-																	Price
-																</TableHead>
-															</TableRow>
-														</TableHeader>
-														<TableBody>
-															{dealer.servicePlans.map(
-																(plan) => (
-																	<TableRow
-																		key={
-																			plan.id
-																		}
-																	>
-																		<TableCell className="text-sm">
-																			{
-																				plan.name
-																			}
-																		</TableCell>
-																		<TableCell className="text-sm font-mono">
-																			$
-																			{(
-																				plan.monthlyPrice ??
-																				0
-																			).toFixed(
-																				2,
-																			)}
-																		</TableCell>
-																	</TableRow>
-																),
-															)}
-														</TableBody>
-													</Table>
-												</div>
+												<DataTable
+													columns={planColumns}
+													data={dealer.servicePlans}
+													pageSize={10}
+												/>
 											</div>
 										)}
 									</DetailSection>

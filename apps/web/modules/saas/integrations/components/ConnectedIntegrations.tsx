@@ -1,17 +1,11 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/client";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@ui/components/table";
 import { formatDistanceToNow } from "date-fns";
 import {
 	RefreshCwIcon,
@@ -84,13 +78,148 @@ export function ConnectedIntegrations({
 		if (!confirm("Are you sure you want to disconnect this integration?")) {
 			return;
 		}
-
 		await deleteMutation.mutateAsync({ id: connectionId });
 	};
 
 	const handleSync = async (connectionId: string) => {
 		await syncMutation.mutateAsync({ connectionId });
 	};
+
+	const columns: ColumnDef<(typeof connections)[number], unknown>[] = [
+		{
+			accessorKey: "providerName",
+			header: "Integration",
+			enableSorting: false,
+			cell: ({ row }) => {
+				const connection = row.original;
+				const iconClass = getProviderIconClass(
+					connection.providerConfigKey,
+				);
+				return (
+					<div className="flex items-center gap-3">
+						<div
+							className={`flex size-8 items-center justify-center rounded text-white font-semibold text-xs ${iconClass}`}
+						>
+							{connection.providerName.charAt(0)}
+						</div>
+						<div>
+							<div className="font-medium">
+								{connection.name || connection.providerName}
+							</div>
+							{connection.name && (
+								<div className="text-xs text-muted-foreground">
+									{connection.providerName}
+								</div>
+							)}
+						</div>
+					</div>
+				);
+			},
+		},
+		{
+			accessorKey: "syncMode",
+			header: "Sync Mode",
+			enableSorting: false,
+			cell: ({ row }) => (
+				<Badge
+					variant={
+						row.original.syncMode === "auto"
+							? "default"
+							: "secondary"
+					}
+				>
+					{row.original.syncMode === "auto" ? "Automatic" : "Manual"}
+				</Badge>
+			),
+		},
+		{
+			accessorKey: "status",
+			header: "Status",
+			enableSorting: false,
+			cell: ({ row }) => {
+				const connection = row.original;
+				if (connection.status === "connected") {
+					return (
+						<Badge
+							variant="outline"
+							className="text-green-600 border-green-200 bg-green-50"
+						>
+							Connected
+						</Badge>
+					);
+				}
+				if (connection.status === "error") {
+					return (
+						<div className="flex items-center gap-1 text-destructive">
+							<XCircleIcon className="size-4" />
+							<span className="text-sm">Error</span>
+						</div>
+					);
+				}
+				return <Badge variant="secondary">Disconnected</Badge>;
+			},
+		},
+		{
+			accessorKey: "lastSyncAt",
+			header: "Last Synced",
+			enableSorting: false,
+			cell: ({ row }) => (
+				<span className="text-muted-foreground text-sm">
+					{row.original.lastSyncAt
+						? formatDistanceToNow(
+								new Date(row.original.lastSyncAt),
+								{ addSuffix: true },
+							)
+						: "Never"}
+				</span>
+			),
+		},
+		{
+			id: "actions",
+			header: "",
+			enableSorting: false,
+			cell: ({ row }) => {
+				const connection = row.original;
+				return (
+					<div className="flex gap-1">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleSync(connection.id)}
+							disabled={
+								syncMutation.isPending ||
+								connection.status !== "connected"
+							}
+							title="Sync now"
+						>
+							<RefreshCwIcon
+								className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
+							/>
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() =>
+								setSelectedConnectionId(connection.id)
+							}
+							title="Settings"
+						>
+							<SettingsIcon className="size-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleDelete(connection.id)}
+							disabled={deleteMutation.isPending}
+							title="Disconnect"
+						>
+							<TrashIcon className="size-4 text-destructive" />
+						</Button>
+					</div>
+				);
+			},
+		},
+	];
 
 	if (connections.length === 0) {
 		return null;
@@ -102,152 +231,7 @@ export function ConnectedIntegrations({
 				title="Connected Integrations"
 				description="Manage your active integration connections"
 			>
-				<div className="overflow-x-auto">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>Integration</TableHead>
-								<TableHead>Sync Mode</TableHead>
-								<TableHead>Status</TableHead>
-								<TableHead>Last Synced</TableHead>
-								<TableHead className="w-[150px]" />
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{connections.map((connection) => {
-								const iconClass = getProviderIconClass(
-									connection.providerConfigKey,
-								);
-
-								return (
-									<TableRow key={connection.id}>
-										<TableCell>
-											<div className="flex items-center gap-3">
-												<div
-													className={`flex size-8 items-center justify-center rounded text-white font-semibold text-xs ${iconClass}`}
-												>
-													{connection.providerName.charAt(
-														0,
-													)}
-												</div>
-												<div>
-													<div className="font-medium">
-														{connection.name ||
-															connection.providerName}
-													</div>
-													{connection.name && (
-														<div className="text-xs text-muted-foreground">
-															{
-																connection.providerName
-															}
-														</div>
-													)}
-												</div>
-											</div>
-										</TableCell>
-										<TableCell>
-											<Badge
-												variant={
-													connection.syncMode ===
-													"auto"
-														? "default"
-														: "secondary"
-												}
-											>
-												{connection.syncMode === "auto"
-													? "Automatic"
-													: "Manual"}
-											</Badge>
-										</TableCell>
-										<TableCell>
-											{connection.status ===
-											"connected" ? (
-												<Badge
-													variant="outline"
-													className="text-green-600 border-green-200 bg-green-50"
-												>
-													Connected
-												</Badge>
-											) : connection.status ===
-												"error" ? (
-												<div className="flex items-center gap-1 text-destructive">
-													<XCircleIcon className="size-4" />
-													<span className="text-sm">
-														Error
-													</span>
-												</div>
-											) : (
-												<Badge variant="secondary">
-													Disconnected
-												</Badge>
-											)}
-										</TableCell>
-										<TableCell className="text-muted-foreground text-sm">
-											{connection.lastSyncAt
-												? formatDistanceToNow(
-														new Date(
-															connection.lastSyncAt,
-														),
-														{ addSuffix: true },
-													)
-												: "Never"}
-										</TableCell>
-										<TableCell>
-											<div className="flex gap-1">
-												<Button
-													variant="ghost"
-													size="icon"
-													onClick={() =>
-														handleSync(
-															connection.id,
-														)
-													}
-													disabled={
-														syncMutation.isPending ||
-														connection.status !==
-															"connected"
-													}
-													title="Sync now"
-												>
-													<RefreshCwIcon
-														className={`size-4 ${syncMutation.isPending ? "animate-spin" : ""}`}
-													/>
-												</Button>
-												<Button
-													variant="ghost"
-													size="icon"
-													onClick={() =>
-														setSelectedConnectionId(
-															connection.id,
-														)
-													}
-													title="Settings"
-												>
-													<SettingsIcon className="size-4" />
-												</Button>
-												<Button
-													variant="ghost"
-													size="icon"
-													onClick={() =>
-														handleDelete(
-															connection.id,
-														)
-													}
-													disabled={
-														deleteMutation.isPending
-													}
-													title="Disconnect"
-												>
-													<TrashIcon className="size-4 text-destructive" />
-												</Button>
-											</div>
-										</TableCell>
-									</TableRow>
-								);
-							})}
-						</TableBody>
-					</Table>
-				</div>
+				<DataTable columns={columns} data={connections} />
 			</SettingsItem>
 
 			{/* Settings Dialog */}
