@@ -11,6 +11,13 @@ import { resetCustomerPin } from "./procedures/reset-pin";
 import { setCustomerPin } from "./procedures/set-pin";
 import { getCustomerStats } from "./procedures/stats";
 import {
+	bulkResolveSyncConflicts,
+	getSyncConflictsSummary,
+	listSyncConflicts,
+	resolveSyncConflict,
+} from "./procedures/sync-conflicts";
+import {
+	cancelIRadiusSync,
 	getIRadiusSyncStatus,
 	syncFromIRadius,
 	testIRadius,
@@ -33,5 +40,10 @@ export const customersRouter = {
 	listInvoices: listCustomerInvoices,
 	testIRadius,
 	syncFromIRadius,
+	cancelIRadiusSync,
 	getIRadiusSyncStatus,
+	listSyncConflicts,
+	resolveSyncConflict,
+	bulkResolveSyncConflicts,
+	getSyncConflictsSummary,
 };

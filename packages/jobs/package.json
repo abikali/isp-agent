@@ -10,6 +10,10 @@
 		"./integration-sync": {
 			"types": "./src/jobs/integration-sync.jobs.ts",
 			"default": "./src/jobs/integration-sync.jobs.ts"
+		},
+		"./sync-fields": {
+			"types": "./src/workers/iradius-sync-fields.ts",
+			"default": "./src/workers/iradius-sync-fields.ts"
 		}
 	},
 	"scripts": {

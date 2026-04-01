@@ -239,6 +239,18 @@ export function useSyncFromIRadius() {
 	});
 }
 
+export function useCancelIRadiusSync() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.cancelIRadiusSync.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 export function useIRadiusSyncStatus(
 	organizationId: string | null,
 	operationId: string | null,
@@ -257,6 +269,66 @@ export function useIRadiusSyncStatus(
 				return 2000;
 			}
 			return false;
+		},
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Sync Conflict Hooks
+// ---------------------------------------------------------------------------
+
+export function useSyncConflicts(
+	organizationId: string | null,
+	filters: {
+		status?: "pending" | "resolved" | "all";
+		page?: number;
+		pageSize?: number;
+	} = {},
+) {
+	return useQuery(
+		organizationId
+			? orpc.customers.listSyncConflicts.queryOptions({
+					input: {
+						organizationId,
+						status: filters.status ?? "pending",
+						page: filters.page ?? 1,
+						pageSize: filters.pageSize ?? 25,
+					},
+				})
+			: disabledQuery(["customers", "listSyncConflicts"]),
+	);
+}
+
+export function useSyncConflictsSummary(organizationId: string | null) {
+	return useQuery(
+		organizationId
+			? orpc.customers.getSyncConflictsSummary.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["customers", "getSyncConflictsSummary"]),
+	);
+}
+
+export function useResolveSyncConflict() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.resolveSyncConflict.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
+export function useBulkResolveSyncConflicts() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.bulkResolveSyncConflicts.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
 		},
 	});
 }

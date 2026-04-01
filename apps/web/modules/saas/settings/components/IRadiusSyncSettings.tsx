@@ -12,14 +12,18 @@ import {
 	CircleIcon,
 	DatabaseIcon,
 	LoaderIcon,
+	TriangleAlertIcon,
 	XCircleIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
+	useCancelIRadiusSync,
 	useIRadiusSyncStatus,
+	useSyncConflictsSummary,
 	useSyncFromIRadius,
 	useTestIRadius,
 } from "../../customers/hooks/use-customers";
+import { SyncConflictsDialog } from "./SyncConflictsDialog";
 
 interface Counts {
 	subscribers: number;
@@ -35,7 +39,9 @@ export function IRadiusSyncSettings() {
 	const organizationId = useOrganizationId();
 	const testConnection = useTestIRadius();
 	const syncIRadius = useSyncFromIRadius();
+	const cancelSync = useCancelIRadiusSync();
 	const queryClient = useQueryClient();
+	const { data: conflictSummary } = useSyncConflictsSummary(organizationId);
 
 	const [counts, setCounts] = useState<Counts | null>(null);
 	const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -193,13 +199,56 @@ export function IRadiusSyncSettings() {
 				<div className="space-y-4">
 					{/* Active sync progress */}
 					{isActive && operation && (
-						<SyncProgress operation={operation as Operation} />
+						<>
+							<SyncProgress operation={operation as Operation} />
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={() => {
+									if (organizationId) {
+										cancelSync.mutate({ organizationId });
+										setOperationId(null);
+									}
+								}}
+								disabled={cancelSync.isPending}
+							>
+								{cancelSync.isPending
+									? "Cancelling..."
+									: "Cancel Sync"}
+							</Button>
+						</>
 					)}
 
 					{/* Completed sync result */}
 					{(isComplete || isFailed) && operation && (
 						<SyncResult operation={operation as Operation} />
 					)}
+
+					{/* Conflict notification */}
+					{isComplete &&
+						operation &&
+						(operation.totalConflicts ?? 0) > 0 && (
+							<Alert>
+								<TriangleAlertIcon className="size-4" />
+								<AlertTitle>
+									{operation.totalConflicts} field conflict
+									{operation.totalConflicts !== 1 ? "s" : ""}{" "}
+									require your review
+								</AlertTitle>
+								<AlertDescription>
+									Some customer fields differ between iRadius
+									and your local data. Review and choose which
+									values to keep.
+									<div className="mt-2">
+										<SyncConflictsDialog
+											organizationId={
+												organizationId ?? ""
+											}
+										/>
+									</div>
+								</AlertDescription>
+							</Alert>
+						)}
 
 					{/* Last sync info (when no active sync and no user-triggered operation) */}
 					{!isActive &&
@@ -214,6 +263,36 @@ export function IRadiusSyncSettings() {
 										).toLocaleString()
 									: "Unknown"}
 							</div>
+						)}
+
+					{/* Persistent conflicts indicator (from any previous sync) */}
+					{!isActive &&
+						(conflictSummary?.pendingCount ?? 0) > 0 &&
+						!(
+							isComplete &&
+							operation &&
+							(operation.totalConflicts ?? 0) > 0
+						) && (
+							<Alert>
+								<TriangleAlertIcon className="size-4" />
+								<AlertTitle>
+									{conflictSummary?.pendingCount} unresolved
+									conflict
+									{conflictSummary?.pendingCount !== 1
+										? "s"
+										: ""}{" "}
+									from a previous sync
+								</AlertTitle>
+								<AlertDescription>
+									<div className="mt-2">
+										<SyncConflictsDialog
+											organizationId={
+												organizationId ?? ""
+											}
+										/>
+									</div>
+								</AlertDescription>
+							</Alert>
 						)}
 
 					{/* Start sync button */}
@@ -272,6 +351,8 @@ interface Operation {
 	processedTransactions: number;
 	totalInvoices: number;
 	processedInvoices: number;
+	totalConflicts: number;
+	resolvedConflicts: number;
 	// biome-ignore lint/suspicious/noExplicitAny: Prisma JsonValue
 	result: any;
 	completedAt: Date | string | null;

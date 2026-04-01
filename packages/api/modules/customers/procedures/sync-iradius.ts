@@ -67,6 +67,14 @@ export const syncFromIRadius = protectedProcedure
 			});
 		}
 
+		// Clear all pending conflicts from previous syncs
+		await db.syncConflict.deleteMany({
+			where: {
+				organizationId: input.organizationId,
+				status: "pending",
+			},
+		});
+
 		// Create operation record
 		const operation = await db.iRadiusSyncOperation.create({
 			data: {
@@ -82,6 +90,45 @@ export const syncFromIRadius = protectedProcedure
 		});
 
 		return { operationId: operation.id };
+	});
+
+// ---------------------------------------------------------------------------
+// Cancel sync (marks stuck/active operations as failed)
+// ---------------------------------------------------------------------------
+
+export const cancelIRadiusSync = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/iradius/sync/cancel",
+		tags: ["Customers"],
+		summary: "Cancel an active iRadius sync operation",
+	})
+	.input(z.object({ organizationId: z.string() }))
+	.handler(async ({ context: { user }, input }) => {
+		await requirePermission(
+			input.organizationId,
+			user.id,
+			"connections",
+			"sync",
+		);
+
+		const result = await db.iRadiusSyncOperation.updateMany({
+			where: {
+				organizationId: input.organizationId,
+				status: { in: ["pending", "in_progress"] },
+			},
+			data: {
+				status: "failed",
+				result: {
+					errors: [
+						{ phase: "cancelled", detail: "Cancelled by admin" },
+					],
+				},
+				completedAt: new Date(),
+			},
+		});
+
+		return { cancelled: result.count };
 	});
 
 // ---------------------------------------------------------------------------

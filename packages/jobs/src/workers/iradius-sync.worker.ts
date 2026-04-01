@@ -4,6 +4,7 @@ import {
 	type CustomerStatus,
 	db,
 	type EmployeeDepartment,
+	type Prisma,
 } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
@@ -11,6 +12,13 @@ import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { IRADIUS_SYNC_QUEUE_NAME } from "../queues/iradius-sync.queue";
 import type { IRadiusSyncJobData, IRadiusSyncJobResult } from "../types";
+import {
+	type ConflictField,
+	isAutoUpdateField,
+	isConflictTrackedField,
+	serializeValue,
+	valuesEqual,
+} from "./iradius-sync-fields";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -339,7 +347,7 @@ async function processIRadiusSync(
 				dealers: { created: 0, updated: 0, errors: 0 },
 				dealerAccounts: { created: 0, skipped: 0, errors: 0 },
 				employees: { created: 0, updated: 0, errors: 0 },
-				customers: { created: 0, updated: 0, errors: 0 },
+				customers: { created: 0, updated: 0, conflicted: 0, errors: 0 },
 				transactions: { created: 0, skipped: 0, errors: 0 },
 				invoices: { created: 0, skipped: 0, errors: 0 },
 				errors: [] as Array<{ phase: string; detail: string }>,
@@ -516,7 +524,10 @@ async function processIRadiusSync(
 					if (existing) {
 						planMap.set(at["Id"] as number, existing);
 						await db.servicePlan
-							.update({ where: { id: existing }, data: planData })
+							.update({
+								where: { id: existing },
+								data: { ...planData, lastSyncedAt: new Date() },
+							})
 							.catch(() => {});
 						result.plans.updated++;
 					} else {
@@ -524,6 +535,7 @@ async function processIRadiusSync(
 							const plan = await db.servicePlan.create({
 								data: {
 									organizationId,
+									lastSyncedAt: new Date(),
 									...planData,
 								},
 							});
@@ -636,7 +648,10 @@ async function processIRadiusSync(
 						await db.station
 							.update({
 								where: { id: existing },
-								data: stationData,
+								data: {
+									...stationData,
+									lastSyncedAt: new Date(),
+								},
 							})
 							.catch(() => {});
 						result.stations.updated++;
@@ -645,6 +660,7 @@ async function processIRadiusSync(
 							const station = await db.station.create({
 								data: {
 									organizationId,
+									lastSyncedAt: new Date(),
 									...stationData,
 								},
 							});
@@ -735,7 +751,10 @@ async function processIRadiusSync(
 					if (existing) {
 						apMap.set(ap["Id"] as number, existing);
 						await db.accessPoint
-							.update({ where: { id: existing }, data: apData })
+							.update({
+								where: { id: existing },
+								data: { ...apData, lastSyncedAt: new Date() },
+							})
 							.catch(() => {});
 						result.accessPoints.updated++;
 					} else {
@@ -743,6 +762,7 @@ async function processIRadiusSync(
 							const created = await db.accessPoint.create({
 								data: {
 									organizationId,
+									lastSyncedAt: new Date(),
 									...apData,
 								},
 							});
@@ -842,7 +862,10 @@ async function processIRadiusSync(
 
 					if (existing) {
 						await db.ispNas
-							.update({ where: { id: existing }, data: nasData })
+							.update({
+								where: { id: existing },
+								data: { ...nasData, lastSyncedAt: new Date() },
+							})
 							.catch(() => {});
 						if (nasData.host) {
 							nasHostMap.set(nasData.host, existing);
@@ -853,6 +876,7 @@ async function processIRadiusSync(
 							const created = await db.ispNas.create({
 								data: {
 									organizationId,
+									lastSyncedAt: new Date(),
 									...nasData,
 								},
 							});
@@ -935,7 +959,10 @@ async function processIRadiusSync(
 						await db.ispRouter
 							.update({
 								where: { id: existing },
-								data: routerData,
+								data: {
+									...routerData,
+									lastSyncedAt: new Date(),
+								},
 							})
 							.catch(() => {});
 						result.routers.updated++;
@@ -944,6 +971,7 @@ async function processIRadiusSync(
 							await db.ispRouter.create({
 								data: {
 									organizationId,
+									lastSyncedAt: new Date(),
 									...routerData,
 								},
 							});
@@ -1100,12 +1128,18 @@ async function processIRadiusSync(
 							dealerMap.set(dealerUserId, existing);
 							await db.ispDealer.update({
 								where: { id: existing },
-								data: dealerData,
+								data: {
+									...dealerData,
+									lastSyncedAt: new Date(),
+								},
 							});
 							result.dealers.updated++;
 						} else {
 							const created = await db.ispDealer.create({
-								data: dealerData,
+								data: {
+									...dealerData,
+									lastSyncedAt: new Date(),
+								},
 							});
 							dealerMap.set(dealerUserId, created.id);
 							result.dealers.created++;
@@ -1370,7 +1404,7 @@ async function processIRadiusSync(
 						employeeMap.set(empUserId, existingId);
 						await db.employee.update({
 							where: { id: existingId },
-							data: employeeData,
+							data: { ...employeeData, lastSyncedAt: new Date() },
 						});
 						empRecordId = existingId;
 						result.employees.updated++;
@@ -1381,6 +1415,7 @@ async function processIRadiusSync(
 								organizationId,
 								employeeNumber,
 								preferredLayout: "collector",
+								lastSyncedAt: new Date(),
 								...employeeData,
 							},
 						});
@@ -1482,22 +1517,40 @@ async function processIRadiusSync(
 				) sub`,
 			);
 
-			// Load existing customers for upsert
+			// Load existing customers for conflict detection (full records)
 			const existingCustomers = await db.customer.findMany({
 				where: {
 					organizationId,
 					externalId: { not: null },
 				},
-				select: { id: true, externalId: true },
 			});
-			const customerByExtId = new Map(
-				existingCustomers.map((c) => [c.externalId, c.id]),
+			// Full record map for conflict comparison
+			const customerRecordByExtId = new Map(
+				existingCustomers
+					.filter((c) => c.externalId != null)
+					.map((c) => [c.externalId, c]),
 			);
+			// Lightweight ID map for transaction/invoice phases
+			const customerByExtId = new Map(
+				existingCustomers
+					.filter((c) => c.externalId != null)
+					.map((c) => [c.externalId, c.id]),
+			);
+
+			// Supersede unresolved conflicts from prior sync operations
+			await db.syncConflict.deleteMany({
+				where: {
+					organizationId,
+					status: "pending",
+					syncOperationId: { not: operationId },
+				},
+			});
 
 			const nextAccountNumber =
 				await createAccountNumberGenerator(organizationId);
 
-			// Process real users
+			const syncTimestamp = new Date();
+
 			for (let i = 0; i < users.length; i++) {
 				const u = users[i];
 				if (!u) {
@@ -1508,7 +1561,7 @@ async function processIRadiusSync(
 					continue;
 				}
 				const extId = String(userId);
-				const existingId = customerByExtId.get(extId);
+				const existing = customerRecordByExtId.get(extId);
 
 				const planName = u["AccountTypeId"]
 					? planNames.get(u["AccountTypeId"] as number)
@@ -1712,18 +1765,101 @@ async function processIRadiusSync(
 				};
 
 				try {
-					if (existingId) {
-						await db.customer.update({
-							where: { id: existingId },
-							data: customerData,
-						});
-						result.customers.updated++;
+					if (existing) {
+						const conflictFields: Record<string, ConflictField> =
+							{};
+						const autoUpdateData: Record<string, unknown> = {};
+						let hasAutoUpdates = false;
+						const existingRecord = existing as Record<
+							string,
+							unknown
+						>;
+
+						for (const [key, remoteVal] of Object.entries(
+							customerData,
+						)) {
+							if (key === "externalId") {
+								continue;
+							}
+
+							if (isAutoUpdateField(key)) {
+								autoUpdateData[key] = remoteVal;
+								if (
+									!hasAutoUpdates &&
+									!valuesEqual(existingRecord[key], remoteVal)
+								) {
+									hasAutoUpdates = true;
+								}
+							} else if (isConflictTrackedField(key)) {
+								if (
+									!valuesEqual(existingRecord[key], remoteVal)
+								) {
+									conflictFields[key] = {
+										local: serializeValue(
+											existingRecord[key],
+										),
+										remote: serializeValue(remoteVal),
+										resolution: null,
+									};
+								}
+							} else {
+								autoUpdateData[key] = remoteVal;
+								if (
+									!hasAutoUpdates &&
+									!valuesEqual(existingRecord[key], remoteVal)
+								) {
+									hasAutoUpdates = true;
+								}
+							}
+						}
+
+						if (
+							hasAutoUpdates ||
+							Object.keys(conflictFields).length > 0
+						) {
+							autoUpdateData["lastSyncedAt"] = syncTimestamp;
+							await db.customer.update({
+								where: { id: existing.id },
+								data: autoUpdateData,
+							});
+						}
+
+						// Create conflict record if any tracked fields differ
+						if (Object.keys(conflictFields).length > 0) {
+							await db.syncConflict.upsert({
+								where: {
+									syncOperationId_customerId: {
+										syncOperationId: operationId,
+										customerId: existing.id,
+									},
+								},
+								create: {
+									organizationId,
+									syncOperationId: operationId,
+									customerId: existing.id,
+									externalId: extId,
+									fields: conflictFields as unknown as Prisma.InputJsonValue,
+									status: "pending",
+								},
+								update: {
+									fields: conflictFields as unknown as Prisma.InputJsonValue,
+									status: "pending",
+									resolvedAt: null,
+									resolvedById: null,
+								},
+							});
+							result.customers.conflicted++;
+						} else {
+							result.customers.updated++;
+						}
 					} else {
+						// ----- New customer — create directly -----
 						const accountNumber = nextAccountNumber();
 						const created = await db.customer.create({
 							data: {
 								organizationId,
 								accountNumber,
+								lastSyncedAt: syncTimestamp,
 								...customerData,
 							},
 						});
@@ -1767,6 +1903,7 @@ async function processIRadiusSync(
 							externalId: extId,
 							status: "INACTIVE",
 							notes: "Deleted user — financial records only",
+							lastSyncedAt: syncTimestamp,
 						},
 					});
 					customerByExtId.set(extId, created.id);
@@ -1776,8 +1913,13 @@ async function processIRadiusSync(
 				}
 			}
 
+			// Update conflict count on the operation
+			const conflictCount = await db.syncConflict.count({
+				where: { syncOperationId: operationId, status: "pending" },
+			});
 			await updateProgress(operationId, {
 				processedCustomers: users.length + orphanIds.length,
+				totalConflicts: conflictCount,
 			});
 
 			// ================================================================
@@ -1833,6 +1975,7 @@ async function processIRadiusSync(
 						debit: (b["Debit"] as number) ?? 0,
 						notes: (b["Notes"] as string) ?? null,
 						operationDate,
+						lastSyncedAt: new Date(),
 					});
 				}
 
@@ -1931,6 +2074,7 @@ async function processIRadiusSync(
 						generatedDate: safeDate(inv["GeneratedDate"]),
 						blocked: toBooleanFromBit(inv["Blocked"]),
 						vatValue: (inv["VatValue"] as number) ?? null,
+						lastSyncedAt: new Date(),
 					});
 				}
 
