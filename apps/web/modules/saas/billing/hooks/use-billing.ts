@@ -158,6 +158,7 @@ export function usePaymentsQuery(filters: {
 	unreviewedOnly?: boolean;
 	noteCategory?: string;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
+	receiptStatus?: "sent" | "failed" | "pending";
 	groupName?: string;
 	search?: string;
 	dateFrom?: string;

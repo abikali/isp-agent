@@ -92,7 +92,10 @@ type PaymentTypeFilter =
 	| "overpaid"
 	| "underpaid"
 	| "mismatch"
-	| "needs_review";
+	| "needs_review"
+	| "receipt_sent"
+	| "receipt_failed"
+	| "receipt_pending";
 
 interface ActivityLogEntry {
 	action: string;
@@ -174,6 +177,9 @@ const TYPE_FILTERS: {
 	{ key: "overpaid", label: "Overpaid", icon: ArrowUpIcon },
 	{ key: "underpaid", label: "Underpaid", icon: ArrowDownIcon },
 	{ key: "needs_review", label: "Needs Review", icon: FilterIcon },
+	{ key: "receipt_sent", label: "Receipt Sent", icon: CheckCircle2Icon },
+	{ key: "receipt_failed", label: "Receipt Failed", icon: AlertTriangleIcon },
+	{ key: "receipt_pending", label: "Receipt Pending", icon: SendIcon },
 ];
 
 const NOTE_CATEGORIES = Object.entries(NOTE_CATEGORY_LABELS);
@@ -183,6 +189,7 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 	freeAccount?: boolean;
 	unreviewedOnly?: boolean;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
+	receiptStatus?: "sent" | "failed" | "pending";
 } {
 	switch (typeFilter) {
 		case "collected":
@@ -197,6 +204,12 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 			return { amountMismatch: "overpaid" };
 		case "underpaid":
 			return { amountMismatch: "underpaid" };
+		case "receipt_sent":
+			return { receiptStatus: "sent" };
+		case "receipt_failed":
+			return { receiptStatus: "failed" };
+		case "receipt_pending":
+			return { receiptStatus: "pending" };
 		case "needs_review":
 			return { unreviewedOnly: true };
 		default:

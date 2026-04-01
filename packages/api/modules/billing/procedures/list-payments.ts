@@ -26,6 +26,7 @@ export const listPayments = protectedProcedure
 					.optional(),
 				unreviewedOnly: z.boolean().optional(),
 				noteCategory: z.string().optional(),
+				receiptStatus: z.enum(["sent", "failed", "pending"]).optional(),
 				groupName: z.string().optional(),
 				search: z.string().optional(),
 				dateFrom: z.string().datetime().optional(),
@@ -92,6 +93,23 @@ export const listPayments = protectedProcedure
 		}
 		if (input.noteCategory) {
 			where["noteCategory"] = input.noteCategory;
+		}
+		if (input.receiptStatus === "sent") {
+			where["receiptSent"] = true;
+		} else if (input.receiptStatus === "failed") {
+			where["receiptSent"] = false;
+			where["stoppedAccount"] = false;
+			// Has at least one failed entry in activityLog
+			where["AND"] = [
+				...((where["AND"] as unknown[]) ?? []),
+				{
+					NOT: { activityLog: { equals: [] } },
+				},
+			];
+		} else if (input.receiptStatus === "pending") {
+			where["receiptSent"] = false;
+			where["stoppedAccount"] = false;
+			where["activityLog"] = { equals: [] };
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;
