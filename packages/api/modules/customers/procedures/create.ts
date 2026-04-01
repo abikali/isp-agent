@@ -44,6 +44,7 @@ export const createCustomer = protectedProcedure
 			macAddress: z.string().max(17).optional(),
 			monthlyRate: z.number().min(0).optional(),
 			billingDay: z.number().int().min(1).max(28).optional(),
+			groupName: z.string().max(100).optional(),
 			notes: z.string().max(5000).optional(),
 		}),
 	)
@@ -80,6 +81,7 @@ export const createCustomer = protectedProcedure
 				macAddress: input.macAddress ?? null,
 				monthlyRate: input.monthlyRate ?? null,
 				billingDay: input.billingDay ?? null,
+				groupName: input.groupName ?? null,
 				notes: input.notes ?? null,
 			},
 			select: {

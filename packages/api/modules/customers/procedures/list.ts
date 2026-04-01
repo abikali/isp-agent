@@ -26,6 +26,8 @@ export const listCustomers = protectedProcedure
 			connectionType: z
 				.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
 				.optional(),
+			groupName: z.string().optional(),
+			collectorId: z.string().optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -76,6 +78,12 @@ export const listCustomers = protectedProcedure
 		if (input.connectionType) {
 			where["connectionType"] = input.connectionType;
 		}
+		if (input.groupName) {
+			where["groupName"] = input.groupName;
+		}
+		if (input.collectorId) {
+			where["collectorId"] = input.collectorId;
+		}
 		if (input.search) {
 			where["OR"] = [
 				{ firstName: { contains: input.search, mode: "insensitive" } },
@@ -110,6 +118,7 @@ export const listCustomers = protectedProcedure
 					connectionType: true,
 					ipAddress: true,
 					monthlyRate: true,
+					groupName: true,
 					balance: true,
 					createdAt: true,
 					plan: {
@@ -120,6 +129,12 @@ export const listCustomers = protectedProcedure
 						},
 					},
 					station: {
+						select: {
+							id: true,
+							name: true,
+						},
+					},
+					collector: {
 						select: {
 							id: true,
 							name: true,

@@ -27,6 +27,8 @@ interface CustomerListInput {
 		| "CABLE"
 		| "ETHERNET"
 		| undefined;
+	groupName?: string | undefined;
+	collectorId?: string | undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
 	sortBy?:
@@ -60,6 +62,12 @@ export function useCustomers(filters: CustomerListInput = {}) {
 	}
 	if (filters.connectionType) {
 		input["connectionType"] = filters.connectionType;
+	}
+	if (filters.groupName) {
+		input["groupName"] = filters.groupName;
+	}
+	if (filters.collectorId) {
+		input["collectorId"] = filters.collectorId;
 	}
 	if (filters.page) {
 		input["page"] = filters.page;

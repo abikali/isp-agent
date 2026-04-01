@@ -56,8 +56,10 @@ interface CustomerRow {
 	firstName: string | null;
 	lastName: string | null;
 	email: string | null;
+	groupName: string | null;
 	plan: { name: string } | null;
 	station: { name: string } | null;
+	collector: { id: string; name: string } | null;
 	connectionType: string | null;
 	balance: number;
 }
@@ -73,6 +75,8 @@ export function CustomersList({
 	const [planId, setPlanId] = useState("all");
 	const [stationId, setStationId] = useState("all");
 	const [connectionType, setConnectionType] = useState("all");
+	const [groupName, setGroupName] = useState("all");
+	const [collectorId, setCollectorId] = useState("all");
 	const [page, setPage] = useState(1);
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		sortByMap,
@@ -95,6 +99,8 @@ export function CustomersList({
 						| "CABLE"
 						| "ETHERNET")
 				: undefined,
+		groupName: groupName !== "all" ? groupName : undefined,
+		collectorId: collectorId !== "all" ? collectorId : undefined,
 		page,
 		sortBy,
 		sortOrder,
@@ -180,6 +186,20 @@ export function CustomersList({
 					),
 			},
 			{
+				id: "groupName",
+				header: "Group",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) =>
+					row.original.groupName ? (
+						<span className="text-xs">
+							{row.original.groupName}
+						</span>
+					) : (
+						<span className="text-muted-foreground">-</span>
+					),
+			},
+			{
 				id: "plan",
 				header: "Plan",
 				enableSorting: false,
@@ -200,12 +220,12 @@ export function CustomersList({
 					),
 			},
 			{
-				id: "connectionType",
-				header: "Connection",
+				id: "collector",
+				header: "Collector",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell text-xs" },
+				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) =>
-					row.original.connectionType ?? (
+					row.original.collector?.name ?? (
 						<span className="text-muted-foreground">-</span>
 					),
 			},
@@ -304,6 +324,16 @@ export function CustomersList({
 				connectionType={connectionType}
 				onConnectionTypeChange={(v) => {
 					setConnectionType(v);
+					setPage(1);
+				}}
+				groupName={groupName}
+				onGroupNameChange={(v) => {
+					setGroupName(v);
+					setPage(1);
+				}}
+				collectorId={collectorId}
+				onCollectorIdChange={(v) => {
+					setCollectorId(v);
 					setPage(1);
 				}}
 			/>

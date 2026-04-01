@@ -1,5 +1,6 @@
 "use client";
 
+import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { FilterBar } from "@shared/components/FilterBar";
 import {
 	Select,
@@ -26,6 +27,10 @@ interface CustomerFiltersProps {
 	onStationIdChange: (value: string) => void;
 	connectionType: string;
 	onConnectionTypeChange: (value: string) => void;
+	groupName: string;
+	onGroupNameChange: (value: string) => void;
+	collectorId: string;
+	onCollectorIdChange: (value: string) => void;
 }
 
 export function CustomerFilters({
@@ -39,15 +44,24 @@ export function CustomerFilters({
 	onStationIdChange,
 	connectionType,
 	onConnectionTypeChange,
+	groupName,
+	onGroupNameChange,
+	collectorId,
+	onCollectorIdChange,
 }: CustomerFiltersProps) {
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
+	const { groups } = useCustomerGroups();
+	const { data: collectorsData } = useCollectors();
+	const collectors = collectorsData?.collectors ?? [];
 
 	const activeCount = [
 		status !== "all" ? 1 : 0,
 		planId !== "all" ? 1 : 0,
 		stationId !== "all" ? 1 : 0,
 		connectionType !== "all" ? 1 : 0,
+		groupName !== "all" ? 1 : 0,
+		collectorId !== "all" ? 1 : 0,
 	].reduce((a, b) => a + b, 0);
 
 	function handleReset() {
@@ -55,6 +69,8 @@ export function CustomerFilters({
 		onPlanIdChange("all");
 		onStationIdChange("all");
 		onConnectionTypeChange("all");
+		onGroupNameChange("all");
+		onCollectorIdChange("all");
 	}
 
 	return (
@@ -102,6 +118,34 @@ export function CustomerFilters({
 					{stations.map((s) => (
 						<SelectItem key={s.id} value={s.id}>
 							{s.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			<Select value={groupName} onValueChange={onGroupNameChange}>
+				<SelectTrigger className="w-full sm:w-[140px]">
+					<SelectValue placeholder="Group" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="all">All Groups</SelectItem>
+					{groups.map((g) => (
+						<SelectItem key={g} value={g}>
+							{g}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+
+			<Select value={collectorId} onValueChange={onCollectorIdChange}>
+				<SelectTrigger className="w-full sm:w-[140px]">
+					<SelectValue placeholder="Collector" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="all">All Collectors</SelectItem>
+					{collectors.map((c) => (
+						<SelectItem key={c.id} value={c.id}>
+							{c.name}
 						</SelectItem>
 					))}
 				</SelectContent>

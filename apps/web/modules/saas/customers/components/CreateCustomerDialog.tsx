@@ -139,6 +139,7 @@ export function CreateCustomerDialog({
 			macAddress: "",
 			monthlyRate: "",
 			billingDay: "",
+			groupName: "",
 			notes: "",
 		},
 		onSubmit: async ({ value }) => {
@@ -175,6 +176,7 @@ export function CreateCustomerDialog({
 				billingDay: value.billingDay
 					? Number(value.billingDay)
 					: undefined,
+				groupName: value.groupName || undefined,
 				notes: value.notes || undefined,
 			});
 			onOpenChange(false);
@@ -433,6 +435,22 @@ export function CreateCustomerDialog({
 							)}
 						</form.Field>
 					</div>
+
+					<form.Field name="groupName">
+						{(field) => (
+							<div className="space-y-2">
+								<Label htmlFor="cust-group">Group</Label>
+								<Input
+									id="cust-group"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="e.g. Residential, Business"
+								/>
+							</div>
+						)}
+					</form.Field>
 
 					<div className="grid gap-4 sm:grid-cols-2">
 						<form.Field name="monthlyRate">

@@ -120,6 +120,7 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		monthlyRate: customer.monthlyRate?.toString() ?? "",
 		billingDay: customer.billingDay?.toString() ?? "",
 		balance: customer.balance.toString(),
+		groupName: customer.groupName ?? "",
 		notes: customer.notes ?? "",
 		collectorId: customer.collectorId ?? "",
 	};
@@ -206,6 +207,7 @@ export function CustomerDetail({
 						? Number(value.billingDay)
 						: null,
 					balance: Number(value.balance),
+					groupName: value.groupName || null,
 					notes: value.notes || undefined,
 					collectorId: value.collectorId || null,
 				}),
@@ -694,6 +696,23 @@ function OverviewTab({
 											field.handleChange(e.target.value)
 										}
 										placeholder="PPPoE username"
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="groupName">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="groupName">
+										Group
+									</FieldLabel>
+									<Input
+										id="groupName"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="e.g. Residential, Business"
 									/>
 								</Field>
 							)}

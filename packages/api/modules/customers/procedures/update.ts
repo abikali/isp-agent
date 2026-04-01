@@ -53,6 +53,7 @@ export const updateCustomer = protectedProcedure
 			monthlyRate: z.number().min(0).nullable().optional(),
 			billingDay: z.number().int().min(1).max(28).nullable().optional(),
 			balance: z.number().optional(),
+			groupName: z.string().max(100).nullable().optional(),
 			notes: z.string().max(5000).optional(),
 			collectorId: z.string().nullable().optional(),
 		}),
@@ -130,6 +131,9 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.connectionType !== undefined) {
 			updateData["connectionType"] = input.connectionType ?? null;
+		}
+		if (input.groupName !== undefined) {
+			updateData["groupName"] = input.groupName ?? null;
 		}
 		if (input.ipAddress !== undefined) {
 			updateData["ipAddress"] = input.ipAddress ?? null;
