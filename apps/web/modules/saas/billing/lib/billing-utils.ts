@@ -251,16 +251,34 @@ interface FlaggablePayment {
 	discount: number;
 	noteCategory: string | null;
 	reviewedAt: string | Date | null;
+	customer?: { iptvPrice?: number; realIpPrice?: number };
 }
 
-/** Whether the paid amount differs from what was expected (accountPrice - discount). */
+/**
+ * Compute the expected total for a payment.
+ * Includes IPTV and Real IP prices from the customer when available.
+ */
+function expectedTotal(payment: {
+	accountPrice: number;
+	discount: number;
+	customer?: { iptvPrice?: number; realIpPrice?: number };
+}): number {
+	return (
+		payment.accountPrice +
+		(payment.customer?.iptvPrice ?? 0) +
+		(payment.customer?.realIpPrice ?? 0) -
+		payment.discount
+	);
+}
+
+/** Whether the paid amount differs from the expected total. */
 export function isAmountMismatch(payment: {
 	paidAmount: number;
 	accountPrice: number;
 	discount: number;
+	customer?: { iptvPrice?: number; realIpPrice?: number };
 }): boolean {
-	const expected = payment.accountPrice - payment.discount;
-	return Math.abs(payment.paidAmount - expected) > 0.01;
+	return Math.abs(payment.paidAmount - expectedTotal(payment)) > 0.01;
 }
 
 /** Determine the flag type for a payment, or null if normal. */
@@ -274,8 +292,9 @@ export function getPaymentFlagType(
 		return "free";
 	}
 	if (isAmountMismatch(payment)) {
-		const expected = payment.accountPrice - payment.discount;
-		return payment.paidAmount > expected ? "overpaid" : "underpaid";
+		return payment.paidAmount > expectedTotal(payment)
+			? "overpaid"
+			: "underpaid";
 	}
 	return null;
 }

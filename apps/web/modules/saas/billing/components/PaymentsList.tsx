@@ -131,6 +131,8 @@ interface PaymentRow {
 		username: string | null;
 		mobile: string | null;
 		phone: string | null;
+		iptvPrice: number;
+		realIpPrice: number;
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
@@ -673,7 +675,11 @@ export function PaymentsList() {
 				cell: ({ row }) => {
 					const p = row.original;
 					const mismatch = isAmountMismatch(p);
-					const expected = p.accountPrice - p.discount;
+					const expected =
+						p.accountPrice +
+						(p.customer.iptvPrice ?? 0) +
+						(p.customer.realIpPrice ?? 0) -
+						p.discount;
 					return (
 						<div className="text-right">
 							<span className="font-semibold tabular-nums">

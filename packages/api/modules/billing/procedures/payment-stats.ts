@@ -49,13 +49,25 @@ async function countUnreviewedPayments(
 				freeAccount: false,
 				stoppedAccount: false,
 			},
-			select: { paidAmount: true, accountPrice: true, discount: true },
+			select: {
+				paidAmount: true,
+				accountPrice: true,
+				discount: true,
+				customer: {
+					select: { iptvPrice: true, realIpPrice: true },
+				},
+			},
 		}),
 	]);
 
-	const mismatchCount = mismatchCandidates.filter(
-		(p) => Math.abs(p.paidAmount - (p.accountPrice - p.discount)) > 0.01,
-	).length;
+	const mismatchCount = mismatchCandidates.filter((p) => {
+		const expected =
+			p.accountPrice +
+			(p.customer.iptvPrice ?? 0) +
+			(p.customer.realIpPrice ?? 0) -
+			p.discount;
+		return Math.abs(p.paidAmount - expected) > 0.01;
+	}).length;
 
 	return flaggedCount + mismatchCount;
 }
