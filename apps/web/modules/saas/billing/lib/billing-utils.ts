@@ -309,7 +309,7 @@ const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
 	free: "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950",
 	overpaid:
 		"border-l-4 border-l-emerald-600 bg-emerald-100 dark:bg-emerald-950",
-	underpaid: "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/40",
+	underpaid: "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-950",
 };
 
 /** Row className for a flagged payment (unreviewed gets color, reviewed gets faint). */
