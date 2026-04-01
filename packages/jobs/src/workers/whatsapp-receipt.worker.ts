@@ -63,6 +63,12 @@ export function createWhatsAppReceiptWorker(): Worker<
 			);
 
 			if (!response.ok) {
+				// Throw on transient errors so BullMQ retries with backoff
+				if (response.status >= 500) {
+					throw new Error(
+						`WPBox API returned ${response.status} for ${phone}`,
+					);
+				}
 				logger.warn("[WhatsApp Receipt] API returned non-OK", {
 					status: response.status,
 					phone,
