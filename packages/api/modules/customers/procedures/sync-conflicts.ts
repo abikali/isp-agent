@@ -16,6 +16,71 @@ function buildDealerScopeWhere(activeDealerId: string | null) {
 	return {};
 }
 
+/**
+ * Resolve a single field across all matching conflicts.
+ * Only marks the conflict as "resolved" if all its fields are now resolved.
+ */
+async function resolveByField(
+	where: Record<string, unknown>,
+	targetField: string,
+	resolution: "keep_local" | "keep_remote",
+	userId: string,
+) {
+	const conflicts = await db.syncConflict.findMany({
+		where,
+		include: { customer: { select: { id: true } } },
+	});
+
+	let resolved = 0;
+	const resolvedAt = new Date();
+
+	await db.$transaction(async (tx) => {
+		for (const conflict of conflicts) {
+			const fields = conflict.fields as unknown as ConflictFields;
+			const field = fields[targetField];
+			if (!field || field.resolution !== null) {
+				continue;
+			}
+
+			field.resolution = resolution;
+			resolved++;
+
+			const allResolved = Object.values(fields).every(
+				(f) => f.resolution !== null,
+			);
+
+			// Apply remote value to the customer
+			if (resolution === "keep_remote") {
+				await tx.customer.update({
+					where: { id: conflict.customerId },
+					data: {
+						[targetField]: deserializeValue(
+							field.remote,
+							targetField,
+						),
+					},
+				});
+			}
+
+			await tx.syncConflict.update({
+				where: { id: conflict.id },
+				data: {
+					fields: fields as unknown as Prisma.InputJsonValue,
+					...(allResolved
+						? {
+								status: "resolved",
+								resolvedAt,
+								resolvedById: userId,
+							}
+						: {}),
+				},
+			});
+		}
+	});
+
+	return { resolvedCount: resolved };
+}
+
 // ---------------------------------------------------------------------------
 // List sync conflicts (paginated)
 // ---------------------------------------------------------------------------
@@ -35,7 +100,7 @@ export const listSyncConflicts = protectedProcedure
 				.optional()
 				.default("pending"),
 			page: z.number().int().min(1).optional().default(1),
-			pageSize: z.number().int().min(1).max(100).optional().default(25),
+			pageSize: z.number().int().min(1).max(200).optional().default(100),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -207,6 +272,7 @@ export const bulkResolveSyncConflicts = protectedProcedure
 			organizationId: z.string(),
 			resolution: z.enum(["keep_local", "keep_remote"]),
 			conflictIds: z.array(z.string()).optional(),
+			fieldName: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -217,7 +283,6 @@ export const bulkResolveSyncConflicts = protectedProcedure
 			"sync",
 		);
 
-		// Build where clause
 		const where = {
 			organizationId: input.organizationId,
 			status: "pending",
@@ -225,7 +290,18 @@ export const bulkResolveSyncConflicts = protectedProcedure
 			...(input.conflictIds ? { id: { in: input.conflictIds } } : {}),
 		};
 
-		// Fast path for "keep_local": no customer updates needed, batch mark as resolved
+		// When filtering by field, we resolve only that field within each conflict
+		// (the conflict record stays "pending" if other fields remain unresolved)
+		if (input.fieldName) {
+			return resolveByField(
+				where,
+				input.fieldName,
+				input.resolution,
+				user.id,
+			);
+		}
+
+		// Fast path for "keep_local" without field filter: batch mark all as resolved
 		if (input.resolution === "keep_local") {
 			const result = await db.syncConflict.updateMany({
 				where,
@@ -238,12 +314,10 @@ export const bulkResolveSyncConflicts = protectedProcedure
 			return { resolvedCount: result.count };
 		}
 
-		// "keep_remote": need to apply remote values to each customer
+		// "keep_remote" without field filter: apply all remote values
 		const conflicts = await db.syncConflict.findMany({
 			where,
-			include: {
-				customer: { select: { id: true } },
-			},
+			include: { customer: { select: { id: true } } },
 		});
 
 		if (conflicts.length === 0) {
@@ -325,37 +399,54 @@ export const getSyncConflictsSummary = protectedProcedure
 
 		const dealerScope = buildDealerScopeWhere(activeDealerId);
 
-		const [pendingCount, resolvedCount, pendingCustomers] =
-			await Promise.all([
-				db.syncConflict.count({
-					where: {
-						organizationId: input.organizationId,
-						status: "pending",
-						...dealerScope,
-					},
-				}),
-				db.syncConflict.count({
-					where: {
-						organizationId: input.organizationId,
-						status: "resolved",
-						...dealerScope,
-					},
-				}),
-				db.syncConflict
-					.groupBy({
-						by: ["customerId"],
-						where: {
-							organizationId: input.organizationId,
-							status: "pending",
-							...dealerScope,
-						},
-					})
-					.then((groups) => groups.length),
-			]);
+		const pendingWhere = {
+			organizationId: input.organizationId,
+			status: "pending",
+			...dealerScope,
+		};
+
+		const [
+			pendingCount,
+			resolvedCount,
+			pendingCustomers,
+			pendingConflicts,
+		] = await Promise.all([
+			db.syncConflict.count({ where: pendingWhere }),
+			db.syncConflict.count({
+				where: {
+					organizationId: input.organizationId,
+					status: "resolved",
+					...dealerScope,
+				},
+			}),
+			db.syncConflict
+				.groupBy({
+					by: ["customerId"],
+					where: pendingWhere,
+				})
+				.then((groups) => groups.length),
+			// Load all pending conflict field keys to compute per-field counts
+			db.syncConflict.findMany({
+				where: pendingWhere,
+				select: { fields: true },
+			}),
+		]);
+
+		// Count unresolved fields across all conflicts
+		const fieldCounts: Record<string, number> = {};
+		for (const c of pendingConflicts) {
+			const fields = c.fields as unknown as ConflictFields;
+			for (const [fieldName, field] of Object.entries(fields)) {
+				if (field.resolution === null) {
+					fieldCounts[fieldName] = (fieldCounts[fieldName] ?? 0) + 1;
+				}
+			}
+		}
 
 		return {
 			pendingCount,
 			resolvedCount,
 			affectedCustomers: pendingCustomers,
+			fieldCounts,
 		};
 	});

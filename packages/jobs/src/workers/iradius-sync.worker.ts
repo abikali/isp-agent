@@ -4,6 +4,7 @@ import {
 	type CustomerStatus,
 	db,
 	type EmployeeDepartment,
+	normalizeLebanesePhone,
 	type Prisma,
 } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
@@ -1607,10 +1608,16 @@ async function processIRadiusSync(
 					firstName: (u["FirstName"] as string) || null,
 					lastName: (u["LastName"] as string) || null,
 					email: (u["MailAddress"] as string) || null,
-					mobile: (u["Mobile"] as string) || null,
-					phone:
-						((u["Phone"] as string) || "").split(",")[0]?.trim() ||
-						null,
+					mobile: (u["Mobile"] as string)
+						? normalizeLebanesePhone(u["Mobile"] as string)
+						: null,
+					phone: ((u["Phone"] as string) || "").split(",")[0]?.trim()
+						? normalizeLebanesePhone(
+								((u["Phone"] as string) || "")
+									.split(",")[0]
+									?.trim() ?? "",
+							)
+						: null,
 					phones: JSON.parse(
 						JSON.stringify(
 							buildPhonesFromSync(

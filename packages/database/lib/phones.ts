@@ -31,8 +31,29 @@ export function getPrimaryPhone(phones: unknown): string | null {
 }
 
 /**
+ * Normalize a Lebanese phone number to international format (+961...).
+ * Handles local formats like 03609014 → +9613609014, 70302582 → +96170302582.
+ */
+export function normalizeLebanesePhone(raw: string): string {
+	const digits = raw.replace(/[^0-9+]/g, "");
+	if (digits.startsWith("+961")) {
+		return digits;
+	}
+	if (digits.startsWith("961") && digits.length > 9) {
+		return `+${digits}`;
+	}
+	if (digits.startsWith("0") && digits.length >= 8) {
+		return `+961${digits.slice(1)}`;
+	}
+	if (/^[1-9]\d{6,7}$/.test(digits)) {
+		return `+961${digits}`;
+	}
+	return raw;
+}
+
+/**
  * Build a phones array from raw mobile/phone strings (for iRadius sync).
- * Handles comma-separated phone values.
+ * Handles comma-separated phone values and normalizes to +961 format.
  */
 export function buildPhonesFromSync(
 	mobile: string | null,
@@ -42,8 +63,9 @@ export function buildPhonesFromSync(
 	const seen = new Set<string>();
 
 	if (mobile) {
-		phones.push({ number: mobile, primary: true });
-		seen.add(mobile);
+		const normalized = normalizeLebanesePhone(mobile);
+		phones.push({ number: normalized, primary: true });
+		seen.add(normalized);
 	}
 
 	if (phone) {
@@ -52,9 +74,13 @@ export function buildPhonesFromSync(
 			.map((p) => p.trim())
 			.filter(Boolean);
 		for (const num of numbers) {
-			if (!seen.has(num)) {
-				phones.push({ number: num, primary: phones.length === 0 });
-				seen.add(num);
+			const normalized = normalizeLebanesePhone(num);
+			if (!seen.has(normalized)) {
+				phones.push({
+					number: normalized,
+					primary: phones.length === 0,
+				});
+				seen.add(normalized);
 			}
 		}
 	}

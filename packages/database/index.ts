@@ -4,6 +4,7 @@ export {
 	type CustomerPhone,
 	getPrimaryPhone,
 	MAX_PHONES,
+	normalizeLebanesePhone,
 	parsePhones,
 } from "./lib/phones";
 export * from "./prisma";

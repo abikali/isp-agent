@@ -127,6 +127,21 @@ function formatValue(val: string | null): string {
 	if (val == null) {
 		return "\u2014";
 	}
+
+	// ISO date strings → human-readable
+	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) {
+		const d = new Date(val);
+		if (!Number.isNaN(d.getTime())) {
+			return d.toLocaleDateString(undefined, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+			});
+		}
+	}
+
 	try {
 		const parsed = JSON.parse(val);
 		if (typeof parsed === "boolean") {
@@ -194,7 +209,7 @@ export function SyncConflictsDialog({
 
 function ConflictTable({ organizationId }: { organizationId: string }) {
 	const [page, setPage] = useState(1);
-	const pageSize = 50;
+	const pageSize = 100;
 
 	const { data: summary } = useSyncConflictsSummary(organizationId);
 	const {
@@ -214,6 +229,14 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	const pendingCount = summary?.pendingCount ?? 0;
 	const affectedCustomers = summary?.affectedCustomers ?? 0;
 	const totalPages = Math.ceil(totalCount / pageSize);
+
+	// Server-side field counts (across ALL pages)
+	const serverFieldCounts = summary?.fieldCounts as
+		| Record<string, number>
+		| undefined;
+	const totalFieldCount = serverFieldCounts
+		? Object.values(serverFieldCounts).reduce((a, b) => a + b, 0)
+		: pendingCount;
 
 	const allRows: FlatRow[] = useMemo(() => {
 		const result: FlatRow[] = [];
@@ -235,21 +258,27 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	}, [conflicts]);
 
 	const availableFields = useMemo(() => {
-		const fieldCounts = new Map<string, number>();
-		for (const row of allRows) {
-			fieldCounts.set(
-				row.fieldName,
-				(fieldCounts.get(row.fieldName) ?? 0) + 1,
-			);
+		if (serverFieldCounts) {
+			return Object.entries(serverFieldCounts)
+				.map(([name, count]) => ({
+					name,
+					label: FIELD_LABELS[name] ?? name,
+					count,
+				}))
+				.sort((a, b) => a.label.localeCompare(b.label));
 		}
-		return [...fieldCounts.entries()]
+		const counts = new Map<string, number>();
+		for (const row of allRows) {
+			counts.set(row.fieldName, (counts.get(row.fieldName) ?? 0) + 1);
+		}
+		return [...counts.entries()]
 			.map(([name, count]) => ({
 				name,
 				label: FIELD_LABELS[name] ?? name,
 				count,
 			}))
 			.sort((a, b) => a.label.localeCompare(b.label));
-	}, [allRows]);
+	}, [serverFieldCounts, allRows]);
 
 	const rows = useMemo(
 		() =>
@@ -293,7 +322,11 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	}
 
 	function resolveAll(resolution: "keep_local" | "keep_remote") {
-		bulkMutation.mutate({ organizationId, resolution });
+		bulkMutation.mutate({
+			organizationId,
+			resolution,
+			...(fieldFilter ? { fieldName: fieldFilter } : {}),
+		});
 		setSelected(new Set());
 	}
 
@@ -341,6 +374,16 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 					</div>
 					{pendingCount > 0 && (
 						<div className="flex items-center gap-2 shrink-0">
+							{fieldFilter && (
+								<Badge
+									variant="secondary"
+									className="font-normal text-xs"
+								>
+									{serverFieldCounts?.[fieldFilter] ??
+										rows.length}{" "}
+									{FIELD_LABELS[fieldFilter] ?? fieldFilter}
+								</Badge>
+							)}
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<Button
@@ -355,13 +398,16 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 											<MonitorIcon className="size-3.5" />
 										)}
 										<span className="hidden sm:inline">
-											Keep All Local
+											{fieldFilter
+												? `Keep All Local (${serverFieldCounts?.[fieldFilter] ?? rows.length})`
+												: "Keep All Local"}
 										</span>
 									</Button>
 								</TooltipTrigger>
 								<TooltipContent>
-									Discard all iRadius changes, keep your local
-									data
+									{fieldFilter
+										? `Keep local values for all ${FIELD_LABELS[fieldFilter] ?? fieldFilter} conflicts`
+										: "Discard all iRadius changes, keep your local data"}
 								</TooltipContent>
 							</Tooltip>
 							<Tooltip>
@@ -380,13 +426,16 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 											<DatabaseIcon className="size-3.5" />
 										)}
 										<span className="hidden sm:inline">
-											Keep All iRadius
+											{fieldFilter
+												? `Keep All iRadius (${serverFieldCounts?.[fieldFilter] ?? rows.length})`
+												: "Keep All iRadius"}
 										</span>
 									</Button>
 								</TooltipTrigger>
 								<TooltipContent>
-									Accept all iRadius values, overwrite local
-									data
+									{fieldFilter
+										? `Accept iRadius values for all ${FIELD_LABELS[fieldFilter] ?? fieldFilter} conflicts`
+										: "Accept all iRadius values, overwrite local data"}
 								</TooltipContent>
 							</Tooltip>
 						</div>
@@ -416,7 +465,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 						>
 							All
 							<span className="opacity-70">
-								({allRows.length})
+								({totalFieldCount})
 							</span>
 						</button>
 						{availableFields.map((f) => (
