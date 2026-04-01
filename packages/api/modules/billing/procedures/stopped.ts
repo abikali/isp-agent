@@ -25,6 +25,10 @@ export const listStoppedAccounts = protectedProcedure
 				search: z.string().optional(),
 				groupName: z.string().optional(),
 				collectorId: z.string().optional(),
+				sortBy: z
+					.enum(["paidAt", "customerName", "groupName"])
+					.default("paidAt"),
+				sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			})
 			.merge(monthSpecSchema)
 			.merge(paginationSchema()),
@@ -94,7 +98,12 @@ export const listStoppedAccounts = protectedProcedure
 					},
 					collector: { select: { id: true, name: true } },
 				},
-				orderBy: { paidAt: "desc" },
+				orderBy:
+					input.sortBy === "customerName"
+						? { customer: { firstName: input.sortOrder } }
+						: input.sortBy === "groupName"
+							? { customer: { groupName: input.sortOrder } }
+							: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

@@ -14,6 +14,8 @@ interface DealerListInput {
 	status?: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING" | undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
+	sortBy?: "name" | "companyName" | "credit" | "createdAt" | undefined;
+	sortOrder?: "asc" | "desc" | undefined;
 }
 
 export function useDealers(filters: DealerListInput = {}) {
@@ -32,6 +34,12 @@ export function useDealers(filters: DealerListInput = {}) {
 	}
 	if (filters.pageSize) {
 		input["pageSize"] = filters.pageSize;
+	}
+	if (filters.sortBy) {
+		input["sortBy"] = filters.sortBy;
+	}
+	if (filters.sortOrder) {
+		input["sortOrder"] = filters.sortOrder;
 	}
 
 	const query = useQuery(

@@ -2,6 +2,8 @@ import { countAllUsers, getUsers } from "@repo/database";
 import { z } from "zod";
 import { adminProcedure } from "../../../orpc/procedures";
 
+const sortByEnum = z.enum(["name", "email", "createdAt", "role"]);
+
 export const listUsers = adminProcedure
 	.route({
 		method: "GET",
@@ -11,22 +13,31 @@ export const listUsers = adminProcedure
 	})
 	.input(
 		z.object({
-			query: z.string().optional(),
-			limit: z.number().min(1).max(100).default(10),
-			offset: z.number().min(0).default(0),
+			searchTerm: z.string().default(""),
+			itemsPerPage: z.number().min(1).max(100).default(10),
+			currentPage: z.number().min(1).default(1),
+			sortBy: sortByEnum.optional(),
+			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 		}),
 	)
-	.handler(async ({ input: { query, limit, offset } }) => {
-		const params: { limit: number; offset: number; query?: string } = {
-			limit,
-			offset,
-		};
-		if (query !== undefined) {
-			params.query = query;
-		}
-		const users = await getUsers(params);
+	.handler(
+		async ({
+			input: { searchTerm, itemsPerPage, currentPage, sortBy, sortOrder },
+		}) => {
+			const query = searchTerm || undefined;
+			const offset = (currentPage - 1) * itemsPerPage;
 
-		const total = await countAllUsers();
+			const [users, total] = await Promise.all([
+				getUsers({
+					limit: itemsPerPage,
+					offset,
+					...(query ? { query } : {}),
+					sortBy: sortBy ?? "createdAt",
+					sortOrder,
+				}),
+				countAllUsers(query),
+			]);
 
-		return { users, total };
-	});
+			return { users, total };
+		},
+	);

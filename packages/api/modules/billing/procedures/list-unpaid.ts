@@ -33,6 +33,15 @@ export const listUnpaidCustomers = protectedProcedure
 				search: z.string().optional(),
 				expiryFrom: z.string().optional(),
 				expiryTo: z.string().optional(),
+				sortBy: z
+					.enum([
+						"expiresAt",
+						"firstName",
+						"groupName",
+						"monthlyRate",
+					])
+					.default("expiresAt"),
+				sortOrder: z.enum(["asc", "desc"]).default("asc"),
 			})
 			.merge(monthSpecSchema)
 			.merge(paginationSchema(50)),
@@ -128,7 +137,7 @@ export const listUnpaidCustomers = protectedProcedure
 					dealer: { select: { id: true, name: true } },
 					station: { select: { id: true, name: true } },
 				},
-				orderBy: { expiresAt: "asc" },
+				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

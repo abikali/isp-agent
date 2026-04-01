@@ -29,7 +29,14 @@ export const listCustomers = protectedProcedure
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
-				.enum(["lastName", "accountNumber", "createdAt", "status"])
+				.enum([
+					"lastName",
+					"accountNumber",
+					"createdAt",
+					"status",
+					"balance",
+					"username",
+				])
 				.default("createdAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 		}),

@@ -4,10 +4,14 @@ export async function getOrganizations({
 	limit,
 	offset,
 	query,
+	sortBy = "createdAt",
+	sortOrder = "desc",
 }: {
 	limit: number;
 	offset: number;
 	query?: string;
+	sortBy?: "name" | "createdAt" | "membersCount" | "customersCount";
+	sortOrder?: "asc" | "desc";
 }) {
 	const includeConfig = {
 		_count: {
@@ -22,18 +26,30 @@ export async function getOrganizations({
 		},
 	} as const;
 
-	const orgs = query
-		? await db.organization.findMany({
-				where: { name: { contains: query, mode: "insensitive" } },
-				include: includeConfig,
-				take: limit,
-				skip: offset,
-			})
-		: await db.organization.findMany({
-				include: includeConfig,
-				take: limit,
-				skip: offset,
-			});
+	function getOrderBy() {
+		switch (sortBy) {
+			case "name":
+				return { name: sortOrder } as const;
+			case "membersCount":
+				return { members: { _count: sortOrder } } as const;
+			case "customersCount":
+				return { customers: { _count: sortOrder } } as const;
+			default:
+				return { createdAt: sortOrder } as const;
+		}
+	}
+
+	const where = query
+		? { name: { contains: query, mode: "insensitive" as const } }
+		: {};
+
+	const orgs = await db.organization.findMany({
+		where,
+		include: includeConfig,
+		take: limit,
+		skip: offset,
+		orderBy: getOrderBy(),
+	});
 
 	return orgs.map((org) => ({
 		...org,
@@ -43,7 +59,12 @@ export async function getOrganizations({
 	}));
 }
 
-export async function countAllOrganizations() {
+export async function countAllOrganizations(query?: string) {
+	if (query) {
+		return db.organization.count({
+			where: { name: { contains: query, mode: "insensitive" } },
+		});
+	}
 	return db.organization.count();
 }
 

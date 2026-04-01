@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +13,12 @@ import { useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
 
+const sortByMap = {
+	date: "operationDate",
+	credit: "credit",
+	debit: "debit",
+} as const satisfies Record<string, string>;
+
 interface TransactionRow {
 	id: string;
 	operationDate: string | Date;
@@ -23,6 +30,10 @@ interface TransactionRow {
 export function CustomerTransactions({ customerId }: { customerId: string }) {
 	const organizationId = useOrganizationId();
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setPage(1),
+	);
 
 	const { data, isLoading } = useQuery(
 		organizationId
@@ -32,6 +43,8 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 						customerId,
 						page,
 						pageSize: PAGE_SIZE,
+						sortBy,
+						sortOrder,
 					},
 				})
 			: disabledQuery(["customers", "listTransactions"]),
@@ -45,7 +58,8 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 			{
 				id: "date",
 				header: "Date",
-				enableSorting: false,
+				accessorFn: (row) => row.operationDate,
+				enableSorting: true,
 				meta: { className: "text-xs" },
 				cell: ({ row }) =>
 					new Date(row.original.operationDate).toLocaleDateString(),
@@ -53,7 +67,8 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 			{
 				id: "credit",
 				header: "Credit",
-				enableSorting: false,
+				accessorFn: (row) => row.credit,
+				enableSorting: true,
 				meta: { className: "text-right text-xs" },
 				cell: ({ row }) =>
 					row.original.credit > 0 ? (
@@ -67,7 +82,8 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 			{
 				id: "debit",
 				header: "Debit",
-				enableSorting: false,
+				accessorFn: (row) => row.debit,
+				enableSorting: true,
 				meta: { className: "text-right text-xs" },
 				cell: ({ row }) =>
 					row.original.debit > 0 ? (
@@ -113,6 +129,8 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 				<DataTable
 					columns={columns}
 					data={transactions}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

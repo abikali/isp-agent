@@ -1,6 +1,7 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -21,6 +22,16 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+
+const ESCALATION_SORT_BY_MAP = {
+	status: "status",
+	priority: "priority",
+	escalated: "createdAt",
+} as const satisfies Record<
+	string,
+	"title" | "createdAt" | "dueDate" | "priority" | "status"
+>;
+
 import { useTasks } from "../hooks/use-tasks";
 import {
 	FOLLOW_UP_STATUS_COLORS,
@@ -133,7 +144,8 @@ function useEscalationColumns(organizationSlug: string) {
 			{
 				id: "status",
 				header: "Status",
-				enableSorting: false,
+				accessorFn: (row) => row.status,
+				enableSorting: true,
 				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -152,7 +164,8 @@ function useEscalationColumns(organizationSlug: string) {
 			{
 				id: "priority",
 				header: "Priority",
-				enableSorting: false,
+				accessorFn: (row) => row.priority,
+				enableSorting: true,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -201,7 +214,8 @@ function useEscalationColumns(organizationSlug: string) {
 			{
 				id: "escalated",
 				header: "Escalated",
-				enableSorting: false,
+				accessorFn: (row) => row.createdAt,
+				enableSorting: true,
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -251,6 +265,10 @@ export function EscalationsList({
 	const [page, setPage] = useState(1);
 
 	const resetPage = () => setPage(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		ESCALATION_SORT_BY_MAP,
+		resetPage,
+	);
 
 	const { tasks, total, isLoading, isFetching } = useTasks({
 		search: debouncedSearch || undefined,
@@ -259,6 +277,8 @@ export function EscalationsList({
 		followUpStatus: followUp !== "all" ? followUp : undefined,
 		sources: ["AI_ESCALATION"],
 		page,
+		sortBy,
+		sortOrder,
 	});
 
 	const columns = useEscalationColumns(organizationSlug);
@@ -311,6 +331,8 @@ export function EscalationsList({
 					data={tasks}
 					isLoading={isLoading}
 					isFetching={isFetching}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

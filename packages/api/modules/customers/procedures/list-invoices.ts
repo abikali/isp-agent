@@ -20,6 +20,10 @@ export const listCustomerInvoices = protectedProcedure
 			customerId: z.string(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
+			sortBy: z
+				.enum(["invoiceDate", "total", "totalWithTax", "paid"])
+				.optional(),
+			sortOrder: z.enum(["asc", "desc"]).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -53,7 +57,9 @@ export const listCustomerInvoices = protectedProcedure
 					organizationId: input.organizationId,
 					customerId: input.customerId,
 				},
-				orderBy: { invoiceDate: "desc" },
+				orderBy: {
+					[input.sortBy ?? "invoiceDate"]: input.sortOrder ?? "desc",
+				},
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

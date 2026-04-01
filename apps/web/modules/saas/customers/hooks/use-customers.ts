@@ -29,7 +29,14 @@ interface CustomerListInput {
 		| undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
-	sortBy?: "lastName" | "accountNumber" | "createdAt" | "status" | undefined;
+	sortBy?:
+		| "lastName"
+		| "accountNumber"
+		| "createdAt"
+		| "status"
+		| "balance"
+		| "username"
+		| undefined;
 	sortOrder?: "asc" | "desc" | undefined;
 }
 

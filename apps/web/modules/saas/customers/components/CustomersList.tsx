@@ -4,6 +4,7 @@ import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -40,6 +41,13 @@ const statusMap: Record<
 
 const PAGE_SIZE = 25;
 
+const sortByMap = {
+	name: "lastName",
+	accountNumber: "accountNumber",
+	username: "username",
+	balance: "balance",
+} as const satisfies Record<string, string>;
+
 interface CustomerRow {
 	id: string;
 	status: string;
@@ -66,6 +74,10 @@ export function CustomersList({
 	const [stationId, setStationId] = useState("all");
 	const [connectionType, setConnectionType] = useState("all");
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setPage(1),
+	);
 	const [showCreate, setShowCreate] = useState(false);
 	const [showImport, setShowImport] = useState(false);
 
@@ -84,6 +96,8 @@ export function CustomersList({
 						| "ETHERNET")
 				: undefined,
 		page,
+		sortBy,
+		sortOrder,
 	};
 
 	const { customers, total, isLoading, isFetching } = useCustomers(filters);
@@ -105,7 +119,8 @@ export function CustomersList({
 			{
 				id: "accountNumber",
 				header: "Account",
-				enableSorting: false,
+				accessorFn: (row) => row.accountNumber,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<Link
 						to="/app/$organizationSlug/customers/$customerId"
@@ -123,7 +138,8 @@ export function CustomersList({
 			{
 				id: "name",
 				header: "Name",
-				enableSorting: false,
+				accessorFn: (row) => row.lastName,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<div>
 						<Link
@@ -151,7 +167,8 @@ export function CustomersList({
 			{
 				id: "username",
 				header: "Username",
-				enableSorting: false,
+				accessorFn: (row) => row.username,
+				enableSorting: true,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
 					row.original.username ? (
@@ -195,7 +212,8 @@ export function CustomersList({
 			{
 				id: "balance",
 				header: "Balance",
-				enableSorting: false,
+				accessorFn: (row) => row.balance,
+				enableSorting: true,
 				meta: { className: "hidden sm:table-cell text-right" },
 				cell: ({ row }) => (
 					<span className="font-mono tabular-nums">
@@ -293,6 +311,8 @@ export function CustomersList({
 			<DataTable
 				columns={columns}
 				data={customers}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
 				pagination={{
 					totalItems: total,
 					currentPage: page,

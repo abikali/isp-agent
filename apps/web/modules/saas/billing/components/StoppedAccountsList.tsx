@@ -3,6 +3,7 @@
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -30,6 +31,12 @@ import { BillingCycleSelect } from "./BillingCycleSelect";
 
 const PAGE_SIZE = 25;
 
+const SORT_BY_MAP = {
+	customer: "customerName",
+	group: "groupName",
+	stoppedOn: "paidAt",
+} as const satisfies Record<string, "paidAt" | "customerName" | "groupName">;
+
 interface StoppedPaymentRow {
 	id: string;
 	customer: {
@@ -50,6 +57,10 @@ export function StoppedAccountsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		() => setPage(1),
+	);
 	const [reactivatePayment, setReactivatePayment] = useState<{
 		id: string;
 		customerName: string;
@@ -67,6 +78,8 @@ export function StoppedAccountsList() {
 		month: filterMonth,
 		search: debouncedSearch || undefined,
 		page,
+		sortBy,
+		sortOrder,
 	});
 
 	const columns = useMemo<ColumnDef<StoppedPaymentRow, unknown>[]>(
@@ -74,7 +87,8 @@ export function StoppedAccountsList() {
 			{
 				id: "customer",
 				header: "Customer",
-				enableSorting: false,
+				accessorFn: (row) => row.customer.firstName,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<>
 						<div className="font-medium">
@@ -102,7 +116,8 @@ export function StoppedAccountsList() {
 			{
 				id: "group",
 				header: "Group",
-				enableSorting: false,
+				accessorFn: (row) => row.customer.groupName,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{row.original.customer.groupName ?? "\u2014"}
@@ -122,7 +137,8 @@ export function StoppedAccountsList() {
 			{
 				id: "stoppedOn",
 				header: "Stopped On",
-				enableSorting: false,
+				accessorFn: (row) => row.paidAt,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{new Date(row.original.paidAt).toLocaleDateString()}
@@ -194,6 +210,8 @@ export function StoppedAccountsList() {
 				<DataTable
 					columns={columns}
 					data={payments}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

@@ -4,6 +4,7 @@ import { authClient } from "@repo/auth/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { Spinner } from "@shared/components/Spinner";
 import { UserAvatar } from "@shared/components/UserAvatar";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +72,13 @@ export function UserListSkeleton() {
 
 const ITEMS_PER_PAGE = ADMIN_USERS_ITEMS_PER_PAGE;
 
+const sortByMap = {
+	user: "name",
+	email: "email",
+	joined: "createdAt",
+	role: "role",
+} as const;
+
 export function UserList() {
 	const queryClient = useQueryClient();
 	const { confirm } = useConfirmationAlert();
@@ -93,6 +101,11 @@ export function UserList() {
 		[navigate],
 	);
 
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setCurrentPage(1),
+	);
+
 	// Use TanStack Pacer for debouncing - handles sync automatically
 	const [debouncedSearchTerm] = useDebouncedValue(searchTerm, {
 		wait: 300,
@@ -105,6 +118,8 @@ export function UserList() {
 				itemsPerPage: ITEMS_PER_PAGE,
 				currentPage,
 				searchTerm: debouncedSearchTerm,
+				sortBy,
+				sortOrder,
 			},
 		}),
 	);
@@ -207,9 +222,10 @@ export function UserList() {
 	const columns: ColumnDef<User, unknown>[] = useMemo(
 		() => [
 			{
-				accessorKey: "user",
-				header: "",
+				id: "user",
+				header: "User",
 				accessorFn: (row) => row.name,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<div className="flex items-center gap-2">
 						<UserAvatar
@@ -238,8 +254,9 @@ export function UserList() {
 				),
 			},
 			{
-				accessorKey: "actions",
+				id: "actions",
 				header: "",
+				enableSorting: false,
 				cell: ({ row }) => {
 					return (
 						<div className="flex flex-row justify-end gap-2">
@@ -352,6 +369,8 @@ export function UserList() {
 				data={users}
 				isLoading={isLoading}
 				isFetching={isFetching}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
 				emptyState={
 					<p className="h-24 flex items-center justify-center text-muted-foreground">
 						No results.

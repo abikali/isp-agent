@@ -5,6 +5,7 @@ import { getAdminPath } from "@saas/admin/lib/links";
 import { OrganizationLogo } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { Spinner } from "@shared/components/Spinner";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,13 @@ export function OrganizationListSkeleton() {
 
 const ITEMS_PER_PAGE = ADMIN_ORGANIZATIONS_ITEMS_PER_PAGE;
 
+const sortByMap = {
+	name: "name",
+	createdAt: "createdAt",
+	members: "membersCount",
+	customers: "customersCount",
+} as const;
+
 export function OrganizationList() {
 	const { confirm } = useConfirmationAlert();
 	const queryClient = useQueryClient();
@@ -93,6 +101,11 @@ export function OrganizationList() {
 		(value: string) =>
 			navigate({ search: (prev) => ({ ...prev, query: value }) }),
 		[navigate],
+	);
+
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setCurrentPage(1),
 	);
 
 	const [debouncedSearchTerm] = useDebouncedValue(searchTerm, {
@@ -126,6 +139,8 @@ export function OrganizationList() {
 				itemsPerPage: ITEMS_PER_PAGE,
 				currentPage,
 				searchTerm: debouncedSearchTerm,
+				sortBy,
+				sortOrder,
 			},
 		}),
 	);
@@ -168,9 +183,10 @@ export function OrganizationList() {
 	const columns: ColumnDef<Organization, unknown>[] = useMemo(
 		() => [
 			{
-				accessorKey: "name",
+				id: "name",
 				header: "Organization",
 				accessorFn: (row) => row.name,
+				enableSorting: true,
 				cell: ({
 					row: {
 						original: { id, name, logo, membersCount },
@@ -219,26 +235,40 @@ export function OrganizationList() {
 				},
 			},
 			{
-				id: "counts",
-				header: "Overview",
-				enableSorting: false,
-				cell: ({ row }) => {
-					const org = row.original;
-					return (
-						<div className="flex items-center gap-3 text-xs text-muted-foreground">
-							<span className="tabular-nums" title="Customers">
-								{org.customersCount} customers
-							</span>
-							<span className="text-border">|</span>
-							<span className="tabular-nums" title="Employees">
-								{org.employeesCount} employees
-							</span>
-						</div>
-					);
-				},
+				id: "customers",
+				header: "Customers",
+				accessorFn: (row) => row.customersCount,
+				enableSorting: true,
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm text-muted-foreground">
+						{row.original.customersCount}
+					</span>
+				),
 			},
 			{
-				accessorKey: "actions",
+				id: "members",
+				header: "Members",
+				accessorFn: (row) => row.membersCount,
+				enableSorting: true,
+				cell: ({ row }) => (
+					<span className="tabular-nums text-sm text-muted-foreground">
+						{row.original.membersCount}
+					</span>
+				),
+			},
+			{
+				id: "createdAt",
+				header: "Created",
+				accessorFn: (row) => row.createdAt,
+				enableSorting: true,
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground">
+						{new Date(row.original.createdAt).toLocaleDateString()}
+					</span>
+				),
+			},
+			{
+				id: "actions",
 				header: "",
 				enableSorting: false,
 				cell: ({
@@ -339,6 +369,8 @@ export function OrganizationList() {
 				data={organizations}
 				isLoading={isLoading}
 				isFetching={isFetching}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
 				emptyState={
 					<p className="h-24 flex items-center justify-center text-muted-foreground">
 						No results.

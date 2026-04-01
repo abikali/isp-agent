@@ -17,6 +17,10 @@ export const listCollections = protectedProcedure
 			.object({
 				organizationId: z.string(),
 				collectorId: z.string().optional(),
+				sortBy: z
+					.enum(["collectedAt", "amount", "type"])
+					.default("collectedAt"),
+				sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			})
 			.merge(dateRangeSchema)
 			.merge(paginationSchema()),
@@ -50,7 +54,7 @@ export const listCollections = protectedProcedure
 					collector: { select: { id: true, name: true } },
 					receivedBy: { select: { id: true, name: true } },
 				},
-				orderBy: { collectedAt: "desc" },
+				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

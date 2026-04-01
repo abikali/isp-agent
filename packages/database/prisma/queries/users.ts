@@ -4,31 +4,45 @@ import type { UserModel } from "../generated/models";
 
 type User = UserModel;
 
+function userSearchFilter(query?: string) {
+	return query
+		? {
+				OR: [
+					{ name: { contains: query, mode: "insensitive" as const } },
+					{
+						email: {
+							contains: query,
+							mode: "insensitive" as const,
+						},
+					},
+				],
+			}
+		: {};
+}
+
 export async function getUsers({
 	limit,
 	offset,
 	query,
+	sortBy = "createdAt",
+	sortOrder = "desc",
 }: {
 	limit: number;
 	offset: number;
 	query?: string;
+	sortBy?: "name" | "email" | "createdAt" | "role";
+	sortOrder?: "asc" | "desc";
 }) {
-	const findManyArgs: Parameters<typeof db.user.findMany>[0] = {
+	return await db.user.findMany({
 		take: limit,
 		skip: offset,
-	};
-
-	if (query) {
-		findManyArgs.where = {
-			name: { contains: query },
-		};
-	}
-
-	return await db.user.findMany(findManyArgs);
+		where: userSearchFilter(query),
+		orderBy: { [sortBy]: sortOrder },
+	});
 }
 
-export async function countAllUsers() {
-	return await db.user.count();
+export async function countAllUsers(query?: string) {
+	return await db.user.count({ where: userSearchFilter(query) });
 }
 
 export async function getUserById(id: string) {

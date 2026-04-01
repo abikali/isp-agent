@@ -1,5 +1,6 @@
 "use client";
 
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +12,13 @@ import { FileTextIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;
+
+const sortByMap = {
+	date: "invoiceDate",
+	total: "total",
+	totalTTC: "totalWithTax",
+	status: "paid",
+} as const satisfies Record<string, string>;
 
 interface InvoiceRow {
 	id: string;
@@ -25,6 +33,10 @@ interface InvoiceRow {
 export function CustomerInvoices({ customerId }: { customerId: string }) {
 	const organizationId = useOrganizationId();
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setPage(1),
+	);
 
 	const { data, isLoading } = useQuery(
 		organizationId
@@ -34,6 +46,8 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 						customerId,
 						page,
 						pageSize: PAGE_SIZE,
+						sortBy,
+						sortOrder,
 					},
 				})
 			: disabledQuery(["customers", "listInvoices"]),
@@ -54,7 +68,8 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 			{
 				id: "date",
 				header: "Date",
-				enableSorting: false,
+				accessorFn: (row) => row.invoiceDate,
+				enableSorting: true,
 				meta: { className: "text-xs" },
 				cell: ({ row }) =>
 					new Date(row.original.invoiceDate).toLocaleDateString(),
@@ -62,7 +77,8 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 			{
 				id: "total",
 				header: "Total",
-				enableSorting: false,
+				accessorFn: (row) => row.total,
+				enableSorting: true,
 				meta: { className: "text-right text-xs" },
 				cell: ({ row }) => `$${row.original.total.toFixed(2)}`,
 			},
@@ -76,14 +92,16 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 			{
 				id: "totalTTC",
 				header: "Total (TTC)",
-				enableSorting: false,
+				accessorFn: (row) => row.totalWithTax,
+				enableSorting: true,
 				meta: { className: "text-right text-xs font-medium" },
 				cell: ({ row }) => `$${row.original.totalWithTax.toFixed(2)}`,
 			},
 			{
 				id: "status",
 				header: "Status",
-				enableSorting: false,
+				accessorFn: (row) => row.paid,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<Badge
 						variant={row.original.paid ? "success" : "destructive"}
@@ -118,6 +136,8 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 				<DataTable
 					columns={columns}
 					data={invoices}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

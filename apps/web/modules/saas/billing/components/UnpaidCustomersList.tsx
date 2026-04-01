@@ -4,6 +4,7 @@ import { useActiveOrganization } from "@saas/organizations/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -164,7 +165,8 @@ function useUnpaidColumns({
 			{
 				id: "customer",
 				header: "Customer",
-				enableSorting: false,
+				accessorFn: (row) => row.firstName,
+				enableSorting: true,
 				cell: ({ row }) => {
 					const customer = row.original;
 					const phone = customer.mobile ?? customer.phone;
@@ -191,7 +193,8 @@ function useUnpaidColumns({
 			{
 				id: "area",
 				header: "Area",
-				enableSorting: false,
+				accessorFn: (row) => row.groupName,
+				enableSorting: true,
 				cell: ({ row }) => {
 					const customer = row.original;
 					if (customer.groupName) {
@@ -284,7 +287,8 @@ function useUnpaidColumns({
 			{
 				id: "expiry",
 				header: "Expiry",
-				enableSorting: false,
+				accessorFn: (row) => row.expiresAt,
+				enableSorting: true,
 				cell: ({ row }) => {
 					const customer = row.original;
 					return (
@@ -295,7 +299,8 @@ function useUnpaidColumns({
 			{
 				id: "amountDue",
 				header: "Amount Due",
-				enableSorting: false,
+				accessorFn: (row) => row.monthlyRate,
+				enableSorting: true,
 				meta: { className: "text-right" },
 				cell: ({ row }) => {
 					const customer = row.original;
@@ -432,6 +437,16 @@ function useUnpaidColumns({
 	}, [isOrganizationAdmin, onSelectCustomer]);
 }
 
+const SORT_BY_MAP = {
+	customer: "firstName",
+	area: "groupName",
+	expiry: "expiresAt",
+	amountDue: "monthlyRate",
+} as const satisfies Record<
+	string,
+	"expiresAt" | "firstName" | "groupName" | "monthlyRate"
+>;
+
 export function UnpaidCustomersList() {
 	const { employee, isOrganizationAdmin } = useActiveOrganization();
 	const [search, setSearch] = useState("");
@@ -440,11 +455,16 @@ export function UnpaidCustomersList() {
 	const [groupFilter, setGroupFilter] = useState("");
 	const [collectorFilter, setCollectorFilter] = useState("");
 	const [expiredOnly, setExpiredOnly] = useState(false);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		() => setPage(1),
+	);
 	const [selectedCustomer, setSelectedCustomer] = useState<
 		Parameters<typeof PaymentDialog>[0]["customer"] | null
 	>(null);
 
 	const isCollector = !isOrganizationAdmin && !!employee?.id;
+
 	const { data: currentMonthData } = useCurrentMonth();
 	const activeMonth = currentMonthData?.month;
 	const { groups } = useCustomerGroups();
@@ -465,6 +485,8 @@ export function UnpaidCustomersList() {
 			expiryTo: expiredOnly ? today : undefined,
 			page,
 			pageSize: 25,
+			sortBy,
+			sortOrder,
 		});
 
 	// Calculate total amount due across visible page (for the footer)
@@ -568,6 +590,8 @@ export function UnpaidCustomersList() {
 						columns={columns}
 						data={customers}
 						isLoading={isLoading}
+						sorting={sorting}
+						onSortingChange={onSortingChange}
 						pagination={{
 							totalItems: total,
 							currentPage: page,

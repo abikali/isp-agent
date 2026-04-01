@@ -3,6 +3,7 @@
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -72,6 +73,12 @@ import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 
 const PAGE_SIZE = 25;
+
+const SORT_BY_MAP = {
+	date: "paidAt",
+	amount: "paidAmount",
+	status: "stoppedAccount",
+} as const;
 
 type PaymentTypeFilter =
 	| "all"
@@ -220,6 +227,10 @@ export function PaymentsList() {
 		string | undefined
 	>();
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		() => setPage(1),
+	);
 	const {
 		monthFilter,
 		setMonthFilter,
@@ -261,6 +272,8 @@ export function PaymentsList() {
 		billingMonthId: activeMonthId,
 		page,
 		pageSize: PAGE_SIZE,
+		sortBy,
+		sortOrder,
 	});
 
 	const { data: collectorsData } = useCollectors();
@@ -342,7 +355,8 @@ export function PaymentsList() {
 			{
 				id: "date",
 				header: "Date",
-				enableSorting: false,
+				accessorFn: (row) => row.paidAt,
+				enableSorting: true,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
@@ -353,7 +367,8 @@ export function PaymentsList() {
 			{
 				id: "amount",
 				header: "Amount",
-				enableSorting: false,
+				accessorFn: (row) => row.paidAmount,
+				enableSorting: true,
 				meta: { className: "text-right" },
 				cell: ({ row }) => {
 					const p = row.original;
@@ -376,7 +391,8 @@ export function PaymentsList() {
 			{
 				id: "status",
 				header: "Status",
-				enableSorting: false,
+				accessorFn: (row) => row.stoppedAccount,
+				enableSorting: true,
 				cell: ({ row }) => {
 					const payment = row.original;
 					const variant = getPaymentFlagVariant(payment);
@@ -407,7 +423,7 @@ export function PaymentsList() {
 				header: "Note",
 				enableSorting: false,
 				meta: {
-					className: "hidden lg:table-cell max-w-40",
+					className: "hidden lg:table-cell",
 				},
 				cell: ({ row }) => {
 					const category = row.original.noteCategory;
@@ -430,7 +446,7 @@ export function PaymentsList() {
 								</Badge>
 							)}
 							{notes && (
-								<span className="block truncate text-xs text-muted-foreground mt-0.5">
+								<span className="block text-xs text-muted-foreground mt-0.5">
 									{notes}
 								</span>
 							)}
@@ -661,6 +677,8 @@ export function PaymentsList() {
 						isLoading={isLoading}
 						isFetching={isFetching}
 						getRowClassName={rowClassName}
+						sorting={sorting}
+						onSortingChange={onSortingChange}
 						pagination={{
 							totalItems: total,
 							currentPage: page,

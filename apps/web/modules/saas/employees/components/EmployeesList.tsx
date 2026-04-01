@@ -4,6 +4,7 @@ import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -50,6 +51,15 @@ const statusMap: Record<string, "active" | "inactive" | "pending"> = {
 
 const PAGE_SIZE = 25;
 
+const SORT_BY_MAP = {
+	name: "name",
+	employeeNumber: "employeeNumber",
+	status: "status",
+} as const satisfies Record<
+	string,
+	"name" | "employeeNumber" | "createdAt" | "status"
+>;
+
 interface EmployeeRow {
 	id: string;
 	status: string;
@@ -78,6 +88,10 @@ export function EmployeesList({
 	const [page, setPage] = useState(1);
 	const [showCreate, setShowCreate] = useState(false);
 	const [showImport, setShowImport] = useState(false);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		() => setPage(1),
+	);
 	const deleteEmployee = useDeleteEmployee();
 	const inviteEmployee = useInviteEmployee();
 
@@ -98,6 +112,8 @@ export function EmployeesList({
 				: undefined,
 		stationId: stationId !== "all" ? stationId : undefined,
 		page,
+		sortBy,
+		sortOrder,
 	};
 
 	const { employees, total, isLoading, isFetching } = useEmployees(filters);
@@ -106,7 +122,8 @@ export function EmployeesList({
 		() => [
 			{
 				id: "status",
-				enableSorting: false,
+				accessorFn: (row) => row.status,
+				enableSorting: true,
 				meta: { className: "w-10 pr-0" },
 				cell: ({ row }) => (
 					<StatusIndicator
@@ -119,7 +136,8 @@ export function EmployeesList({
 			{
 				id: "employeeNumber",
 				header: "Employee #",
-				enableSorting: false,
+				accessorFn: (row) => row.employeeNumber,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<Link
 						to="/app/$organizationSlug/employees/$employeeId"
@@ -137,7 +155,8 @@ export function EmployeesList({
 			{
 				id: "name",
 				header: "Name",
-				enableSorting: false,
+				accessorFn: (row) => row.name,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<div>
 						<Link
@@ -388,6 +407,8 @@ export function EmployeesList({
 			<DataTable
 				columns={columns}
 				data={employees}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
 				pagination={{
 					totalItems: total,
 					currentPage: page,

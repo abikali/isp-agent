@@ -164,6 +164,8 @@ export function usePaymentsQuery(filters: {
 	dateTo?: string;
 	page?: number;
 	pageSize?: number;
+	sortBy?: "paidAt" | "paidAmount" | "stoppedAccount";
+	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();
 
@@ -206,6 +208,8 @@ export function useUnpaidCustomers(filters: {
 	page?: number;
 	pageSize?: number;
 	refetchInterval?: number;
+	sortBy?: "expiresAt" | "firstName" | "groupName" | "monthlyRate";
+	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();
 	const { refetchInterval, ...queryFilters } = filters;
@@ -248,6 +252,8 @@ export function useStoppedAccounts(filters: {
 	collectorId?: string;
 	page?: number;
 	pageSize?: number;
+	sortBy?: "paidAt" | "customerName" | "groupName";
+	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();
 
@@ -390,6 +396,8 @@ export function useCollections(filters: {
 	dateTo?: string;
 	page?: number;
 	pageSize?: number;
+	sortBy?: "collectedAt" | "amount" | "type";
+	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();
 

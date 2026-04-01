@@ -1,6 +1,7 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -24,6 +25,17 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+
+const TASK_SORT_BY_MAP = {
+	title: "title",
+	status: "status",
+	priority: "priority",
+	dueDate: "dueDate",
+} as const satisfies Record<
+	string,
+	"title" | "createdAt" | "dueDate" | "priority" | "status"
+>;
+
 import { useTasks } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_LABELS,
@@ -69,9 +81,10 @@ function useTaskColumns(organizationSlug: string) {
 	return useMemo<ColumnDef<TaskItem, unknown>[]>(
 		() => [
 			{
-				id: "task",
+				id: "title",
 				header: "Task",
-				enableSorting: false,
+				accessorFn: (row) => row.title,
+				enableSorting: true,
 				meta: { className: "w-full sm:w-[40%]" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -166,7 +179,8 @@ function useTaskColumns(organizationSlug: string) {
 			{
 				id: "status",
 				header: "Status",
-				enableSorting: false,
+				accessorFn: (row) => row.status,
+				enableSorting: true,
 				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -185,7 +199,8 @@ function useTaskColumns(organizationSlug: string) {
 			{
 				id: "priority",
 				header: "Priority",
-				enableSorting: false,
+				accessorFn: (row) => row.priority,
+				enableSorting: true,
 				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -244,7 +259,8 @@ function useTaskColumns(organizationSlug: string) {
 			{
 				id: "dueDate",
 				header: "Due Date",
-				enableSorting: false,
+				accessorFn: (row) => row.dueDate,
+				enableSorting: true,
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
@@ -290,6 +306,10 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [showCreate, setShowCreate] = useState(false);
 
 	const resetPage = () => setPage(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		TASK_SORT_BY_MAP,
+		resetPage,
+	);
 
 	const { tasks, total, isLoading, isFetching } = useTasks({
 		search: debouncedSearch || undefined,
@@ -299,6 +319,8 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 		sources: ["MANUAL", "LEGACY"],
 		employeeId: employeeId !== "all" ? employeeId : undefined,
 		page,
+		sortBy,
+		sortOrder,
 	});
 
 	const columns = useTaskColumns(organizationSlug);
@@ -355,6 +377,8 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 					data={tasks}
 					isLoading={isLoading}
 					isFetching={isFetching}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

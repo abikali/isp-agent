@@ -1,12 +1,13 @@
 "use client";
 
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -69,6 +70,12 @@ import {
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
+
+const HANDOFF_SORT_BY_MAP = {
+	collectedAt: "collectedAt",
+	amount: "amount",
+	type: "type",
+} as const satisfies Record<string, "collectedAt" | "amount" | "type">;
 
 export function CashCollectionPageSkeleton() {
 	return (
@@ -220,6 +227,12 @@ export function CashCollectionPage({
 	const [page, setPage] = useState(1);
 	const [tab, setTab] = useState<"payments" | "handoffs">("payments");
 
+	const {
+		sorting: handoffSorting,
+		sortBy: handoffSortBy,
+		sortOrder: handoffSortOrder,
+		onSortingChange: onHandoffSortingChange,
+	} = useServerSorting(HANDOFF_SORT_BY_MAP, () => setPage(1));
 	const [statusFilter, setStatusFilter] = useState<string>("");
 	const [groupFilter, setGroupFilter] = useState<string>("");
 	const [search, setSearch] = useState("");
@@ -244,6 +257,8 @@ export function CashCollectionPage({
 	const { data: collectionsData } = useCollections({
 		collectorId,
 		page: tab === "handoffs" ? page : 1,
+		sortBy: handoffSortBy,
+		sortOrder: handoffSortOrder,
 	});
 
 	const stoppedAccount =
@@ -551,6 +566,8 @@ export function CashCollectionPage({
 						page={page}
 						onPageChange={setPage}
 						onDelete={handleDelete}
+						sorting={handoffSorting}
+						onSortingChange={onHandoffSortingChange}
 					/>
 				)}
 			</div>
@@ -952,18 +969,24 @@ function HandoffsTable({
 	page,
 	onPageChange,
 	onDelete,
+	sorting,
+	onSortingChange,
 }: {
 	collections: Collection[];
 	total: number;
 	page: number;
 	onPageChange: (page: number) => void;
 	onDelete: (id: string) => void;
+	sorting: SortingState;
+	onSortingChange: (sorting: SortingState) => void;
 }) {
 	const columns: ColumnDef<Collection, unknown>[] = useMemo(
 		() => [
 			{
-				accessorKey: "type",
+				id: "type",
 				header: "Type",
+				accessorFn: (row) => row.type,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<Badge variant="outline" className="text-xs font-normal">
 						{COLLECTION_TYPE_LABELS[row.original.type] ??
@@ -972,8 +995,10 @@ function HandoffsTable({
 				),
 			},
 			{
-				accessorKey: "amount",
+				id: "amount",
 				header: "Amount",
+				accessorFn: (row) => row.amount,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<span
 						className={`font-semibold tabular-nums ${row.original.amount < 0 ? "text-red-600 dark:text-red-400" : ""}`}
@@ -983,8 +1008,10 @@ function HandoffsTable({
 				),
 			},
 			{
-				accessorKey: "collectedAt",
+				id: "collectedAt",
 				header: "Date",
+				accessorFn: (row) => row.collectedAt,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
 						{new Date(
@@ -994,8 +1021,9 @@ function HandoffsTable({
 				),
 			},
 			{
-				accessorKey: "notes",
+				id: "notes",
 				header: "Note",
+				enableSorting: false,
 				cell: ({ row }) => (
 					<span className="max-w-[200px] truncate block text-muted-foreground">
 						{row.original.notes ?? "\u2014"}
@@ -1005,6 +1033,7 @@ function HandoffsTable({
 			{
 				id: "receivedBy",
 				header: "Received By",
+				enableSorting: false,
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
 						{row.original.receivedBy?.name ?? "\u2014"}
@@ -1057,6 +1086,8 @@ function HandoffsTable({
 		<DataTable
 			columns={columns}
 			data={collections}
+			sorting={sorting}
+			onSortingChange={onSortingChange}
 			emptyState={
 				<Card>
 					<CardContent className="flex flex-col items-center gap-2 py-12 text-center">

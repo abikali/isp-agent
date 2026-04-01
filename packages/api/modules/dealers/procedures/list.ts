@@ -19,6 +19,10 @@ export const listDealers = adminProcedure
 				.optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
+			sortBy: z
+				.enum(["name", "companyName", "credit", "createdAt"])
+				.optional(),
+			sortOrder: z.enum(["asc", "desc"]).optional(),
 		}),
 	)
 	.handler(async ({ input }) => {
@@ -63,7 +67,9 @@ export const listDealers = adminProcedure
 					parentDealer: { select: { id: true, name: true } },
 					_count: { select: { customers: true, employees: true } },
 				},
-				orderBy: { name: "asc" },
+				orderBy: input.sortBy
+					? { [input.sortBy]: input.sortOrder ?? "asc" }
+					: { name: "asc" },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

@@ -56,6 +56,12 @@ interface DataTableProps<TData> {
 	/** Server-side pagination control. Disables client-side sorting. */
 	pagination?: DataTablePagination;
 
+	/** Controlled sorting state for server-side sorting. */
+	sorting?: SortingState;
+
+	/** Callback when sorting changes (enables server-side sorting with manual pagination). */
+	onSortingChange?: (sorting: SortingState) => void;
+
 	/** Show loading placeholder in table body */
 	isLoading?: boolean;
 
@@ -121,27 +127,47 @@ export function DataTable<TData>({
 	data,
 	pageSize,
 	pagination,
+	sorting: controlledSorting,
+	onSortingChange,
 	isLoading,
 	isFetching,
 	emptyState,
 	getRowClassName,
 	className,
 }: DataTableProps<TData>) {
-	const [sorting, setSorting] = useState<SortingState>([]);
+	const [internalSorting, setInternalSorting] = useState<SortingState>([]);
 
 	const isManual = !!pagination;
-	const enableSorting = !isManual;
+	const isServerSorted = !!onSortingChange;
+	const enableSorting = !isManual || isServerSorted;
 	const enableClientPagination = !!pageSize && !isManual;
+
+	const sorting = controlledSorting ?? internalSorting;
+	const handleSortingChange = isServerSorted
+		? (updater: SortingState | ((old: SortingState) => SortingState)) => {
+				const next =
+					typeof updater === "function" ? updater(sorting) : updater;
+				onSortingChange(next);
+			}
+		: enableSorting
+			? setInternalSorting
+			: undefined;
 
 	const table = useReactTable({
 		data,
 		columns,
+		enableSorting,
+		manualSorting: isServerSorted,
 		state: {
 			sorting,
 		},
-		onSortingChange: enableSorting ? setSorting : undefined,
+		...(handleSortingChange
+			? { onSortingChange: handleSortingChange }
+			: {}),
 		getCoreRowModel: getCoreRowModel(),
-		...(enableSorting ? { getSortedRowModel: getSortedRowModel() } : {}),
+		...(enableSorting && !isServerSorted
+			? { getSortedRowModel: getSortedRowModel() }
+			: {}),
 		...(enableClientPagination
 			? {
 					getPaginationRowModel: getPaginationRowModel(),

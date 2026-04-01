@@ -4,6 +4,7 @@ import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { formatCurrency } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -43,6 +44,15 @@ const statusMap: Record<
 	SUSPENDED: "suspended",
 	PENDING: "pending",
 };
+
+const SORT_BY_MAP = {
+	name: "name",
+	company: "companyName",
+	credit: "credit",
+} as const satisfies Record<
+	string,
+	"name" | "companyName" | "credit" | "createdAt"
+>;
 
 interface DealerRow {
 	id: string;
@@ -170,6 +180,10 @@ export function DealersList() {
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		() => setPage(1),
+	);
 	const [showCreate, setShowCreate] = useState(false);
 
 	const filters = {
@@ -179,6 +193,8 @@ export function DealersList() {
 				? (status as "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING")
 				: undefined,
 		page,
+		sortBy,
+		sortOrder,
 	};
 
 	const { dealers, total, pageSize, isLoading, isFetching } =
@@ -201,7 +217,8 @@ export function DealersList() {
 			{
 				id: "name",
 				header: "Name",
-				enableSorting: false,
+				accessorFn: (row) => row.name,
+				enableSorting: true,
 				cell: ({ row }) => (
 					<div>
 						<Link
@@ -225,7 +242,8 @@ export function DealersList() {
 			{
 				id: "company",
 				header: "Company",
-				enableSorting: false,
+				accessorFn: (row) => row.companyName,
+				enableSorting: true,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
 					row.original.companyName ?? (
@@ -280,7 +298,8 @@ export function DealersList() {
 			{
 				id: "credit",
 				header: "Credit",
-				enableSorting: false,
+				accessorFn: (row) => row.credit,
+				enableSorting: true,
 				meta: {
 					className:
 						"hidden lg:table-cell text-right font-mono tabular-nums",
@@ -326,6 +345,8 @@ export function DealersList() {
 			<DataTable
 				columns={columns}
 				data={dealers}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
 				pagination={{
 					totalItems: total,
 					currentPage: page,
