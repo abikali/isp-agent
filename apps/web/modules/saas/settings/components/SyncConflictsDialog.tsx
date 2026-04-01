@@ -324,6 +324,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 			...(fieldFilter ? { fieldName: fieldFilter } : {}),
 		});
 		setSelected(new Set());
+		setPage(1);
 	}
 
 	function resolveAll(resolution: "keep_local" | "keep_remote") {
@@ -333,6 +334,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 			...(fieldFilter ? { fieldName: fieldFilter } : {}),
 		});
 		setSelected(new Set());
+		setPage(1);
 	}
 
 	function resolveRow(
@@ -363,10 +365,10 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 							Sync Conflicts
 						</DialogTitle>
 						<DialogDescription className="mt-1">
-							{pendingCount > 0 ? (
+							{totalFieldCount > 0 ? (
 								<>
-									<strong>{pendingCount}</strong> field
-									{pendingCount !== 1 ? "s" : ""} differ
+									<strong>{totalFieldCount}</strong> field
+									{totalFieldCount !== 1 ? "s" : ""} differ
 									across <strong>{affectedCustomers}</strong>{" "}
 									customer
 									{affectedCustomers !== 1 ? "s" : ""}. Choose
@@ -377,7 +379,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 							)}
 						</DialogDescription>
 					</div>
-					{pendingCount > 0 && (
+					{totalFieldCount > 0 && (
 						<div className="flex items-center gap-2 shrink-0">
 							{fieldFilter && (
 								<Badge

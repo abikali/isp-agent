@@ -33,50 +33,54 @@ async function resolveByField(
 
 	let resolved = 0;
 	const resolvedAt = new Date();
+	const BATCH_SIZE = 50;
 
-	await db.$transaction(async (tx) => {
-		for (const conflict of conflicts) {
-			const fields = conflict.fields as unknown as ConflictFields;
-			const field = fields[targetField];
-			if (!field || field.resolution !== null) {
-				continue;
-			}
+	for (let i = 0; i < conflicts.length; i += BATCH_SIZE) {
+		const batch = conflicts.slice(i, i + BATCH_SIZE);
 
-			field.resolution = resolution;
-			resolved++;
+		await db.$transaction(async (tx) => {
+			for (const conflict of batch) {
+				const fields = conflict.fields as unknown as ConflictFields;
+				const field = fields[targetField];
+				if (!field || field.resolution !== null) {
+					continue;
+				}
 
-			const allResolved = Object.values(fields).every(
-				(f) => f.resolution !== null,
-			);
+				field.resolution = resolution;
+				resolved++;
 
-			// Apply remote value to the customer
-			if (resolution === "keep_remote") {
-				await tx.customer.update({
-					where: { id: conflict.customerId },
+				const allResolved = Object.values(fields).every(
+					(f) => f.resolution !== null,
+				);
+
+				if (resolution === "keep_remote") {
+					await tx.customer.update({
+						where: { id: conflict.customerId },
+						data: {
+							[targetField]: deserializeValue(
+								field.remote,
+								targetField,
+							),
+						},
+					});
+				}
+
+				await tx.syncConflict.update({
+					where: { id: conflict.id },
 					data: {
-						[targetField]: deserializeValue(
-							field.remote,
-							targetField,
-						),
+						fields: fields as unknown as Prisma.InputJsonValue,
+						...(allResolved
+							? {
+									status: "resolved",
+									resolvedAt,
+									resolvedById: userId,
+								}
+							: {}),
 					},
 				});
 			}
-
-			await tx.syncConflict.update({
-				where: { id: conflict.id },
-				data: {
-					fields: fields as unknown as Prisma.InputJsonValue,
-					...(allResolved
-						? {
-								status: "resolved",
-								resolvedAt,
-								resolvedById: userId,
-							}
-						: {}),
-				},
-			});
-		}
-	});
+		});
+	}
 
 	return { resolvedCount: resolved };
 }
@@ -325,54 +329,46 @@ export const bulkResolveSyncConflicts = protectedProcedure
 		}
 
 		const resolvedAt = new Date();
-		const opCounts = new Map<string, number>();
+		const BATCH_SIZE = 50;
 
-		await db.$transaction(async (tx) => {
-			for (const conflict of conflicts) {
-				const fields = conflict.fields as unknown as ConflictFields;
-				const customerUpdate: Record<string, unknown> = {};
+		for (let i = 0; i < conflicts.length; i += BATCH_SIZE) {
+			const batch = conflicts.slice(i, i + BATCH_SIZE);
 
-				for (const [fieldName, field] of Object.entries(fields)) {
-					if (field.resolution !== null) {
-						continue;
+			await db.$transaction(async (tx) => {
+				for (const conflict of batch) {
+					const fields = conflict.fields as unknown as ConflictFields;
+					const customerUpdate: Record<string, unknown> = {};
+
+					for (const [fieldName, field] of Object.entries(fields)) {
+						if (field.resolution !== null) {
+							continue;
+						}
+						field.resolution = "keep_remote";
+						customerUpdate[fieldName] = deserializeValue(
+							field.remote,
+							fieldName,
+						);
 					}
-					field.resolution = "keep_remote";
-					customerUpdate[fieldName] = deserializeValue(
-						field.remote,
-						fieldName,
-					);
-				}
 
-				await tx.syncConflict.update({
-					where: { id: conflict.id },
-					data: {
-						fields: fields as unknown as Prisma.InputJsonValue,
-						status: "resolved",
-						resolvedAt,
-						resolvedById: user.id,
-					},
-				});
-
-				if (Object.keys(customerUpdate).length > 0) {
-					await tx.customer.update({
-						where: { id: conflict.customerId },
-						data: customerUpdate,
+					await tx.syncConflict.update({
+						where: { id: conflict.id },
+						data: {
+							fields: fields as unknown as Prisma.InputJsonValue,
+							status: "resolved",
+							resolvedAt,
+							resolvedById: user.id,
+						},
 					});
+
+					if (Object.keys(customerUpdate).length > 0) {
+						await tx.customer.update({
+							where: { id: conflict.customerId },
+							data: customerUpdate,
+						});
+					}
 				}
-
-				opCounts.set(
-					conflict.syncOperationId,
-					(opCounts.get(conflict.syncOperationId) ?? 0) + 1,
-				);
-			}
-
-			for (const [opId, count] of opCounts) {
-				await tx.iRadiusSyncOperation.update({
-					where: { id: opId },
-					data: { resolvedConflicts: { increment: count } },
-				});
-			}
-		});
+			});
+		}
 
 		return { resolvedCount: conflicts.length };
 	});
