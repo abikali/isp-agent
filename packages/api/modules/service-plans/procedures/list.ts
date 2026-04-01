@@ -59,6 +59,7 @@ export const listServicePlans = protectedProcedure
 					uploadSpeed: true,
 					monthlyPrice: true,
 					archived: true,
+					visible: true,
 					commission: true,
 					parentCommission: true,
 					createdAt: true,

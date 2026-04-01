@@ -218,7 +218,7 @@ function ServicePlanSelector({
 										</span>
 										<span className="text-muted-foreground tabular-nums">
 											{plan.downloadSpeed}/
-											{plan.uploadSpeed} Mbps &middot;{" "}
+											{plan.uploadSpeed} Mbps &middot; $
 											{plan.monthlyPrice}/mo
 										</span>
 									</label>
@@ -254,7 +254,7 @@ export function AgentSettings({
 	const updateAgent = useUpdateAgent();
 	const { tools: availableTools } = useAvailableTools();
 	const { plans: servicePlans, isLoading: isLoadingPlans } = usePlansQuery();
-	const activePlans = servicePlans.filter((p) => !p.archived);
+	const activePlans = servicePlans.filter((p) => !p.archived && p.visible);
 
 	const [configDialog, setConfigDialog] = useState<{
 		toolId: string;

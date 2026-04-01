@@ -24,6 +24,7 @@ export async function fetchServicePlansSection(
 		where: {
 			organizationId,
 			archived: false,
+			visible: true,
 			...(hasFilter ? { id: { in: planIds } } : {}),
 		},
 		orderBy: { monthlyPrice: "asc" },
