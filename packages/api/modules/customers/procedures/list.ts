@@ -98,6 +98,22 @@ export const listCustomers = protectedProcedure
 					},
 				},
 				{ username: { contains: input.search, mode: "insensitive" } },
+				{ groupName: { contains: input.search, mode: "insensitive" } },
+				{
+					plan: {
+						name: { contains: input.search, mode: "insensitive" },
+					},
+				},
+				{
+					station: {
+						name: { contains: input.search, mode: "insensitive" },
+					},
+				},
+				{
+					collector: {
+						name: { contains: input.search, mode: "insensitive" },
+					},
+				},
 			];
 		}
 
