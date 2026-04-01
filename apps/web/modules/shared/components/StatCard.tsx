@@ -1,107 +1,75 @@
-import { Link } from "@tanstack/react-router";
-import { Skeleton } from "@ui/components/skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+type StatColor =
+	| "blue"
+	| "green"
+	| "emerald"
+	| "amber"
+	| "red"
+	| "orange"
+	| "purple"
+	| "default";
+
+const valueColorStyles: Record<StatColor, string> = {
+	default: "",
+	blue: "text-blue-600 dark:text-blue-400",
+	green: "text-green-600 dark:text-green-400",
+	emerald: "text-emerald-600 dark:text-emerald-400",
+	amber: "text-amber-600 dark:text-amber-400",
+	red: "text-red-600 dark:text-red-400",
+	orange: "text-orange-600 dark:text-orange-400",
+	purple: "text-purple-600 dark:text-purple-400",
+};
+
 interface StatCardProps {
 	title: string;
 	value: string | number;
-	icon: LucideIcon;
-	trend?: { value: string; direction: "up" | "down" | "neutral" };
-	variant?: "default" | "success" | "warning" | "destructive";
+	icon?: LucideIcon;
+	color?: StatColor;
 	description?: string;
 	href?: string;
 }
-
-const variantColor: Record<string, string> = {
-	default: "text-foreground",
-	success: "text-green-600 dark:text-green-400",
-	warning: "text-amber-600 dark:text-amber-400",
-	destructive: "text-red-600 dark:text-red-400",
-};
-
-const trendColor: Record<string, string> = {
-	up: "text-green-600 dark:text-green-400",
-	down: "text-red-600 dark:text-red-400",
-	neutral: "text-muted-foreground",
-};
 
 export function StatCard({
 	title,
 	value,
 	icon: Icon,
-	trend,
-	variant = "default",
+	color = "default",
 	description,
 	href,
 }: StatCardProps) {
-	const content = (
+	const card = (
 		<div
 			className={cn(
-				"rounded-xl bg-card p-3 sm:p-5 shadow-card transition-shadow",
-				href && "hover:shadow-card-hover cursor-pointer",
+				"rounded-lg border bg-card px-4 py-3",
+				href &&
+					"hover:shadow-card-hover cursor-pointer transition-shadow",
 			)}
 		>
-			<div className="flex items-center justify-between">
-				<p className="text-sm font-medium text-muted-foreground">
-					{title}
-				</p>
-				{description ? (
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="rounded-lg bg-muted/50 p-2">
-									<Icon className="size-4 text-muted-foreground" />
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>{description}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				) : (
-					<div className="rounded-lg bg-muted/50 p-2">
-						<Icon className="size-4 text-muted-foreground" />
-					</div>
+			<p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+				{Icon && <Icon className="size-3.5" />}
+				{title}
+			</p>
+			<p
+				className={cn(
+					"text-lg font-bold tabular-nums mt-0.5",
+					valueColorStyles[color],
 				)}
-			</div>
-			<div className="mt-3 flex items-baseline gap-2">
-				<span
-					className={cn(
-						"text-xl sm:text-2xl font-bold tabular-nums",
-						variantColor[variant],
-					)}
-				>
-					{typeof value === "number" ? value.toLocaleString() : value}
-				</span>
-				{trend && (
-					<span
-						className={cn(
-							"text-xs font-medium",
-							trendColor[trend.direction],
-						)}
-					>
-						{trend.direction === "up" ? "+" : ""}
-						{trend.value}
-					</span>
-				)}
-			</div>
+			>
+				{typeof value === "number" ? value.toLocaleString() : value}
+			</p>
+			{description && (
+				<p className="text-xs text-muted-foreground">{description}</p>
+			)}
 		</div>
 	);
 
 	if (href) {
-		return (
-			<Link to={href} preload="intent">
-				{content}
-			</Link>
-		);
+		return <a href={href}>{card}</a>;
 	}
-	return content;
+	return card;
 }
 
 interface StatCardGroupProps {
@@ -110,26 +78,23 @@ interface StatCardGroupProps {
 }
 
 const columnClass: Record<number, string> = {
-	2: "grid-cols-1 sm:grid-cols-2",
-	3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-	4: "grid-cols-2 lg:grid-cols-4",
+	2: "grid-cols-2",
+	3: "grid-cols-2 sm:grid-cols-3",
+	4: "grid-cols-2 sm:grid-cols-4",
 	5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
 };
 
 export function StatCardGroup({ children, columns = 4 }: StatCardGroupProps) {
 	return (
-		<div className={cn("grid gap-4", columnClass[columns])}>{children}</div>
+		<div className={cn("grid gap-3", columnClass[columns])}>{children}</div>
 	);
 }
 
 export function StatCardSkeleton() {
 	return (
-		<div className="rounded-xl bg-card p-3 sm:p-5 shadow-card">
-			<div className="flex items-center justify-between">
-				<Skeleton className="h-4 w-20" />
-				<Skeleton className="size-8 rounded-lg" />
-			</div>
-			<Skeleton className="mt-3 h-7 w-16" />
+		<div className="rounded-lg border bg-card px-4 py-3">
+			<div className="h-3.5 w-20 rounded bg-muted animate-pulse mb-2" />
+			<div className="h-5 w-24 rounded bg-muted animate-pulse" />
 		</div>
 	);
 }

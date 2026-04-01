@@ -1,6 +1,7 @@
 "use client";
 
 import { ChartCard } from "@shared/components/ChartCard";
+import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { TOOLTIP_STYLE } from "@shared/components/StatusPieChart";
 import { formatCurrency, truncate } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -149,75 +150,36 @@ export function AccountingReports() {
 			</div>
 
 			{/* Summary Cards */}
-			<div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium">
-							Total Collected
-						</CardTitle>
-						<DollarSignIcon className="h-4 w-4 text-muted-foreground" />
-					</CardHeader>
-					<CardContent>
-						<p className="text-xl sm:text-2xl font-bold">
-							{formatCurrency(data.totalCollected)}
-						</p>
-						<p className="text-xs text-muted-foreground">
-							From all collectors
-						</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium">
-							Total Handed Off
-						</CardTitle>
-						<UsersIcon className="h-4 w-4 text-muted-foreground" />
-					</CardHeader>
-					<CardContent>
-						<p className="text-xl sm:text-2xl font-bold">
-							{formatCurrency(data.totalHandedOff)}
-						</p>
-						<p className="text-xs text-muted-foreground">
-							Cash received from collectors
-						</p>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium">
-							Expenses
-						</CardTitle>
-						<ReceiptIcon className="h-4 w-4 text-muted-foreground" />
-					</CardHeader>
-					<CardContent>
-						<p className="text-2xl font-bold text-destructive">
-							{formatCurrency(data.totalExpenses)}
-						</p>
-						<p className="text-xs text-muted-foreground">
-							Approved expenses
-						</p>
-					</CardContent>
-				</Card>
-
-				<Card className="border-primary/20 bg-primary/5">
-					<CardHeader className="flex flex-row items-center justify-between pb-2">
-						<CardTitle className="text-sm font-medium">
-							Grand Total
-						</CardTitle>
-						<TrendingUpIcon className="h-4 w-4 text-primary" />
-					</CardHeader>
-					<CardContent>
-						<p className="text-2xl font-bold text-primary">
-							{formatCurrency(data.grandTotal)}
-						</p>
-						<p className="text-xs text-muted-foreground">
-							Handed off &minus; Expenses
-						</p>
-					</CardContent>
-				</Card>
-			</div>
+			<StatCardGroup columns={4}>
+				<StatCard
+					title="Total Collected"
+					value={formatCurrency(data.totalCollected)}
+					icon={DollarSignIcon}
+					color="blue"
+					description="From all collectors"
+				/>
+				<StatCard
+					title="Total Handed Off"
+					value={formatCurrency(data.totalHandedOff)}
+					icon={UsersIcon}
+					color="green"
+					description="Cash received from collectors"
+				/>
+				<StatCard
+					title="Expenses"
+					value={formatCurrency(data.totalExpenses)}
+					icon={ReceiptIcon}
+					color="red"
+					description="Approved expenses"
+				/>
+				<StatCard
+					title="Grand Total"
+					value={formatCurrency(data.grandTotal)}
+					icon={TrendingUpIcon}
+					color="emerald"
+					description="Handed off − Expenses"
+				/>
+			</StatCardGroup>
 
 			{/* Collector Comparison Chart */}
 			{collectorChartData.length > 0 && (

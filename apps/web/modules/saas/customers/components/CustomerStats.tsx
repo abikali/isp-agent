@@ -57,20 +57,21 @@ export function CustomerStats() {
 					title="Total Customers"
 					value={stats.total}
 					icon={UsersIcon}
+					color="blue"
 				/>
 				<StatCard
 					title="Active"
 					value={stats.active}
 					icon={UserCheckIcon}
-					variant="success"
+					color="green"
 				/>
 				<StatCard
 					title="Inactive / Suspended"
 					value={stats.inactive + stats.suspended}
 					icon={UserMinusIcon}
-					variant={
+					color={
 						stats.inactive + stats.suspended > 0
-							? "warning"
+							? "amber"
 							: "default"
 					}
 				/>
@@ -78,6 +79,7 @@ export function CustomerStats() {
 					title="Monthly Revenue"
 					value={formatCurrency(stats.totalMonthlyRevenue)}
 					icon={DollarSignIcon}
+					color="green"
 				/>
 			</StatCardGroup>
 

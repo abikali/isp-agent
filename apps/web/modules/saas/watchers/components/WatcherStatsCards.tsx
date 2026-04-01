@@ -35,18 +35,19 @@ export function WatcherStatsCards() {
 					title="Total Watchers"
 					value={stats.total}
 					icon={ActivityIcon}
+					color="blue"
 				/>
 				<StatCard
 					title="Up"
 					value={stats.up}
 					icon={CheckCircleIcon}
-					variant="success"
+					color="green"
 				/>
 				<StatCard
 					title="Down"
 					value={stats.down}
 					icon={AlertTriangleIcon}
-					variant={stats.down > 0 ? "destructive" : "default"}
+					color={stats.down > 0 ? "red" : "default"}
 				/>
 				<StatCard
 					title="Unknown"

@@ -28,12 +28,13 @@ export function DealerStats() {
 					title="Total Dealers"
 					value={stats.total}
 					icon={UsersIcon}
+					color="blue"
 				/>
 				<StatCard
 					title="Active"
 					value={stats.active}
 					icon={UserCheckIcon}
-					variant="success"
+					color="green"
 				/>
 				<StatCard
 					title="Inactive"

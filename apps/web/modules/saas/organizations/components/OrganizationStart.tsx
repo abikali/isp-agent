@@ -1,30 +1,31 @@
 "use client";
-import { StatsTile } from "@saas/start/client";
+import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { Card } from "@ui/components/card";
+import { PercentIcon, TrendingUpIcon, UserPlusIcon } from "lucide-react";
 
 export function OrganizationStart() {
 	return (
 		<div className="@container">
-			<div className="grid @2xl:grid-cols-3 gap-4">
-				<StatsTile
+			<StatCardGroup columns={3}>
+				<StatCard
 					title="New clients"
 					value={344}
-					valueFormat="number"
-					trend={0.12}
+					icon={UserPlusIcon}
+					color="blue"
 				/>
-				<StatsTile
+				<StatCard
 					title="Revenue"
-					value={5243}
-					valueFormat="currency"
-					trend={0.6}
+					value="$5,243"
+					icon={TrendingUpIcon}
+					color="emerald"
 				/>
-				<StatsTile
+				<StatCard
 					title="Churn"
-					value={0.03}
-					valueFormat="percentage"
-					trend={-0.3}
+					value="3%"
+					icon={PercentIcon}
+					color="red"
 				/>
-			</div>
+			</StatCardGroup>
 
 			<Card className="mt-6">
 				<div className="flex h-64 items-center justify-center p-8 text-foreground/60">

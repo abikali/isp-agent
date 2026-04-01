@@ -4,6 +4,11 @@ import { useActiveOrganization } from "@saas/organizations/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
+import {
+	StatCard,
+	StatCardGroup,
+	StatCardSkeleton,
+} from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
@@ -11,7 +16,6 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import { Card, CardContent } from "@ui/components/card";
 import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
 import {
@@ -62,67 +66,52 @@ function CollectionOverview({
 }) {
 	if (isLoading && total === 0) {
 		return (
-			<div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<Skeleton key={i} className="h-20" />
-				))}
+			<div className="mb-4">
+				<StatCardGroup columns={4}>
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+				</StatCardGroup>
 			</div>
 		);
 	}
 
 	const avgDue = total > 0 ? totalAmountDue / total : 0;
+	const expiredPct =
+		total > 0 ? `${Math.round((expiredCount / total) * 100)}%` : "";
 
 	return (
-		<div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
-			<Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<UsersIcon className="h-4 w-4" />
-						Unpaid
-					</div>
-					<div className="text-xl sm:text-2xl font-bold tabular-nums">
-						{total}
-					</div>
-				</CardContent>
-			</Card>
-			<Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<DollarSignIcon className="h-4 w-4" />
-						To Collect
-					</div>
-					<div className="text-xl sm:text-2xl font-bold tabular-nums">
-						{formatCurrency(totalAmountDue)}
-					</div>
-				</CardContent>
-			</Card>
-			<Card className="border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<CalendarXIcon className="h-4 w-4" />
-						Expired
-					</div>
-					<div className="text-xl sm:text-2xl font-bold tabular-nums">
-						{expiredCount}
-						{total > 0 && (
-							<span className="text-sm font-normal text-muted-foreground ml-1">
-								({Math.round((expiredCount / total) * 100)}%)
-							</span>
-						)}
-					</div>
-				</CardContent>
-			</Card>
-			<Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
-				<CardContent className="p-4">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-						<WalletIcon className="h-4 w-4" />
-						Avg. Due
-					</div>
-					<div className="text-xl sm:text-2xl font-bold tabular-nums">
-						{formatCurrency(avgDue)}
-					</div>
-				</CardContent>
-			</Card>
+		<div className="mb-4">
+			<StatCardGroup columns={4}>
+				<StatCard
+					title="Unpaid"
+					value={total}
+					icon={UsersIcon}
+					color="amber"
+				/>
+				<StatCard
+					title="To Collect"
+					value={formatCurrency(totalAmountDue)}
+					icon={DollarSignIcon}
+					color="red"
+				/>
+				<StatCard
+					title="Expired"
+					value={expiredCount}
+					icon={CalendarXIcon}
+					color="orange"
+					description={
+						expiredPct ? `${expiredPct} of total` : undefined
+					}
+				/>
+				<StatCard
+					title="Avg. Due"
+					value={formatCurrency(avgDue)}
+					icon={WalletIcon}
+					color="blue"
+				/>
+			</StatCardGroup>
 		</div>
 	);
 }

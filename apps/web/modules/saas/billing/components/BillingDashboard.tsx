@@ -69,13 +69,14 @@ export function BillingDashboard() {
 					title="Total Collected"
 					value={formatCurrency(stats.totalCollected)}
 					icon={DollarSignIcon}
-					variant="success"
+					color="green"
 					href={`${basePath}/payments`}
 				/>
 				<StatCard
 					title="Paid"
 					value={`${stats.paidPercentage}%`}
 					icon={PercentIcon}
+					color="blue"
 					description={`${stats.totalCustomers - stats.unpaidCustomers} of ${stats.totalCustomers} active customers`}
 					href={`${basePath}/payments`}
 				/>
@@ -83,16 +84,14 @@ export function BillingDashboard() {
 					title="Unpaid"
 					value={stats.unpaidCustomers}
 					icon={UsersIcon}
-					variant={stats.unpaidCustomers > 0 ? "warning" : "default"}
+					color={stats.unpaidCustomers > 0 ? "amber" : "default"}
 					href={`${basePath}/collect`}
 				/>
 				<StatCard
 					title="Stopped"
 					value={stats.stoppedPayments}
 					icon={OctagonXIcon}
-					variant={
-						stats.stoppedPayments > 0 ? "destructive" : "default"
-					}
+					color={stats.stoppedPayments > 0 ? "red" : "default"}
 					href={`${basePath}/stopped`}
 				/>
 			</StatCardGroup>

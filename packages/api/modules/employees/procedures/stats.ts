@@ -28,7 +28,14 @@ export const getEmployeeStats = protectedProcedure
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
-		const [total, active, inactive, onLeave] = await Promise.all([
+		const [
+			total,
+			active,
+			inactive,
+			onLeave,
+			departmentBreakdown,
+			topCollectors,
+		] = await Promise.all([
 			db.employee.count({
 				where: { organizationId, ...dealerFilter },
 			}),
@@ -41,6 +48,38 @@ export const getEmployeeStats = protectedProcedure
 			db.employee.count({
 				where: { organizationId, status: "ON_LEAVE", ...dealerFilter },
 			}),
+			db.employee.groupBy({
+				by: ["department"],
+				where: {
+					organizationId,
+					status: "ACTIVE",
+					department: { not: null },
+					...dealerFilter,
+				},
+				_count: true,
+				orderBy: { _count: { department: "desc" } },
+			}),
+			db.employee.findMany({
+				where: {
+					organizationId,
+					status: "ACTIVE",
+					department: "BILLING",
+					...dealerFilter,
+				},
+				select: {
+					id: true,
+					name: true,
+					_count: {
+						select: {
+							customerCollections: true,
+						},
+					},
+				},
+				orderBy: {
+					customerCollections: { _count: "desc" },
+				},
+				take: 5,
+			}),
 		]);
 
 		return {
@@ -48,5 +87,13 @@ export const getEmployeeStats = protectedProcedure
 			active,
 			inactive,
 			onLeave,
+			departmentBreakdown: departmentBreakdown.map((d) => ({
+				department: d.department,
+				count: d._count,
+			})),
+			topCollectors: topCollectors.map((c) => ({
+				name: c.name,
+				customers: c._count.customerCollections,
+			})),
 		};
 	});

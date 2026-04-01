@@ -45,31 +45,33 @@ export function TaskStats({
 					title="Total Tasks"
 					value={stats.total}
 					icon={ClipboardListIcon}
+					color="blue"
 				/>
 				<StatCard
 					title="Open"
 					value={stats.open + stats.inProgress}
 					icon={ClockIcon}
+					color="amber"
 					description={`${stats.open} open, ${stats.inProgress} in progress`}
 				/>
 				<StatCard
 					title="Completed"
 					value={stats.completed}
 					icon={CheckCircleIcon}
-					variant="success"
+					color="green"
 					description={`${completionRate}% completion rate`}
 				/>
 				<StatCard
 					title="Overdue"
 					value={stats.overdue}
 					icon={AlertTriangleIcon}
-					variant={stats.overdue > 0 ? "destructive" : "default"}
+					color={stats.overdue > 0 ? "red" : "default"}
 				/>
 				<StatCard
 					title="Unassigned"
 					value={stats.unassigned}
 					icon={UserXIcon}
-					variant={stats.unassigned > 0 ? "warning" : "default"}
+					color={stats.unassigned > 0 ? "orange" : "default"}
 				/>
 			</StatCardGroup>
 

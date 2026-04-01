@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	StatCard,
+	StatCardGroup,
+	StatCardSkeleton,
+} from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
@@ -401,93 +406,43 @@ export function CashCollectionPage({
 			</div>
 
 			{/* Balance + Stats Cards */}
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<Card
-					className={
-						balance > 0
-							? "border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"
-							: "border-muted"
-					}
-				>
-					<CardContent className="p-4">
-						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-							<WalletIcon className="size-3.5 text-amber-600" />
-							In Hand
-						</div>
-						{balanceLoading ? (
-							<Skeleton className="mt-1 h-7 w-24" />
-						) : (
-							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
-								{formatCurrency(balance)}
-							</p>
+			{balanceLoading ? (
+				<StatCardGroup columns={4}>
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+					<StatCardSkeleton />
+				</StatCardGroup>
+			) : (
+				<StatCardGroup columns={4}>
+					<StatCard
+						title="In Hand"
+						value={formatCurrency(balance)}
+						icon={WalletIcon}
+						color="amber"
+					/>
+					<StatCard
+						title="Bills"
+						value={`${balanceData?.monthPaidCount ?? 0}/${balanceData?.monthBillCount ?? 0}`}
+						icon={ReceiptTextIcon}
+						color="blue"
+					/>
+					<StatCard
+						title="Collected"
+						value={formatCurrency(
+							balanceData?.monthAmountCollected ?? 0,
 						)}
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							Cash not yet handed off
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="border-muted">
-					<CardContent className="p-4">
-						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-							<ReceiptTextIcon className="size-3.5 text-blue-600" />
-							Bills This Month
-						</div>
-						{balanceLoading ? (
-							<Skeleton className="mt-1 h-7 w-24" />
-						) : (
-							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
-								{balanceData?.monthPaidCount ?? 0}
-								<span className="text-sm font-normal text-muted-foreground">
-									/{balanceData?.monthBillCount ?? 0}
-								</span>
-							</p>
-						)}
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							Collected / total
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="border-muted">
-					<CardContent className="p-4">
-						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-							<BanknoteIcon className="size-3.5 text-green-600" />
-							Collected
-						</div>
-						{balanceLoading ? (
-							<Skeleton className="mt-1 h-7 w-24" />
-						) : (
-							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
-								{formatCurrency(
-									balanceData?.monthAmountCollected ?? 0,
-								)}
-							</p>
-						)}
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							Amount collected this month
-						</p>
-					</CardContent>
-				</Card>
-				<Card className="border-muted">
-					<CardContent className="p-4">
-						<div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-							<HandCoinsIcon className="size-3.5 text-muted-foreground" />
-							Amount Due
-						</div>
-						{balanceLoading ? (
-							<Skeleton className="mt-1 h-7 w-24" />
-						) : (
-							<p className="mt-1 text-xl sm:text-2xl font-bold tabular-nums">
-								{formatCurrency(
-									balanceData?.monthAmountDue ?? 0,
-								)}
-							</p>
-						)}
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							Total to collect this month
-						</p>
-					</CardContent>
-				</Card>
-			</div>
+						icon={BanknoteIcon}
+						color="emerald"
+					/>
+					<StatCard
+						title="Amount Due"
+						value={formatCurrency(balanceData?.monthAmountDue ?? 0)}
+						icon={HandCoinsIcon}
+						color="red"
+					/>
+				</StatCardGroup>
+			)}
 
 			{/* Handoff form */}
 			<HandoffCard

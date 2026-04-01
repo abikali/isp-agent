@@ -27,13 +27,7 @@ function StatsStrip() {
 		POLL_INTERVAL,
 	);
 
-	return (
-		<BillingStatsCards
-			stats={stats ?? null}
-			isLoading={isLoading}
-			compact
-		/>
-	);
+	return <BillingStatsCards stats={stats ?? null} isLoading={isLoading} />;
 }
 
 export function CollectorPortal() {

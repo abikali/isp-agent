@@ -2,7 +2,7 @@
 
 import { ChartCard, ChartCardSkeleton } from "@shared/components/ChartCard";
 import {
-	StatCard as StatCardComponent,
+	StatCard,
 	StatCardGroup,
 	StatCardSkeleton,
 } from "@shared/components/StatCard";
@@ -97,41 +97,37 @@ export function StatCards() {
 					</>
 				) : (
 					<>
-						<StatCardComponent
+						<StatCard
 							title="Online"
 							value={stats?.online ?? 0}
 							icon={Wifi}
-							variant="success"
-							description="Currently connected"
+							color="green"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Offline"
 							value={stats?.offline ?? 0}
 							icon={WifiOff}
-							description="Active but disconnected"
+							color="red"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Active"
 							value={stats?.active ?? 0}
 							icon={UserCheck}
-							variant="success"
-							description="Active accounts"
+							color="blue"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Total"
 							value={stats?.total ?? 0}
 							icon={Users}
-							description="All subscribers"
 						/>
 					</>
 				)}
 			</StatCardGroup>
 
 			{/* Secondary Stats */}
-			<StatCardGroup columns={5}>
+			<StatCardGroup columns={4}>
 				{isLoadingStats ? (
 					<>
-						<StatCardSkeleton />
 						<StatCardSkeleton />
 						<StatCardSkeleton />
 						<StatCardSkeleton />
@@ -139,36 +135,31 @@ export function StatCards() {
 					</>
 				) : (
 					<>
-						<StatCardComponent
+						<StatCard
 							title="Expired"
 							value={stats?.expired ?? 0}
 							icon={AlertTriangle}
-							variant={
-								(stats?.expired ?? 0) > 0
-									? "warning"
-									: "default"
+							color={
+								(stats?.expired ?? 0) > 0 ? "amber" : "default"
 							}
-							description="Active accounts past expiry date"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Archived"
 							value={stats?.inactive ?? 0}
 							icon={UserX}
-							description="Cancelled subscribers"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Revenue"
 							value={formatCurrency(
 								stats?.totalMonthlyRevenue ?? 0,
 							)}
 							icon={DollarSign}
-							description="Sum of active subscribers' rates"
+							color="emerald"
 						/>
-						<StatCardComponent
+						<StatCard
 							title="Employees"
 							value={stats?.employeeCount ?? 0}
 							icon={Users}
-							description="Staff and collectors"
 						/>
 					</>
 				)}

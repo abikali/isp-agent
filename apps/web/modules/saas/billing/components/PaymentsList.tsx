@@ -3,6 +3,7 @@
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
+import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
@@ -117,58 +118,32 @@ function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
 	}
 
 	return (
-		<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+		<StatCardGroup columns={4}>
 			<StatCard
-				label="Collected"
+				title="Collected"
 				value={formatCurrency(stats.totalCollected)}
-				sub={`${stats.collectedPayments} payments`}
-				className="text-emerald-600 dark:text-emerald-400"
+				color="emerald"
+				description={`${stats.collectedPayments} payments`}
 			/>
 			<StatCard
-				label="Stopped"
-				value={String(stats.stoppedPayments)}
-				sub="accounts"
-				className="text-red-600 dark:text-red-400"
+				title="Stopped"
+				value={stats.stoppedPayments}
+				color="red"
+				description="accounts"
 			/>
 			<StatCard
-				label="Unpaid"
-				value={String(stats.unpaidCustomers)}
-				sub="customers"
-				className="text-orange-600 dark:text-orange-400"
+				title="Unpaid"
+				value={stats.unpaidCustomers}
+				color="orange"
+				description="customers"
 			/>
 			<StatCard
-				label="Needs Review"
-				value={String(stats.unreviewedCount)}
-				sub="flagged"
-				className={
-					stats.unreviewedCount > 0
-						? "text-amber-600 dark:text-amber-400"
-						: "text-muted-foreground"
-				}
+				title="Needs Review"
+				value={stats.unreviewedCount}
+				color={stats.unreviewedCount > 0 ? "amber" : "default"}
+				description="flagged"
 			/>
-		</div>
-	);
-}
-
-function StatCard({
-	label,
-	value,
-	sub,
-	className,
-}: {
-	label: string;
-	value: string;
-	sub: string;
-	className?: string;
-}) {
-	return (
-		<div className="rounded-lg border bg-card px-4 py-3">
-			<p className="text-xs font-medium text-muted-foreground">{label}</p>
-			<p className={`text-lg font-bold tabular-nums ${className ?? ""}`}>
-				{value}
-			</p>
-			<p className="text-xs text-muted-foreground">{sub}</p>
-		</div>
+		</StatCardGroup>
 	);
 }
 
