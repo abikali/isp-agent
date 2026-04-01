@@ -254,7 +254,7 @@ export function AgentSettings({
 	const updateAgent = useUpdateAgent();
 	const { tools: availableTools } = useAvailableTools();
 	const { plans: servicePlans, isLoading: isLoadingPlans } = usePlansQuery();
-	const activePlans = servicePlans.filter((p) => !p.archived && p.visible);
+	const activePlans = servicePlans.filter((p) => !p.archived);
 
 	const [configDialog, setConfigDialog] = useState<{
 		toolId: string;
