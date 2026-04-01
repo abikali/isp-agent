@@ -150,17 +150,17 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 								className="block group"
 							>
 								<Card className="transition-all hover:shadow-card-hover hover:border-primary/30 cursor-pointer h-full">
-									<CardContent className="p-5 sm:p-6 flex flex-col gap-4">
+									<CardContent className="px-4 py-3 flex flex-col gap-2.5">
 										{/* Name row */}
-										<div className="flex items-center gap-3">
-											<div className="size-11 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+										<div className="flex items-center gap-2.5">
+											<div className="size-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
 												{getInitials(c.name)}
 											</div>
 											<div className="min-w-0 flex-1">
 												<p className="text-base font-semibold truncate">
 													{c.name}
 												</p>
-												<p className="text-xs text-muted-foreground mt-0.5 truncate">
+												<p className="text-xs text-muted-foreground truncate">
 													{c.username && (
 														<>
 															@{c.username}
@@ -177,14 +177,14 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 													)}
 												</p>
 											</div>
-											<ChevronRightIcon className="size-5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+											<ChevronRightIcon className="size-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
 										</div>
 
 										{/* Stats row */}
-										<div className="flex items-end gap-4">
+										<div className="flex items-end gap-3">
 											{/* In hand */}
 											<div className="flex-1 min-w-0">
-												<p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">
+												<p className="text-[11px] uppercase tracking-wide text-muted-foreground">
 													In hand
 												</p>
 												<p
@@ -196,7 +196,7 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 
 											{/* Collection progress */}
 											<div className="flex-1 min-w-0">
-												<div className="flex items-baseline justify-between mb-1">
+												<div className="flex items-baseline justify-between">
 													<p className="text-[11px] uppercase tracking-wide text-muted-foreground">
 														Collected
 													</p>
@@ -206,9 +206,9 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 												</div>
 												<Progress
 													value={progress}
-													className="h-2"
+													className="h-1.5 mt-1"
 												/>
-												<p className="text-sm tabular-nums text-muted-foreground mt-1 font-medium">
+												<p className="text-sm tabular-nums text-muted-foreground mt-0.5 font-medium">
 													{c.monthCollected} /{" "}
 													{c.monthTotal}
 												</p>
