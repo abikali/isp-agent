@@ -129,6 +129,29 @@ const DropdownMenuLabel = ({
 	/>
 );
 
+const DropdownMenuCheckboxItem = ({
+	className,
+	children,
+	checked,
+	...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) => (
+	<DropdownMenuPrimitive.CheckboxItem
+		className={cn(
+			"relative flex cursor-default select-none items-center rounded-md py-1.5 pr-3 pl-8 text-sm outline-hidden transition-colors focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+			className,
+		)}
+		checked={checked}
+		{...props}
+	>
+		<span className="absolute left-2 flex size-3.5 items-center justify-center">
+			<DropdownMenuPrimitive.ItemIndicator>
+				<CheckIcon className="size-4" />
+			</DropdownMenuPrimitive.ItemIndicator>
+		</span>
+		{children}
+	</DropdownMenuPrimitive.CheckboxItem>
+);
+
 const DropdownMenuSeparator = ({
 	className,
 	...props
@@ -141,6 +164,7 @@ const DropdownMenuSeparator = ({
 
 export {
 	DropdownMenu,
+	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuGroup,
 	DropdownMenuItem,

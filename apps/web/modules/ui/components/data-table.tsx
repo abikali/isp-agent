@@ -11,7 +11,12 @@ declare module "@tanstack/react-table" {
 	}
 }
 
-import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
+import type {
+	ColumnDef,
+	Row,
+	SortingState,
+	VisibilityState,
+} from "@tanstack/react-table";
 import {
 	flexRender,
 	getCoreRowModel,
@@ -26,10 +31,19 @@ import {
 	ArrowUpIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	SlidersHorizontalIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "./button";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "./dropdown-menu";
 import {
 	Table,
 	TableBody,
@@ -76,6 +90,13 @@ interface DataTableProps<TData> {
 
 	/** Additional className for the outer container */
 	className?: string;
+
+	/**
+	 * Unique key for persisting column visibility to localStorage.
+	 * When set, a column toggle dropdown is rendered and visibility
+	 * is saved/restored automatically.
+	 */
+	columnVisibilityKey?: string;
 }
 
 function PaginationBar({
@@ -134,8 +155,46 @@ export function DataTable<TData>({
 	emptyState,
 	getRowClassName,
 	className,
+	columnVisibilityKey,
 }: DataTableProps<TData>) {
 	const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+
+	const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+		() => {
+			if (!columnVisibilityKey) {
+				return {};
+			}
+			try {
+				const stored = localStorage.getItem(
+					`dt-cols:${columnVisibilityKey}`,
+				);
+				return stored ? JSON.parse(stored) : {};
+			} catch {
+				return {};
+			}
+		},
+	);
+
+	const handleVisibilityChange = useCallback(
+		(
+			updater:
+				| VisibilityState
+				| ((old: VisibilityState) => VisibilityState),
+		) => {
+			setColumnVisibility((prev) => {
+				const next =
+					typeof updater === "function" ? updater(prev) : updater;
+				if (columnVisibilityKey) {
+					localStorage.setItem(
+						`dt-cols:${columnVisibilityKey}`,
+						JSON.stringify(next),
+					);
+				}
+				return next;
+			});
+		},
+		[columnVisibilityKey],
+	);
 
 	const isManual = !!pagination;
 	const isServerSorted = !!onSortingChange;
@@ -160,7 +219,11 @@ export function DataTable<TData>({
 		manualSorting: isServerSorted,
 		state: {
 			sorting,
+			...(columnVisibilityKey ? { columnVisibility } : {}),
 		},
+		...(columnVisibilityKey
+			? { onColumnVisibilityChange: handleVisibilityChange }
+			: {}),
 		...(handleSortingChange
 			? { onSortingChange: handleSortingChange }
 			: {}),
@@ -184,8 +247,47 @@ export function DataTable<TData>({
 		return <>{emptyState}</>;
 	}
 
+	const toggleableColumns = columnVisibilityKey
+		? table
+				.getAllColumns()
+				.filter(
+					(col) =>
+						col.getCanHide() &&
+						typeof col.columnDef.header === "string",
+				)
+		: [];
+
 	return (
 		<div>
+			{toggleableColumns.length > 0 && (
+				<div className="flex justify-end pb-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm">
+								<SlidersHorizontalIcon className="mr-1.5 size-3.5" />
+								Columns
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-40">
+							<DropdownMenuLabel>
+								Toggle columns
+							</DropdownMenuLabel>
+							<DropdownMenuSeparator />
+							{toggleableColumns.map((col) => (
+								<DropdownMenuCheckboxItem
+									key={col.id}
+									checked={col.getIsVisible()}
+									onCheckedChange={(v) =>
+										col.toggleVisibility(!!v)
+									}
+								>
+									{col.columnDef.header as string}
+								</DropdownMenuCheckboxItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			)}
 			<div
 				className={cn(
 					"rounded-xl border bg-card overflow-hidden transition-opacity",

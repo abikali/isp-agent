@@ -19,6 +19,7 @@ export const resendReceipt = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			paymentId: z.string(),
+			phone: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -73,6 +74,7 @@ export const resendReceipt = protectedProcedure
 		}
 
 		const phone =
+			input.phone ??
 			getPrimaryPhone(payment.customer.phones) ??
 			payment.customer.mobile ??
 			payment.customer.phone;

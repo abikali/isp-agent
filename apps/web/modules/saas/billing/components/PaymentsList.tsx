@@ -25,6 +25,23 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ui/components/dropdown-menu";
+import { Input } from "@ui/components/input";
+import { Label } from "@ui/components/label";
+import {
 	Select,
 	SelectContent,
 	SelectItem,
@@ -47,7 +64,7 @@ import {
 	CircleDotIcon,
 	FilterIcon,
 	ListIcon,
-	MessageSquareIcon,
+	MoreHorizontalIcon,
 	RotateCcwIcon,
 	SendIcon,
 	TrashIcon,
@@ -112,6 +129,8 @@ interface PaymentRow {
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
+		mobile: string | null;
+		phone: string | null;
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
@@ -204,18 +223,274 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 			return { amountMismatch: "overpaid" };
 		case "underpaid":
 			return { amountMismatch: "underpaid" };
+		case "needs_review":
+			return { unreviewedOnly: true };
 		case "receipt_sent":
 			return { receiptStatus: "sent" };
 		case "receipt_failed":
 			return { receiptStatus: "failed" };
 		case "receipt_pending":
 			return { receiptStatus: "pending" };
-		case "needs_review":
-			return { unreviewedOnly: true };
 		default:
 			return {};
 	}
 }
+
+// ─── Resend Receipt Dialog ─────────────────────────────────────
+
+function ResendReceiptDialog({
+	open,
+	onOpenChange,
+	paymentId,
+	defaultPhone,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	paymentId: string;
+	defaultPhone: string;
+}) {
+	const organizationId = useOrganizationId();
+	const resendReceipt = useResendReceipt();
+	const [useCustomPhone, setUseCustomPhone] = useState(false);
+	const [customPhone, setCustomPhone] = useState("");
+
+	function handleSend() {
+		if (!organizationId) {
+			return;
+		}
+		const phone = useCustomPhone ? customPhone.trim() : undefined;
+		if (useCustomPhone && !phone) {
+			toast.error("Please enter a phone number");
+			return;
+		}
+		resendReceipt.mutate(
+			{ organizationId, paymentId, phone },
+			{
+				onSuccess: () => {
+					toast.success("Receipt queued for delivery");
+					onOpenChange(false);
+					setUseCustomPhone(false);
+					setCustomPhone("");
+				},
+				onError: (error) => toast.error(error.message),
+			},
+		);
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Resend WhatsApp Receipt</DialogTitle>
+					<DialogDescription>
+						Send the payment receipt via WhatsApp.
+					</DialogDescription>
+				</DialogHeader>
+				<div className="space-y-4 py-2">
+					<div className="space-y-2">
+						<Label>Send to</Label>
+						<div className="flex flex-col gap-2">
+							<Button
+								type="button"
+								variant={
+									useCustomPhone ? "outline" : "secondary"
+								}
+								size="sm"
+								className="justify-start"
+								onClick={() => setUseCustomPhone(false)}
+							>
+								Customer's number: {defaultPhone || "N/A"}
+							</Button>
+							<Button
+								type="button"
+								variant={
+									useCustomPhone ? "secondary" : "outline"
+								}
+								size="sm"
+								className="justify-start"
+								onClick={() => setUseCustomPhone(true)}
+							>
+								Different number
+							</Button>
+						</div>
+					</div>
+					{useCustomPhone && (
+						<div className="space-y-1.5">
+							<Label htmlFor="custom-phone">Phone number</Label>
+							<Input
+								id="custom-phone"
+								type="tel"
+								placeholder="e.g. +96176123456"
+								value={customPhone}
+								onChange={(e) => setCustomPhone(e.target.value)}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Include country code (e.g. +961)
+							</p>
+						</div>
+					)}
+				</div>
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+					>
+						Cancel
+					</Button>
+					<Button
+						onClick={handleSend}
+						disabled={resendReceipt.isPending}
+					>
+						<SendIcon className="mr-1.5 size-3.5" />
+						{resendReceipt.isPending
+							? "Sending..."
+							: "Send Receipt"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+// ─── Activity Log Dialog ────────────────────────────────────────
+
+function ActivityLogDialog({
+	open,
+	onOpenChange,
+	log,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	log: ActivityLogEntry[];
+}) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>Activity Log</DialogTitle>
+					<DialogDescription>
+						All events for this payment.
+					</DialogDescription>
+				</DialogHeader>
+				<div className="max-h-80 overflow-y-auto">
+					{log.length === 0 ? (
+						<p className="py-4 text-center text-sm text-muted-foreground">
+							No activity recorded yet.
+						</p>
+					) : (
+						<div className="space-y-2">
+							{log.map((entry, i) => (
+								<div
+									key={i}
+									className="flex items-start gap-3 rounded-lg border p-3 text-sm"
+								>
+									<span
+										className={
+											entry.status === "success"
+												? "mt-0.5 text-emerald-500"
+												: entry.status === "failed"
+													? "mt-0.5 text-destructive"
+													: "mt-0.5 text-muted-foreground"
+										}
+									>
+										{entry.status === "success" ? (
+											<CheckCircle2Icon className="size-4" />
+										) : entry.status === "failed" ? (
+											<AlertTriangleIcon className="size-4" />
+										) : (
+											<CircleDotIcon className="size-4" />
+										)}
+									</span>
+									<div className="flex-1 min-w-0">
+										<div className="flex items-center gap-2">
+											<span className="font-medium">
+												{entry.action
+													.replace(/_/g, " ")
+													.replace(/\b\w/g, (c) =>
+														c.toUpperCase(),
+													)}
+											</span>
+											<Badge
+												variant={
+													entry.status === "success"
+														? "default"
+														: entry.status ===
+																"failed"
+															? "destructive"
+															: "secondary"
+												}
+												className="text-[10px] px-1.5"
+											>
+												{entry.status}
+											</Badge>
+										</div>
+										{entry.detail && (
+											<p className="text-xs text-muted-foreground mt-0.5">
+												{entry.detail}
+											</p>
+										)}
+										{entry.error && (
+											<p className="text-xs text-destructive mt-0.5">
+												{entry.error}
+											</p>
+										)}
+										<p className="text-xs text-muted-foreground mt-1">
+											{new Date(
+												entry.timestamp,
+											).toLocaleString()}
+										</p>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+// ─── Receipt Badge ──────────────────────────────────────────────
+
+function getReceiptBadge(payment: PaymentRow) {
+	if (payment.stoppedAccount) {
+		return null;
+	}
+	if (payment.receiptSent) {
+		return (
+			<Badge
+				variant="default"
+				className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]"
+			>
+				Sent
+			</Badge>
+		);
+	}
+	const log = Array.isArray(payment.activityLog)
+		? (payment.activityLog as ActivityLogEntry[])
+		: [];
+	const lastReceipt = [...log]
+		.reverse()
+		.find(
+			(e) =>
+				typeof e.action === "string" &&
+				e.action.startsWith("whatsapp_receipt"),
+		);
+	if (lastReceipt?.status === "failed") {
+		return (
+			<Badge variant="destructive" className="text-[10px]">
+				Failed
+			</Badge>
+		);
+	}
+	return (
+		<Badge variant="secondary" className="text-[10px]">
+			Pending
+		</Badge>
+	);
+}
+
+// ─── Main Component ─────────────────────────────────────────────
 
 export function PaymentsList() {
 	const [search, setSearch] = useState("");
@@ -239,6 +514,15 @@ export function PaymentsList() {
 		activeMonthId,
 		options: monthOptions,
 	} = useMonthFilter();
+
+	// Dialog state
+	const [resendDialogPayment, setResendDialogPayment] = useState<{
+		id: string;
+		phone: string;
+	} | null>(null);
+	const [activityLogDialog, setActivityLogDialog] = useState<
+		ActivityLogEntry[] | null
+	>(null);
 
 	// Reset page when filters change
 	const resetPage = () => setPage(1);
@@ -285,7 +569,6 @@ export function PaymentsList() {
 	const organizationId = useOrganizationId();
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
-	const resendReceipt = useResendReceipt();
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -368,6 +651,20 @@ export function PaymentsList() {
 				),
 			},
 			{
+				id: "time",
+				header: "Time",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm tabular-nums text-muted-foreground">
+						{new Date(row.original.paidAt).toLocaleTimeString([], {
+							hour: "2-digit",
+							minute: "2-digit",
+						})}
+					</span>
+				),
+			},
+			{
 				id: "amount",
 				header: "Amount",
 				accessorFn: (row) => row.paidAmount,
@@ -422,6 +719,13 @@ export function PaymentsList() {
 				},
 			},
 			{
+				id: "receipt",
+				header: "Receipt",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => getReceiptBadge(row.original),
+			},
+			{
 				id: "note",
 				header: "Note",
 				enableSorting: false,
@@ -455,192 +759,38 @@ export function PaymentsList() {
 				},
 			},
 			{
-				id: "receipt",
-				header: "Receipt",
+				id: "actions",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
+				enableHiding: false,
 				cell: ({ row }) => {
-					const p = row.original;
-					if (p.stoppedAccount) {
-						return (
-							<span className="text-xs text-muted-foreground">
-								—
-							</span>
-						);
-					}
-					const log = Array.isArray(p.activityLog)
-						? (p.activityLog as ActivityLogEntry[])
+					const payment = row.original;
+					const needsReview = isUnreviewed(payment);
+					const log = Array.isArray(payment.activityLog)
+						? (payment.activityLog as ActivityLogEntry[])
 						: [];
-					const receiptEntries = log.filter(
-						(e) =>
-							typeof e.action === "string" &&
-							e.action.startsWith("whatsapp_receipt"),
-					);
-					const lastEntry = receiptEntries[receiptEntries.length - 1];
+					const customerPhone =
+						payment.customer.mobile ?? payment.customer.phone ?? "";
 
-					if (p.receiptSent) {
-						return (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-										<CheckCircle2Icon className="size-3.5" />
-										Sent
-									</span>
-								</TooltipTrigger>
-								<TooltipContent
-									side="left"
-									className="max-w-xs text-xs"
-								>
-									{receiptEntries.length > 0 ? (
-										<div className="space-y-1">
-											{receiptEntries.map((e, i) => (
-												<div
-													key={i}
-													className="flex items-center gap-1.5"
-												>
-													<span
-														className={
-															e.status ===
-															"success"
-																? "text-emerald-400"
-																: "text-red-400"
-														}
-													>
-														{e.status === "success"
-															? "✓"
-															: "✗"}
-													</span>
-													<span>
-														{e.action ===
-														"whatsapp_receipt_manual"
-															? "Manual"
-															: "Auto"}
-													</span>
-													{e.detail && (
-														<span className="text-muted-foreground">
-															→ {e.detail}
-														</span>
-													)}
-													{e.error && (
-														<span className="text-red-400">
-															({e.error})
-														</span>
-													)}
-													<span className="text-muted-foreground">
-														{new Date(
-															e.timestamp,
-														).toLocaleTimeString()}
-													</span>
-												</div>
-											))}
-										</div>
-									) : (
-										"Receipt sent"
-									)}
-								</TooltipContent>
-							</Tooltip>
-						);
-					}
-
-					if (lastEntry && lastEntry.status === "failed") {
-						return (
-							<div className="flex items-center gap-1">
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<span className="inline-flex items-center gap-1 text-xs text-destructive">
-											<AlertTriangleIcon className="size-3.5" />
-											Failed
-										</span>
-									</TooltipTrigger>
-									<TooltipContent
-										side="left"
-										className="max-w-xs text-xs"
-									>
-										{lastEntry.error ??
-											`HTTP ${lastEntry.statusCode}`}
-									</TooltipContent>
-								</Tooltip>
-								{organizationId && (
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="size-7 p-0 text-blue-600"
-												disabled={
-													resendReceipt.isPending
-												}
-												onClick={() =>
-													resendReceipt.mutate(
-														{
-															organizationId,
-															paymentId: p.id,
-														},
-														{
-															onSuccess: () =>
-																toast.success(
-																	"Receipt resend queued",
-																),
-															onError: (error) =>
-																toast.error(
-																	error.message,
-																),
-														},
-													)
-												}
-											>
-												<SendIcon className="size-3.5" />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent>
-											Resend receipt
-										</TooltipContent>
-									</Tooltip>
-								)}
-							</div>
-						);
-					}
-
-					if (lastEntry && lastEntry.status === "skipped") {
-						return (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-										<MessageSquareIcon className="size-3.5" />
-										Skipped
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="left">
-									{lastEntry.error ?? "Skipped"}
-								</TooltipContent>
-							</Tooltip>
-						);
-					}
-
-					// No log entries yet — pending or no receipt attempted
 					return (
 						<div className="flex items-center gap-1">
-							<span className="text-xs text-muted-foreground">
-								Pending
-							</span>
-							{organizationId && (
+							{/* Review button — always visible when needed */}
+							{organizationId && needsReview && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
 											size="sm"
 											variant="ghost"
-											className="size-7 p-0 text-blue-600"
-											disabled={resendReceipt.isPending}
+											className="text-emerald-600"
 											onClick={() =>
-												resendReceipt.mutate(
+												reviewPayment.mutate(
 													{
 														organizationId,
-														paymentId: p.id,
+														paymentId: payment.id,
 													},
 													{
 														onSuccess: () =>
 															toast.success(
-																"Receipt resend queued",
+																"Marked as reviewed",
 															),
 														onError: (error) =>
 															toast.error(
@@ -650,126 +800,127 @@ export function PaymentsList() {
 												)
 											}
 										>
-											<SendIcon className="size-3.5" />
+											<CheckIcon className="size-3.5" />
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent>
-										Send receipt
+										Mark as reviewed
 									</TooltipContent>
 								</Tooltip>
+							)}
+
+							{/* Three-dots menu */}
+							{organizationId && (
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="sm"
+											variant="ghost"
+											className="size-7 p-0"
+										>
+											<MoreHorizontalIcon className="size-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										{!payment.stoppedAccount && (
+											<DropdownMenuItem
+												onClick={() =>
+													setResendDialogPayment({
+														id: payment.id,
+														phone: customerPhone,
+													})
+												}
+											>
+												<SendIcon className="mr-2 size-3.5" />
+												{payment.receiptSent
+													? "Resend Receipt"
+													: "Send Receipt"}
+											</DropdownMenuItem>
+										)}
+										{log.length > 0 && (
+											<DropdownMenuItem
+												onClick={() =>
+													setActivityLogDialog(log)
+												}
+											>
+												<ListIcon className="mr-2 size-3.5" />
+												View Activity Log
+											</DropdownMenuItem>
+										)}
+										{(!payment.stoppedAccount ||
+											log.length > 0) && (
+											<DropdownMenuSeparator />
+										)}
+										<AlertDialog>
+											<AlertDialogTrigger asChild>
+												<DropdownMenuItem
+													className="text-destructive focus:text-destructive"
+													onSelect={(e) =>
+														e.preventDefault()
+													}
+												>
+													<TrashIcon className="mr-2 size-3.5" />
+													Delete Payment
+												</DropdownMenuItem>
+											</AlertDialogTrigger>
+											<AlertDialogContent>
+												<AlertDialogHeader>
+													<AlertDialogTitle>
+														Delete payment?
+													</AlertDialogTitle>
+													<AlertDialogDescription>
+														This will permanently
+														delete this payment of{" "}
+														{formatCurrency(
+															payment.paidAmount,
+														)}{" "}
+														and reset the
+														customer&apos;s paid
+														status.
+													</AlertDialogDescription>
+												</AlertDialogHeader>
+												<AlertDialogFooter>
+													<AlertDialogCancel>
+														Cancel
+													</AlertDialogCancel>
+													<AlertDialogAction
+														onClick={() =>
+															deletePayment.mutate(
+																{
+																	organizationId,
+																	paymentId:
+																		payment.id,
+																},
+																{
+																	onSuccess:
+																		() =>
+																			toast.success(
+																				"Payment deleted",
+																			),
+																	onError: (
+																		error,
+																	) =>
+																		toast.error(
+																			error.message,
+																		),
+																},
+															)
+														}
+													>
+														Delete
+													</AlertDialogAction>
+												</AlertDialogFooter>
+											</AlertDialogContent>
+										</AlertDialog>
+									</DropdownMenuContent>
+								</DropdownMenu>
 							)}
 						</div>
 					);
 				},
 			},
-			{
-				id: "actions",
-				enableSorting: false,
-				cell: ({ row }) => (
-					<div className="flex items-center gap-1">
-						{organizationId && isUnreviewed(row.original) && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="sm"
-										variant="ghost"
-										className="text-emerald-600"
-										onClick={() =>
-											reviewPayment.mutate(
-												{
-													organizationId,
-													paymentId: row.original.id,
-												},
-												{
-													onSuccess: () =>
-														toast.success(
-															"Marked as reviewed",
-														),
-													onError: (error) =>
-														toast.error(
-															error.message,
-														),
-												},
-											)
-										}
-									>
-										<CheckIcon className="size-3.5" />
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent>
-									Mark as reviewed
-								</TooltipContent>
-							</Tooltip>
-						)}
-						{organizationId && (
-							<AlertDialog>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<AlertDialogTrigger asChild>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="text-destructive"
-											>
-												<TrashIcon className="size-3.5" />
-											</Button>
-										</AlertDialogTrigger>
-									</TooltipTrigger>
-									<TooltipContent>
-										Delete payment
-									</TooltipContent>
-								</Tooltip>
-								<AlertDialogContent>
-									<AlertDialogHeader>
-										<AlertDialogTitle>
-											Delete payment?
-										</AlertDialogTitle>
-										<AlertDialogDescription>
-											This will permanently delete this
-											payment of{" "}
-											{formatCurrency(
-												row.original.paidAmount,
-											)}{" "}
-											and reset the customer&apos;s paid
-											status.
-										</AlertDialogDescription>
-									</AlertDialogHeader>
-									<AlertDialogFooter>
-										<AlertDialogCancel>
-											Cancel
-										</AlertDialogCancel>
-										<AlertDialogAction
-											onClick={() =>
-												deletePayment.mutate(
-													{
-														organizationId,
-														paymentId:
-															row.original.id,
-													},
-													{
-														onSuccess: () =>
-															toast.success(
-																"Payment deleted",
-															),
-														onError: (error) =>
-															toast.error(
-																error.message,
-															),
-													},
-												)
-											}
-										>
-											Delete
-										</AlertDialogAction>
-									</AlertDialogFooter>
-								</AlertDialogContent>
-							</AlertDialog>
-						)}
-					</div>
-				),
-			},
 		],
-		[organizationId, deletePayment, reviewPayment, resendReceipt],
+		[organizationId, deletePayment, reviewPayment],
 	);
 
 	return (
@@ -887,6 +1038,7 @@ export function PaymentsList() {
 						getRowClassName={rowClassName}
 						sorting={sorting}
 						onSortingChange={onSortingChange}
+						columnVisibilityKey="payments-list"
 						pagination={{
 							totalItems: total,
 							currentPage: page,
@@ -903,6 +1055,29 @@ export function PaymentsList() {
 					/>
 				</TooltipProvider>
 			</div>
+
+			{/* Resend Receipt Dialog */}
+			<ResendReceiptDialog
+				open={!!resendDialogPayment}
+				onOpenChange={(open) => {
+					if (!open) {
+						setResendDialogPayment(null);
+					}
+				}}
+				paymentId={resendDialogPayment?.id ?? ""}
+				defaultPhone={resendDialogPayment?.phone ?? ""}
+			/>
+
+			{/* Activity Log Dialog */}
+			<ActivityLogDialog
+				open={!!activityLogDialog}
+				onOpenChange={(open) => {
+					if (!open) {
+						setActivityLogDialog(null);
+					}
+				}}
+				log={activityLogDialog ?? []}
+			/>
 		</PageShell>
 	);
 }
