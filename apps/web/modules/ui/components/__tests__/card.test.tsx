@@ -64,7 +64,7 @@ describe("CardHeader", () => {
 		const header = screen.getByTestId("header");
 		expect(header).toHaveClass("flex");
 		expect(header).toHaveClass("flex-col");
-		expect(header).toHaveClass("p-6");
+		expect(header).toHaveClass("p-4");
 	});
 
 	it("applies custom className", () => {
@@ -134,8 +134,7 @@ describe("CardContent", () => {
 	it("applies padding styles", () => {
 		render(<CardContent data-testid="content">Content</CardContent>);
 		const content = screen.getByTestId("content");
-		expect(content).toHaveClass("p-6");
-		expect(content).toHaveClass("pt-0");
+		expect(content).toHaveClass("p-4");
 	});
 
 	it("applies custom className", () => {
@@ -159,7 +158,7 @@ describe("CardFooter", () => {
 		const footer = screen.getByTestId("footer");
 		expect(footer).toHaveClass("flex");
 		expect(footer).toHaveClass("items-center");
-		expect(footer).toHaveClass("p-6");
+		expect(footer).toHaveClass("p-4");
 	});
 
 	it("applies custom className", () => {
