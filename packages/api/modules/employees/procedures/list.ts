@@ -71,6 +71,7 @@ export const listEmployees = protectedProcedure
 						mode: "insensitive",
 					},
 				},
+				{ username: { contains: input.search, mode: "insensitive" } },
 			];
 		}
 

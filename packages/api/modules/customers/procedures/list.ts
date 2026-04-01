@@ -89,6 +89,7 @@ export const listCustomers = protectedProcedure
 						mode: "insensitive",
 					},
 				},
+				{ username: { contains: input.search, mode: "insensitive" } },
 			];
 		}
 
