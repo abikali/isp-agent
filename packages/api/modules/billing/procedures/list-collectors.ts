@@ -42,6 +42,7 @@ export const listCollectors = protectedProcedure
 		const collectors = await db.employee.findMany({
 			where: {
 				organizationId: input.organizationId,
+				status: "ACTIVE",
 				OR: [
 					{ ...dealerFilter, department: "BILLING" },
 					{ customerCollections: { some: dealerFilter } },

@@ -9,6 +9,17 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@ui/components/alert-dialog";
+import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
@@ -19,12 +30,15 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import {
+	CheckCircle2Icon,
 	ClipboardCopyIcon,
 	EyeIcon,
 	LogInIcon,
 	MoreHorizontalIcon,
+	PencilIcon,
 	PlusIcon,
 	UploadIcon,
+	UserCheckIcon,
 	UserMinusIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -34,6 +48,7 @@ import {
 	useDeleteEmployee,
 	useEmployees,
 	useInviteEmployee,
+	useUpdateEmployee,
 } from "../hooks/use-employees";
 import { EMPLOYEE_DEPARTMENT_LABELS } from "../lib/constants";
 import { BulkExportButton } from "./BulkExportButton";
@@ -69,9 +84,12 @@ interface EmployeeRow {
 	phone: string | null;
 	position: string | null;
 	department: string | null;
+	hireDate: Date | null;
 	userId: string | null;
-	stations: Array<{ station: { name: string } }>;
-	dealer: { name: string } | null;
+	stations: Array<{ station: { id: string; name: string } }>;
+	dealer: { id: string; name: string } | null;
+	_count: { customerCollections: number; taskAssignments: number };
+	createdAt: Date;
 }
 
 export function EmployeesList({
@@ -88,12 +106,17 @@ export function EmployeesList({
 	const [page, setPage] = useState(1);
 	const [showCreate, setShowCreate] = useState(false);
 	const [showImport, setShowImport] = useState(false);
+	const [deactivateTarget, setDeactivateTarget] = useState<{
+		id: string;
+		name: string;
+	} | null>(null);
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		SORT_BY_MAP,
 		() => setPage(1),
 	);
 	const deleteEmployee = useDeleteEmployee();
 	const inviteEmployee = useInviteEmployee();
+	const updateEmployee = useUpdateEmployee();
 
 	const filters = {
 		search: debouncedSearch || undefined,
@@ -135,7 +158,7 @@ export function EmployeesList({
 			},
 			{
 				id: "employeeNumber",
-				header: "Employee #",
+				header: "ID",
 				accessorFn: (row) => row.employeeNumber,
 				enableSorting: true,
 				cell: ({ row }) => (
@@ -171,7 +194,7 @@ export function EmployeesList({
 							{row.original.name}
 						</Link>
 						{row.original.email && (
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-muted-foreground truncate max-w-[200px]">
 								{row.original.email}
 							</p>
 						)}
@@ -179,12 +202,14 @@ export function EmployeesList({
 				),
 			},
 			{
-				id: "position",
-				header: "Position",
+				id: "phone",
+				header: "Phone",
 				enableSorting: false,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
-					row.original.position ?? (
+					row.original.phone ? (
+						<span className="text-sm">{row.original.phone}</span>
+					) : (
 						<span className="text-muted-foreground">-</span>
 					),
 			},
@@ -192,11 +217,14 @@ export function EmployeesList({
 				id: "department",
 				header: "Department",
 				enableSorting: false,
-				meta: { className: "hidden md:table-cell" },
+				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) =>
 					row.original.department ? (
-						(EMPLOYEE_DEPARTMENT_LABELS[row.original.department] ??
-						row.original.department)
+						<Badge variant="outline" className="font-normal">
+							{EMPLOYEE_DEPARTMENT_LABELS[
+								row.original.department
+							] ?? row.original.department}
+						</Badge>
 					) : (
 						<span className="text-muted-foreground">-</span>
 					),
@@ -208,147 +236,220 @@ export function EmployeesList({
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) =>
 					row.original.stations.length > 0 ? (
-						row.original.stations
-							.map((s) => s.station.name)
-							.join(", ")
+						<span className="text-sm">
+							{row.original.stations
+								.map((s) => s.station.name)
+								.join(", ")}
+						</span>
 					) : (
 						<span className="text-muted-foreground">-</span>
 					),
 			},
 			{
-				id: "dealer",
-				header: "Dealer",
+				id: "customers",
+				header: "Customers",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
-				cell: ({ row }) =>
-					row.original.dealer?.name ?? (
+				meta: { className: "hidden xl:table-cell text-center" },
+				cell: ({ row }) => {
+					const count = row.original._count.customerCollections;
+					return count > 0 ? (
+						<span className="text-sm tabular-nums">{count}</span>
+					) : (
 						<span className="text-muted-foreground">-</span>
+					);
+				},
+			},
+			{
+				id: "login",
+				header: "Login",
+				enableSorting: false,
+				meta: { className: "hidden sm:table-cell w-16 text-center" },
+				cell: ({ row }) =>
+					row.original.userId ? (
+						<CheckCircle2Icon className="size-4 text-green-600 mx-auto" />
+					) : (
+						<span className="text-muted-foreground text-xs">
+							No
+						</span>
 					),
 			},
 			{
 				id: "actions",
 				enableSorting: false,
-				meta: { className: "w-10" },
+				meta: { className: "w-20" },
 				cell: ({ row }) => {
 					const emp = row.original;
 					return (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									variant="ghost"
-									size="icon"
-									className="size-8"
-								>
-									<MoreHorizontalIcon className="size-4" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem asChild>
-									<Link
-										to="/app/$organizationSlug/employees/$employeeId"
-										params={{
-											organizationSlug,
-											employeeId: emp.id,
-										}}
-									>
-										<EyeIcon className="mr-2 size-4" />
-										View Details
-									</Link>
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => {
-										navigator.clipboard.writeText(
-											emp.employeeNumber,
-										);
-										toast.success("Employee # copied");
+						<div className="flex items-center gap-1 justify-end">
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-8"
+								asChild
+							>
+								<Link
+									to="/app/$organizationSlug/employees/$employeeId"
+									params={{
+										organizationSlug,
+										employeeId: emp.id,
 									}}
+									preload="intent"
 								>
-									<ClipboardCopyIcon className="mr-2 size-4" />
-									Copy Employee #
-								</DropdownMenuItem>
-								{emp.phone && (
+									<PencilIcon className="size-4" />
+									<span className="sr-only">Edit</span>
+								</Link>
+							</Button>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="size-8"
+									>
+										<MoreHorizontalIcon className="size-4" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem asChild>
+										<Link
+											to="/app/$organizationSlug/employees/$employeeId"
+											params={{
+												organizationSlug,
+												employeeId: emp.id,
+											}}
+										>
+											<EyeIcon className="mr-2 size-4" />
+											View Details
+										</Link>
+									</DropdownMenuItem>
 									<DropdownMenuItem
 										onClick={() => {
 											navigator.clipboard.writeText(
-												emp.phone ?? "",
+												emp.employeeNumber,
 											);
-											toast.success("Phone copied");
+											toast.success("Employee # copied");
 										}}
 									>
 										<ClipboardCopyIcon className="mr-2 size-4" />
-										Copy Phone
+										Copy Employee #
 									</DropdownMenuItem>
-								)}
-								{!emp.userId && (
-									<>
-										<DropdownMenuSeparator />
+									{emp.phone && (
 										<DropdownMenuItem
 											onClick={() => {
-												if (!organizationId) {
-													return;
-												}
-												toast.promise(
-													inviteEmployee.mutateAsync({
-														organizationId,
-														employeeId: emp.id,
-														role: "collector",
-														username: emp.name
-															.toLowerCase()
-															.replace(
-																/\s+/g,
-																".",
-															),
-													}),
-													{
-														loading:
-															"Creating login...",
-														success:
-															"Login created (password: 123456)",
-														error: (error: {
-															message?: string;
-														}) =>
-															error.message ??
-															"Failed to create login",
-													},
+												navigator.clipboard.writeText(
+													emp.phone ?? "",
 												);
+												toast.success("Phone copied");
 											}}
 										>
-											<LogInIcon className="mr-2 size-4" />
-											Quick Invite (Collector)
+											<ClipboardCopyIcon className="mr-2 size-4" />
+											Copy Phone
 										</DropdownMenuItem>
-									</>
-								)}
-								{emp.status === "ACTIVE" && (
-									<>
-										<DropdownMenuSeparator />
-										<DropdownMenuItem
-											className="text-destructive"
-											onClick={() => {
-												if (
-													organizationId &&
-													confirm(
-														`Deactivate ${emp.name}?`,
-													)
-												) {
-													deleteEmployee.mutate({
-														organizationId,
+									)}
+									{!emp.userId && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={() => {
+													if (!organizationId) {
+														return;
+													}
+													toast.promise(
+														inviteEmployee.mutateAsync(
+															{
+																organizationId,
+																employeeId:
+																	emp.id,
+																role: "collector",
+																username:
+																	emp.name
+																		.toLowerCase()
+																		.replace(
+																			/\s+/g,
+																			".",
+																		),
+															},
+														),
+														{
+															loading:
+																"Creating login...",
+															success:
+																"Login created (password: 123456)",
+															error: (error: {
+																message?: string;
+															}) =>
+																error.message ??
+																"Failed to create login",
+														},
+													);
+												}}
+											>
+												<LogInIcon className="mr-2 size-4" />
+												Quick Invite (Collector)
+											</DropdownMenuItem>
+										</>
+									)}
+									{emp.status === "INACTIVE" && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={() => {
+													if (!organizationId) {
+														return;
+													}
+													toast.promise(
+														updateEmployee.mutateAsync(
+															{
+																organizationId,
+																id: emp.id,
+																name: emp.name,
+																status: "ACTIVE",
+															},
+														),
+														{
+															loading:
+																"Activating...",
+															success:
+																"Employee activated",
+															error: (error: {
+																message?: string;
+															}) =>
+																error.message ??
+																"Failed to activate",
+														},
+													);
+												}}
+											>
+												<UserCheckIcon className="mr-2 size-4" />
+												Activate
+											</DropdownMenuItem>
+										</>
+									)}
+									{emp.status === "ACTIVE" && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												className="text-destructive"
+												onClick={() =>
+													setDeactivateTarget({
 														id: emp.id,
-													});
+														name: emp.name,
+													})
 												}
-											}}
-										>
-											<UserMinusIcon className="mr-2 size-4" />
-											Deactivate
-										</DropdownMenuItem>
-									</>
-								)}
-							</DropdownMenuContent>
-						</DropdownMenu>
+											>
+												<UserMinusIcon className="mr-2 size-4" />
+												Deactivate
+											</DropdownMenuItem>
+										</>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</div>
 					);
 				},
 			},
 		],
-		[organizationSlug, organizationId, deleteEmployee, inviteEmployee],
+		[organizationSlug, organizationId, inviteEmployee, updateEmployee],
 	);
 
 	return (
@@ -409,6 +510,16 @@ export function EmployeesList({
 				data={employees}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
+				getRowClassName={(row) => {
+					const s = row.original.status;
+					if (s === "INACTIVE") {
+						return "opacity-50";
+					}
+					if (s === "ON_LEAVE") {
+						return "opacity-70 bg-amber-50/50 dark:bg-amber-950/10";
+					}
+					return undefined;
+				}}
 				pagination={{
 					totalItems: total,
 					currentPage: page,
@@ -447,6 +558,43 @@ export function EmployeesList({
 				onOpenChange={setShowCreate}
 			/>
 			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
+
+			{/* Deactivate Confirmation */}
+			<AlertDialog
+				open={deactivateTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDeactivateTarget(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to deactivate{" "}
+							<strong>{deactivateTarget?.name}</strong>? They will
+							lose access to all assigned stations and tasks.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (organizationId && deactivateTarget) {
+									deleteEmployee.mutate({
+										organizationId,
+										id: deactivateTarget.id,
+									});
+									setDeactivateTarget(null);
+								}
+							}}
+						>
+							Deactivate
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }

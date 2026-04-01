@@ -31,6 +31,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Input } from "@ui/components/input";
+import { Progress } from "@ui/components/progress";
 import {
 	Select,
 	SelectContent,
@@ -92,25 +93,34 @@ export function CashCollectionPageSkeleton() {
 	);
 }
 
+function getInitials(name: string): string {
+	return name
+		.split(" ")
+		.slice(0, 2)
+		.map((w) => w[0] ?? "")
+		.join("")
+		.toUpperCase();
+}
+
 export function CollectorPickerPage({ basePath }: { basePath: string }) {
 	const { data: collectorsData, isLoading } = useCollectors();
 	const collectors = collectorsData?.collectors ?? [];
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-5">
 			<div>
 				<h2 className="text-2xl font-bold tracking-tight">
 					Cash Collection
 				</h2>
-				<p className="text-sm text-muted-foreground">
-					Select a collector to view their balance and record handoffs
+				<p className="text-sm text-muted-foreground mt-1">
+					Pick a collector to manage their cash
 				</p>
 			</div>
 
 			{isLoading ? (
-				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
 					{Array.from({ length: 6 }).map((_, i) => (
-						<Skeleton key={i} className="h-24" />
+						<Skeleton key={i} className="h-40 rounded-xl" />
 					))}
 				</div>
 			) : collectors.length === 0 ? (
@@ -123,55 +133,92 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-					{collectors.map((c) => (
-						<a
-							key={c.id}
-							href={`${basePath}/${c.username ?? c.id}`}
-							className="block"
-						>
-							<Card className="transition-shadow hover:shadow-card-hover cursor-pointer">
-								<CardContent className="p-4">
-									<div className="flex items-center gap-3">
-										<div className="rounded-lg bg-muted/50 p-2">
-											<HandCoinsIcon className="size-4 text-muted-foreground" />
+				<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+					{collectors.map((c) => {
+						const progress =
+							c.monthTotal > 0
+								? Math.round(
+										(c.monthCollected / c.monthTotal) * 100,
+									)
+								: 0;
+						const hasBalance = c.inHand > 0;
+
+						return (
+							<a
+								key={c.id}
+								href={`${basePath}/${c.username ?? c.id}`}
+								className="block group"
+							>
+								<Card className="transition-all hover:shadow-card-hover hover:border-primary/30 cursor-pointer h-full">
+									<CardContent className="p-5 sm:p-6 flex flex-col gap-4">
+										{/* Name row */}
+										<div className="flex items-center gap-3">
+											<div className="size-11 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+												{getInitials(c.name)}
+											</div>
+											<div className="min-w-0 flex-1">
+												<p className="text-base font-semibold truncate">
+													{c.name}
+												</p>
+												<p className="text-xs text-muted-foreground mt-0.5 truncate">
+													{c.username && (
+														<>
+															@{c.username}
+															{" \u00b7 "}
+														</>
+													)}
+													{c.customerCount} customers
+													{c.stoppedCount > 0 && (
+														<span className="text-red-500 dark:text-red-400">
+															{" \u00b7 "}
+															{c.stoppedCount}{" "}
+															stopped
+														</span>
+													)}
+												</p>
+											</div>
+											<ChevronRightIcon className="size-5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
 										</div>
-										<div className="min-w-0 flex-1">
-											<p className="font-medium truncate">
-												{c.name}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												{c.customerCount} customers
-											</p>
+
+										{/* Stats row */}
+										<div className="flex items-end gap-4">
+											{/* In hand */}
+											<div className="flex-1 min-w-0">
+												<p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">
+													In hand
+												</p>
+												<p
+													className={`text-xl font-bold tabular-nums leading-tight ${hasBalance ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60"}`}
+												>
+													{formatCurrency(c.inHand)}
+												</p>
+											</div>
+
+											{/* Collection progress */}
+											<div className="flex-1 min-w-0">
+												<div className="flex items-baseline justify-between mb-1">
+													<p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+														Collected
+													</p>
+													<span className="text-xs font-medium tabular-nums text-muted-foreground">
+														{progress}%
+													</span>
+												</div>
+												<Progress
+													value={progress}
+													className="h-2"
+												/>
+												<p className="text-sm tabular-nums text-muted-foreground mt-1 font-medium">
+													{c.monthCollected} /{" "}
+													{c.monthTotal}
+												</p>
+											</div>
 										</div>
-									</div>
-									<div className="mt-3 grid grid-cols-2 gap-3 border-t pt-3">
-										<div>
-											<p
-												className={`text-lg font-bold tabular-nums ${c.inHand > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-											>
-												{formatCurrency(c.inHand)}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												In hand
-											</p>
-										</div>
-										<div>
-											<p className="text-lg font-bold tabular-nums">
-												{c.monthCollected}
-												<span className="text-sm font-normal text-muted-foreground">
-													/{c.monthTotal}
-												</span>
-											</p>
-											<p className="text-xs text-muted-foreground">
-												Collected this month
-											</p>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-						</a>
-					))}
+									</CardContent>
+								</Card>
+							</a>
+						);
+					})}
 				</div>
 			)}
 		</div>

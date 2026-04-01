@@ -105,6 +105,12 @@ export const listEmployees = protectedProcedure
 							},
 						},
 					},
+					_count: {
+						select: {
+							customerCollections: true,
+							taskAssignments: true,
+						},
+					},
 				},
 				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,

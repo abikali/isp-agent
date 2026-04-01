@@ -89,30 +89,32 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Verify collector exists
+		// Verify collector exists and is active
 		const collector = await db.employee.findFirst({
 			where: {
 				id: input.collectorId,
 				organizationId: input.organizationId,
+				status: "ACTIVE",
 			},
 		});
 		if (!collector) {
 			throw new ORPCError("NOT_FOUND", {
-				message: "Collector not found",
+				message: "Collector not found or inactive",
 			});
 		}
 
-		// Verify worker exists if provided
+		// Verify worker exists and is active if provided
 		if (input.workerId) {
 			const worker = await db.employee.findFirst({
 				where: {
 					id: input.workerId,
 					organizationId: input.organizationId,
+					status: "ACTIVE",
 				},
 			});
 			if (!worker) {
 				throw new ORPCError("NOT_FOUND", {
-					message: "Worker not found",
+					message: "Worker not found or inactive",
 				});
 			}
 		}

@@ -30,18 +30,19 @@ export const createCollection = protectedProcedure
 			"manage",
 		);
 
-		// Verify collector exists (and belongs to active dealer if scoped)
+		// Verify collector exists, is active, and belongs to active dealer if scoped
 		const collector = await db.employee.findFirst({
 			where: {
 				id: input.collectorId,
 				organizationId: input.organizationId,
+				status: "ACTIVE",
 				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { id: true },
 		});
 		if (!collector) {
 			throw new ORPCError("NOT_FOUND", {
-				message: "Collector not found",
+				message: "Collector not found or inactive",
 			});
 		}
 

@@ -155,12 +155,13 @@ export const updateCustomer = protectedProcedure
 					where: {
 						id: input.collectorId,
 						organizationId: input.organizationId,
+						status: "ACTIVE",
 					},
 					select: { id: true, name: true, phone: true },
 				});
 				if (!employee) {
 					throw new ORPCError("NOT_FOUND", {
-						message: "Collector employee not found",
+						message: "Collector employee not found or inactive",
 					});
 				}
 				updateData["collectorId"] = input.collectorId;

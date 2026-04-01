@@ -15,12 +15,15 @@ export const Route = createFileRoute(
 });
 
 function EmployeeDetailPage() {
-	const { employeeId } = Route.useParams();
+	const { employeeId, organizationSlug } = Route.useParams();
 
 	return (
 		<PermissionGate resource="employees" action="read">
 			<AsyncBoundary fallback={<Skeleton className="h-96" />}>
-				<EmployeeDetail employeeId={employeeId} />
+				<EmployeeDetail
+					employeeId={employeeId}
+					organizationSlug={organizationSlug}
+				/>
 			</AsyncBoundary>
 		</PermissionGate>
 	);

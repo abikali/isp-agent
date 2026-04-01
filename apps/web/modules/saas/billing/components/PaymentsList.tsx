@@ -422,9 +422,6 @@ export function PaymentsList() {
 				id: "note",
 				header: "Note",
 				enableSorting: false,
-				meta: {
-					className: "hidden lg:table-cell",
-				},
 				cell: ({ row }) => {
 					const category = row.original.noteCategory;
 					const notes = row.original.notes;
@@ -436,7 +433,7 @@ export function PaymentsList() {
 						);
 					}
 					return (
-						<div>
+						<div className="whitespace-nowrap">
 							{category && (
 								<Badge
 									variant="outline"

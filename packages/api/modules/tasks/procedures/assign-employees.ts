@@ -52,19 +52,20 @@ export const assignEmployees = protectedProcedure
 			});
 		}
 
-		// Verify employees belong to active dealer
+		// Verify employees belong to active dealer and are active
 		if (input.employeeIds.length > 0) {
 			const validCount = await db.employee.count({
 				where: {
 					id: { in: input.employeeIds },
 					organizationId: input.organizationId,
+					status: "ACTIVE",
 					dealerId: activeDealerId ?? null,
 				},
 			});
 			if (validCount !== input.employeeIds.length) {
 				throw new ORPCError("FORBIDDEN", {
 					message:
-						"One or more employees do not belong to your dealer",
+						"One or more employees are inactive or do not belong to your dealer",
 				});
 			}
 		}

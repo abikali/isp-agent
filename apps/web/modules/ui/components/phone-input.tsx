@@ -27,10 +27,10 @@ const COUNTRY_CODES = [
 		name: "Jordan",
 	},
 	{
-		code: "PS",
-		dialCode: "+970",
-		flag: "\u{1F1F5}\u{1F1F8}",
-		name: "Palestine",
+		code: "BD",
+		dialCode: "+880",
+		flag: "\u{1F1E7}\u{1F1E9}",
+		name: "Bangladesh",
 	},
 	{
 		code: "SA",

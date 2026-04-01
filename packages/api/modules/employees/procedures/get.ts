@@ -67,6 +67,104 @@ export const getEmployee = protectedProcedure
 					orderBy: { assignedAt: "desc" },
 					take: 20,
 				},
+				customerCollections: {
+					select: {
+						id: true,
+						accountNumber: true,
+						firstName: true,
+						lastName: true,
+						status: true,
+						monthlyRate: true,
+					},
+					orderBy: { firstName: "asc" },
+					take: 100,
+				},
+				customerWorkerAssignments: {
+					select: {
+						id: true,
+						accountNumber: true,
+						firstName: true,
+						lastName: true,
+						status: true,
+					},
+					orderBy: { firstName: "asc" },
+					take: 100,
+				},
+				paymentsCollected: {
+					select: {
+						id: true,
+						paidAmount: true,
+						accountPrice: true,
+						discount: true,
+						status: true,
+						paidAt: true,
+						customer: {
+							select: {
+								id: true,
+								firstName: true,
+								lastName: true,
+								accountNumber: true,
+							},
+						},
+					},
+					orderBy: { paidAt: "desc" },
+					take: 50,
+				},
+				cashCollections: {
+					select: {
+						id: true,
+						amount: true,
+						type: true,
+						notes: true,
+						collectedAt: true,
+					},
+					orderBy: { collectedAt: "desc" },
+					take: 20,
+				},
+				expensesSubmitted: {
+					select: {
+						id: true,
+						amount: true,
+						description: true,
+						status: true,
+						createdAt: true,
+					},
+					orderBy: { createdAt: "desc" },
+					take: 20,
+				},
+				installationsDone: {
+					select: {
+						id: true,
+						status: true,
+						price: true,
+						quantity: true,
+						notes: true,
+						installedAt: true,
+						customer: {
+							select: {
+								id: true,
+								firstName: true,
+								lastName: true,
+								accountNumber: true,
+							},
+						},
+						stockItem: {
+							select: { id: true, name: true },
+						},
+					},
+					orderBy: { installedAt: "desc" },
+					take: 20,
+				},
+				workerStock: {
+					select: {
+						id: true,
+						quantity: true,
+						unitPrice: true,
+						stockItem: {
+							select: { id: true, name: true },
+						},
+					},
+				},
 			},
 		});
 

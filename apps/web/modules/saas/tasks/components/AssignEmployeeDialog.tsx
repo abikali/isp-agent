@@ -53,9 +53,6 @@ export function AssignEmployeeDialog({
 		);
 	}
 
-	// Filter to only ACTIVE employees
-	const activeEmployees = employees.filter((e) => e.status === "ACTIVE");
-
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
@@ -63,12 +60,12 @@ export function AssignEmployeeDialog({
 					<DialogTitle>Assign Employees</DialogTitle>
 				</DialogHeader>
 				<div className="max-h-60 space-y-2 overflow-y-auto">
-					{activeEmployees.length === 0 ? (
+					{employees.length === 0 ? (
 						<p className="text-sm text-muted-foreground">
 							No active employees available.
 						</p>
 					) : (
-						activeEmployees.map((emp) => (
+						employees.map((emp) => (
 							<label
 								key={emp.id}
 								className="flex items-center gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50"

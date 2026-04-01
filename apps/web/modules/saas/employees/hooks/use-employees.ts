@@ -94,7 +94,7 @@ export function useEmployeesQuery() {
 	const query = useQuery(
 		organizationId
 			? orpc.employees.list.queryOptions({
-					input: { organizationId },
+					input: { organizationId, status: "ACTIVE" },
 				})
 			: disabledQuery(["employees", "list"]),
 	);
