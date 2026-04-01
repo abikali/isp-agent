@@ -317,7 +317,12 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 				[...selected].map((key) => key.split(":")[0]).filter(Boolean),
 			),
 		] as string[];
-		bulkMutation.mutate({ organizationId, resolution, conflictIds });
+		bulkMutation.mutate({
+			organizationId,
+			resolution,
+			conflictIds,
+			...(fieldFilter ? { fieldName: fieldFilter } : {}),
+		});
 		setSelected(new Set());
 	}
 
@@ -499,7 +504,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 					<div className="flex items-center justify-center py-20">
 						<LoaderIcon className="size-6 animate-spin text-muted-foreground" />
 					</div>
-				) : rows.length === 0 ? (
+				) : rows.length === 0 && totalFieldCount === 0 ? (
 					<div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
 						<CheckCircle2Icon className="size-10 mb-3 text-green-500" />
 						<p className="text-lg font-medium">
@@ -507,6 +512,14 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 						</p>
 						<p className="text-sm mt-1">
 							All data is in sync between local and iRadius.
+						</p>
+					</div>
+				) : rows.length === 0 ? (
+					<div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+						<p className="text-sm">
+							{fieldFilter
+								? `No ${FIELD_LABELS[fieldFilter] ?? fieldFilter} conflicts on this page. Use the bulk action buttons above to resolve all.`
+								: "No conflicts on this page."}
 						</p>
 					</div>
 				) : (
