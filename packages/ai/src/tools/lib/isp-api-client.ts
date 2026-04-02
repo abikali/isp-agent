@@ -209,6 +209,55 @@ export async function ispGet<T>(
 }
 
 /**
+ * Authenticated POST request to the ISP API.
+ * Automatically handles JWT auth and retries once on 401.
+ */
+export async function ispPost<T>(
+	config: IspApiConfig,
+	path: string,
+	body: Record<string, unknown>,
+): Promise<T> {
+	const url = `${config.baseUrl}${path}`;
+
+	const token = await getToken(config);
+	let res = await fetch(url, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${token}`,
+		},
+		body: JSON.stringify(body),
+	});
+
+	// Retry once on 401 with a fresh token
+	if (res.status === 401) {
+		clearToken(config);
+		const freshToken = await getToken(config);
+		res = await fetch(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${freshToken}`,
+			},
+			body: JSON.stringify(body),
+		});
+	}
+
+	if (!res.ok) {
+		throw new Error(
+			`ISP API request failed: ${res.status} ${res.statusText}`,
+		);
+	}
+
+	const text = await res.text();
+	if (!text) {
+		return null as T;
+	}
+
+	return JSON.parse(text) as T;
+}
+
+/**
  * Wrapper that handles the common try/catch pattern for ISP tools.
  * Returns a structured error response on failure.
  */

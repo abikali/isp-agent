@@ -11,6 +11,7 @@ import {
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { syncActiveStatusToIRadius } from "../lib/iradius-api";
 
 export const updateCustomer = protectedProcedure
 	.route({
@@ -191,6 +192,17 @@ export const updateCustomer = protectedProcedure
 				createdAt: true,
 			},
 		});
+
+		// Sync active status to iRadius when status changes
+		if (input.status !== undefined && input.status !== existing.status) {
+			syncActiveStatusToIRadius(
+				{
+					externalId: existing.externalId,
+					username: existing.username,
+				},
+				input.status === "ACTIVE",
+			);
+		}
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		customerAudit.updated(

@@ -6,6 +6,10 @@
 		".": {
 			"types": "./index.ts",
 			"default": "./index.ts"
+		},
+		"./isp-api-client": {
+			"types": "./src/tools/lib/isp-api-client.ts",
+			"default": "./src/tools/lib/isp-api-client.ts"
 		}
 	},
 	"scripts": {

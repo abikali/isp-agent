@@ -11,6 +11,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { syncActiveStatusToIRadius } from "../lib/iradius-api";
 
 export const deleteCustomer = protectedProcedure
 	.route({
@@ -52,6 +53,12 @@ export const deleteCustomer = protectedProcedure
 			where: { id: input.id },
 			data: { status: "INACTIVE" },
 		});
+
+		// Deactivate in iRadius (fire-and-forget)
+		syncActiveStatusToIRadius(
+			{ externalId: existing.externalId, username: existing.username },
+			false,
+		);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		customerAudit.deleted(
