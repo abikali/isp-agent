@@ -53,6 +53,8 @@ import { Separator } from "@ui/components/separator";
 import { Textarea } from "@ui/components/textarea";
 import {
 	ActivityIcon,
+	AlertCircleIcon,
+	CheckCircle2Icon,
 	DollarSignIcon,
 	FileTextIcon,
 	MapPinIcon,
@@ -165,6 +167,13 @@ export function CustomerDetail({
 		newPlanId: string;
 		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
 	} | null>(null);
+	const [changeResult, setChangeResult] = useState<{
+		success: boolean;
+		oldPlanName: string;
+		newPlanName: string;
+		disconnected?: boolean;
+		error?: string;
+	} | null>(null);
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
@@ -179,6 +188,40 @@ export function CustomerDetail({
 	);
 
 	const customer = data.customer;
+
+	function buildUpdatePayload(values: CustomerFormValues) {
+		return {
+			organizationId: organizationId ?? "",
+			id: customerId,
+			firstName: values.firstName,
+			lastName: values.lastName || undefined,
+			email: values.email || undefined,
+			phones: values.phones.filter((p) => p.number.trim() !== ""),
+			address: values.address || undefined,
+			username: values.username || undefined,
+			stationId: values.stationId || null,
+			status: values.status as
+				| "ACTIVE"
+				| "INACTIVE"
+				| "SUSPENDED"
+				| "PENDING",
+			connectionType: (values.connectionType || null) as
+				| "FIBER"
+				| "WIRELESS"
+				| "DSL"
+				| "CABLE"
+				| "ETHERNET"
+				| null,
+			ipAddress: values.ipAddress || undefined,
+			macAddress: values.macAddress || undefined,
+			monthlyRate: values.monthlyRate ? Number(values.monthlyRate) : null,
+			billingDay: values.billingDay ? Number(values.billingDay) : null,
+			balance: Number(values.balance),
+			groupName: values.groupName || null,
+			notes: values.notes || undefined,
+			collectorId: values.collectorId || null,
+		};
+	}
 
 	const form = useForm({
 		defaultValues: getCustomerFormDefaults(customer),
@@ -207,7 +250,7 @@ export function CustomerDetail({
 					});
 				} catch (err) {
 					toast.error(
-						`Failed to preview plan change: ${(err as Error).message}`,
+						`Failed to preview plan change: ${err instanceof Error ? err.message : "Unknown error"}`,
 					);
 				}
 				return;
@@ -216,40 +259,8 @@ export function CustomerDetail({
 			// Normal save (no iRadius interaction needed)
 			toast.promise(
 				updateCustomer.mutateAsync({
-					organizationId,
-					id: customerId,
-					firstName: value.firstName,
-					lastName: value.lastName || undefined,
-					email: value.email || undefined,
-					phones: value.phones.filter((p) => p.number.trim() !== ""),
-					address: value.address || undefined,
-					username: value.username || undefined,
+					...buildUpdatePayload(value),
 					planId: value.planId || null,
-					stationId: value.stationId || null,
-					status: value.status as
-						| "ACTIVE"
-						| "INACTIVE"
-						| "SUSPENDED"
-						| "PENDING",
-					connectionType: (value.connectionType || null) as
-						| "FIBER"
-						| "WIRELESS"
-						| "DSL"
-						| "CABLE"
-						| "ETHERNET"
-						| null,
-					ipAddress: value.ipAddress || undefined,
-					macAddress: value.macAddress || undefined,
-					monthlyRate: value.monthlyRate
-						? Number(value.monthlyRate)
-						: null,
-					billingDay: value.billingDay
-						? Number(value.billingDay)
-						: null,
-					balance: Number(value.balance),
-					groupName: value.groupName || null,
-					notes: value.notes || undefined,
-					collectorId: value.collectorId || null,
 				}),
 				{
 					loading: "Saving changes...",
@@ -268,60 +279,36 @@ export function CustomerDetail({
 			return;
 		}
 
-		const { pendingFormValues, newPlanId } = accountTypePreview;
+		const { pendingFormValues, newPlanId, previewData } =
+			accountTypePreview;
 
-		// Save all form fields (excluding planId — that's handled by the execute procedure)
-		const savePromise = Promise.all([
-			updateCustomer.mutateAsync({
-				organizationId,
-				id: customerId,
-				firstName: pendingFormValues.firstName,
-				lastName: pendingFormValues.lastName || undefined,
-				email: pendingFormValues.email || undefined,
-				phones: pendingFormValues.phones.filter(
-					(p) => p.number.trim() !== "",
+		try {
+			// Save form fields (planId handled by executeAccountType)
+			const [, iRadiusResult] = await Promise.all([
+				updateCustomer.mutateAsync(
+					buildUpdatePayload(pendingFormValues),
 				),
-				address: pendingFormValues.address || undefined,
-				username: pendingFormValues.username || undefined,
-				stationId: pendingFormValues.stationId || null,
-				status: pendingFormValues.status as
-					| "ACTIVE"
-					| "INACTIVE"
-					| "SUSPENDED"
-					| "PENDING",
-				connectionType: (pendingFormValues.connectionType || null) as
-					| "FIBER"
-					| "WIRELESS"
-					| "DSL"
-					| "CABLE"
-					| "ETHERNET"
-					| null,
-				ipAddress: pendingFormValues.ipAddress || undefined,
-				macAddress: pendingFormValues.macAddress || undefined,
-				monthlyRate: pendingFormValues.monthlyRate
-					? Number(pendingFormValues.monthlyRate)
-					: null,
-				billingDay: pendingFormValues.billingDay
-					? Number(pendingFormValues.billingDay)
-					: null,
-				balance: Number(pendingFormValues.balance),
-				groupName: pendingFormValues.groupName || null,
-				notes: pendingFormValues.notes || undefined,
-				collectorId: pendingFormValues.collectorId || null,
-			}),
-			executeAccountType.mutateAsync({
-				organizationId,
-				customerId,
-				newPlanId,
-			}),
-		]);
+				executeAccountType.mutateAsync({
+					organizationId,
+					customerId,
+					newPlanId,
+				}),
+			]);
 
-		toast.promise(savePromise, {
-			loading: "Saving changes and updating plan in iRadius...",
-			success: "All changes saved successfully",
-			error: (err: { message?: string }) =>
-				err?.message ?? "Failed to save changes",
-		});
+			setChangeResult({
+				success: true,
+				oldPlanName: previewData.oldAccountType.name,
+				newPlanName: previewData.newAccountType.name,
+				disconnected: iRadiusResult.disconnected,
+			});
+		} catch (err) {
+			setChangeResult({
+				success: false,
+				oldPlanName: previewData.oldAccountType.name,
+				newPlanName: previewData.newAccountType.name,
+				error: err instanceof Error ? err.message : "Unknown error",
+			});
+		}
 		setAccountTypePreview(null);
 	}
 
@@ -627,6 +614,81 @@ export function CustomerDetail({
 							{executeAccountType.isPending
 								? "Changing..."
 								: "Confirm Change"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+			<Dialog
+				open={changeResult !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setChangeResult(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					{changeResult?.success ? (
+						<>
+							<DialogHeader>
+								<div className="flex items-center gap-2">
+									<CheckCircle2Icon className="size-5 text-green-600" />
+									<DialogTitle>
+										Plan Changed Successfully
+									</DialogTitle>
+								</div>
+								<DialogDescription>
+									The plan has been updated in both iRadius
+									and the local database.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="space-y-2 text-sm">
+								<div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+									<span className="text-muted-foreground">
+										Previous Plan:
+									</span>
+									<span>{changeResult.oldPlanName}</span>
+									<span className="text-muted-foreground">
+										New Plan:
+									</span>
+									<span className="font-medium">
+										{changeResult.newPlanName}
+									</span>
+									<span className="text-muted-foreground">
+										MikroTik:
+									</span>
+									<span>
+										{changeResult.disconnected
+											? "User disconnected (will reconnect with new plan)"
+											: "User was not online"}
+									</span>
+								</div>
+							</div>
+						</>
+					) : (
+						<>
+							<DialogHeader>
+								<div className="flex items-center gap-2">
+									<AlertCircleIcon className="size-5 text-destructive" />
+									<DialogTitle>
+										Plan Change Failed
+									</DialogTitle>
+								</div>
+								<DialogDescription>
+									The iRadius plan change could not be
+									completed. The local database was not
+									updated.
+								</DialogDescription>
+							</DialogHeader>
+							<div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+								<p className="font-medium text-destructive">
+									{changeResult?.error}
+								</p>
+							</div>
+						</>
+					)}
+					<DialogFooter>
+						<Button onClick={() => setChangeResult(null)}>
+							Done
 						</Button>
 					</DialogFooter>
 				</DialogContent>
