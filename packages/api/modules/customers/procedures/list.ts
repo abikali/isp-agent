@@ -136,6 +136,7 @@ export const listCustomers = protectedProcedure
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
+					externalId: true,
 					createdAt: true,
 					plan: {
 						select: {

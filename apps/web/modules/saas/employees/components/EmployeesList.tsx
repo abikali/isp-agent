@@ -4,11 +4,12 @@ import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -37,6 +38,7 @@ import {
 	MoreHorizontalIcon,
 	PencilIcon,
 	PlusIcon,
+	RefreshCwIcon,
 	UploadIcon,
 	UserCheckIcon,
 	UserMinusIcon,
@@ -86,6 +88,7 @@ interface EmployeeRow {
 	department: string | null;
 	hireDate: Date | null;
 	userId: string | null;
+	externalId: string | null;
 	stations: Array<{ station: { id: string; name: string } }>;
 	dealer: { id: string; name: string } | null;
 	_count: { customerCollections: number; taskAssignments: number };
@@ -106,6 +109,15 @@ export function EmployeesList({
 	const [page, setPage] = useState(1);
 	const [showCreate, setShowCreate] = useState(false);
 	const [showImport, setShowImport] = useState(false);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [showSyncPreview, setShowSyncPreview] = useState(false);
+
+	const selectedIds = useMemo(
+		() => Object.keys(rowSelection),
+		[rowSelection],
+	);
+	const selectedCount = selectedIds.length;
+
 	const [deactivateTarget, setDeactivateTarget] = useState<{
 		id: string;
 		name: string;
@@ -505,6 +517,22 @@ export function EmployeesList({
 				}}
 			/>
 
+			{selectedCount > 0 && (
+				<div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedCount} selected
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => setShowSyncPreview(true)}
+					>
+						<RefreshCwIcon className="mr-2 size-4" />
+						Sync from iRadius
+					</Button>
+				</div>
+			)}
+
 			<DataTable
 				columns={columns}
 				data={employees}
@@ -524,10 +552,17 @@ export function EmployeesList({
 					totalItems: total,
 					currentPage: page,
 					itemsPerPage: PAGE_SIZE,
-					onPageChange: setPage,
+					onPageChange: (p) => {
+						setPage(p);
+						setRowSelection({});
+					},
 				}}
 				isLoading={isLoading}
 				isFetching={isFetching}
+				enableRowSelection={(row) => !!row.original.externalId}
+				rowSelection={rowSelection}
+				onRowSelectionChange={setRowSelection}
+				getRowId={(row) => row.id}
 				emptyState={
 					<EmptyState
 						icon={UsersIcon}
@@ -558,6 +593,13 @@ export function EmployeesList({
 				onOpenChange={setShowCreate}
 			/>
 			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
+			<SyncPreviewDialog
+				open={showSyncPreview}
+				onOpenChange={setShowSyncPreview}
+				entityType="employee"
+				entityIds={selectedIds}
+				onSynced={() => setRowSelection({})}
+			/>
 
 			{/* Deactivate Confirmation */}
 			<AlertDialog

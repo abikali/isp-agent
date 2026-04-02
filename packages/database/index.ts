@@ -6,5 +6,6 @@ export {
 	MAX_PHONES,
 	normalizeLebanesePhone,
 	parsePhones,
+	splitPhoneString,
 } from "./lib/phones";
 export * from "./prisma";

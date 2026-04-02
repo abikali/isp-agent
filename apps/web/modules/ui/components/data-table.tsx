@@ -13,7 +13,9 @@ declare module "@tanstack/react-table" {
 
 import type {
 	ColumnDef,
+	OnChangeFn,
 	Row,
+	RowSelectionState,
 	SortingState,
 	VisibilityState,
 } from "@tanstack/react-table";
@@ -34,8 +36,9 @@ import {
 	SlidersHorizontalIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "./button";
+import { Checkbox } from "./checkbox";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -97,6 +100,18 @@ interface DataTableProps<TData> {
 	 * is saved/restored automatically.
 	 */
 	columnVisibilityKey?: string;
+
+	/** Enable row selection with checkboxes. Pass a function to control per-row selectability. */
+	enableRowSelection?: boolean | ((row: Row<TData>) => boolean);
+
+	/** Controlled row selection state (row ID → selected) */
+	rowSelection?: RowSelectionState;
+
+	/** Callback when row selection changes */
+	onRowSelectionChange?: OnChangeFn<RowSelectionState>;
+
+	/** Custom row ID accessor (defaults to row index) */
+	getRowId?: (original: TData, index: number) => string;
 }
 
 function PaginationBar({
@@ -156,6 +171,10 @@ export function DataTable<TData>({
 	getRowClassName,
 	className,
 	columnVisibilityKey,
+	enableRowSelection,
+	rowSelection,
+	onRowSelectionChange,
+	getRowId,
 }: DataTableProps<TData>) {
 	const [internalSorting, setInternalSorting] = useState<SortingState>([]);
 
@@ -196,6 +215,39 @@ export function DataTable<TData>({
 		[columnVisibilityKey],
 	);
 
+	const hasSelection = !!enableRowSelection;
+
+	// Prepend a checkbox column when row selection is enabled
+	const allColumns = useMemo(() => {
+		if (!hasSelection) {
+			return columns;
+		}
+		const selectCol: ColumnDef<TData, unknown> = {
+			id: "select",
+			header: ({ table: t }) => (
+				<Checkbox
+					checked={
+						t.getIsAllPageRowsSelected() ||
+						(t.getIsSomePageRowsSelected() && "indeterminate")
+					}
+					onCheckedChange={(v) => t.toggleAllPageRowsSelected(!!v)}
+					aria-label="Select all"
+				/>
+			),
+			cell: ({ row }) => (
+				<Checkbox
+					checked={row.getIsSelected()}
+					disabled={!row.getCanSelect()}
+					onCheckedChange={(v) => row.toggleSelected(!!v)}
+					aria-label="Select row"
+				/>
+			),
+			enableSorting: false,
+			meta: { className: "w-10 pr-0" },
+		};
+		return [selectCol, ...columns];
+	}, [columns, hasSelection]);
+
 	const isManual = !!pagination;
 	const isServerSorted = !!onSortingChange;
 	const enableSorting = !isManual || isServerSorted;
@@ -214,13 +266,26 @@ export function DataTable<TData>({
 
 	const table = useReactTable({
 		data,
-		columns,
+		columns: allColumns,
 		enableSorting,
 		manualSorting: isServerSorted,
-		state: {
-			sorting,
-			...(columnVisibilityKey ? { columnVisibility } : {}),
-		},
+		...(hasSelection
+			? {
+					enableRowSelection,
+					onRowSelectionChange,
+					state: {
+						sorting,
+						rowSelection: rowSelection ?? {},
+						...(columnVisibilityKey ? { columnVisibility } : {}),
+					},
+				}
+			: {
+					state: {
+						sorting,
+						...(columnVisibilityKey ? { columnVisibility } : {}),
+					},
+				}),
+		...(getRowId ? { getRowId } : {}),
 		...(columnVisibilityKey
 			? { onColumnVisibilityChange: handleVisibilityChange }
 			: {}),
@@ -345,7 +410,7 @@ export function DataTable<TData>({
 						{isLoading ? (
 							<TableRow>
 								<TableCell
-									colSpan={columns.length}
+									colSpan={allColumns.length}
 									className="h-24 text-center text-muted-foreground"
 								>
 									Loading...
@@ -379,7 +444,7 @@ export function DataTable<TData>({
 						) : (
 							<TableRow>
 								<TableCell
-									colSpan={columns.length}
+									colSpan={allColumns.length}
 									className="h-24 text-center text-muted-foreground"
 								>
 									No results.

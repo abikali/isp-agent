@@ -109,6 +109,19 @@ export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
 export { createIRadiusSyncWorker } from "./src/workers/iradius-sync.worker";
+export {
+	serializeValue,
+	valuesEqual,
+} from "./src/workers/iradius-sync-fields";
+// iRadius sync helpers (shared between worker and API)
+export {
+	buildCustomerDataFromRow,
+	buildEmployeeDataFromRow,
+	CUSTOMER_FROM_CLAUSE,
+	CUSTOMER_SELECT_COLUMNS,
+	EMPLOYEE_SELECT_COLUMNS,
+	type SyncLookupMaps,
+} from "./src/workers/iradius-sync-helpers";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";

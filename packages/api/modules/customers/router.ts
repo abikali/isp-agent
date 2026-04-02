@@ -22,6 +22,10 @@ import {
 	syncFromIRadius,
 	testIRadius,
 } from "./procedures/sync-iradius";
+import {
+	applyIRadiusEntitySync,
+	previewIRadiusEntitySync,
+} from "./procedures/sync-iradius-entities";
 import { updateCustomer } from "./procedures/update";
 
 export const customersRouter = {
@@ -46,4 +50,6 @@ export const customersRouter = {
 	resolveSyncConflict,
 	bulkResolveSyncConflicts,
 	getSyncConflictsSummary,
+	previewIRadiusEntitySync,
+	applyIRadiusEntitySync,
 };

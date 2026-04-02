@@ -52,8 +52,32 @@ export function normalizeLebanesePhone(raw: string): string {
 }
 
 /**
+ * Split a raw phone string into individual numbers.
+ * Handles comma-separated values and dash-separated values.
+ * Dashes are only treated as separators when they sit between two
+ * digit groups that are each long enough to be a phone number (≥ 7 digits).
+ */
+export function splitPhoneString(raw: string): string[] {
+	return raw
+		.split(",")
+		.flatMap((part) => {
+			const trimmed = part.trim();
+			const dashParts = trimmed.split("-").map((s) => s.trim());
+			if (
+				dashParts.length === 2 &&
+				(dashParts[0]?.replace(/\D/g, "").length ?? 0) >= 7 &&
+				(dashParts[1]?.replace(/\D/g, "").length ?? 0) >= 7
+			) {
+				return dashParts;
+			}
+			return [trimmed];
+		})
+		.filter(Boolean);
+}
+
+/**
  * Build a phones array from raw mobile/phone strings (for iRadius sync).
- * Handles comma-separated phone values and normalizes to +961 format.
+ * Handles comma-separated and dash-separated phone values and normalizes to +961 format.
  */
 export function buildPhonesFromSync(
 	mobile: string | null,
@@ -69,10 +93,7 @@ export function buildPhonesFromSync(
 	}
 
 	if (phone) {
-		const numbers = phone
-			.split(",")
-			.map((p) => p.trim())
-			.filter(Boolean);
+		const numbers = splitPhoneString(phone);
 		for (const num of numbers) {
 			const normalized = normalizeLebanesePhone(num);
 			if (!seen.has(normalized)) {

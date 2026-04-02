@@ -29,6 +29,7 @@ export {
 } from "./hooks/use-access-points";
 // Hooks
 export {
+	useApplyIRadiusEntitySync,
 	useBulkExport,
 	useBulkImport,
 	useCreateCustomer,
@@ -37,6 +38,7 @@ export {
 	useCustomers,
 	useDeleteCustomer,
 	useIRadiusSyncStatus,
+	usePreviewIRadiusEntitySync,
 	useSyncFromIRadius,
 	useTestIRadius,
 	useUpdateCustomer,

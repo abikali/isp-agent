@@ -1,11 +1,9 @@
 import {
 	buildPhonesFromSync,
-	type ConnectionType,
-	type CustomerStatus,
 	db,
-	type EmployeeDepartment,
 	normalizeLebanesePhone,
 	type Prisma,
+	splitPhoneString,
 } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
@@ -21,70 +19,16 @@ import {
 	valuesEqual,
 } from "./iradius-sync-fields";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function deriveStatus(
-	archived?: unknown,
-	active?: unknown,
-	blocked?: unknown,
-): CustomerStatus {
-	if (toBooleanFromBit(archived)) {
-		return "INACTIVE";
-	}
-	if (toBooleanFromBit(blocked)) {
-		return "SUSPENDED";
-	}
-	if (toBooleanFromBit(active)) {
-		return "ACTIVE";
-	}
-	return "PENDING";
-}
-
-function inferConnectionType(planName?: string | null): ConnectionType | null {
-	if (!planName) {
-		return "WIRELESS";
-	}
-	const lower = planName.toLowerCase();
-	if (lower.includes("fiber") || lower.includes("ftth")) {
-		return "FIBER";
-	}
-	if (lower.includes("dsl") || lower.includes("adsl")) {
-		return "DSL";
-	}
-	return "WIRELESS";
-}
-
-function safeDate(val: unknown): Date | null {
-	if (!val) {
-		return null;
-	}
-	if (val instanceof Date) {
-		return Number.isNaN(val.getTime()) ? null : val;
-	}
-	const d = new Date(val as string);
-	return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function toBigInt(val: unknown): bigint {
-	if (val == null) {
-		return BigInt(0);
-	}
-	try {
-		return BigInt(Math.floor(Number(val)));
-	} catch {
-		return BigInt(0);
-	}
-}
-
-function kbpsToMbps(kbps: unknown): number {
-	const n = Number(kbps);
-	if (!n || n <= 0) {
-		return 0;
-	}
-	return Math.round(n / 1000);
-}
+import {
+	deriveStatus,
+	inferConnectionType,
+	kbpsToMbps,
+	PROFILE_DEPARTMENT_MAP,
+	PROFILE_POSITION_MAP,
+	safeDate,
+	toBigInt,
+	toBooleanFromBit,
+} from "./iradius-sync-helpers";
 
 /**
  * Pre-fetch the current max sequential number for the org, then return
@@ -150,22 +94,6 @@ async function createEmployeeNumberGenerator(
 		},
 	});
 }
-
-const PROFILE_DEPARTMENT_MAP: Record<number, EmployeeDepartment> = {
-	1: "MANAGEMENT",
-	3: "MANAGEMENT",
-	6: "BILLING",
-	7: "CUSTOMER_SERVICE",
-	8: "MANAGEMENT",
-};
-
-const PROFILE_POSITION_MAP: Record<number, string> = {
-	1: "Administrator",
-	3: "Viewer",
-	6: "Collector",
-	7: "Help Desk",
-	8: "Read Only",
-};
 
 /** Map iRadius ProfileId to ISP role for auto-membership */
 const PROFILE_ROLE_MAP: Record<number, string> = {
@@ -257,20 +185,18 @@ async function ensureEmployeeMembership(
 			where: {
 				organizationId_role: { organizationId, role: roleKey },
 			},
-			update: {},
 			create: {
 				organizationId,
 				role: roleKey,
 				permission: JSON.stringify(permissions),
 			},
+			update: {},
 		});
 	}
 
-	// Create Member if not exists
-	const existingMember = await db.member.findUnique({
-		where: {
-			organizationId_userId: { organizationId, userId: targetUser.id },
-		},
+	// Ensure membership
+	const existingMember = await db.member.findFirst({
+		where: { organizationId, userId: targetUser.id },
 	});
 	if (!existingMember) {
 		await db.member.create({
@@ -283,18 +209,11 @@ async function ensureEmployeeMembership(
 		});
 	}
 
-	// Link Employee → User
+	// Link employee to user
 	await db.employee.update({
 		where: { id: employeeId },
 		data: { userId: targetUser.id },
 	});
-}
-
-function toBooleanFromBit(val: unknown): boolean {
-	if (Buffer.isBuffer(val)) {
-		return val[0] === 1;
-	}
-	return Boolean(val);
 }
 
 // ---------------------------------------------------------------------------
@@ -1611,13 +1530,12 @@ async function processIRadiusSync(
 					mobile: (u["Mobile"] as string)
 						? normalizeLebanesePhone(u["Mobile"] as string)
 						: null,
-					phone: ((u["Phone"] as string) || "").split(",")[0]?.trim()
-						? normalizeLebanesePhone(
-								((u["Phone"] as string) || "")
-									.split(",")[0]
-									?.trim() ?? "",
-							)
-						: null,
+					phone: (() => {
+						const first = splitPhoneString(
+							(u["Phone"] as string) || "",
+						)[0]?.trim();
+						return first ? normalizeLebanesePhone(first) : null;
+					})(),
 					phones: JSON.parse(
 						JSON.stringify(
 							buildPhonesFromSync(

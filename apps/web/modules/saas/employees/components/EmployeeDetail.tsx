@@ -9,6 +9,7 @@ import { MetricDisplay } from "@shared/components/MetricDisplay";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -60,6 +61,7 @@ import {
 	LogInIcon,
 	PackageIcon,
 	PlusIcon,
+	RefreshCwIcon,
 	UserIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -152,6 +154,7 @@ export function EmployeeDetail({
 	const inviteEmployee = useInviteEmployee();
 	const [showAssignStations, setShowAssignStations] = useState(false);
 	const [showInvite, setShowInvite] = useState(false);
+	const [showSyncPreview, setShowSyncPreview] = useState(false);
 	const [inviteRole, setInviteRole] = useState("collector");
 	const [inviteUsername, setInviteUsername] = useState("");
 
@@ -253,6 +256,16 @@ export function EmployeeDetail({
 			}
 			actions={
 				<div className="flex flex-wrap gap-2">
+					{employee.externalId && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowSyncPreview(true)}
+						>
+							<RefreshCwIcon className="mr-2 size-4" />
+							Sync from iRadius
+						</Button>
+					)}
 					{!employee.userId && (
 						<Button
 							type="button"
@@ -548,6 +561,12 @@ export function EmployeeDetail({
 					</div>
 				</DialogContent>
 			</Dialog>
+			<SyncPreviewDialog
+				open={showSyncPreview}
+				onOpenChange={setShowSyncPreview}
+				entityType="employee"
+				entityIds={[employeeId]}
+			/>
 		</PageShell>
 	);
 }

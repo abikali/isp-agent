@@ -4,14 +4,21 @@ import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
-import { PencilIcon, PlusIcon, UploadIcon, UsersIcon } from "lucide-react";
+import {
+	PencilIcon,
+	PlusIcon,
+	RefreshCwIcon,
+	UploadIcon,
+	UsersIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useCustomers } from "../hooks/use-customers";
 import { BulkExportButton } from "./BulkExportButton";
@@ -57,6 +64,7 @@ interface CustomerRow {
 	lastName: string | null;
 	email: string | null;
 	groupName: string | null;
+	externalId: string | null;
 	plan: { name: string } | null;
 	station: { name: string } | null;
 	collector: { id: string; name: string } | null;
@@ -84,6 +92,14 @@ export function CustomersList({
 	);
 	const [showCreate, setShowCreate] = useState(false);
 	const [showImport, setShowImport] = useState(false);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [showSyncPreview, setShowSyncPreview] = useState(false);
+
+	const selectedIds = useMemo(
+		() => Object.keys(rowSelection),
+		[rowSelection],
+	);
+	const selectedCount = selectedIds.length;
 
 	const filters = {
 		search: debouncedSearch || undefined,
@@ -338,6 +354,22 @@ export function CustomersList({
 				}}
 			/>
 
+			{selectedCount > 0 && (
+				<div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedCount} selected
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => setShowSyncPreview(true)}
+					>
+						<RefreshCwIcon className="mr-2 size-4" />
+						Sync from iRadius
+					</Button>
+				</div>
+			)}
+
 			<DataTable
 				columns={columns}
 				data={customers}
@@ -347,10 +379,17 @@ export function CustomersList({
 					totalItems: total,
 					currentPage: page,
 					itemsPerPage: PAGE_SIZE,
-					onPageChange: setPage,
+					onPageChange: (p) => {
+						setPage(p);
+						setRowSelection({});
+					},
 				}}
 				isLoading={isLoading}
 				isFetching={isFetching}
+				enableRowSelection={(row) => !!row.original.externalId}
+				rowSelection={rowSelection}
+				onRowSelectionChange={setRowSelection}
+				getRowId={(row) => row.id}
 				emptyState={
 					<EmptyState
 						icon={UsersIcon}
@@ -381,6 +420,13 @@ export function CustomersList({
 				onOpenChange={setShowCreate}
 			/>
 			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
+			<SyncPreviewDialog
+				open={showSyncPreview}
+				onOpenChange={setShowSyncPreview}
+				entityType="customer"
+				entityIds={selectedIds}
+				onSynced={() => setRowSelection({})}
+			/>
 		</PageShell>
 	);
 }

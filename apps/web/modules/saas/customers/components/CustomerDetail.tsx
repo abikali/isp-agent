@@ -6,6 +6,7 @@ import { MetricDisplay } from "@shared/components/MetricDisplay";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -58,6 +59,7 @@ import {
 	NavigationIcon,
 	NetworkIcon,
 	PlusIcon,
+	RefreshCwIcon,
 	ServerIcon,
 	UserIcon,
 	XIcon,
@@ -153,6 +155,7 @@ export function CustomerDetail({
 	const organizationId = useOrganizationId();
 	const updateCustomer = useUpdateCustomer();
 	const deleteCustomer = useDeleteCustomer();
+	const [showSyncPreview, setShowSyncPreview] = useState(false);
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
@@ -253,6 +256,16 @@ export function CustomerDetail({
 			}
 			actions={
 				<div className="flex gap-2">
+					{customer.externalId && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowSyncPreview(true)}
+						>
+							<RefreshCwIcon className="mr-2 size-4" />
+							Sync from iRadius
+						</Button>
+					)}
 					<AlertDialog>
 						<AlertDialogTrigger asChild>
 							<Button variant="outline" size="sm">
@@ -361,6 +374,12 @@ export function CustomerDetail({
 					]}
 				/>
 			</form>
+			<SyncPreviewDialog
+				open={showSyncPreview}
+				onOpenChange={setShowSyncPreview}
+				entityType="customer"
+				entityIds={[customerId]}
+			/>
 		</PageShell>
 	);
 }

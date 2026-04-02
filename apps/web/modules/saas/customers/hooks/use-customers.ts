@@ -332,3 +332,25 @@ export function useBulkResolveSyncConflicts() {
 		},
 	});
 }
+
+// ---------------------------------------------------------------------------
+// Per-Entity Sync Hooks
+// ---------------------------------------------------------------------------
+
+export function usePreviewIRadiusEntitySync() {
+	return useMutation({
+		...orpc.customers.previewIRadiusEntitySync.mutationOptions(),
+	});
+}
+
+export function useApplyIRadiusEntitySync() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.applyIRadiusEntitySync.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
