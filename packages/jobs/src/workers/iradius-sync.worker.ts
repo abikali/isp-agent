@@ -1527,9 +1527,12 @@ async function processIRadiusSync(
 					firstName: (u["FirstName"] as string) || null,
 					lastName: (u["LastName"] as string) || null,
 					email: (u["MailAddress"] as string) || null,
-					mobile: (u["Mobile"] as string)
-						? normalizeLebanesePhone(u["Mobile"] as string)
-						: null,
+					mobile: (() => {
+						const first = splitPhoneString(
+							(u["Mobile"] as string) || "",
+						)[0]?.trim();
+						return first ? normalizeLebanesePhone(first) : null;
+					})(),
 					phone: (() => {
 						const first = splitPhoneString(
 							(u["Phone"] as string) || "",

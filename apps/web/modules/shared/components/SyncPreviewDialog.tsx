@@ -79,33 +79,69 @@ const FIELD_LABELS: Record<string, string> = {
 	hireDate: "Hire Date",
 };
 
-/** Format a phones JSON array into a readable string */
-function formatPhones(json: string): string {
+/** Parse a phones JSON array into structured entries for display */
+function parsePhones(
+	json: string,
+): Array<{ number: string; primary: boolean }> | null {
 	try {
 		const phones = JSON.parse(json) as Array<{
 			number: string;
 			primary: boolean;
 		}>;
 		if (!Array.isArray(phones) || phones.length === 0) {
-			return "—";
+			return null;
 		}
-		return phones
-			.map((p) => (p.primary ? `${p.number} (primary)` : p.number))
-			.join(", ");
+		return phones;
 	} catch {
-		return json;
+		return null;
 	}
 }
 
+function PhonesDisplay({
+	value,
+	className,
+}: {
+	value: string | null;
+	className?: string;
+}) {
+	if (!value || value === "null") {
+		return <span className={className}>—</span>;
+	}
+	const phones = parsePhones(value);
+	if (!phones) {
+		// Raw string (old unsplit value) — just show it
+		const unwrapped =
+			value.startsWith('"') && value.endsWith('"')
+				? (JSON.parse(value) as string)
+				: value;
+		return <span className={className}>{unwrapped}</span>;
+	}
+	return (
+		<div className={className}>
+			{phones.map((p, i) => (
+				<div
+					key={`${p.number}-${i}`}
+					className="flex items-center gap-1"
+				>
+					<span>{p.number}</span>
+					{p.primary && (
+						<Badge
+							variant="outline"
+							className="text-[10px] px-1 py-0"
+						>
+							primary
+						</Badge>
+					)}
+				</div>
+			))}
+		</div>
+	);
+}
+
 /** Format a serialized value for display in the diff table */
-function formatValue(val: string | null, field?: string): string {
+function formatValue(val: string | null): string {
 	if (val == null || val === "null") {
 		return "—";
-	}
-
-	// Phone numbers array
-	if (field === "phones") {
-		return formatPhones(val);
 	}
 
 	// ISO dates → show date + time in local timezone
@@ -458,36 +494,53 @@ export function SyncPreviewDialog({
 																		] ??
 																			change.field}
 																	</TableCell>
-																	<TableCell className="text-xs text-muted-foreground max-w-[170px]">
-																		<span
-																			className="block truncate"
-																			title={
-																				change.local ??
-																				undefined
-																			}
-																		>
-																			{formatValue(
-																				change.local,
-																				change.field,
-																			)}
-																		</span>
+																	<TableCell className="text-xs text-muted-foreground max-w-[200px]">
+																		{change.field ===
+																		"phones" ? (
+																			<PhonesDisplay
+																				value={
+																					change.local
+																				}
+																			/>
+																		) : (
+																			<span
+																				className="block truncate"
+																				title={
+																					change.local ??
+																					undefined
+																				}
+																			>
+																				{formatValue(
+																					change.local,
+																				)}
+																			</span>
+																		)}
 																	</TableCell>
 																	<TableCell className="text-center">
 																		<ArrowRightIcon className="size-3 text-muted-foreground" />
 																	</TableCell>
-																	<TableCell className="text-xs font-medium text-primary max-w-[170px]">
-																		<span
-																			className="block truncate"
-																			title={
-																				change.remote ??
-																				undefined
-																			}
-																		>
-																			{formatValue(
-																				change.remote,
-																				change.field,
-																			)}
-																		</span>
+																	<TableCell className="text-xs font-medium text-primary max-w-[200px]">
+																		{change.field ===
+																		"phones" ? (
+																			<PhonesDisplay
+																				value={
+																					change.remote
+																				}
+																				className="text-primary"
+																			/>
+																		) : (
+																			<span
+																				className="block truncate"
+																				title={
+																					change.remote ??
+																					undefined
+																				}
+																			>
+																				{formatValue(
+																					change.remote,
+																				)}
+																			</span>
+																		)}
 																	</TableCell>
 																</TableRow>
 															);

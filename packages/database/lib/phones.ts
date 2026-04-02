@@ -87,9 +87,17 @@ export function buildPhonesFromSync(
 	const seen = new Set<string>();
 
 	if (mobile) {
-		const normalized = normalizeLebanesePhone(mobile);
-		phones.push({ number: normalized, primary: true });
-		seen.add(normalized);
+		const mobileNumbers = splitPhoneString(mobile);
+		for (const num of mobileNumbers) {
+			const normalized = normalizeLebanesePhone(num);
+			if (!seen.has(normalized)) {
+				phones.push({
+					number: normalized,
+					primary: phones.length === 0,
+				});
+				seen.add(normalized);
+			}
+		}
 	}
 
 	if (phone) {
