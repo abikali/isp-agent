@@ -1,5 +1,9 @@
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
+import {
+	executeAccountTypeChangeProcedure,
+	previewAccountTypeChangeProcedure,
+} from "./procedures/change-account-type";
 import { createCustomer } from "./procedures/create";
 import { deleteCustomer } from "./procedures/delete";
 import { generateCustomerPin } from "./procedures/generate-pin";
@@ -52,4 +56,6 @@ export const customersRouter = {
 	getSyncConflictsSummary,
 	previewIRadiusEntitySync,
 	applyIRadiusEntitySync,
+	previewAccountTypeChange: previewAccountTypeChangeProcedure,
+	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 };

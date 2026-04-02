@@ -53,6 +53,7 @@ export const listServicePlans = protectedProcedure
 				where,
 				select: {
 					id: true,
+					externalId: true,
 					name: true,
 					description: true,
 					downloadSpeed: true,

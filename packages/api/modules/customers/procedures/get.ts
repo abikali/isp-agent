@@ -39,6 +39,7 @@ export const getCustomer = protectedProcedure
 				plan: {
 					select: {
 						id: true,
+						externalId: true,
 						name: true,
 						downloadSpeed: true,
 						uploadSpeed: true,

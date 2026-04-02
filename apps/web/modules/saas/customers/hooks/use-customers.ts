@@ -169,6 +169,25 @@ export function useDeleteCustomer() {
 	});
 }
 
+export function usePreviewAccountTypeChange() {
+	return useMutation({
+		...orpc.customers.previewAccountTypeChange.mutationOptions(),
+	});
+}
+
+export function useExecuteAccountTypeChange() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.customers.executeAccountTypeChange.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 export function useBulkImport() {
 	const queryClient = useQueryClient();
 

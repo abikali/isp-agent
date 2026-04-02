@@ -69,7 +69,9 @@ import { toast } from "sonner";
 import { useEmployeesQuery } from "../../employees/hooks/use-employees";
 import {
 	useDeleteCustomer,
+	useExecuteAccountTypeChange,
 	useGenerateCustomerPin,
+	usePreviewAccountTypeChange,
 	useResetCustomerPin,
 	useSetCustomerPin,
 	useUpdateCustomer,
@@ -155,7 +157,13 @@ export function CustomerDetail({
 	const organizationId = useOrganizationId();
 	const updateCustomer = useUpdateCustomer();
 	const deleteCustomer = useDeleteCustomer();
+	const previewAccountType = usePreviewAccountTypeChange();
+	const executeAccountType = useExecuteAccountTypeChange();
 	const [showSyncPreview, setShowSyncPreview] = useState(false);
+	const [accountTypePreview, setAccountTypePreview] = useState<{
+		previewData: Awaited<ReturnType<typeof previewAccountType.mutateAsync>>;
+		newPlanId: string;
+	} | null>(null);
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
@@ -177,54 +185,106 @@ export function CustomerDetail({
 			if (!organizationId) {
 				return;
 			}
-			toast.promise(
-				updateCustomer.mutateAsync({
-					organizationId,
-					id: customerId,
-					firstName: value.firstName,
-					lastName: value.lastName || undefined,
-					email: value.email || undefined,
-					phones: value.phones.filter((p) => p.number.trim() !== ""),
-					address: value.address || undefined,
-					username: value.username || undefined,
-					planId: value.planId || null,
-					stationId: value.stationId || null,
-					status: value.status as
-						| "ACTIVE"
-						| "INACTIVE"
-						| "SUSPENDED"
-						| "PENDING",
-					connectionType: (value.connectionType || null) as
-						| "FIBER"
-						| "WIRELESS"
-						| "DSL"
-						| "CABLE"
-						| "ETHERNET"
-						| null,
-					ipAddress: value.ipAddress || undefined,
-					macAddress: value.macAddress || undefined,
-					monthlyRate: value.monthlyRate
-						? Number(value.monthlyRate)
-						: null,
-					billingDay: value.billingDay
-						? Number(value.billingDay)
-						: null,
-					balance: Number(value.balance),
-					groupName: value.groupName || null,
-					notes: value.notes || undefined,
-					collectorId: value.collectorId || null,
-				}),
-				{
-					loading: "Saving changes...",
-					success: "Customer updated successfully",
-					error: (err: { message?: string }) =>
-						err?.message ?? "Failed to save changes",
-				},
-			);
+
+			const planChanged = value.planId !== (customer.planId ?? "");
+			const newPlan = plans.find((p) => p.id === value.planId);
+			const shouldPreview =
+				planChanged && customer.externalId && newPlan?.externalId;
+
+			// Build the update payload (exclude planId if iRadius preview needed)
+			const updatePayload: Parameters<
+				typeof updateCustomer.mutateAsync
+			>[0] = {
+				organizationId,
+				id: customerId,
+				firstName: value.firstName,
+				lastName: value.lastName || undefined,
+				email: value.email || undefined,
+				phones: value.phones.filter((p) => p.number.trim() !== ""),
+				address: value.address || undefined,
+				username: value.username || undefined,
+				planId: shouldPreview ? undefined : value.planId || null,
+				stationId: value.stationId || null,
+				status: value.status as
+					| "ACTIVE"
+					| "INACTIVE"
+					| "SUSPENDED"
+					| "PENDING",
+				connectionType: (value.connectionType || null) as
+					| "FIBER"
+					| "WIRELESS"
+					| "DSL"
+					| "CABLE"
+					| "ETHERNET"
+					| null,
+				ipAddress: value.ipAddress || undefined,
+				macAddress: value.macAddress || undefined,
+				monthlyRate: value.monthlyRate
+					? Number(value.monthlyRate)
+					: null,
+				billingDay: value.billingDay ? Number(value.billingDay) : null,
+				balance: Number(value.balance),
+				groupName: value.groupName || null,
+				notes: value.notes || undefined,
+				collectorId: value.collectorId || null,
+			};
+
+			// Save non-plan fields
+			toast.promise(updateCustomer.mutateAsync(updatePayload), {
+				loading: "Saving changes...",
+				success: "Customer updated successfully",
+				error: (err: { message?: string }) =>
+					err?.message ?? "Failed to save changes",
+			});
+
+			// If plan change needs iRadius preview, fetch it and show dialog
+			if (shouldPreview) {
+				try {
+					const preview = await previewAccountType.mutateAsync({
+						organizationId,
+						customerId,
+						newPlanId: value.planId,
+					});
+					setAccountTypePreview({
+						previewData: preview,
+						newPlanId: value.planId,
+					});
+				} catch (err) {
+					toast.error(
+						`Failed to preview plan change: ${(err as Error).message}`,
+					);
+				}
+			}
 		},
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+
+	async function handleConfirmAccountTypeChange() {
+		if (!organizationId || !accountTypePreview) {
+			return;
+		}
+
+		toast.promise(
+			executeAccountType.mutateAsync({
+				organizationId,
+				customerId,
+				newPlanId: accountTypePreview.newPlanId,
+			}),
+			{
+				loading: "Changing plan in iRadius...",
+				success: "Plan changed successfully",
+				error: (err: { message?: string }) =>
+					err?.message ?? "Failed to change plan",
+			},
+		);
+		setAccountTypePreview(null);
+	}
+
+	function handleCancelAccountTypeChange() {
+		form.setFieldValue("planId", customer.planId ?? "");
+		setAccountTypePreview(null);
+	}
 
 	const statusType =
 		customer.status === "ACTIVE"
@@ -380,6 +440,153 @@ export function CustomerDetail({
 				entityType="customer"
 				entityIds={[customerId]}
 			/>
+			<Dialog
+				open={accountTypePreview !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						handleCancelAccountTypeChange();
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Confirm Plan Change</DialogTitle>
+						<DialogDescription>
+							Review the billing impact before changing the plan
+							in iRadius.
+						</DialogDescription>
+					</DialogHeader>
+
+					{accountTypePreview && (
+						<div className="space-y-4">
+							<div className="rounded-lg border p-3">
+								<p className="mb-1 text-sm font-medium text-muted-foreground">
+									Current Plan
+								</p>
+								<p className="font-medium">
+									{
+										accountTypePreview.previewData
+											.oldAccountType.name
+									}
+								</p>
+								<div className="mt-1 flex gap-4 text-sm text-muted-foreground">
+									<span>
+										Rate:{" "}
+										{formatCurrency(
+											accountTypePreview.previewData
+												.oldAccountType.rate,
+										)}
+									</span>
+									<span>
+										Price:{" "}
+										{formatCurrency(
+											accountTypePreview.previewData
+												.oldAccountType.sellingPrice,
+										)}
+									</span>
+								</div>
+							</div>
+
+							<div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+								<p className="mb-1 text-sm font-medium text-muted-foreground">
+									New Plan
+								</p>
+								<p className="font-medium">
+									{
+										accountTypePreview.previewData
+											.newAccountType.name
+									}
+								</p>
+								<div className="mt-1 flex gap-4 text-sm text-muted-foreground">
+									<span>
+										Rate:{" "}
+										{formatCurrency(
+											accountTypePreview.previewData
+												.newAccountType.rate,
+										)}
+									</span>
+									<span>
+										Price:{" "}
+										{formatCurrency(
+											accountTypePreview.previewData
+												.newAccountType.sellingPrice,
+										)}
+									</span>
+								</div>
+							</div>
+
+							<div className="rounded-lg border p-3">
+								<p className="mb-2 text-sm font-medium">
+									Billing Impact
+								</p>
+								<div className="grid grid-cols-2 gap-2 text-sm">
+									<span className="text-muted-foreground">
+										Refund / Charge:
+									</span>
+									<span
+										className={
+											accountTypePreview.previewData
+												.billing.refund < 0
+												? "text-destructive"
+												: "text-green-600"
+										}
+									>
+										{formatCurrency(
+											accountTypePreview.previewData
+												.billing.refund,
+										)}
+									</span>
+									<span className="text-muted-foreground">
+										Dealer Credit Before:
+									</span>
+									<span>
+										{formatCurrency(
+											accountTypePreview.previewData
+												.billing.dealerCreditBefore,
+										)}
+									</span>
+									<span className="text-muted-foreground">
+										Dealer Credit After:
+									</span>
+									<span>
+										{formatCurrency(
+											accountTypePreview.previewData
+												.billing.dealerCreditAfter,
+										)}
+									</span>
+									<span className="text-muted-foreground">
+										Quota Reset:
+									</span>
+									<span>
+										{accountTypePreview.previewData.billing
+											.quotaReset
+											? "Yes"
+											: "No"}
+									</span>
+								</div>
+							</div>
+						</div>
+					)}
+
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={handleCancelAccountTypeChange}
+							disabled={executeAccountType.isPending}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleConfirmAccountTypeChange}
+							disabled={executeAccountType.isPending}
+						>
+							{executeAccountType.isPending
+								? "Changing..."
+								: "Confirm Change"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</PageShell>
 	);
 }
