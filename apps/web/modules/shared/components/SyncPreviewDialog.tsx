@@ -7,6 +7,7 @@ import {
 import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Checkbox } from "@ui/components/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -30,7 +31,7 @@ import {
 	Loader2Icon,
 	RefreshCwIcon,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 /** Human-readable labels for sync diff fields */
@@ -79,18 +80,61 @@ const FIELD_LABELS: Record<string, string> = {
 	hireDate: "Hire Date",
 };
 
-function formatValue(val: string | null): string {
+/** Format a phones JSON array into a readable string */
+function formatPhones(json: string): string {
+	try {
+		const phones = JSON.parse(json) as Array<{
+			number: string;
+			primary: boolean;
+		}>;
+		if (!Array.isArray(phones) || phones.length === 0) {
+			return "—";
+		}
+		return phones
+			.map((p) => (p.primary ? `${p.number} (primary)` : p.number))
+			.join(", ");
+	} catch {
+		return json;
+	}
+}
+
+/** Format a serialized value for display in the diff table */
+function formatValue(val: string | null, field?: string): string {
 	if (val == null || val === "null") {
 		return "—";
 	}
-	// Try to format dates
+
+	// Phone numbers array
+	if (field === "phones") {
+		return formatPhones(val);
+	}
+
+	// ISO dates → show date + time in local timezone
 	if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
 		try {
-			return new Date(val).toLocaleDateString();
+			const d = new Date(val);
+			return d.toLocaleString("en-GB", {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				timeZoneName: "short",
+			});
 		} catch {
 			return val;
 		}
 	}
+
+	// JSON-quoted strings — unwrap the outer quotes
+	if (val.startsWith('"') && val.endsWith('"')) {
+		try {
+			return JSON.parse(val) as string;
+		} catch {
+			return val;
+		}
+	}
+
 	// Booleans
 	if (val === "true") {
 		return "Yes";
@@ -98,6 +142,7 @@ function formatValue(val: string | null): string {
 	if (val === "false") {
 		return "No";
 	}
+
 	// Large byte values: show as MB/GB
 	if (/^\d{8,}$/.test(val)) {
 		const bytes = Number(val);
@@ -108,6 +153,7 @@ function formatValue(val: string | null): string {
 			return `${(bytes / 1_048_576).toFixed(1)} MB`;
 		}
 	}
+
 	// Truncate long values
 	if (val.length > 80) {
 		return `${val.slice(0, 77)}...`;
@@ -123,6 +169,9 @@ interface SyncPreviewDialogProps {
 	onSynced?: () => void;
 }
 
+// Track selected fields per entity: entityId → Set of field names
+type FieldSelection = Record<string, Set<string>>;
+
 export function SyncPreviewDialog({
 	open,
 	onOpenChange,
@@ -133,11 +182,13 @@ export function SyncPreviewDialog({
 	const organizationId = useOrganizationId();
 	const preview = usePreviewIRadiusEntitySync();
 	const apply = useApplyIRadiusEntitySync();
+	const [fieldSelection, setFieldSelection] = useState<FieldSelection>({});
 
 	// Fetch preview when dialog opens
 	const { mutate: fetchPreview } = preview;
 	useEffect(() => {
 		if (open && organizationId && entityIds.length > 0) {
+			setFieldSelection({});
 			fetchPreview({
 				organizationId,
 				entityType,
@@ -146,15 +197,75 @@ export function SyncPreviewDialog({
 		}
 	}, [open, organizationId, entityType, entityIds, fetchPreview]);
 
+	// Initialize all fields as selected when preview data arrives
+	const previews = preview.data?.previews ?? [];
+	const previewsRef = preview.data?.previews;
+	useEffect(() => {
+		if (!previewsRef || previewsRef.length === 0) {
+			return;
+		}
+		const initial: FieldSelection = {};
+		for (const entity of previewsRef) {
+			if (entity.changes.length > 0) {
+				initial[entity.entityId] = new Set(
+					entity.changes.map((c) => c.field),
+				);
+			}
+		}
+		setFieldSelection(initial);
+	}, [previewsRef]);
+
+	function toggleField(entityId: string, field: string) {
+		setFieldSelection((prev) => {
+			const entityFields = new Set(prev[entityId] ?? []);
+			if (entityFields.has(field)) {
+				entityFields.delete(field);
+			} else {
+				entityFields.add(field);
+			}
+			return { ...prev, [entityId]: entityFields };
+		});
+	}
+
+	function toggleAllForEntity(entityId: string, allFields: string[]) {
+		setFieldSelection((prev) => {
+			const current = prev[entityId] ?? new Set();
+			const allSelected = allFields.every((f) => current.has(f));
+			return {
+				...prev,
+				[entityId]: allSelected
+					? new Set<string>()
+					: new Set(allFields),
+			};
+		});
+	}
+
 	function handleApply() {
 		if (!organizationId) {
 			return;
 		}
+
+		// Build entities payload with selected fields
+		const entities: Array<{ id: string; fields: string[] }> = [];
+		for (const entity of previews) {
+			const selected = fieldSelection[entity.entityId];
+			if (selected && selected.size > 0) {
+				entities.push({
+					id: entity.entityId,
+					fields: Array.from(selected),
+				});
+			}
+		}
+
+		if (entities.length === 0) {
+			return;
+		}
+
 		apply.mutate(
 			{
 				organizationId,
 				entityType,
-				entityIds,
+				entities,
 			},
 			{
 				onSuccess: (result) => {
@@ -177,10 +288,11 @@ export function SyncPreviewDialog({
 	}
 
 	const isLoading = preview.isPending;
-	const previews = preview.data?.previews ?? [];
 	const notLinked = preview.data?.notLinked ?? [];
-	const hasChanges = previews.some((p) => p.changes.length > 0);
-	const totalChanges = previews.reduce((sum, p) => sum + p.changes.length, 0);
+	const totalSelected = Object.values(fieldSelection).reduce(
+		(sum, fields) => sum + fields.size,
+		0,
+	);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,7 +304,7 @@ export function SyncPreviewDialog({
 						from iRadius
 					</DialogTitle>
 					<DialogDescription>
-						Review changes before applying. Only modified fields are
+						Select which fields to sync. Only modified fields are
 						shown.
 					</DialogDescription>
 				</DialogHeader>
@@ -222,87 +334,172 @@ export function SyncPreviewDialog({
 								</p>
 							)}
 
-							{previews.map((entity) => (
-								<div
-									key={entity.entityId}
-									className="rounded-lg border"
-								>
-									<div className="flex items-center gap-2 border-b px-3 py-2">
-										<span className="font-medium text-sm">
-											{entity.name}
-										</span>
-										<Badge
-											variant="outline"
-											className="text-xs"
-										>
-											iRadius #{entity.externalId}
-										</Badge>
-										{entity.changes.length === 0 && (
+							{previews.map((entity) => {
+								const selected =
+									fieldSelection[entity.entityId] ??
+									new Set<string>();
+								const allFields = entity.changes.map(
+									(c) => c.field,
+								);
+								const allSelected =
+									allFields.length > 0 &&
+									allFields.every((f) => selected.has(f));
+								const someSelected =
+									!allSelected &&
+									allFields.some((f) => selected.has(f));
+
+								return (
+									<div
+										key={entity.entityId}
+										className="rounded-lg border"
+									>
+										<div className="flex items-center gap-2 border-b px-3 py-2">
+											<span className="font-medium text-sm">
+												{entity.name}
+											</span>
 											<Badge
-												variant="secondary"
-												className="ml-auto text-xs"
+												variant="outline"
+												className="text-xs"
 											>
-												<CheckCircle2Icon className="mr-1 size-3" />
-												Up to date
+												iRadius #{entity.externalId}
 											</Badge>
-										)}
+											{entity.changes.length === 0 && (
+												<Badge
+													variant="secondary"
+													className="ml-auto text-xs"
+												>
+													<CheckCircle2Icon className="mr-1 size-3" />
+													Up to date
+												</Badge>
+											)}
+											{entity.changes.length > 0 && (
+												<Badge
+													variant={
+														selected.size > 0
+															? "default"
+															: "secondary"
+													}
+													className="ml-auto text-xs"
+												>
+													{selected.size}/
+													{entity.changes.length}{" "}
+													selected
+												</Badge>
+											)}
+										</div>
+
 										{entity.changes.length > 0 && (
-											<Badge className="ml-auto text-xs">
-												{entity.changes.length} change
-												{entity.changes.length !== 1
-													? "s"
-													: ""}
-											</Badge>
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead className="w-10 pr-0">
+															<Checkbox
+																checked={
+																	allSelected ||
+																	(someSelected &&
+																		"indeterminate")
+																}
+																onCheckedChange={() =>
+																	toggleAllForEntity(
+																		entity.entityId,
+																		allFields,
+																	)
+																}
+																aria-label="Select all fields"
+															/>
+														</TableHead>
+														<TableHead className="w-[130px]">
+															Field
+														</TableHead>
+														<TableHead>
+															Local
+														</TableHead>
+														<TableHead className="w-8" />
+														<TableHead>
+															iRadius
+														</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{entity.changes.map(
+														(change) => {
+															const isChecked =
+																selected.has(
+																	change.field,
+																);
+															return (
+																<TableRow
+																	key={
+																		change.field
+																	}
+																	className={
+																		isChecked
+																			? ""
+																			: "opacity-40"
+																	}
+																>
+																	<TableCell className="pr-0">
+																		<Checkbox
+																			checked={
+																				isChecked
+																			}
+																			onCheckedChange={() =>
+																				toggleField(
+																					entity.entityId,
+																					change.field,
+																				)
+																			}
+																			aria-label={`Select ${change.field}`}
+																		/>
+																	</TableCell>
+																	<TableCell className="text-xs font-medium">
+																		{FIELD_LABELS[
+																			change
+																				.field
+																		] ??
+																			change.field}
+																	</TableCell>
+																	<TableCell className="text-xs text-muted-foreground max-w-[170px]">
+																		<span
+																			className="block truncate"
+																			title={
+																				change.local ??
+																				undefined
+																			}
+																		>
+																			{formatValue(
+																				change.local,
+																				change.field,
+																			)}
+																		</span>
+																	</TableCell>
+																	<TableCell className="text-center">
+																		<ArrowRightIcon className="size-3 text-muted-foreground" />
+																	</TableCell>
+																	<TableCell className="text-xs font-medium text-primary max-w-[170px]">
+																		<span
+																			className="block truncate"
+																			title={
+																				change.remote ??
+																				undefined
+																			}
+																		>
+																			{formatValue(
+																				change.remote,
+																				change.field,
+																			)}
+																		</span>
+																	</TableCell>
+																</TableRow>
+															);
+														},
+													)}
+												</TableBody>
+											</Table>
 										)}
 									</div>
-
-									{entity.changes.length > 0 && (
-										<Table>
-											<TableHeader>
-												<TableRow>
-													<TableHead className="w-[140px]">
-														Field
-													</TableHead>
-													<TableHead>Local</TableHead>
-													<TableHead className="w-8" />
-													<TableHead>
-														iRadius
-													</TableHead>
-												</TableRow>
-											</TableHeader>
-											<TableBody>
-												{entity.changes.map(
-													(change) => (
-														<TableRow
-															key={change.field}
-														>
-															<TableCell className="text-xs font-medium">
-																{FIELD_LABELS[
-																	change.field
-																] ??
-																	change.field}
-															</TableCell>
-															<TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">
-																{formatValue(
-																	change.local,
-																)}
-															</TableCell>
-															<TableCell className="text-center">
-																<ArrowRightIcon className="size-3 text-muted-foreground" />
-															</TableCell>
-															<TableCell className="text-xs font-medium text-primary max-w-[180px] truncate">
-																{formatValue(
-																	change.remote,
-																)}
-															</TableCell>
-														</TableRow>
-													),
-												)}
-											</TableBody>
-										</Table>
-									)}
-								</div>
-							))}
+								);
+							})}
 
 							{previews.length === 0 &&
 								notLinked.length === 0 && (
@@ -326,7 +523,7 @@ export function SyncPreviewDialog({
 						onClick={handleApply}
 						disabled={
 							isLoading ||
-							!hasChanges ||
+							totalSelected === 0 ||
 							apply.isPending ||
 							preview.isError
 						}
@@ -339,8 +536,8 @@ export function SyncPreviewDialog({
 						) : (
 							<>
 								<RefreshCwIcon className="mr-2 size-4" />
-								Apply {totalChanges} change
-								{totalChanges !== 1 ? "s" : ""}
+								Apply {totalSelected} field
+								{totalSelected !== 1 ? "s" : ""}
 							</>
 						)}
 					</Button>

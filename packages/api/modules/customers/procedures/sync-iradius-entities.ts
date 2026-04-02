@@ -202,6 +202,21 @@ const entitySyncInput = z.object({
 	entityIds: z.array(z.string()).min(1).max(50),
 });
 
+const entitySyncApplyInput = z.object({
+	organizationId: z.string(),
+	entityType: z.enum(["customer", "employee"]),
+	/** Map of entity ID → list of field names to sync. If omitted, syncs all fields. */
+	entities: z
+		.array(
+			z.object({
+				id: z.string(),
+				fields: z.array(z.string()).min(1),
+			}),
+		)
+		.min(1)
+		.max(50),
+});
+
 // ---------------------------------------------------------------------------
 // Preview: read-only diff
 // ---------------------------------------------------------------------------
@@ -326,9 +341,9 @@ export const applyIRadiusEntitySync = protectedProcedure
 		method: "POST",
 		path: "/customers/iradius/entity-sync/apply",
 		tags: ["Customers"],
-		summary: "Apply iRadius sync for specific entities",
+		summary: "Apply iRadius sync for specific entities and fields",
 	})
-	.input(entitySyncInput)
+	.input(entitySyncApplyInput)
 	.handler(async ({ context: { user }, input }) => {
 		await requirePermission(
 			input.organizationId,
@@ -337,10 +352,14 @@ export const applyIRadiusEntitySync = protectedProcedure
 			"sync",
 		);
 
-		const { entityType } = input;
+		const { entityType, entities: entitySelections } = input;
+		const entityIds = entitySelections.map((e) => e.id);
+		const fieldsByEntityId = new Map(
+			entitySelections.map((e) => [e.id, new Set(e.fields)]),
+		);
 
 		const { result } = await withEntitySyncContext(
-			input,
+			{ ...input, entityIds },
 			async ({ linked, maps, rowByExtId }) => {
 				if (linked.length === 0) {
 					return { synced: 0, errors: [] as string[] };
@@ -355,30 +374,37 @@ export const applyIRadiusEntitySync = protectedProcedure
 						continue;
 					}
 
+					const selectedFields = fieldsByEntityId.get(entity.id);
+					if (!selectedFields || selectedFields.size === 0) {
+						continue;
+					}
+
 					try {
+						const fullData =
+							entityType === "customer"
+								? buildCustomerDataFromRow(row, maps)
+								: buildEmployeeDataFromRow(row, maps);
+
+						const data: Record<string, unknown> = {
+							lastSyncedAt: new Date(),
+						};
+						for (const field of selectedFields) {
+							if (field in fullData) {
+								data[field] = (
+									fullData as Record<string, unknown>
+								)[field];
+							}
+						}
+
 						if (entityType === "customer") {
-							const remoteData = buildCustomerDataFromRow(
-								row,
-								maps,
-							);
 							await db.customer.update({
 								where: { id: entity.id },
-								data: {
-									...remoteData,
-									lastSyncedAt: new Date(),
-								},
+								data,
 							});
 						} else {
-							const remoteData = buildEmployeeDataFromRow(
-								row,
-								maps,
-							);
 							await db.employee.update({
 								where: { id: entity.id },
-								data: {
-									...remoteData,
-									lastSyncedAt: new Date(),
-								},
+								data,
 							});
 						}
 						synced++;
