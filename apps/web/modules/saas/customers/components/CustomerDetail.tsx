@@ -163,6 +163,7 @@ export function CustomerDetail({
 	const [accountTypePreview, setAccountTypePreview] = useState<{
 		previewData: Awaited<ReturnType<typeof previewAccountType.mutateAsync>>;
 		newPlanId: string;
+		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
 	} | null>(null);
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
@@ -191,53 +192,7 @@ export function CustomerDetail({
 			const shouldPreview =
 				planChanged && customer.externalId && newPlan?.externalId;
 
-			// Build the update payload (exclude planId if iRadius preview needed)
-			const updatePayload: Parameters<
-				typeof updateCustomer.mutateAsync
-			>[0] = {
-				organizationId,
-				id: customerId,
-				firstName: value.firstName,
-				lastName: value.lastName || undefined,
-				email: value.email || undefined,
-				phones: value.phones.filter((p) => p.number.trim() !== ""),
-				address: value.address || undefined,
-				username: value.username || undefined,
-				planId: shouldPreview ? undefined : value.planId || null,
-				stationId: value.stationId || null,
-				status: value.status as
-					| "ACTIVE"
-					| "INACTIVE"
-					| "SUSPENDED"
-					| "PENDING",
-				connectionType: (value.connectionType || null) as
-					| "FIBER"
-					| "WIRELESS"
-					| "DSL"
-					| "CABLE"
-					| "ETHERNET"
-					| null,
-				ipAddress: value.ipAddress || undefined,
-				macAddress: value.macAddress || undefined,
-				monthlyRate: value.monthlyRate
-					? Number(value.monthlyRate)
-					: null,
-				billingDay: value.billingDay ? Number(value.billingDay) : null,
-				balance: Number(value.balance),
-				groupName: value.groupName || null,
-				notes: value.notes || undefined,
-				collectorId: value.collectorId || null,
-			};
-
-			// Save non-plan fields
-			toast.promise(updateCustomer.mutateAsync(updatePayload), {
-				loading: "Saving changes...",
-				success: "Customer updated successfully",
-				error: (err: { message?: string }) =>
-					err?.message ?? "Failed to save changes",
-			});
-
-			// If plan change needs iRadius preview, fetch it and show dialog
+			// If plan change needs iRadius preview, defer ALL saves until confirmed
 			if (shouldPreview) {
 				try {
 					const preview = await previewAccountType.mutateAsync({
@@ -248,13 +203,61 @@ export function CustomerDetail({
 					setAccountTypePreview({
 						previewData: preview,
 						newPlanId: value.planId,
+						pendingFormValues: { ...value },
 					});
 				} catch (err) {
 					toast.error(
 						`Failed to preview plan change: ${(err as Error).message}`,
 					);
 				}
+				return;
 			}
+
+			// Normal save (no iRadius interaction needed)
+			toast.promise(
+				updateCustomer.mutateAsync({
+					organizationId,
+					id: customerId,
+					firstName: value.firstName,
+					lastName: value.lastName || undefined,
+					email: value.email || undefined,
+					phones: value.phones.filter((p) => p.number.trim() !== ""),
+					address: value.address || undefined,
+					username: value.username || undefined,
+					planId: value.planId || null,
+					stationId: value.stationId || null,
+					status: value.status as
+						| "ACTIVE"
+						| "INACTIVE"
+						| "SUSPENDED"
+						| "PENDING",
+					connectionType: (value.connectionType || null) as
+						| "FIBER"
+						| "WIRELESS"
+						| "DSL"
+						| "CABLE"
+						| "ETHERNET"
+						| null,
+					ipAddress: value.ipAddress || undefined,
+					macAddress: value.macAddress || undefined,
+					monthlyRate: value.monthlyRate
+						? Number(value.monthlyRate)
+						: null,
+					billingDay: value.billingDay
+						? Number(value.billingDay)
+						: null,
+					balance: Number(value.balance),
+					groupName: value.groupName || null,
+					notes: value.notes || undefined,
+					collectorId: value.collectorId || null,
+				}),
+				{
+					loading: "Saving changes...",
+					success: "Customer updated successfully",
+					error: (err: { message?: string }) =>
+						err?.message ?? "Failed to save changes",
+				},
+			);
 		},
 	});
 
@@ -265,19 +268,60 @@ export function CustomerDetail({
 			return;
 		}
 
-		toast.promise(
+		const { pendingFormValues, newPlanId } = accountTypePreview;
+
+		// Save all form fields (excluding planId — that's handled by the execute procedure)
+		const savePromise = Promise.all([
+			updateCustomer.mutateAsync({
+				organizationId,
+				id: customerId,
+				firstName: pendingFormValues.firstName,
+				lastName: pendingFormValues.lastName || undefined,
+				email: pendingFormValues.email || undefined,
+				phones: pendingFormValues.phones.filter(
+					(p) => p.number.trim() !== "",
+				),
+				address: pendingFormValues.address || undefined,
+				username: pendingFormValues.username || undefined,
+				stationId: pendingFormValues.stationId || null,
+				status: pendingFormValues.status as
+					| "ACTIVE"
+					| "INACTIVE"
+					| "SUSPENDED"
+					| "PENDING",
+				connectionType: (pendingFormValues.connectionType || null) as
+					| "FIBER"
+					| "WIRELESS"
+					| "DSL"
+					| "CABLE"
+					| "ETHERNET"
+					| null,
+				ipAddress: pendingFormValues.ipAddress || undefined,
+				macAddress: pendingFormValues.macAddress || undefined,
+				monthlyRate: pendingFormValues.monthlyRate
+					? Number(pendingFormValues.monthlyRate)
+					: null,
+				billingDay: pendingFormValues.billingDay
+					? Number(pendingFormValues.billingDay)
+					: null,
+				balance: Number(pendingFormValues.balance),
+				groupName: pendingFormValues.groupName || null,
+				notes: pendingFormValues.notes || undefined,
+				collectorId: pendingFormValues.collectorId || null,
+			}),
 			executeAccountType.mutateAsync({
 				organizationId,
 				customerId,
-				newPlanId: accountTypePreview.newPlanId,
+				newPlanId,
 			}),
-			{
-				loading: "Changing plan in iRadius...",
-				success: "Plan changed successfully",
-				error: (err: { message?: string }) =>
-					err?.message ?? "Failed to change plan",
-			},
-		);
+		]);
+
+		toast.promise(savePromise, {
+			loading: "Saving changes and updating plan in iRadius...",
+			success: "All changes saved successfully",
+			error: (err: { message?: string }) =>
+				err?.message ?? "Failed to save changes",
+		});
 		setAccountTypePreview(null);
 	}
 
