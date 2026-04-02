@@ -16,7 +16,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { ScrollArea } from "@ui/components/scroll-area";
 import {
 	Table,
 	TableBody,
@@ -309,7 +308,7 @@ export function SyncPreviewDialog({
 					</DialogDescription>
 				</DialogHeader>
 
-				<ScrollArea className="max-h-[60vh]">
+				<div className="min-h-0 overflow-y-auto">
 					{isLoading ? (
 						<div className="flex items-center justify-center py-12">
 							<Loader2Icon className="size-6 animate-spin text-muted-foreground" />
@@ -509,7 +508,7 @@ export function SyncPreviewDialog({
 								)}
 						</div>
 					)}
-				</ScrollArea>
+				</div>
 
 				<DialogFooter>
 					<Button
