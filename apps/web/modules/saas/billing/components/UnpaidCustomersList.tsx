@@ -276,12 +276,14 @@ function useUnpaidColumns({
 			{
 				id: "expiry",
 				header: "Expiry",
-				accessorFn: (row) => row.expiresAt,
+				accessorFn: (row) => row.billingExpiresAt,
 				enableSorting: true,
 				cell: ({ row }) => {
 					const customer = row.original;
 					return (
-						<ExpiryBadge expiresAt={customer.expiresAt ?? null} />
+						<ExpiryBadge
+							expiresAt={customer.billingExpiresAt ?? null}
+						/>
 					);
 				},
 			},
@@ -429,11 +431,11 @@ function useUnpaidColumns({
 const SORT_BY_MAP = {
 	customer: "firstName",
 	area: "groupName",
-	expiry: "expiresAt",
+	expiry: "billingExpiresAt",
 	amountDue: "monthlyRate",
 } as const satisfies Record<
 	string,
-	"expiresAt" | "firstName" | "groupName" | "monthlyRate"
+	"billingExpiresAt" | "firstName" | "groupName" | "monthlyRate"
 >;
 
 export function UnpaidCustomersList() {

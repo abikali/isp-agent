@@ -35,12 +35,12 @@ export const listUnpaidCustomers = protectedProcedure
 				expiryTo: z.string().optional(),
 				sortBy: z
 					.enum([
-						"expiresAt",
+						"billingExpiresAt",
 						"firstName",
 						"groupName",
 						"monthlyRate",
 					])
-					.default("expiresAt"),
+					.default("billingExpiresAt"),
 				sortOrder: z.enum(["asc", "desc"]).default("asc"),
 			})
 			.merge(monthSpecSchema)
@@ -65,9 +65,9 @@ export const listUnpaidCustomers = protectedProcedure
 			organizationId: input.organizationId,
 			status: "ACTIVE",
 			...EXCLUDE_FREE_GROUP,
-			// Customers whose expiry falls within or before this billing month
+			// Customers whose billing expiry falls within or before this billing month
 			// (includes past-due customers from prior months)
-			expiresAt: { lte: monthRange.lte },
+			billingExpiresAt: { lte: monthRange.lte },
 			...getDealerScopeFilter(activeDealerId),
 		};
 
@@ -97,19 +97,19 @@ export const listUnpaidCustomers = protectedProcedure
 			];
 		}
 		if (input.expiryFrom || input.expiryTo) {
-			const expiresAt: Record<string, unknown> = {};
+			const billingExpiresAt: Record<string, unknown> = {};
 			if (input.expiryFrom) {
-				expiresAt["gte"] = new Date(input.expiryFrom);
+				billingExpiresAt["gte"] = new Date(input.expiryFrom);
 			}
 			if (input.expiryTo) {
 				const to = new Date(input.expiryTo);
 				to.setHours(23, 59, 59, 999);
-				expiresAt["lte"] = to;
+				billingExpiresAt["lte"] = to;
 			}
-			where["expiresAt"] = expiresAt;
+			where["billingExpiresAt"] = billingExpiresAt;
 		}
 
-		const [customers, total, aggregates] = await Promise.all([
+		const [customers, total, aggregates, expiredCount] = await Promise.all([
 			db.customer.findMany({
 				where,
 				select: {
@@ -123,7 +123,7 @@ export const listUnpaidCustomers = protectedProcedure
 					phones: true,
 					address: true,
 					groupName: true,
-					expiresAt: true,
+					billingExpiresAt: true,
 					monthlyRate: true,
 					discount: true,
 					iptvPrice: true,
@@ -151,15 +151,10 @@ export const listUnpaidCustomers = protectedProcedure
 					discount: true,
 				},
 			}),
+			db.customer.count({
+				where: { ...where, billingExpiresAt: { lt: new Date() } },
+			}),
 		]);
-
-		// Count expired customers matching the same filters
-		const expiredCount = await db.customer.count({
-			where: {
-				...where,
-				expiresAt: { lt: new Date() },
-			},
-		});
 
 		// Same formula as customerMonthlyDue() but applied to aggregate sums.
 		// Mathematically equivalent: sum(a+b+c-d) = sum(a)+sum(b)+sum(c)-sum(d)
@@ -211,8 +206,8 @@ export const listUnpaidCustomers = protectedProcedure
 			}
 
 			enrichedCustomers = customers.map((customer) => {
-				const exp = customer.expiresAt
-					? new Date(customer.expiresAt)
+				const exp = customer.billingExpiresAt
+					? new Date(customer.billingExpiresAt)
 					: null;
 				const monthlyDue = customerMonthlyDue(customer);
 

@@ -109,7 +109,7 @@ export async function fetchCollectorBalanceBatch(
  *
  * A customer is "due" if:
  *   - They are ACTIVE and not in the free group, AND
- *   - Their expiresAt falls within the month range, OR
+ *   - Their billingExpiresAt falls within the month range, OR
  *   - They already have a COLLECTED payment for this month
  *     (meaning they were due and already paid — their expiry moved forward).
  */
@@ -129,10 +129,10 @@ export function customersDueThisMonthWhere(
 		AND: [
 			{
 				OR: [
-					// Unpaid customers due this month (active, expiry in range, no payment)
+					// Unpaid customers due this month (active, billing expiry in range, no payment)
 					{
 						status: "ACTIVE",
-						expiresAt: monthRange,
+						billingExpiresAt: monthRange,
 						payments: { none: { billingMonthId } },
 					},
 					// Customers who actually paid real money (any status — covers
@@ -165,7 +165,7 @@ export function customersDueThisMonthWhere(
 /**
  * Build a Prisma `where` clause for "unpaid customers this billing month".
  *
- * Uses `expiresAt: { lte: monthRange.lte }` (NOT `monthRange`) so that
+ * Uses `billingExpiresAt: { lte: monthRange.lte }` (NOT `monthRange`) so that
  * customers who were due in PREVIOUS months and are still unpaid (past-due)
  * are included. This is the canonical definition used everywhere.
  */
@@ -182,7 +182,7 @@ export function unpaidCustomersWhere(
 		organizationId,
 		status: "ACTIVE",
 		...EXCLUDE_FREE_GROUP,
-		expiresAt: { lte: monthRange.lte },
+		billingExpiresAt: { lte: monthRange.lte },
 		payments: {
 			none: {
 				billingMonthId,

@@ -1012,6 +1012,7 @@ model Customer {
   // Subscription lifecycle
   activatedAt       DateTime?
   expiresAt         DateTime?
+  billingExpiresAt  DateTime?       // Frozen expiry for billing; only updates on month lock
   // Network details
   staticIp          String?
   nasHost           String?
@@ -1129,6 +1130,7 @@ model Customer {
   @@index([nasId])
   @@index([status])
   @@index([organizationId, lastName, firstName])
+  @@index([organizationId, billingExpiresAt])
   @@map("customer")
 }
 

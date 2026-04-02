@@ -39,18 +39,33 @@ export const toggleMonthLock = protectedProcedure
 			});
 		}
 
-		const updated = await db.billingMonth.update({
-			where: { id: input.billingMonthId },
-			data: { locked: input.locked },
-		});
+		if (!input.locked) {
+			const updated = await db.billingMonth.update({
+				where: { id: input.billingMonthId },
+				data: { locked: false },
+			});
+			return { month: updated, nextMonth: null };
+		}
 
-		// When locking, auto-create the next month (unlocked) so it becomes the new active month
-		let nextMonth = null;
-		if (input.locked) {
-			const nextYear = month.month === 12 ? month.year + 1 : month.year;
-			const nextMonthNum = month.month === 12 ? 1 : month.month + 1;
+		// When locking, atomically: lock the month, snapshot expiresAt →
+		// billingExpiresAt for all org customers, and create the next month.
+		// This freezes the billing expiry so mid-cycle iRadius mass-renewals
+		// don't interfere with collection.
+		const nextYear = month.month === 12 ? month.year + 1 : month.year;
+		const nextMonthNum = month.month === 12 ? 1 : month.month + 1;
 
-			nextMonth = await db.billingMonth.upsert({
+		const [updated, , nextMonth] = await db.$transaction([
+			db.billingMonth.update({
+				where: { id: input.billingMonthId },
+				data: { locked: true },
+			}),
+			db.$executeRaw`
+				UPDATE "customer"
+				SET "billingExpiresAt" = "expiresAt"
+				WHERE "organizationId" = ${input.organizationId}
+				  AND "expiresAt" IS NOT NULL
+			`,
+			db.billingMonth.upsert({
 				where: {
 					organizationId_year_month: {
 						organizationId: input.organizationId,
@@ -65,8 +80,8 @@ export const toggleMonthLock = protectedProcedure
 					month: nextMonthNum,
 					locked: false,
 				},
-			});
-		}
+			}),
+		]);
 
 		return { month: updated, nextMonth };
 	});

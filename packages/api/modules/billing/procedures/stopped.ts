@@ -90,7 +90,7 @@ export const listStoppedAccounts = protectedProcedure
 							mobile: true,
 							phone: true,
 							groupName: true,
-							expiresAt: true,
+							billingExpiresAt: true,
 							status: true,
 							plan: { select: { id: true, name: true } },
 							collector: { select: { id: true, name: true } },
@@ -157,6 +157,10 @@ export const reactivateAccount = protectedProcedure
 			});
 		}
 
+		const newExpiry = input.customExpiry
+			? new Date(input.customExpiry)
+			: null;
+
 		await db.$transaction(async (tx) => {
 			// Delete the stopped payment so the customer appears as unpaid
 			// in the collector portal and can be collected normally.
@@ -169,8 +173,11 @@ export const reactivateAccount = protectedProcedure
 				where: { id: payment.customerId },
 				data: {
 					status: "ACTIVE",
-					...(input.customExpiry
-						? { expiresAt: new Date(input.customExpiry) }
+					...(newExpiry
+						? {
+								expiresAt: newExpiry,
+								billingExpiresAt: newExpiry,
+							}
 						: {}),
 				},
 			});

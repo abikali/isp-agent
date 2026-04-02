@@ -209,7 +209,7 @@ export function useUnpaidCustomers(filters: {
 	page?: number;
 	pageSize?: number;
 	refetchInterval?: number;
-	sortBy?: "expiresAt" | "firstName" | "groupName" | "monthlyRate";
+	sortBy?: "billingExpiresAt" | "firstName" | "groupName" | "monthlyRate";
 	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();

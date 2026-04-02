@@ -153,7 +153,7 @@ export const getPaymentStats = protectedProcedure
 						...dealerViaCustomer,
 					})
 				: Promise.resolve(0),
-			// Unpaid customers: includes past-due (expiresAt <= month end, no payment)
+			// Unpaid customers: includes past-due (billingExpiresAt <= month end, no payment)
 			monthId
 				? db.customer.count({
 						where: unpaidCustomersWhere(
