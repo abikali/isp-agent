@@ -34,7 +34,12 @@ export const reviewPayment = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeViaCustomer(activeDealerId),
 			},
-			select: { id: true, reviewedAt: true },
+			select: {
+				id: true,
+				reviewedAt: true,
+				stoppedAccount: true,
+				customerId: true,
+			},
 		});
 
 		if (!payment) {
@@ -43,9 +48,19 @@ export const reviewPayment = protectedProcedure
 			});
 		}
 
-		await db.payment.update({
-			where: { id: input.paymentId },
-			data: { reviewedAt: new Date() },
+		await db.$transaction(async (tx) => {
+			await tx.payment.update({
+				where: { id: input.paymentId },
+				data: { reviewedAt: new Date() },
+			});
+
+			// Deactivate the customer when approving a stopped payment
+			if (payment.stoppedAccount) {
+				await tx.customer.update({
+					where: { id: payment.customerId },
+					data: { status: "INACTIVE" },
+				});
+			}
 		});
 
 		return { success: true };

@@ -1789,6 +1789,7 @@ async function processIRadiusSync(
 								accountNumber,
 								lastSyncedAt: syncTimestamp,
 								...customerData,
+								billingExpiresAt: customerData.expiresAt,
 							},
 						});
 						customerByExtId.set(extId, created.id);

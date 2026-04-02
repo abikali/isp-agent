@@ -810,7 +810,9 @@ export function PaymentsList() {
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent>
-										Mark as reviewed
+										{payment.stoppedAccount
+											? "Approve & Deactivate"
+											: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
 							)}

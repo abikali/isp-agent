@@ -486,7 +486,10 @@ export function useReviewPayment() {
 		...orpc.billing.payments.review.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.payments.key(),
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
 			});
 		},
 	});

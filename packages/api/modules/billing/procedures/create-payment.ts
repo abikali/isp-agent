@@ -225,14 +225,6 @@ export const createPayment = protectedProcedure
 				});
 			}
 
-			// If stopped, deactivate the customer
-			if (input.stoppedAccount) {
-				await tx.customer.update({
-					where: { id: input.customerId },
-					data: { status: "INACTIVE" },
-				});
-			}
-
 			return newPayment;
 		});
 
@@ -291,9 +283,9 @@ export const createPayment = protectedProcedure
 			sendOrganizationNotification(input.organizationId, {
 				category: "monitoring",
 				type: "warning",
-				title: "Account Stop Requested",
-				message: `${customerName} requested to stop their subscription`,
-				link: `/app/${orgSlug}/billing/stopped`,
+				title: "Stopped Payment Needs Review",
+				message: `${customerName} marked as stopped — review required before deactivation`,
+				link: `/app/${orgSlug}/billing/payments`,
 			}).catch((err) =>
 				logger.warn("[Stopped Account] Failed to send notification", {
 					error: String(err),
@@ -303,14 +295,14 @@ export const createPayment = protectedProcedure
 			// Fire-and-forget task creation
 			const taskDescription =
 				input.paidAmount > 0
-					? `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop their subscription. Please disable their account on iRadius.`
-					: `Customer "${customerName}" (${customer.username}) requested to stop their subscription without payment. Please disable their account on iRadius.`;
+					? `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop. Review and approve in Billing → Payments → Needs Review to deactivate.`
+					: `Customer "${customerName}" (${customer.username}) requested to stop without payment. Review and approve in Billing → Payments → Needs Review to deactivate.`;
 
 			db.task
 				.create({
 					data: {
 						organizationId: input.organizationId,
-						title: `Disable ${customerName} on iRadius`,
+						title: `Review stopped payment: ${customerName}`,
 						description: taskDescription,
 						priority: "HIGH",
 						status: "OPEN",

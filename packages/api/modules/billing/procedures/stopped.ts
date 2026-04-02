@@ -50,6 +50,7 @@ export const listStoppedAccounts = protectedProcedure
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			stoppedAccount: true,
+			reviewedAt: { not: null },
 			...(monthId ? { billingMonthId: monthId } : {}),
 		};
 
