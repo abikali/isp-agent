@@ -42,12 +42,19 @@ export function syncActiveStatusToIRadius(
 		body["username"] = customer.username;
 	}
 
-	ispPost(config, "/activate-user", body).catch((error) => {
-		logger.error("Failed to sync active status to iRadius", {
-			externalId: customer.externalId,
-			username: customer.username,
-			active,
-			error: error instanceof Error ? error.message : "Unknown error",
+	const attempt = (retries: number) => {
+		ispPost(config, "/activate-user", body).catch((error) => {
+			if (retries > 0) {
+				setTimeout(() => attempt(retries - 1), 2000);
+				return;
+			}
+			logger.error("Failed to sync active status to iRadius", {
+				externalId: customer.externalId,
+				username: customer.username,
+				active,
+				error: error instanceof Error ? error.message : "Unknown error",
+			});
 		});
-	});
+	};
+	attempt(2);
 }
