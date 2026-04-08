@@ -74,6 +74,29 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Re-check human takeover state by reading the latest `humanTakeoverAt`
+ * from the DB. Used at key points during generation to abort AI replies
+ * if the admin took over mid-flight (e.g. typed a reply on their phone
+ * while a tool-chain generation was still running).
+ */
+async function isTakeoverActiveFresh(
+	conversationId: string,
+	humanTakeoverHours: number | null,
+): Promise<boolean> {
+	if (!humanTakeoverHours) {
+		return false;
+	}
+	const fresh = await db.aiConversation.findUnique({
+		where: { id: conversationId },
+		select: { humanTakeoverAt: true },
+	});
+	return isHumanTakeoverActive(
+		fresh?.humanTakeoverAt ?? null,
+		humanTakeoverHours,
+	);
+}
+
 async function handleMessages(
 	webhookToken: string,
 	provider: ChannelProvider,
@@ -133,7 +156,9 @@ async function handleMessages(
 
 	for (const msg of parsedMessages) {
 		try {
-			// Handle outgoing (fromMe) messages — detect human takeover
+			// Handle outgoing (fromMe) messages — an admin replying on their
+			// linked phone. We persist these as role="admin" messages so they
+			// appear in /conversations, and (if enabled) activate human takeover.
 			if (msg.fromMe) {
 				// If the message has text, check if it's a bot echo via fingerprint
 				if (msg.text) {
@@ -152,11 +177,6 @@ async function handleMessages(
 				// any bot fingerprint → this is a human-sent message.
 				// The bot only ever sends text via sendTextMessage(), so any
 				// non-text fromMe message is guaranteed to be from a human.
-
-				// Check if agent has takeover enabled.
-				if (!channel.agent.humanTakeoverHours) {
-					continue;
-				}
 
 				// Find conversation — handle JID format mismatch by prefix match
 				let takeoverConversation = await db.aiConversation.findFirst({
@@ -181,11 +201,46 @@ async function handleMessages(
 					});
 				}
 
-				if (takeoverConversation) {
-					await db.aiConversation.update({
-						where: { id: takeoverConversation.id },
-						data: { humanTakeoverAt: new Date() },
+				if (!takeoverConversation) {
+					continue;
+				}
+
+				// Persist the admin's phone message so it shows in the
+				// dashboard conversation view. De-dupe by externalMsgId in
+				// case WaSender retries the webhook.
+				if (msg.text) {
+					const existing = await db.aiMessage.findFirst({
+						where: {
+							conversationId: takeoverConversation.id,
+							externalMsgId: msg.messageId,
+						},
+						select: { id: true },
 					});
+					if (!existing) {
+						await db.aiMessage.create({
+							data: {
+								conversationId: takeoverConversation.id,
+								role: "admin",
+								content: msg.text,
+								externalMsgId: msg.messageId,
+							},
+						});
+					}
+				}
+
+				// Update conversation: bump lastMessageAt, and activate
+				// takeover if the feature is enabled on the agent.
+				await db.aiConversation.update({
+					where: { id: takeoverConversation.id },
+					data: {
+						lastMessageAt: new Date(),
+						...(channel.agent.humanTakeoverHours
+							? { humanTakeoverAt: new Date() }
+							: {}),
+					},
+				});
+
+				if (channel.agent.humanTakeoverHours) {
 					logger.info("Human takeover activated", {
 						conversationId: takeoverConversation.id,
 						chatId: msg.chatId,
@@ -598,12 +653,26 @@ async function handleMessages(
 			activeGenerations++;
 			try {
 				while (true) {
-					// Bail out if conversation was cleared while we were processing
-					const freshStatus = await db.aiConversation.findUnique({
+					// Bail out if conversation was cleared, or if the admin
+					// has taken over since the last iteration (e.g. typed
+					// a reply on their phone while we were generating).
+					const freshState = await db.aiConversation.findUnique({
 						where: { id: conversation.id },
-						select: { status: true },
+						select: { status: true, humanTakeoverAt: true },
 					});
-					if (freshStatus?.status !== "active") {
+					if (freshState?.status !== "active") {
+						break;
+					}
+					if (
+						isHumanTakeoverActive(
+							freshState.humanTakeoverAt ?? null,
+							channel.agent.humanTakeoverHours,
+						)
+					) {
+						logger.info(
+							"AI reply loop aborted — human takeover active",
+							{ conversationId: conversation.id },
+						);
 						break;
 					}
 
@@ -818,6 +887,18 @@ async function handleMessages(
 										if (sentInitial) {
 											return;
 										}
+										// Re-check takeover — admin may have
+										// taken over during the tool chain.
+										if (
+											await isTakeoverActiveFresh(
+												conversation.id,
+												channel.agent
+													.humanTakeoverHours,
+											)
+										) {
+											controller.abort();
+											return;
+										}
 										sentInitial = true;
 										await sendTextMessage(
 											provider,
@@ -858,6 +939,28 @@ async function handleMessages(
 								}
 								result.toolResults.push(guardResult);
 							}
+						}
+
+						// Re-check takeover — admin may have taken over during
+						// generation (tool chains can take 10–30s). If so,
+						// drop the generated reply entirely: don't send,
+						// don't store, don't bump counters. The tokens are
+						// already spent but we don't want the customer to
+						// see a bot reply after the admin already took over.
+						if (
+							await isTakeoverActiveFresh(
+								conversation.id,
+								channel.agent.humanTakeoverHours,
+							)
+						) {
+							logger.info(
+								"Dropping AI reply — human takeover activated during generation",
+								{
+									conversationId: conversation.id,
+									chatId: msg.chatId,
+								},
+							);
+							break;
 						}
 
 						// Send reply
@@ -920,6 +1023,23 @@ async function handleMessages(
 
 						const errorName =
 							error instanceof Error ? error.name : "";
+
+						// If generation was aborted because the admin took
+						// over mid-flight, swallow the error silently —
+						// don't send a retry/fallback message to the customer.
+						if (
+							errorName === "AbortError" &&
+							(await isTakeoverActiveFresh(
+								conversation.id,
+								channel.agent.humanTakeoverHours,
+							))
+						) {
+							logger.info(
+								"AI generation aborted — human takeover active",
+								{ conversationId: conversation.id },
+							);
+							break;
+						}
 
 						const isToolError =
 							errorName === "AI_InvalidToolInputError" ||
