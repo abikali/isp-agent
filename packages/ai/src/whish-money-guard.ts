@@ -2,13 +2,53 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { normalizeLebanesPhone } from "./tools/lib/isp-api-client";
 
-/** Detect Whish Money transfer notification messages */
+/**
+ * Detect Whish Money transfer notification messages.
+ *
+ * Two paths:
+ *
+ * 1. Text notifications from the Whish service itself — match the official
+ *    template ("... sent you ... w2w transfer ...") or the whish.money URL.
+ *
+ * 2. Receipts (image OCR'd via describeImage, or pasted text) — require
+ *    multiple structural receipt markers. These markers are Latin field
+ *    labels and brand strings printed on every Whish receipt, so they
+ *    survive OCR regardless of the customer's language. We require at least
+ *    two markers to avoid false positives on casual messages like
+ *    "should I pay with whish money?" — those mention the brand but contain
+ *    none of the receipt structure.
+ */
+const RECEIPT_MARKERS = [
+	"collection on behalf of whish",
+	"depositor name",
+	"depositor number",
+	"client ref",
+	"whtp ", // receipt number prefix on Whish receipts: "WHTP <digits>"
+];
+
 export function isWhishMoneyMessage(text: string): boolean {
 	const lower = text.toLowerCase();
-	return (
-		lower.includes("whish.money") ||
-		(lower.includes("w2w transfer") && lower.includes("sent you"))
-	);
+
+	// Path 1: official Whish text notification
+	if (lower.includes("whish.money")) {
+		return true;
+	}
+	if (lower.includes("w2w transfer") && lower.includes("sent you")) {
+		return true;
+	}
+
+	// Path 2: OCR'd or pasted receipt — require ≥2 structural markers
+	let markerHits = 0;
+	for (const marker of RECEIPT_MARKERS) {
+		if (lower.includes(marker)) {
+			markerHits++;
+			if (markerHits >= 2) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 /** Check if a WhatsApp contact phone matches any active employee */
