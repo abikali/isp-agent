@@ -114,6 +114,7 @@ export function usePayments(filters: {
 	stoppedAccount?: boolean;
 	freeAccount?: boolean;
 	unreviewedOnly?: boolean;
+	reviewedOnly?: boolean;
 	noteCategory?: string;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
 	groupName?: string;
@@ -156,6 +157,7 @@ export function usePaymentsQuery(filters: {
 	stoppedAccount?: boolean;
 	freeAccount?: boolean;
 	unreviewedOnly?: boolean;
+	reviewedOnly?: boolean;
 	noteCategory?: string;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
 	receiptStatus?: "sent" | "failed" | "pending";
@@ -165,7 +167,7 @@ export function usePaymentsQuery(filters: {
 	dateTo?: string;
 	page?: number;
 	pageSize?: number;
-	sortBy?: "paidAt" | "paidAmount" | "stoppedAccount";
+	sortBy?: "paidAt" | "paidAmount" | "stoppedAccount" | "reviewedAt";
 	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();

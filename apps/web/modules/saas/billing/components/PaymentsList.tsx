@@ -118,6 +118,7 @@ type PaymentTypeFilter =
 	| "underpaid"
 	| "mismatch"
 	| "needs_review"
+	| "recently_reviewed"
 	| "receipt_sent"
 	| "receipt_failed"
 	| "receipt_pending";
@@ -208,6 +209,11 @@ const TYPE_FILTERS: {
 	{ key: "overpaid", label: "Overpaid", icon: ArrowUpIcon },
 	{ key: "underpaid", label: "Underpaid", icon: ArrowDownIcon },
 	{ key: "needs_review", label: "Needs Review", icon: FilterIcon },
+	{
+		key: "recently_reviewed",
+		label: "Recently Reviewed",
+		icon: CheckCircle2Icon,
+	},
 	{ key: "receipt_sent", label: "Receipt Sent", icon: CheckCircle2Icon },
 	{ key: "receipt_failed", label: "Receipt Failed", icon: AlertTriangleIcon },
 	{ key: "receipt_pending", label: "Receipt Pending", icon: SendIcon },
@@ -219,6 +225,7 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 	stoppedAccount?: boolean;
 	freeAccount?: boolean;
 	unreviewedOnly?: boolean;
+	reviewedOnly?: boolean;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
 	receiptStatus?: "sent" | "failed" | "pending";
 } {
@@ -237,6 +244,8 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 			return { amountMismatch: "underpaid" };
 		case "needs_review":
 			return { unreviewedOnly: true };
+		case "recently_reviewed":
+			return { reviewedOnly: true };
 		case "receipt_sent":
 			return { receiptStatus: "sent" };
 		case "receipt_failed":
@@ -570,8 +579,8 @@ export function PaymentsList() {
 		billingMonthId: activeMonthId,
 		page,
 		pageSize: PAGE_SIZE,
-		sortBy,
-		sortOrder,
+		sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
+		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
 	});
 
 	const { data: collectorsData } = useCollectors();

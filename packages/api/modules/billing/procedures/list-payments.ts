@@ -25,6 +25,7 @@ export const listPayments = protectedProcedure
 					.enum(["any", "overpaid", "underpaid"])
 					.optional(),
 				unreviewedOnly: z.boolean().optional(),
+				reviewedOnly: z.boolean().optional(),
 				noteCategory: z.string().optional(),
 				receiptStatus: z.enum(["sent", "failed", "pending"]).optional(),
 				groupName: z.string().optional(),
@@ -32,7 +33,12 @@ export const listPayments = protectedProcedure
 				dateFrom: z.string().datetime().optional(),
 				dateTo: z.string().datetime().optional(),
 				sortBy: z
-					.enum(["paidAt", "paidAmount", "stoppedAccount"])
+					.enum([
+						"paidAt",
+						"paidAmount",
+						"stoppedAccount",
+						"reviewedAt",
+					])
 					.default("paidAt"),
 				sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			})
@@ -91,6 +97,9 @@ export const listPayments = protectedProcedure
 					],
 				},
 			];
+		}
+		if (input.reviewedOnly) {
+			where["reviewedAt"] = { not: null };
 		}
 		if (input.noteCategory) {
 			where["noteCategory"] = input.noteCategory;
