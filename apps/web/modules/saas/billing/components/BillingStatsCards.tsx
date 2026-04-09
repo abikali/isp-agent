@@ -1,10 +1,6 @@
 "use client";
 
-import {
-	StatCard,
-	StatCardGroup,
-	StatCardSkeleton,
-} from "@shared/components/StatCard";
+import { StatCard, StatCardSkeleton } from "@shared/components/StatCard";
 import { formatCurrency } from "@shared/lib/format";
 import { BanknoteIcon, UsersIcon, WalletIcon } from "lucide-react";
 
@@ -25,16 +21,16 @@ export function BillingStatsCards({
 }: BillingStatsCardsProps) {
 	if (isLoading || !stats) {
 		return (
-			<StatCardGroup columns={3}>
+			<div className="grid grid-cols-3 gap-3">
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
-			</StatCardGroup>
+			</div>
 		);
 	}
 
 	return (
-		<StatCardGroup columns={3}>
+		<div className="grid grid-cols-3 gap-3">
 			<StatCard
 				title="Collected Bills"
 				value={`${stats.paidCustomers}/${stats.totalCustomers}`}
@@ -58,6 +54,6 @@ export function BillingStatsCards({
 						: undefined
 				}
 			/>
-		</StatCardGroup>
+		</div>
 	);
 }

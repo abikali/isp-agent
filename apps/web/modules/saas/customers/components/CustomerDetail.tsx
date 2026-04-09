@@ -409,6 +409,7 @@ export function CustomerDetail({
 								externalId: customer.externalId ?? null,
 								firstName: customer.firstName ?? null,
 								lastName: customer.lastName ?? null,
+								fullName: customer.fullName ?? null,
 								discount: customer.discount ?? null,
 								iptvPrice: customer.iptvPrice ?? null,
 							}}

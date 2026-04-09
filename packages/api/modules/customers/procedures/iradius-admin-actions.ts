@@ -143,7 +143,7 @@ export const updateCustomerNameInIRadius = protectedProcedure
 	.input(
 		baseInput.extend({
 			firstName: z.string().trim().min(1).max(255),
-			lastName: z.string().trim().min(1).max(255),
+			lastName: z.string().trim().max(255).default(""),
 		}),
 	)
 	.handler(({ context: { user, headers }, input }) =>
@@ -162,7 +162,7 @@ export const updateCustomerNameInIRadius = protectedProcedure
 				),
 			localData: {
 				firstName: input.firstName,
-				lastName: input.lastName,
+				lastName: input.lastName || null,
 				fullName: `${input.firstName} ${input.lastName}`.trim(),
 			},
 		}),

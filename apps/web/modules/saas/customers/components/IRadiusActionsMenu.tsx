@@ -42,6 +42,7 @@ interface IRadiusActionsMenuProps {
 		externalId: string | null;
 		firstName: string | null;
 		lastName: string | null;
+		fullName?: string | null;
 		discount: number | null;
 		iptvPrice: number | null;
 	};
@@ -80,6 +81,21 @@ export function IRadiusActionsMenu({
 		setDialog({ kind: "none" });
 	}
 
+	function getInitialNames(): { firstName: string; lastName: string } {
+		if (customer.firstName || customer.lastName) {
+			return {
+				firstName: customer.firstName ?? "",
+				lastName: customer.lastName ?? "",
+			};
+		}
+		const full = (customer.fullName ?? "").trim();
+		if (!full) {
+			return { firstName: "", lastName: "" };
+		}
+		const [first, ...rest] = full.split(/\s+/);
+		return { firstName: first ?? "", lastName: rest.join(" ") };
+	}
+
 	return (
 		<>
 			<DropdownMenu>
@@ -111,8 +127,7 @@ export function IRadiusActionsMenu({
 						onClick={() =>
 							setDialog({
 								kind: "update-name",
-								firstName: customer.firstName ?? "",
-								lastName: customer.lastName ?? "",
+								...getInitialNames(),
 							})
 						}
 					>
@@ -219,7 +234,7 @@ export function IRadiusActionsMenu({
 							</div>
 							<div>
 								<Label htmlFor="iradius-last-name">
-									Last name
+									Last name (optional)
 								</Label>
 								<Input
 									id="iradius-last-name"
@@ -246,10 +261,8 @@ export function IRadiusActionsMenu({
 								}
 								const firstName = dialog.firstName.trim();
 								const lastName = dialog.lastName.trim();
-								if (!firstName || !lastName) {
-									toast.error(
-										"First and last name are required",
-									);
+								if (!firstName) {
+									toast.error("First name is required");
 									return;
 								}
 								updateName.mutate(
