@@ -84,6 +84,7 @@ import {
 } from "../lib/constants";
 import { CustomerInvoices } from "./CustomerInvoices";
 import { CustomerLocationSection } from "./CustomerLocationSection";
+import { CustomerPayments } from "./CustomerPayments";
 import { CustomerTransactions } from "./CustomerTransactions";
 import { IRadiusActionsMenu } from "./IRadiusActionsMenu";
 
@@ -500,7 +501,12 @@ export function CustomerDetail({
 							id: "financial",
 							label: "Financial",
 							icon: FileTextIcon,
-							content: <FinancialTab customerId={customerId} />,
+							content: (
+								<FinancialTab
+									customerId={customerId}
+									organizationSlug={organizationSlug}
+								/>
+							),
 						},
 						{
 							id: "activity",
@@ -1596,9 +1602,21 @@ function BillingTab({
 	);
 }
 
-function FinancialTab({ customerId }: { customerId: string }) {
+function FinancialTab({
+	customerId,
+	organizationSlug,
+}: {
+	customerId: string;
+	organizationSlug: string;
+}) {
 	return (
 		<>
+			<DetailSection title="Payments">
+				<CustomerPayments
+					customerId={customerId}
+					organizationSlug={organizationSlug}
+				/>
+			</DetailSection>
 			<DetailSection title="Invoices">
 				<CustomerInvoices customerId={customerId} />
 			</DetailSection>

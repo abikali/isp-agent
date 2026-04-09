@@ -17,6 +17,7 @@ export const listPayments = protectedProcedure
 		z
 			.object({
 				organizationId: z.string(),
+				customerId: z.string().optional(),
 				billingMonthId: z.string().optional(),
 				collectorId: z.string().optional(),
 				stoppedAccount: z.boolean().optional(),
@@ -63,6 +64,9 @@ export const listPayments = protectedProcedure
 
 		await applyCollectorScope(where, permCtx, input.collectorId);
 
+		if (input.customerId) {
+			where["customerId"] = input.customerId;
+		}
 		if (input.billingMonthId) {
 			where["billingMonthId"] = input.billingMonthId;
 		}
