@@ -644,6 +644,7 @@ model AiConversation {
   pinAttempts        Int       @default(0)
   pinLockedUntil     DateTime?
   humanTakeoverAt    DateTime? @map("human_takeover_at")
+  unknownEscalatedAt DateTime? @map("unknown_escalated_at")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -1113,9 +1114,11 @@ model Customer {
   transactions   CustomerTransaction[]
   invoices       CustomerInvoice[]
   payments       Payment[]
+  referredPayments Payment[] @relation("PaymentReferrer")
   installations  Installation[]
   followups      Followup[]
   syncConflicts  SyncConflict[]
+  locationRequests LocationRequest[]
 
   @@unique([organizationId, accountNumber])
   @@unique([organizationId, externalId])
@@ -1694,6 +1697,7 @@ model Payment {
   reviewedAt      DateTime?
   paidAt          DateTime      @default(now())
   externalBillingId Int?        @map("external_billing_id")
+  referredCustomerId String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -1702,6 +1706,7 @@ model Payment {
   billingMonth BillingMonth @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
   collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
   worker       Employee?    @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  referredCustomer Customer? @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, billingMonthId])
@@ -1709,6 +1714,7 @@ model Payment {
   @@index([customerId])
   @@index([collectorId])
   @@index([stoppedAccount])
+  @@index([referredCustomerId])
   @@map("payment")
 }
 
@@ -1734,6 +1740,23 @@ model CashCollection {
   @@index([organizationId, collectorId])
   @@index([collectedAt])
   @@map("cash_collection")
+}
+
+model LocationRequest {
+  id             String    @id @default(cuid())
+  organizationId String
+  customerId     String
+  token          String    @unique
+  expiresAt      DateTime
+  completedAt    DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, customerId])
+  @@index([customerId])
+  @@map("location_request")
 }
 
 model Expense {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveOrganization } from "@saas/organizations/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -59,18 +60,25 @@ import {
 	AlertTriangleIcon,
 	ArrowDownIcon,
 	ArrowUpIcon,
+	BanIcon,
 	CheckCircle2Icon,
 	CheckIcon,
 	CircleDotIcon,
+	ExternalLinkIcon,
 	FilterIcon,
 	ListIcon,
 	MoreHorizontalIcon,
+	PercentIcon,
 	RotateCcwIcon,
 	SendIcon,
 	TrashIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+	useSetDiscount,
+	useUpdateCustomer,
+} from "../../customers/hooks/use-customers";
 import {
 	useCollectors,
 	useCustomerGroups,
@@ -126,6 +134,7 @@ interface ActivityLogEntry {
 interface PaymentRow {
 	id: string;
 	customer: {
+		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
@@ -133,6 +142,7 @@ interface PaymentRow {
 		phone: string | null;
 		iptvPrice: number;
 		realIpPrice: number;
+		discount: number;
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
@@ -569,8 +579,24 @@ export function PaymentsList() {
 	const collectors = collectorsData?.collectors ?? [];
 
 	const organizationId = useOrganizationId();
+	const { activeOrganization } = useActiveOrganization();
+	const orgSlug = activeOrganization?.slug ?? "";
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
+	const updateCustomer = useUpdateCustomer();
+	const setDiscount = useSetDiscount();
+	const [discountDialog, setDiscountDialog] = useState<{
+		paymentId: string;
+		customerId: string;
+		customerName: string;
+		currentDiscount: number;
+		discount: string;
+	} | null>(null);
+	const [forceStopDialog, setForceStopDialog] = useState<{
+		paymentId: string;
+		customerId: string;
+		customerName: string;
+	} | null>(null);
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -615,19 +641,30 @@ export function PaymentsList() {
 				id: "customer",
 				header: "Customer",
 				enableSorting: false,
-				cell: ({ row }) => (
-					<>
-						<div className="font-medium">
-							{displayName(
-								row.original.customer.firstName,
-								row.original.customer.lastName,
+				cell: ({ row }) => {
+					const c = row.original.customer;
+					const name = displayName(c.firstName, c.lastName);
+					const href = orgSlug
+						? `/app/${orgSlug}/customers/${c.id}`
+						: undefined;
+					return (
+						<>
+							{href ? (
+								<a
+									href={href}
+									className="font-medium hover:underline"
+								>
+									{name}
+								</a>
+							) : (
+								<div className="font-medium">{name}</div>
 							)}
-						</div>
-						<div className="text-xs text-muted-foreground">
-							{row.original.customer.username}
-						</div>
-					</>
-				),
+							<div className="text-xs text-muted-foreground">
+								{c.username}
+							</div>
+						</>
+					);
+				},
 			},
 			{
 				id: "collector",
@@ -830,6 +867,64 @@ export function PaymentsList() {
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
+										{orgSlug && (
+											<DropdownMenuItem asChild>
+												<a
+													href={`/app/${orgSlug}/customers/${payment.customer.id}`}
+												>
+													<ExternalLinkIcon className="mr-2 size-3.5" />
+													Open customer
+												</a>
+											</DropdownMenuItem>
+										)}
+										<DropdownMenuItem
+											onClick={() =>
+												setDiscountDialog({
+													paymentId: payment.id,
+													customerId:
+														payment.customer.id,
+													customerName: displayName(
+														payment.customer
+															.firstName,
+														payment.customer
+															.lastName,
+													),
+													currentDiscount:
+														payment.customer
+															.discount ?? 0,
+													discount: (
+														payment.customer
+															.discount ?? 0
+													).toString(),
+												})
+											}
+										>
+											<PercentIcon className="mr-2 size-3.5" />
+											Set discount
+										</DropdownMenuItem>
+										{!payment.stoppedAccount && (
+											<DropdownMenuItem
+												onClick={() =>
+													setForceStopDialog({
+														paymentId: payment.id,
+														customerId:
+															payment.customer.id,
+														customerName:
+															displayName(
+																payment.customer
+																	.firstName,
+																payment.customer
+																	.lastName,
+															),
+													})
+												}
+												className="text-amber-700 focus:text-amber-800 dark:text-amber-500"
+											>
+												<BanIcon className="mr-2 size-3.5" />
+												Force stop customer
+											</DropdownMenuItem>
+										)}
+										<DropdownMenuSeparator />
 										{!payment.stoppedAccount && (
 											<DropdownMenuItem
 												onClick={() =>
@@ -928,7 +1023,7 @@ export function PaymentsList() {
 				},
 			},
 		],
-		[organizationId, deletePayment, reviewPayment],
+		[organizationId, deletePayment, reviewPayment, orgSlug],
 	);
 
 	return (
@@ -1086,6 +1181,141 @@ export function PaymentsList() {
 				}}
 				log={activityLogDialog ?? []}
 			/>
+
+			{/* Set discount dialog (review-queue inline action) */}
+			<Dialog
+				open={!!discountDialog}
+				onOpenChange={(o) => !o && setDiscountDialog(null)}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Set recurring discount</DialogTitle>
+						<DialogDescription>
+							{discountDialog?.customerName} — applied to future
+							iRadius invoices.
+						</DialogDescription>
+					</DialogHeader>
+					{discountDialog && (
+						<div>
+							<Label htmlFor="review-discount">
+								Discount amount
+							</Label>
+							<Input
+								id="review-discount"
+								type="number"
+								step="0.01"
+								min="0"
+								value={discountDialog.discount}
+								onChange={(e) =>
+									setDiscountDialog({
+										...discountDialog,
+										discount: e.target.value,
+									})
+								}
+							/>
+						</div>
+					)}
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setDiscountDialog(null)}
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={
+								setDiscount.isPending || reviewPayment.isPending
+							}
+							onClick={async () => {
+								if (!organizationId || !discountDialog) {
+									return;
+								}
+								const value = Number.parseFloat(
+									discountDialog.discount,
+								);
+								if (!Number.isFinite(value) || value < 0) {
+									toast.error(
+										"Discount must be a non-negative number",
+									);
+									return;
+								}
+								try {
+									await setDiscount.mutateAsync({
+										organizationId,
+										customerId: discountDialog.customerId,
+										discount: value,
+									});
+									await reviewPayment.mutateAsync({
+										organizationId,
+										paymentId: discountDialog.paymentId,
+									});
+									toast.success(
+										"Discount applied and payment reviewed",
+									);
+									setDiscountDialog(null);
+								} catch (err) {
+									toast.error(
+										err instanceof Error
+											? err.message
+											: "Failed",
+									);
+								}
+							}}
+						>
+							{setDiscount.isPending ? "Saving…" : "Apply"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Force stop dialog (review-queue inline action) */}
+			<AlertDialog
+				open={!!forceStopDialog}
+				onOpenChange={(o) => !o && setForceStopDialog(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Force stop customer</AlertDialogTitle>
+						<AlertDialogDescription>
+							{forceStopDialog?.customerName} will be set to
+							INACTIVE locally, the iRadius account will be
+							deactivated, and this payment will be marked as
+							reviewed. Continue?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={async () => {
+								if (!organizationId || !forceStopDialog) {
+									return;
+								}
+								try {
+									await updateCustomer.mutateAsync({
+										organizationId,
+										id: forceStopDialog.customerId,
+										status: "INACTIVE",
+									});
+									await reviewPayment.mutateAsync({
+										organizationId,
+										paymentId: forceStopDialog.paymentId,
+									});
+									toast.success("Customer stopped");
+									setForceStopDialog(null);
+								} catch (err) {
+									toast.error(
+										err instanceof Error
+											? err.message
+											: "Failed",
+									);
+								}
+							}}
+						>
+							Force stop
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }

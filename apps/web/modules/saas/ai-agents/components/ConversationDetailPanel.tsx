@@ -37,12 +37,12 @@ import {
 	useReactToMessage,
 } from "../hooks/use-message-actions";
 import {
-	formatPhoneNumber,
 	getAvatarColor,
 	getContactInitials,
 	groupMessagesByDate,
 } from "../lib/chat-utils";
 import { AdminChatInput } from "./AdminChatInput";
+import { ContactPhone } from "./ContactPhone";
 import { DateSeparator, MessageBubble, TypingBubble } from "./MessageBubble";
 
 interface ReplyTarget {
@@ -220,27 +220,14 @@ export function ConversationDetailPanel({
 					{initials}
 				</div>
 				<div className="min-w-0 flex-1">
-					<div className="flex items-center gap-2">
+					<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
 						<h3 className="truncate text-sm font-medium">
 							{contactName}
 						</h3>
-						{formatPhoneNumber(conversation?.contactId) && (
-							<button
-								type="button"
-								className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-copy sm:inline-block"
-								onClick={() => {
-									const phone = formatPhoneNumber(
-										conversation?.contactId,
-									);
-									if (phone) {
-										navigator.clipboard.writeText(phone);
-									}
-								}}
-								title="Click to copy"
-							>
-								{formatPhoneNumber(conversation?.contactId)}
-							</button>
-						)}
+						<ContactPhone
+							contactId={conversation?.contactId}
+							className="shrink-0"
+						/>
 					</div>
 					<p className="truncate text-xs text-muted-foreground">
 						{subtitle}

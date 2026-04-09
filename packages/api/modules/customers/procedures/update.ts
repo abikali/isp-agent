@@ -9,9 +9,10 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { syncActiveStatusToIRadius } from "../lib/iradius-api";
+import { iradiusChangeCollector } from "../lib/iradius-api";
 
 export const updateCustomer = protectedProcedure
 	.route({
@@ -57,6 +58,10 @@ export const updateCustomer = protectedProcedure
 			groupName: z.string().max(100).nullable().optional(),
 			notes: z.string().max(5000).optional(),
 			collectorId: z.string().nullable().optional(),
+			// When true AND collectorId changes, also push the new collector
+			// assignment to iRadius (User.CollectorId). Defaults to false —
+			// most reassignments are local-only per client request.
+			syncCollectorToIRadius: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -179,6 +184,8 @@ export const updateCustomer = protectedProcedure
 			}
 		}
 
+		// iRadius status sync is handled by the customerStatusObserver extension
+		// (see packages/database/prisma/extensions/customer-status-observer.ts)
 		const customer = await db.customer.update({
 			where: { id: input.id },
 			data: updateData,
@@ -193,15 +200,48 @@ export const updateCustomer = protectedProcedure
 			},
 		});
 
-		// Sync active status to iRadius when status changes
-		if (input.status !== undefined && input.status !== existing.status) {
-			syncActiveStatusToIRadius(
-				{
-					externalId: existing.externalId,
-					username: existing.username,
-				},
-				input.status === "ACTIVE",
-			);
+		// Optional: push collector change to iRadius (opt-in per request;
+		// default is local-only).
+		if (
+			input.syncCollectorToIRadius &&
+			input.collectorId !== undefined &&
+			input.collectorId !== existing.collectorId &&
+			existing.externalId
+		) {
+			try {
+				let collectorIRadiusUserId: number | null = null;
+				if (input.collectorId) {
+					const collectorEmployee = await db.employee.findFirst({
+						where: {
+							id: input.collectorId,
+							organizationId: input.organizationId,
+						},
+						select: { externalId: true },
+					});
+					if (collectorEmployee?.externalId) {
+						collectorIRadiusUserId = Number.parseInt(
+							collectorEmployee.externalId,
+							10,
+						);
+					}
+				}
+				await iradiusChangeCollector(
+					{ externalId: existing.externalId },
+					collectorIRadiusUserId,
+				);
+			} catch (error) {
+				// Local write already succeeded; surface the iRadius failure
+				// as a non-fatal warning in the response.
+				logger.error("iRadius change collector failed", {
+					customerId: input.id,
+					error: error instanceof Error ? error.message : error,
+				});
+				return {
+					customer,
+					iradiusCollectorSyncError:
+						"Failed to sync collector to iRadius",
+				};
+			}
 		}
 
 		const auditContext = getAuditContextFromHeaders(headers);

@@ -27,10 +27,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentsQuery } from "../hooks/use-agents";
 import {
 	formatListTimestamp,
-	formatPhoneNumber,
 	getAvatarColor,
 	getContactInitials,
 } from "../lib/chat-utils";
+import { ContactPhone } from "./ContactPhone";
 
 export interface ConversationItem {
 	id: string;
@@ -190,27 +190,11 @@ export function ConversationsListPanel({
 									{conv.contactName || "Unknown Contact"}
 								</span>
 							</div>
-							{showPhoneNumber &&
-								formatPhoneNumber(conv.contactId) && (
-									<button
-										type="button"
-										className="block truncate text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-copy"
-										onClick={(e) => {
-											e.stopPropagation();
-											const phone = formatPhoneNumber(
-												conv.contactId,
-											);
-											if (phone) {
-												navigator.clipboard.writeText(
-													phone,
-												);
-											}
-										}}
-										title="Click to copy"
-									>
-										{formatPhoneNumber(conv.contactId)}
-									</button>
-								)}
+							{showPhoneNumber && (
+								<div className="mt-0.5">
+									<ContactPhone contactId={conv.contactId} />
+								</div>
+							)}
 						</div>
 						{conv.lastMessageAt && (
 							<span className="shrink-0 text-[11px] text-muted-foreground">

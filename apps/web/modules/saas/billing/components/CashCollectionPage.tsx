@@ -123,9 +123,9 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 			</div>
 
 			{isLoading ? (
-				<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+				<div className="divide-y divide-border rounded-lg border">
 					{Array.from({ length: 6 }).map((_, i) => (
-						<Skeleton key={i} className="h-40 rounded-xl" />
+						<Skeleton key={i} className="h-14" />
 					))}
 				</div>
 			) : collectors.length === 0 ? (
@@ -138,7 +138,7 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+				<div className="divide-y divide-border rounded-lg border bg-card">
 					{collectors.map((c) => {
 						const progress =
 							c.monthTotal > 0
@@ -152,75 +152,77 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 							<a
 								key={c.id}
 								href={`${basePath}/${c.username ?? c.id}`}
-								className="block group"
+								className="group flex items-center gap-3 px-3 py-2 transition-colors hover:bg-muted/60 sm:gap-4 sm:px-4"
 							>
-								<Card className="transition-all hover:shadow-card-hover hover:border-primary/30 cursor-pointer h-full">
-									<CardContent className="px-4 py-3 flex flex-col gap-2.5">
-										{/* Name row */}
-										<div className="flex items-center gap-2.5">
-											<div className="size-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-												{getInitials(c.name)}
-											</div>
-											<div className="min-w-0 flex-1">
-												<p className="text-base font-semibold truncate">
-													{c.name}
-												</p>
-												<p className="text-xs text-muted-foreground truncate">
-													{c.username && (
-														<>
-															@{c.username}
-															{" \u00b7 "}
-														</>
-													)}
-													{c.customerCount} customers
-													{c.stoppedCount > 0 && (
-														<span className="text-red-500 dark:text-red-400">
-															{" \u00b7 "}
-															{c.stoppedCount}{" "}
-															stopped
-														</span>
-													)}
-												</p>
-											</div>
-											<ChevronRightIcon className="size-4 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
-										</div>
+								{/* Avatar */}
+								<div className="size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-[11px] font-bold text-primary">
+									{getInitials(c.name)}
+								</div>
 
-										{/* Stats row */}
-										<div className="flex items-end gap-3">
-											{/* In hand */}
-											<div className="flex-1 min-w-0">
-												<p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-													In hand
-												</p>
-												<p
-													className={`text-xl font-bold tabular-nums leading-tight ${hasBalance ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60"}`}
-												>
-													{formatCurrency(c.inHand)}
-												</p>
-											</div>
+								{/* Name + meta */}
+								<div className="min-w-0 flex-1">
+									<div className="flex items-center gap-1.5">
+										<span className="truncate text-sm font-semibold">
+											{c.name}
+										</span>
+										{c.username && (
+											<span className="hidden truncate text-xs text-muted-foreground sm:inline">
+												@{c.username}
+											</span>
+										)}
+									</div>
+									<div className="flex items-center gap-2 text-xs text-muted-foreground">
+										<span>{c.customerCount} customers</span>
+										{c.stoppedCount > 0 && (
+											<span className="text-red-500 dark:text-red-400">
+												· {c.stoppedCount} stopped
+											</span>
+										)}
+									</div>
+								</div>
 
-											{/* Collection progress */}
-											<div className="flex-1 min-w-0">
-												<div className="flex items-baseline justify-between">
-													<p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-														Collected
-													</p>
-													<span className="text-xs font-medium tabular-nums text-muted-foreground">
-														{progress}%
-													</span>
-												</div>
-												<Progress
-													value={progress}
-													className="h-1.5 mt-1"
-												/>
-												<p className="text-sm tabular-nums text-muted-foreground mt-0.5 font-medium">
-													{c.monthCollected} /{" "}
-													{c.monthTotal}
-												</p>
-											</div>
-										</div>
-									</CardContent>
-								</Card>
+								{/* In hand */}
+								<div className="hidden shrink-0 text-right sm:block">
+									<p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+										In hand
+									</p>
+									<p
+										className={`text-sm font-semibold tabular-nums leading-tight ${hasBalance ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60"}`}
+									>
+										{formatCurrency(c.inHand)}
+									</p>
+								</div>
+
+								{/* Collected progress */}
+								<div className="hidden w-40 shrink-0 md:block">
+									<div className="flex items-baseline justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
+										<span>Collected</span>
+										<span className="font-medium tabular-nums text-foreground">
+											{progress}%
+										</span>
+									</div>
+									<Progress
+										value={progress}
+										className="h-1.5 mt-1"
+									/>
+									<p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+										{c.monthCollected} / {c.monthTotal}
+									</p>
+								</div>
+
+								{/* Mobile: compact in-hand inline */}
+								<div className="flex shrink-0 flex-col items-end text-right sm:hidden">
+									<span
+										className={`text-sm font-semibold tabular-nums ${hasBalance ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/60"}`}
+									>
+										{formatCurrency(c.inHand)}
+									</span>
+									<span className="text-[10px] tabular-nums text-muted-foreground">
+										{progress}% collected
+									</span>
+								</div>
+
+								<ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary" />
 							</a>
 						);
 					})}

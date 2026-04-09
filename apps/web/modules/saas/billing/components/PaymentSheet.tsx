@@ -2,6 +2,7 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
+import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -72,6 +73,11 @@ export function PaymentSheet({
 
 	const [paidAmount, setPaidAmount] = useState("");
 	const [freeAccount, setFreeAccount] = useState(false);
+	const [referredCustomer, setReferredCustomer] = useState<{
+		id: string;
+		name: string;
+		username: string | null;
+	} | null>(null);
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
@@ -88,6 +94,7 @@ export function PaymentSheet({
 			const amount = calculateTotalDue(customer, { freeAccount: false });
 			setPaidAmount(String(amount));
 			setFreeAccount(false);
+			setReferredCustomer(null);
 			setStoppedAccount(false);
 			setNoteCategory("");
 			setNotes("");
@@ -204,6 +211,10 @@ export function PaymentSheet({
 					customerPhones.length > 0 ? customerPhones : undefined,
 				customerLatitude: location?.latitude,
 				customerLongitude: location?.longitude,
+				referredCustomerId:
+					freeAccount && referredCustomer
+						? referredCustomer.id
+						: undefined,
 			},
 			{
 				onSuccess: (data) => {
@@ -404,6 +415,9 @@ export function PaymentSheet({
 										disabled={stoppedAccount}
 										onCheckedChange={(checked) => {
 											setFreeAccount(checked);
+											if (!checked) {
+												setReferredCustomer(null);
+											}
 											if (customer) {
 												setPaidAmount(
 													String(
@@ -450,6 +464,25 @@ export function PaymentSheet({
 									<span className="text-sm">Stopped</span>
 								</label>
 							</div>
+							{freeAccount && (
+								<div className="mt-3">
+									<Label
+										htmlFor="referred-customer"
+										className="mb-1.5 block text-xs font-medium"
+									>
+										Referred by{" "}
+										<span className="text-muted-foreground">
+											(optional)
+										</span>
+									</Label>
+									<CustomerCombobox
+										value={referredCustomer}
+										onChange={setReferredCustomer}
+										excludeCustomerId={customer?.id}
+										placeholder="Search customer who referred…"
+									/>
+								</div>
+							)}
 						</div>
 
 						{/* Phone numbers */}

@@ -188,6 +188,52 @@ export function useExecuteAccountTypeChange() {
 	});
 }
 
+export function useResetMacAddress() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.resetMacAddress.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		},
+	});
+}
+
+export function useUpdateNameInIRadius() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.updateNameInIRadius.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		},
+	});
+}
+
+export function useSetDiscount() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.setDiscount.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		},
+	});
+}
+
+export function useSetIptvPrice() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.setIptvPrice.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		},
+	});
+}
+
+export function useCreateLocationRequest() {
+	return useMutation({
+		...orpc.customers.createLocationRequest.mutationOptions(),
+	});
+}
+
 export function useBulkImport() {
 	const queryClient = useQueryClient();
 

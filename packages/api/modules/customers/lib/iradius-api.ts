@@ -1,4 +1,5 @@
 import { type IspApiConfig, ispPost } from "@repo/ai/isp-api-client";
+import { executeIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
 
 export interface AccountTypeChangePreview {
@@ -132,6 +133,145 @@ export async function previewAccountTypeChange(
 		);
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------------------
+// Direct-SQL admin actions (via SSH tunnel)
+// ---------------------------------------------------------------------------
+//
+// These wrappers perform exactly the same single-row updates the legacy
+// iRadius GWT admin UI does. They are audited end-to-end in
+// `docs/iradius-actions-investigation.md`. Each function is intentionally
+// narrow: it updates the single row(s) specified and returns affectedRows.
+//
+// Callers are responsible for:
+//  - resolving the iRadius User.Id from our `customer.externalId`
+//  - mirroring the new value on our local `Customer` row
+//  - writing audit log entries on our side
+// ---------------------------------------------------------------------------
+
+function requireExternalId(customer: { externalId?: string | null }): number {
+	if (!customer.externalId) {
+		throw new Error("Customer has no externalId (not linked to iRadius)");
+	}
+	const parsed = Number.parseInt(customer.externalId, 10);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		throw new Error(`Invalid externalId: ${customer.externalId}`);
+	}
+	return parsed;
+}
+
+/**
+ * Reset a customer's MAC address in iRadius (UserNas.MacAddress = NULL).
+ * The MAC is re-learned on the next RADIUS Accounting-Start packet.
+ * No MikroTik disconnect is forced — matches legacy UI behaviour.
+ */
+export async function iradiusResetMacAddress(customer: {
+	externalId?: string | null;
+}): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET MacAddress = NULL WHERE UserId = ?",
+			[userId],
+		);
+	});
+}
+
+/**
+ * Update a customer's first and last name in iRadius. Stamps UpdateDate
+ * like the legacy UI does. ModifiedUserId is left null because this is
+ * driven by our system, not a logged-in iRadius operator.
+ */
+export async function iradiusUpdateUserName(
+	customer: { externalId?: string | null },
+	firstName: string,
+	lastName: string,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET FirstName = ?, LastName = ?, UpdateDate = NOW() WHERE Id = ?",
+			[firstName, lastName, userId],
+		);
+	});
+}
+
+/**
+ * Update a customer's mobile / phone in iRadius. Pass `null` to clear.
+ */
+export async function iradiusUpdateUserPhones(
+	customer: { externalId?: string | null },
+	mobile: string | null,
+	phone: string | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET Mobile = ?, Phone = ?, UpdateDate = NOW() WHERE Id = ?",
+			[mobile, phone, userId],
+		);
+	});
+}
+
+/**
+ * Set a customer's recurring discount in iRadius (User.Discount).
+ * Per-invoice discounts are NOT supported — they require recomputing
+ * Invoice.TTC/Tax/TVA and would need a separate function.
+ */
+export async function iradiusSetRecurringDiscount(
+	customer: { externalId?: string | null },
+	discount: number,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET Discount = ?, UpdateDate = NOW() WHERE Id = ?",
+			[discount, userId],
+		);
+	});
+}
+
+/**
+ * Set a customer's IPTV price in iRadius (UserNas.IPTVPRICE).
+ * The billing engine adds this on top of the plan's SellingPrice. Pass 0
+ * to clear.
+ */
+export async function iradiusSetIptvPrice(
+	customer: { externalId?: string | null },
+	iptvPrice: number,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET IPTVPRICE = ? WHERE UserId = ?",
+			[iptvPrice, userId],
+		);
+	});
+}
+
+/**
+ * Change a customer's collector in iRadius (User.CollectorId). Past
+ * UserBalance.CollectorId rows are preserved (commission history intact).
+ * Pass `null` to clear the assignment.
+ */
+export async function iradiusChangeCollector(
+	customer: { externalId?: string | null },
+	collectorIRadiusUserId: number | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET CollectorId = ?, UpdateDate = NOW() WHERE Id = ?",
+			[collectorIRadiusUserId, userId],
+		);
+	});
 }
 
 /**

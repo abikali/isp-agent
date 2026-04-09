@@ -1,5 +1,5 @@
 import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, dbRaw } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import {
 	buildCustomerDataFromRow,
@@ -397,7 +397,9 @@ export const applyIRadiusEntitySync = protectedProcedure
 						}
 
 						if (entityType === "customer") {
-							await db.customer.update({
+							// dbRaw: applying iRadius's own values back locally
+							// must not re-trigger the status observer.
+							await dbRaw.customer.update({
 								where: { id: entity.id },
 								data,
 							});

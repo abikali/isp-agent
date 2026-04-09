@@ -13,6 +13,7 @@ import { Route as CollectorRouteImport } from "./routes/_collector"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as SplatRouteImport } from "./routes/$"
 import { Route as MarketingIndexRouteImport } from "./routes/_marketing/index"
+import { Route as LTokenRouteImport } from "./routes/l/$token"
 import { Route as InvoicePaymentIdRouteImport } from "./routes/invoice/$paymentId"
 import { Route as ImageProxySplatRouteImport } from "./routes/image-proxy/$"
 import { Route as ChatTokenRouteImport } from "./routes/chat/$token"
@@ -125,6 +126,11 @@ const MarketingIndexRoute = MarketingIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => MarketingRoute,
+} as any)
+const LTokenRoute = LTokenRouteImport.update({
+  id: "/l/$token",
+  path: "/l/$token",
+  getParentRoute: () => rootRouteImport,
 } as any)
 const InvoicePaymentIdRoute = InvoicePaymentIdRouteImport.update({
   id: "/invoice/$paymentId",
@@ -640,6 +646,7 @@ export interface FileRoutesByFullPath {
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/invoice/$paymentId": typeof InvoicePaymentIdRoute
+  "/l/$token": typeof LTokenRoute
   "/": typeof MarketingIndexRoute
   "/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugRouteWithChildren
   "/blog/$": typeof MarketingBlogSplatRoute
@@ -728,6 +735,7 @@ export interface FileRoutesByTo {
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/invoice/$paymentId": typeof InvoicePaymentIdRoute
+  "/l/$token": typeof LTokenRoute
   "/": typeof MarketingIndexRoute
   "/blog/$": typeof MarketingBlogSplatRoute
   "/docs/$": typeof MarketingDocsSplatRoute
@@ -815,6 +823,7 @@ export interface FileRoutesById {
   "/chat/$token": typeof ChatTokenRoute
   "/image-proxy/$": typeof ImageProxySplatRoute
   "/invoice/$paymentId": typeof InvoicePaymentIdRoute
+  "/l/$token": typeof LTokenRoute
   "/_marketing/": typeof MarketingIndexRoute
   "/_collector/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugRouteWithChildren
   "/_marketing/blog/$": typeof MarketingBlogSplatRoute
@@ -907,6 +916,7 @@ export interface FileRouteTypes {
     | "/chat/$token"
     | "/image-proxy/$"
     | "/invoice/$paymentId"
+    | "/l/$token"
     | "/"
     | "/collect/$organizationSlug"
     | "/blog/$"
@@ -995,6 +1005,7 @@ export interface FileRouteTypes {
     | "/chat/$token"
     | "/image-proxy/$"
     | "/invoice/$paymentId"
+    | "/l/$token"
     | "/"
     | "/blog/$"
     | "/docs/$"
@@ -1081,6 +1092,7 @@ export interface FileRouteTypes {
     | "/chat/$token"
     | "/image-proxy/$"
     | "/invoice/$paymentId"
+    | "/l/$token"
     | "/_marketing/"
     | "/_collector/collect/$organizationSlug"
     | "/_marketing/blog/$"
@@ -1165,6 +1177,7 @@ export interface RootRouteChildren {
   ChatTokenRoute: typeof ChatTokenRoute
   ImageProxySplatRoute: typeof ImageProxySplatRoute
   InvoicePaymentIdRoute: typeof InvoicePaymentIdRoute
+  LTokenRoute: typeof LTokenRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -1210,6 +1223,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/"
       preLoaderRoute: typeof MarketingIndexRouteImport
       parentRoute: typeof MarketingRoute
+    }
+    "/l/$token": {
+      id: "/l/$token"
+      path: "/l/$token"
+      fullPath: "/l/$token"
+      preLoaderRoute: typeof LTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     "/invoice/$paymentId": {
       id: "/invoice/$paymentId"
@@ -2154,6 +2174,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatTokenRoute: ChatTokenRoute,
   ImageProxySplatRoute: ImageProxySplatRoute,
   InvoicePaymentIdRoute: InvoicePaymentIdRoute,
+  LTokenRoute: LTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

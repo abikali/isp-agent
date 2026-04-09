@@ -70,6 +70,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useEmployeesQuery } from "../../employees/hooks/use-employees";
 import {
+	useCreateLocationRequest,
 	useDeleteCustomer,
 	useExecuteAccountTypeChange,
 	useGenerateCustomerPin,
@@ -86,6 +87,7 @@ import {
 } from "../lib/constants";
 import { CustomerInvoices } from "./CustomerInvoices";
 import { CustomerTransactions } from "./CustomerTransactions";
+import { IRadiusActionsMenu } from "./IRadiusActionsMenu";
 
 // ─── Type Definitions ──────────────────────────────────────────────────
 
@@ -167,6 +169,9 @@ export function CustomerDetail({
 		newPlanId: string;
 		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
 	} | null>(null);
+	const [pendingCollectorSync, setPendingCollectorSync] = useState<{
+		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
+	} | null>(null);
 	const [changeResult, setChangeResult] = useState<{
 		success: boolean;
 		oldPlanName: string;
@@ -234,6 +239,15 @@ export function CustomerDetail({
 			const newPlan = plans.find((p) => p.id === value.planId);
 			const shouldPreview =
 				planChanged && customer.externalId && newPlan?.externalId;
+
+			// Collector changed and customer is linked to iRadius? Ask whether
+			// to also push the change to iRadius (default: local-only).
+			const collectorChanged =
+				value.collectorId !== (customer.collectorId ?? "");
+			if (collectorChanged && customer.externalId && !shouldPreview) {
+				setPendingCollectorSync({ pendingFormValues: { ...value } });
+				return;
+			}
 
 			// If plan change needs iRadius preview, defer ALL saves until confirmed
 			if (shouldPreview) {
@@ -317,6 +331,38 @@ export function CustomerDetail({
 		setAccountTypePreview(null);
 	}
 
+	async function handleCollectorSaveChoice(syncToIRadius: boolean) {
+		if (!organizationId || !pendingCollectorSync) {
+			return;
+		}
+		const { pendingFormValues } = pendingCollectorSync;
+		setPendingCollectorSync(null);
+		toast.promise(
+			updateCustomer.mutateAsync({
+				...buildUpdatePayload(pendingFormValues),
+				planId: pendingFormValues.planId || null,
+				syncCollectorToIRadius: syncToIRadius,
+			}),
+			{
+				loading: "Saving changes...",
+				success: (result) => {
+					if (
+						result &&
+						"iradiusCollectorSyncError" in result &&
+						result.iradiusCollectorSyncError
+					) {
+						return "Saved locally — iRadius sync failed";
+					}
+					return syncToIRadius
+						? "Saved locally and in iRadius"
+						: "Saved (panel only)";
+				},
+				error: (err: { message?: string }) =>
+					err?.message ?? "Failed to save changes",
+			},
+		);
+	}
+
 	const statusType =
 		customer.status === "ACTIVE"
 			? "active"
@@ -346,7 +392,7 @@ export function CustomerDetail({
 				</span>
 			}
 			actions={
-				<div className="flex gap-2">
+				<div className="flex flex-wrap gap-2">
 					{customer.externalId && (
 						<Button
 							variant="outline"
@@ -356,6 +402,19 @@ export function CustomerDetail({
 							<RefreshCwIcon className="mr-2 size-4" />
 							Sync from iRadius
 						</Button>
+					)}
+					{organizationId && (
+						<IRadiusActionsMenu
+							organizationId={organizationId}
+							customer={{
+								id: customer.id,
+								externalId: customer.externalId ?? null,
+								firstName: customer.firstName ?? null,
+								lastName: customer.lastName ?? null,
+								discount: customer.discount ?? null,
+								iptvPrice: customer.iptvPrice ?? null,
+							}}
+						/>
 					)}
 					<AlertDialog>
 						<AlertDialogTrigger asChild>
@@ -693,6 +752,43 @@ export function CustomerDetail({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<AlertDialog
+				open={pendingCollectorSync !== null}
+				onOpenChange={(o) => {
+					if (!o) {
+						setPendingCollectorSync(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Change collector</AlertDialogTitle>
+						<AlertDialogDescription>
+							You're about to reassign this customer's collector.
+							Should we also update the assignment in iRadius?
+							Most of the time you only want a one-off local
+							change — that's the safe default.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<Button
+							variant="outline"
+							onClick={() =>
+								void handleCollectorSaveChoice(false)
+							}
+						>
+							Only on our panel
+						</Button>
+						<Button
+							onClick={() => void handleCollectorSaveChoice(true)}
+						>
+							Also update iRadius
+						</Button>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }
@@ -1525,6 +1621,7 @@ function ActivityTab({
 	const generatePin = useGenerateCustomerPin();
 	const resetPin = useResetCustomerPin();
 	const setPin = useSetCustomerPin();
+	const createLocationRequest = useCreateLocationRequest();
 	const [generatedPin, setGeneratedPin] = useState<string | null>(null);
 	const [showSetPin, setShowSetPin] = useState(false);
 	const [manualPin, setManualPin] = useState("");
@@ -1550,7 +1647,7 @@ function ActivityTab({
 
 	return (
 		<>
-			{customer.latitude && customer.longitude && (
+			{customer.latitude && customer.longitude ? (
 				<DetailSection
 					title="Location"
 					description="GPS coordinates from last known location"
@@ -1574,6 +1671,51 @@ function ActivityTab({
 								<NavigationIcon className="mr-1.5 size-3.5" />
 								Get Directions
 							</a>
+						</Button>
+					</div>
+				</DetailSection>
+			) : (
+				<DetailSection
+					title="Location"
+					description="No GPS coordinates on file"
+				>
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+						<p className="text-sm text-muted-foreground">
+							Send the customer a WhatsApp link to share their
+							location.
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={createLocationRequest.isPending}
+							onClick={() => {
+								if (!organizationId) {
+									return;
+								}
+								createLocationRequest.mutate(
+									{ organizationId, customerId },
+									{
+										onSuccess: (result) => {
+											if (result.whatsappSent) {
+												toast.success(
+													"Location request sent on WhatsApp",
+												);
+											} else {
+												toast.warning(
+													"Link created but WhatsApp send failed — check WPBox config",
+												);
+											}
+										},
+										onError: (err) =>
+											toast.error(err.message),
+									},
+								);
+							}}
+						>
+							<MapPinIcon className="mr-1.5 size-3.5" />
+							{createLocationRequest.isPending
+								? "Sending…"
+								: "Request location"}
 						</Button>
 					</div>
 				</DetailSection>

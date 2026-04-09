@@ -250,6 +250,68 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					}
 				}
 
+				// Unknown-contact auto-escalation: if the conversation has no
+				// verified customer and the user has sent enough messages
+				// without successful identification, escalate proactively
+				// once per conversation. The bot keeps responding either way.
+				if (
+					tools &&
+					conversation.agent.enabledTools.includes(
+						"escalate-telegram",
+					) &&
+					!conversation.verifiedCustomerId &&
+					!conversation.unknownEscalatedAt
+				) {
+					const userMessageCount = messages.filter(
+						(m) => m.role === "user",
+					).length;
+					if (userMessageCount >= 3) {
+						const escalateTool = tools["escalate-telegram"];
+						if (escalateTool?.execute) {
+							try {
+								const args = {
+									reason: "Unknown contact — could not be identified after multiple turns",
+									priority: "medium" as const,
+									category: "general" as const,
+									summary: `Unknown contact (${conversation.contactName ?? conversation.contactId ?? "no name"}) has sent ${userMessageCount} messages but the bot could not link them to a customer. Recent messages:\n${messages
+										.filter((m) => m.role === "user")
+										.slice(-3)
+										.map((m) =>
+											typeof m.content === "string"
+												? m.content.slice(0, 200)
+												: "",
+										)
+										.join("\n")}`,
+									customerName:
+										conversation.contactName ?? undefined,
+									actionRequired:
+										"Reach out to the contact and verify who they are.",
+								};
+								await escalateTool.execute(args, {
+									toolCallId: `unknown-${conversationId}`,
+									messages: [],
+									abortSignal: AbortSignal.timeout(30000),
+								});
+								await db.aiConversation.update({
+									where: { id: conversationId },
+									data: { unknownEscalatedAt: new Date() },
+								});
+								// Append a one-time notice to the assistant's
+								// reply so the contact knows a human is coming.
+								result.text = `${result.text}\n\nI've notified a team member who will join you shortly.`;
+							} catch (error) {
+								logger.error(
+									"Unknown contact auto-escalation failed",
+									{
+										conversationId,
+										error,
+									},
+								);
+							}
+						}
+					}
+				}
+
 				const sendResult = await sendTextMessage(
 					provider,
 					apiToken,

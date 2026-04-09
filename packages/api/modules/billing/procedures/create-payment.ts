@@ -45,6 +45,7 @@ export const createPayment = protectedProcedure
 				.optional(),
 			customerLatitude: z.number().finite().optional(),
 			customerLongitude: z.number().finite().optional(),
+			referredCustomerId: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -186,6 +187,23 @@ export const createPayment = protectedProcedure
 				});
 			}
 
+			// Validate referrer belongs to the same organization (only when
+			// free account; ignored otherwise)
+			if (input.referredCustomerId && input.freeAccount) {
+				const referrer = await tx.customer.findFirst({
+					where: {
+						id: input.referredCustomerId,
+						organizationId: input.organizationId,
+					},
+					select: { id: true },
+				});
+				if (!referrer) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: "Referred customer not found",
+					});
+				}
+			}
+
 			const newPayment = await tx.payment.create({
 				data: {
 					organizationId: input.organizationId,
@@ -200,6 +218,10 @@ export const createPayment = protectedProcedure
 					workerId: input.workerId ?? null,
 					noteCategory: input.noteCategory ?? null,
 					notes: input.notes ?? null,
+					referredCustomerId:
+						input.freeAccount && input.referredCustomerId
+							? input.referredCustomerId
+							: null,
 				},
 			});
 

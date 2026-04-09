@@ -1,0 +1,222 @@
+import { ORPCError } from "@orpc/server";
+import {
+	requirePermission,
+	verifyCustomerOwnership,
+} from "@repo/api/lib/permission";
+import {
+	customerAudit,
+	getAuditContextFromHeaders,
+} from "@repo/auth/lib/audit";
+import { db, type Prisma } from "@repo/database";
+import { logger } from "@repo/logs";
+import z from "zod";
+import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	iradiusResetMacAddress,
+	iradiusSetIptvPrice,
+	iradiusSetRecurringDiscount,
+	iradiusUpdateUserName,
+} from "../lib/iradius-api";
+
+const baseInput = z.object({
+	organizationId: z.string(),
+	customerId: z.string(),
+});
+
+interface LinkedCustomer {
+	id: string;
+	externalId: string;
+	username: string | null;
+	collectorId: string | null;
+}
+
+async function loadLinkedCustomer(
+	organizationId: string,
+	customerId: string,
+): Promise<LinkedCustomer> {
+	const customer = await db.customer.findFirst({
+		where: { id: customerId, organizationId },
+		select: {
+			id: true,
+			externalId: true,
+			username: true,
+			collectorId: true,
+		},
+	});
+	if (!customer) {
+		throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
+	}
+	if (!customer.externalId) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Customer is not linked to iRadius",
+		});
+	}
+	return customer as LinkedCustomer;
+}
+
+/**
+ * Shared lifecycle for the four direct-SQL iRadius admin actions:
+ *   permission → ownership → iRadius write → local mirror → audit.
+ */
+async function runIRadiusAdminAction(opts: {
+	organizationId: string;
+	customerId: string;
+	userId: string;
+	headers: Headers;
+	failureMessage: string;
+	logTag: string;
+	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
+	localData: Prisma.CustomerUpdateInput;
+}): Promise<{ success: true }> {
+	const { permCtx } = await requirePermission(
+		opts.organizationId,
+		opts.userId,
+		"customers",
+		"update",
+	);
+	const customer = await loadLinkedCustomer(
+		opts.organizationId,
+		opts.customerId,
+	);
+	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
+
+	try {
+		const result = await opts.mutate(customer);
+		if (result.affectedRows !== 1) {
+			throw new Error(
+				`Expected 1 row updated, got ${result.affectedRows}`,
+			);
+		}
+	} catch (error) {
+		logger.error(`${opts.logTag} failed`, {
+			customerId: opts.customerId,
+			error: error instanceof Error ? error.message : error,
+		});
+		throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			message: opts.failureMessage,
+		});
+	}
+
+	await db.customer.update({
+		where: { id: opts.customerId },
+		data: opts.localData,
+	});
+
+	customerAudit.updated(
+		opts.customerId,
+		opts.userId,
+		opts.organizationId,
+		getAuditContextFromHeaders(opts.headers),
+	);
+
+	return { success: true };
+}
+
+export const resetCustomerMacAddress = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/reset-mac-address",
+		tags: ["Customers"],
+		summary: "Reset a customer's MAC address in iRadius",
+	})
+	.input(baseInput)
+	.handler(({ context: { user, headers }, input }) =>
+		runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to reset MAC address in iRadius",
+			logTag: "iRadius reset MAC",
+			mutate: (customer) => iradiusResetMacAddress(customer),
+			localData: { macAddress: null },
+		}),
+	);
+
+export const updateCustomerNameInIRadius = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/update-name",
+		tags: ["Customers"],
+		summary: "Update a customer's first/last name locally and in iRadius",
+	})
+	.input(
+		baseInput.extend({
+			firstName: z.string().trim().min(1).max(255),
+			lastName: z.string().trim().min(1).max(255),
+		}),
+	)
+	.handler(({ context: { user, headers }, input }) =>
+		runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to update name in iRadius",
+			logTag: "iRadius update name",
+			mutate: (customer) =>
+				iradiusUpdateUserName(
+					customer,
+					input.firstName,
+					input.lastName,
+				),
+			localData: {
+				firstName: input.firstName,
+				lastName: input.lastName,
+				fullName: `${input.firstName} ${input.lastName}`.trim(),
+			},
+		}),
+	);
+
+export const setCustomerRecurringDiscount = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/set-discount",
+		tags: ["Customers"],
+		summary:
+			"Set a customer's recurring discount in iRadius (applied to future invoices)",
+	})
+	.input(
+		baseInput.extend({
+			discount: z.number().finite().min(0),
+		}),
+	)
+	.handler(({ context: { user, headers }, input }) =>
+		runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to set discount in iRadius",
+			logTag: "iRadius set discount",
+			mutate: (customer) =>
+				iradiusSetRecurringDiscount(customer, input.discount),
+			localData: { discount: input.discount },
+		}),
+	);
+
+export const setCustomerIptvPrice = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/set-iptv-price",
+		tags: ["Customers"],
+		summary: "Set a customer's IPTV price in iRadius",
+	})
+	.input(
+		baseInput.extend({
+			iptvPrice: z.number().finite().min(0),
+		}),
+	)
+	.handler(({ context: { user, headers }, input }) =>
+		runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to set IPTV price in iRadius",
+			logTag: "iRadius set IPTV price",
+			mutate: (customer) =>
+				iradiusSetIptvPrice(customer, input.iptvPrice),
+			localData: { iptvPrice: input.iptvPrice },
+		}),
+	);

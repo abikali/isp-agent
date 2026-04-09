@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
-import { db, type Prisma } from "@repo/database";
+import { db, dbRaw, type Prisma } from "@repo/database";
 import { type ConflictFields, deserializeValue } from "@repo/jobs/sync-fields";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -38,7 +38,9 @@ async function resolveByField(
 	for (let i = 0; i < conflicts.length; i += BATCH_SIZE) {
 		const batch = conflicts.slice(i, i + BATCH_SIZE);
 
-		await db.$transaction(async (tx) => {
+		// dbRaw: resolution may write iRadius's status value back locally; we
+		// must not re-trigger the customer status observer / iRadius push.
+		await dbRaw.$transaction(async (tx) => {
 			for (const conflict of batch) {
 				const fields = conflict.fields as unknown as ConflictFields;
 				const field = fields[targetField];
@@ -224,7 +226,9 @@ export const resolveSyncConflict = protectedProcedure
 			(f) => f.resolution !== null,
 		);
 
-		await db.$transaction(async (tx) => {
+		// dbRaw: resolution may write iRadius's status value back locally; we
+		// must not re-trigger the customer status observer / iRadius push.
+		await dbRaw.$transaction(async (tx) => {
 			// Update the conflict record
 			await tx.syncConflict.update({
 				where: { id: input.conflictId },
@@ -334,7 +338,9 @@ export const bulkResolveSyncConflicts = protectedProcedure
 		for (let i = 0; i < conflicts.length; i += BATCH_SIZE) {
 			const batch = conflicts.slice(i, i + BATCH_SIZE);
 
-			await db.$transaction(async (tx) => {
+			// dbRaw: bulk "keep_remote" resolution may write iRadius's status
+			// value back locally; skip the customer status observer.
+			await dbRaw.$transaction(async (tx) => {
 				for (const conflict of batch) {
 					const fields = conflict.fields as unknown as ConflictFields;
 					const customerUpdate: Record<string, unknown> = {};

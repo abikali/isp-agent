@@ -162,6 +162,31 @@ export async function queryIRadius(
 }
 
 /**
+ * Execute a parameterised mutation on the iRadius database.
+ *
+ * IMPORTANT: write access to the legacy iRadius MySQL is restricted to a
+ * specific set of admin-action columns that the legacy GWT UI itself
+ * mutates via plain single-row updates. See `docs/iradius-actions-
+ * investigation.md` for the full audit of permitted writes. Do NOT use this
+ * helper for arbitrary writes; it is intended only for the wrapper functions
+ * in `@repo/api/customers/lib/iradius-api.ts`.
+ *
+ * Uses parameter binding (NOT string concatenation) to prevent injection.
+ * Returns affectedRows so callers can verify the update landed on exactly
+ * one row.
+ */
+export async function executeIRadius(
+	connection: Connection,
+	sql: string,
+	params: Array<string | number | null>,
+): Promise<{ affectedRows: number }> {
+	const [result] = await connection.execute(sql, params);
+	const affectedRows =
+		(result as { affectedRows?: number }).affectedRows ?? 0;
+	return { affectedRows };
+}
+
+/**
  * Test the iRadius connection and return table counts.
  */
 export async function testIRadiusConnection(): Promise<{

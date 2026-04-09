@@ -16,6 +16,7 @@ export { CustomersList } from "./components/CustomersList";
 export { CustomersListSkeleton } from "./components/CustomersListSkeleton";
 export { EditPlanDialog } from "./components/EditPlanDialog";
 export { EditStationDialog } from "./components/EditStationDialog";
+export { LocationRequestPage } from "./components/LocationRequestPage";
 export { PlansList } from "./components/PlansList";
 export { PlansListSkeleton } from "./components/PlansListSkeleton";
 export { StationsList } from "./components/StationsList";

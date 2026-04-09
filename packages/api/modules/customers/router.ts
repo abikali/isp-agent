@@ -1,3 +1,7 @@
+// Side-effect import: registers the customer status change observer that
+// dispatches iRadius active/inactive sync whenever customer.status transitions
+// via the extended `db` client. Must be imported before any procedure runs.
+import "./lib/customer-status-observer";
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
 import {
@@ -8,9 +12,20 @@ import { createCustomer } from "./procedures/create";
 import { deleteCustomer } from "./procedures/delete";
 import { generateCustomerPin } from "./procedures/generate-pin";
 import { getCustomer } from "./procedures/get";
+import {
+	resetCustomerMacAddress,
+	setCustomerIptvPrice,
+	setCustomerRecurringDiscount,
+	updateCustomerNameInIRadius,
+} from "./procedures/iradius-admin-actions";
 import { listCustomers } from "./procedures/list";
 import { listCustomerInvoices } from "./procedures/list-invoices";
 import { listCustomerTransactions } from "./procedures/list-transactions";
+import {
+	createLocationRequest,
+	getLocationRequestByToken,
+	submitLocationByToken,
+} from "./procedures/location-request";
 import { resetCustomerPin } from "./procedures/reset-pin";
 import { setCustomerPin } from "./procedures/set-pin";
 import { getCustomerStats } from "./procedures/stats";
@@ -58,4 +73,11 @@ export const customersRouter = {
 	applyIRadiusEntitySync,
 	previewAccountTypeChange: previewAccountTypeChangeProcedure,
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
+	resetMacAddress: resetCustomerMacAddress,
+	updateNameInIRadius: updateCustomerNameInIRadius,
+	setDiscount: setCustomerRecurringDiscount,
+	setIptvPrice: setCustomerIptvPrice,
+	createLocationRequest,
+	submitLocationByToken,
+	getLocationRequestByToken,
 };

@@ -203,6 +203,7 @@ export const listPayments = protectedProcedure
 							billingExpiresAt: true,
 							iptvPrice: true,
 							realIpPrice: true,
+							discount: true,
 							plan: { select: { id: true, name: true } },
 						},
 					},
