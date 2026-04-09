@@ -21,7 +21,7 @@ export function BillingStatsCards({
 }: BillingStatsCardsProps) {
 	if (isLoading || !stats) {
 		return (
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid grid-cols-3 gap-2 sm:gap-3">
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
@@ -30,7 +30,7 @@ export function BillingStatsCards({
 	}
 
 	return (
-		<div className="grid grid-cols-3 gap-3">
+		<div className="grid grid-cols-3 gap-2 sm:gap-3">
 			<StatCard
 				title="Collected Bills"
 				value={`${stats.paidCustomers}/${stats.totalCustomers}`}

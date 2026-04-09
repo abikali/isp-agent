@@ -43,18 +43,18 @@ export function StatCard({
 	const card = (
 		<div
 			className={cn(
-				"rounded-lg border bg-card px-4 py-3",
+				"rounded-lg border bg-card px-3 py-2.5 sm:px-4 sm:py-3 min-w-0",
 				href &&
 					"hover:shadow-card-hover cursor-pointer transition-shadow",
 			)}
 		>
-			<p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-				{Icon && <Icon className="size-3.5" />}
-				{title}
+			<p className="text-[11px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1.5 min-w-0">
+				{Icon && <Icon className="size-3.5 shrink-0" />}
+				<span className="truncate">{title}</span>
 			</p>
 			<p
 				className={cn(
-					"text-lg font-bold tabular-nums mt-0.5",
+					"text-base sm:text-lg font-bold tabular-nums mt-0.5 truncate",
 					valueColorStyles[color],
 				)}
 			>
