@@ -199,6 +199,14 @@ export const listPayments = protectedProcedure
 					activityLog: true,
 					reviewedAt: true,
 					paidAt: true,
+					referredCustomer: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							username: true,
+						},
+					},
 					customer: {
 						select: {
 							id: true,

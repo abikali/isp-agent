@@ -66,6 +66,7 @@ import {
 	CircleDotIcon,
 	ExternalLinkIcon,
 	FilterIcon,
+	GiftIcon,
 	ListIcon,
 	MoreHorizontalIcon,
 	PercentIcon,
@@ -157,6 +158,12 @@ interface PaymentRow {
 	receiptSent: boolean;
 	activityLog: unknown;
 	reviewedAt: string | Date | null;
+	referredCustomer: {
+		id: string;
+		firstName: string | null;
+		lastName: string | null;
+		username: string | null;
+	} | null;
 }
 
 function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
@@ -750,19 +757,44 @@ export function PaymentsList() {
 					const variant = getPaymentFlagVariant(payment);
 					const label = getPaymentFlagLabel(payment);
 					const needsReview = isUnreviewed(payment);
+					const referred = payment.referredCustomer;
 					return (
-						<div className="flex items-center gap-1.5">
-							<Badge variant={variant}>{label}</Badge>
-							{needsReview && (
+						<div className="flex flex-col gap-0.5">
+							<div className="flex items-center gap-1.5">
+								<Badge variant={variant}>{label}</Badge>
+								{needsReview && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<span className="relative flex size-2">
+												<span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
+												<span className="relative inline-flex size-2 rounded-full bg-amber-500" />
+											</span>
+										</TooltipTrigger>
+										<TooltipContent>
+											Needs review
+										</TooltipContent>
+									</Tooltip>
+								)}
+							</div>
+							{payment.freeAccount && referred && orgSlug && (
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<span className="relative flex size-2">
-											<span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-75" />
-											<span className="relative inline-flex size-2 rounded-full bg-amber-500" />
-										</span>
+										<a
+											href={`/app/${orgSlug}/customers/${referred.id}`}
+											onClick={(e) => e.stopPropagation()}
+											className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+										>
+											<GiftIcon className="size-3 text-emerald-600" />
+											<span className="truncate max-w-[140px]">
+												{displayName(
+													referred.firstName,
+													referred.lastName,
+												) || referred.username}
+											</span>
+										</a>
 									</TooltipTrigger>
 									<TooltipContent>
-										Needs review
+										Free via referral — open referrer
 									</TooltipContent>
 								</Tooltip>
 							)}
