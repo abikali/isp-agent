@@ -11,9 +11,11 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	type AccountTypeChangeResult,
 	executeAccountTypeChange,
 	previewAccountTypeChange,
 } from "../lib/iradius-api";
+import { mirrorToIRadius } from "../lib/iradius-mirror";
 
 const input = z.object({
 	organizationId: z.string(),
@@ -124,11 +126,6 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 			});
 		}
 
-		const result = await executeAccountTypeChange(
-			customer,
-			Number.parseInt(newPlan.externalId, 10),
-		);
-
 		// Mirror what iRadius just set on User.AccountPrice so the local
 		// monthlyRate doesn't go stale (and doesn't land in the conflict
 		// queue on the next sync). Prefer sellingPrice → rate → monthlyPrice.
@@ -138,12 +135,24 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 		const newMonthlyRate =
 			newPlan.sellingPrice ?? newPlan.rate ?? newPlan.monthlyPrice;
 
-		await db.customer.update({
-			where: { id: input.customerId },
-			data: {
-				planId: input.newPlanId,
-				monthlyRate: newMonthlyRate,
+		let result!: AccountTypeChangeResult;
+		await mirrorToIRadius({
+			logTag: "iRadius change account type",
+			failureMessage: "Failed to change plan in iRadius",
+			remote: async () => {
+				result = await executeAccountTypeChange(
+					customer,
+					Number.parseInt(newPlan.externalId as string, 10),
+				);
 			},
+			local: () =>
+				db.customer.update({
+					where: { id: input.customerId },
+					data: {
+						planId: input.newPlanId,
+						monthlyRate: newMonthlyRate,
+					},
+				}),
 		});
 
 		const auditContext = getAuditContextFromHeaders(headers);

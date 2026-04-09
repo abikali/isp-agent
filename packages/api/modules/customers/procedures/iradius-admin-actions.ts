@@ -8,7 +8,6 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { db, type Prisma } from "@repo/database";
-import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -17,6 +16,7 @@ import {
 	iradiusSetRecurringDiscount,
 	iradiusUpdateUserName,
 } from "../lib/iradius-api";
+import { mirrorToIRadius } from "../lib/iradius-mirror";
 
 const baseInput = z.object({
 	organizationId: z.string(),
@@ -80,26 +80,22 @@ async function runIRadiusAdminAction(opts: {
 	);
 	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
 
-	try {
-		const result = await opts.mutate(customer);
-		if (result.affectedRows !== 1) {
-			throw new Error(
-				`Expected 1 row updated, got ${result.affectedRows}`,
-			);
-		}
-	} catch (error) {
-		logger.error(`${opts.logTag} failed`, {
-			customerId: opts.customerId,
-			error: error instanceof Error ? error.message : error,
-		});
-		throw new ORPCError("INTERNAL_SERVER_ERROR", {
-			message: opts.failureMessage,
-		});
-	}
-
-	await db.customer.update({
-		where: { id: opts.customerId },
-		data: opts.localData,
+	await mirrorToIRadius({
+		logTag: opts.logTag,
+		failureMessage: opts.failureMessage,
+		remote: async () => {
+			const result = await opts.mutate(customer);
+			if (result.affectedRows !== 1) {
+				throw new Error(
+					`Expected 1 row updated, got ${result.affectedRows}`,
+				);
+			}
+		},
+		local: () =>
+			db.customer.update({
+				where: { id: opts.customerId },
+				data: opts.localData,
+			}),
 	});
 
 	customerAudit.updated(

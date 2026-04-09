@@ -579,6 +579,7 @@ LibanCom mirrors customer/billing data from a legacy **iRadius** MySQL system (p
 - **AccountPrice mirroring**: local `AccountPrice` is kept in sync on plan changes (see commit a64949b)
 - **Read-only rule**: NEVER modify the iRadius MySQL database — it is production and actively used. Always `DESCRIBE tablename` before querying; BIT fields require `toBooleanFromBit()`.
 - **ISP AI tools** in `packages/ai/src/tools/` call the iRadius HTTP API and must NOT declare `outputSchema` (API returns inconsistent types).
+- **Mirrored writes rule**: Any procedure that mutates an iRadius-mirrored field (`status`, `planId`, `collectorId`, `macAddress`, `firstName`/`lastName`, `discount`, `iptvPrice`, etc.) MUST go through `mirrorToIRadius` in `packages/api/modules/customers/lib/iradius-mirror.ts`. The helper calls iRadius first and only runs the local DB write if the remote call succeeded. Local-first, fire-and-forget, observer-based, or "log-and-swallow" patterns are forbidden — they silently drift local state from legacy.
 
 See memory `isp-api-server.md` for SSH access, endpoint reference, and schema details.
 

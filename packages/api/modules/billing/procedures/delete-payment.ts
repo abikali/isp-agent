@@ -7,6 +7,8 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { iradiusSetActive } from "../../customers/lib/iradius-api";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 
 export const deletePayment = protectedProcedure
 	.route({
@@ -41,6 +43,9 @@ export const deletePayment = protectedProcedure
 				collectorId: true,
 				paidAmount: true,
 				stoppedAccount: true,
+				customer: {
+					select: { externalId: true, username: true },
+				},
 			},
 		});
 
@@ -50,16 +55,27 @@ export const deletePayment = protectedProcedure
 			});
 		}
 
-		await db.payment.delete({
-			where: { id: input.paymentId },
-		});
-
 		// If the payment had marked the customer as stopped (INACTIVE),
-		// restore the customer back to ACTIVE so they reappear in the unpaid list
+		// reactivate in iRadius FIRST — if that fails, do not delete the
+		// payment locally either, otherwise we'd drift in two directions.
 		if (payment.stoppedAccount) {
-			await db.customer.update({
-				where: { id: payment.customerId },
-				data: { status: "ACTIVE" },
+			await mirrorToIRadius({
+				logTag: "iRadius reactivate on payment delete",
+				failureMessage: "Failed to reactivate customer in iRadius",
+				remote: () => iradiusSetActive(payment.customer, true),
+				local: async () => {
+					await db.payment.delete({
+						where: { id: input.paymentId },
+					});
+					await db.customer.update({
+						where: { id: payment.customerId },
+						data: { status: "ACTIVE" },
+					});
+				},
+			});
+		} else {
+			await db.payment.delete({
+				where: { id: input.paymentId },
 			});
 		}
 

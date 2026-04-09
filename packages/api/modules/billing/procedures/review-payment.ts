@@ -6,6 +6,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { iradiusSetActive } from "../../customers/lib/iradius-api";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 
 export const reviewPayment = protectedProcedure
 	.route({
@@ -39,6 +41,9 @@ export const reviewPayment = protectedProcedure
 				reviewedAt: true,
 				stoppedAccount: true,
 				customerId: true,
+				customer: {
+					select: { externalId: true, username: true },
+				},
 			},
 		});
 
@@ -48,20 +53,32 @@ export const reviewPayment = protectedProcedure
 			});
 		}
 
-		await db.$transaction(async (tx) => {
-			await tx.payment.update({
-				where: { id: input.paymentId },
-				data: { reviewedAt: new Date() },
+		// Deactivate in iRadius FIRST when approving a stopped payment.
+		// If that fails the local review + status change never run.
+		const runLocal = () =>
+			db.$transaction(async (tx) => {
+				await tx.payment.update({
+					where: { id: input.paymentId },
+					data: { reviewedAt: new Date() },
+				});
+				if (payment.stoppedAccount) {
+					await tx.customer.update({
+						where: { id: payment.customerId },
+						data: { status: "INACTIVE" },
+					});
+				}
 			});
 
-			// Deactivate the customer when approving a stopped payment
-			if (payment.stoppedAccount) {
-				await tx.customer.update({
-					where: { id: payment.customerId },
-					data: { status: "INACTIVE" },
-				});
-			}
-		});
+		if (payment.stoppedAccount) {
+			await mirrorToIRadius({
+				logTag: "iRadius deactivate on review-payment",
+				failureMessage: "Failed to deactivate customer in iRadius",
+				remote: () => iradiusSetActive(payment.customer, false),
+				local: runLocal,
+			});
+		} else {
+			await runLocal();
+		}
 
 		return { success: true };
 	});

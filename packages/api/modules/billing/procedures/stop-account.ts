@@ -8,6 +8,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { iradiusSetActive } from "../../customers/lib/iradius-api";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 
 export const stopAccount = protectedProcedure
 	.route({
@@ -56,9 +58,15 @@ export const stopAccount = protectedProcedure
 			});
 		}
 
-		await db.customer.update({
-			where: { id: input.customerId },
-			data: { status: "INACTIVE" },
+		await mirrorToIRadius({
+			logTag: "iRadius stop account",
+			failureMessage: "Failed to deactivate customer in iRadius",
+			remote: () => iradiusSetActive(customer, false),
+			local: () =>
+				db.customer.update({
+					where: { id: input.customerId },
+					data: { status: "INACTIVE" },
+				}),
 		});
 
 		return { success: true };

@@ -1,7 +1,3 @@
-// Side-effect import: registers the customer status change observer that
-// dispatches iRadius active/inactive sync whenever customer.status transitions
-// via the extended `db` client. Must be imported before any procedure runs.
-import "./lib/customer-status-observer";
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
 import {

@@ -11,6 +11,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { iradiusSetActive } from "../lib/iradius-api";
+import { mirrorToIRadius } from "../lib/iradius-mirror";
 
 export const deleteCustomer = protectedProcedure
 	.route({
@@ -48,11 +50,16 @@ export const deleteCustomer = protectedProcedure
 
 		await verifyCustomerOwnership(permCtx, "delete", existing.collectorId);
 
-		// iRadius sync is handled by the customerStatusObserver extension
-		// (see packages/database/prisma/extensions/customer-status-observer.ts)
-		await db.customer.update({
-			where: { id: input.id },
-			data: { status: "INACTIVE" },
+		// iRadius first — if it fails the local status is left untouched.
+		await mirrorToIRadius({
+			logTag: "iRadius deactivate",
+			failureMessage: "Failed to deactivate customer in iRadius",
+			remote: () => iradiusSetActive(existing, false),
+			local: () =>
+				db.customer.update({
+					where: { id: input.id },
+					data: { status: "INACTIVE" },
+				}),
 		});
 
 		const auditContext = getAuditContextFromHeaders(headers);

@@ -1,5 +1,4 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { customerStatusObserver } from "./extensions/customer-status-observer";
 import { PrismaClient } from "./generated/client";
 
 const createPrismaClient = () => {
@@ -18,29 +17,19 @@ declare global {
 	var prismaRawInstance: undefined | ReturnType<typeof createPrismaClient>;
 }
 
-/**
- * Unextended Prisma client — bypasses the customer status observer.
- * Use ONLY for code paths that must not re-trigger iRadius sync
- * (e.g. the iRadius sync worker writing back values pulled from iRadius,
- *  or conflict resolution applying the remote value).
- */
-const dbRaw: ReturnType<typeof createPrismaClient> =
+const db: ReturnType<typeof createPrismaClient> =
 	globalThis.prismaRawInstance ?? createPrismaClient();
 
-/**
- * Default Prisma client with the customer status observer applied.
- * Every `customer.update` / `updateMany` on this client that transitions
- * status fires the registered handlers fire-and-forget.
- */
-const db = dbRaw.$extends(customerStatusObserver);
-
 if (process.env["NODE_ENV"] !== "production") {
-	globalThis.prismaRawInstance = dbRaw;
+	globalThis.prismaRawInstance = db;
 }
 
+/**
+ * `dbRaw` is retained as an alias for `db` so existing callers (e.g. the
+ * iRadius sync worker and conflict-resolution procedures) continue to
+ * compile. There is no longer any Prisma extension layered on top, so the
+ * distinction is historical — all writes go through the same client.
+ */
+const dbRaw = db;
+
 export { db, dbRaw };
-export {
-	type CustomerStatusChange,
-	type CustomerStatusChangeHandler,
-	registerCustomerStatusChangeHandler,
-} from "./extensions/customer-status-observer";

@@ -344,18 +344,10 @@ export function CustomerDetail({
 			}),
 			{
 				loading: "Saving changes...",
-				success: (result) => {
-					if (
-						result &&
-						"iradiusCollectorSyncError" in result &&
-						result.iradiusCollectorSyncError
-					) {
-						return "Saved locally — iRadius sync failed";
-					}
-					return syncToIRadius
+				success: () =>
+					syncToIRadius
 						? "Saved locally and in iRadius"
-						: "Saved (panel only)";
-				},
+						: "Saved (panel only)",
 				error: (err: { message?: string }) =>
 					err?.message ?? "Failed to save changes",
 			},

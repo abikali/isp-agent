@@ -7,6 +7,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { iradiusSetActive } from "../../customers/lib/iradius-api";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { customerSearchFilter } from "../lib/filters";
 import { resolveYearMonth } from "../lib/resolve-month";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
@@ -162,26 +164,31 @@ export const reactivateAccount = protectedProcedure
 			? new Date(input.customExpiry)
 			: null;
 
-		await db.$transaction(async (tx) => {
-			// Delete the stopped payment so the customer appears as unpaid
-			// in the collector portal and can be collected normally.
-			await tx.payment.delete({
-				where: { id: input.paymentId },
-			});
-
-			// Reactivate customer
-			await tx.customer.update({
-				where: { id: payment.customerId },
-				data: {
-					status: "ACTIVE",
-					...(newExpiry
-						? {
-								expiresAt: newExpiry,
-								billingExpiresAt: newExpiry,
-							}
-						: {}),
-				},
-			});
+		await mirrorToIRadius({
+			logTag: "iRadius reactivate stopped account",
+			failureMessage: "Failed to reactivate customer in iRadius",
+			remote: () => iradiusSetActive(payment.customer, true),
+			local: () =>
+				db.$transaction(async (tx) => {
+					// Delete the stopped payment so the customer appears as
+					// unpaid in the collector portal and can be collected
+					// normally.
+					await tx.payment.delete({
+						where: { id: input.paymentId },
+					});
+					await tx.customer.update({
+						where: { id: payment.customerId },
+						data: {
+							status: "ACTIVE",
+							...(newExpiry
+								? {
+										expiresAt: newExpiry,
+										billingExpiresAt: newExpiry,
+									}
+								: {}),
+						},
+					});
+				}),
 		});
 
 		return { success: true };

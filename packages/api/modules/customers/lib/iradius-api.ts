@@ -1,6 +1,5 @@
 import { type IspApiConfig, ispPost } from "@repo/ai/isp-api-client";
 import { executeIRadius, withIRadiusConnection } from "@repo/database/iradius";
-import { logger } from "@repo/logs";
 
 export interface AccountTypeChangePreview {
 	success: boolean;
@@ -54,21 +53,25 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
 }
 
 /**
- * Sync customer active status to iRadius via the REST API.
- * Fire-and-forget — errors are logged but don't block the caller.
+ * Set a customer's active status in iRadius via the REST API.
+ * Throws on any HTTP / configuration failure so callers (via
+ * `mirrorToIRadius`) can abort the local write.
+ *
+ * No-op (resolves) when the customer is not linked to iRadius —
+ * unlinked customers have no remote state to keep in sync.
  */
-export function syncActiveStatusToIRadius(
+export async function iradiusSetActive(
 	customer: { externalId?: string | null; username?: string | null },
 	active: boolean,
-): void {
-	const config = getIspApiConfigFromEnv();
-	if (!config) {
+): Promise<void> {
+	// Unlinked customer — nothing to sync.
+	if (!customer.externalId && !customer.username) {
 		return;
 	}
 
-	// Need either externalId or username to identify the user in iRadius
-	if (!customer.externalId && !customer.username) {
-		return;
+	const config = getIspApiConfigFromEnv();
+	if (!config) {
+		throw new Error("ISP API not configured");
 	}
 
 	const body: Record<string, unknown> = { active };
@@ -78,21 +81,14 @@ export function syncActiveStatusToIRadius(
 		body["username"] = customer.username;
 	}
 
-	const attempt = (retries: number) => {
-		ispPost(config, "/activate-user", body).catch((error) => {
-			if (retries > 0) {
-				setTimeout(() => attempt(retries - 1), 2000);
-				return;
-			}
-			logger.error("Failed to sync active status to iRadius", {
-				externalId: customer.externalId,
-				username: customer.username,
-				active,
-				error: error instanceof Error ? error.message : "Unknown error",
-			});
-		});
-	};
-	attempt(2);
+	const result = await ispPost<{ success?: boolean; error?: string }>(
+		config,
+		"/activate-user",
+		body,
+	);
+	if (result && result.success === false) {
+		throw new Error(result.error ?? "iRadius activate-user failed");
+	}
 }
 
 /**
