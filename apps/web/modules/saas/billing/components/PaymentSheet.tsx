@@ -1,5 +1,6 @@
 "use client";
 
+import { useCreateLocationRequest } from "@saas/customers/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
@@ -64,6 +65,7 @@ export function PaymentSheet({
 	const { employee } = useActiveOrganization();
 	const createPayment = useCreatePayment();
 	const notifyLocation = useNotifyLocationNeeded();
+	const createLocationRequest = useCreateLocationRequest();
 	const { confirm } = useConfirmationAlert();
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];
@@ -272,6 +274,35 @@ export function PaymentSheet({
 				customerName={name}
 				onConfirm={(latitude, longitude) => {
 					doSubmit({ latitude, longitude });
+				}}
+				whatsappPending={createLocationRequest.isPending}
+				onSendWhatsapp={() => {
+					if (!organizationId || !customer) {
+						return;
+					}
+					createLocationRequest.mutate(
+						{
+							organizationId,
+							customerId: customer.id,
+						},
+						{
+							onSuccess: (data) => {
+								if (data.whatsappSent) {
+									toast.success(
+										"Location request sent to customer on WhatsApp",
+									);
+								} else {
+									toast.warning(
+										"Location request created, but WhatsApp delivery failed",
+									);
+								}
+								doSubmit();
+							},
+							onError: (error) => {
+								toast.error(error.message);
+							},
+						},
+					);
 				}}
 				onSkip={() => {
 					const collectorId = employee?.id ?? customer?.collector?.id;

@@ -8,7 +8,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { CrosshairIcon, LoaderIcon, MapPinIcon, SendIcon } from "lucide-react";
+import {
+	CrosshairIcon,
+	LoaderIcon,
+	MapPinIcon,
+	MessageCircleIcon,
+	SendIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 interface LocationPromptDialogProps {
@@ -16,6 +22,8 @@ interface LocationPromptDialogProps {
 	customerName: string;
 	onConfirm: (latitude: number, longitude: number) => void;
 	onSkip: () => void;
+	onSendWhatsapp: () => void;
+	whatsappPending?: boolean;
 }
 
 export function LocationPromptDialog({
@@ -23,6 +31,8 @@ export function LocationPromptDialog({
 	customerName,
 	onConfirm,
 	onSkip,
+	onSendWhatsapp,
+	whatsappPending = false,
 }: LocationPromptDialogProps) {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [errorMessage, setErrorMessage] = useState("");
@@ -130,6 +140,21 @@ export function LocationPromptDialog({
 									: "Use My Current Location"}
 							</>
 						)}
+					</Button>
+
+					<Button
+						variant="outline"
+						size="lg"
+						className="w-full gap-2"
+						onClick={onSendWhatsapp}
+						disabled={whatsappPending || status === "loading"}
+					>
+						{whatsappPending ? (
+							<LoaderIcon className="size-4 animate-spin" />
+						) : (
+							<MessageCircleIcon className="size-4" />
+						)}
+						Ask customer on WhatsApp
 					</Button>
 
 					<Button
