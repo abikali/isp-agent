@@ -568,6 +568,20 @@ Uses **AI SDK v6** (`ai@^6.0.116`) with **OpenRouter** via `@ai-sdk/openai-compa
 
 **Encryption** (`src/encryption.ts`): AES-256-GCM for storing API tokens (WhatsApp, Telegram) in DB. Requires `AI_CHANNEL_ENCRYPTION_KEY` env var (32-byte hex string, 64 chars).
 
+### iRadius Integration (Legacy ISP System)
+
+LibanCom mirrors customer/billing data from a legacy **iRadius** MySQL system (production, read-heavy source of truth for RADIUS auth and bandwidth accounting).
+
+- **Direct DB sync** via SSH tunnel in `packages/database/lib/iradius.ts` (not HTTP API)
+- **HTTP API** also available at `http://185.170.131.27:88/api/` (JWT auth) for operational commands
+- **Sync worker**: BullMQ job runs an 8-phase import (customers, plans, payments, sessions, etc.)
+- **Settings UI**: `/app/{org}/settings/iradius` with live progress polling
+- **AccountPrice mirroring**: local `AccountPrice` is kept in sync on plan changes (see commit a64949b)
+- **Read-only rule**: NEVER modify the iRadius MySQL database — it is production and actively used. Always `DESCRIBE tablename` before querying; BIT fields require `toBooleanFromBit()`.
+- **ISP AI tools** in `packages/ai/src/tools/` call the iRadius HTTP API and must NOT declare `outputSchema` (API returns inconsistent types).
+
+See memory `isp-api-server.md` for SSH access, endpoint reference, and schema details.
+
 ### Background Jobs (BullMQ)
 
 **Location**: `packages/jobs/` (queue definitions, workers) + `apps/worker/` (worker process)
