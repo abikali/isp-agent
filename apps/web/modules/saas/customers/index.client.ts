@@ -34,7 +34,6 @@ export {
 	useBulkExport,
 	useBulkImport,
 	useCreateCustomer,
-	useCreateLocationRequest,
 	useCustomerStats,
 	useCustomerStatsQuery,
 	useCustomers,

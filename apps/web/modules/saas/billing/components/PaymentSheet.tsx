@@ -1,6 +1,5 @@
 "use client";
 
-import { useCreateLocationRequest } from "@saas/customers/client";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
@@ -35,6 +34,7 @@ import { PlusIcon, XIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	useCreateBillingLocationRequest,
 	useCreatePayment,
 	useNoteCategories,
 	useNotifyLocationNeeded,
@@ -65,7 +65,7 @@ export function PaymentSheet({
 	const { employee } = useActiveOrganization();
 	const createPayment = useCreatePayment();
 	const notifyLocation = useNotifyLocationNeeded();
-	const createLocationRequest = useCreateLocationRequest();
+	const createLocationRequest = useCreateBillingLocationRequest();
 	const { confirm } = useConfirmationAlert();
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];

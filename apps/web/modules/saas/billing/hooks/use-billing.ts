@@ -512,6 +512,29 @@ export function useResendReceipt() {
 	});
 }
 
+// ─── Create Location Request (collector-facing) ───────────────
+
+export function useCreateBillingLocationRequest() {
+	return useMutation({
+		...orpc.billing.location.createRequest.mutationOptions(),
+	});
+}
+
+// ─── Mark Receipt As Sent ──────────────────────────────────────
+
+export function useMarkReceiptSent() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.markReceiptSent.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+		},
+	});
+}
+
 // ─── Reports ────────────────────────────────────────────────────
 
 export function useAccountingReports(

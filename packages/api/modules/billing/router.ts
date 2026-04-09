@@ -2,6 +2,7 @@ import { getCollectorBalance } from "./procedures/collector-balance";
 import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
 import { createCollection } from "./procedures/create-collection";
+import { createLocationRequest } from "./procedures/create-location-request";
 import { createPayment } from "./procedures/create-payment";
 import { getCurrentMonth } from "./procedures/current-month";
 import { deleteCollection } from "./procedures/delete-collection";
@@ -13,6 +14,7 @@ import { listCustomerGroups } from "./procedures/list-groups";
 import { listMonths } from "./procedures/list-months";
 import { listPayments } from "./procedures/list-payments";
 import { listUnpaidCustomers } from "./procedures/list-unpaid";
+import { markReceiptSent } from "./procedures/mark-receipt-sent";
 import {
 	createNoteCategory,
 	deleteNoteCategory,
@@ -46,6 +48,7 @@ export const billingRouter = {
 		delete: deletePayment,
 		review: reviewPayment,
 		resendReceipt: resendReceipt,
+		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,
 		stats: getPaymentStats,
 	},
@@ -72,6 +75,7 @@ export const billingRouter = {
 	location: {
 		request: requestLocation,
 		notifyNeeded: notifyLocationNeeded,
+		createRequest: createLocationRequest,
 	},
 	noteCategories: {
 		list: listNoteCategories,

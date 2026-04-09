@@ -85,6 +85,7 @@ import {
 	useCollectors,
 	useCustomerGroups,
 	useDeletePayment,
+	useMarkReceiptSent,
 	useMonthFilter,
 	usePaymentStatsQuery,
 	usePaymentsQuery,
@@ -603,6 +604,7 @@ export function PaymentsList() {
 	const orgSlug = activeOrganization?.slug ?? "";
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
+	const markReceiptSent = useMarkReceiptSent();
 	const updateCustomer = useUpdateCustomer();
 	const setDiscount = useSetDiscount();
 	const [discountDialog, setDiscountDialog] = useState<{
@@ -1005,6 +1007,41 @@ export function PaymentsList() {
 													: "Send Receipt"}
 											</DropdownMenuItem>
 										)}
+										{!payment.stoppedAccount &&
+											!payment.receiptSent && (
+												<DropdownMenuItem
+													disabled={
+														markReceiptSent.isPending
+													}
+													onClick={() => {
+														if (!organizationId) {
+															return;
+														}
+														markReceiptSent.mutate(
+															{
+																organizationId,
+																paymentId:
+																	payment.id,
+															},
+															{
+																onSuccess: () =>
+																	toast.success(
+																		"Receipt marked as sent",
+																	),
+																onError: (
+																	error,
+																) =>
+																	toast.error(
+																		error.message,
+																	),
+															},
+														);
+													}}
+												>
+													<CheckCircle2Icon className="mr-2 size-3.5" />
+													Mark receipt as sent
+												</DropdownMenuItem>
+											)}
 										{log.length > 0 && (
 											<DropdownMenuItem
 												onClick={() =>
@@ -1088,7 +1125,14 @@ export function PaymentsList() {
 				},
 			},
 		],
-		[organizationId, deletePayment, reviewPayment, orgSlug],
+		[
+			organizationId,
+			deletePayment,
+			reviewPayment,
+			orgSlug,
+			markReceiptSent.isPending,
+			markReceiptSent.mutate,
+		],
 	);
 
 	return (
