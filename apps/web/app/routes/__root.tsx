@@ -15,6 +15,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@ui/components/toast";
+import { TooltipProvider } from "@ui/components/tooltip";
 import React, { Suspense, useState } from "react";
 
 // Lazy load devtools - only bundled in development
@@ -101,9 +102,11 @@ function RootComponent() {
 		<RootDocument>
 			<QueryClientProvider client={queryClient}>
 				<ThemeProvider>
-					<NavigationProgress />
-					<Outlet />
-					<Toaster position="top-center" closeButton />
+					<TooltipProvider delayDuration={300}>
+						<NavigationProgress />
+						<Outlet />
+						<Toaster position="top-center" closeButton />
+					</TooltipProvider>
 				</ThemeProvider>
 				<Suspense fallback={null}>
 					<ReactQueryDevtools buttonPosition="bottom-left" />
