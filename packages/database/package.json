@@ -39,12 +39,12 @@
 		"backfill:shortcodes": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-shortcodes.ts"
 	},
 	"dependencies": {
-		"@paralleldrive/cuid2": "3.0.6",
+		"@paralleldrive/cuid2": "3.3.0",
 		"@repo/utils": "workspace:*",
-		"@prisma/adapter-pg": "^7.1.0",
-		"@prisma/client": "7.1.0",
+		"@prisma/adapter-pg": "^7.7.0",
+		"@prisma/client": "7.7.0",
 		"mysql2": "^3.20.0",
-		"pg": "^8.16.3",
+		"pg": "^8.20.0",
 		"ssh2": "^1.17.0"
 	},
 	"devDependencies": {
@@ -53,7 +53,7 @@
 		"@types/node": "25.0.9",
 		"@types/ssh2": "^1.15.5",
 		"dotenv-cli": "^11.0.0",
-		"nanoid": "^5.1.6",
+		"nanoid": "^5.1.7",
 		"prisma": "7.2.0",
 		"redis": "^5.10.0"
 	}
