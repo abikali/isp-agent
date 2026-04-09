@@ -8,28 +8,72 @@ interface TemplateComponent {
 	parameters: Array<{ type: string; text: string }>;
 }
 
+const DEFAULT_WPBOX_TIMEOUT_MS = 15_000;
+
+function getWpboxTimeoutMs(): number {
+	const raw = process.env["WPBOX_TIMEOUT_MS"];
+	if (!raw) {
+		return DEFAULT_WPBOX_TIMEOUT_MS;
+	}
+	const parsed = Number.parseInt(raw, 10);
+	return Number.isFinite(parsed) && parsed > 0
+		? parsed
+		: DEFAULT_WPBOX_TIMEOUT_MS;
+}
+
 /**
- * Send a templated message via the WPBox API. Returns true on 2xx, false
- * otherwise (with a logged warning). Never throws.
+ * Discriminated result from a WPBox template send. Callers that only
+ * need a yes/no signal should use the `sendWhatsApp*` convenience wrappers
+ * below, which extract `.ok` for backward-compat boolean returns. The
+ * `whatsapp-receipt` worker needs the full shape so it can distinguish
+ * transient (5xx — retriable) from permanent (4xx — skip) failures and
+ * log the status code into the payment's activity log.
  */
-async function sendWPBoxTemplate(params: {
+export type WPBoxSendResult =
+	| { ok: true; phone: string; status: number }
+	| {
+			ok: false;
+			phone: string;
+			status?: number;
+			error: string;
+			retriable: boolean;
+	  };
+
+/**
+ * Send a templated message via the WPBox API. Never throws — returns a
+ * typed result instead so callers can decide whether to retry.
+ *
+ * Shared between the API layer (inline single-customer sends) and the
+ * BullMQ workers (bulk/async sends).
+ */
+export async function sendWPBoxTemplate(params: {
 	phone: string;
 	templateName: string;
 	templateLanguage?: string;
 	components: TemplateComponent[];
 	logContext: Record<string, unknown>;
 	logTag: string;
-}): Promise<boolean> {
+}): Promise<WPBoxSendResult> {
 	const token = process.env["WPBOX_TOKEN"];
 	if (!token) {
 		logger.warn(`${params.logTag} WPBOX_TOKEN not set, skipping send`);
-		return false;
+		return {
+			ok: false,
+			phone: params.phone,
+			error: "WPBOX_TOKEN not set",
+			retriable: false,
+		};
 	}
 
 	const phone = normalizePhone(params.phone);
 	if (phone.length < 10) {
 		logger.warn(`${params.logTag} Invalid phone number`, { phone });
-		return false;
+		return {
+			ok: false,
+			phone,
+			error: "Invalid phone number",
+			retriable: false,
+		};
 	}
 
 	try {
@@ -45,7 +89,7 @@ async function sendWPBoxTemplate(params: {
 					template_language: params.templateLanguage ?? "en_US",
 					components: params.components,
 				}),
-				signal: AbortSignal.timeout(15000),
+				signal: AbortSignal.timeout(getWpboxTimeoutMs()),
 			},
 		);
 
@@ -54,31 +98,45 @@ async function sendWPBoxTemplate(params: {
 				phone,
 				...params.logContext,
 			});
-			return true;
+			return { ok: true, phone, status: response.status };
 		}
 
 		logger.warn(`${params.logTag} API returned non-OK`, {
 			status: response.status,
 			phone,
 		});
-		return false;
+		return {
+			ok: false,
+			phone,
+			status: response.status,
+			error: `API returned ${response.status}`,
+			retriable: response.status >= 500,
+		};
 	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
 		logger.warn(`${params.logTag} Failed to send`, {
-			error: error instanceof Error ? error.message : String(error),
+			error: message,
 			phone,
 		});
-		return false;
+		return {
+			ok: false,
+			phone,
+			error: message,
+			// Network/abort errors are almost always transient.
+			retriable: true,
+		};
 	}
 }
 
 /**
- * Send a WhatsApp payment receipt — uses the `success_payment_url` template
- * with an invoice URL button.
+ * Send a WhatsApp payment receipt — uses the `success_payment_url`
+ * template with an invoice URL button. Returns the full WPBox result so
+ * the worker can inspect status codes for activity-log bookkeeping.
  */
 export async function sendWhatsAppReceipt(params: {
 	phone: string;
 	paymentId: string;
-}): Promise<boolean> {
+}): Promise<WPBoxSendResult> {
 	return sendWPBoxTemplate({
 		phone: params.phone,
 		templateName: "success_payment_url",
@@ -105,7 +163,7 @@ export async function sendWhatsAppLocationRequest(params: {
 	token: string;
 	customerName?: string | null;
 }): Promise<boolean> {
-	return sendWPBoxTemplate({
+	const result = await sendWPBoxTemplate({
 		phone: params.phone,
 		templateName: "location_request_url",
 		components: [
@@ -125,4 +183,5 @@ export async function sendWhatsAppLocationRequest(params: {
 		logContext: { token: params.token },
 		logTag: "[WhatsApp Location Request]",
 	});
+	return result.ok;
 }

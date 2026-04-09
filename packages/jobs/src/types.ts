@@ -146,6 +146,17 @@ export interface TelegramLocationJobResult {
 	success: boolean;
 }
 
+// Location request (customer self-serve) job types
+export interface LocationRequestJobData {
+	organizationId: string;
+	customerId: string;
+	createdById: string;
+}
+
+export interface LocationRequestJobResult {
+	success: boolean;
+}
+
 // Billing sync job types
 export interface EmployeeMapping {
 	action: "skip" | "create" | "map";

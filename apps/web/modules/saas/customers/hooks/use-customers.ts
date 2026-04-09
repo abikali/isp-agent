@@ -1,13 +1,9 @@
 "use client";
 
+import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import {
-	useMutation,
-	useQuery,
-	useQueryClient,
-	useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
 interface CustomerListInput {
 	search?: string | undefined;
@@ -29,6 +25,7 @@ interface CustomerListInput {
 		| undefined;
 	groupName?: string | undefined;
 	collectorId?: string | undefined;
+	hasLocation?: "yes" | "no" | undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
 	sortBy?:
@@ -68,6 +65,9 @@ export function useCustomers(filters: CustomerListInput = {}) {
 	}
 	if (filters.collectorId) {
 		input["collectorId"] = filters.collectorId;
+	}
+	if (filters.hasLocation) {
+		input["hasLocation"] = filters.hasLocation;
 	}
 	if (filters.page) {
 		input["page"] = filters.page;
@@ -130,44 +130,115 @@ export function useCustomerStatsQuery() {
 	};
 }
 
-export function useCreateCustomer() {
-	const queryClient = useQueryClient();
+// Every per-customer write — create, update, delete, sync, pin, location,
+// iRadius action — invalidates the whole `customers` namespace so the
+// list + detail + stats all refetch. One-liners via the shared factory;
+// `invalidationKey` lives in `@shared/hooks/create-invalidating-mutation`.
+const invalidateCustomers = () => orpc.customers.key();
 
-	return useMutation({
-		...orpc.customers.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
+export const useCreateCustomer = createInvalidatingMutation(
+	() => orpc.customers.create.mutationOptions(),
+	invalidateCustomers,
+);
 
-export function useUpdateCustomer() {
-	const queryClient = useQueryClient();
+export const useUpdateCustomer = createInvalidatingMutation(
+	() => orpc.customers.update.mutationOptions(),
+	invalidateCustomers,
+);
 
-	return useMutation({
-		...orpc.customers.update.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
+export const useDeleteCustomer = createInvalidatingMutation(
+	() => orpc.customers.delete.mutationOptions(),
+	invalidateCustomers,
+);
 
-export function useDeleteCustomer() {
-	const queryClient = useQueryClient();
+export const useExecuteAccountTypeChange = createInvalidatingMutation(
+	() => orpc.customers.executeAccountTypeChange.mutationOptions(),
+	invalidateCustomers,
+);
 
-	return useMutation({
-		...orpc.customers.delete.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
+export const useResetMacAddress = createInvalidatingMutation(
+	() => orpc.customers.resetMacAddress.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useUpdateNameInIRadius = createInvalidatingMutation(
+	() => orpc.customers.updateNameInIRadius.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useSetDiscount = createInvalidatingMutation(
+	() => orpc.customers.setDiscount.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useSetIptvPrice = createInvalidatingMutation(
+	() => orpc.customers.setIptvPrice.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useCreateLocationRequest = createInvalidatingMutation(
+	() => orpc.customers.createLocationRequest.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkRequestLocation = createInvalidatingMutation(
+	() => orpc.customers.bulkRequestLocation.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useUpdateCustomerLocation = createInvalidatingMutation(
+	() => orpc.customers.updateCustomerLocation.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useClearCustomerLocation = createInvalidatingMutation(
+	() => orpc.customers.clearCustomerLocation.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkImport = createInvalidatingMutation(
+	() => orpc.customers.bulkImport.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useSetCustomerPin = createInvalidatingMutation(
+	() => orpc.customers.setPin.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useResetCustomerPin = createInvalidatingMutation(
+	() => orpc.customers.resetPin.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useGenerateCustomerPin = createInvalidatingMutation(
+	() => orpc.customers.generatePin.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useCancelIRadiusSync = createInvalidatingMutation(
+	() => orpc.customers.cancelIRadiusSync.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useResolveSyncConflict = createInvalidatingMutation(
+	() => orpc.customers.resolveSyncConflict.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkResolveSyncConflicts = createInvalidatingMutation(
+	() => orpc.customers.bulkResolveSyncConflicts.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useApplyIRadiusEntitySync = createInvalidatingMutation(
+	() => orpc.customers.applyIRadiusEntitySync.mutationOptions(),
+	invalidateCustomers,
+);
+
+// ---------------------------------------------------------------------------
+// Mutations that do NOT invalidate on success (previews, exports, tests)
+// ---------------------------------------------------------------------------
 
 export function usePreviewAccountTypeChange() {
 	return useMutation({
@@ -175,120 +246,9 @@ export function usePreviewAccountTypeChange() {
 	});
 }
 
-export function useExecuteAccountTypeChange() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.customers.executeAccountTypeChange.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
-export function useResetMacAddress() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.resetMacAddress.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
-		},
-	});
-}
-
-export function useUpdateNameInIRadius() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.updateNameInIRadius.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
-		},
-	});
-}
-
-export function useSetDiscount() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.setDiscount.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
-		},
-	});
-}
-
-export function useSetIptvPrice() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.setIptvPrice.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
-		},
-	});
-}
-
-export function useCreateLocationRequest() {
-	return useMutation({
-		...orpc.customers.createLocationRequest.mutationOptions(),
-	});
-}
-
-export function useBulkImport() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.customers.bulkImport.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
 export function useBulkExport() {
 	return useMutation({
 		...orpc.customers.bulkExport.mutationOptions(),
-	});
-}
-
-export function useSetCustomerPin() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.customers.setPin.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
-export function useResetCustomerPin() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.customers.resetPin.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
-export function useGenerateCustomerPin() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.customers.generatePin.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
 	});
 }
 
@@ -304,17 +264,15 @@ export function useSyncFromIRadius() {
 	});
 }
 
-export function useCancelIRadiusSync() {
-	const queryClient = useQueryClient();
+export function usePreviewIRadiusEntitySync() {
 	return useMutation({
-		...orpc.customers.cancelIRadiusSync.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
+		...orpc.customers.previewIRadiusEntitySync.mutationOptions(),
 	});
 }
+
+// ---------------------------------------------------------------------------
+// Queries
+// ---------------------------------------------------------------------------
 
 export function useIRadiusSyncStatus(
 	organizationId: string | null,
@@ -337,10 +295,6 @@ export function useIRadiusSyncStatus(
 		},
 	});
 }
-
-// ---------------------------------------------------------------------------
-// Sync Conflict Hooks
-// ---------------------------------------------------------------------------
 
 export function useSyncConflicts(
 	organizationId: string | null,
@@ -372,50 +326,4 @@ export function useSyncConflictsSummary(organizationId: string | null) {
 				})
 			: disabledQuery(["customers", "getSyncConflictsSummary"]),
 	);
-}
-
-export function useResolveSyncConflict() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.resolveSyncConflict.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
-export function useBulkResolveSyncConflicts() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.bulkResolveSyncConflicts.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
-}
-
-// ---------------------------------------------------------------------------
-// Per-Entity Sync Hooks
-// ---------------------------------------------------------------------------
-
-export function usePreviewIRadiusEntitySync() {
-	return useMutation({
-		...orpc.customers.previewIRadiusEntitySync.mutationOptions(),
-	});
-}
-
-export function useApplyIRadiusEntitySync() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		...orpc.customers.applyIRadiusEntitySync.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.customers.key(),
-			});
-		},
-	});
 }

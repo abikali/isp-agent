@@ -31,6 +31,8 @@ interface CustomerFiltersProps {
 	onGroupNameChange: (value: string) => void;
 	collectorId: string;
 	onCollectorIdChange: (value: string) => void;
+	hasLocation: "all" | "yes" | "no";
+	onHasLocationChange: (value: "all" | "yes" | "no") => void;
 }
 
 export function CustomerFilters({
@@ -48,6 +50,8 @@ export function CustomerFilters({
 	onGroupNameChange,
 	collectorId,
 	onCollectorIdChange,
+	hasLocation,
+	onHasLocationChange,
 }: CustomerFiltersProps) {
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
@@ -62,6 +66,7 @@ export function CustomerFilters({
 		connectionType !== "all" ? 1 : 0,
 		groupName !== "all" ? 1 : 0,
 		collectorId !== "all" ? 1 : 0,
+		hasLocation !== "all" ? 1 : 0,
 	].reduce((a, b) => a + b, 0);
 
 	function handleReset() {
@@ -71,6 +76,7 @@ export function CustomerFilters({
 		onConnectionTypeChange("all");
 		onGroupNameChange("all");
 		onCollectorIdChange("all");
+		onHasLocationChange("all");
 	}
 
 	return (
@@ -165,6 +171,22 @@ export function CustomerFilters({
 							{opt.label}
 						</SelectItem>
 					))}
+				</SelectContent>
+			</Select>
+
+			<Select
+				value={hasLocation}
+				onValueChange={(v) =>
+					onHasLocationChange(v as "all" | "yes" | "no")
+				}
+			>
+				<SelectTrigger className="w-full sm:w-[140px]">
+					<SelectValue placeholder="Location" />
+				</SelectTrigger>
+				<SelectContent>
+					<SelectItem value="all">Any location</SelectItem>
+					<SelectItem value="yes">Has location</SelectItem>
+					<SelectItem value="no">Missing location</SelectItem>
 				</SelectContent>
 			</Select>
 		</FilterBar>

@@ -10,6 +10,10 @@ export {
 } from "./src/jobs/email.jobs";
 export { queueContactSync } from "./src/jobs/integration-sync.jobs";
 export { queueIRadiusSync } from "./src/jobs/iradius-sync.jobs";
+export {
+	queueLocationRequest,
+	queueLocationRequestsBulk,
+} from "./src/jobs/location-request.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
@@ -19,6 +23,16 @@ export {
 	type WebhookPayload,
 } from "./src/jobs/webhook.jobs";
 export { queueWhatsAppReceipt } from "./src/jobs/whatsapp-receipt.jobs";
+// Shared helper re-exported for the API layer (single-customer inline sends)
+export {
+	type CreateLocationRequestResult,
+	runCreateLocationRequest,
+} from "./src/lib/location-request-helper";
+// WPBox template senders (shared; API layer imports via @repo/jobs)
+export {
+	sendWhatsAppLocationRequest,
+	sendWhatsAppReceipt,
+} from "./src/lib/wpbox";
 // Queues
 export {
 	AI_CHAT_QUEUE_NAME,
@@ -45,6 +59,11 @@ export {
 	getIRadiusSyncQueue,
 	IRADIUS_SYNC_QUEUE_NAME,
 } from "./src/queues/iradius-sync.queue";
+export {
+	closeLocationRequestQueue,
+	getLocationRequestQueue,
+	LOCATION_REQUEST_QUEUE_NAME,
+} from "./src/queues/location-request.queue";
 export {
 	closeOrgSetupQueue,
 	getOrgSetupQueue,
@@ -90,6 +109,8 @@ export type {
 	IntegrationSyncTrigger,
 	IRadiusSyncJobData,
 	IRadiusSyncJobResult,
+	LocationRequestJobData,
+	LocationRequestJobResult,
 	OrgSetupJobData,
 	OrgSetupJobResult,
 	ScheduledJobData,
@@ -122,6 +143,7 @@ export {
 	EMPLOYEE_SELECT_COLUMNS,
 	type SyncLookupMaps,
 } from "./src/workers/iradius-sync-helpers";
+export { createLocationRequestWorker } from "./src/workers/location-request.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
@@ -140,6 +162,7 @@ import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
 import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
+import { closeLocationRequestQueue } from "./src/queues/location-request.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
 import { closeTelegramLocationQueue } from "./src/queues/telegram-location.queue";
@@ -158,6 +181,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeEmailQueue(),
 		closeIRadiusSyncQueue(),
 		closeIntegrationSyncQueue(),
+		closeLocationRequestQueue(),
 		closeOrgSetupQueue(),
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),

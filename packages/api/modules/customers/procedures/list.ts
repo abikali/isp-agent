@@ -28,6 +28,7 @@ export const listCustomers = protectedProcedure
 				.optional(),
 			groupName: z.string().optional(),
 			collectorId: z.string().optional(),
+			hasLocation: z.enum(["yes", "no"]).optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -84,6 +85,18 @@ export const listCustomers = protectedProcedure
 		if (input.collectorId) {
 			where["collectorId"] = input.collectorId;
 		}
+		if (input.hasLocation === "yes") {
+			where["AND"] = [
+				...((where["AND"] as unknown[] | undefined) ?? []),
+				{ latitude: { not: null } },
+				{ longitude: { not: null } },
+			];
+		} else if (input.hasLocation === "no") {
+			where["AND"] = [
+				...((where["AND"] as unknown[] | undefined) ?? []),
+				{ OR: [{ latitude: null }, { longitude: null }] },
+			];
+		}
 		if (input.search) {
 			where["OR"] = [
 				{ firstName: { contains: input.search, mode: "insensitive" } },
@@ -137,6 +150,9 @@ export const listCustomers = protectedProcedure
 					groupName: true,
 					balance: true,
 					externalId: true,
+					latitude: true,
+					longitude: true,
+					locationRequestedAt: true,
 					createdAt: true,
 					plan: {
 						select: {

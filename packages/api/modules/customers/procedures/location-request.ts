@@ -1,24 +1,45 @@
-import { randomBytes } from "node:crypto";
 import { ORPCError } from "@orpc/server";
 import {
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import {
+	queueLocationRequestsBulk,
+	runCreateLocationRequest,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure, publicProcedure } from "../../../orpc/procedures";
-import { sendWhatsAppLocationRequest } from "../../billing/lib/whatsapp-receipt";
 
-const TOKEN_BYTES = 24; // 32 chars after base64url encoding
-const REQUEST_TTL_DAYS = 7;
-
-function generateToken(): string {
-	return randomBytes(TOKEN_BYTES).toString("base64url");
+/**
+ * Shared lifecycle guard for the customer-scoped location procedures:
+ * permission check → existence check → ownership check. Throws the
+ * correct oRPC error on each failure.
+ */
+async function assertCustomerUpdateAccess(
+	organizationId: string,
+	customerId: string,
+	userId: string,
+): Promise<void> {
+	const { permCtx } = await requirePermission(
+		organizationId,
+		userId,
+		"customers",
+		"update",
+	);
+	const customer = await db.customer.findFirst({
+		where: { id: customerId, organizationId },
+		select: { collectorId: true },
+	});
+	if (!customer) {
+		throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
+	}
+	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
 }
 
 // ---------------------------------------------------------------------------
-// Create a location request (admin / collector initiated)
+// Create a single location request (admin-initiated)
 // ---------------------------------------------------------------------------
 
 export const createLocationRequest = protectedProcedure
@@ -36,86 +57,143 @@ export const createLocationRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		await assertCustomerUpdateAccess(
+			input.organizationId,
+			input.customerId,
+			user.id,
+		);
+
+		const result = await runCreateLocationRequest({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			createdById: user.id,
+		});
+		if (!result.ok) {
+			if (result.reason === "no_phone") {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Customer has no phone number on file",
+				});
+			}
+			throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
+		}
+		if (!result.whatsappSent) {
+			logger.warn("Location request: WhatsApp send failed", {
+				customerId: input.customerId,
+			});
+		}
+		return {
+			success: true,
+			token: result.token,
+			expiresAt: result.expiresAt,
+			whatsappSent: result.whatsappSent,
+		};
+	});
+
+// ---------------------------------------------------------------------------
+// Bulk create location requests
+// ---------------------------------------------------------------------------
+
+export const bulkRequestLocation = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/location-request/bulk",
+		tags: ["Customers"],
+		summary:
+			"Enqueue location-request jobs for multiple customers; worker delivers asynchronously with rate-limited concurrency",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			customerIds: z.array(z.string()).min(1).max(500),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		// Dealer-scoped ownership is not enforced here — each worker job
+		// calls `runCreateLocationRequest` which loads the customer itself
+		// and will reject customer rows outside this organization. For
+		// tighter per-row scope, pre-filter `customerIds` to dealer scope
+		// before enqueuing (follow-up).
+		await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"update",
 		);
 
-		const customer = await db.customer.findFirst({
-			where: {
-				id: input.customerId,
+		const jobIds = await queueLocationRequestsBulk(
+			input.customerIds.map((customerId) => ({
 				organizationId: input.organizationId,
-			},
-			select: {
-				id: true,
-				firstName: true,
-				lastName: true,
-				mobile: true,
-				phone: true,
-				collectorId: true,
-			},
-		});
-		if (!customer) {
-			throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
-		}
-		await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
-
-		const phone = customer.mobile ?? customer.phone;
-		if (!phone) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Customer has no phone number on file",
-			});
-		}
-
-		// Reuse an existing pending request if it's still valid
-		const existing = await db.locationRequest.findFirst({
-			where: {
-				customerId: input.customerId,
-				completedAt: null,
-				expiresAt: { gt: new Date() },
-			},
-			select: { token: true, expiresAt: true },
-			orderBy: { createdAt: "desc" },
-		});
-
-		const token = existing?.token ?? generateToken();
-		const expiresAt =
-			existing?.expiresAt ??
-			new Date(Date.now() + REQUEST_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-		if (!existing) {
-			await db.locationRequest.create({
-				data: {
-					organizationId: input.organizationId,
-					customerId: input.customerId,
-					token,
-					expiresAt,
-					createdById: user.id,
-				},
-			});
-		}
-
-		const sent = await sendWhatsAppLocationRequest({
-			phone,
-			token,
-			customerName: customer.firstName,
-		});
-
-		if (!sent) {
-			logger.warn("Location request: WhatsApp send failed", {
-				customerId: input.customerId,
-				phone,
-			});
-		}
+				customerId,
+				createdById: user.id,
+			})),
+		);
 
 		return {
 			success: true,
-			token,
-			expiresAt,
-			whatsappSent: sent,
+			queued: jobIds.length,
 		};
+	});
+
+// ---------------------------------------------------------------------------
+// Manually set a customer's location (admin)
+// ---------------------------------------------------------------------------
+
+export const updateCustomerLocation = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/location/update",
+		tags: ["Customers"],
+		summary: "Set a customer's latitude/longitude manually",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			customerId: z.string(),
+			latitude: z.number().finite().gte(-90).lte(90),
+			longitude: z.number().finite().gte(-180).lte(180),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		await assertCustomerUpdateAccess(
+			input.organizationId,
+			input.customerId,
+			user.id,
+		);
+		await db.customer.update({
+			where: { id: input.customerId },
+			data: { latitude: input.latitude, longitude: input.longitude },
+		});
+		return { success: true };
+	});
+
+// ---------------------------------------------------------------------------
+// Clear a customer's location (admin)
+// ---------------------------------------------------------------------------
+
+export const clearCustomerLocation = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/location/clear",
+		tags: ["Customers"],
+		summary: "Clear a customer's latitude/longitude",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			customerId: z.string(),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		await assertCustomerUpdateAccess(
+			input.organizationId,
+			input.customerId,
+			user.id,
+		);
+		await db.customer.update({
+			where: { id: input.customerId },
+			data: { latitude: null, longitude: null },
+		});
+		return { success: true };
 	});
 
 // ---------------------------------------------------------------------------
@@ -180,7 +258,7 @@ export const submitLocationByToken = publicProcedure
 	});
 
 // ---------------------------------------------------------------------------
-// Get a location request by token (public — for the customer-facing page)
+// Look up a location request by token (public — for the customer page)
 // ---------------------------------------------------------------------------
 
 export const getLocationRequestByToken = publicProcedure
@@ -204,9 +282,7 @@ export const getLocationRequestByToken = publicProcedure
 			},
 		});
 		if (!request) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Invalid link",
-			});
+			throw new ORPCError("NOT_FOUND", { message: "Invalid link" });
 		}
 		const expired = request.expiresAt < new Date();
 		return {

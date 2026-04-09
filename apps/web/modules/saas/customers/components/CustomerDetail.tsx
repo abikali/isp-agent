@@ -57,8 +57,6 @@ import {
 	CheckCircle2Icon,
 	DollarSignIcon,
 	FileTextIcon,
-	MapPinIcon,
-	NavigationIcon,
 	NetworkIcon,
 	PlusIcon,
 	RefreshCwIcon,
@@ -70,7 +68,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useEmployeesQuery } from "../../employees/hooks/use-employees";
 import {
-	useCreateLocationRequest,
 	useDeleteCustomer,
 	useExecuteAccountTypeChange,
 	useGenerateCustomerPin,
@@ -86,6 +83,7 @@ import {
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
 import { CustomerInvoices } from "./CustomerInvoices";
+import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerTransactions } from "./CustomerTransactions";
 import { IRadiusActionsMenu } from "./IRadiusActionsMenu";
 
@@ -1621,7 +1619,6 @@ function ActivityTab({
 	const generatePin = useGenerateCustomerPin();
 	const resetPin = useResetCustomerPin();
 	const setPin = useSetCustomerPin();
-	const createLocationRequest = useCreateLocationRequest();
 	const [generatedPin, setGeneratedPin] = useState<string | null>(null);
 	const [showSetPin, setShowSetPin] = useState(false);
 	const [manualPin, setManualPin] = useState("");
@@ -1647,78 +1644,14 @@ function ActivityTab({
 
 	return (
 		<>
-			{customer.latitude && customer.longitude ? (
-				<DetailSection
-					title="Location"
-					description="GPS coordinates from last known location"
-				>
-					<div className="flex items-center gap-3">
-						<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-							<MapPinIcon className="size-4 text-primary" />
-						</div>
-						<div className="min-w-0 flex-1">
-							<p className="text-sm tabular-nums text-muted-foreground">
-								{customer.latitude.toFixed(6)},{" "}
-								{customer.longitude.toFixed(6)}
-							</p>
-						</div>
-						<Button variant="outline" size="sm" asChild>
-							<a
-								href={`https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								<NavigationIcon className="mr-1.5 size-3.5" />
-								Get Directions
-							</a>
-						</Button>
-					</div>
-				</DetailSection>
-			) : (
-				<DetailSection
-					title="Location"
-					description="No GPS coordinates on file"
-				>
-					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-						<p className="text-sm text-muted-foreground">
-							Send the customer a WhatsApp link to share their
-							location.
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={createLocationRequest.isPending}
-							onClick={() => {
-								if (!organizationId) {
-									return;
-								}
-								createLocationRequest.mutate(
-									{ organizationId, customerId },
-									{
-										onSuccess: (result) => {
-											if (result.whatsappSent) {
-												toast.success(
-													"Location request sent on WhatsApp",
-												);
-											} else {
-												toast.warning(
-													"Link created but WhatsApp send failed — check WPBox config",
-												);
-											}
-										},
-										onError: (err) =>
-											toast.error(err.message),
-									},
-								);
-							}}
-						>
-							<MapPinIcon className="mr-1.5 size-3.5" />
-							{createLocationRequest.isPending
-								? "Sending…"
-								: "Request location"}
-						</Button>
-					</div>
-				</DetailSection>
+			{organizationId && (
+				<CustomerLocationSection
+					organizationId={organizationId}
+					customerId={customerId}
+					latitude={customer.latitude}
+					longitude={customer.longitude}
+					locationRequestedAt={customer.locationRequestedAt}
+				/>
 			)}
 
 			<DetailSection

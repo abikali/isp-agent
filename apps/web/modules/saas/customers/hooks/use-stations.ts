@@ -1,13 +1,9 @@
 "use client";
 
+import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import {
-	useMutation,
-	useQuery,
-	useQueryClient,
-	useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
 export function useStations(filters?: {
 	search?: string;
@@ -45,41 +41,17 @@ export function useStationsQuery() {
 	};
 }
 
-export function useCreateStation() {
-	const queryClient = useQueryClient();
+export const useCreateStation = createInvalidatingMutation(
+	() => orpc.stations.create.mutationOptions(),
+	() => orpc.stations.key(),
+);
 
-	return useMutation({
-		...orpc.stations.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.stations.list.key(),
-			});
-		},
-	});
-}
+export const useUpdateStation = createInvalidatingMutation(
+	() => orpc.stations.update.mutationOptions(),
+	() => orpc.stations.key(),
+);
 
-export function useUpdateStation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.stations.update.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.stations.key(),
-			});
-		},
-	});
-}
-
-export function useDeleteStation() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.stations.delete.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.stations.list.key(),
-			});
-		},
-	});
-}
+export const useDeleteStation = createInvalidatingMutation(
+	() => orpc.stations.delete.mutationOptions(),
+	() => orpc.stations.key(),
+);

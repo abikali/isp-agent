@@ -6,6 +6,7 @@ import {
 	createEmailWorker,
 	createIntegrationSyncWorker,
 	createIRadiusSyncWorker,
+	createLocationRequestWorker,
 	createOrgSetupWorker,
 	createScheduledWorker,
 	createTelegramLocationWorker,
@@ -34,6 +35,7 @@ async function main() {
 	const integrationSyncWorker = createIntegrationSyncWorker();
 	const orgSetupWorker = createOrgSetupWorker();
 	const telegramLocationWorker = createTelegramLocationWorker();
+	const locationRequestWorker = createLocationRequestWorker();
 	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
@@ -55,6 +57,7 @@ async function main() {
 			"org-setup",
 			"watcher-check",
 			"telegram-location",
+			"location-request",
 			"whatsapp-receipt",
 		],
 	});
@@ -74,6 +77,7 @@ async function main() {
 			orgSetupWorker.close(),
 			watcherCheckWorker.close(),
 			telegramLocationWorker.close(),
+			locationRequestWorker.close(),
 			whatsAppReceiptWorker.close(),
 		]);
 

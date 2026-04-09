@@ -1109,6 +1109,8 @@ model Customer {
   worker         Employee?        @relation("CustomerWorker", fields: [workerId], references: [id], onDelete: SetNull)
   nas            IspNas?          @relation(fields: [nasId], references: [id], onDelete: SetNull)
 
+  locationRequestedAt DateTime?
+
   tasks          Task[]
   conversations  AiConversation[]
   transactions   CustomerTransaction[]
@@ -1134,6 +1136,12 @@ model Customer {
   @@index([status])
   @@index([organizationId, lastName, firstName])
   @@index([organizationId, billingExpiresAt])
+  // Accelerates the `hasLocation` filter on the customers list (org-scoped
+  // `latitude IS NULL OR longitude IS NULL` / `NOT NULL` predicates).
+  @@index([organizationId, latitude, longitude])
+  // Accelerates sorting/filtering by "last requested location" for the
+  // bulk-request throttle UX.
+  @@index([organizationId, locationRequestedAt])
   @@map("customer")
 }
 

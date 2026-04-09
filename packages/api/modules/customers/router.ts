@@ -22,9 +22,12 @@ import { listCustomers } from "./procedures/list";
 import { listCustomerInvoices } from "./procedures/list-invoices";
 import { listCustomerTransactions } from "./procedures/list-transactions";
 import {
+	bulkRequestLocation,
+	clearCustomerLocation,
 	createLocationRequest,
 	getLocationRequestByToken,
 	submitLocationByToken,
+	updateCustomerLocation,
 } from "./procedures/location-request";
 import { resetCustomerPin } from "./procedures/reset-pin";
 import { setCustomerPin } from "./procedures/set-pin";
@@ -78,6 +81,9 @@ export const customersRouter = {
 	setDiscount: setCustomerRecurringDiscount,
 	setIptvPrice: setCustomerIptvPrice,
 	createLocationRequest,
+	bulkRequestLocation,
+	updateCustomerLocation,
+	clearCustomerLocation,
 	submitLocationByToken,
 	getLocationRequestByToken,
 };

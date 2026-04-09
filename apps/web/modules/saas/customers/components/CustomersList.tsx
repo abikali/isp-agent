@@ -7,24 +7,45 @@ import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
+import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@ui/components/alert-dialog";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
-	PencilIcon,
+	MapPinIcon,
 	PlusIcon,
 	RefreshCwIcon,
 	UploadIcon,
 	UsersIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useCustomers } from "../hooks/use-customers";
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+	useBulkRequestLocation,
+	useCreateLocationRequest,
+	useCustomers,
+} from "../hooks/use-customers";
+import {
+	formatLocationRequestAge,
+	isLocationRequestRecent,
+} from "../lib/location-utils";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
 import { CustomerFilters } from "./CustomerFilters";
+import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
 
@@ -70,6 +91,9 @@ interface CustomerRow {
 	collector: { id: string; name: string } | null;
 	connectionType: string | null;
 	balance: number;
+	latitude: number | null;
+	longitude: number | null;
+	locationRequestedAt: Date | string | null;
 }
 
 export function CustomersList({
@@ -77,6 +101,16 @@ export function CustomersList({
 }: {
 	organizationSlug: string;
 }) {
+	const maybeOrganizationId = useOrganizationId();
+	// The `_org/$organizationSlug` route's `beforeLoad` guard guarantees an
+	// org is loaded before this component mounts. Surface a hard error if
+	// we ever render outside that guard instead of silently no-op'ing.
+	if (!maybeOrganizationId) {
+		throw new Error(
+			"CustomersList rendered outside an org-scoped route — beforeLoad guard failed",
+		);
+	}
+	const organizationId: string = maybeOrganizationId;
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
@@ -85,6 +119,7 @@ export function CustomersList({
 	const [connectionType, setConnectionType] = useState("all");
 	const [groupName, setGroupName] = useState("all");
 	const [collectorId, setCollectorId] = useState("all");
+	const [hasLocation, setHasLocation] = useState<"all" | "yes" | "no">("all");
 	const [page, setPage] = useState(1);
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		sortByMap,
@@ -94,12 +129,75 @@ export function CustomersList({
 	const [showImport, setShowImport] = useState(false);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	const [showSyncPreview, setShowSyncPreview] = useState(false);
+	const [showBulkRequestConfirm, setShowBulkRequestConfirm] = useState(false);
+	const [reRequestConfirm, setReRequestConfirm] = useState<{
+		customerId: string;
+		label: string;
+	} | null>(null);
+	const createLocationRequest = useCreateLocationRequest();
+	const bulkRequestLocation = useBulkRequestLocation();
 
 	const selectedIds = useMemo(
 		() => Object.keys(rowSelection),
 		[rowSelection],
 	);
 	const selectedCount = selectedIds.length;
+
+	const sendLocationRequest = useCallback(
+		(customerId: string) => {
+			createLocationRequest.mutate(
+				{ organizationId, customerId },
+				{
+					onSuccess: (result) => {
+						if (result.whatsappSent) {
+							toast.success("Location request sent on WhatsApp");
+						} else {
+							toast.warning(
+								"Link created but WhatsApp send failed",
+							);
+						}
+					},
+					onError: (err) => toast.error(err.message),
+				},
+			);
+		},
+		[organizationId, createLocationRequest],
+	);
+
+	const handleRequestClick = useCallback(
+		(row: CustomerRow) => {
+			if (isLocationRequestRecent(row.locationRequestedAt)) {
+				setReRequestConfirm({
+					customerId: row.id,
+					label:
+						formatLocationRequestAge(row.locationRequestedAt) ??
+						"recently",
+				});
+				return;
+			}
+			sendLocationRequest(row.id);
+		},
+		[sendLocationRequest],
+	);
+
+	function doBulkRequest() {
+		if (selectedIds.length === 0) {
+			return;
+		}
+		bulkRequestLocation.mutate(
+			{ organizationId, customerIds: selectedIds },
+			{
+				onSuccess: (result) => {
+					toast.success(
+						`Queued ${result.queued} request${result.queued === 1 ? "" : "s"} — delivery in progress`,
+					);
+					setRowSelection({});
+					setShowBulkRequestConfirm(false);
+				},
+				onError: (err) => toast.error(err.message),
+			},
+		);
+	}
 
 	const filters = {
 		search: debouncedSearch || undefined,
@@ -117,6 +215,7 @@ export function CustomersList({
 				: undefined,
 		groupName: groupName !== "all" ? groupName : undefined,
 		collectorId: collectorId !== "all" ? collectorId : undefined,
+		hasLocation: hasLocation !== "all" ? hasLocation : undefined,
 		page,
 		sortBy,
 		sortOrder,
@@ -260,30 +359,23 @@ export function CustomersList({
 			{
 				id: "actions",
 				enableSorting: false,
-				meta: { className: "w-10" },
+				meta: { className: "w-20" },
 				cell: ({ row }) => (
-					<Button
-						variant="ghost"
-						size="icon"
-						className="size-8"
-						asChild
-					>
-						<Link
-							to="/app/$organizationSlug/customers/$customerId"
-							params={{
-								organizationSlug,
-								customerId: row.original.id,
-							}}
-							preload="intent"
-						>
-							<PencilIcon className="size-4" />
-							<span className="sr-only">Edit</span>
-						</Link>
-					</Button>
+					<CustomerRowActions
+						customerId={row.original.id}
+						organizationSlug={organizationSlug}
+						hasLocation={
+							row.original.latitude != null &&
+							row.original.longitude != null
+						}
+						onRequestLocation={() =>
+							handleRequestClick(row.original)
+						}
+					/>
 				),
 			},
 		],
-		[organizationSlug],
+		[organizationSlug, handleRequestClick],
 	);
 
 	return (
@@ -352,10 +444,15 @@ export function CustomersList({
 					setCollectorId(v);
 					setPage(1);
 				}}
+				hasLocation={hasLocation}
+				onHasLocationChange={(v) => {
+					setHasLocation(v);
+					setPage(1);
+				}}
 			/>
 
 			{selectedCount > 0 && (
-				<div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
 					<span className="text-sm text-muted-foreground">
 						{selectedCount} selected
 					</span>
@@ -366,6 +463,15 @@ export function CustomersList({
 					>
 						<RefreshCwIcon className="mr-2 size-4" />
 						Sync from iRadius
+					</Button>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={bulkRequestLocation.isPending}
+						onClick={() => setShowBulkRequestConfirm(true)}
+					>
+						<MapPinIcon className="mr-2 size-4" />
+						Request location ({selectedCount})
 					</Button>
 				</div>
 			)}
@@ -427,6 +533,70 @@ export function CustomersList({
 				entityIds={selectedIds}
 				onSynced={() => setRowSelection({})}
 			/>
+
+			<AlertDialog
+				open={showBulkRequestConfirm}
+				onOpenChange={setShowBulkRequestConfirm}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Request location from {selectedCount} customer
+							{selectedCount === 1 ? "" : "s"}?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							Each selected customer will receive a WhatsApp
+							message with a one-tap link to share their location.
+							Customers without a phone number on file will be
+							skipped. Sends are sequential to respect rate
+							limits.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={doBulkRequest}
+							disabled={bulkRequestLocation.isPending}
+						>
+							{bulkRequestLocation.isPending
+								? "Sending…"
+								: "Send requests"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog
+				open={reRequestConfirm !== null}
+				onOpenChange={(o) => !o && setReRequestConfirm(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Re-request location?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							You already requested this customer's location{" "}
+							{reRequestConfirm?.label}. Send another WhatsApp
+							now?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								const id = reRequestConfirm?.customerId;
+								setReRequestConfirm(null);
+								if (id) {
+									sendLocationRequest(id);
+								}
+							}}
+						>
+							Send anyway
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</PageShell>
 	);
 }

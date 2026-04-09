@@ -1,8 +1,9 @@
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
-import { normalizePhone } from "@repo/utils";
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
+import { getWorkerConcurrency } from "../lib/worker-concurrency";
+import { sendWhatsAppReceipt } from "../lib/wpbox";
 import { WHATSAPP_RECEIPT_QUEUE_NAME } from "../queues/whatsapp-receipt.queue";
 import type {
 	WhatsAppReceiptJobData,
@@ -49,104 +50,54 @@ export function createWhatsAppReceiptWorker(): Worker<
 					? "whatsapp_receipt_manual"
 					: "whatsapp_receipt";
 
-			const token = process.env["WPBOX_TOKEN"];
-			if (!token) {
-				logger.warn("[WhatsApp Receipt] WPBOX_TOKEN not set, skipping");
-				await appendActivityLog(paymentId, {
-					action: actionLabel,
-					status: "skipped",
-					error: "WPBOX_TOKEN not set",
-					detail: rawPhone,
-					timestamp: new Date().toISOString(),
-				});
-				return { success: false };
-			}
+			const result = await sendWhatsAppReceipt({
+				phone: rawPhone,
+				paymentId,
+			});
 
-			const phone = normalizePhone(rawPhone);
-			if (phone.length < 10) {
-				logger.warn("[WhatsApp Receipt] Invalid phone number", {
-					phone,
-				});
-				await appendActivityLog(paymentId, {
-					action: actionLabel,
-					status: "skipped",
-					error: "Invalid phone number",
-					detail: phone,
-					timestamp: new Date().toISOString(),
-				});
-				return { success: false };
-			}
-
-			const payload = {
-				token,
-				phone,
-				template_name: "success_payment_url",
-				template_language: "en_US",
-				components: [
-					{
-						type: "button",
-						sub_type: "url",
-						index: "0",
-						parameters: [
-							{
-								type: "text",
-								text: paymentId,
-							},
-						],
-					},
-				],
-			};
-
-			const response = await fetch(
-				"https://saltimarketing.com/api/wpbox/sendtemplatemessage",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(payload),
-					signal: AbortSignal.timeout(15000),
-				},
-			);
-
-			if (!response.ok) {
-				// Throw on transient errors so BullMQ retries with backoff
-				if (response.status >= 500) {
-					// Only log on final attempt to avoid cluttering the log
+			if (!result.ok) {
+				// Permanent failure (4xx, missing token, bad phone) — log and
+				// give up. Transient failure (5xx, timeout) — throw to retry,
+				// but only write a "failed" activity row on the final attempt
+				// so the log isn't flooded with retry noise.
+				if (result.retriable) {
 					const maxAttempts = job.opts.attempts ?? 3;
 					if (job.attemptsMade + 1 >= maxAttempts) {
 						await appendActivityLog(paymentId, {
 							action: actionLabel,
 							status: "failed",
-							statusCode: response.status,
-							error: `Server error after ${maxAttempts} attempts`,
-							detail: phone,
+							...(result.status !== undefined && {
+								statusCode: result.status,
+							}),
+							error: `${result.error} after ${maxAttempts} attempts`,
+							detail: result.phone,
 							timestamp: new Date().toISOString(),
 						});
 					}
 					throw new Error(
-						`WPBox API returned ${response.status} for ${phone}`,
+						`WPBox retry: ${result.error} for ${result.phone}`,
 					);
 				}
-				logger.warn("[WhatsApp Receipt] API returned non-OK", {
-					status: response.status,
-					phone,
-				});
+
 				await appendActivityLog(paymentId, {
 					action: actionLabel,
-					status: "failed",
-					statusCode: response.status,
-					error: `API returned ${response.status}`,
-					detail: phone,
+					status: result.status === undefined ? "skipped" : "failed",
+					...(result.status !== undefined && {
+						statusCode: result.status,
+					}),
+					error: result.error,
+					detail: result.phone,
 					timestamp: new Date().toISOString(),
 				});
 				return { success: false };
 			}
 
 			logger.info("[WhatsApp Receipt] Sent successfully", {
-				phone,
+				phone: result.phone,
 				paymentId,
 			});
 
-			// Update receipt status and log in one write
+			// Update receipt status and append activity log in one write
 			const payment = await db.payment.findUnique({
 				where: { id: paymentId },
 				select: { activityLog: true },
@@ -157,8 +108,8 @@ export function createWhatsAppReceiptWorker(): Worker<
 			log.push({
 				action: actionLabel,
 				status: "success",
-				statusCode: response.status,
-				detail: phone,
+				statusCode: result.status,
+				detail: result.phone,
 				timestamp: new Date().toISOString(),
 			} as unknown as Prisma.JsonValue);
 
@@ -175,7 +126,10 @@ export function createWhatsAppReceiptWorker(): Worker<
 		},
 		{
 			connection: getRedisConnection(),
-			concurrency: 5,
+			concurrency: getWorkerConcurrency(
+				"WHATSAPP_RECEIPT_WORKER_CONCURRENCY",
+				5,
+			),
 		},
 	);
 }
