@@ -220,6 +220,7 @@ export const listPayments = protectedProcedure
 							username: true,
 							mobile: true,
 							phone: true,
+							phones: true,
 							address: true,
 							groupName: true,
 							billingExpiresAt: true,

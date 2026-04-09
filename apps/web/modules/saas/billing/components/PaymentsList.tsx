@@ -1,5 +1,6 @@
 "use client";
 
+import { parsePhones } from "@repo/database/phones";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
@@ -61,7 +62,6 @@ import {
 	ArrowDownIcon,
 	ArrowUpDownIcon,
 	ArrowUpIcon,
-	BanIcon,
 	CheckCircle2Icon,
 	CheckIcon,
 	CircleDotIcon,
@@ -69,18 +69,17 @@ import {
 	FilterIcon,
 	GiftIcon,
 	ListIcon,
+	MessageCircleIcon,
 	MoreHorizontalIcon,
 	PercentIcon,
+	ReceiptIcon,
 	RotateCcwIcon,
 	SendIcon,
 	TrashIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-	useSetDiscount,
-	useUpdateCustomer,
-} from "../../customers/hooks/use-customers";
+import { useSetDiscount } from "../../customers/hooks/use-customers";
 import {
 	useCollectors,
 	useCustomerGroups,
@@ -101,6 +100,7 @@ import {
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
+import { formatWhatsAppLink } from "../lib/whatsapp";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 import { ChangePlanDialog } from "./ChangePlanDialog";
@@ -136,6 +136,49 @@ interface ActivityLogEntry {
 	timestamp: string;
 }
 
+function collectCustomerPhones(customer: {
+	mobile: string | null;
+	phone: string | null;
+	phones: unknown;
+}): string[] {
+	const all = [
+		...parsePhones(customer.phones).map((p) => p.number),
+		customer.mobile ?? "",
+		customer.phone ?? "",
+	]
+		.map((p) => p.trim())
+		.filter(Boolean);
+	return [...new Set(all)];
+}
+
+function DateTimeCell({ value }: { value: string | Date | null | undefined }) {
+	if (!value) {
+		return <span className="text-xs text-muted-foreground">—</span>;
+	}
+	const d = new Date(value);
+	const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+	return (
+		<div className="flex flex-col leading-tight">
+			<span className="text-sm">{d.toLocaleDateString()}</span>
+			{hasTime && (
+				<span className="text-[11px] tabular-nums text-muted-foreground">
+					{d.toLocaleTimeString([], {
+						hour: "2-digit",
+						minute: "2-digit",
+					})}
+				</span>
+			)}
+		</div>
+	);
+}
+
+function openWhatsapp(phone: string): void {
+	const link = formatWhatsAppLink(phone);
+	if (link) {
+		window.open(link, "_blank", "noopener,noreferrer");
+	}
+}
+
 interface PaymentRow {
 	id: string;
 	customer: {
@@ -146,10 +189,13 @@ interface PaymentRow {
 		username: string | null;
 		mobile: string | null;
 		phone: string | null;
+		phones: unknown;
+		billingExpiresAt: string | Date | null;
 		iptvPrice: number;
 		realIpPrice: number;
 		discount: number;
 		planId: string | null;
+		plan: { id: string; name: string } | null;
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
@@ -605,7 +651,6 @@ export function PaymentsList() {
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
 	const markReceiptSent = useMarkReceiptSent();
-	const updateCustomer = useUpdateCustomer();
 	const setDiscount = useSetDiscount();
 	const [discountDialog, setDiscountDialog] = useState<{
 		paymentId: string;
@@ -614,14 +659,17 @@ export function PaymentsList() {
 		currentDiscount: number;
 		discount: string;
 	} | null>(null);
-	const [forceStopDialog, setForceStopDialog] = useState<{
-		paymentId: string;
-		customerId: string;
-		customerName: string;
-	} | null>(null);
 	const [changePlanDialog, setChangePlanDialog] = useState<{
 		customerId: string;
 		currentPlanId: string | null;
+	} | null>(null);
+	const [whatsappPickerDialog, setWhatsappPickerDialog] = useState<{
+		customerName: string;
+		phones: string[];
+	} | null>(null);
+	const [noteDialog, setNoteDialog] = useState<{
+		category: string | null;
+		notes: string | null;
 	} | null>(null);
 
 	const rowClassName = (row: { original: PaymentRow }) =>
@@ -647,22 +695,6 @@ export function PaymentsList() {
 
 	const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(
 		() => [
-			{
-				id: "invoice",
-				header: "Invoice",
-				enableSorting: false,
-				meta: { className: "w-28" },
-				cell: ({ row }) => (
-					<a
-						href={`/invoice/${row.original.id}`}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="font-mono text-xs text-blue-600 hover:underline"
-					>
-						#{row.original.id.slice(-8).toUpperCase()}
-					</a>
-				),
-			},
 			{
 				id: "customer",
 				header: "Customer",
@@ -696,7 +728,6 @@ export function PaymentsList() {
 				id: "collector",
 				header: "Collector",
 				enableSorting: false,
-				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{row.original.collector.name}
@@ -704,29 +735,43 @@ export function PaymentsList() {
 				),
 			},
 			{
-				id: "date",
-				header: "Date",
-				accessorFn: (row) => row.paidAt,
-				enableSorting: true,
-				meta: { className: "hidden md:table-cell" },
-				cell: ({ row }) => (
-					<span className="text-sm">
-						{new Date(row.original.paidAt).toLocaleDateString()}
-					</span>
-				),
+				id: "plan",
+				header: "Plan",
+				enableSorting: false,
+				cell: ({ row }) => {
+					const plan = row.original.customer.plan;
+					if (!plan) {
+						return (
+							<span className="text-xs text-muted-foreground">
+								—
+							</span>
+						);
+					}
+					return (
+						<Badge
+							variant="outline"
+							className="text-xs font-normal"
+						>
+							{plan.name}
+						</Badge>
+					);
+				},
 			},
 			{
-				id: "time",
-				header: "Time",
+				id: "date",
+				header: "Paid Date",
+				accessorFn: (row) => row.paidAt,
+				enableSorting: true,
+				cell: ({ row }) => <DateTimeCell value={row.original.paidAt} />,
+			},
+			{
+				id: "expiry",
+				header: "Expiry Date",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => (
-					<span className="text-sm tabular-nums text-muted-foreground">
-						{new Date(row.original.paidAt).toLocaleTimeString([], {
-							hour: "2-digit",
-							minute: "2-digit",
-						})}
-					</span>
+					<DateTimeCell
+						value={row.original.customer.billingExpiresAt}
+					/>
 				),
 			},
 			{
@@ -816,13 +861,13 @@ export function PaymentsList() {
 				id: "receipt",
 				header: "Receipt",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => getReceiptBadge(row.original),
 			},
 			{
 				id: "note",
 				header: "Note",
 				enableSorting: false,
+				meta: { className: "max-w-[220px]" },
 				cell: ({ row }) => {
 					const category = row.original.noteCategory;
 					const notes = row.original.notes;
@@ -834,7 +879,12 @@ export function PaymentsList() {
 						);
 					}
 					return (
-						<div className="whitespace-nowrap">
+						<button
+							type="button"
+							onClick={() => setNoteDialog({ category, notes })}
+							className="flex max-w-[220px] flex-col items-start gap-0.5 text-left hover:opacity-80"
+							title="Click to view full note"
+						>
 							{category && (
 								<Badge
 									variant="outline"
@@ -844,11 +894,11 @@ export function PaymentsList() {
 								</Badge>
 							)}
 							{notes && (
-								<span className="block text-xs text-muted-foreground mt-0.5">
+								<span className="block w-full truncate text-xs text-muted-foreground">
 									{notes}
 								</span>
 							)}
-						</div>
+						</button>
 					);
 				},
 			},
@@ -864,6 +914,9 @@ export function PaymentsList() {
 						: [];
 					const customerPhone =
 						payment.customer.mobile ?? payment.customer.phone ?? "";
+					const whatsappNumbers = collectCustomerPhones(
+						payment.customer,
+					);
 
 					return (
 						<div className="flex items-center gap-1">
@@ -918,6 +971,16 @@ export function PaymentsList() {
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
+										<DropdownMenuItem asChild>
+											<a
+												href={`/invoice/${payment.id}`}
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												<ReceiptIcon className="mr-2 size-3.5" />
+												View Invoice
+											</a>
+										</DropdownMenuItem>
 										{orgSlug && (
 											<DropdownMenuItem asChild>
 												<a
@@ -967,28 +1030,6 @@ export function PaymentsList() {
 											>
 												<ArrowUpDownIcon className="mr-2 size-3.5" />
 												Change plan
-											</DropdownMenuItem>
-										)}
-										{!payment.stoppedAccount && (
-											<DropdownMenuItem
-												onClick={() =>
-													setForceStopDialog({
-														paymentId: payment.id,
-														customerId:
-															payment.customer.id,
-														customerName:
-															displayName(
-																payment.customer
-																	.firstName,
-																payment.customer
-																	.lastName,
-															),
-													})
-												}
-												className="text-amber-700 focus:text-amber-800 dark:text-amber-500"
-											>
-												<BanIcon className="mr-2 size-3.5" />
-												Force stop customer
 											</DropdownMenuItem>
 										)}
 										<DropdownMenuSeparator />
@@ -1042,6 +1083,38 @@ export function PaymentsList() {
 													Mark receipt as sent
 												</DropdownMenuItem>
 											)}
+										{whatsappNumbers.length > 0 && (
+											<DropdownMenuItem
+												onClick={() => {
+													if (
+														whatsappNumbers.length ===
+														1
+													) {
+														openWhatsapp(
+															whatsappNumbers[0] ??
+																"",
+														);
+														return;
+													}
+													setWhatsappPickerDialog({
+														customerName:
+															displayName(
+																payment.customer
+																	.firstName,
+																payment.customer
+																	.lastName,
+															) ||
+															payment.customer
+																.username ||
+															"Customer",
+														phones: whatsappNumbers,
+													});
+												}}
+											>
+												<MessageCircleIcon className="mr-2 size-3.5" />
+												WhatsApp customer
+											</DropdownMenuItem>
+										)}
 										{log.length > 0 && (
 											<DropdownMenuItem
 												onClick={() =>
@@ -1280,6 +1353,72 @@ export function PaymentsList() {
 				defaultPhone={resendDialogPayment?.phone ?? ""}
 			/>
 
+			<Dialog
+				open={!!noteDialog}
+				onOpenChange={(open) => {
+					if (!open) {
+						setNoteDialog(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Payment note</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-3 py-2">
+						{noteDialog?.category && (
+							<Badge
+								variant="outline"
+								className="text-xs font-normal"
+							>
+								{NOTE_CATEGORY_LABELS[noteDialog.category] ??
+									noteDialog.category}
+							</Badge>
+						)}
+						{noteDialog?.notes && (
+							<p className="whitespace-pre-wrap break-words text-sm text-foreground">
+								{noteDialog.notes}
+							</p>
+						)}
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={!!whatsappPickerDialog}
+				onOpenChange={(open) => {
+					if (!open) {
+						setWhatsappPickerDialog(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-sm">
+					<DialogHeader>
+						<DialogTitle>WhatsApp customer</DialogTitle>
+						<DialogDescription>
+							{whatsappPickerDialog?.customerName} has multiple
+							numbers. Pick the one to open on WhatsApp.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="flex flex-col gap-2 py-2">
+						{whatsappPickerDialog?.phones.map((phone) => (
+							<Button
+								key={phone}
+								variant="outline"
+								className="justify-start gap-2"
+								onClick={() => {
+									openWhatsapp(phone);
+									setWhatsappPickerDialog(null);
+								}}
+							>
+								<MessageCircleIcon className="size-4" />
+								{phone}
+							</Button>
+						))}
+					</div>
+				</DialogContent>
+			</Dialog>
+
 			{/* Activity Log Dialog */}
 			<ActivityLogDialog
 				open={!!activityLogDialog}
@@ -1386,55 +1525,6 @@ export function PaymentsList() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-
-			{/* Force stop dialog (review-queue inline action) */}
-			<AlertDialog
-				open={!!forceStopDialog}
-				onOpenChange={(o) => !o && setForceStopDialog(null)}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Force stop customer</AlertDialogTitle>
-						<AlertDialogDescription>
-							{forceStopDialog?.customerName} will be set to
-							INACTIVE locally, the iRadius account will be
-							deactivated, and this payment will be marked as
-							reviewed. Continue?
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={async () => {
-								if (!organizationId || !forceStopDialog) {
-									return;
-								}
-								try {
-									await updateCustomer.mutateAsync({
-										organizationId,
-										id: forceStopDialog.customerId,
-										status: "INACTIVE",
-									});
-									await reviewPayment.mutateAsync({
-										organizationId,
-										paymentId: forceStopDialog.paymentId,
-									});
-									toast.success("Customer stopped");
-									setForceStopDialog(null);
-								} catch (err) {
-									toast.error(
-										err instanceof Error
-											? err.message
-											: "Failed",
-									);
-								}
-							}}
-						>
-							Force stop
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</PageShell>
 	);
 }

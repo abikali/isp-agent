@@ -1,5 +1,6 @@
 "use client";
 
+import { useActiveOrganization } from "@saas/organizations/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -40,6 +41,7 @@ const SORT_BY_MAP = {
 interface StoppedPaymentRow {
 	id: string;
 	customer: {
+		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
@@ -67,6 +69,8 @@ export function StoppedAccountsList() {
 		currentExpiry: string | null;
 	} | null>(null);
 	const { monthFilter, setMonthFilter, options } = useMonthFilter();
+	const { activeOrganization } = useActiveOrganization();
+	const orgSlug = activeOrganization?.slug ?? "";
 
 	// Extract year/month from the selected billing month option
 	const selectedOption = options.find((o) => o.value === monthFilter);
@@ -89,19 +93,22 @@ export function StoppedAccountsList() {
 				header: "Customer",
 				accessorFn: (row) => row.customer.firstName,
 				enableSorting: true,
-				cell: ({ row }) => (
-					<>
-						<div className="font-medium">
-							{displayName(
-								row.original.customer.firstName,
-								row.original.customer.lastName,
-							)}
-						</div>
-						<div className="text-xs text-muted-foreground">
-							{row.original.customer.username}
-						</div>
-					</>
-				),
+				cell: ({ row }) => {
+					const c = row.original.customer;
+					return (
+						<>
+							<a
+								href={`/app/${orgSlug}/customers/${c.id}`}
+								className="font-medium hover:underline"
+							>
+								{displayName(c.firstName, c.lastName)}
+							</a>
+							<div className="text-xs text-muted-foreground">
+								{c.username}
+							</div>
+						</>
+					);
+				},
 			},
 			{
 				id: "plan",
@@ -188,7 +195,7 @@ export function StoppedAccountsList() {
 				),
 			},
 		],
-		[],
+		[orgSlug],
 	);
 
 	return (

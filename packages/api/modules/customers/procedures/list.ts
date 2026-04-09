@@ -3,7 +3,7 @@ import {
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -98,9 +98,49 @@ export const listCustomers = protectedProcedure
 			];
 		}
 		if (input.search) {
+			const tokens = input.search
+				.trim()
+				.split(/\s+/)
+				.filter(Boolean)
+				.slice(0, 10);
+			const nameClauses: Prisma.CustomerWhereInput[] =
+				tokens.length > 1
+					? [
+							{
+								AND: tokens.map((token) => ({
+									OR: [
+										{
+											firstName: {
+												contains: token,
+												mode: "insensitive",
+											},
+										},
+										{
+											lastName: {
+												contains: token,
+												mode: "insensitive",
+											},
+										},
+									],
+								})),
+							},
+						]
+					: [
+							{
+								firstName: {
+									contains: input.search,
+									mode: "insensitive",
+								},
+							},
+							{
+								lastName: {
+									contains: input.search,
+									mode: "insensitive",
+								},
+							},
+						];
 			where["OR"] = [
-				{ firstName: { contains: input.search, mode: "insensitive" } },
-				{ lastName: { contains: input.search, mode: "insensitive" } },
+				...nameClauses,
 				{ email: { contains: input.search, mode: "insensitive" } },
 				{ phone: { contains: input.search, mode: "insensitive" } },
 				{ mobile: { contains: input.search, mode: "insensitive" } },
