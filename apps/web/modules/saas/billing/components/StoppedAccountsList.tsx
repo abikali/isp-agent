@@ -148,7 +148,9 @@ export function StoppedAccountsList() {
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(row.original.paidAt).toLocaleDateString()}
+						{new Date(row.original.paidAt).toLocaleDateString(
+							"en-GB",
+						)}
 					</span>
 				),
 			},

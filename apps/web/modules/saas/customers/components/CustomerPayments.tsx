@@ -68,7 +68,7 @@ export function CustomerPayments({
 				header: "Date",
 				meta: { className: "text-xs whitespace-nowrap" },
 				cell: ({ row }) =>
-					new Date(row.original.paidAt).toLocaleDateString(),
+					new Date(row.original.paidAt).toLocaleDateString("en-GB"),
 			},
 			{
 				id: "amount",

@@ -93,7 +93,7 @@ function BlogPostPage() {
 
 					<div>
 						<p className="text-sm opacity-30">
-							{Intl.DateTimeFormat("en-US").format(
+							{Intl.DateTimeFormat("en-GB").format(
 								new Date(date),
 							)}
 						</p>

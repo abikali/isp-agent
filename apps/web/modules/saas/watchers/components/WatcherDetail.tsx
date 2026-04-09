@@ -43,7 +43,7 @@ function formatTime(date: string | Date | null): string {
 	if (!date) {
 		return "Never";
 	}
-	return new Date(date).toLocaleString();
+	return new Date(date).toLocaleString("en-GB");
 }
 
 export function WatcherDetail({

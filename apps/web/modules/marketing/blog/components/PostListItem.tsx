@@ -67,7 +67,7 @@ export function PostListItem({ post }: { post: Post }) {
 				)}
 
 				<time className="ml-auto text-xs text-muted-foreground">
-					{Intl.DateTimeFormat("en-US").format(new Date(date))}
+					{Intl.DateTimeFormat("en-GB").format(new Date(date))}
 				</time>
 			</div>
 		</article>

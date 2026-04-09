@@ -72,7 +72,9 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 				enableSorting: true,
 				meta: { className: "text-xs" },
 				cell: ({ row }) =>
-					new Date(row.original.invoiceDate).toLocaleDateString(),
+					new Date(row.original.invoiceDate).toLocaleDateString(
+						"en-GB",
+					),
 			},
 			{
 				id: "total",

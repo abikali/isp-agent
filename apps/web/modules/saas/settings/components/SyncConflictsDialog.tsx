@@ -132,7 +132,7 @@ function formatValue(val: string | null): string {
 	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) {
 		const d = new Date(val);
 		if (!Number.isNaN(d.getTime())) {
-			return d.toLocaleDateString(undefined, {
+			return d.toLocaleDateString("en-GB", {
 				year: "numeric",
 				month: "short",
 				day: "numeric",

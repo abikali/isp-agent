@@ -68,7 +68,7 @@ export function ChannelCard({ channel, onDelete }: ChannelCardProps) {
 							{channel._count.conversations} conversation
 							{channel._count.conversations !== 1 ? "s" : ""}
 							{channel.lastActivityAt &&
-								` · Last active ${new Date(channel.lastActivityAt).toLocaleDateString()}`}
+								` · Last active ${new Date(channel.lastActivityAt).toLocaleDateString("en-GB")}`}
 						</p>
 					</div>
 

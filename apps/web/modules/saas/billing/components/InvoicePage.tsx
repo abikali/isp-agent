@@ -114,7 +114,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 								Date
 							</p>
 							<p className="font-medium text-gray-700 mt-0.5">
-								{paidAt.toLocaleDateString("en-US", {
+								{paidAt.toLocaleDateString("en-GB", {
 									year: "numeric",
 									month: "short",
 									day: "numeric",

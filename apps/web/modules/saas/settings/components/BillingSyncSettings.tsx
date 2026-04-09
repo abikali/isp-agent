@@ -344,7 +344,7 @@ export function BillingSyncSettings() {
 								{operation.completedAt
 									? new Date(
 											operation.completedAt,
-										).toLocaleString()
+										).toLocaleString("en-GB")
 									: "Unknown"}
 							</div>
 						)}
@@ -951,7 +951,9 @@ function SyncResult({ operation }: { operation: BillingOperation }) {
 				{operation.completedAt && (
 					<AlertDescription>
 						Completed at{" "}
-						{new Date(operation.completedAt).toLocaleString()}
+						{new Date(operation.completedAt).toLocaleString(
+							"en-GB",
+						)}
 					</AlertDescription>
 				)}
 			</Alert>

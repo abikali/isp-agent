@@ -84,7 +84,7 @@ export function ConversationsList({
 								<p className="text-xs text-muted-foreground">
 									{new Date(
 										conv.lastMessageAt,
-									).toLocaleDateString()}
+									).toLocaleDateString("en-GB")}
 								</p>
 							)}
 						</div>

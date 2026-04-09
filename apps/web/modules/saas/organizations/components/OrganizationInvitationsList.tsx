@@ -89,7 +89,7 @@ export function OrganizationInvitationsList({
 
 	const dateFormatter = useMemo(
 		() =>
-			new Intl.DateTimeFormat("en-US", {
+			new Intl.DateTimeFormat("en-GB", {
 				dateStyle: "medium",
 				timeStyle: "short",
 			}),

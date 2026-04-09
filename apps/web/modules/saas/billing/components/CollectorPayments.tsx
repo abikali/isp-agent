@@ -308,7 +308,7 @@ function groupByDay(payments: PaymentRowProps["payment"][]): GroupedDay[] {
 		if (!group) {
 			group = {
 				key,
-				label: date.toLocaleDateString("en-US", DAY_FORMAT),
+				label: date.toLocaleDateString("en-GB", DAY_FORMAT),
 				total: 0,
 				payments: [],
 			};

@@ -44,11 +44,11 @@ export function DateRangePicker({
 					{value?.from ? (
 						value.to ? (
 							<>
-								{format(value.from, "LLL dd, y")} -{" "}
-								{format(value.to, "LLL dd, y")}
+								{format(value.from, "dd LLL y")} -{" "}
+								{format(value.to, "dd LLL y")}
 							</>
 						) : (
-							format(value.from, "LLL dd, y")
+							format(value.from, "dd LLL y")
 						)
 					) : (
 						<span>{placeholder}</span>

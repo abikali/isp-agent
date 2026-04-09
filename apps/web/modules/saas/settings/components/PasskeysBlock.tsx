@@ -76,7 +76,7 @@ export function PasskeysBlock() {
 								<small className="block text-foreground/60 text-xs leading-tight">
 									{new Date(
 										passkey.createdAt,
-									).toLocaleDateString()}
+									).toLocaleDateString("en-GB")}
 								</small>
 							</div>
 							<Button

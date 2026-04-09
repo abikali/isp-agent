@@ -72,7 +72,7 @@ function formatRelativeDate(date: string | Date): string {
 	if (diffDays <= 7) {
 		return `Due in ${diffDays} days`;
 	}
-	return d.toLocaleDateString();
+	return d.toLocaleDateString("en-GB");
 }
 
 type TaskItem = ReturnType<typeof useTasks>["tasks"][number];

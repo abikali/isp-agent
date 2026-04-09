@@ -127,7 +127,7 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | Date | null }) {
 	return (
 		<div className="flex flex-col items-start gap-1">
 			<span className="text-sm tabular-nums">
-				{date.toLocaleDateString()}
+				{date.toLocaleDateString("en-GB")}
 			</span>
 			{label && (
 				<Badge variant={variant} className="text-[10px] px-1.5 py-0">

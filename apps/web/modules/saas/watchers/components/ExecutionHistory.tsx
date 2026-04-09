@@ -6,7 +6,7 @@ import { DataTable } from "@ui/components/data-table";
 import { useWatcherExecutions } from "../hooks/use-executions";
 
 function formatTime(date: string | Date): string {
-	return new Date(date).toLocaleString();
+	return new Date(date).toLocaleString("en-GB");
 }
 
 interface Execution {

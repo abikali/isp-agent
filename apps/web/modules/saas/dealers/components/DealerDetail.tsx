@@ -68,7 +68,9 @@ const accountColumns: ColumnDef<DealerAccount, unknown>[] = [
 		cell: ({ row }) => (
 			<span className="text-sm">
 				{row.original.operationDate
-					? new Date(row.original.operationDate).toLocaleDateString()
+					? new Date(row.original.operationDate).toLocaleDateString(
+							"en-GB",
+						)
 					: "-"}
 			</span>
 		),

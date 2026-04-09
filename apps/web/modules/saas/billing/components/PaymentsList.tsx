@@ -69,6 +69,7 @@ import {
 	FilterIcon,
 	GiftIcon,
 	ListIcon,
+	Loader2Icon,
 	MessageCircleIcon,
 	MoreHorizontalIcon,
 	PercentIcon,
@@ -100,7 +101,6 @@ import {
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
-import { formatWhatsAppLink } from "../lib/whatsapp";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 import { ChangePlanDialog } from "./ChangePlanDialog";
@@ -159,7 +159,7 @@ function DateTimeCell({ value }: { value: string | Date | null | undefined }) {
 	const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
 	return (
 		<div className="flex flex-col leading-tight">
-			<span className="text-sm">{d.toLocaleDateString()}</span>
+			<span className="text-sm">{d.toLocaleDateString("en-GB")}</span>
 			{hasTime && (
 				<span className="text-[11px] tabular-nums text-muted-foreground">
 					{d.toLocaleTimeString([], {
@@ -172,11 +172,24 @@ function DateTimeCell({ value }: { value: string | Date | null | undefined }) {
 	);
 }
 
-function openWhatsapp(phone: string): void {
-	const link = formatWhatsAppLink(phone);
-	if (link) {
-		window.open(link, "_blank", "noopener,noreferrer");
+function openConversationsForPhone(
+	orgSlug: string,
+	phone: string,
+	name?: string,
+): void {
+	const trimmed = phone.trim();
+	if (!orgSlug || !trimmed) {
+		return;
 	}
+	const params = new URLSearchParams({ phone: trimmed });
+	if (name) {
+		params.set("name", name);
+	}
+	window.open(
+		`/app/${orgSlug}/conversations/open?${params.toString()}`,
+		"_blank",
+		"noopener,noreferrer",
+	);
 }
 
 interface PaymentRow {
@@ -516,7 +529,7 @@ function ActivityLogDialog({
 										<p className="text-xs text-muted-foreground mt-1">
 											{new Date(
 												entry.timestamp,
-											).toLocaleString()}
+											).toLocaleString("en-GB")}
 										</p>
 									</div>
 								</div>
@@ -909,6 +922,15 @@ export function PaymentsList() {
 				cell: ({ row }) => {
 					const payment = row.original;
 					const needsReview = isUnreviewed(payment);
+					const isReviewing =
+						reviewPayment.isPending &&
+						reviewPayment.variables?.paymentId === payment.id;
+					const isMarkingReceipt =
+						markReceiptSent.isPending &&
+						markReceiptSent.variables?.paymentId === payment.id;
+					const isDeleting =
+						deletePayment.isPending &&
+						deletePayment.variables?.paymentId === payment.id;
 					const log = Array.isArray(payment.activityLog)
 						? (payment.activityLog as ActivityLogEntry[])
 						: [];
@@ -928,6 +950,7 @@ export function PaymentsList() {
 											size="sm"
 											variant="ghost"
 											className="text-emerald-600"
+											disabled={isReviewing}
 											onClick={() =>
 												reviewPayment.mutate(
 													{
@@ -947,7 +970,11 @@ export function PaymentsList() {
 												)
 											}
 										>
-											<CheckIcon className="size-3.5" />
+											{isReviewing ? (
+												<Loader2Icon className="size-3.5 animate-spin" />
+											) : (
+												<CheckIcon className="size-3.5" />
+											)}
 										</Button>
 									</TooltipTrigger>
 									<TooltipContent>
@@ -1051,9 +1078,7 @@ export function PaymentsList() {
 										{!payment.stoppedAccount &&
 											!payment.receiptSent && (
 												<DropdownMenuItem
-													disabled={
-														markReceiptSent.isPending
-													}
+													disabled={isMarkingReceipt}
 													onClick={() => {
 														if (!organizationId) {
 															return;
@@ -1079,40 +1104,47 @@ export function PaymentsList() {
 														);
 													}}
 												>
-													<CheckCircle2Icon className="mr-2 size-3.5" />
+													{isMarkingReceipt ? (
+														<Loader2Icon className="mr-2 size-3.5 animate-spin" />
+													) : (
+														<CheckCircle2Icon className="mr-2 size-3.5" />
+													)}
 													Mark receipt as sent
 												</DropdownMenuItem>
 											)}
 										{whatsappNumbers.length > 0 && (
 											<DropdownMenuItem
 												onClick={() => {
+													const customerName =
+														displayName(
+															payment.customer
+																.firstName,
+															payment.customer
+																.lastName,
+														) ||
+														payment.customer
+															.username ||
+														"Customer";
 													if (
 														whatsappNumbers.length ===
 														1
 													) {
-														openWhatsapp(
+														openConversationsForPhone(
+															orgSlug,
 															whatsappNumbers[0] ??
 																"",
+															customerName,
 														);
 														return;
 													}
 													setWhatsappPickerDialog({
-														customerName:
-															displayName(
-																payment.customer
-																	.firstName,
-																payment.customer
-																	.lastName,
-															) ||
-															payment.customer
-																.username ||
-															"Customer",
+														customerName,
 														phones: whatsappNumbers,
 													});
 												}}
 											>
 												<MessageCircleIcon className="mr-2 size-3.5" />
-												WhatsApp customer
+												Open conversation
 											</DropdownMenuItem>
 										)}
 										{log.length > 0 && (
@@ -1162,6 +1194,7 @@ export function PaymentsList() {
 														Cancel
 													</AlertDialogCancel>
 													<AlertDialogAction
+														disabled={isDeleting}
 														onClick={() =>
 															deletePayment.mutate(
 																{
@@ -1203,8 +1236,7 @@ export function PaymentsList() {
 			deletePayment,
 			reviewPayment,
 			orgSlug,
-			markReceiptSent.isPending,
-			markReceiptSent.mutate,
+			markReceiptSent,
 		],
 	);
 
@@ -1394,10 +1426,10 @@ export function PaymentsList() {
 			>
 				<DialogContent className="sm:max-w-sm">
 					<DialogHeader>
-						<DialogTitle>WhatsApp customer</DialogTitle>
+						<DialogTitle>Open conversation</DialogTitle>
 						<DialogDescription>
 							{whatsappPickerDialog?.customerName} has multiple
-							numbers. Pick the one to open on WhatsApp.
+							numbers. Select one to open the conversation.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex flex-col gap-2 py-2">
@@ -1407,7 +1439,11 @@ export function PaymentsList() {
 								variant="outline"
 								className="justify-start gap-2"
 								onClick={() => {
-									openWhatsapp(phone);
+									openConversationsForPhone(
+										orgSlug,
+										phone,
+										whatsappPickerDialog?.customerName,
+									);
 									setWhatsappPickerDialog(null);
 								}}
 							>

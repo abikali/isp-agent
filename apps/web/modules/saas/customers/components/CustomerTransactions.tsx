@@ -62,7 +62,9 @@ export function CustomerTransactions({ customerId }: { customerId: string }) {
 				enableSorting: true,
 				meta: { className: "text-xs" },
 				cell: ({ row }) =>
-					new Date(row.original.operationDate).toLocaleDateString(),
+					new Date(row.original.operationDate).toLocaleDateString(
+						"en-GB",
+					),
 			},
 			{
 				id: "credit",

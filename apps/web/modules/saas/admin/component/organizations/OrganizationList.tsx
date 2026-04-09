@@ -263,7 +263,9 @@ export function OrganizationList() {
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{new Date(row.original.createdAt).toLocaleDateString()}
+						{new Date(row.original.createdAt).toLocaleDateString(
+							"en-GB",
+						)}
 					</span>
 				),
 			},

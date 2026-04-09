@@ -147,7 +147,7 @@ const auditLogColumns: ColumnDef<AuditLogEntry, unknown>[] = [
 		enableSorting: false,
 		cell: ({ row }) => (
 			<span className="whitespace-nowrap text-muted-foreground text-sm">
-				{format(new Date(row.original.createdAt), "MMM d, HH:mm")}
+				{format(new Date(row.original.createdAt), "d MMM, HH:mm")}
 			</span>
 		),
 	},

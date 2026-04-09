@@ -197,7 +197,7 @@ export function ActiveSessionsBlock() {
 												Created on{" "}
 												{new Date(
 													session.createdAt,
-												).toLocaleDateString()}
+												).toLocaleDateString("en-GB")}
 											</small>
 										</div>
 									</div>

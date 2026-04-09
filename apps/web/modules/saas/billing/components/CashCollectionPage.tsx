@@ -762,7 +762,7 @@ function getPaymentColumns(actions: {
 			header: "Paid",
 			cell: ({ row }) => (
 				<span className="text-muted-foreground">
-					{new Date(row.original.paidAt).toLocaleDateString()}
+					{new Date(row.original.paidAt).toLocaleDateString("en-GB")}
 				</span>
 			),
 		},
@@ -1018,9 +1018,9 @@ function HandoffsTable({
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
-						{new Date(
-							row.original.collectedAt,
-						).toLocaleDateString()}
+						{new Date(row.original.collectedAt).toLocaleDateString(
+							"en-GB",
+						)}
 					</span>
 				),
 			},

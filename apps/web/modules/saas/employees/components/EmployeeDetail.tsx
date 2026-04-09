@@ -1119,7 +1119,7 @@ function TasksSection({
 						{row.original.task.dueDate
 							? new Date(
 									row.original.task.dueDate,
-								).toLocaleDateString()
+								).toLocaleDateString("en-GB")
 							: "-"}
 					</span>
 				),
@@ -1293,7 +1293,9 @@ function PaymentsSection({
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(row.original.paidAt).toLocaleDateString()}
+						{new Date(row.original.paidAt).toLocaleDateString(
+							"en-GB",
+						)}
 					</span>
 				),
 			},
@@ -1395,7 +1397,7 @@ function FinancialTab({
 										<p className="text-xs text-muted-foreground">
 											{new Date(
 												c.collectedAt,
-											).toLocaleDateString()}
+											).toLocaleDateString("en-GB")}
 											{c.notes && ` — ${c.notes}`}
 										</p>
 									</div>
@@ -1567,9 +1569,9 @@ function useInstallationColumns(organizationSlug: string) {
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(
-							row.original.installedAt,
-						).toLocaleDateString()}
+						{new Date(row.original.installedAt).toLocaleDateString(
+							"en-GB",
+						)}
 					</span>
 				),
 			},

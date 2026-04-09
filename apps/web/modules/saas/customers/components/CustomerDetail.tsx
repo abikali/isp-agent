@@ -1341,7 +1341,7 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 							value: customer.overrideExpiryAccount
 								? new Date(
 										customer.overrideExpiryAccount,
-									).toLocaleDateString()
+									).toLocaleDateString("en-GB")
 								: null,
 						},
 						{
@@ -1349,7 +1349,7 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 							value: customer.tempExpiryAccount
 								? new Date(
 										customer.tempExpiryAccount,
-									).toLocaleDateString()
+									).toLocaleDateString("en-GB")
 								: null,
 						},
 					]}
@@ -1806,7 +1806,7 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 							value: customer.originalCreatedAt
 								? new Date(
 										customer.originalCreatedAt,
-									).toLocaleDateString()
+									).toLocaleDateString("en-GB")
 								: null,
 						},
 						{
@@ -1814,7 +1814,7 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 							value: customer.activatedAt
 								? new Date(
 										customer.activatedAt,
-									).toLocaleDateString()
+									).toLocaleDateString("en-GB")
 								: null,
 						},
 						{
@@ -1822,19 +1822,23 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 							value: customer.expiresAt
 								? new Date(
 										customer.expiresAt,
-									).toLocaleDateString()
+									).toLocaleDateString("en-GB")
 								: null,
 						},
 						{
 							label: "Last Login",
 							value: customer.lastLogin
-								? new Date(customer.lastLogin).toLocaleString()
+								? new Date(customer.lastLogin).toLocaleString(
+										"en-GB",
+									)
 								: null,
 						},
 						{
 							label: "Last Log Out",
 							value: customer.lastLogOut
-								? new Date(customer.lastLogOut).toLocaleString()
+								? new Date(customer.lastLogOut).toLocaleString(
+										"en-GB",
+									)
 								: null,
 						},
 						{
@@ -1842,7 +1846,7 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 							value: customer.nasLastLogOut
 								? new Date(
 										customer.nasLastLogOut,
-									).toLocaleString()
+									).toLocaleString("en-GB")
 								: null,
 						},
 						{ label: "MOF", value: customer.mof },

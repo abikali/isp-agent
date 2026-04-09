@@ -14,6 +14,7 @@ import { listAllConversations } from "./procedures/list-all-conversations";
 import { listChannels } from "./procedures/list-channels";
 import { listConversations } from "./procedures/list-conversations";
 import { listTools } from "./procedures/list-tools";
+import { openConversationByPhone } from "./procedures/open-conversation-by-phone";
 import { reactToMessage } from "./procedures/react-to-message";
 import { resumeConversation } from "./procedures/resume-conversation";
 import { searchConversationMessages } from "./procedures/search-conversation-messages";
@@ -41,6 +42,7 @@ export const aiAgentsRouter = {
 	listChannels,
 	listConversations,
 	listAllConversations,
+	openConversationByPhone,
 	getConversationMessages,
 	sendAdminMessage,
 	resumeConversation,

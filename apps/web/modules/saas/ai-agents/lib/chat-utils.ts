@@ -34,7 +34,7 @@ export function formatChatDate(date: Date | string): string {
 	}
 
 	return d
-		.toLocaleDateString([], {
+		.toLocaleDateString("en-GB", {
 			weekday: "short",
 			month: "short",
 			day: "numeric",
@@ -55,10 +55,10 @@ export function formatListTimestamp(date: Date | string): string {
 		return "Yesterday";
 	}
 	if (diffMs < 7 * ONE_DAY_MS) {
-		return new Date(date).toLocaleDateString([], { weekday: "short" });
+		return new Date(date).toLocaleDateString("en-GB", { weekday: "short" });
 	}
 
-	return new Date(date).toLocaleDateString([], {
+	return new Date(date).toLocaleDateString("en-GB", {
 		month: "short",
 		day: "numeric",
 	});

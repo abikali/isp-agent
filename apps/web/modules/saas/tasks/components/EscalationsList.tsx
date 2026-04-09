@@ -241,7 +241,9 @@ function useEscalationColumns(organizationSlug: string) {
 								</span>
 							</TooltipTrigger>
 							<TooltipContent>
-								{new Date(task.createdAt).toLocaleString()}
+								{new Date(task.createdAt).toLocaleString(
+									"en-GB",
+								)}
 							</TooltipContent>
 						</Tooltip>
 					);
