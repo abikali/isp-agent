@@ -149,6 +149,7 @@ export const listCustomers = protectedProcedure
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
+					billingExpiresAt: true,
 					externalId: true,
 					latitude: true,
 					longitude: true,

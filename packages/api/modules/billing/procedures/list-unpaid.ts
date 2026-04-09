@@ -114,6 +114,7 @@ export const listUnpaidCustomers = protectedProcedure
 				where,
 				select: {
 					id: true,
+					externalId: true,
 					accountNumber: true,
 					firstName: true,
 					lastName: true,
@@ -130,8 +131,14 @@ export const listUnpaidCustomers = protectedProcedure
 					realIpPrice: true,
 					latitude: true,
 					longitude: true,
+					planId: true,
 					plan: {
-						select: { id: true, name: true, monthlyPrice: true },
+						select: {
+							id: true,
+							name: true,
+							monthlyPrice: true,
+							externalId: true,
+						},
 					},
 					collector: { select: { id: true, name: true } },
 					dealer: { select: { id: true, name: true } },

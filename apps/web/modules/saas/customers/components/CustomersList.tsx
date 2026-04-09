@@ -94,6 +94,7 @@ interface CustomerRow {
 	latitude: number | null;
 	longitude: number | null;
 	locationRequestedAt: Date | string | null;
+	billingExpiresAt: Date | string | null;
 }
 
 export function CustomersList({
@@ -343,6 +344,20 @@ export function CustomersList({
 					row.original.collector?.name ?? (
 						<span className="text-muted-foreground">-</span>
 					),
+			},
+			{
+				id: "expiry",
+				header: "Expiry",
+				accessorFn: (row) => row.billingExpiresAt,
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell whitespace-nowrap" },
+				cell: ({ row }) => {
+					const value = row.original.billingExpiresAt;
+					if (!value) {
+						return <span className="text-muted-foreground">-</span>;
+					}
+					return new Date(value).toLocaleDateString("en-GB");
+				},
 			},
 			{
 				id: "balance",

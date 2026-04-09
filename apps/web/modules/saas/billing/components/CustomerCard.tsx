@@ -2,10 +2,12 @@
 
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
+import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import {
+	ArrowUpDownIcon,
 	BanknoteIcon,
 	CalendarIcon,
 	CheckIcon,
@@ -20,9 +22,11 @@ import {
 import { useCallback, useState } from "react";
 import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
+import { ChangePlanDialog } from "./ChangePlanDialog";
 
 export interface UnpaidCustomer {
 	id: string;
+	externalId?: string | null;
 	firstName?: string | null;
 	lastName?: string | null;
 	username?: string | null;
@@ -38,7 +42,13 @@ export interface UnpaidCustomer {
 	realIpPrice?: number | null;
 	latitude?: number | null;
 	longitude?: number | null;
-	plan?: { name: string; monthlyPrice?: number | null } | null;
+	planId?: string | null;
+	plan?: {
+		id?: string;
+		name: string;
+		monthlyPrice?: number | null;
+		externalId?: string | null;
+	} | null;
 	collector?: { id: string; name: string } | null;
 	unpaidMonths?: number;
 	accumulatedDue?: number;
@@ -85,7 +95,10 @@ function CopyButton({ value }: { value: string }) {
 }
 
 export function CustomerCard({ customer, onPay }: CustomerCardProps) {
+	const organizationId = useOrganizationId();
 	const [expanded, setExpanded] = useState(false);
+	const [changePlanOpen, setChangePlanOpen] = useState(false);
+	const canChangePlan = !!customer.externalId;
 	const name = displayName(customer.firstName, customer.lastName);
 	const monthlyDue = customerMonthlyDue(customer);
 	const totalDue = customer.accumulatedDue ?? monthlyDue;
@@ -306,6 +319,19 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						</Button>
 					)}
 
+					{canChangePlan && (
+						<Button
+							variant="outline"
+							size="icon"
+							className="size-11 shrink-0"
+							onClick={() => setChangePlanOpen(true)}
+							aria-label="Change plan"
+							title="Change plan"
+						>
+							<ArrowUpDownIcon className="size-4" />
+						</Button>
+					)}
+
 					<Button
 						variant="ghost"
 						size="icon"
@@ -322,6 +348,15 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 					</Button>
 				</div>
 			</CardContent>
+			{canChangePlan && organizationId && (
+				<ChangePlanDialog
+					open={changePlanOpen}
+					onOpenChange={setChangePlanOpen}
+					organizationId={organizationId}
+					customerId={customer.id}
+					currentPlanId={customer.planId ?? null}
+				/>
+			)}
 		</Card>
 	);
 }
