@@ -59,6 +59,7 @@ import {
 import {
 	AlertTriangleIcon,
 	ArrowDownIcon,
+	ArrowUpDownIcon,
 	ArrowUpIcon,
 	BanIcon,
 	CheckCircle2Icon,
@@ -101,6 +102,7 @@ import {
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
+import { ChangePlanDialog } from "./ChangePlanDialog";
 
 const PAGE_SIZE = 25;
 
@@ -137,6 +139,7 @@ interface PaymentRow {
 	id: string;
 	customer: {
 		id: string;
+		externalId: string | null;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
@@ -145,6 +148,7 @@ interface PaymentRow {
 		iptvPrice: number;
 		realIpPrice: number;
 		discount: number;
+		planId: string | null;
 	};
 	collector: { id: string; name: string };
 	paidAt: string | Date;
@@ -613,6 +617,10 @@ export function PaymentsList() {
 		customerId: string;
 		customerName: string;
 	} | null>(null);
+	const [changePlanDialog, setChangePlanDialog] = useState<{
+		customerId: string;
+		currentPlanId: string | null;
+	} | null>(null);
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -943,6 +951,22 @@ export function PaymentsList() {
 											<PercentIcon className="mr-2 size-3.5" />
 											Set discount
 										</DropdownMenuItem>
+										{payment.customer.externalId && (
+											<DropdownMenuItem
+												onClick={() =>
+													setChangePlanDialog({
+														customerId:
+															payment.customer.id,
+														currentPlanId:
+															payment.customer
+																.planId,
+													})
+												}
+											>
+												<ArrowUpDownIcon className="mr-2 size-3.5" />
+												Change plan
+											</DropdownMenuItem>
+										)}
 										{!payment.stoppedAccount && (
 											<DropdownMenuItem
 												onClick={() =>
@@ -1222,6 +1246,16 @@ export function PaymentsList() {
 				}}
 				log={activityLogDialog ?? []}
 			/>
+
+			{organizationId && changePlanDialog && (
+				<ChangePlanDialog
+					open={!!changePlanDialog}
+					onOpenChange={(o) => !o && setChangePlanDialog(null)}
+					organizationId={organizationId}
+					customerId={changePlanDialog.customerId}
+					currentPlanId={changePlanDialog.currentPlanId}
+				/>
+			)}
 
 			{/* Set discount dialog (review-queue inline action) */}
 			<Dialog

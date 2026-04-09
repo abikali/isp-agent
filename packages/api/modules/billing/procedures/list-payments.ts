@@ -214,6 +214,7 @@ export const listPayments = protectedProcedure
 					customer: {
 						select: {
 							id: true,
+							externalId: true,
 							firstName: true,
 							lastName: true,
 							username: true,
@@ -225,6 +226,7 @@ export const listPayments = protectedProcedure
 							iptvPrice: true,
 							realIpPrice: true,
 							discount: true,
+							planId: true,
 							plan: { select: { id: true, name: true } },
 						},
 					},
