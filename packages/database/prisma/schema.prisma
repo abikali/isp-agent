@@ -1174,6 +1174,7 @@ model CustomerInvoice {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  payment      Payment?
 
   @@unique([organizationId, customerId, year, month])
   @@index([customerId])
@@ -1684,6 +1685,7 @@ model Payment {
   organizationId  String
   customerId      String
   billingMonthId  String        @map("billingCycleId")
+  invoiceId       String?       @unique
   collectorId     String
   accountPrice    Float
   paidAmount      Float
@@ -1707,6 +1709,7 @@ model Payment {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   billingMonth BillingMonth @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
+  invoice      CustomerInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
   worker       Employee?    @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
   referredCustomer Customer? @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)

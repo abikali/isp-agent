@@ -190,6 +190,23 @@ export const createPayment = protectedProcedure
 				});
 			}
 
+			// Resolve the invoice this payment satisfies. Normally exists
+			// because `openBillingMonth` generates an invoice for every
+			// billable customer when the month opens; may be null for edge
+			// cases (customer added or activated mid-month outside the
+			// generator's eligibility, free-group customers collecting addons).
+			const invoice = await tx.customerInvoice.findUnique({
+				where: {
+					organizationId_customerId_year_month: {
+						organizationId: input.organizationId,
+						customerId: input.customerId,
+						year: billingMonth.year,
+						month: billingMonth.month,
+					},
+				},
+				select: { id: true },
+			});
+
 			// Validate referrer belongs to the same organization (only when
 			// free account; ignored otherwise)
 			if (input.referredCustomerId && input.freeAccount) {
@@ -212,6 +229,7 @@ export const createPayment = protectedProcedure
 					organizationId: input.organizationId,
 					customerId: input.customerId,
 					billingMonthId: billingMonth.id,
+					invoiceId: invoice?.id ?? null,
 					collectorId: input.collectorId,
 					accountPrice: input.accountPrice,
 					paidAmount: input.paidAmount,
