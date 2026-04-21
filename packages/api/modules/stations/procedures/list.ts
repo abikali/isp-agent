@@ -17,7 +17,6 @@ export const listStations = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			search: z.string().optional(),
-			status: z.enum(["ACTIVE", "MAINTENANCE", "OFFLINE"]).optional(),
 			online: z.boolean().optional(),
 		}),
 	)
@@ -33,9 +32,6 @@ export const listStations = protectedProcedure
 			organizationId: input.organizationId,
 		};
 
-		if (input.status) {
-			where["status"] = input.status;
-		}
 		if (input.online !== undefined) {
 			where["online"] = input.online;
 		}

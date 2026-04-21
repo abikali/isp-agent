@@ -448,8 +448,24 @@ model User {
   stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
   installationsApproved Installation[]   @relation("InstallationApprover")
   resolvedConflicts     SyncConflict[]   @relation("ConflictResolver")
+  pushSubscriptions     PushSubscription[]
 
   @@map("user")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscription")
 }
 
 model Verification {
@@ -1037,6 +1053,7 @@ model Customer {
   // Classification
   categoryName      String?
   groupName         String?
+  groupExternalId   Int?             // iRadius User.UserGroupId — names aren't unique, FK is needed for mirror writes
   collectorName     String?
   collectorPhone    String?
   // Foreign keys (resolved from iRadius)

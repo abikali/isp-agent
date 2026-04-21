@@ -5,7 +5,8 @@ export {
 	createOrganizationNotification,
 	type NotificationType,
 } from "./src/create";
-
+// Push notifications for app-icon badge
+export { getBadgeCountForUser, notifyBadgeForOrganization } from "./src/push";
 // New notification service (checks preferences, sends in-app + email)
 export {
 	type NotificationCategory,
@@ -14,7 +15,6 @@ export {
 	sendNotification,
 	sendOrganizationNotification,
 } from "./src/service";
-
 // Notification trigger functions
 export {
 	notifyAccountLocked,

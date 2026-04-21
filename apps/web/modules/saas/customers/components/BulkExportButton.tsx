@@ -1,5 +1,6 @@
 "use client";
 
+import type { CustomerExportStatus } from "@repo/api/modules/customers/lib/statuses";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { DownloadIcon } from "lucide-react";
@@ -8,13 +9,7 @@ import { downloadCsv } from "../lib/csv-utils";
 
 interface BulkExportButtonProps {
 	filters?: {
-		status?:
-			| "ACTIVE"
-			| "INACTIVE"
-			| "SUSPENDED"
-			| "PENDING"
-			| "EXPIRED"
-			| undefined;
+		status?: CustomerExportStatus | undefined;
 		planId?: string | undefined;
 		stationId?: string | undefined;
 	};

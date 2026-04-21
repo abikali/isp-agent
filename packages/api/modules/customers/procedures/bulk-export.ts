@@ -10,6 +10,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { CUSTOMER_EXPORT_STATUSES } from "../lib/statuses";
 
 export const bulkExportCustomers = protectedProcedure
 	.route({
@@ -23,15 +24,7 @@ export const bulkExportCustomers = protectedProcedure
 			organizationId: z.string(),
 			filters: z
 				.object({
-					status: z
-						.enum([
-							"ACTIVE",
-							"INACTIVE",
-							"SUSPENDED",
-							"PENDING",
-							"EXPIRED",
-						])
-						.optional(),
+					status: z.enum(CUSTOMER_EXPORT_STATUSES).optional(),
 					planId: z.string().optional(),
 					stationId: z.string().optional(),
 				})
@@ -60,6 +53,12 @@ export const bulkExportCustomers = protectedProcedure
 		if (input.filters?.status === "EXPIRED") {
 			where["status"] = "ACTIVE";
 			where["expiresAt"] = { lt: new Date() };
+		} else if (input.filters?.status === "ONLINE") {
+			where["status"] = "ACTIVE";
+			where["online"] = true;
+		} else if (input.filters?.status === "OFFLINE") {
+			where["status"] = "ACTIVE";
+			where["online"] = false;
 		} else if (input.filters?.status) {
 			where["status"] = input.filters.status;
 		}

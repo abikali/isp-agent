@@ -80,6 +80,19 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Sync Station + AccessPoint monitor fields (online, uptime, signal, …)
+	// from iRadius every 15 seconds — mirrors iRadius's own monitor cadence.
+	await queue.upsertJobScheduler(
+		"network-monitor-sync",
+		{
+			every: 15000,
+		},
+		{
+			name: "network-monitor-sync",
+			data: { type: "network-monitor-sync" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

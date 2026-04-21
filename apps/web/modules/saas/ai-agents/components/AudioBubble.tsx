@@ -266,8 +266,8 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 										width: `${BAR_WIDTH}px`,
 										height: `${height}px`,
 										backgroundColor: filled
-											? "hsl(var(--primary))"
-											: "hsl(var(--muted-foreground) / 0.25)",
+											? "var(--primary)"
+											: "color-mix(in srgb, var(--muted-foreground) 25%, transparent)",
 										transition: isPlaying
 											? "height 100ms ease-out"
 											: "background-color 75ms",

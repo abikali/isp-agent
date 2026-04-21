@@ -6,7 +6,9 @@ import {
 	useCanAccess,
 	usePermissionScope,
 } from "@saas/organizations/client";
+import { InstallAppButton } from "@shared/components/InstallAppButton";
 import { Logo } from "@shared/components/Logo";
+import { useAppBadge } from "@shared/hooks/use-app-badge";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -40,8 +42,6 @@ import { OrganizationSelect } from "../../organizations/components/OrganizationS
 import { NotificationBell } from "./NotificationBell";
 import { UserMenu } from "./UserMenu";
 
-// ─── Types ──────────────────────────────────────────────────────────
-
 interface NavItem {
 	label: string;
 	href: string;
@@ -56,8 +56,6 @@ interface NavGroup {
 	icon: LucideIcon;
 	items: NavItem[];
 }
-
-// ─── Component ──────────────────────────────────────────────────────
 
 export function NavBar() {
 	const location = useLocation();
@@ -78,6 +76,8 @@ export function NavBar() {
 			: disabledQuery(["billing", "stats"]),
 	);
 	const unreviewedCount = statsData?.unreviewedCount ?? 0;
+
+	useAppBadge(unreviewedCount);
 
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
@@ -488,6 +488,7 @@ export function NavBar() {
 							{ "md:hidden": useSidebarLayout },
 						)}
 					>
+						<InstallAppButton />
 						<NotificationBell />
 						<UserMenu />
 					</div>
@@ -610,6 +611,9 @@ export function NavBar() {
 						<div className="flex items-center gap-3">
 							<div className="min-w-0 flex-1">
 								<UserMenu showUserName />
+							</div>
+							<div className="shrink-0">
+								<InstallAppButton />
 							</div>
 							<div className="shrink-0">
 								<NotificationBell />

@@ -7,7 +7,6 @@ import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
-import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Select,
@@ -16,43 +15,18 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import {
-	PencilIcon,
-	PlusIcon,
-	RadioTowerIcon,
-	TrashIcon,
-	WifiIcon,
-	WifiOffIcon,
-} from "lucide-react";
+import { RadioTowerIcon, WifiIcon, WifiOffIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useDeleteStation, useStations } from "../hooks/use-stations";
-import {
-	STATION_STATUS_LABELS,
-	STATION_STATUS_OPTIONS,
-} from "../lib/constants";
-import { CreateStationDialog } from "./CreateStationDialog";
-import { EditStationDialog } from "./EditStationDialog";
+import { useStations } from "../hooks/use-stations";
 
 type Station = ReturnType<typeof useStations>["stations"][number];
 
-const statusIndicatorMap: Record<string, "active" | "inactive" | "pending"> = {
-	ACTIVE: "active",
-	MAINTENANCE: "pending",
-	OFFLINE: "inactive",
-};
-
 export function StationsList() {
-	const deleteStation = useDeleteStation();
-	const [showCreate, setShowCreate] = useState(false);
-	const [editingStation, setEditingStation] = useState<Station | null>(null);
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
-	const [statusFilter, setStatusFilter] = useState("");
 	const [onlineFilter, setOnlineFilter] = useState("");
 	const { stations } = useStations({
 		search: debouncedSearch || undefined,
-		status:
-			(statusFilter as "ACTIVE" | "MAINTENANCE" | "OFFLINE") || undefined,
 		online:
 			onlineFilter === "online"
 				? true
@@ -61,11 +35,10 @@ export function StationsList() {
 					: undefined,
 	});
 
-	const activeFilterCount = (statusFilter ? 1 : 0) + (onlineFilter ? 1 : 0);
+	const activeFilterCount = onlineFilter ? 1 : 0;
 
 	function resetFilters() {
 		setSearch("");
-		setStatusFilter("");
 		setOnlineFilter("");
 	}
 
@@ -77,10 +50,7 @@ export function StationsList() {
 				meta: { className: "w-10 pr-0" },
 				cell: ({ row }) => (
 					<StatusIndicator
-						status={
-							statusIndicatorMap[row.original.status] ??
-							"inactive"
-						}
+						status={row.original.online ? "active" : "inactive"}
 						label=""
 						size="sm"
 					/>
@@ -90,13 +60,7 @@ export function StationsList() {
 				accessorKey: "name",
 				header: "Station",
 				cell: ({ row }) => (
-					<div>
-						<p className="font-medium">{row.original.name}</p>
-						<p className="text-xs text-muted-foreground">
-							{STATION_STATUS_LABELS[row.original.status] ??
-								row.original.status}
-						</p>
-					</div>
+					<p className="font-medium">{row.original.name}</p>
 				),
 			},
 			{
@@ -226,57 +190,14 @@ export function StationsList() {
 					</span>
 				),
 			},
-			{
-				id: "actions",
-				enableSorting: false,
-				cell: ({ row }) => {
-					const station = row.original;
-					return (
-						<div className="flex gap-1">
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-8"
-								onClick={() => setEditingStation(station)}
-							>
-								<PencilIcon className="size-4" />
-								<span className="sr-only">Edit</span>
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-8"
-								onClick={() => {
-									if (confirm("Delete this station?")) {
-										deleteStation.mutate({
-											organizationId: station.id,
-											id: station.id,
-										});
-									}
-								}}
-								disabled={station._count.customers > 0}
-							>
-								<TrashIcon className="size-4" />
-								<span className="sr-only">Delete</span>
-							</Button>
-						</div>
-					);
-				},
-			},
 		],
-		[deleteStation],
+		[],
 	);
 
 	return (
 		<PageShell
 			title="Stations"
-			description="Manage network access points and towers"
-			actions={
-				<Button onClick={() => setShowCreate(true)}>
-					<PlusIcon className="mr-2 size-4" />
-					Create Station
-				</Button>
-			}
+			description="Network stations synced from iRadius"
 		>
 			<FilterBar
 				searchPlaceholder="Search by name, address, or host..."
@@ -285,24 +206,6 @@ export function StationsList() {
 				activeFilterCount={activeFilterCount}
 				onReset={resetFilters}
 			>
-				<Select
-					value={statusFilter || "all"}
-					onValueChange={(val) =>
-						setStatusFilter(val === "all" ? "" : val)
-					}
-				>
-					<SelectTrigger className="w-full sm:w-[150px]">
-						<SelectValue placeholder="All Status" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All Status</SelectItem>
-						{STATION_STATUS_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
 				<Select
 					value={onlineFilter || "all"}
 					onValueChange={(val) =>
@@ -325,45 +228,25 @@ export function StationsList() {
 				data={stations}
 				pageSize={15}
 				emptyState={
-					stations.length === 0 &&
-					!activeFilterCount &&
-					!debouncedSearch ? (
-						<EmptyState
-							icon={RadioTowerIcon}
-							title="No stations yet"
-							description="Create your first station to organize customer connections."
-							action={
-								<Button onClick={() => setShowCreate(true)}>
-									<PlusIcon className="mr-2 size-4" />
-									Create Station
-								</Button>
-							}
-						/>
-					) : (
-						<EmptyState
-							icon={RadioTowerIcon}
-							title="No results found"
-							description="Try adjusting your search or filters."
-						/>
-					)
+					<EmptyState
+						icon={RadioTowerIcon}
+						title={
+							stations.length === 0 &&
+							!activeFilterCount &&
+							!debouncedSearch
+								? "No stations yet"
+								: "No results found"
+						}
+						description={
+							stations.length === 0 &&
+							!activeFilterCount &&
+							!debouncedSearch
+								? "Stations will appear here after syncing from iRadius."
+								: "Try adjusting your search or filters."
+						}
+					/>
 				}
 			/>
-
-			<CreateStationDialog
-				open={showCreate}
-				onOpenChange={setShowCreate}
-			/>
-			{editingStation && (
-				<EditStationDialog
-					station={editingStation}
-					open={!!editingStation}
-					onOpenChange={(open) => {
-						if (!open) {
-							setEditingStation(null);
-						}
-					}}
-				/>
-			)}
 		</PageShell>
 	);
 }

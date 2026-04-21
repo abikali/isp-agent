@@ -44,6 +44,7 @@ export const getCustomerStats = protectedProcedure
 			online,
 			offline,
 			expired,
+			needsReview,
 			employeeCount,
 			planDistribution,
 		] = await Promise.all([
@@ -64,6 +65,9 @@ export const getCustomerStats = protectedProcedure
 					expiresAt: { lt: new Date() },
 					status: "ACTIVE",
 				},
+			}),
+			db.customer.count({
+				where: { ...baseWhere, notes: { not: "" } },
 			}),
 			db.employee.count({
 				where: {
@@ -151,6 +155,7 @@ export const getCustomerStats = protectedProcedure
 			online,
 			offline,
 			expired,
+			needsReview,
 			employeeCount,
 			totalMonthlyRevenue,
 			planDistribution: planDistribution.map((p) => ({

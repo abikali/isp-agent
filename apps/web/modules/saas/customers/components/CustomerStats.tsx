@@ -6,12 +6,14 @@ import {
 	StatusPieChart,
 	TOOLTIP_STYLE,
 } from "@shared/components/StatusPieChart";
-import { formatCurrency, truncate } from "@shared/lib/format";
+import { truncate } from "@shared/lib/format";
 import {
-	DollarSignIcon,
-	UserCheckIcon,
+	CalendarXIcon,
+	StickyNoteIcon,
 	UserMinusIcon,
 	UsersIcon,
+	WifiIcon,
+	WifiOffIcon,
 } from "lucide-react";
 import {
 	Bar,
@@ -32,7 +34,15 @@ const STATUS_COLORS: Record<string, string> = {
 	Pending: "var(--color-chart-6)",
 };
 
-export function CustomerStats() {
+interface CustomerStatsProps {
+	activeStatus: string;
+	onStatusChange: (value: string) => void;
+}
+
+export function CustomerStats({
+	activeStatus,
+	onStatusChange,
+}: CustomerStatsProps) {
 	const stats = useCustomerStats();
 
 	const statusData = [
@@ -52,34 +62,54 @@ export function CustomerStats() {
 
 	return (
 		<div className="space-y-4">
-			<StatCardGroup columns={4}>
+			<StatCardGroup columns={6}>
 				<StatCard
-					title="Total Customers"
+					title="Total"
 					value={stats.total}
 					icon={UsersIcon}
 					color="blue"
+					onClick={() => onStatusChange("all")}
+					active={activeStatus === "all"}
 				/>
 				<StatCard
-					title="Active"
-					value={stats.active}
-					icon={UserCheckIcon}
+					title="Online"
+					value={stats.online}
+					icon={WifiIcon}
 					color="green"
+					onClick={() => onStatusChange("ONLINE")}
+					active={activeStatus === "ONLINE"}
 				/>
 				<StatCard
-					title="Inactive / Suspended"
-					value={stats.inactive + stats.suspended}
+					title="Offline"
+					value={stats.offline}
+					icon={WifiOffIcon}
+					color="default"
+					onClick={() => onStatusChange("OFFLINE")}
+					active={activeStatus === "OFFLINE"}
+				/>
+				<StatCard
+					title="Expired"
+					value={stats.expired}
+					icon={CalendarXIcon}
+					color={stats.expired > 0 ? "red" : "default"}
+					onClick={() => onStatusChange("EXPIRED")}
+					active={activeStatus === "EXPIRED"}
+				/>
+				<StatCard
+					title="Inactive"
+					value={stats.inactive}
 					icon={UserMinusIcon}
-					color={
-						stats.inactive + stats.suspended > 0
-							? "amber"
-							: "default"
-					}
+					color={stats.inactive > 0 ? "amber" : "default"}
+					onClick={() => onStatusChange("INACTIVE")}
+					active={activeStatus === "INACTIVE"}
 				/>
 				<StatCard
-					title="Monthly Revenue"
-					value={formatCurrency(stats.totalMonthlyRevenue)}
-					icon={DollarSignIcon}
-					color="green"
+					title="Needs Review"
+					value={stats.needsReview}
+					icon={StickyNoteIcon}
+					color={stats.needsReview > 0 ? "amber" : "default"}
+					onClick={() => onStatusChange("NEEDS_REVIEW")}
+					active={activeStatus === "NEEDS_REVIEW"}
 				/>
 			</StatCardGroup>
 

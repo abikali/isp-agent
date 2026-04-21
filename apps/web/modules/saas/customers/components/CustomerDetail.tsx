@@ -1,5 +1,6 @@
 "use client";
 
+import { diffMirrorFields } from "@repo/api/modules/customers/lib/mirror-fields";
 import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
 import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
 import { MetricDisplay } from "@shared/components/MetricDisplay";
@@ -71,6 +72,7 @@ import {
 	useDeleteCustomer,
 	useExecuteAccountTypeChange,
 	useGenerateCustomerPin,
+	useIRadiusGroups,
 	usePreviewAccountTypeChange,
 	useResetCustomerPin,
 	useSetCustomerPin,
@@ -128,6 +130,7 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		billingDay: customer.billingDay?.toString() ?? "",
 		balance: customer.balance.toString(),
 		groupName: customer.groupName ?? "",
+		groupExternalId: customer.groupExternalId?.toString() ?? "",
 		notes: customer.notes ?? "",
 		collectorId: customer.collectorId ?? "",
 	};
@@ -168,8 +171,9 @@ export function CustomerDetail({
 		newPlanId: string;
 		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
 	} | null>(null);
-	const [pendingCollectorSync, setPendingCollectorSync] = useState<{
+	const [pendingIRadiusSync, setPendingIRadiusSync] = useState<{
 		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
+		changedFieldLabels: string[];
 	} | null>(null);
 	const [changeResult, setChangeResult] = useState<{
 		success: boolean;
@@ -181,6 +185,7 @@ export function CustomerDetail({
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
+	const { groups: iradiusGroups } = useIRadiusGroups();
 
 	const { data } = useSuspenseQuery(
 		orpc.customers.get.queryOptions({
@@ -194,6 +199,14 @@ export function CustomerDetail({
 	const customer = data.customer;
 
 	function buildUpdatePayload(values: CustomerFormValues) {
+		const parsedGroupId = values.groupExternalId
+			? Number.parseInt(values.groupExternalId, 10)
+			: null;
+		const resolvedGroupName = parsedGroupId
+			? (iradiusGroups.find((g) => g.id === parsedGroupId)?.name ??
+				values.groupName ??
+				null)
+			: values.groupName || null;
 		return {
 			organizationId: organizationId ?? "",
 			id: customerId,
@@ -221,7 +234,8 @@ export function CustomerDetail({
 			monthlyRate: values.monthlyRate ? Number(values.monthlyRate) : null,
 			billingDay: values.billingDay ? Number(values.billingDay) : null,
 			balance: Number(values.balance),
-			groupName: values.groupName || null,
+			groupName: resolvedGroupName,
+			groupExternalId: parsedGroupId,
 			notes: values.notes || undefined,
 			collectorId: values.collectorId || null,
 		};
@@ -239,16 +253,23 @@ export function CustomerDetail({
 			const shouldPreview =
 				planChanged && customer.externalId && newPlan?.externalId;
 
-			// Collector changed and customer is linked to iRadius? Ask whether
-			// to also push the change to iRadius (default: local-only).
-			const collectorChanged =
-				value.collectorId !== (customer.collectorId ?? "");
-			if (collectorChanged && customer.externalId && !shouldPreview) {
-				setPendingCollectorSync({ pendingFormValues: { ...value } });
+			const payload = buildUpdatePayload(value);
+			const diff = customer.externalId
+				? diffMirrorFields(customer, payload)
+				: null;
+			const needsIRadiusConfirm =
+				!!customer.externalId &&
+				!shouldPreview &&
+				(diff?.labels.length ?? 0) > 0;
+
+			if (needsIRadiusConfirm && diff) {
+				setPendingIRadiusSync({
+					pendingFormValues: { ...value },
+					changedFieldLabels: diff.labels,
+				});
 				return;
 			}
 
-			// If plan change needs iRadius preview, defer ALL saves until confirmed
 			if (shouldPreview) {
 				try {
 					const preview = await previewAccountType.mutateAsync({
@@ -269,10 +290,9 @@ export function CustomerDetail({
 				return;
 			}
 
-			// Normal save (no iRadius interaction needed)
 			toast.promise(
 				updateCustomer.mutateAsync({
-					...buildUpdatePayload(value),
+					...payload,
 					planId: value.planId || null,
 				}),
 				{
@@ -296,7 +316,6 @@ export function CustomerDetail({
 			accountTypePreview;
 
 		try {
-			// Save form fields (planId handled by executeAccountType)
 			const [, iRadiusResult] = await Promise.all([
 				updateCustomer.mutateAsync(
 					buildUpdatePayload(pendingFormValues),
@@ -330,17 +349,17 @@ export function CustomerDetail({
 		setAccountTypePreview(null);
 	}
 
-	async function handleCollectorSaveChoice(syncToIRadius: boolean) {
-		if (!organizationId || !pendingCollectorSync) {
+	async function handleIRadiusSyncChoice(syncToIRadius: boolean) {
+		if (!organizationId || !pendingIRadiusSync) {
 			return;
 		}
-		const { pendingFormValues } = pendingCollectorSync;
-		setPendingCollectorSync(null);
+		const { pendingFormValues } = pendingIRadiusSync;
+		setPendingIRadiusSync(null);
 		toast.promise(
 			updateCustomer.mutateAsync({
 				...buildUpdatePayload(pendingFormValues),
 				planId: pendingFormValues.planId || null,
-				syncCollectorToIRadius: syncToIRadius,
+				syncToIRadius,
 			}),
 			{
 				loading: "Saving changes...",
@@ -472,6 +491,7 @@ export function CustomerDetail({
 									plans={plans}
 									stations={stations}
 									employees={employees}
+									iradiusGroups={iradiusGroups}
 								/>
 							),
 						},
@@ -751,35 +771,37 @@ export function CustomerDetail({
 			</Dialog>
 
 			<AlertDialog
-				open={pendingCollectorSync !== null}
+				open={pendingIRadiusSync !== null}
 				onOpenChange={(o) => {
 					if (!o) {
-						setPendingCollectorSync(null);
+						setPendingIRadiusSync(null);
 					}
 				}}
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Change collector</AlertDialogTitle>
+						<AlertDialogTitle>Save to iRadius?</AlertDialogTitle>
 						<AlertDialogDescription>
-							You're about to reassign this customer's collector.
-							Should we also update the assignment in iRadius?
-							Most of the time you only want a one-off local
-							change — that's the safe default.
+							These fields changed:{" "}
+							<span className="font-medium text-foreground">
+								{pendingIRadiusSync?.changedFieldLabels.join(
+									", ",
+								)}
+							</span>
+							. Do you also want to push them to iRadius, or keep
+							the change in this panel only?
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<Button
 							variant="outline"
-							onClick={() =>
-								void handleCollectorSaveChoice(false)
-							}
+							onClick={() => void handleIRadiusSyncChoice(false)}
 						>
 							Only on our panel
 						</Button>
 						<Button
-							onClick={() => void handleCollectorSaveChoice(true)}
+							onClick={() => void handleIRadiusSyncChoice(true)}
 						>
 							Also update iRadius
 						</Button>
@@ -896,12 +918,14 @@ function OverviewTab({
 	plans,
 	stations,
 	employees,
+	iradiusGroups,
 }: {
 	form: CustomerForm;
 	customer: CustomerData;
 	plans: PlanItem[];
 	stations: StationItem[];
 	employees: EmployeeItem[];
+	iradiusGroups: Array<{ id: number; name: string }>;
 }) {
 	return (
 		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1125,20 +1149,37 @@ function OverviewTab({
 								</Field>
 							)}
 						</form.Field>
-						<form.Field name="groupName">
+						<form.Field name="groupExternalId">
 							{(field) => (
 								<Field>
-									<FieldLabel htmlFor="groupName">
-										Group
-									</FieldLabel>
-									<Input
-										id="groupName"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
+									<FieldLabel>Group</FieldLabel>
+									<Select
+										value={field.state.value || "none"}
+										onValueChange={(v) =>
+											field.handleChange(
+												v === "none" ? "" : v,
+											)
 										}
-										placeholder="e.g. Residential, Business"
-									/>
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="Select group" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">
+												<span className="text-muted-foreground">
+													None
+												</span>
+											</SelectItem>
+											{iradiusGroups.map((g) => (
+												<SelectItem
+													key={g.id}
+													value={String(g.id)}
+												>
+													{g.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
 								</Field>
 							)}
 						</form.Field>

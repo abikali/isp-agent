@@ -4,6 +4,7 @@ import {
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
@@ -79,6 +80,8 @@ export const reviewPayment = protectedProcedure
 		} else {
 			await runLocal();
 		}
+
+		notifyBadgeForOrganization(input.organizationId);
 
 		return { success: true };
 	});

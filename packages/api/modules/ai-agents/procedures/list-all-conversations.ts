@@ -1,5 +1,5 @@
 import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, normalizeLebanesePhone } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -120,12 +120,56 @@ export const listAllConversations = protectedProcedure
 			: conversations;
 		const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
 
+		// Batch-resolve customer usernames from conversation phone numbers.
+		// Customer.mobile is stored in +961... format (synced from primary phone),
+		// so we normalize contactIds the same way before matching.
+		const phoneByConversation = new Map<string, string>();
+		for (const c of items) {
+			if (c.contactId) {
+				phoneByConversation.set(
+					c.id,
+					normalizeLebanesePhone(c.contactId),
+				);
+			}
+		}
+		const uniquePhones = [...new Set(phoneByConversation.values())];
+		const customers = uniquePhones.length
+			? await db.customer.findMany({
+					where: {
+						organizationId: input.organizationId,
+						mobile: { in: uniquePhones },
+					},
+					select: {
+						id: true,
+						username: true,
+						accountNumber: true,
+						mobile: true,
+					},
+				})
+			: [];
+		const customerByPhone = new Map(
+			customers
+				.filter((c) => c.mobile)
+				.map((c) => [c.mobile as string, c]),
+		);
+
 		return {
-			conversations: items.map((c) => ({
-				...c,
-				lastMessage: c.messages[0] ?? null,
-				messages: undefined,
-			})),
+			conversations: items.map((c) => {
+				const phone = phoneByConversation.get(c.id);
+				const matched = phone ? customerByPhone.get(phone) : null;
+				return {
+					...c,
+					lastMessage: c.messages[0] ?? null,
+					messages: undefined,
+					customer: matched
+						? {
+								id: matched.id,
+								username: matched.username,
+								accountNumber: matched.accountNumber,
+							}
+						: null,
+				};
+			}),
 			nextCursor,
 		};
 	});

@@ -16,6 +16,7 @@ import {
 } from "./procedures/iradius-admin-actions";
 import { listCustomers } from "./procedures/list";
 import { listCustomerInvoices } from "./procedures/list-invoices";
+import { listIRadiusGroups } from "./procedures/list-iradius-groups";
 import { listCustomerTransactions } from "./procedures/list-transactions";
 import {
 	bulkRequestLocation,
@@ -49,6 +50,7 @@ import { updateCustomer } from "./procedures/update";
 
 export const customersRouter = {
 	list: listCustomers,
+	listIRadiusGroups,
 	searchForPicker: searchCustomersForPicker,
 	get: getCustomer,
 	create: createCustomer,

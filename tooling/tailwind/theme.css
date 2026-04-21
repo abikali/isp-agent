@@ -139,54 +139,57 @@
 	}
 
 	.dark {
-		/* Dark Mode - Premium Black */
-		--background: #09090b;
-		--foreground: #fafafa;
-		--card: #18181b;
-		--card-foreground: #fafafa;
-		--popover: #18181b;
-		--popover-foreground: #fafafa;
+		/* Dark Mode - Modern slate with indigo accent.
+		   Surfaces use a faint blue-slate undertone (not pure zinc) — easier on the eyes
+		   and gives the UI a premium, non-cold feel. Layering steps are intentional:
+		   background < card < popover < secondary < muted < accent. */
+		--background: #0b0d12;
+		--foreground: #e8eaf0;
+		--card: #14171f;
+		--card-foreground: #e8eaf0;
+		--popover: #181b25;
+		--popover-foreground: #e8eaf0;
 
-		/* Primary: White on dark */
-		--primary: #fafafa;
-		--primary-foreground: #09090b;
+		/* Primary: Vibrant indigo — brand-able accent for CTAs, replaces stark white */
+		--primary: #818cf8;
+		--primary-foreground: #0b0d12;
 
-		/* Secondary: Darkest surface */
-		--secondary: #27272a;
-		--secondary-foreground: #fafafa;
+		/* Secondary: Subtle elevated surface for chips, subtle blocks */
+		--secondary: #1e2230;
+		--secondary-foreground: #e8eaf0;
 
-		/* Muted: Lighter for distinction */
-		--muted: #3f3f46;
-		--muted-foreground: #a1a1aa;
+		/* Muted: Quiet surface; foreground meets WCAG AA (~5.4:1 on background) */
+		--muted: #232836;
+		--muted-foreground: #9ba3b8;
 
-		/* Accent: Matches muted */
-		--accent: #3f3f46;
-		--accent-foreground: #fafafa;
+		/* Accent: Hover surface — one step brighter than secondary for visible feedback */
+		--accent: #262b3b;
+		--accent-foreground: #f2f4f9;
 
-		/* Borders: Lighter for visibility */
-		--border: #3f3f46;
-		--input: #3f3f46;
-		--ring: #d4d4d8;
+		/* Borders: Slate with a hint of blue — visible against surfaces without harshness */
+		--border: #2a3040;
+		--input: #2a3040;
+		--ring: #818cf8; /* Matches primary so focus rings feel intentional */
 
-		/* Semantic colors */
-		--destructive: #ef4444;
-		--destructive-foreground: #fafafa;
-		--success: #22c55e;
-		--success-foreground: #fafafa;
-		--highlight: #f59e0b;
-		--highlight-foreground: #fafafa;
+		/* Semantic colors — lighter-400 tones with dark foregrounds for AA+ contrast */
+		--destructive: #f87171;
+		--destructive-foreground: #1a0707;
+		--success: #4ade80;
+		--success-foreground: #052e14;
+		--highlight: #fbbf24;
+		--highlight-foreground: #422006;
 
-		/* Glass morphism tokens */
-		--glass-bg: rgba(24, 24, 27, 0.8);
-		--glass-border: rgba(255, 255, 255, 0.1);
+		/* Glass morphism — matches card tone, indigo-tinted border for cohesion */
+		--glass-bg: rgba(20, 23, 31, 0.75);
+		--glass-border: rgba(129, 140, 248, 0.14);
 
-		/* Chart colors - brighter/adjusted for dark backgrounds */
-		--chart-1: #fafafa; /* Primary chart color */
-		--chart-2: #60a5fa; /* Blue - brighter */
-		--chart-3: #4ade80; /* Green - brighter */
-		--chart-4: #fbbf24; /* Amber - brighter */
-		--chart-5: #a78bfa; /* Purple - brighter */
-		--chart-6: #22d3ee; /* Cyan - brighter */
+		/* Chart colors — cohesive, readable against new background */
+		--chart-1: #818cf8; /* Indigo — primary */
+		--chart-2: #60a5fa; /* Blue */
+		--chart-3: #4ade80; /* Green */
+		--chart-4: #fbbf24; /* Amber */
+		--chart-5: #c084fc; /* Purple */
+		--chart-6: #22d3ee; /* Cyan */
 	}
 
 	*,

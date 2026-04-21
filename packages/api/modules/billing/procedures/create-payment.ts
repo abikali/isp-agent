@@ -9,7 +9,10 @@ import {
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
-import { sendOrganizationNotification } from "@repo/notifications";
+import {
+	notifyBadgeForOrganization,
+	sendOrganizationNotification,
+} from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
@@ -339,6 +342,8 @@ export const createPayment = protectedProcedure
 					}),
 				);
 		}
+
+		notifyBadgeForOrganization(input.organizationId);
 
 		return { payment };
 	});

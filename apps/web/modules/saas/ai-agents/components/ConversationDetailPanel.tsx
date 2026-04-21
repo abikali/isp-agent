@@ -43,6 +43,7 @@ import {
 } from "../lib/chat-utils";
 import { AdminChatInput } from "./AdminChatInput";
 import { ContactPhone } from "./ContactPhone";
+import { ContactUsername } from "./ContactUsername";
 import { DateSeparator, MessageBubble, TypingBubble } from "./MessageBubble";
 
 interface ReplyTarget {
@@ -228,6 +229,10 @@ export function ConversationDetailPanel({
 							contactId={conversation?.contactId}
 							className="shrink-0"
 						/>
+						<ContactUsername
+							username={conversation?.customer?.username}
+							className="shrink-0"
+						/>
 					</div>
 					<p className="truncate text-xs text-muted-foreground">
 						{subtitle}
@@ -319,7 +324,7 @@ export function ConversationDetailPanel({
 			{/* Messages area with subtle wallpaper pattern */}
 			<div
 				ref={scrollRef}
-				className="flex-1 overflow-y-auto bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,hsl(var(--muted)/0.15)_20px,hsl(var(--muted)/0.15)_21px)] p-4"
+				className="flex-1 overflow-y-auto bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_21px)] p-4"
 			>
 				<div className="space-y-2">
 					{messageGroups.map((group) => (

@@ -31,6 +31,7 @@ import {
 	getContactInitials,
 } from "../lib/chat-utils";
 import { ContactPhone } from "./ContactPhone";
+import { ContactUsername } from "./ContactUsername";
 
 export interface ConversationItem {
 	id: string;
@@ -44,6 +45,11 @@ export interface ConversationItem {
 	createdAt: Date | string;
 	agent: { id: string; name: string };
 	channel: { id: string; provider: string; name: string } | null;
+	customer: {
+		id: string;
+		username: string | null;
+		accountNumber: string;
+	} | null;
 	lastMessage: {
 		content: string;
 		role: string;
@@ -190,9 +196,16 @@ export function ConversationsListPanel({
 									{conv.contactName || "Unknown Contact"}
 								</span>
 							</div>
-							{showPhoneNumber && (
-								<div className="mt-0.5">
-									<ContactPhone contactId={conv.contactId} />
+							{(showPhoneNumber || conv.customer?.username) && (
+								<div className="mt-0.5 flex flex-wrap items-center gap-1">
+									{showPhoneNumber && (
+										<ContactPhone
+											contactId={conv.contactId}
+										/>
+									)}
+									<ContactUsername
+										username={conv.customer?.username}
+									/>
 								</div>
 							)}
 						</div>

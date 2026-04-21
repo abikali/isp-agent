@@ -36,6 +36,7 @@ export const CONFLICT_TRACKED_FIELDS = new Set([
 	"connectionType",
 	"categoryName",
 	"groupName",
+	"groupExternalId",
 	"collectorName",
 	"collectorPhone",
 	"mof",

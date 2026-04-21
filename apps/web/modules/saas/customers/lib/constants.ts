@@ -1,4 +1,6 @@
 export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
+	ONLINE: "Online",
+	OFFLINE: "Offline",
 	ACTIVE: "Active",
 	INACTIVE: "Inactive",
 	SUSPENDED: "Suspended",
@@ -7,6 +9,8 @@ export const CUSTOMER_STATUS_LABELS: Record<string, string> = {
 };
 
 export const CUSTOMER_STATUS_OPTIONS = [
+	{ value: "ONLINE", label: "Online" },
+	{ value: "OFFLINE", label: "Offline" },
 	{ value: "ACTIVE", label: "Active" },
 	{ value: "INACTIVE", label: "Inactive" },
 	{ value: "SUSPENDED", label: "Suspended" },
@@ -28,18 +32,6 @@ export const CONNECTION_TYPE_OPTIONS = [
 	{ value: "DSL", label: "DSL" },
 	{ value: "CABLE", label: "Cable" },
 	{ value: "ETHERNET", label: "Ethernet" },
-] as const;
-
-export const STATION_STATUS_LABELS: Record<string, string> = {
-	ACTIVE: "Active",
-	MAINTENANCE: "Maintenance",
-	OFFLINE: "Offline",
-};
-
-export const STATION_STATUS_OPTIONS = [
-	{ value: "ACTIVE", label: "Active" },
-	{ value: "MAINTENANCE", label: "Maintenance" },
-	{ value: "OFFLINE", label: "Offline" },
 ] as const;
 
 export const CSV_HEADERS = [

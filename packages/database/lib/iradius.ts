@@ -268,6 +268,103 @@ export async function queryIRadiusOnlineUserIds(): Promise<string[] | null> {
 	}
 }
 
+/** Monitor-field snapshot for a single iRadius Station. */
+export interface IRadiusStationMonitor {
+	externalId: string;
+	online: boolean;
+	uptime: string | null;
+	boardName: string | null;
+	cpuLoad: string | null;
+	voltage: string | null;
+	version: string | null;
+	scanStatus: boolean;
+}
+
+/** Monitor-field snapshot for a single iRadius AccessPoint. */
+export interface IRadiusAccessPointMonitor {
+	externalId: string;
+	online: boolean;
+	uptime: string | null;
+	signal: string | null;
+	boardName: string | null;
+	version: string | null;
+	scanStatus: boolean;
+	autoNegotiation: boolean;
+	fullDuplex: boolean;
+}
+
+export function toBooleanFromBit(val: unknown): boolean {
+	if (Buffer.isBuffer(val)) {
+		return val[0] === 1;
+	}
+	return Boolean(val);
+}
+
+/**
+ * Fetch live monitor fields for all Stations and AccessPoints from iRadius.
+ * Returns null on connection failure so the caller can skip gracefully.
+ *
+ * Used by the 15s background monitor sync — this intentionally selects only
+ * the fields that change during normal device operation, so the query stays
+ * cheap even at high cadence.
+ */
+export async function queryIRadiusNetworkMonitor(): Promise<{
+	stations: IRadiusStationMonitor[];
+	accessPoints: IRadiusAccessPointMonitor[];
+} | null> {
+	try {
+		return await withIRadiusConnection(async (conn) => {
+			const [stationRows] = await conn.query<RowDataPacket[]>(
+				`SELECT Id, Online, UpTime, BoardName, CpuLoad, Voltage, Version, ScanStatus
+				FROM Station`,
+			);
+			const [apRows] = await conn.query<RowDataPacket[]>(
+				`SELECT Id, Online, UpTime, \`Signal\`, BoardName, Version, ScanStatus, AutoNegotioation, FullDuplex
+				FROM AccessPoint`,
+			);
+
+			const cleanString = (v: unknown): string | null => {
+				if (typeof v !== "string") {
+					return null;
+				}
+				const stripped = v.replace(/\0/g, "").trim();
+				return stripped || null;
+			};
+
+			return {
+				stations: stationRows.map((r) => ({
+					externalId: String(r["Id"]),
+					online: toBooleanFromBit(r["Online"]),
+					uptime: cleanString(r["UpTime"]),
+					boardName: cleanString(r["BoardName"]),
+					cpuLoad: cleanString(r["CpuLoad"]),
+					voltage: cleanString(r["Voltage"]),
+					version: cleanString(r["Version"]),
+					scanStatus: toBooleanFromBit(r["ScanStatus"]),
+				})),
+				accessPoints: apRows.map((r) => ({
+					externalId: String(r["Id"]),
+					online: toBooleanFromBit(r["Online"]),
+					uptime: cleanString(r["UpTime"]),
+					signal: cleanString(r["Signal"]),
+					boardName: cleanString(r["BoardName"]),
+					version: cleanString(r["Version"]),
+					scanStatus: toBooleanFromBit(r["ScanStatus"]),
+					autoNegotiation: toBooleanFromBit(r["AutoNegotioation"]),
+					fullDuplex: toBooleanFromBit(r["FullDuplex"]),
+				})),
+			};
+		});
+	} catch (error) {
+		// biome-ignore lint/suspicious/noConsole: database package cannot import @repo/logs
+		console.error(
+			"[iRadius Network Monitor] Failed:",
+			error instanceof Error ? error.message : error,
+		);
+		return null;
+	}
+}
+
 export async function queryIRadiusLiveStats(): Promise<{
 	online: number;
 	offline: number;

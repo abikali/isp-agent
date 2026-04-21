@@ -6,6 +6,7 @@ import {
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { CUSTOMER_LIST_STATUSES } from "../lib/statuses";
 
 export const listCustomers = protectedProcedure
 	.route({
@@ -18,9 +19,7 @@ export const listCustomers = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			search: z.string().optional(),
-			status: z
-				.enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING", "EXPIRED"])
-				.optional(),
+			status: z.enum(CUSTOMER_LIST_STATUSES).optional(),
 			planId: z.string().optional(),
 			stationId: z.string().optional(),
 			connectionType: z
@@ -67,6 +66,14 @@ export const listCustomers = protectedProcedure
 		if (input.status === "EXPIRED") {
 			where["status"] = "ACTIVE";
 			where["expiresAt"] = { lt: new Date() };
+		} else if (input.status === "ONLINE") {
+			where["status"] = "ACTIVE";
+			where["online"] = true;
+		} else if (input.status === "OFFLINE") {
+			where["status"] = "ACTIVE";
+			where["online"] = false;
+		} else if (input.status === "NEEDS_REVIEW") {
+			where["notes"] = { not: "" };
 		} else if (input.status) {
 			where["status"] = input.status;
 		}
@@ -184,12 +191,14 @@ export const listCustomers = protectedProcedure
 					mobile: true,
 					phones: true,
 					status: true,
+					online: true,
 					connectionType: true,
 					ipAddress: true,
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
 					billingExpiresAt: true,
+					notes: true,
 					externalId: true,
 					latitude: true,
 					longitude: true,

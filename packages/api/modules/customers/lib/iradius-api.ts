@@ -214,6 +214,62 @@ export async function iradiusUpdateUserPhones(
 }
 
 /**
+ * Update a customer's email (User.MailAddress) in iRadius.
+ * Pass `null` to clear.
+ */
+export async function iradiusUpdateUserEmail(
+	customer: { externalId?: string | null },
+	email: string | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET MailAddress = ?, UpdateDate = NOW() WHERE Id = ?",
+			[email, userId],
+		);
+	});
+}
+
+/**
+ * Update a customer's postal address (User.Address) in iRadius.
+ * Pass `null` to clear.
+ */
+export async function iradiusUpdateUserAddress(
+	customer: { externalId?: string | null },
+	address: string | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET Address = ?, UpdateDate = NOW() WHERE Id = ?",
+			[address, userId],
+		);
+	});
+}
+
+/**
+ * Update a customer's UserGroup assignment (User.UserGroupId) in iRadius.
+ * Pass `null` to clear. Caller must pass a valid id that exists in UserGroup —
+ * we don't validate here, but iRadius has no FK constraint either; any invalid
+ * id simply becomes an unresolvable JOIN target.
+ */
+export async function iradiusUpdateUserGroup(
+	customer: { externalId?: string | null },
+	userGroupId: number | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET UserGroupId = ?, UpdateDate = NOW() WHERE Id = ?",
+			[userGroupId, userId],
+		);
+	});
+}
+
+/**
  * Set a customer's recurring discount in iRadius (User.Discount).
  * Per-invoice discounts are NOT supported — they require recomputing
  * Invoice.TTC/Tax/TVA and would need a separate function.

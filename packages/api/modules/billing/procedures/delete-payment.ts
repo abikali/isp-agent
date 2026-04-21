@@ -5,6 +5,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
@@ -98,6 +99,8 @@ export const deletePayment = protectedProcedure
 				},
 			);
 		}
+
+		notifyBadgeForOrganization(input.organizationId);
 
 		return { success: true };
 	});

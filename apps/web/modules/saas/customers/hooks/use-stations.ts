@@ -1,25 +1,22 @@
 "use client";
 
-import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
-export function useStations(filters?: {
-	search?: string;
-	status?: "ACTIVE" | "MAINTENANCE" | "OFFLINE";
-	online?: boolean;
-}) {
+export function useStations(filters?: { search?: string; online?: boolean }) {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
-		orpc.stations.list.queryOptions({
+	const query = useSuspenseQuery({
+		...orpc.stations.list.queryOptions({
 			input: {
 				organizationId: organizationId ?? "",
 				...filters,
 			},
 		}),
-	);
+		refetchInterval: 15000,
+		refetchIntervalInBackground: false,
+	});
 
 	return { stations: query.data?.stations ?? [] };
 }
@@ -40,18 +37,3 @@ export function useStationsQuery() {
 		isLoading: query.isLoading,
 	};
 }
-
-export const useCreateStation = createInvalidatingMutation(
-	() => orpc.stations.create.mutationOptions(),
-	() => orpc.stations.key(),
-);
-
-export const useUpdateStation = createInvalidatingMutation(
-	() => orpc.stations.update.mutationOptions(),
-	() => orpc.stations.key(),
-);
-
-export const useDeleteStation = createInvalidatingMutation(
-	() => orpc.stations.delete.mutationOptions(),
-	() => orpc.stations.key(),
-);

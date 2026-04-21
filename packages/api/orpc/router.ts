@@ -14,6 +14,7 @@ import { newsletterRouter } from "../modules/newsletter/router";
 import { notificationsRouter } from "../modules/notifications/router";
 import { organizationsRouter } from "../modules/organizations/router";
 import { paymentsRouter } from "../modules/payments/router";
+import { pushRouter } from "../modules/push/router";
 import { securityRouter } from "../modules/security/router";
 import { servicePlansRouter } from "../modules/service-plans/router";
 import { sessionsRouter } from "../modules/sessions/router";
@@ -37,6 +38,7 @@ export const router = publicProcedure.router({
 	organizations: organizationsRouter,
 	users: usersRouter,
 	payments: paymentsRouter,
+	push: pushRouter,
 	audit: auditRouter,
 	apiKeys: apiKeysRouter,
 	webhooks: webhooksRouter,

@@ -2,12 +2,7 @@
 
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import {
-	useMutation,
-	useQuery,
-	useQueryClient,
-	useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
 export function useAccessPoints(filters?: {
 	search?: string;
@@ -16,14 +11,16 @@ export function useAccessPoints(filters?: {
 }) {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
-		orpc.accessPoints.list.queryOptions({
+	const query = useSuspenseQuery({
+		...orpc.accessPoints.list.queryOptions({
 			input: {
 				organizationId: organizationId ?? "",
 				...filters,
 			},
 		}),
-	);
+		refetchInterval: 15000,
+		refetchIntervalInBackground: false,
+	});
 
 	return { accessPoints: query.data?.accessPoints ?? [] };
 }
@@ -43,43 +40,4 @@ export function useAccessPointsQuery() {
 		accessPoints: query.data?.accessPoints ?? [],
 		isLoading: query.isLoading,
 	};
-}
-
-export function useCreateAccessPoint() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.accessPoints.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.accessPoints.key(),
-			});
-		},
-	});
-}
-
-export function useUpdateAccessPoint() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.accessPoints.update.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.accessPoints.key(),
-			});
-		},
-	});
-}
-
-export function useDeleteAccessPoint() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.accessPoints.delete.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.accessPoints.key(),
-			});
-		},
-	});
 }

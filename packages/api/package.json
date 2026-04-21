@@ -30,6 +30,14 @@
 		"./modules/api-keys/types": {
 			"types": "./modules/api-keys/types.ts",
 			"default": "./modules/api-keys/types.ts"
+		},
+		"./modules/customers/lib/statuses": {
+			"types": "./modules/customers/lib/statuses.ts",
+			"default": "./modules/customers/lib/statuses.ts"
+		},
+		"./modules/customers/lib/mirror-fields": {
+			"types": "./modules/customers/lib/mirror-fields.ts",
+			"default": "./modules/customers/lib/mirror-fields.ts"
 		}
 	},
 	"scripts": {

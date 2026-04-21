@@ -1382,7 +1382,7 @@ async function processIRadiusSync(
 				conn,
 				`SELECT u.Id AS Id, u.UserName, u.FirstName, u.LastName, u.Mobile, u.Phone,
 					u.MailAddress, u.Address, u.Comment, u.AccountPrice, u.Discount,
-					u.Archived, u.CreationDate, u.CollectorId, u.ParentId,
+					u.Archived, u.CreationDate, u.CollectorId, u.ParentId, u.UserGroupId,
 					u.MOF, u.LastLogin, u.LastLogOut AS UserLastLogOut,
 					u.AutoGenerateInvoice, u.FinancialCategoryId, u.LinkId,
 					u.CanResetAccount, u.CollectorResetMacAddress, u.CollectorCanShowLinks, u.ReadOnly,
@@ -1594,6 +1594,7 @@ async function processIRadiusSync(
 					longitude: (u["GSMLng"] as number) || null,
 					categoryName: (u["CategoryName"] as string) || null,
 					groupName: (u["GroupName"] as string) || null,
+					groupExternalId: (u["UserGroupId"] as number) ?? null,
 					collectorName,
 					collectorPhone: (u["CollectorMobile"] as string) || null,
 					// iRadius User fields

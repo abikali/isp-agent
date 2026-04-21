@@ -1,5 +1,6 @@
 "use client";
 
+import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
@@ -27,6 +28,7 @@ import {
 	MapPinIcon,
 	PlusIcon,
 	RefreshCwIcon,
+	StickyNoteIcon,
 	UploadIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -49,23 +51,15 @@ import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
 
-type CustomerStatus =
-	| "ACTIVE"
-	| "INACTIVE"
-	| "SUSPENDED"
-	| "PENDING"
-	| "EXPIRED";
-
-const statusMap: Record<
-	string,
-	"active" | "inactive" | "suspended" | "pending" | "expired"
-> = {
-	ACTIVE: "active",
-	INACTIVE: "inactive",
-	SUSPENDED: "suspended",
-	PENDING: "pending",
-	EXPIRED: "expired",
-};
+function getConnectivityStatus(
+	customerStatus: string,
+	online: boolean,
+): "online" | "offline" | "inactive" {
+	if (customerStatus !== "ACTIVE") {
+		return "inactive";
+	}
+	return online ? "online" : "offline";
+}
 
 const PAGE_SIZE = 25;
 
@@ -79,6 +73,7 @@ const sortByMap = {
 interface CustomerRow {
 	id: string;
 	status: string;
+	online: boolean;
 	accountNumber: string;
 	username: string | null;
 	firstName: string | null;
@@ -95,6 +90,7 @@ interface CustomerRow {
 	longitude: number | null;
 	locationRequestedAt: Date | string | null;
 	billingExpiresAt: Date | string | null;
+	notes: string | null;
 }
 
 export function CustomersList({
@@ -202,7 +198,7 @@ export function CustomersList({
 
 	const filters = {
 		search: debouncedSearch || undefined,
-		status: status !== "all" ? (status as CustomerStatus) : undefined,
+		status: status !== "all" ? (status as CustomerListStatus) : undefined,
 		planId: planId !== "all" ? planId : undefined,
 		stationId: stationId !== "all" ? stationId : undefined,
 		connectionType:
@@ -232,7 +228,10 @@ export function CustomersList({
 				meta: { className: "w-10 pr-0" },
 				cell: ({ row }) => (
 					<StatusIndicator
-						status={statusMap[row.original.status] ?? "inactive"}
+						status={getConnectivityStatus(
+							row.original.status,
+							row.original.online,
+						)}
 						label=""
 						size="sm"
 					/>
@@ -262,29 +261,42 @@ export function CustomersList({
 				header: "Name",
 				accessorFn: (row) => row.lastName,
 				enableSorting: true,
-				cell: ({ row }) => (
-					<div>
-						<Link
-							to="/app/$organizationSlug/customers/$customerId"
-							params={{
-								organizationSlug,
-								customerId: row.original.id,
-							}}
-							className="font-medium hover:underline"
-							preload="intent"
-						>
-							{displayName(
-								row.original.firstName,
-								row.original.lastName,
+				cell: ({ row }) => {
+					const note = row.original.notes?.trim();
+					return (
+						<div>
+							<div className="flex items-center gap-1.5">
+								<Link
+									to="/app/$organizationSlug/customers/$customerId"
+									params={{
+										organizationSlug,
+										customerId: row.original.id,
+									}}
+									className="font-medium hover:underline"
+									preload="intent"
+								>
+									{displayName(
+										row.original.firstName,
+										row.original.lastName,
+									)}
+								</Link>
+								{note && (
+									<span
+										title={note}
+										className="inline-flex shrink-0"
+									>
+										<StickyNoteIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
+									</span>
+								)}
+							</div>
+							{row.original.email && (
+								<p className="text-xs text-muted-foreground">
+									{row.original.email}
+								</p>
 							)}
-						</Link>
-						{row.original.email && (
-							<p className="text-xs text-muted-foreground">
-								{row.original.email}
-							</p>
-						)}
-					</div>
-				),
+						</div>
+					);
+				},
 			},
 			{
 				id: "username",
@@ -356,7 +368,19 @@ export function CustomersList({
 					if (!value) {
 						return <span className="text-muted-foreground">-</span>;
 					}
-					return new Date(value).toLocaleDateString("en-GB");
+					const date = new Date(value);
+					const isExpired = date.getTime() < Date.now();
+					return (
+						<span
+							className={
+								isExpired
+									? "font-medium text-red-600 dark:text-red-400"
+									: undefined
+							}
+						>
+							{date.toLocaleDateString("en-GB")}
+						</span>
+					);
 				},
 			},
 			{
@@ -400,7 +424,10 @@ export function CustomersList({
 				<>
 					<BulkExportButton
 						filters={{
-							status: filters.status,
+							status:
+								filters.status === "NEEDS_REVIEW"
+									? undefined
+									: filters.status,
 							planId: filters.planId,
 							stationId: filters.stationId,
 						}}
@@ -420,7 +447,13 @@ export function CustomersList({
 			}
 		>
 			<AsyncBoundary fallback={<CustomerStatsSkeleton />}>
-				<CustomerStats />
+				<CustomerStats
+					activeStatus={status}
+					onStatusChange={(v) => {
+						setStatus(v);
+						setPage(1);
+					}}
+				/>
 			</AsyncBoundary>
 
 			<CustomerFilters

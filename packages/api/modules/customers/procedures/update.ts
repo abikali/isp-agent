@@ -11,8 +11,17 @@ import {
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { iradiusChangeCollector, iradiusSetActive } from "../lib/iradius-api";
+import {
+	iradiusChangeCollector,
+	iradiusSetActive,
+	iradiusUpdateUserAddress,
+	iradiusUpdateUserEmail,
+	iradiusUpdateUserGroup,
+	iradiusUpdateUserName,
+	iradiusUpdateUserPhones,
+} from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
+import { diffMirrorFields } from "../lib/mirror-fields";
 
 export const updateCustomer = protectedProcedure
 	.route({
@@ -56,12 +65,10 @@ export const updateCustomer = protectedProcedure
 			billingDay: z.number().int().min(1).max(28).nullable().optional(),
 			balance: z.number().optional(),
 			groupName: z.string().max(100).nullable().optional(),
+			groupExternalId: z.number().int().nullable().optional(),
 			notes: z.string().max(5000).optional(),
 			collectorId: z.string().nullable().optional(),
-			// When true AND collectorId changes, also push the new collector
-			// assignment to iRadius (User.CollectorId). Defaults to false —
-			// most reassignments are local-only per client request.
-			syncCollectorToIRadius: z.boolean().optional(),
+			syncToIRadius: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -141,6 +148,9 @@ export const updateCustomer = protectedProcedure
 		if (input.groupName !== undefined) {
 			updateData["groupName"] = input.groupName ?? null;
 		}
+		if (input.groupExternalId !== undefined) {
+			updateData["groupExternalId"] = input.groupExternalId ?? null;
+		}
 		if (input.ipAddress !== undefined) {
 			updateData["ipAddress"] = input.ipAddress ?? null;
 		}
@@ -184,19 +194,14 @@ export const updateCustomer = protectedProcedure
 			}
 		}
 
-		// Run any required iRadius mutations BEFORE touching local state.
-		// If any remote call throws, mirrorToIRadius surfaces an ORPCError
-		// and the local row is left untouched.
+		const syncEnabled =
+			input.syncToIRadius === true && !!existing.externalId;
 		const statusChanged =
 			input.status !== undefined && input.status !== existing.status;
-		const shouldSyncCollector =
-			input.syncCollectorToIRadius === true &&
-			input.collectorId !== undefined &&
-			input.collectorId !== existing.collectorId &&
-			!!existing.externalId;
+		const diff = syncEnabled ? diffMirrorFields(existing, input) : null;
 
 		let collectorIRadiusUserId: number | null = null;
-		if (shouldSyncCollector && input.collectorId) {
+		if (diff?.collectorChanged && input.collectorId) {
 			const collectorEmployee = await db.employee.findFirst({
 				where: {
 					id: input.collectorId,
@@ -219,10 +224,51 @@ export const updateCustomer = protectedProcedure
 				if (statusChanged) {
 					await iradiusSetActive(existing, input.status === "ACTIVE");
 				}
-				if (shouldSyncCollector) {
+				if (!diff) {
+					return;
+				}
+				if (diff.collectorChanged) {
 					await iradiusChangeCollector(
 						{ externalId: existing.externalId },
 						collectorIRadiusUserId,
+					);
+				}
+				if (diff.nameChanged) {
+					const firstName =
+						input.firstName ?? existing.firstName ?? "";
+					const lastName =
+						input.lastName !== undefined
+							? (input.lastName ?? "")
+							: (existing.lastName ?? "");
+					await iradiusUpdateUserName(
+						{ externalId: existing.externalId },
+						firstName,
+						lastName,
+					);
+				}
+				if (diff.emailChanged) {
+					await iradiusUpdateUserEmail(
+						{ externalId: existing.externalId },
+						input.email || null,
+					);
+				}
+				if (diff.addressChanged) {
+					await iradiusUpdateUserAddress(
+						{ externalId: existing.externalId },
+						input.address || null,
+					);
+				}
+				if (diff.phonesChanged) {
+					await iradiusUpdateUserPhones(
+						{ externalId: existing.externalId },
+						diff.submittedPrimary,
+						diff.submittedSecondary,
+					);
+				}
+				if (diff.groupChanged) {
+					await iradiusUpdateUserGroup(
+						{ externalId: existing.externalId },
+						input.groupExternalId ?? null,
 					);
 				}
 			},

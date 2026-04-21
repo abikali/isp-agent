@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, normalizeLebanesePhone } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -121,6 +121,28 @@ export const getConversationMessages = protectedProcedure
 			}
 		}
 
+		// Resolve linked customer (for username display) via phone match.
+		// Customer.mobile is stored normalized (+961...) so we normalize contactId
+		// the same way before the lookup.
+		let customer: {
+			id: string;
+			username: string | null;
+			accountNumber: string;
+		} | null = null;
+		if (conversation.contactId) {
+			const normalized = normalizeLebanesePhone(conversation.contactId);
+			const match = await db.customer.findFirst({
+				where: {
+					organizationId: input.organizationId,
+					mobile: normalized,
+				},
+				select: { id: true, username: true, accountNumber: true },
+			});
+			if (match) {
+				customer = match;
+			}
+		}
+
 		return {
 			conversation: {
 				id: conversation.id,
@@ -130,6 +152,7 @@ export const getConversationMessages = protectedProcedure
 				humanTakeoverAt: conversation.humanTakeoverAt,
 				humanTakeoverExpiresAt,
 				channel: conversation.channel,
+				customer,
 			},
 			messages: items,
 			nextCursor,

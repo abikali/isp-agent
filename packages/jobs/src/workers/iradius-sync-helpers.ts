@@ -11,6 +11,9 @@ import {
 	normalizeLebanesePhone,
 	splitPhoneString,
 } from "@repo/database";
+import { toBooleanFromBit } from "@repo/database/iradius";
+
+export { toBooleanFromBit };
 
 // ---------------------------------------------------------------------------
 // Lookup maps interface
@@ -92,13 +95,6 @@ export function kbpsToMbps(kbps: unknown): number {
 		return 0;
 	}
 	return Math.round(n / 1000);
-}
-
-export function toBooleanFromBit(val: unknown): boolean {
-	if (Buffer.isBuffer(val)) {
-		return val[0] === 1;
-	}
-	return Boolean(val);
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +225,7 @@ export function buildCustomerDataFromRow(
 		longitude: (u["GSMLng"] as number) || null,
 		categoryName: (u["CategoryName"] as string) || null,
 		groupName: (u["GroupName"] as string) || null,
+		groupExternalId: (u["UserGroupId"] as number) ?? null,
 		collectorName,
 		collectorPhone: (u["CollectorMobile"] as string) || null,
 		mof: (u["MOF"] as string) || null,
@@ -330,7 +327,7 @@ export function buildEmployeeDataFromRow(
 
 export const CUSTOMER_SELECT_COLUMNS = `u.Id AS Id, u.UserName, u.FirstName, u.LastName, u.Mobile, u.Phone,
 	u.MailAddress, u.Address, u.Comment, u.AccountPrice, u.Discount,
-	u.Archived, u.CreationDate, u.CollectorId, u.ParentId,
+	u.Archived, u.CreationDate, u.CollectorId, u.ParentId, u.UserGroupId,
 	u.MOF, u.LastLogin, u.LastLogOut AS UserLastLogOut,
 	u.AutoGenerateInvoice, u.FinancialCategoryId, u.LinkId,
 	u.CanResetAccount, u.CollectorResetMacAddress, u.CollectorCanShowLinks, u.ReadOnly,

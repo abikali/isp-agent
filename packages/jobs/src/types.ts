@@ -29,7 +29,8 @@ export type ScheduledJobType =
 	| "ai-credit-reset"
 	| "watcher-scheduler"
 	| "watcher-cleanup"
-	| "online-status-sync";
+	| "online-status-sync"
+	| "network-monitor-sync";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;

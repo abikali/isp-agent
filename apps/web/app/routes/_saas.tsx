@@ -2,6 +2,7 @@ import { config } from "@repo/config";
 import { SessionProvider } from "@saas/auth/client";
 import { ActiveOrganizationProvider } from "@saas/organizations/client";
 import { ConfirmationAlertProvider } from "@saas/shared/client";
+import { PushSubscriptionRegistrar } from "@shared/components/PushSubscriptionRegistrar";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { getOrganizationListFn, getSessionFn } from "~/server/auth";
 
@@ -31,6 +32,7 @@ function SaaSLayout() {
 		<SessionProvider initialSession={session}>
 			<ActiveOrganizationProvider>
 				<ConfirmationAlertProvider>
+					<PushSubscriptionRegistrar />
 					<Outlet />
 				</ConfirmationAlertProvider>
 			</ActiveOrganizationProvider>

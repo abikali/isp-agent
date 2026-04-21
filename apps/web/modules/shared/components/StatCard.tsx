@@ -30,6 +30,8 @@ interface StatCardProps {
 	color?: StatColor;
 	description?: string;
 	href?: string;
+	onClick?: () => void;
+	active?: boolean;
 }
 
 export function StatCard({
@@ -39,13 +41,17 @@ export function StatCard({
 	color = "default",
 	description,
 	href,
+	onClick,
+	active,
 }: StatCardProps) {
+	const interactive = !!href || !!onClick;
 	const card = (
 		<div
 			className={cn(
 				"rounded-lg border bg-card px-3 py-2.5 sm:px-4 sm:py-3 min-w-0",
-				href &&
+				interactive &&
 					"hover:shadow-card-hover cursor-pointer transition-shadow",
+				active && "ring-2 ring-primary border-primary",
 			)}
 		>
 			<p className="text-[11px] sm:text-xs font-medium text-muted-foreground flex items-center gap-1.5 min-w-0">
@@ -69,12 +75,24 @@ export function StatCard({
 	if (href) {
 		return <a href={href}>{card}</a>;
 	}
+	if (onClick) {
+		return (
+			<button
+				type="button"
+				onClick={onClick}
+				className="text-left w-full"
+				aria-pressed={active}
+			>
+				{card}
+			</button>
+		);
+	}
 	return card;
 }
 
 interface StatCardGroupProps {
 	children: ReactNode;
-	columns?: 2 | 3 | 4 | 5;
+	columns?: 2 | 3 | 4 | 5 | 6;
 }
 
 const columnClass: Record<number, string> = {
@@ -82,6 +100,7 @@ const columnClass: Record<number, string> = {
 	3: "grid-cols-2 sm:grid-cols-3",
 	4: "grid-cols-2 sm:grid-cols-4",
 	5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+	6: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",
 };
 
 export function StatCardGroup({ children, columns = 4 }: StatCardGroupProps) {

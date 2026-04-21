@@ -1,5 +1,6 @@
 "use client";
 
+import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
 import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -7,13 +8,7 @@ import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
 interface CustomerListInput {
 	search?: string | undefined;
-	status?:
-		| "ACTIVE"
-		| "INACTIVE"
-		| "SUSPENDED"
-		| "PENDING"
-		| "EXPIRED"
-		| undefined;
+	status?: CustomerListStatus | undefined;
 	planId?: string | undefined;
 	stationId?: string | undefined;
 	connectionType?:
@@ -82,13 +77,15 @@ export function useCustomers(filters: CustomerListInput = {}) {
 		input["sortOrder"] = filters.sortOrder;
 	}
 
-	const query = useQuery(
-		orpc.customers.list.queryOptions({
+	const query = useQuery({
+		...orpc.customers.list.queryOptions({
 			input: input as Parameters<
 				typeof orpc.customers.list.queryOptions
 			>[0]["input"],
 		}),
-	);
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false,
+	});
 
 	return {
 		customers: query.data?.customers ?? [],
@@ -104,11 +101,13 @@ export function useCustomers(filters: CustomerListInput = {}) {
 export function useCustomerStats() {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
-		orpc.customers.stats.queryOptions({
+	const query = useSuspenseQuery({
+		...orpc.customers.stats.queryOptions({
 			input: { organizationId: organizationId ?? "" },
 		}),
-	);
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false,
+	});
 
 	return query.data;
 }
@@ -326,4 +325,22 @@ export function useSyncConflictsSummary(organizationId: string | null) {
 				})
 			: disabledQuery(["customers", "getSyncConflictsSummary"]),
 	);
+}
+
+export function useIRadiusGroups() {
+	const organizationId = useOrganizationId();
+	const query = useQuery(
+		organizationId
+			? {
+					...orpc.customers.listIRadiusGroups.queryOptions({
+						input: { organizationId },
+					}),
+					staleTime: 5 * 60 * 1000,
+				}
+			: disabledQuery(["customers", "listIRadiusGroups"]),
+	);
+	return {
+		groups: query.data?.groups ?? [],
+		isLoading: query.isLoading,
+	};
 }
