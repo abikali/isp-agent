@@ -62,7 +62,6 @@ export const updateCustomer = protectedProcedure
 				.nullable()
 				.optional(),
 			monthlyRate: z.number().min(0).nullable().optional(),
-			billingDay: z.number().int().min(1).max(28).nullable().optional(),
 			balance: z.number().optional(),
 			groupName: z.string().max(100).nullable().optional(),
 			groupExternalId: z.number().int().nullable().optional(),
@@ -97,22 +96,9 @@ export const updateCustomer = protectedProcedure
 		const updateData: Record<string, unknown> = {};
 		if (input.firstName !== undefined) {
 			updateData["firstName"] = input.firstName;
-			// Also update fullName for backward compat
-			const lastName =
-				input.lastName !== undefined
-					? input.lastName
-					: existing.lastName;
-			updateData["fullName"] = [input.firstName, lastName]
-				.filter(Boolean)
-				.join(" ");
 		}
 		if (input.lastName !== undefined) {
 			updateData["lastName"] = input.lastName ?? null;
-			if (input.firstName === undefined) {
-				updateData["fullName"] = [existing.firstName, input.lastName]
-					.filter(Boolean)
-					.join(" ");
-			}
 		}
 		if (input.email !== undefined) {
 			updateData["email"] = input.email ?? null;
@@ -153,9 +139,6 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.monthlyRate !== undefined) {
 			updateData["monthlyRate"] = input.monthlyRate ?? null;
-		}
-		if (input.billingDay !== undefined) {
-			updateData["billingDay"] = input.billingDay ?? null;
 		}
 		if (input.balance !== undefined) {
 			updateData["balance"] = input.balance;

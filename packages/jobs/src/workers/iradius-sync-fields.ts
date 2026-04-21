@@ -22,7 +22,6 @@ export const LOCAL_AUTHORITATIVE_FIELDS = new Set([
 	// Personal info — collectors and agents verify and enrich these in our app
 	// (name corrections, verified phones, corrected addresses, better emails).
 	// iRadius's copy is often outdated/incomplete; local is the source of truth.
-	"fullName",
 	"firstName",
 	"lastName",
 	"email",

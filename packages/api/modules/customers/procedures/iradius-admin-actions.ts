@@ -159,7 +159,6 @@ export const updateCustomerNameInIRadius = protectedProcedure
 			localData: {
 				firstName: input.firstName,
 				lastName: input.lastName || null,
-				fullName: `${input.firstName} ${input.lastName}`.trim(),
 			},
 		}),
 	);

@@ -156,9 +156,6 @@ export function buildCustomerDataFromRow(
 		null;
 
 	return {
-		fullName:
-			[u["FirstName"], u["LastName"]].filter(Boolean).join(" ").trim() ||
-			"Unknown",
 		firstName: (u["FirstName"] as string) || null,
 		lastName: (u["LastName"] as string) || null,
 		email: (u["MailAddress"] as string) || null,

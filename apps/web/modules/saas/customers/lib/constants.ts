@@ -48,6 +48,5 @@ export const CSV_HEADERS = [
 	"IP Address",
 	"MAC Address",
 	"Monthly Rate",
-	"Billing Day",
 	"Notes",
 ] as const;

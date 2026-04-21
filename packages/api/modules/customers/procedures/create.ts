@@ -41,7 +41,6 @@ export const createCustomer = protectedProcedure
 				.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
 				.optional(),
 			monthlyRate: z.number().min(0).optional(),
-			billingDay: z.number().int().min(1).max(28).optional(),
 			groupName: z.string().max(100).optional(),
 			notes: z.string().max(5000).optional(),
 		}),
@@ -66,9 +65,6 @@ export const createCustomer = protectedProcedure
 				firstName: input.firstName,
 				lastName: input.lastName ?? null,
 				dealerId: activeDealerId ?? null,
-				fullName: [input.firstName, input.lastName]
-					.filter(Boolean)
-					.join(" "),
 				email: input.email ?? null,
 				phones: input.phones ?? [],
 				mobile: input.phones ? getPrimaryPhone(input.phones) : null,
@@ -79,7 +75,6 @@ export const createCustomer = protectedProcedure
 				status: input.status,
 				connectionType: input.connectionType ?? null,
 				monthlyRate: input.monthlyRate ?? null,
-				billingDay: input.billingDay ?? null,
 				groupName: input.groupName ?? null,
 				notes: input.notes ?? null,
 			},
@@ -101,7 +96,7 @@ export const createCustomer = protectedProcedure
 			input.organizationId,
 			auditContext,
 			{
-				fullName: [input.firstName, input.lastName]
+				name: [input.firstName, input.lastName]
 					.filter(Boolean)
 					.join(" "),
 				accountNumber,

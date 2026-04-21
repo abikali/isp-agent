@@ -20,7 +20,6 @@ const importRowSchema = z.object({
 	stationName: z.string().optional(),
 	connectionType: z.string().optional(),
 	monthlyRate: z.number().optional(),
-	billingDay: z.number().int().min(1).max(28).optional(),
 	notes: z.string().optional(),
 });
 
@@ -86,7 +85,6 @@ export const bulkImportCustomers = protectedProcedure
 			dealerId: string | null;
 			firstName: string;
 			lastName: string | null;
-			fullName: string;
 			email: string | null;
 			mobile: string | null;
 			phone: string | null;
@@ -96,7 +94,6 @@ export const bulkImportCustomers = protectedProcedure
 			stationId: string | null;
 			connectionType: ConnectionType | null;
 			monthlyRate: number | null;
-			billingDay: number | null;
 			notes: string | null;
 			status: "ACTIVE";
 		}> = [];
@@ -129,9 +126,6 @@ export const bulkImportCustomers = protectedProcedure
 					dealerId: activeDealerId ?? null,
 					firstName: row.firstName,
 					lastName: row.lastName ?? null,
-					fullName: [row.firstName, row.lastName]
-						.filter(Boolean)
-						.join(" "),
 					email: row.email ?? null,
 					mobile: row.mobile ?? null,
 					phone: row.phone ?? null,
@@ -141,7 +135,6 @@ export const bulkImportCustomers = protectedProcedure
 					stationId,
 					connectionType,
 					monthlyRate: row.monthlyRate ?? null,
-					billingDay: row.billingDay ?? null,
 					notes: row.notes ?? null,
 					status: "ACTIVE",
 				});

@@ -49,7 +49,6 @@ import {
 // ---------------------------------------------------------------------------
 
 const FIELD_LABELS: Record<string, string> = {
-	fullName: "Full Name",
 	firstName: "First Name",
 	lastName: "Last Name",
 	email: "Email",
@@ -114,7 +113,8 @@ interface FlatRow {
 	customer: {
 		id: string;
 		accountNumber: string;
-		fullName: string | null;
+		firstName: string | null;
+		lastName: string | null;
 		username: string | null;
 	};
 }
@@ -594,8 +594,12 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 										<TableCell>
 											<div className="font-medium text-sm leading-tight">
 												{truncate(
-													row.customer.fullName ??
-														"Unknown",
+													[
+														row.customer.firstName,
+														row.customer.lastName,
+													]
+														.filter(Boolean)
+														.join(" ") || "Unknown",
 													24,
 												)}
 											</div>

@@ -95,7 +95,6 @@ export const bulkExportCustomers = protectedProcedure
 			"IP Address",
 			"MAC Address",
 			"Monthly Rate",
-			"Billing Day",
 			"Balance",
 			"Notes",
 		];
@@ -116,7 +115,6 @@ export const bulkExportCustomers = protectedProcedure
 			c.ipAddress ?? "",
 			c.macAddress ?? "",
 			c.monthlyRate?.toString() ?? "",
-			c.billingDay?.toString() ?? "",
 			c.balance.toString(),
 			c.notes ?? "",
 		]);

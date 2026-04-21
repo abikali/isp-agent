@@ -26,7 +26,7 @@ import {
  *
  * Pushed: firstName, lastName, email, mobile, phone (via phones), address,
  * latitude, longitude, notes → iRadius User / UserNas.
- * Not pushed: username (PPPoE credential), fullName (derived).
+ * Not pushed: username (PPPoE credential).
  */
 export const pushCustomerToIRadius = protectedProcedure
 	.route({

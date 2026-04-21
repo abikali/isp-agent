@@ -12,7 +12,6 @@ export interface CsvRow {
 	stationName?: string | undefined;
 	connectionType?: string | undefined;
 	monthlyRate?: number | undefined;
-	billingDay?: number | undefined;
 	notes?: string | undefined;
 }
 
@@ -215,18 +214,6 @@ export function parseCsv(csvText: string): ParseResult {
 				);
 			} else {
 				row.monthlyRate = rate;
-			}
-		}
-
-		const billingDayStr = getField(fields, headerMap, "Billing Day");
-		if (billingDayStr) {
-			const day = Number.parseInt(billingDayStr, 10);
-			if (Number.isNaN(day) || day < 1 || day > 28) {
-				rowErrors.push(
-					`Invalid billing day "${billingDayStr}". Must be between 1 and 28`,
-				);
-			} else {
-				row.billingDay = day;
 			}
 		}
 

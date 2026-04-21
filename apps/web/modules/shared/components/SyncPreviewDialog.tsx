@@ -35,7 +35,6 @@ import { toast } from "sonner";
 
 /** Human-readable labels for sync diff fields */
 const FIELD_LABELS: Record<string, string> = {
-	fullName: "Full Name",
 	firstName: "First Name",
 	lastName: "Last Name",
 	email: "Email",

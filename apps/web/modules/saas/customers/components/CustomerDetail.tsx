@@ -125,7 +125,6 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		status: customer.status,
 		connectionType: customer.connectionType ?? "",
 		monthlyRate: customer.monthlyRate?.toString() ?? "",
-		billingDay: customer.billingDay?.toString() ?? "",
 		balance: customer.balance.toString(),
 		groupName: customer.groupName ?? "",
 		groupExternalId: customer.groupExternalId?.toString() ?? "",
@@ -228,7 +227,6 @@ export function CustomerDetail({
 				| "ETHERNET"
 				| null,
 			monthlyRate: values.monthlyRate ? Number(values.monthlyRate) : null,
-			billingDay: values.billingDay ? Number(values.billingDay) : null,
 			balance: Number(values.balance),
 			groupName: resolvedGroupName,
 			groupExternalId: parsedGroupId,
@@ -417,7 +415,6 @@ export function CustomerDetail({
 								externalId: customer.externalId ?? null,
 								firstName: customer.firstName ?? null,
 								lastName: customer.lastName ?? null,
-								fullName: customer.fullName ?? null,
 								discount: customer.discount ?? null,
 								iptvPrice: customer.iptvPrice ?? null,
 							}}
@@ -1436,9 +1433,9 @@ function BillingTab({
 		<>
 			<DetailSection
 				title="Billing"
-				description="Monthly rate, billing cycle, and balance"
+				description="Monthly rate and balance"
 			>
-				<FieldGroup columns={3}>
+				<FieldGroup columns={2}>
 					<form.Field name="monthlyRate">
 						{(field) => (
 							<Field>
@@ -1462,29 +1459,6 @@ function BillingTab({
 							</Field>
 						)}
 					</form.Field>
-					<form.Field name="billingDay">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="billingDay">
-									Billing Day
-								</FieldLabel>
-								<Input
-									id="billingDay"
-									type="number"
-									min={1}
-									max={28}
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="1–28"
-								/>
-								<FieldDescription>
-									Day of month (1–28)
-								</FieldDescription>
-							</Field>
-						)}
-					</form.Field>
 					<form.Field name="balance">
 						{(field) => (
 							<Field>
@@ -1500,6 +1474,9 @@ function BillingTab({
 										field.handleChange(e.target.value)
 									}
 								/>
+								<FieldDescription>
+									Running credit/debit carried on the account
+								</FieldDescription>
 							</Field>
 						)}
 					</form.Field>

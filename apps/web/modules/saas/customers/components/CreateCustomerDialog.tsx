@@ -136,7 +136,6 @@ export function CreateCustomerDialog({
 			status: "ACTIVE",
 			connectionType: "",
 			monthlyRate: "",
-			billingDay: "",
 			groupName: "",
 			notes: "",
 		},
@@ -168,9 +167,6 @@ export function CreateCustomerDialog({
 					| undefined,
 				monthlyRate: value.monthlyRate
 					? Number(value.monthlyRate)
-					: undefined,
-				billingDay: value.billingDay
-					? Number(value.billingDay)
 					: undefined,
 				groupName: value.groupName || undefined,
 				notes: value.notes || undefined,
@@ -432,47 +428,26 @@ export function CreateCustomerDialog({
 						)}
 					</form.Field>
 
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="monthlyRate">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-rate">
-										Monthly Rate Override ($)
-									</Label>
-									<Input
-										id="cust-rate"
-										type="number"
-										min={0}
-										step="0.01"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Use plan price"
-									/>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="billingDay">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-bday">
-										Billing Day (1-28)
-									</Label>
-									<Input
-										id="cust-bday"
-										type="number"
-										min={1}
-										max={28}
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-					</div>
+					<form.Field name="monthlyRate">
+						{(field) => (
+							<div className="space-y-2">
+								<Label htmlFor="cust-rate">
+									Monthly Rate Override ($)
+								</Label>
+								<Input
+									id="cust-rate"
+									type="number"
+									min={0}
+									step="0.01"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="Use plan price"
+								/>
+							</div>
+						)}
+					</form.Field>
 
 					<form.Field name="notes">
 						{(field) => (

@@ -590,7 +590,6 @@ function createEscalateTelegramTool(context: ToolContext) {
 								select: {
 									firstName: true,
 									lastName: true,
-									fullName: true,
 									phone: true,
 									email: true,
 									username: true,
@@ -614,7 +613,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 											dbCustomer.lastName,
 										]
 											.filter(Boolean)
-											.join(" ") || dbCustomer.fullName,
+											.join(" ") || null,
 									phone: dbCustomer.phone,
 									email: dbCustomer.email,
 									username: dbCustomer.username,

@@ -42,7 +42,6 @@ interface IRadiusActionsMenuProps {
 		externalId: string | null;
 		firstName: string | null;
 		lastName: string | null;
-		fullName?: string | null;
 		discount: number | null;
 		iptvPrice: number | null;
 	};
@@ -82,18 +81,10 @@ export function IRadiusActionsMenu({
 	}
 
 	function getInitialNames(): { firstName: string; lastName: string } {
-		if (customer.firstName || customer.lastName) {
-			return {
-				firstName: customer.firstName ?? "",
-				lastName: customer.lastName ?? "",
-			};
-		}
-		const full = (customer.fullName ?? "").trim();
-		if (!full) {
-			return { firstName: "", lastName: "" };
-		}
-		const [first, ...rest] = full.split(/\s+/);
-		return { firstName: first ?? "", lastName: rest.join(" ") };
+		return {
+			firstName: customer.firstName ?? "",
+			lastName: customer.lastName ?? "",
+		};
 	}
 
 	return (

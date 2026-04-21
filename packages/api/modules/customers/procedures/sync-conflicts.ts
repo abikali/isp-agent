@@ -141,7 +141,8 @@ export const listSyncConflicts = protectedProcedure
 						select: {
 							id: true,
 							accountNumber: true,
-							fullName: true,
+							firstName: true,
+							lastName: true,
 							username: true,
 							dealerId: true,
 						},

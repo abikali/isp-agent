@@ -321,11 +321,9 @@ export const previewIRadiusEntitySync = protectedProcedure
 
 					const name =
 						entityType === "customer"
-							? (localRec["fullName"] as string) ||
-								[localRec["firstName"], localRec["lastName"]]
+							? [localRec["firstName"], localRec["lastName"]]
 									.filter(Boolean)
-									.join(" ") ||
-								"Unknown"
+									.join(" ") || "Unknown"
 							: (localRec["name"] as string) || "Unknown";
 
 					result.push({
