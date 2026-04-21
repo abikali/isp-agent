@@ -10,6 +10,7 @@ import { collectorBalance } from "../lib/calculations";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalanceBatch,
+	fetchRelevantBillingMonths,
 } from "../lib/queries";
 import {
 	getMonthDateRange,
@@ -109,16 +110,22 @@ export const listCollectors = protectedProcedure
 				_count: true,
 			}),
 			// Customers due this month per collector (includes stopped-with-pay)
-			db.customer.groupBy({
-				by: ["collectorId"],
-				where: customersDueThisMonthWhere(
-					input.organizationId,
-					activeMonth.id,
-					monthRange,
-					{ collectorIds, dealerFilter },
-				),
-				_count: true,
-			}),
+			fetchRelevantBillingMonths(
+				input.organizationId,
+				activeMonth.year,
+				activeMonth.month,
+			).then((relevantMonths) =>
+				db.customer.groupBy({
+					by: ["collectorId"],
+					where: customersDueThisMonthWhere(
+						input.organizationId,
+						activeMonth.id,
+						monthRange,
+						{ collectorIds, dealerFilter, relevantMonths },
+					),
+					_count: true,
+				}),
+			),
 			// Stopped accounts this month per collector (for admin badge)
 			db.payment.groupBy({
 				by: ["collectorId"],

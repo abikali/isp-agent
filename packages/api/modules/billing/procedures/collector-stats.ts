@@ -12,6 +12,7 @@ import { sumOrZero } from "../lib/calculations";
 import {
 	countPaidCustomers,
 	fetchCollectorBalance,
+	fetchRelevantBillingMonths,
 	unpaidCustomersWhere,
 } from "../lib/queries";
 import {
@@ -83,14 +84,20 @@ export const getCollectorStats = protectedProcedure
 			dailyPayments,
 		] = await Promise.all([
 			// Unpaid customers: expiry up to this month (includes past-due), no payment at all
-			db.customer.count({
-				where: unpaidCustomersWhere(
-					input.organizationId,
-					activeMonth.id,
-					monthRange,
-					{ collectorId, dealerFilter },
-				),
-			}),
+			fetchRelevantBillingMonths(
+				input.organizationId,
+				activeMonth.year,
+				activeMonth.month,
+			).then((relevantMonths) =>
+				db.customer.count({
+					where: unpaidCustomersWhere(
+						input.organizationId,
+						activeMonth.id,
+						monthRange,
+						{ collectorId, dealerFilter, relevantMonths },
+					),
+				}),
+			),
 			// Paid customers this month: distinct customerIds with real payment
 			// (paidAmount > 0 — includes stopped-with-pay, excludes stopped-no-pay)
 			countPaidCustomers(input.organizationId, activeMonth.id, {

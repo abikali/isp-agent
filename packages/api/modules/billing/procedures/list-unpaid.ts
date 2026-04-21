@@ -12,9 +12,17 @@ import {
 	EXCLUDE_FREE_GROUP,
 	EXCLUDE_STOPPED,
 	excludeGroupFilter,
+	hasBilledInvoiceFilter,
 } from "../lib/filters";
-import { applyCollectorScope } from "../lib/queries";
-import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import {
+	applyCollectorScope,
+	fetchRelevantBillingMonths,
+} from "../lib/queries";
+import {
+	getMonthDateRange,
+	resolveYearMonth,
+	yearMonthToNum,
+} from "../lib/resolve-month";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
 export const listUnpaidCustomers = protectedProcedure
@@ -61,6 +69,13 @@ export const listUnpaidCustomers = protectedProcedure
 			input.month,
 		);
 		const monthRange = getMonthDateRange(year, month);
+		const currentMonthNum = yearMonthToNum(year, month);
+
+		const relevantMonths = await fetchRelevantBillingMonths(
+			input.organizationId,
+			year,
+			month,
+		);
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
@@ -69,6 +84,9 @@ export const listUnpaidCustomers = protectedProcedure
 			// Customers whose billing expiry falls within or before this billing month
 			// (includes past-due customers from prior months)
 			billingExpiresAt: { lte: monthRange.lte },
+			// Drops dormant PENDING customers (iRadius stopped issuing invoices)
+			// so they don't surface as synthetic one-month debt.
+			...hasBilledInvoiceFilter(relevantMonths),
 			...getDealerScopeFilter(activeDealerId),
 		};
 
@@ -175,9 +193,6 @@ export const listUnpaidCustomers = protectedProcedure
 		// ── Accumulated debt enrichment ──────────────────────────
 		const customerIds = customers.map((c) => c.id);
 
-		const toMonthNum = (y: number, m: number) => y * 12 + m;
-		const currentMonthNum = toMonthNum(year, month);
-
 		type EnrichedCustomer = (typeof customers)[number] & {
 			unpaidMonths: number;
 			accumulatedDue: number;
@@ -188,33 +203,27 @@ export const listUnpaidCustomers = protectedProcedure
 		let enrichedCustomers: EnrichedCustomer[];
 
 		if (customerIds.length > 0) {
-			const [allBillingMonths, paidPayments, invoices] =
-				await Promise.all([
-					db.billingMonth.findMany({
-						where: { organizationId: input.organizationId },
-						select: { id: true, year: true, month: true },
-						orderBy: [{ year: "asc" }, { month: "asc" }],
-					}),
-					db.payment.findMany({
-						where: {
-							customerId: { in: customerIds },
-							...EXCLUDE_STOPPED,
-						},
-						select: { customerId: true, billingMonthId: true },
-					}),
-					db.customerInvoice.findMany({
-						where: {
-							customerId: { in: customerIds },
-							// Loop below only consults months ≤ (year, month); skip
-							// any future invoices to keep the row count bounded.
-							OR: [
-								{ year: { lt: year } },
-								{ year, month: { lte: month } },
-							],
-						},
-						select: { customerId: true, year: true, month: true },
-					}),
-				]);
+			const [paidPayments, invoices] = await Promise.all([
+				db.payment.findMany({
+					where: {
+						customerId: { in: customerIds },
+						...EXCLUDE_STOPPED,
+					},
+					select: { customerId: true, billingMonthId: true },
+				}),
+				db.customerInvoice.findMany({
+					where: {
+						customerId: { in: customerIds },
+						// Loop below only consults months ≤ (year, month); skip
+						// any future invoices to keep the row count bounded.
+						OR: [
+							{ year: { lt: year } },
+							{ year, month: { lte: month } },
+						],
+					},
+					select: { customerId: true, year: true, month: true },
+				}),
+			]);
 
 			const paidMap = new Map<string, Set<string>>();
 			for (const p of paidPayments) {
@@ -257,7 +266,7 @@ export const listUnpaidCustomers = protectedProcedure
 					};
 				}
 
-				const expiryMonthNum = toMonthNum(
+				const expiryMonthNum = yearMonthToNum(
 					exp.getFullYear(),
 					exp.getMonth() + 1,
 				);
@@ -267,9 +276,9 @@ export const listUnpaidCustomers = protectedProcedure
 				let unpaidCount = 0;
 				let pastDueCount = 0;
 
-				for (const bm of allBillingMonths) {
-					const bmNum = toMonthNum(bm.year, bm.month);
-					if (bmNum < expiryMonthNum || bmNum > currentMonthNum) {
+				for (const bm of relevantMonths) {
+					const bmNum = yearMonthToNum(bm.year, bm.month);
+					if (bmNum < expiryMonthNum) {
 						continue;
 					}
 					if (!billed.has(`${bm.year}-${bm.month}`)) {
@@ -281,10 +290,6 @@ export const listUnpaidCustomers = protectedProcedure
 							pastDueCount++;
 						}
 					}
-				}
-
-				if (unpaidCount === 0) {
-					unpaidCount = 1;
 				}
 
 				return {

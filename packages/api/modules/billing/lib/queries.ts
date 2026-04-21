@@ -10,7 +10,12 @@ import type { PermissionContext } from "@repo/api/lib/permission";
 import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
-import { BILLABLE_CUSTOMER_STATUSES, EXCLUDE_FREE_GROUP } from "./filters";
+import {
+	BILLABLE_CUSTOMER_STATUSES,
+	EXCLUDE_FREE_GROUP,
+	hasBilledInvoiceFilter,
+} from "./filters";
+import { yearMonthToNum } from "./resolve-month";
 
 // ── Collector Balance ────────────────────────────────────────────
 
@@ -102,6 +107,27 @@ export async function fetchCollectorBalanceBatch(
 	return { collectedMap, handedOffMap };
 }
 
+// ── Relevant Billing Months ──────────────────────────────────────
+
+/**
+ * Billing months ≤ (upToYear, upToMonth) for the org. The full set of months
+ * `list-unpaid`'s enrichment loop would visit — other billing views pass it
+ * into `hasBilledInvoiceFilter` so their counts align with the list.
+ */
+export async function fetchRelevantBillingMonths(
+	organizationId: string,
+	upToYear: number,
+	upToMonth: number,
+): Promise<{ id: string; year: number; month: number }[]> {
+	const months = await db.billingMonth.findMany({
+		where: { organizationId },
+		select: { id: true, year: true, month: true },
+		orderBy: [{ year: "asc" }, { month: "asc" }],
+	});
+	const cap = yearMonthToNum(upToYear, upToMonth);
+	return months.filter((bm) => yearMonthToNum(bm.year, bm.month) <= cap);
+}
+
 // ── Customers Due This Month ─────────────────────────────────────
 
 /**
@@ -121,8 +147,16 @@ export function customersDueThisMonthWhere(
 		collectorId?: string;
 		collectorIds?: string[];
 		dealerFilter?: Record<string, unknown>;
+		/**
+		 * Unpaid candidates must have an invoice for at least one of these
+		 * months — drops dormant PENDING customers whose iRadius billing has
+		 * gone silent.
+		 */
+		relevantMonths?: readonly { year: number; month: number }[];
 	},
 ) {
+	const invoiceFilter = hasBilledInvoiceFilter(opts?.relevantMonths ?? []);
+
 	const where: Record<string, unknown> = {
 		organizationId,
 		...EXCLUDE_FREE_GROUP,
@@ -134,6 +168,7 @@ export function customersDueThisMonthWhere(
 						status: { in: BILLABLE_CUSTOMER_STATUSES },
 						billingExpiresAt: monthRange,
 						payments: { none: { billingMonthId } },
+						...invoiceFilter,
 					},
 					// Customers who actually paid real money (any status — covers
 					// stopped-with-pay, free-with-pay, and normal payments)
@@ -176,8 +211,15 @@ export function unpaidCustomersWhere(
 	opts?: {
 		collectorId?: string;
 		dealerFilter?: Record<string, unknown>;
+		/**
+		 * Require at least one invoice for one of these months — drops
+		 * dormant PENDING customers whose iRadius billing has gone silent.
+		 */
+		relevantMonths?: readonly { year: number; month: number }[];
 	},
 ) {
+	const invoiceFilter = hasBilledInvoiceFilter(opts?.relevantMonths ?? []);
+
 	const where: Record<string, unknown> = {
 		organizationId,
 		status: { in: BILLABLE_CUSTOMER_STATUSES },
@@ -188,6 +230,7 @@ export function unpaidCustomersWhere(
 				billingMonthId,
 			},
 		},
+		...invoiceFilter,
 	};
 
 	if (opts?.collectorId) {

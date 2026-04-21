@@ -123,3 +123,10 @@ export function getMonthDateRange(year: number, month: number) {
 		lte: new Date(year, month, 0, 23, 59, 59, 999),
 	};
 }
+
+/**
+ * Encode (year, month) as a single integer for cheap ordinal comparison.
+ */
+export function yearMonthToNum(year: number, month: number): number {
+	return year * 12 + month;
+}

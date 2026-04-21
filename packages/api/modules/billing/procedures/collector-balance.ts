@@ -7,6 +7,7 @@ import { EXCLUDE_STOPPED } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalance,
+	fetchRelevantBillingMonths,
 } from "../lib/queries";
 import {
 	getMonthDateRange,
@@ -47,21 +48,27 @@ export const getCollectorBalance = protectedProcedure
 			await Promise.all([
 				fetchCollectorBalance(input.organizationId, input.collectorId),
 				// Customers due this month: expiry falls in month range OR already paid
-				db.customer.findMany({
-					where: customersDueThisMonthWhere(
-						input.organizationId,
-						activeMonth.id,
-						monthRange,
-						{ collectorId: input.collectorId },
-					),
-					select: {
-						monthlyRate: true,
-						iptvPrice: true,
-						realIpPrice: true,
-						discount: true,
-						plan: { select: { monthlyPrice: true } },
-					},
-				}),
+				fetchRelevantBillingMonths(
+					input.organizationId,
+					activeMonth.year,
+					activeMonth.month,
+				).then((relevantMonths) =>
+					db.customer.findMany({
+						where: customersDueThisMonthWhere(
+							input.organizationId,
+							activeMonth.id,
+							monthRange,
+							{ collectorId: input.collectorId, relevantMonths },
+						),
+						select: {
+							monthlyRate: true,
+							iptvPrice: true,
+							realIpPrice: true,
+							discount: true,
+							plan: { select: { monthlyPrice: true } },
+						},
+					}),
+				),
 				// Amount collected this month by this collector (excludes stopped)
 				db.payment.aggregate({
 					where: {

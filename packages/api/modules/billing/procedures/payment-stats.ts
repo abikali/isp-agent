@@ -11,6 +11,7 @@ import { EXCLUDE_STOPPED } from "../lib/filters";
 import {
 	applyCollectorScope,
 	countPaidCustomers,
+	fetchRelevantBillingMonths,
 	resolveCollectorNames,
 	unpaidCustomersWhere,
 } from "../lib/queries";
@@ -155,14 +156,20 @@ export const getPaymentStats = protectedProcedure
 				: Promise.resolve(0),
 			// Unpaid customers: includes past-due (billingExpiresAt <= month end, no payment)
 			monthId
-				? db.customer.count({
-						where: unpaidCustomersWhere(
-							input.organizationId,
-							monthId,
-							monthRange,
-							{ dealerFilter },
-						),
-					})
+				? fetchRelevantBillingMonths(
+						input.organizationId,
+						year,
+						month,
+					).then((relevantMonths) =>
+						db.customer.count({
+							where: unpaidCustomersWhere(
+								input.organizationId,
+								monthId,
+								monthRange,
+								{ dealerFilter, relevantMonths },
+							),
+						}),
+					)
 				: Promise.resolve(0),
 			// Flagged payments awaiting admin review (free, stopped, or amount mismatch)
 			countUnreviewedPayments(
