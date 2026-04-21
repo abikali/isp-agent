@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
-import { db, dbRaw, type Prisma } from "@repo/database";
+import { db, dbRaw, Prisma } from "@repo/database";
 import { type ConflictFields, deserializeValue } from "@repo/jobs/sync-fields";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -105,6 +105,8 @@ export const listSyncConflicts = protectedProcedure
 				.enum(["pending", "resolved", "all"])
 				.optional()
 				.default("pending"),
+			/** Only return conflicts whose JSON `fields` has this key unresolved. */
+			fieldName: z.string().optional(),
 			page: z.number().int().min(1).optional().default(1),
 			pageSize: z.number().int().min(1).max(200).optional().default(100),
 		}),
@@ -117,10 +119,18 @@ export const listSyncConflicts = protectedProcedure
 			"sync",
 		);
 
-		const where = {
+		const where: Prisma.SyncConflictWhereInput = {
 			organizationId: input.organizationId,
 			...(input.status !== "all" ? { status: input.status } : {}),
 			...buildDealerScopeWhere(activeDealerId),
+			...(input.fieldName
+				? {
+						fields: {
+							path: [input.fieldName, "resolution"],
+							equals: Prisma.JsonNull,
+						},
+					}
+				: {}),
 		};
 
 		const [conflicts, totalCount] = await Promise.all([

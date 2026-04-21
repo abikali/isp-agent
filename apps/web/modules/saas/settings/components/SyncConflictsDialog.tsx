@@ -212,17 +212,21 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	const pageSize = 100;
 
 	const { data: summary } = useSyncConflictsSummary(organizationId);
+	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [fieldFilter, setFieldFilter] = useState<string | null>(null);
+
 	const {
 		data: conflictsData,
 		isLoading,
 		isFetching,
-	} = useSyncConflicts(organizationId, { page, pageSize });
+	} = useSyncConflicts(organizationId, {
+		page,
+		pageSize,
+		fieldName: fieldFilter,
+	});
 
 	const resolveMutation = useResolveSyncConflict();
 	const bulkMutation = useBulkResolveSyncConflicts();
-
-	const [selected, setSelected] = useState<Set<string>>(new Set());
-	const [fieldFilter, setFieldFilter] = useState<string | null>(null);
 
 	const conflicts = conflictsData?.conflicts ?? [];
 	const totalCount = conflictsData?.totalCount ?? 0;
@@ -462,6 +466,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 							onClick={() => {
 								setFieldFilter(null);
 								setSelected(new Set());
+								setPage(1);
 							}}
 							className={cn(
 								"inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
@@ -484,6 +489,7 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 										fieldFilter === f.name ? null : f.name,
 									);
 									setSelected(new Set());
+									setPage(1);
 								}}
 								className={cn(
 									"inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",

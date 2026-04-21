@@ -342,6 +342,7 @@ export function useSyncConflicts(
 	organizationId: string | null,
 	filters: {
 		status?: "pending" | "resolved" | "all";
+		fieldName?: string | null;
 		page?: number;
 		pageSize?: number;
 	} = {},
@@ -352,6 +353,9 @@ export function useSyncConflicts(
 					input: {
 						organizationId,
 						status: filters.status ?? "pending",
+						...(filters.fieldName
+							? { fieldName: filters.fieldName }
+							: {}),
 						page: filters.page ?? 1,
 						pageSize: filters.pageSize ?? 25,
 					},
