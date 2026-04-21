@@ -9,6 +9,9 @@ export interface MirrorExistingFields {
 	phone: string | null;
 	groupExternalId: number | null;
 	collectorId: string | null;
+	latitude: number | null;
+	longitude: number | null;
+	notes: string | null;
 }
 
 export interface MirrorNextFields {
@@ -19,6 +22,9 @@ export interface MirrorNextFields {
 	phones?: ReadonlyArray<{ number: string; primary: boolean }> | undefined;
 	groupExternalId?: number | null | undefined;
 	collectorId?: string | null | undefined;
+	latitude?: number | null | undefined;
+	longitude?: number | null | undefined;
+	notes?: string | null | undefined;
 }
 
 export interface MirrorDiff {
@@ -28,6 +34,8 @@ export interface MirrorDiff {
 	phonesChanged: boolean;
 	groupChanged: boolean;
 	collectorChanged: boolean;
+	locationChanged: boolean;
+	notesChanged: boolean;
 	labels: string[];
 	submittedPrimary: string | null;
 	submittedSecondary: string | null;
@@ -82,6 +90,29 @@ export function diffMirrorFields(
 		next.collectorId !== undefined &&
 		(next.collectorId || null) !== (existing.collectorId || null);
 
+	// Coordinate comparison uses an epsilon to avoid false positives from
+	// double-precision rendering differences — same rule as sync `valuesEqual`.
+	const FLOAT_EPSILON = 1e-6;
+	const floatChanged = (a: number | null, b: number | null): boolean => {
+		if (a == null && b == null) {
+			return false;
+		}
+		if (a == null || b == null) {
+			return true;
+		}
+		return Math.abs(a - b) >= FLOAT_EPSILON;
+	};
+
+	const locationChanged =
+		(next.latitude !== undefined &&
+			floatChanged(next.latitude ?? null, existing.latitude ?? null)) ||
+		(next.longitude !== undefined &&
+			floatChanged(next.longitude ?? null, existing.longitude ?? null));
+
+	const notesChanged =
+		next.notes !== undefined &&
+		normalizeString(next.notes) !== normalizeString(existing.notes);
+
 	const labels: string[] = [];
 	if (nameChanged) {
 		labels.push("Name");
@@ -101,6 +132,12 @@ export function diffMirrorFields(
 	if (collectorChanged) {
 		labels.push("Collector");
 	}
+	if (locationChanged) {
+		labels.push("Location");
+	}
+	if (notesChanged) {
+		labels.push("Notes");
+	}
 
 	return {
 		nameChanged,
@@ -109,6 +146,8 @@ export function diffMirrorFields(
 		phonesChanged,
 		groupChanged,
 		collectorChanged,
+		locationChanged,
+		notesChanged,
 		labels,
 		submittedPrimary,
 		submittedSecondary,

@@ -250,6 +250,45 @@ export async function iradiusUpdateUserAddress(
 }
 
 /**
+ * Update a customer's GPS coordinates (UserNas.GSMLat / GSMLng) in iRadius.
+ * Pass `null` for either to clear. Writes to UserNas keyed on UserId — one
+ * row per user, so a simple UPDATE is sufficient.
+ */
+export async function iradiusUpdateUserLocation(
+	customer: { externalId?: string | null },
+	latitude: number | null,
+	longitude: number | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET GSMLat = ?, GSMLng = ? WHERE UserId = ?",
+			[latitude, longitude, userId],
+		);
+	});
+}
+
+/**
+ * Update a customer's Comment (User.Comment) in iRadius from local `notes`.
+ * Pass `null` to clear. Mirror only: the pull-side keeps `notes` local-
+ * authoritative and does not overwrite.
+ */
+export async function iradiusUpdateUserComment(
+	customer: { externalId?: string | null },
+	comment: string | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET Comment = ?, UpdateDate = NOW() WHERE Id = ?",
+			[comment, userId],
+		);
+	});
+}
+
+/**
  * Update a customer's UserGroup assignment (User.UserGroupId) in iRadius.
  * Pass `null` to clear. Caller must pass a valid id that exists in UserGroup —
  * we don't validate here, but iRadius has no FK constraint either; any invalid

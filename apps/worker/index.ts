@@ -5,6 +5,7 @@ import {
 	createBillingSyncWorker,
 	createEmailWorker,
 	createIntegrationSyncWorker,
+	createIRadiusPushWorker,
 	createIRadiusSyncWorker,
 	createLocationRequestWorker,
 	createOrgSetupWorker,
@@ -32,6 +33,7 @@ async function main() {
 	const webhookWorker = createWebhookWorker();
 	const scheduledWorker = createScheduledWorker();
 	const iRadiusSyncWorker = createIRadiusSyncWorker();
+	const iRadiusPushWorker = createIRadiusPushWorker();
 	const integrationSyncWorker = createIntegrationSyncWorker();
 	const orgSetupWorker = createOrgSetupWorker();
 	const telegramLocationWorker = createTelegramLocationWorker();
@@ -51,6 +53,7 @@ async function main() {
 			"billing-sync",
 			"email",
 			"iradius-sync",
+			"iradius-push",
 			"webhook",
 			"scheduled",
 			"integration-sync",
@@ -71,6 +74,7 @@ async function main() {
 			billingSyncWorker.close(),
 			emailWorker.close(),
 			iRadiusSyncWorker.close(),
+			iRadiusPushWorker.close(),
 			webhookWorker.close(),
 			scheduledWorker.close(),
 			integrationSyncWorker.close(),

@@ -11,6 +11,8 @@ import {
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure, publicProcedure } from "../../../orpc/procedures";
+import { iradiusUpdateUserLocation } from "../lib/iradius-api";
+import { mirrorToIRadius } from "../lib/iradius-mirror";
 
 /**
  * Shared lifecycle guard for the customer-scoped location procedures:
@@ -159,9 +161,31 @@ export const updateCustomerLocation = protectedProcedure
 			input.customerId,
 			user.id,
 		);
-		await db.customer.update({
+		const customer = await db.customer.findUnique({
 			where: { id: input.customerId },
-			data: { latitude: input.latitude, longitude: input.longitude },
+			select: { externalId: true },
+		});
+		await mirrorToIRadius({
+			logTag: "iRadius update location",
+			failureMessage: "Failed to update location in iRadius",
+			remote: async () => {
+				if (!customer?.externalId) {
+					return;
+				}
+				await iradiusUpdateUserLocation(
+					{ externalId: customer.externalId },
+					input.latitude,
+					input.longitude,
+				);
+			},
+			local: () =>
+				db.customer.update({
+					where: { id: input.customerId },
+					data: {
+						latitude: input.latitude,
+						longitude: input.longitude,
+					},
+				}),
 		});
 		return { success: true };
 	});
@@ -189,9 +213,28 @@ export const clearCustomerLocation = protectedProcedure
 			input.customerId,
 			user.id,
 		);
-		await db.customer.update({
+		const customer = await db.customer.findUnique({
 			where: { id: input.customerId },
-			data: { latitude: null, longitude: null },
+			select: { externalId: true },
+		});
+		await mirrorToIRadius({
+			logTag: "iRadius clear location",
+			failureMessage: "Failed to clear location in iRadius",
+			remote: async () => {
+				if (!customer?.externalId) {
+					return;
+				}
+				await iradiusUpdateUserLocation(
+					{ externalId: customer.externalId },
+					null,
+					null,
+				);
+			},
+			local: () =>
+				db.customer.update({
+					where: { id: input.customerId },
+					data: { latitude: null, longitude: null },
+				}),
 		});
 		return { success: true };
 	});
@@ -240,19 +283,39 @@ export const submitLocationByToken = publicProcedure
 			});
 		}
 
-		await db.$transaction([
-			db.customer.update({
-				where: { id: request.customerId },
-				data: {
-					latitude: input.latitude,
-					longitude: input.longitude,
-				},
-			}),
-			db.locationRequest.update({
-				where: { id: request.id },
-				data: { completedAt: new Date() },
-			}),
-		]);
+		const customer = await db.customer.findUnique({
+			where: { id: request.customerId },
+			select: { externalId: true },
+		});
+
+		await mirrorToIRadius({
+			logTag: "iRadius submit location by token",
+			failureMessage: "Failed to save location in iRadius",
+			remote: async () => {
+				if (!customer?.externalId) {
+					return;
+				}
+				await iradiusUpdateUserLocation(
+					{ externalId: customer.externalId },
+					input.latitude,
+					input.longitude,
+				);
+			},
+			local: () =>
+				db.$transaction([
+					db.customer.update({
+						where: { id: request.customerId },
+						data: {
+							latitude: input.latitude,
+							longitude: input.longitude,
+						},
+					}),
+					db.locationRequest.update({
+						where: { id: request.id },
+						data: { completedAt: new Date() },
+					}),
+				]),
+		});
 
 		return { success: true };
 	});

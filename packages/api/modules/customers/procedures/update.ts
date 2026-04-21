@@ -15,8 +15,10 @@ import {
 	iradiusChangeCollector,
 	iradiusSetActive,
 	iradiusUpdateUserAddress,
+	iradiusUpdateUserComment,
 	iradiusUpdateUserEmail,
 	iradiusUpdateUserGroup,
+	iradiusUpdateUserLocation,
 	iradiusUpdateUserName,
 	iradiusUpdateUserPhones,
 } from "../lib/iradius-api";
@@ -261,6 +263,19 @@ export const updateCustomer = protectedProcedure
 					await iradiusUpdateUserGroup(
 						{ externalId: existing.externalId },
 						input.groupExternalId ?? null,
+					);
+				}
+				if (diff.locationChanged) {
+					await iradiusUpdateUserLocation(
+						{ externalId: existing.externalId },
+						input.latitude ?? null,
+						input.longitude ?? null,
+					);
+				}
+				if (diff.notesChanged) {
+					await iradiusUpdateUserComment(
+						{ externalId: existing.externalId },
+						input.notes || null,
 					);
 				}
 			},

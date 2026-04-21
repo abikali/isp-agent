@@ -365,7 +365,7 @@ export function CustomersList({
 			},
 			{
 				id: "expiry",
-				header: "Expiry",
+				header: "Billing Expiry",
 				accessorFn: (row) => row.billingExpiresAt,
 				enableSorting: false,
 				meta: { className: "hidden lg:table-cell whitespace-nowrap" },

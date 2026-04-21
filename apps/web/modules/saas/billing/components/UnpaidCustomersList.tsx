@@ -97,7 +97,7 @@ function CollectionOverview({
 					color="red"
 				/>
 				<StatCard
-					title="Expired"
+					title="Billing Expired"
 					value={expiredCount}
 					icon={CalendarXIcon}
 					color="orange"
@@ -275,7 +275,7 @@ function useUnpaidColumns({
 			},
 			{
 				id: "expiry",
-				header: "Expiry",
+				header: "Billing Expiry",
 				accessorFn: (row) => row.billingExpiresAt,
 				enableSorting: true,
 				cell: ({ row }) => {
@@ -560,7 +560,7 @@ export function UnpaidCustomersList() {
 							}}
 						>
 							<CalendarXIcon className="mr-1.5 size-3.5" />
-							Expired
+							Billing Expired
 						</Button>
 
 						{hasActiveFilters && (

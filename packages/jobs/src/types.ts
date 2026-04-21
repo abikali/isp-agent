@@ -116,6 +116,17 @@ export interface IRadiusSyncJobResult {
 	operationId: string;
 }
 
+// iRadius push (local → iRadius) job types
+export interface IRadiusPushJobData {
+	operationId: string;
+	organizationId: string;
+}
+
+export interface IRadiusPushJobResult {
+	success: boolean;
+	operationId: string;
+}
+
 // Organization setup job types
 export interface OrgSetupJobData {
 	organizationId: string;

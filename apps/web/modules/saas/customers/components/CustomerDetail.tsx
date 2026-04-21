@@ -1855,10 +1855,18 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 								: null,
 						},
 						{
-							label: "Expires",
+							label: "Service Expiry",
 							value: customer.expiresAt
 								? new Date(
 										customer.expiresAt,
+									).toLocaleDateString("en-GB")
+								: null,
+						},
+						{
+							label: "Billing Expiry",
+							value: customer.billingExpiresAt
+								? new Date(
+										customer.billingExpiresAt,
 									).toLocaleDateString("en-GB")
 								: null,
 						},

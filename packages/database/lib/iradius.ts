@@ -3,6 +3,8 @@ import type { Connection, RowDataPacket } from "mysql2/promise";
 import mysql from "mysql2/promise";
 import { Client } from "ssh2";
 
+export type IRadiusConnection = Connection;
+
 interface IRadiusConfig {
 	ssh: {
 		host: string;

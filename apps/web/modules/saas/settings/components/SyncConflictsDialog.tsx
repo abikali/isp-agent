@@ -88,7 +88,7 @@ const FIELD_LABELS: Record<string, string> = {
 	realIpPrice: "Real IP Price",
 	originalCreatedAt: "Original Created",
 	activatedAt: "Activated Date",
-	expiresAt: "Expiry Date",
+	expiresAt: "Service Expiry",
 	latitude: "Latitude",
 	longitude: "Longitude",
 	automaticRenew: "Auto Renew",

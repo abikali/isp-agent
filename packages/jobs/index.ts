@@ -9,6 +9,7 @@ export {
 	queueTemplateEmail,
 } from "./src/jobs/email.jobs";
 export { queueContactSync } from "./src/jobs/integration-sync.jobs";
+export { queueIRadiusPush } from "./src/jobs/iradius-push.jobs";
 export { queueIRadiusSync } from "./src/jobs/iradius-sync.jobs";
 export {
 	queueLocationRequest,
@@ -54,6 +55,11 @@ export {
 	getIntegrationSyncQueue,
 	INTEGRATION_SYNC_QUEUE_NAME,
 } from "./src/queues/integration-sync.queue";
+export {
+	closeIRadiusPushQueue,
+	getIRadiusPushQueue,
+	IRADIUS_PUSH_QUEUE_NAME,
+} from "./src/queues/iradius-push.queue";
 export {
 	closeIRadiusSyncQueue,
 	getIRadiusSyncQueue,
@@ -107,6 +113,8 @@ export type {
 	IntegrationSyncJobResult,
 	IntegrationSyncOperationType,
 	IntegrationSyncTrigger,
+	IRadiusPushJobData,
+	IRadiusPushJobResult,
 	IRadiusSyncJobData,
 	IRadiusSyncJobResult,
 	LocationRequestJobData,
@@ -129,6 +137,7 @@ export { createAiChatWorker } from "./src/workers/ai-chat.worker";
 export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
+export { createIRadiusPushWorker } from "./src/workers/iradius-push.worker";
 export {
 	createAccountNumberGenerator,
 	createIRadiusSyncWorker,
@@ -165,6 +174,7 @@ import { closeAiChatQueue } from "./src/queues/ai-chat.queue";
 import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
+import { closeIRadiusPushQueue } from "./src/queues/iradius-push.queue";
 import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
 import { closeLocationRequestQueue } from "./src/queues/location-request.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
@@ -183,6 +193,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeAiChatQueue(),
 		closeBillingSyncQueue(),
 		closeEmailQueue(),
+		closeIRadiusPushQueue(),
 		closeIRadiusSyncQueue(),
 		closeIntegrationSyncQueue(),
 		closeLocationRequestQueue(),

@@ -57,7 +57,7 @@ const FIELD_LABELS: Record<string, string> = {
 	macAddress: "MAC Address",
 	monthlyRate: "Monthly Rate",
 	activatedAt: "Activated At",
-	expiresAt: "Expires At",
+	expiresAt: "Service Expiry",
 	staticIp: "Static IP",
 	online: "Online",
 	downloadBytes: "Download",

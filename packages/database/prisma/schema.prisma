@@ -277,6 +277,7 @@ model Organization {
   ispDealers           IspDealer[]
   ispDealerAccounts    IspDealerAccount[]
   iRadiusSyncOps       IRadiusSyncOperation[]
+  iRadiusPushOps       IRadiusPushOperation[]
   employees            Employee[]
   servicePlans         ServicePlan[]
   stations             Station[]
@@ -1396,6 +1397,27 @@ model IRadiusSyncOperation {
 
   @@index([organizationId])
   @@map("iradius_sync_operation")
+}
+
+model IRadiusPushOperation {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  status              String    @default("pending")
+  phase               String?
+  totalCustomers      Int       @default(0)
+  processedCustomers  Int       @default(0)
+  pushedCustomers     Int       @default(0)
+  skippedCustomers    Int       @default(0)
+  failedCustomers     Int       @default(0)
+  result              Json?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("iradius_push_operation")
 }
 
 model SyncConflict {

@@ -26,6 +26,12 @@ import {
 	submitLocationByToken,
 	updateCustomerLocation,
 } from "./procedures/location-request";
+import {
+	cancelIRadiusPush,
+	getIRadiusPushStatus,
+	pushCustomerToIRadius,
+	startIRadiusPush,
+} from "./procedures/push-to-iradius";
 import { resetCustomerPin } from "./procedures/reset-pin";
 import { searchCustomersForPicker } from "./procedures/search-for-picker";
 import { setCustomerPin } from "./procedures/set-pin";
@@ -76,6 +82,10 @@ export const customersRouter = {
 	previewIRadiusEntitySync,
 	applyIRadiusEntitySync,
 	importFromIRadius: importCustomerFromIRadius,
+	pushToIRadius: pushCustomerToIRadius,
+	startIRadiusPush,
+	cancelIRadiusPush,
+	getIRadiusPushStatus,
 	previewAccountTypeChange: previewAccountTypeChangeProcedure,
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 	resetMacAddress: resetCustomerMacAddress,

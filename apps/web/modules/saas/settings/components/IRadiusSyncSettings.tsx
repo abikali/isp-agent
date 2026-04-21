@@ -13,12 +13,16 @@ import {
 	DatabaseIcon,
 	LoaderIcon,
 	TriangleAlertIcon,
+	UploadCloudIcon,
 	XCircleIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
+	useCancelIRadiusPush,
 	useCancelIRadiusSync,
+	useIRadiusPushStatus,
 	useIRadiusSyncStatus,
+	useStartIRadiusPush,
 	useSyncConflictsSummary,
 	useSyncFromIRadius,
 	useTestIRadius,
@@ -310,7 +314,258 @@ export function IRadiusSyncSettings() {
 					)}
 				</div>
 			</SettingsItem>
+
+			<IRadiusPushSettingsItem />
 		</>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Push (local → iRadius) section — mirror of the sync-from flow above
+// ---------------------------------------------------------------------------
+
+function IRadiusPushSettingsItem() {
+	const organizationId = useOrganizationId();
+	const startPush = useStartIRadiusPush();
+	const cancelPush = useCancelIRadiusPush();
+
+	const [pushOperationId, setPushOperationId] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+
+	const { data: statusData } = useIRadiusPushStatus(
+		organizationId,
+		pushOperationId,
+	);
+	const operation = statusData?.operation ?? null;
+
+	const isActive =
+		operation?.status === "pending" || operation?.status === "in_progress";
+	const isComplete = operation?.status === "completed";
+	const isFailed = operation?.status === "failed";
+
+	async function handleStart() {
+		if (!organizationId) {
+			return;
+		}
+		setError(null);
+		try {
+			const result = await startPush.mutateAsync({ organizationId });
+			setPushOperationId(result.operationId);
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : "Failed to start push",
+			);
+		}
+	}
+
+	return (
+		<SettingsItem
+			title="Data Sync to iRadius"
+			description="Push the locally-authoritative customer fields (names, email, phones, address, location, notes) back to iRadius. Runs as a background job — you can close this page and come back."
+			fullWidth
+		>
+			<div className="space-y-4">
+				{isActive && operation && (
+					<>
+						<PushProgress operation={operation as PushOperation} />
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() => {
+								if (organizationId) {
+									cancelPush.mutate({ organizationId });
+									setPushOperationId(null);
+								}
+							}}
+							disabled={cancelPush.isPending}
+						>
+							{cancelPush.isPending
+								? "Cancelling..."
+								: "Cancel Push"}
+						</Button>
+					</>
+				)}
+
+				{(isComplete || isFailed) && operation && (
+					<PushResult operation={operation as PushOperation} />
+				)}
+
+				{!isActive &&
+					operation?.status === "completed" &&
+					!pushOperationId && (
+						<div className="flex items-center gap-2 text-sm text-muted-foreground">
+							<CheckCircle2Icon className="size-4 text-green-600" />
+							Last pushed:{" "}
+							{operation.completedAt
+								? new Date(
+										operation.completedAt,
+									).toLocaleString("en-GB")
+								: "Unknown"}
+						</div>
+					)}
+
+				{error && (
+					<Alert variant="error">
+						<XCircleIcon />
+						<AlertTitle>Error</AlertTitle>
+						<AlertDescription>{error}</AlertDescription>
+					</Alert>
+				)}
+
+				{!isActive && (
+					<Button
+						onClick={handleStart}
+						disabled={startPush.isPending}
+					>
+						<UploadCloudIcon className="mr-2 size-4" />
+						{startPush.isPending
+							? "Starting..."
+							: pushOperationId
+								? "Re-push to iRadius"
+								: "Start Push to iRadius"}
+					</Button>
+				)}
+			</div>
+		</SettingsItem>
+	);
+}
+
+interface PushOperation {
+	id: string;
+	status: string;
+	phase: string | null;
+	totalCustomers: number;
+	processedCustomers: number;
+	pushedCustomers: number;
+	skippedCustomers: number;
+	failedCustomers: number;
+	// biome-ignore lint/suspicious/noExplicitAny: Prisma JsonValue
+	result: any;
+	completedAt: Date | string | null;
+}
+
+function PushProgress({ operation }: { operation: PushOperation }) {
+	const total = operation.totalCustomers;
+	const processed = operation.processedCustomers;
+	const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+	return (
+		<div className="space-y-3 rounded-lg border border-border p-4">
+			<div className="flex items-center gap-2 text-sm font-medium">
+				<LoaderIcon className="size-4 animate-spin text-primary" />
+				Push in progress...
+			</div>
+			<div className="space-y-1">
+				<div className="flex items-center justify-between text-sm">
+					<div className="flex items-center gap-2">
+						<LoaderIcon className="size-4 animate-spin text-primary" />
+						<span>Customers</span>
+					</div>
+					{total > 0 && (
+						<span className="font-mono text-xs text-muted-foreground">
+							{processed.toLocaleString()} /{" "}
+							{total.toLocaleString()}
+						</span>
+					)}
+				</div>
+				{total > 0 && (
+					<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+						<div
+							className="h-full rounded-full bg-primary transition-all duration-300"
+							style={{ width: `${pct}%` }}
+						/>
+					</div>
+				)}
+			</div>
+			<div className="flex gap-3 text-xs text-muted-foreground">
+				<span>{operation.pushedCustomers.toLocaleString()} pushed</span>
+				<span>
+					{operation.skippedCustomers.toLocaleString()} skipped
+					(unlinked)
+				</span>
+				{operation.failedCustomers > 0 && (
+					<span className="text-destructive">
+						{operation.failedCustomers.toLocaleString()} failed
+					</span>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function PushResult({ operation }: { operation: PushOperation }) {
+	const isFailed = operation.status === "failed";
+	const errors =
+		(operation.result?.errors as Array<{
+			phase: string;
+			detail: string;
+		}>) ?? [];
+
+	return (
+		<div className="space-y-3">
+			<Alert variant={isFailed ? "error" : "success"}>
+				{isFailed ? <XCircleIcon /> : <CheckCircle2Icon />}
+				<AlertTitle>
+					{isFailed
+						? "Push failed"
+						: operation.failedCustomers > 0
+							? "Push completed with errors"
+							: "Push successful"}
+				</AlertTitle>
+				{operation.completedAt && (
+					<AlertDescription>
+						Completed at{" "}
+						{new Date(operation.completedAt).toLocaleString(
+							"en-GB",
+						)}
+					</AlertDescription>
+				)}
+			</Alert>
+
+			<div className="space-y-1 text-sm">
+				<div className="flex items-center gap-2">
+					<CheckCircle2Icon className="size-3 text-green-600" />
+					<span className="font-medium">Pushed:</span>
+					<span>
+						{operation.pushedCustomers.toLocaleString()} customers
+					</span>
+				</div>
+				{operation.skippedCustomers > 0 && (
+					<div className="flex items-center gap-2">
+						<CircleIcon className="size-3 text-muted-foreground" />
+						<span className="font-medium">Skipped:</span>
+						<span>
+							{operation.skippedCustomers.toLocaleString()} (no
+							iRadius link)
+						</span>
+					</div>
+				)}
+				{operation.failedCustomers > 0 && (
+					<div className="flex items-center gap-2">
+						<XCircleIcon className="size-3 text-destructive" />
+						<span className="font-medium">Failed:</span>
+						<span>
+							{operation.failedCustomers.toLocaleString()}
+						</span>
+					</div>
+				)}
+			</div>
+
+			{errors.length > 0 && (
+				<ScrollArea className="max-h-32 rounded-md border p-3">
+					<ul className="space-y-1 text-xs text-destructive">
+						{errors.slice(0, 50).map((err, i) => (
+							<li key={`push-err-${i}`}>
+								<span className="font-medium">
+									[{err.phase}]{" "}
+								</span>
+								{err.detail}
+							</li>
+						))}
+					</ul>
+				</ScrollArea>
+			)}
+		</div>
 	);
 }
 

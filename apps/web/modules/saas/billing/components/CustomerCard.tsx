@@ -6,6 +6,11 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
+import {
 	BanknoteIcon,
 	CalendarIcon,
 	CheckIcon,
@@ -123,10 +128,15 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 									{customer.groupName}
 								</span>
 							)}
-							<span className="flex items-center gap-1">
-								<CalendarIcon className="size-3" />
-								{expiryDateLabel || "No expiry"}
-							</span>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="flex items-center gap-1 cursor-default">
+										<CalendarIcon className="size-3" />
+										{expiryDateLabel || "No billing expiry"}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>Billing Expiry</TooltipContent>
+							</Tooltip>
 						</div>
 						{customer.address && (
 							<p className="mt-1 truncate text-sm text-muted-foreground">

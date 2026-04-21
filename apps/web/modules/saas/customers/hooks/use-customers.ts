@@ -205,6 +205,11 @@ export const useImportFromIRadius = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const usePushToIRadius = createInvalidatingMutation(
+	() => orpc.customers.pushToIRadius.mutationOptions(),
+	invalidateCustomers,
+);
+
 export const useSetCustomerPin = createInvalidatingMutation(
 	() => orpc.customers.setPin.mutationOptions(),
 	invalidateCustomers,
@@ -268,6 +273,17 @@ export function useSyncFromIRadius() {
 	});
 }
 
+export function useStartIRadiusPush() {
+	return useMutation({
+		...orpc.customers.startIRadiusPush.mutationOptions(),
+	});
+}
+
+export const useCancelIRadiusPush = createInvalidatingMutation(
+	() => orpc.customers.cancelIRadiusPush.mutationOptions(),
+	invalidateCustomers,
+);
+
 export function usePreviewIRadiusEntitySync() {
 	return useMutation({
 		...orpc.customers.previewIRadiusEntitySync.mutationOptions(),
@@ -284,6 +300,28 @@ export function useIRadiusSyncStatus(
 ) {
 	return useQuery({
 		...orpc.customers.getIRadiusSyncStatus.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				...(operationId ? { operationId } : {}),
+			},
+		}),
+		enabled: !!organizationId,
+		refetchInterval: (query) => {
+			const status = query.state.data?.operation?.status;
+			if (status === "pending" || status === "in_progress") {
+				return 2000;
+			}
+			return false;
+		},
+	});
+}
+
+export function useIRadiusPushStatus(
+	organizationId: string | null,
+	operationId: string | null,
+) {
+	return useQuery({
+		...orpc.customers.getIRadiusPushStatus.queryOptions({
 			input: {
 				organizationId: organizationId ?? "",
 				...(operationId ? { operationId } : {}),

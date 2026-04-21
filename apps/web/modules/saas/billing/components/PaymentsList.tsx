@@ -779,7 +779,7 @@ export function PaymentsList() {
 			},
 			{
 				id: "expiry",
-				header: "Expiry Date",
+				header: "Billing Expiry",
 				enableSorting: false,
 				cell: ({ row }) => (
 					<DateTimeCell

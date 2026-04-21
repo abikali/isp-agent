@@ -319,21 +319,21 @@ function ReactivateDialog({
 							size="sm"
 							onClick={() => setUseCustom(false)}
 						>
-							Same Expiry
+							Same Billing Expiry
 						</Button>
 						<Button
 							variant={useCustom ? "secondary" : "outline"}
 							size="sm"
 							onClick={() => setUseCustom(true)}
 						>
-							Custom Expiry
+							Custom Billing Expiry
 						</Button>
 					</div>
 
 					{useCustom && (
 						<div>
 							<Label htmlFor="customExpiry">
-								New Expiry Date
+								New Billing Expiry
 							</Label>
 							<Input
 								id="customExpiry"
