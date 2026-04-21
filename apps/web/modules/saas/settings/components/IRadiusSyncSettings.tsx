@@ -602,10 +602,6 @@ interface Operation {
 	processedEmployees: number;
 	totalCustomers: number;
 	processedCustomers: number;
-	totalTransactions: number;
-	processedTransactions: number;
-	totalInvoices: number;
-	processedInvoices: number;
 	totalConflicts: number;
 	resolvedConflicts: number;
 	// biome-ignore lint/suspicious/noExplicitAny: Prisma JsonValue
@@ -655,18 +651,6 @@ const PHASES = [
 		label: "Customers",
 		totalKey: "totalCustomers",
 		processedKey: "processedCustomers",
-	},
-	{
-		key: "transactions",
-		label: "Transactions",
-		totalKey: "totalTransactions",
-		processedKey: "processedTransactions",
-	},
-	{
-		key: "invoices",
-		label: "Invoices",
-		totalKey: "totalInvoices",
-		processedKey: "processedInvoices",
 	},
 ] as const;
 

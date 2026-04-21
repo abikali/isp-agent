@@ -7,6 +7,15 @@ import { getRedisConnection } from "../connection";
 import { BILLING_SYNC_QUEUE_NAME } from "../queues/billing-sync.queue";
 import type { BillingSyncJobData, BillingSyncJobResult } from "../types";
 
+// NOTE: We deliberately do NOT call `openBillingMonth` from this worker.
+// `@repo/jobs` cannot import `@repo/api` (would create a dependency cycle),
+// and these call-sites don't need invoice generation:
+//   - getOrCreateMonthId (below) backfills historical months from PHP
+//     payment history — those months are closed; generating invoices is wrong.
+//   - The reconciliation step further down opens the current month, which
+//     in practice has already been opened by `resolveActiveBillingMonth`
+//     the first time a user loaded a billing page.
+
 const BATCH_SIZE = 500;
 /** Offset added to addon installation IDs to avoid collision with main installations */
 const ADDON_ID_OFFSET = 1_000_000;

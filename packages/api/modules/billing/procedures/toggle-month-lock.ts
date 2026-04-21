@@ -3,6 +3,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { openBillingMonth } from "../lib/open-month";
 
 export const toggleMonthLock = protectedProcedure
 	.route({
@@ -48,40 +49,32 @@ export const toggleMonthLock = protectedProcedure
 		}
 
 		// When locking, atomically: lock the month, snapshot expiresAt →
-		// billingExpiresAt for all org customers, and create the next month.
-		// This freezes the billing expiry so mid-cycle iRadius mass-renewals
-		// don't interfere with collection.
+		// billingExpiresAt for all org customers, and open the next month
+		// (which also generates invoices for it). This freezes the billing
+		// expiry so mid-cycle iRadius mass-renewals don't interfere with
+		// collection.
 		const nextYear = month.month === 12 ? month.year + 1 : month.year;
 		const nextMonthNum = month.month === 12 ? 1 : month.month + 1;
 
-		const [updated, , nextMonth] = await db.$transaction([
-			db.billingMonth.update({
+		const { updated, nextMonth } = await db.$transaction(async (tx) => {
+			const updated = await tx.billingMonth.update({
 				where: { id: input.billingMonthId },
 				data: { locked: true },
-			}),
-			db.$executeRaw`
+			});
+			await tx.$executeRaw`
 				UPDATE "customer"
 				SET "billingExpiresAt" = "expiresAt"
 				WHERE "organizationId" = ${input.organizationId}
 				  AND "expiresAt" IS NOT NULL
-			`,
-			db.billingMonth.upsert({
-				where: {
-					organizationId_year_month: {
-						organizationId: input.organizationId,
-						year: nextYear,
-						month: nextMonthNum,
-					},
-				},
-				update: {},
-				create: {
-					organizationId: input.organizationId,
-					year: nextYear,
-					month: nextMonthNum,
-					locked: false,
-				},
-			}),
-		]);
+			`;
+			const nextMonth = await openBillingMonth(
+				tx,
+				input.organizationId,
+				nextYear,
+				nextMonthNum,
+			);
+			return { updated, nextMonth };
+		});
 
 		return { month: updated, nextMonth };
 	});

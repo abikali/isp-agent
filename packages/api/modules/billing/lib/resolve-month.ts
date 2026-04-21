@@ -6,6 +6,7 @@
  */
 
 import { db } from "@repo/database";
+import { openBillingMonth } from "./open-month";
 
 /**
  * Resolve the billing month ID for a given year/month.
@@ -44,23 +45,15 @@ export async function resolveActiveBillingMonth(organizationId: string) {
 		return activeMonth;
 	}
 
-	// No unlocked month — create one for the current calendar month
+	// No unlocked month — open one for the current calendar month
+	// (creates billing_cycle + generates invoices on first open).
 	const now = new Date();
-	return db.billingMonth.upsert({
-		where: {
-			organizationId_year_month: {
-				organizationId,
-				year: now.getFullYear(),
-				month: now.getMonth() + 1,
-			},
-		},
-		update: {},
-		create: {
-			organizationId,
-			year: now.getFullYear(),
-			month: now.getMonth() + 1,
-		},
-	});
+	return openBillingMonth(
+		db,
+		organizationId,
+		now.getFullYear(),
+		now.getMonth() + 1,
+	);
 }
 
 /**
@@ -75,13 +68,7 @@ export async function resolveOrCreateBillingMonth(
 	const y = year ?? now.getFullYear();
 	const m = month ?? now.getMonth() + 1;
 
-	return db.billingMonth.upsert({
-		where: {
-			organizationId_year_month: { organizationId, year: y, month: m },
-		},
-		update: {},
-		create: { organizationId, year: y, month: m },
-	});
+	return openBillingMonth(db, organizationId, y, m);
 }
 
 /**

@@ -22,7 +22,6 @@ const sortByMap = {
 
 interface InvoiceRow {
 	id: string;
-	invoiceNumber: string | null;
 	invoiceDate: string | Date;
 	total: number;
 	tax: number;
@@ -58,13 +57,6 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 
 	const columns = useMemo<ColumnDef<InvoiceRow, unknown>[]>(
 		() => [
-			{
-				id: "invoiceNumber",
-				header: "Invoice #",
-				enableSorting: false,
-				meta: { className: "text-xs font-mono" },
-				cell: ({ row }) => row.original.invoiceNumber || "-",
-			},
 			{
 				id: "date",
 				header: "Date",
