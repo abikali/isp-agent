@@ -266,9 +266,15 @@ export const listUnpaidCustomers = protectedProcedure
 					};
 				}
 
+				// Use UTC accessors: `billing_cycle.year/month` and
+				// `customer_invoice.year/month` are TZ-naive integers that
+				// match the timestamp's UTC value. With a non-UTC server TZ
+				// (e.g. Asia/Beirut, UTC+3) `exp.getMonth()` shifts a date
+				// like 2026-03-31T23:55:00Z forward to April, causing the
+				// loop to skip March and miss the unpaid month.
 				const expiryMonthNum = yearMonthToNum(
-					exp.getFullYear(),
-					exp.getMonth() + 1,
+					exp.getUTCFullYear(),
+					exp.getUTCMonth() + 1,
 				);
 				const paidIds = paidMap.get(customer.id) ?? new Set();
 				const billed = billedMap.get(customer.id) ?? new Set();
