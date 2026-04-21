@@ -51,22 +51,18 @@ export function CustomerCombobox({
 
 	const query = useQuery(
 		organizationId
-			? orpc.customers.list.queryOptions({
+			? orpc.customers.searchForPicker.queryOptions({
 					input: {
 						organizationId,
 						search: debouncedSearch || undefined,
-						page: 1,
+						excludeCustomerId,
 						pageSize: 20,
-						sortBy: "lastName",
-						sortOrder: "asc",
 					},
 				})
-			: disabledQuery(["customers", "list"]),
+			: disabledQuery(["customers", "searchForPicker"]),
 	);
 
-	const customers = (query.data?.customers ?? []).filter(
-		(c) => c.id !== excludeCustomerId,
-	);
+	const customers = query.data?.customers ?? [];
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>

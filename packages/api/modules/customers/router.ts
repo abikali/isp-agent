@@ -26,6 +26,7 @@ import {
 	updateCustomerLocation,
 } from "./procedures/location-request";
 import { resetCustomerPin } from "./procedures/reset-pin";
+import { searchCustomersForPicker } from "./procedures/search-for-picker";
 import { setCustomerPin } from "./procedures/set-pin";
 import { getCustomerStats } from "./procedures/stats";
 import {
@@ -48,6 +49,7 @@ import { updateCustomer } from "./procedures/update";
 
 export const customersRouter = {
 	list: listCustomers,
+	searchForPicker: searchCustomersForPicker,
 	get: getCustomer,
 	create: createCustomer,
 	update: updateCustomer,
