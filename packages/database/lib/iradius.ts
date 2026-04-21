@@ -140,13 +140,17 @@ export type IRadiusRow = Record<string, unknown>;
 
 /**
  * Run a read-only query on the iRadius database.
- * Strips null bytes from string values.
+ * Strips null bytes from string values. Pass `params` to use `?` placeholders
+ * for any user input rather than interpolating strings.
  */
 export async function queryIRadius(
 	connection: Connection,
 	sql: string,
+	params?: Array<string | number | null>,
 ): Promise<IRadiusRow[]> {
-	const [rows] = await connection.query<RowDataPacket[]>(sql);
+	const [rows] = params
+		? await connection.query<RowDataPacket[]>(sql, params)
+		: await connection.query<RowDataPacket[]>(sql);
 
 	// Strip null bytes from string values (iRadius has some corrupted data)
 	for (const row of rows) {

@@ -44,6 +44,7 @@ import {
 } from "./procedures/sync-iradius";
 import {
 	applyIRadiusEntitySync,
+	importCustomerFromIRadius,
 	previewIRadiusEntitySync,
 } from "./procedures/sync-iradius-entities";
 import { updateCustomer } from "./procedures/update";
@@ -74,6 +75,7 @@ export const customersRouter = {
 	getSyncConflictsSummary,
 	previewIRadiusEntitySync,
 	applyIRadiusEntitySync,
+	importFromIRadius: importCustomerFromIRadius,
 	previewAccountTypeChange: previewAccountTypeChangeProcedure,
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 	resetMacAddress: resetCustomerMacAddress,

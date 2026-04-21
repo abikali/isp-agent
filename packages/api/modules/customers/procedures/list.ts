@@ -65,7 +65,7 @@ export const listCustomers = protectedProcedure
 
 		if (input.status === "EXPIRED") {
 			where["status"] = "ACTIVE";
-			where["expiresAt"] = { lt: new Date() };
+			where["billingExpiresAt"] = { lt: new Date() };
 		} else if (input.status === "ONLINE") {
 			where["status"] = "ACTIVE";
 			where["online"] = true;

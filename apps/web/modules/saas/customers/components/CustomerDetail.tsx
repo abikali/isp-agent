@@ -124,8 +124,6 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		stationId: customer.stationId ?? "",
 		status: customer.status,
 		connectionType: customer.connectionType ?? "",
-		ipAddress: customer.ipAddress ?? "",
-		macAddress: customer.macAddress ?? "",
 		monthlyRate: customer.monthlyRate?.toString() ?? "",
 		billingDay: customer.billingDay?.toString() ?? "",
 		balance: customer.balance.toString(),
@@ -229,8 +227,6 @@ export function CustomerDetail({
 				| "CABLE"
 				| "ETHERNET"
 				| null,
-			ipAddress: values.ipAddress || undefined,
-			macAddress: values.macAddress || undefined,
 			monthlyRate: values.monthlyRate ? Number(values.monthlyRate) : null,
 			billingDay: values.billingDay ? Number(values.billingDay) : null,
 			balance: Number(values.balance),

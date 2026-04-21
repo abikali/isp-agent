@@ -10,7 +10,7 @@ import type { PermissionContext } from "@repo/api/lib/permission";
 import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
-import { EXCLUDE_FREE_GROUP } from "./filters";
+import { BILLABLE_CUSTOMER_STATUSES, EXCLUDE_FREE_GROUP } from "./filters";
 
 // ── Collector Balance ────────────────────────────────────────────
 
@@ -129,9 +129,9 @@ export function customersDueThisMonthWhere(
 		AND: [
 			{
 				OR: [
-					// Unpaid customers due this month (active, billing expiry in range, no payment)
+					// Unpaid customers due this month (active/pending, billing expiry in range, no payment)
 					{
-						status: "ACTIVE",
+						status: { in: BILLABLE_CUSTOMER_STATUSES },
 						billingExpiresAt: monthRange,
 						payments: { none: { billingMonthId } },
 					},
@@ -180,7 +180,7 @@ export function unpaidCustomersWhere(
 ) {
 	const where: Record<string, unknown> = {
 		organizationId,
-		status: "ACTIVE",
+		status: { in: BILLABLE_CUSTOMER_STATUSES },
 		...EXCLUDE_FREE_GROUP,
 		billingExpiresAt: { lte: monthRange.lte },
 		payments: {

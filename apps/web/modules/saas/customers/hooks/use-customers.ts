@@ -200,6 +200,11 @@ export const useBulkImport = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const useImportFromIRadius = createInvalidatingMutation(
+	() => orpc.customers.importFromIRadius.mutationOptions(),
+	invalidateCustomers,
+);
+
 export const useSetCustomerPin = createInvalidatingMutation(
 	() => orpc.customers.setPin.mutationOptions(),
 	invalidateCustomers,

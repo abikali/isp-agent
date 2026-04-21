@@ -32,6 +32,13 @@ export const EXCLUDE_FREE_GROUP = excludeGroupFilter("free");
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 
 /**
+ * Customer statuses that should be collectible. PENDING covers reactivated
+ * customers whose iRadius `Active` flag hasn't flipped back to 1 yet — they
+ * still owe and should appear in collector lists.
+ */
+export const BILLABLE_CUSTOMER_STATUSES = ["ACTIVE", "PENDING"] as const;
+
+/**
  * Case-insensitive search across common customer fields.
  * Returns a Prisma OR clause matching firstName, lastName, username, or mobile.
  */

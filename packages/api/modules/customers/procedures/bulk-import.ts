@@ -4,9 +4,9 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { type ConnectionType, db } from "@repo/database";
+import { createAccountNumberGenerator } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { generateAccountNumber } from "../lib/account-number";
 
 const importRowSchema = z.object({
 	firstName: z.string().min(1),
@@ -19,8 +19,6 @@ const importRowSchema = z.object({
 	planName: z.string().optional(),
 	stationName: z.string().optional(),
 	connectionType: z.string().optional(),
-	ipAddress: z.string().optional(),
-	macAddress: z.string().optional(),
 	monthlyRate: z.number().optional(),
 	billingDay: z.number().int().min(1).max(28).optional(),
 	notes: z.string().optional(),
@@ -76,12 +74,9 @@ export const bulkImportCustomers = protectedProcedure
 			stations.map((s) => [s.name.toLowerCase(), s.id]),
 		);
 
-		// Pre-generate all account numbers (one DB query instead of N)
-		const firstAccountNumber = await generateAccountNumber(
+		const nextAccountNumber = await createAccountNumberGenerator(
 			input.organizationId,
 		);
-		const match = firstAccountNumber.match(/ACC-(\d+)/);
-		const startingNumber = match?.[1] ? Number.parseInt(match[1], 10) : 1;
 
 		// Pre-validate and build all records
 		const errors: Array<{ row: number; error: string }> = [];
@@ -100,15 +95,12 @@ export const bulkImportCustomers = protectedProcedure
 			planId: string | null;
 			stationId: string | null;
 			connectionType: ConnectionType | null;
-			ipAddress: string | null;
-			macAddress: string | null;
 			monthlyRate: number | null;
 			billingDay: number | null;
 			notes: string | null;
 			status: "ACTIVE";
 		}> = [];
 
-		let numberOffset = 0;
 		for (let i = 0; i < input.rows.length; i++) {
 			const row = input.rows[i];
 			if (!row) {
@@ -131,12 +123,9 @@ export const bulkImportCustomers = protectedProcedure
 					}
 				}
 
-				const accountNumber = `ACC-${String(startingNumber + numberOffset).padStart(5, "0")}`;
-				numberOffset++;
-
 				validRecords.push({
 					organizationId: input.organizationId,
-					accountNumber,
+					accountNumber: nextAccountNumber(),
 					dealerId: activeDealerId ?? null,
 					firstName: row.firstName,
 					lastName: row.lastName ?? null,
@@ -151,8 +140,6 @@ export const bulkImportCustomers = protectedProcedure
 					planId,
 					stationId,
 					connectionType,
-					ipAddress: row.ipAddress ?? null,
-					macAddress: row.macAddress ?? null,
 					monthlyRate: row.monthlyRate ?? null,
 					billingDay: row.billingDay ?? null,
 					notes: row.notes ?? null,

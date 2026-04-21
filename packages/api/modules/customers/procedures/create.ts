@@ -4,9 +4,9 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
+import { createAccountNumberGenerator } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { generateAccountNumber } from "../lib/account-number";
 
 export const createCustomer = protectedProcedure
 	.route({
@@ -40,8 +40,6 @@ export const createCustomer = protectedProcedure
 			connectionType: z
 				.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
 				.optional(),
-			ipAddress: z.string().max(45).optional(),
-			macAddress: z.string().max(17).optional(),
 			monthlyRate: z.number().min(0).optional(),
 			billingDay: z.number().int().min(1).max(28).optional(),
 			groupName: z.string().max(100).optional(),
@@ -56,7 +54,10 @@ export const createCustomer = protectedProcedure
 			"create",
 		);
 
-		const accountNumber = await generateAccountNumber(input.organizationId);
+		const nextAccountNumber = await createAccountNumberGenerator(
+			input.organizationId,
+		);
+		const accountNumber = nextAccountNumber();
 
 		const customer = await db.customer.create({
 			data: {
@@ -77,8 +78,6 @@ export const createCustomer = protectedProcedure
 				stationId: input.stationId ?? null,
 				status: input.status,
 				connectionType: input.connectionType ?? null,
-				ipAddress: input.ipAddress ?? null,
-				macAddress: input.macAddress ?? null,
 				monthlyRate: input.monthlyRate ?? null,
 				billingDay: input.billingDay ?? null,
 				groupName: input.groupName ?? null,

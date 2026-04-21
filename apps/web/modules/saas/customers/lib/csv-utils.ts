@@ -11,8 +11,6 @@ export interface CsvRow {
 	planName?: string | undefined;
 	stationName?: string | undefined;
 	connectionType?: string | undefined;
-	ipAddress?: string | undefined;
-	macAddress?: string | undefined;
 	monthlyRate?: number | undefined;
 	billingDay?: number | undefined;
 	notes?: string | undefined;
@@ -206,16 +204,6 @@ export function parseCsv(csvText: string): ParseResult {
 			} else {
 				row.connectionType = ct;
 			}
-		}
-
-		const ipAddress = getField(fields, headerMap, "IP Address");
-		if (ipAddress) {
-			row.ipAddress = ipAddress;
-		}
-
-		const macAddress = getField(fields, headerMap, "MAC Address");
-		if (macAddress) {
-			row.macAddress = macAddress;
 		}
 
 		const monthlyRateStr = getField(fields, headerMap, "Monthly Rate");

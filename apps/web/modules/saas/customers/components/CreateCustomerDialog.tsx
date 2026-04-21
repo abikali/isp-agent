@@ -135,8 +135,6 @@ export function CreateCustomerDialog({
 			stationId: "",
 			status: "ACTIVE",
 			connectionType: "",
-			ipAddress: "",
-			macAddress: "",
 			monthlyRate: "",
 			billingDay: "",
 			groupName: "",
@@ -168,8 +166,6 @@ export function CreateCustomerDialog({
 					| "CABLE"
 					| "ETHERNET"
 					| undefined,
-				ipAddress: value.ipAddress || undefined,
-				macAddress: value.macAddress || undefined,
 				monthlyRate: value.monthlyRate
 					? Number(value.monthlyRate)
 					: undefined,
@@ -403,38 +399,22 @@ export function CreateCustomerDialog({
 						</form.Field>
 					</div>
 
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="username">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-user">
-										PPPoE Username
-									</Label>
-									<Input
-										id="cust-user"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="ipAddress">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-ip">IP Address</Label>
-									<Input
-										id="cust-ip"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-					</div>
+					<form.Field name="username">
+						{(field) => (
+							<div className="space-y-2">
+								<Label htmlFor="cust-user">
+									PPPoE Username
+								</Label>
+								<Input
+									id="cust-user"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+								/>
+							</div>
+						)}
+					</form.Field>
 
 					<form.Field name="groupName">
 						{(field) => (

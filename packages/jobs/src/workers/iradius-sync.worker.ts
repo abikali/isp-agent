@@ -15,6 +15,7 @@ import {
 	type ConflictField,
 	isAutoUpdateField,
 	isConflictTrackedField,
+	LOCAL_AUTHORITATIVE_FIELDS,
 	serializeValue,
 	valuesEqual,
 } from "./iradius-sync-fields";
@@ -63,7 +64,7 @@ async function createNumberGenerator(config: {
 	};
 }
 
-async function createAccountNumberGenerator(
+export async function createAccountNumberGenerator(
 	organizationId: string,
 ): Promise<() => string> {
 	return createNumberGenerator({
@@ -1708,6 +1709,13 @@ async function processIRadiusSync(
 							customerData,
 						)) {
 							if (key === "externalId") {
+								continue;
+							}
+
+							// Local is authoritative for these fields (latitude,
+							// longitude, notes). Never overwrite or generate a
+							// conflict — iRadius's value is ignored after create.
+							if (LOCAL_AUTHORITATIVE_FIELDS.has(key)) {
 								continue;
 							}
 

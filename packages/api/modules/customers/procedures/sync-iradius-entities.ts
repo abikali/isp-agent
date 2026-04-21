@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db, dbRaw } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
@@ -6,7 +7,9 @@ import {
 	buildEmployeeDataFromRow,
 	CUSTOMER_FROM_CLAUSE,
 	CUSTOMER_SELECT_COLUMNS,
+	createAccountNumberGenerator,
 	EMPLOYEE_SELECT_COLUMNS,
+	LOCAL_AUTHORITATIVE_FIELDS,
 	type SyncLookupMaps,
 	serializeValue,
 	valuesEqual,
@@ -298,6 +301,14 @@ export const previewIRadiusEntitySync = protectedProcedure
 						if (key === "externalId") {
 							continue;
 						}
+						// Local is authoritative for these fields — don't surface
+						// them as syncable changes in the preview.
+						if (
+							entityType === "customer" &&
+							LOCAL_AUTHORITATIVE_FIELDS.has(key)
+						) {
+							continue;
+						}
 						const localVal = localRec[key];
 						if (!valuesEqual(localVal, remoteVal)) {
 							changes.push({
@@ -389,6 +400,15 @@ export const applyIRadiusEntitySync = protectedProcedure
 							lastSyncedAt: new Date(),
 						};
 						for (const field of selectedFields) {
+							// Honor LOCAL_AUTHORITATIVE_FIELDS even if the client
+							// asked to overwrite — the preview wouldn't have
+							// surfaced them, but guard at the write path too.
+							if (
+								entityType === "customer" &&
+								LOCAL_AUTHORITATIVE_FIELDS.has(field)
+							) {
+								continue;
+							}
 							if (field in fullData) {
 								data[field] = (
 									fullData as Record<string, unknown>
@@ -422,4 +442,89 @@ export const applyIRadiusEntitySync = protectedProcedure
 		);
 
 		return result;
+	});
+
+// ---------------------------------------------------------------------------
+// Import a single new customer from iRadius by username
+// ---------------------------------------------------------------------------
+
+export const importCustomerFromIRadius = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/iradius/import",
+		tags: ["Customers"],
+		summary: "Create a local customer from an iRadius username",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			username: z.string().min(1).max(255),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		await requirePermission(
+			input.organizationId,
+			user.id,
+			"connections",
+			"sync",
+		);
+
+		const username = input.username.trim();
+
+		const [maps, row] = await Promise.all([
+			buildLocalLookupMaps(input.organizationId),
+			withIRadiusConnection(async (conn) => {
+				const rows = await queryIRadius(
+					conn,
+					`SELECT ${CUSTOMER_SELECT_COLUMNS}
+					${CUSTOMER_FROM_CLAUSE}
+					WHERE u.ProfileId = 4 AND u.UserName = ?
+					LIMIT 1`,
+					[username],
+				);
+				return rows[0] ?? null;
+			}),
+		]);
+
+		if (!row) {
+			throw new ORPCError("NOT_FOUND", {
+				message: `No iRadius customer with username "${username}"`,
+			});
+		}
+
+		const extId = String(row["Id"] as number);
+
+		const [existing, nextAccountNumber] = await Promise.all([
+			db.customer.findFirst({
+				where: {
+					organizationId: input.organizationId,
+					externalId: extId,
+				},
+				select: { id: true },
+			}),
+			createAccountNumberGenerator(input.organizationId),
+		]);
+		if (existing) {
+			throw new ORPCError("CONFLICT", {
+				message: "Customer already exists locally",
+				data: { customerId: existing.id },
+			});
+		}
+
+		const customerData = buildCustomerDataFromRow(row, maps);
+
+		// dbRaw: applying iRadius's authoritative values must not re-trigger
+		// the status observer (which exists to mirror LOCAL edits to iRadius).
+		const created = await dbRaw.customer.create({
+			data: {
+				organizationId: input.organizationId,
+				accountNumber: nextAccountNumber(),
+				lastSyncedAt: new Date(),
+				...customerData,
+				billingExpiresAt: customerData.expiresAt,
+			},
+			select: { id: true },
+		});
+
+		return { customerId: created.id };
 	});

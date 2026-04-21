@@ -490,6 +490,50 @@ import { PaymentStatus, db } from "@repo/database";      // ✅ fine on server
 - **Always use the active billing month**, not the current calendar month. The active month (latest unlocked `BillingMonth`) may differ from today's date. Use `resolveActiveBillingMonth(organizationId)` from `packages/api/modules/billing/lib/resolve-month.ts` as the default when no explicit year/month is provided.
 - **Never default to `new Date()` for year/month** in billing procedures. If `input.year`/`input.month` are optional, resolve the active billing month first and use its values as defaults.
 
+#### Customer expiry: `expiresAt` vs `billingExpiresAt`
+
+The `Customer` model has two expiry fields. They usually hold the same value, but diverge on purpose and are **not interchangeable**.
+
+**`Customer.expiresAt`** — live mirror of iRadius `UserNas.ExpiryAccount`.
+- Written by iRadius sync (`packages/jobs/src/workers/iradius-sync.worker.ts:1574`). Tracked as a conflict field (`iradius-sync-fields.ts:62`) — if iRadius differs from local, a `sync_conflict` row is created rather than overwriting silently.
+- Also writable from specific admin flows (e.g., unstop in `stopped.ts:185`).
+- **Read it when you need iRadius' current truth** — customer detail "Expires" field (`CustomerDetail.tsx:1863`), or "service has lapsed on iRadius" ops filters.
+
+**`Customer.billingExpiresAt`** — frozen snapshot for every collector/billing view.
+- Comment in `schema.prisma:1032`: *"Frozen expiry for billing; only updates on month lock."*
+- Written on customer **create** (initialized from `expiresAt`), by `toggleMonthLock` (bulk `SET billingExpiresAt = expiresAt`), and by manual unstop in `stopped.ts:186`. **Never updated by iRadius sync for existing customers** — this is intentional.
+- **Read it for anything collector-facing** — `list-unpaid`, `customersDueThisMonthWhere`, `unpaidCustomersWhere`, `list-payments`, `payment-stats`, `CollectorPortal`/`CustomerCard`, `UnpaidCustomersList`, `PaymentsList`, `StoppedAccountsList`, sort keys in `use-billing.ts`.
+
+**Why two fields?** iRadius can mutate `ExpiryAccount` mid-cycle (auto-renew batches, admin tweaks). If collectors' lists read the live value, the "who owes money" list shifts under them between syncs. `billingExpiresAt` is frozen at month-lock time so the billing picture stays stable until the admin explicitly advances to the next month.
+
+**Rules:**
+- Any new query in `packages/api/modules/billing/**` or collector-facing UI must read `billingExpiresAt`, never `expiresAt`.
+- Any manual admin change that should take effect for current collection (e.g., unstop, reactivation) must write **both** fields — see `stopped.ts:185-186`. Mid-cycle changes that should NOT affect collection (e.g., plan changes) must leave `billingExpiresAt` alone — see the comment in `change-account-type.ts:132`.
+- `toggleMonthLock` is the only "normal" refresh point. Don't add other write paths to `billingExpiresAt` without understanding the freeze semantics.
+
+**Known gap (not bug — documented behavior):** the unpaid-months loop in `list-unpaid.ts:241-252` walks every `billing_month` between `billingExpiresAt` and the active month without checking whether the customer was actually billed (had a `customer_invoice` row) for each month. Customers who were stopped mid-cycle and reactivated later will be counted as owing for the stopped months too. Cross-reference `customer_invoice` by `(year, month)` if that matters for your use case.
+
+#### iRadius sync field classification
+
+Every field from iRadius falls into one of four buckets (`packages/jobs/src/workers/iradius-sync-fields.ts`):
+
+| bucket | behavior | examples |
+|---|---|---|
+| **`LOCAL_AUTHORITATIVE_FIELDS`** | Sync ignores these entirely after create. No overwrite, no conflict. Local is source of truth. | **Personal info** (`fullName`, `firstName`, `lastName`, `email`, `mobile`, `phone`, `phones`, `address`, `username`); **Geo** (`latitude`, `longitude`); `notes` |
+| **`CONFLICT_TRACKED_FIELDS`** | Diff creates a `sync_conflict` row; admin resolves. | `planId`, `stationId`, `accessPointId`, `dealerId`, `collectorId`, `status`, `connectionType`, `groupName`, `monthlyRate`, `discount`, `iptvPrice`, `realIpPrice`, `activatedAt`, etc. |
+| **`AUTO_UPDATE_FIELDS`** | Silent overwrite every sync. iRadius is source of truth. | Telemetry (`online`, `downloadBytes`, `lastLogin`); iRadius-owned infrastructure (`expiresAt`, `ipAddress`, `macAddress`, `nasHost`, `nasId`, `mikrotikQueue`, `mikrotikInterface`, `routerBrandPrefix`) |
+| everything else | Silent overwrite (same as auto-update). | Unclassified iRadius config. |
+
+**Rules when adding a new field or changing classification:**
+
+1. **If the app has a local write path for a field** (a procedure mutates it outside of sync), it **must not** be in `AUTO_UPDATE_FIELDS` — silent overwrite will clobber the local edit. Either keep it `CONFLICT_TRACKED` or move it to `LOCAL_AUTHORITATIVE`.
+2. **If a field is never edited locally** (no UI form, no mutation procedure) and iRadius is obviously authoritative, put it in `AUTO_UPDATE_FIELDS`. Don't file conflicts no one will review.
+3. **If the local enrichment is more accurate than iRadius** (e.g., `latitude`/`longitude` from our location-request flow), put it in `LOCAL_AUTHORITATIVE_FIELDS`. Create seeds it from iRadius; after that, iRadius is ignored.
+4. When classifying, grep `packages/api/modules/customers/procedures/*.ts` for local write paths first — `update.ts`, `create.ts`, `bulk-import.ts`, and any module-specific mutation.
+5. Float fields use epsilon comparison (`Math.abs(a - b) < 1e-6`) in `valuesEqual` to avoid false-positive conflicts from Postgres/JS/iRadius double-precision rendering differences.
+
+**Important:** `ipAddress` and `macAddress` are **not** locally editable. They are iRadius-owned and silent-overwritten. Do not add them back to `updateCustomer` or any create/import form.
+
 ### Database Schema Changes
 
 **Always use migrations for schema changes:**

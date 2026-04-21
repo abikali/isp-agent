@@ -59,8 +59,6 @@ export const updateCustomer = protectedProcedure
 				.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
 				.nullable()
 				.optional(),
-			ipAddress: z.string().max(45).optional(),
-			macAddress: z.string().max(17).optional(),
 			monthlyRate: z.number().min(0).nullable().optional(),
 			billingDay: z.number().int().min(1).max(28).nullable().optional(),
 			balance: z.number().optional(),
@@ -150,12 +148,6 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.groupExternalId !== undefined) {
 			updateData["groupExternalId"] = input.groupExternalId ?? null;
-		}
-		if (input.ipAddress !== undefined) {
-			updateData["ipAddress"] = input.ipAddress ?? null;
-		}
-		if (input.macAddress !== undefined) {
-			updateData["macAddress"] = input.macAddress ?? null;
 		}
 		if (input.monthlyRate !== undefined) {
 			updateData["monthlyRate"] = input.monthlyRate ?? null;

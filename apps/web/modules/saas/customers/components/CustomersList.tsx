@@ -25,6 +25,7 @@ import {
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
+	DownloadIcon,
 	MapPinIcon,
 	PlusIcon,
 	RefreshCwIcon,
@@ -50,6 +51,7 @@ import { CustomerFilters } from "./CustomerFilters";
 import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
+import { ImportFromIRadiusDialog } from "./ImportFromIRadiusDialog";
 
 function getConnectivityStatus(
 	customerStatus: string,
@@ -122,11 +124,15 @@ export function CustomersList({
 		sortByMap,
 		() => setPage(1),
 	);
-	const [showCreate, setShowCreate] = useState(false);
-	const [showImport, setShowImport] = useState(false);
+	const [dialog, setDialog] = useState<
+		| "create"
+		| "import"
+		| "iradius-import"
+		| "sync-preview"
+		| "bulk-request"
+		| null
+	>(null);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-	const [showSyncPreview, setShowSyncPreview] = useState(false);
-	const [showBulkRequestConfirm, setShowBulkRequestConfirm] = useState(false);
 	const [reRequestConfirm, setReRequestConfirm] = useState<{
 		customerId: string;
 		label: string;
@@ -189,7 +195,7 @@ export function CustomersList({
 						`Queued ${result.queued} request${result.queued === 1 ? "" : "s"} — delivery in progress`,
 					);
 					setRowSelection({});
-					setShowBulkRequestConfirm(false);
+					setDialog(null);
 				},
 				onError: (err) => toast.error(err.message),
 			},
@@ -434,12 +440,19 @@ export function CustomersList({
 					/>
 					<Button
 						variant="outline"
-						onClick={() => setShowImport(true)}
+						onClick={() => setDialog("iradius-import")}
+					>
+						<DownloadIcon className="mr-2 size-4" />
+						Import from iRadius
+					</Button>
+					<Button
+						variant="outline"
+						onClick={() => setDialog("import")}
 					>
 						<UploadIcon className="mr-2 size-4" />
-						Import
+						Import CSV
 					</Button>
-					<Button onClick={() => setShowCreate(true)}>
+					<Button onClick={() => setDialog("create")}>
 						<PlusIcon className="mr-2 size-4" />
 						Add Customer
 					</Button>
@@ -507,7 +520,7 @@ export function CustomersList({
 					<Button
 						size="sm"
 						variant="outline"
-						onClick={() => setShowSyncPreview(true)}
+						onClick={() => setDialog("sync-preview")}
 					>
 						<RefreshCwIcon className="mr-2 size-4" />
 						Sync from iRadius
@@ -516,7 +529,7 @@ export function CustomersList({
 						size="sm"
 						variant="outline"
 						disabled={bulkRequestLocation.isPending}
-						onClick={() => setShowBulkRequestConfirm(true)}
+						onClick={() => setDialog("bulk-request")}
 					>
 						<MapPinIcon className="mr-2 size-4" />
 						Request location ({selectedCount})
@@ -559,7 +572,7 @@ export function CustomersList({
 						}
 						action={
 							total === 0 ? (
-								<Button onClick={() => setShowCreate(true)}>
+								<Button onClick={() => setDialog("create")}>
 									<PlusIcon className="mr-2 size-4" />
 									Add Customer
 								</Button>
@@ -570,21 +583,28 @@ export function CustomersList({
 			/>
 
 			<CreateCustomerDialog
-				open={showCreate}
-				onOpenChange={setShowCreate}
+				open={dialog === "create"}
+				onOpenChange={(o) => setDialog(o ? "create" : null)}
 			/>
-			<BulkImportDialog open={showImport} onOpenChange={setShowImport} />
+			<BulkImportDialog
+				open={dialog === "import"}
+				onOpenChange={(o) => setDialog(o ? "import" : null)}
+			/>
+			<ImportFromIRadiusDialog
+				open={dialog === "iradius-import"}
+				onOpenChange={(o) => setDialog(o ? "iradius-import" : null)}
+			/>
 			<SyncPreviewDialog
-				open={showSyncPreview}
-				onOpenChange={setShowSyncPreview}
+				open={dialog === "sync-preview"}
+				onOpenChange={(o) => setDialog(o ? "sync-preview" : null)}
 				entityType="customer"
 				entityIds={selectedIds}
 				onSynced={() => setRowSelection({})}
 			/>
 
 			<AlertDialog
-				open={showBulkRequestConfirm}
-				onOpenChange={setShowBulkRequestConfirm}
+				open={dialog === "bulk-request"}
+				onOpenChange={(o) => setDialog(o ? "bulk-request" : null)}
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>

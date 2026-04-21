@@ -129,8 +129,12 @@ export { createAiChatWorker } from "./src/workers/ai-chat.worker";
 export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
-export { createIRadiusSyncWorker } from "./src/workers/iradius-sync.worker";
 export {
+	createAccountNumberGenerator,
+	createIRadiusSyncWorker,
+} from "./src/workers/iradius-sync.worker";
+export {
+	LOCAL_AUTHORITATIVE_FIELDS,
 	serializeValue,
 	valuesEqual,
 } from "./src/workers/iradius-sync-fields";

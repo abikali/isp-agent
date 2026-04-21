@@ -1,19 +1,27 @@
 /**
  * Field classification for iRadius sync conflict detection.
  *
- * Fields are split into three categories:
- * 1. CONFLICT_TRACKED — admin-meaningful data that requires manual resolution when changed
- * 2. AUTO_UPDATE — volatile telemetry that always overwrites silently
- * 3. Everything else — iRadius-owned config that auto-updates silently
+ * Fields are split into four categories:
+ * 1. LOCAL_AUTHORITATIVE — local is source of truth; sync never touches these after create
+ * 2. CONFLICT_TRACKED — admin-meaningful data that requires manual resolution when changed
+ * 3. AUTO_UPDATE — iRadius is source of truth; always overwrites silently
+ * 4. Everything else — iRadius-owned config that auto-updates silently
  */
 
 // ---------------------------------------------------------------------------
 // Field classification
 // ---------------------------------------------------------------------------
 
-/** Fields that generate conflicts when iRadius differs from local. */
-export const CONFLICT_TRACKED_FIELDS = new Set([
-	// Personal info
+/**
+ * Fields where local is the source of truth. The sync never overwrites these
+ * (or generates conflicts for them) after the initial customer create. iRadius
+ * may hold stale, imprecise, or empty values for these — ignore what iRadius
+ * returns.
+ */
+export const LOCAL_AUTHORITATIVE_FIELDS = new Set([
+	// Personal info — collectors and agents verify and enrich these in our app
+	// (name corrections, verified phones, corrected addresses, better emails).
+	// iRadius's copy is often outdated/incomplete; local is the source of truth.
 	"fullName",
 	"firstName",
 	"lastName",
@@ -23,14 +31,23 @@ export const CONFLICT_TRACKED_FIELDS = new Set([
 	"phones",
 	"address",
 	"username",
+	// Geo — our location-request flow owns this; iRadius GSMLat/GSMLng is
+	// often stale/null and returns different float precision, generating
+	// false-positive conflicts.
+	"latitude",
+	"longitude",
+	// Local admin annotations — distinct in purpose from iRadius User.Comment.
 	"notes",
+]);
+
+/** Fields that generate conflicts when iRadius differs from local. */
+export const CONFLICT_TRACKED_FIELDS = new Set([
 	// Relationships (FK IDs)
 	"planId",
 	"stationId",
 	"accessPointId",
 	"dealerId",
 	"collectorId",
-	"nasId",
 	// Status & classification
 	"status",
 	"connectionType",
@@ -40,35 +57,30 @@ export const CONFLICT_TRACKED_FIELDS = new Set([
 	"collectorName",
 	"collectorPhone",
 	"mof",
-	// Network
-	"ipAddress",
-	"macAddress",
+	// Network (only fields admins can actually reassign locally)
 	"staticIp",
-	"nasHost",
 	"mikrotikUser",
-	"mikrotikInterface",
 	"mikrotikInterface1",
-	"mikrotikQueue",
 	"wirelessInterface",
-	"routerBrandPrefix",
 	// Pricing
 	"monthlyRate",
 	"discount",
 	"iptvPrice",
 	"realIpPrice",
-	// Dates
+	// Dates (original/activated — set once, rarely change)
 	"originalCreatedAt",
 	"activatedAt",
-	"expiresAt",
-	// Geo
-	"latitude",
-	"longitude",
 	// Flags
 	"automaticRenew",
 ]);
 
-/** Volatile telemetry fields — always overwrite silently. */
+/**
+ * Fields where iRadius is the source of truth and silent overwrite is desired.
+ * Includes volatile telemetry plus iRadius-owned infrastructure that admins
+ * never edit locally (and that have no local write path in `updateCustomer`).
+ */
 export const AUTO_UPDATE_FIELDS = new Set([
+	// Volatile telemetry
 	"online",
 	"downloadBytes",
 	"uploadBytes",
@@ -90,6 +102,16 @@ export const AUTO_UPDATE_FIELDS = new Set([
 	"excludeFreeMonthlyDownloadBytes",
 	"excludeFreeDailyUploadBytes",
 	"excludeFreeMonthlyUploadBytes",
+	// iRadius-owned subscription/network infrastructure
+	// (no local edit UI; iRadius is authoritative — silent overwrite is fine)
+	"expiresAt",
+	"ipAddress",
+	"macAddress",
+	"nasId",
+	"nasHost",
+	"mikrotikQueue",
+	"mikrotikInterface",
+	"routerBrandPrefix",
 ]);
 
 export function isConflictTrackedField(key: string): boolean {
@@ -142,6 +164,12 @@ export function valuesEqual(local: unknown, remote: unknown): boolean {
 	// JSON arrays/objects (e.g. phones)
 	if (typeof local === "object" || typeof remote === "object") {
 		return JSON.stringify(local) === JSON.stringify(remote);
+	}
+
+	// Floats: epsilon compare to avoid false positives from Postgres/JS/iRadius
+	// double-precision rendering differences (e.g. 33.8841255 vs 33.884125499999996).
+	if (typeof local === "number" && typeof remote === "number") {
+		return Math.abs(local - remote) < 1e-6;
 	}
 
 	// Primitives
