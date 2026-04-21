@@ -49,6 +49,13 @@ input[cmdk-input] {
 	@apply border-none focus-visible:ring-0;
 }
 
+/* Recharts tooltip — force theme-aware text color (inline styles from recharts default to #000) */
+.recharts-default-tooltip,
+.recharts-default-tooltip .recharts-tooltip-label,
+.recharts-default-tooltip .recharts-tooltip-item {
+	color: var(--color-foreground) !important;
+}
+
 /* react-colorful color picker styles */
 .react-colorful {
 	width: 100% !important;
