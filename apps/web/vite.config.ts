@@ -1,3 +1,5 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import contentCollections from "@content-collections/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -5,11 +7,20 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
+// Env files live at the monorepo root, not in apps/web. Point Vite there so
+// VITE_* vars (e.g. VITE_VAPID_PUBLIC_KEY) get baked in on server rebuilds
+// that don't pre-export the env into the shell.
+const repoRoot = path.resolve(
+	fileURLToPath(new URL(".", import.meta.url)),
+	"../..",
+);
+
 export default defineConfig(({ mode }) => {
 	// Load env file based on `mode` (development, production, etc.)
-	const env = loadEnv(mode, process.cwd(), "");
+	const env = loadEnv(mode, repoRoot, "");
 
 	return {
+		envDir: repoRoot,
 		server: {
 			port: 5050,
 			// Allow tunnel domains for webhook testing
