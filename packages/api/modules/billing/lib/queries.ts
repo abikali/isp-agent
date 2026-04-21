@@ -143,19 +143,18 @@ export function customersDueThisMonthWhere(
 	organizationId: string,
 	billingMonthId: string,
 	monthRange: { gte: Date; lte: Date },
-	opts?: {
-		collectorId?: string;
-		collectorIds?: string[];
+	opts: {
+		/** One collector (string) or a batch (string[]) — both produce the right Prisma clause. */
+		collectorId?: string | string[];
 		dealerFilter?: Record<string, unknown>;
 		/**
-		 * Unpaid candidates must have an invoice for at least one of these
-		 * months — drops dormant PENDING customers whose iRadius billing has
-		 * gone silent.
+		 * Drops dormant PENDING customers whose iRadius billing has gone silent
+		 * — unpaid candidates must have an invoice for one of these months.
 		 */
-		relevantMonths?: readonly { year: number; month: number }[];
+		relevantMonths: readonly { year: number; month: number }[];
 	},
 ) {
-	const invoiceFilter = hasBilledInvoiceFilter(opts?.relevantMonths ?? []);
+	const invoiceFilter = hasBilledInvoiceFilter(opts.relevantMonths);
 
 	const where: Record<string, unknown> = {
 		organizationId,
@@ -182,13 +181,12 @@ export function customersDueThisMonthWhere(
 		],
 	};
 
-	if (opts?.collectorId) {
-		where["collectorId"] = opts.collectorId;
+	if (opts.collectorId !== undefined) {
+		where["collectorId"] = Array.isArray(opts.collectorId)
+			? { in: opts.collectorId }
+			: opts.collectorId;
 	}
-	if (opts?.collectorIds) {
-		where["collectorId"] = { in: opts.collectorIds };
-	}
-	if (opts?.dealerFilter) {
+	if (opts.dealerFilter) {
 		Object.assign(where, opts.dealerFilter);
 	}
 
@@ -208,17 +206,17 @@ export function unpaidCustomersWhere(
 	organizationId: string,
 	billingMonthId: string,
 	monthRange: { gte: Date; lte: Date },
-	opts?: {
+	opts: {
 		collectorId?: string;
 		dealerFilter?: Record<string, unknown>;
 		/**
 		 * Require at least one invoice for one of these months — drops
 		 * dormant PENDING customers whose iRadius billing has gone silent.
 		 */
-		relevantMonths?: readonly { year: number; month: number }[];
+		relevantMonths: readonly { year: number; month: number }[];
 	},
 ) {
-	const invoiceFilter = hasBilledInvoiceFilter(opts?.relevantMonths ?? []);
+	const invoiceFilter = hasBilledInvoiceFilter(opts.relevantMonths);
 
 	const where: Record<string, unknown> = {
 		organizationId,
@@ -233,10 +231,10 @@ export function unpaidCustomersWhere(
 		...invoiceFilter,
 	};
 
-	if (opts?.collectorId) {
+	if (opts.collectorId) {
 		where["collectorId"] = opts.collectorId;
 	}
-	if (opts?.dealerFilter) {
+	if (opts.dealerFilter) {
 		Object.assign(where, opts.dealerFilter);
 	}
 

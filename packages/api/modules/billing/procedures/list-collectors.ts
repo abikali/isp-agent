@@ -121,7 +121,11 @@ export const listCollectors = protectedProcedure
 						input.organizationId,
 						activeMonth.id,
 						monthRange,
-						{ collectorIds, dealerFilter, relevantMonths },
+						{
+							collectorId: collectorIds,
+							dealerFilter,
+							relevantMonths,
+						},
 					),
 					_count: true,
 				}),

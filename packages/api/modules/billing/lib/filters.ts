@@ -65,10 +65,6 @@ export function hasBilledInvoiceFilter(
 }
 
 /**
- * Case-insensitive search across common customer fields.
- * Returns a Prisma OR clause matching firstName, lastName, username, or mobile.
- */
-/**
  * Build a Prisma date range filter from optional dateFrom/dateTo strings.
  * Always extends dateTo to end-of-day (23:59:59.999) for inclusive filtering.
  * Returns undefined if neither bound is provided.
@@ -92,6 +88,10 @@ export function buildDateRangeFilter(
 	return range;
 }
 
+/**
+ * Case-insensitive search across common customer fields.
+ * Returns a Prisma OR clause matching firstName, lastName, username, or mobile.
+ */
 export function customerSearchFilter(search: string) {
 	return {
 		OR: [
