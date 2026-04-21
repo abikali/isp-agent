@@ -52,8 +52,8 @@ async function main() {
 	console.log("  → affectedRows:", r2.affectedRows);
 	await snapshot("after update name");
 
-	console.log("\n[3/6] iradiusUpdateUserPhones → 70000000 / 01000000");
-	const r3 = await iradiusUpdateUserPhones(customer, "70000000", "01000000");
+	console.log("\n[3/6] iradiusUpdateUserPhones → 70000000-01000000");
+	const r3 = await iradiusUpdateUserPhones(customer, "70000000-01000000");
 	console.log("  → affectedRows:", r3.affectedRows);
 	await snapshot("after update phones");
 
@@ -79,12 +79,11 @@ async function main() {
 	const originalFirstName = (initial.u?.["FirstName"] as string) ?? "";
 	const originalLastName = (initial.u?.["LastName"] as string) ?? "";
 	const originalMobile = (initial.u?.["Mobile"] as string) ?? "";
-	const originalPhone = (initial.u?.["Phone"] as string) ?? "";
 
 	await iradiusChangeCollector(customer, originalCollectorId);
 	await iradiusSetIptvPrice(customer, originalIptv);
 	await iradiusSetRecurringDiscount(customer, originalDiscount);
-	await iradiusUpdateUserPhones(customer, originalMobile, originalPhone);
+	await iradiusUpdateUserPhones(customer, originalMobile);
 	await iradiusUpdateUserName(
 		customer,
 		originalFirstName || "test5",

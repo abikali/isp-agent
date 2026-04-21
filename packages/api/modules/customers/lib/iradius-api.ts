@@ -196,19 +196,21 @@ export async function iradiusUpdateUserName(
 }
 
 /**
- * Update a customer's mobile / phone in iRadius. Pass `null` to clear.
+ * Update a customer's Mobile column on iRadius. `User.Phone` is intentionally
+ * left untouched — we store all local phones dash-joined into Mobile (primary
+ * first) and no longer mirror the secondary number into Phone. Pass `null` to
+ * clear Mobile.
  */
 export async function iradiusUpdateUserPhones(
 	customer: { externalId?: string | null },
 	mobile: string | null,
-	phone: string | null,
 ): Promise<{ affectedRows: number }> {
 	const userId = requireExternalId(customer);
 	return withIRadiusConnection(async (conn) => {
 		return executeIRadius(
 			conn,
-			"UPDATE User SET Mobile = ?, Phone = ?, UpdateDate = NOW() WHERE Id = ?",
-			[mobile, phone, userId],
+			"UPDATE User SET Mobile = ?, UpdateDate = NOW() WHERE Id = ?",
+			[mobile, userId],
 		);
 	});
 }

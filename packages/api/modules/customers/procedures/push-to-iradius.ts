@@ -3,8 +3,8 @@ import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
-import { queueIRadiusPush } from "@repo/jobs";
+import { buildIRadiusMobile, db } from "@repo/database";
+import { getIRadiusPushQueue, queueIRadiusPush } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -24,8 +24,9 @@ import {
  * Force-push every locally-authoritative field on a single customer to iRadius.
  * Useful as a per-customer recovery hook after a failed mirror.
  *
- * Pushed: firstName, lastName, email, mobile, phone (via phones), address,
- * latitude, longitude, notes → iRadius User / UserNas.
+ * Pushed: firstName, lastName, email, phones (dash-joined into User.Mobile,
+ * primary first, dedup), address, latitude, longitude, notes → iRadius
+ * User / UserNas. `User.Phone` is intentionally left untouched.
  * Not pushed: username (PPPoE credential).
  */
 export const pushCustomerToIRadius = protectedProcedure
@@ -61,8 +62,6 @@ export const pushCustomerToIRadius = protectedProcedure
 				firstName: true,
 				lastName: true,
 				email: true,
-				mobile: true,
-				phone: true,
 				phones: true,
 				address: true,
 				latitude: true,
@@ -89,8 +88,7 @@ export const pushCustomerToIRadius = protectedProcedure
 		await iradiusUpdateUserEmail(stub, customer.email ?? null);
 		await iradiusUpdateUserPhones(
 			stub,
-			customer.mobile ?? null,
-			customer.phone ?? null,
+			buildIRadiusMobile(customer.phones),
 		);
 		await iradiusUpdateUserAddress(stub, customer.address ?? null);
 		await iradiusUpdateUserLocation(
@@ -168,6 +166,20 @@ export const cancelIRadiusPush = protectedProcedure
 			"sync",
 		);
 
+		// We flip the DB status AND remove the BullMQ job. The worker polls
+		// the status every PROGRESS_EVERY customers and bails when it sees
+		// this flip — but if we don't also remove the job, a cancelled-but-
+		// still-running job holds the worker's single concurrency slot and
+		// blocks any newly queued push. `queue.remove` throws for active
+		// jobs (the worker poll handles those), so we allSettled.
+		const pending = await db.iRadiusPushOperation.findMany({
+			where: {
+				organizationId: input.organizationId,
+				status: { in: ["pending", "in_progress"] },
+			},
+			select: { id: true },
+		});
+
 		const result = await db.iRadiusPushOperation.updateMany({
 			where: {
 				organizationId: input.organizationId,
@@ -183,6 +195,9 @@ export const cancelIRadiusPush = protectedProcedure
 				completedAt: new Date(),
 			},
 		});
+
+		const queue = getIRadiusPushQueue();
+		await Promise.allSettled(pending.map((op) => queue.remove(op.id)));
 
 		return { cancelled: result.count };
 	});

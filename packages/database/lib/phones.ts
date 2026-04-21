@@ -76,6 +76,28 @@ export function splitPhoneString(raw: string): string[] {
 }
 
 /**
+ * Build the dash-joined string written back to iRadius `User.Mobile`.
+ * Primary first, rest follow input order, dedup by exact number match.
+ * Returns null when no phones — caller clears the column.
+ */
+export function buildIRadiusMobile(phones: unknown): string | null {
+	const parsed = parsePhones(phones);
+	const ordered = [...parsed].sort(
+		(a, b) => Number(b.primary) - Number(a.primary),
+	);
+	const seen = new Set<string>();
+	const unique: string[] = [];
+	for (const p of ordered) {
+		const trimmed = p.number.trim();
+		if (trimmed && !seen.has(trimmed)) {
+			seen.add(trimmed);
+			unique.push(trimmed);
+		}
+	}
+	return unique.length > 0 ? unique.join("-") : null;
+}
+
+/**
  * Build a phones array from raw mobile/phone strings (for iRadius sync).
  * Handles comma-separated and dash-separated phone values and normalizes to +961 format.
  */

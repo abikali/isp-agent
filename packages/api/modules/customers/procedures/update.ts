@@ -238,8 +238,7 @@ export const updateCustomer = protectedProcedure
 				if (diff.phonesChanged) {
 					await iradiusUpdateUserPhones(
 						{ externalId: existing.externalId },
-						diff.submittedPrimary,
-						diff.submittedSecondary,
+						diff.submittedMobile,
 					);
 				}
 				if (diff.groupChanged) {

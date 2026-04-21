@@ -56,60 +56,15 @@ function getConfig(): IRadiusConfig {
 	};
 }
 
-/**
- * Creates an SSH tunnel to the iRadius server and opens a MySQL connection
- * through it. Returns a cleanup function to close everything.
- */
-async function createTunnel(config: IRadiusConfig): Promise<{
-	connection: Connection;
-	close: () => Promise<void>;
-}> {
-	return new Promise((resolve, reject) => {
-		const sshClient = new Client();
-
+async function connectSsh(config: IRadiusConfig): Promise<Client> {
+	const sshClient = new Client();
+	await new Promise<void>((resolve, reject) => {
 		sshClient.on("ready", () => {
-			// Forward to MySQL on the remote server's localhost:3306
-			sshClient.forwardOut(
-				"127.0.0.1",
-				0,
-				"127.0.0.1",
-				3306,
-				async (err, stream) => {
-					if (err) {
-						sshClient.end();
-						reject(new Error(`SSH tunnel failed: ${err.message}`));
-						return;
-					}
-
-					try {
-						const connection = await mysql.createConnection({
-							user: config.db.user,
-							password: config.db.password,
-							database: config.db.database,
-							stream: stream as unknown as net.Socket,
-							// Handle null bytes and encoding issues
-							charset: "utf8mb4",
-						});
-
-						resolve({
-							connection,
-							close: async () => {
-								await connection.end().catch(() => {});
-								sshClient.end();
-							},
-						});
-					} catch (dbErr) {
-						sshClient.end();
-						reject(dbErr);
-					}
-				},
-			);
+			resolve();
 		});
-
 		sshClient.on("error", (err) => {
 			reject(new Error(`SSH connection failed: ${err.message}`));
 		});
-
 		sshClient.connect({
 			host: config.ssh.host,
 			port: config.ssh.port,
@@ -117,6 +72,39 @@ async function createTunnel(config: IRadiusConfig): Promise<{
 			password: config.ssh.password,
 			readyTimeout: 10000,
 		});
+	});
+	return sshClient;
+}
+
+async function openMysqlOverSsh(
+	sshClient: Client,
+	config: IRadiusConfig,
+): Promise<Connection> {
+	return new Promise((resolve, reject) => {
+		sshClient.forwardOut(
+			"127.0.0.1",
+			0,
+			"127.0.0.1",
+			3306,
+			async (err, stream) => {
+				if (err) {
+					reject(new Error(`SSH tunnel failed: ${err.message}`));
+					return;
+				}
+				try {
+					const connection = await mysql.createConnection({
+						user: config.db.user,
+						password: config.db.password,
+						database: config.db.database,
+						stream: stream as unknown as net.Socket,
+						charset: "utf8mb4",
+					});
+					resolve(connection);
+				} catch (dbErr) {
+					reject(dbErr);
+				}
+			},
+		);
 	});
 }
 
@@ -128,12 +116,44 @@ export async function withIRadiusConnection<T>(
 	fn: (connection: Connection) => Promise<T>,
 ): Promise<T> {
 	const config = getConfig();
-	const { connection, close } = await createTunnel(config);
-
+	const sshClient = await connectSsh(config);
+	let connection: Connection | null = null;
 	try {
+		connection = await openMysqlOverSsh(sshClient, config);
 		return await fn(connection);
 	} finally {
-		await close();
+		await connection?.end().catch(() => {});
+		sshClient.end();
+	}
+}
+
+/**
+ * Execute a callback with N parallel iRadius MySQL connections sharing one
+ * SSH client. Each connection is an independent mysql2 `Connection` (separate
+ * SSH-forwarded stream), so queries on different connections run concurrently
+ * on the iRadius server.
+ *
+ * Use this for bulk writes where round-trip latency dominates: a single
+ * connection serialises queries, so fan-out is the only way to amortise the
+ * SSH + MySQL round-trip cost.
+ */
+export async function withIRadiusConnectionPool<T>(
+	size: number,
+	fn: (connections: Connection[]) => Promise<T>,
+): Promise<T> {
+	const config = getConfig();
+	const sshClient = await connectSsh(config);
+	let connections: Connection[] = [];
+	try {
+		connections = await Promise.all(
+			Array.from({ length: size }, () =>
+				openMysqlOverSsh(sshClient, config),
+			),
+		);
+		return await fn(connections);
+	} finally {
+		await Promise.allSettled(connections.map((c) => c.end()));
+		sshClient.end();
 	}
 }
 

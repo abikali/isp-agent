@@ -3,17 +3,21 @@
  * to iRadius. The counterpart to `iradius-sync.worker.ts`, going the opposite
  * direction: local → iRadius.
  *
- * Pushed fields (per-customer): firstName, lastName, email, mobile, phone,
- * address, latitude, longitude, notes. Customers without `externalId` are
- * skipped. Each customer runs 6 UPDATE statements through a single shared SSH
- * tunnel to keep throughput reasonable.
+ * Pushed fields (per-customer): firstName, lastName, email, address, notes,
+ * latitude, longitude, and the full phones array — dash-joined (primary
+ * first, dedup) into `User.Mobile`. `User.Phone` is intentionally left
+ * untouched. Customers without `externalId` are skipped. Each customer runs
+ * 2 UPDATE statements (one on User, one on UserNas). Customers are fanned
+ * out across a pool of parallel MySQL connections over a shared SSH tunnel
+ * — a single connection serialises queries, so fan-out is the only way to
+ * amortise the ~250ms SSH+MySQL round-trip cost.
  */
 
-import { db } from "@repo/database";
+import { buildIRadiusMobile, db } from "@repo/database";
 import {
 	executeIRadius,
 	type IRadiusConnection,
-	withIRadiusConnection,
+	withIRadiusConnectionPool,
 } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
@@ -21,7 +25,8 @@ import { getRedisConnection } from "../connection";
 import { IRADIUS_PUSH_QUEUE_NAME } from "../queues/iradius-push.queue";
 import type { IRadiusPushJobData, IRadiusPushJobResult } from "../types";
 
-const PROGRESS_EVERY = 25;
+const PROGRESS_EVERY = 100;
+const POOL_SIZE = 10;
 
 interface PushError {
 	customerId: string;
@@ -47,7 +52,6 @@ async function pushCustomer(
 		lastName: string | null;
 		email: string | null;
 		mobile: string | null;
-		phone: string | null;
 		address: string | null;
 		latitude: number | null;
 		longitude: number | null;
@@ -56,12 +60,14 @@ async function pushCustomer(
 ): Promise<void> {
 	const userId = Number.parseInt(customer.externalId, 10);
 
-	// User table — FirstName, LastName, MailAddress, Mobile, Phone, Address, Comment
+	// User table — FirstName, LastName, MailAddress, Mobile, Address, Comment.
+	// Phone column is intentionally left untouched; all local phones are dash-
+	// joined into Mobile by the caller (primary first, deduped).
 	await executeIRadius(
 		conn,
 		`UPDATE User
 		   SET FirstName = ?, LastName = ?, MailAddress = ?,
-		       Mobile = ?, Phone = ?, Address = ?, Comment = ?,
+		       Mobile = ?, Address = ?, Comment = ?,
 		       UpdateDate = NOW()
 		 WHERE Id = ?`,
 		[
@@ -69,7 +75,6 @@ async function pushCustomer(
 			customer.lastName ?? "",
 			customer.email,
 			customer.mobile,
-			customer.phone,
 			customer.address,
 			customer.notes,
 			userId,
@@ -115,8 +120,7 @@ export function createIRadiusPushWorker(): Worker<
 					firstName: true,
 					lastName: true,
 					email: true,
-					mobile: true,
-					phone: true,
+					phones: true,
 					address: true,
 					latitude: true,
 					longitude: true,
@@ -135,57 +139,102 @@ export function createIRadiusPushWorker(): Worker<
 			let processed = 0;
 			let pushed = 0;
 			let failed = 0;
+			let cancelled = false;
+			// Serialises progress writes so parallel workers don't stampede
+			// updates for the same DB row.
+			let progressLock: Promise<void> = Promise.resolve();
+
+			const checkpoint = async (): Promise<void> => {
+				const current = await db.iRadiusPushOperation.findUnique({
+					where: { id: operationId },
+					select: { status: true },
+				});
+				if (!current || current.status !== "in_progress") {
+					logger.info(
+						"[iRadius Push] Stopping: operation no longer in_progress",
+						{
+							operationId,
+							status: current?.status ?? "missing",
+							processed,
+						},
+					);
+					cancelled = true;
+					return;
+				}
+				await updateProgress(operationId, {
+					processedCustomers: processed,
+					pushedCustomers: pushed,
+					failedCustomers: failed,
+				});
+			};
 
 			try {
-				await withIRadiusConnection(async (conn) => {
-					for (const c of customers) {
-						if (!c.externalId) {
-							processed++;
-							continue;
-						}
+				await withIRadiusConnectionPool(POOL_SIZE, async (conns) => {
+					// Workers race to claim the next index from a shared
+					// cursor. This gives natural load-balancing — fast
+					// connections grab more work, slow ones grab less —
+					// without needing an explicit queue.
+					let cursor = 0;
 
-						try {
-							await pushCustomer(conn, {
-								externalId: c.externalId,
-								firstName: c.firstName,
-								lastName: c.lastName,
-								email: c.email,
-								mobile: c.mobile,
-								phone: c.phone,
-								address: c.address,
-								latitude: c.latitude,
-								longitude: c.longitude,
-								notes: c.notes,
-							});
-							pushed++;
-						} catch (err) {
-							failed++;
-							const detail =
-								err instanceof Error
-									? err.message
-									: String(err);
-							if (errors.length < 200) {
-								errors.push({
-									customerId: c.id,
+					const workerLoop = async (
+						conn: IRadiusConnection,
+					): Promise<void> => {
+						while (!cancelled) {
+							const idx = cursor++;
+							if (idx >= customers.length) {
+								return;
+							}
+							const c = customers[idx];
+							if (!c) {
+								return;
+							}
+
+							if (!c.externalId) {
+								processed++;
+								continue;
+							}
+
+							try {
+								await pushCustomer(conn, {
 									externalId: c.externalId,
-									detail,
+									firstName: c.firstName,
+									lastName: c.lastName,
+									email: c.email,
+									mobile: buildIRadiusMobile(c.phones),
+									address: c.address,
+									latitude: c.latitude,
+									longitude: c.longitude,
+									notes: c.notes,
 								});
+								pushed++;
+							} catch (err) {
+								failed++;
+								const detail =
+									err instanceof Error
+										? err.message
+										: String(err);
+								if (errors.length < 200) {
+									errors.push({
+										customerId: c.id,
+										externalId: c.externalId,
+										detail,
+									});
+								}
+							}
+
+							processed++;
+
+							if (
+								processed % PROGRESS_EVERY === 0 ||
+								processed === total
+							) {
+								progressLock = progressLock.then(checkpoint);
+								await progressLock;
 							}
 						}
+					};
 
-						processed++;
-
-						if (
-							processed % PROGRESS_EVERY === 0 ||
-							processed === total
-						) {
-							await updateProgress(operationId, {
-								processedCustomers: processed,
-								pushedCustomers: pushed,
-								failedCustomers: failed,
-							});
-						}
-					}
+					await Promise.all(conns.map(workerLoop));
 				});
 			} catch (err) {
 				const detail = err instanceof Error ? err.message : String(err);
@@ -208,6 +257,16 @@ export function createIRadiusPushWorker(): Worker<
 							})),
 						],
 					},
+				});
+				return { success: false, operationId };
+			}
+
+			if (cancelled) {
+				logger.info("[iRadius Push] Exited after cancellation", {
+					operationId,
+					processed,
+					pushed,
+					failed,
 				});
 				return { success: false, operationId };
 			}

@@ -1,12 +1,11 @@
-import { getPrimaryPhone } from "@repo/database/phones";
+import { buildIRadiusMobile } from "@repo/database/phones";
 
 export interface MirrorExistingFields {
 	firstName: string | null;
 	lastName: string | null;
 	email: string | null;
 	address: string | null;
-	mobile: string | null;
-	phone: string | null;
+	phones: unknown;
 	groupExternalId: number | null;
 	collectorId: string | null;
 	latitude: number | null;
@@ -37,8 +36,7 @@ export interface MirrorDiff {
 	locationChanged: boolean;
 	notesChanged: boolean;
 	labels: string[];
-	submittedPrimary: string | null;
-	submittedSecondary: string | null;
+	submittedMobile: string | null;
 }
 
 function normalizeString(value: string | null | undefined): string | null {
@@ -69,17 +67,11 @@ export function diffMirrorFields(
 		next.address !== undefined &&
 		normalizeString(next.address) !== normalizeString(existing.address);
 
-	let submittedPrimary: string | null = null;
-	let submittedSecondary: string | null = null;
+	let submittedMobile: string | null = null;
 	let phonesChanged = false;
 	if (next.phones !== undefined) {
-		submittedPrimary = normalizeString(getPrimaryPhone(next.phones));
-		submittedSecondary = normalizeString(
-			next.phones.find((p) => !p.primary)?.number ?? null,
-		);
-		phonesChanged =
-			submittedPrimary !== normalizeString(existing.mobile) ||
-			submittedSecondary !== normalizeString(existing.phone);
+		submittedMobile = buildIRadiusMobile(next.phones);
+		phonesChanged = submittedMobile !== buildIRadiusMobile(existing.phones);
 	}
 
 	const groupChanged =
@@ -149,7 +141,6 @@ export function diffMirrorFields(
 		locationChanged,
 		notesChanged,
 		labels,
-		submittedPrimary,
-		submittedSecondary,
+		submittedMobile,
 	};
 }
