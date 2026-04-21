@@ -7,6 +7,7 @@ export const TOOLTIP_STYLE = {
 	borderRadius: "8px",
 	border: "1px solid var(--color-border)",
 	background: "var(--color-card)",
+	color: "var(--color-foreground)",
 	fontSize: "12px",
 };
 
