@@ -128,67 +128,51 @@ export const listUnpaidCustomers = protectedProcedure
 			where["billingExpiresAt"] = billingExpiresAt;
 		}
 
-		const [customers, total, aggregates, expiredCount] = await Promise.all([
-			db.customer.findMany({
-				where,
-				select: {
-					id: true,
-					externalId: true,
-					accountNumber: true,
-					firstName: true,
-					lastName: true,
-					username: true,
-					mobile: true,
-					phone: true,
-					phones: true,
-					address: true,
-					groupName: true,
-					billingExpiresAt: true,
-					monthlyRate: true,
-					discount: true,
-					iptvPrice: true,
-					realIpPrice: true,
-					latitude: true,
-					longitude: true,
-					planId: true,
-					plan: {
-						select: {
-							id: true,
-							name: true,
-							monthlyPrice: true,
-							externalId: true,
-						},
+		// We need to filter out customers whose enrichment yields zero unpaid
+		// months (dormant PENDING with only pre-expiry invoices — iRadius kept
+		// the subscription row but stopped billing them). That decision
+		// requires invoice-level per-customer data the SQL filter can't
+		// correlate in Prisma's `where`, so we fetch the full eligible set
+		// and paginate/aggregate in JS. Cap prevents runaway if the filter
+		// ever mis-scopes on a very large org.
+		const FETCH_CAP = 10_000;
+		const customers = await db.customer.findMany({
+			where,
+			select: {
+				id: true,
+				externalId: true,
+				accountNumber: true,
+				firstName: true,
+				lastName: true,
+				username: true,
+				mobile: true,
+				phone: true,
+				phones: true,
+				address: true,
+				groupName: true,
+				billingExpiresAt: true,
+				monthlyRate: true,
+				discount: true,
+				iptvPrice: true,
+				realIpPrice: true,
+				latitude: true,
+				longitude: true,
+				planId: true,
+				plan: {
+					select: {
+						id: true,
+						name: true,
+						monthlyPrice: true,
+						externalId: true,
 					},
-					collector: { select: { id: true, name: true } },
-					dealer: { select: { id: true, name: true } },
-					station: { select: { id: true, name: true } },
 				},
-				orderBy: { [input.sortBy]: input.sortOrder },
-				skip: (input.page - 1) * input.pageSize,
-				take: input.pageSize,
-			}),
-			db.customer.count({ where }),
-			db.customer.aggregate({
-				where,
-				_sum: {
-					monthlyRate: true,
-					iptvPrice: true,
-					realIpPrice: true,
-					discount: true,
-				},
-			}),
-			db.customer.count({
-				where: { ...where, billingExpiresAt: { lt: new Date() } },
-			}),
-		]);
-
-		// Same formula as customerMonthlyDue() but applied to aggregate sums.
-		// Mathematically equivalent: sum(a+b+c-d) = sum(a)+sum(b)+sum(c)-sum(d)
-		const totalAmountDue =
-			(aggregates._sum.monthlyRate ?? 0) +
-			(aggregates._sum.iptvPrice ?? 0) +
-			(aggregates._sum.realIpPrice ?? 0) -
-			(aggregates._sum.discount ?? 0);
+				collector: { select: { id: true, name: true } },
+				dealer: { select: { id: true, name: true } },
+				station: { select: { id: true, name: true } },
+			},
+			orderBy: { [input.sortBy]: input.sortOrder },
+			take: FETCH_CAP,
+		});
 
 		// ── Accumulated debt enrichment ──────────────────────────
 		const customerIds = customers.map((c) => c.id);
@@ -311,8 +295,26 @@ export const listUnpaidCustomers = protectedProcedure
 			enrichedCustomers = [];
 		}
 
+		// Hide customers with nothing to collect (iRadius stopped billing
+		// them, or their only in-window invoices are before expiry). They'd
+		// otherwise show as "$0.00" rows and confuse the collector.
+		const withDebt = enrichedCustomers.filter((c) => c.unpaidMonths > 0);
+
+		const total = withDebt.length;
+		const totalAmountDue = withDebt.reduce(
+			(sum, c) => sum + c.accumulatedDue,
+			0,
+		);
+		const now = new Date();
+		const expiredCount = withDebt.filter(
+			(c) => c.billingExpiresAt && new Date(c.billingExpiresAt) < now,
+		).length;
+
+		const skip = (input.page - 1) * input.pageSize;
+		const pageCustomers = withDebt.slice(skip, skip + input.pageSize);
+
 		return {
-			customers: enrichedCustomers,
+			customers: pageCustomers,
 			total,
 			totalAmountDue,
 			expiredCount,
