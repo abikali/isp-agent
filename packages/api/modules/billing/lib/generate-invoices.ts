@@ -2,9 +2,8 @@
  * Local invoice generation — replaces Phase 10 of the iRadius sync.
  *
  * A `customer_invoice` row is the "this customer was billed for month (Y, M)"
- * signal consumed by `hasBilledInvoiceFilter` and the customer-detail
- * Invoices tab. We generate one row per billable customer at billing-month
- * start (see `openBillingMonth`).
+ * signal consumed by the collector portal and list-unpaid. We generate one
+ * row per billable customer at billing-month start (see `openBillingMonth`).
  */
 
 import type { Prisma } from "@repo/database";

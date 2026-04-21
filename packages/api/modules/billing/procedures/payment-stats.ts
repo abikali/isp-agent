@@ -154,7 +154,7 @@ export const getPaymentStats = protectedProcedure
 						...dealerViaCustomer,
 					})
 				: Promise.resolve(0),
-			// Unpaid customers: includes past-due (billingExpiresAt <= month end, no payment)
+			// Unpaid customers: any customer with an unpaid invoice in relevant months
 			monthId
 				? fetchRelevantBillingMonths(
 						input.organizationId,

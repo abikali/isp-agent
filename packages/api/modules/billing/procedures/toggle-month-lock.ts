@@ -5,6 +5,14 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { openBillingMonth } from "../lib/open-month";
 
+/**
+ * Max age (minutes) of the latest successful iRadius sync for locking to be
+ * allowed. Admins must re-sync before closing a month so that iRadius expiry
+ * dates reflect the billing truth (not any proactive extensions). The next
+ * month's invoices are generated using these expiry dates.
+ */
+const REQUIRED_SYNC_FRESHNESS_MINUTES = 30;
+
 export const toggleMonthLock = protectedProcedure
 	.route({
 		method: "POST",
@@ -48,11 +56,30 @@ export const toggleMonthLock = protectedProcedure
 			return { month: updated, nextMonth: null };
 		}
 
-		// When locking, atomically: lock the month, snapshot expiresAt →
-		// billingExpiresAt for all org customers, and open the next month
-		// (which also generates invoices for it). This freezes the billing
-		// expiry so mid-cycle iRadius mass-renewals don't interfere with
-		// collection.
+		// Guard: require a fresh iRadius sync before locking. Invoice generation
+		// for the next month reads each customer's live expiresAt as the billing
+		// deadline, so the sync must have just pulled the pre-bump values.
+		const latestSync = await db.iRadiusSyncOperation.findFirst({
+			where: {
+				organizationId: input.organizationId,
+				status: "completed",
+			},
+			orderBy: { completedAt: "desc" },
+			select: { completedAt: true },
+		});
+		const freshnessMs = REQUIRED_SYNC_FRESHNESS_MINUTES * 60 * 1000;
+		const syncAgeOk =
+			latestSync?.completedAt &&
+			Date.now() - latestSync.completedAt.getTime() <= freshnessMs;
+		if (!syncAgeOk) {
+			throw new ORPCError("PRECONDITION_FAILED", {
+				message: `Run a fresh iRadius sync before locking the month. Last successful sync must be within the past ${REQUIRED_SYNC_FRESHNESS_MINUTES} minutes.`,
+			});
+		}
+
+		// Lock the current month and open the next one in a single transaction.
+		// openBillingMonth generates invoices for the new month using each
+		// customer's live expiresAt (guaranteed fresh by the guard above).
 		const nextYear = month.month === 12 ? month.year + 1 : month.year;
 		const nextMonthNum = month.month === 12 ? 1 : month.month + 1;
 
@@ -61,12 +88,6 @@ export const toggleMonthLock = protectedProcedure
 				where: { id: input.billingMonthId },
 				data: { locked: true },
 			});
-			await tx.$executeRaw`
-				UPDATE "customer"
-				SET "billingExpiresAt" = "expiresAt"
-				WHERE "organizationId" = ${input.organizationId}
-				  AND "expiresAt" IS NOT NULL
-			`;
 			const nextMonth = await openBillingMonth(
 				tx,
 				input.organizationId,

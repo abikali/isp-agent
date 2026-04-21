@@ -65,7 +65,7 @@ export const listCustomers = protectedProcedure
 
 		if (input.status === "EXPIRED") {
 			where["status"] = "ACTIVE";
-			where["billingExpiresAt"] = { lt: new Date() };
+			where["expiresAt"] = { lt: new Date() };
 		} else if (input.status === "ONLINE") {
 			where["status"] = "ACTIVE";
 			where["online"] = true;
@@ -197,7 +197,7 @@ export const listCustomers = protectedProcedure
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
-					billingExpiresAt: true,
+					expiresAt: true,
 					notes: true,
 					externalId: true,
 					latitude: true,

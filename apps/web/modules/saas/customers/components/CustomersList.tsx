@@ -91,7 +91,7 @@ interface CustomerRow {
 	latitude: number | null;
 	longitude: number | null;
 	locationRequestedAt: Date | string | null;
-	billingExpiresAt: Date | string | null;
+	expiresAt: Date | string | null;
 	notes: string | null;
 }
 
@@ -365,12 +365,12 @@ export function CustomersList({
 			},
 			{
 				id: "expiry",
-				header: "Billing Expiry",
-				accessorFn: (row) => row.billingExpiresAt,
+				header: "Expiry",
+				accessorFn: (row) => row.expiresAt,
 				enableSorting: false,
 				meta: { className: "hidden lg:table-cell whitespace-nowrap" },
 				cell: ({ row }) => {
-					const value = row.original.billingExpiresAt;
+					const value = row.original.expiresAt;
 					if (!value) {
 						return <span className="text-muted-foreground">-</span>;
 					}

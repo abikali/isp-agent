@@ -37,7 +37,7 @@ export interface UnpaidCustomer {
 	phones?: unknown;
 	address?: string | null;
 	groupName?: string | null;
-	billingExpiresAt?: string | Date | null;
+	oldestUnpaidExpiry?: string | Date | null;
 	monthlyRate?: number | null;
 	discount?: number | null;
 	iptvPrice?: number | null;
@@ -104,9 +104,9 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const pastDueMonths = customer.pastDueMonths ?? 0;
 	const unpaidMonths = customer.unpaidMonths ?? 1;
 
-	const expiry = getExpiryInfo(customer.billingExpiresAt ?? null);
-	const expiryDateLabel = customer.billingExpiresAt
-		? formatDateDMY(new Date(customer.billingExpiresAt))
+	const expiry = getExpiryInfo(customer.oldestUnpaidExpiry ?? null);
+	const expiryDateLabel = customer.oldestUnpaidExpiry
+		? formatDateDMY(new Date(customer.oldestUnpaidExpiry))
 		: "";
 	const waLink = formatWhatsAppLink(customer.mobile ?? customer.phone);
 	const phoneNumber = customer.mobile ?? customer.phone;

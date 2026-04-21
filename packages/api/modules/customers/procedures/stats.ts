@@ -62,7 +62,7 @@ export const getCustomerStats = protectedProcedure
 			db.customer.count({
 				where: {
 					...baseWhere,
-					billingExpiresAt: { lt: new Date() },
+					expiresAt: { lt: new Date() },
 					status: "ACTIVE",
 				},
 			}),

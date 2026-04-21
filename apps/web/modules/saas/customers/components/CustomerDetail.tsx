@@ -1840,14 +1840,6 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 								: null,
 						},
 						{
-							label: "Billing Expiry",
-							value: customer.billingExpiresAt
-								? new Date(
-										customer.billingExpiresAt,
-									).toLocaleDateString("en-GB")
-								: null,
-						},
-						{
 							label: "Last Login",
 							value: customer.lastLogin
 								? new Date(customer.lastLogin).toLocaleString(

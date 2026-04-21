@@ -47,7 +47,7 @@ interface StoppedPaymentRow {
 		username: string | null;
 		plan: { name: string } | null;
 		groupName: string | null;
-		billingExpiresAt: string | Date | null;
+		expiresAt: string | Date | null;
 	};
 	collector: { name: string };
 	paidAt: string | Date;
@@ -179,12 +179,8 @@ export function StoppedAccountsList() {
 									row.original.customer.firstName,
 									row.original.customer.lastName,
 								),
-								currentExpiry: row.original.customer
-									.billingExpiresAt
-									? (new Date(
-											row.original.customer
-												.billingExpiresAt,
-										)
+								currentExpiry: row.original.customer.expiresAt
+									? (new Date(row.original.customer.expiresAt)
 											.toISOString()
 											.split("T")[0] ?? null)
 									: null,

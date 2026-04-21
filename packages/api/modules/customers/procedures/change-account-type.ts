@@ -129,9 +129,6 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 		// Mirror what iRadius just set on User.AccountPrice so the local
 		// monthlyRate doesn't go stale (and doesn't land in the conflict
 		// queue on the next sync). Prefer sellingPrice → rate → monthlyPrice.
-		// Note: we deliberately do NOT touch billingExpiresAt — it's the
-		// frozen snapshot collectors use to decide who's due, and it must
-		// stay decoupled from mid-cycle plan changes.
 		const newMonthlyRate =
 			newPlan.sellingPrice ?? newPlan.rate ?? newPlan.monthlyPrice;
 

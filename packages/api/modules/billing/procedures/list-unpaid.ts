@@ -8,29 +8,34 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
-	customerSearchFilter,
 	EXCLUDE_FREE_GROUP,
 	EXCLUDE_STOPPED,
 	excludeGroupFilter,
-	hasBilledInvoiceFilter,
 } from "../lib/filters";
 import {
 	applyCollectorScope,
 	fetchRelevantBillingMonths,
 } from "../lib/queries";
-import {
-	getMonthDateRange,
-	resolveYearMonth,
-	yearMonthToNum,
-} from "../lib/resolve-month";
+import { resolveYearMonth, yearMonthToNum } from "../lib/resolve-month";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
+/**
+ * List customers with unpaid invoices, derived entirely from the
+ * customer_invoice + payment tables. The invoice is the unit of truth:
+ *   - existence of a row = customer was billed for that (year, month)
+ *   - absence of a matching Payment = still owed
+ *
+ * Each invoice carries its own frozen `expiryDate`, set at generation time
+ * from the customer's live iRadius expiry. The fresh-sync guard on
+ * `toggleMonthLock` ensures these values reflect real billing deadlines
+ * (not post-lock proactive extensions).
+ */
 export const listUnpaidCustomers = protectedProcedure
 	.route({
 		method: "GET",
 		path: "/billing/unpaid",
 		tags: ["Billing"],
-		summary: "List unpaid customers (computed from payment records)",
+		summary: "List customers with unpaid invoices",
 	})
 	.input(
 		z
@@ -44,12 +49,12 @@ export const listUnpaidCustomers = protectedProcedure
 				expiryTo: z.string().optional(),
 				sortBy: z
 					.enum([
-						"billingExpiresAt",
+						"oldestUnpaidExpiry",
 						"firstName",
 						"groupName",
 						"monthlyRate",
 					])
-					.default("billingExpiresAt"),
+					.default("oldestUnpaidExpiry"),
 				sortOrder: z.enum(["asc", "desc"]).default("asc"),
 			})
 			.merge(monthSpecSchema)
@@ -63,12 +68,11 @@ export const listUnpaidCustomers = protectedProcedure
 			"view",
 		);
 
-		const { year, month, billingMonthId } = await resolveYearMonth(
+		const { year, month } = await resolveYearMonth(
 			input.organizationId,
 			input.year,
 			input.month,
 		);
-		const monthRange = getMonthDateRange(year, month);
 		const currentMonthNum = yearMonthToNum(year, month);
 
 		const relevantMonths = await fetchRelevantBillingMonths(
@@ -77,244 +81,291 @@ export const listUnpaidCustomers = protectedProcedure
 			month,
 		);
 
-		const where: Record<string, unknown> = {
-			organizationId: input.organizationId,
-			status: { in: BILLABLE_CUSTOMER_STATUSES },
-			...EXCLUDE_FREE_GROUP,
-			// Customers whose billing expiry falls within or before this billing month
-			// (includes past-due customers from prior months)
-			billingExpiresAt: { lte: monthRange.lte },
-			// Drops dormant PENDING customers (iRadius stopped issuing invoices)
-			// so they don't surface as synthetic one-month debt.
-			...hasBilledInvoiceFilter(relevantMonths),
-			...getDealerScopeFilter(activeDealerId),
-		};
-
-		// Exclude customers who have any payment for this month
-		if (billingMonthId) {
-			where["payments"] = {
-				none: {
-					billingMonthId,
-				},
+		if (relevantMonths.length === 0) {
+			return {
+				customers: [],
+				total: 0,
+				totalAmountDue: 0,
+				expiredCount: 0,
+				page: input.page,
+				pageSize: input.pageSize,
+				totalPages: 0,
 			};
 		}
 
-		await applyCollectorScope(where, permCtx, input.collectorId);
+		// Build SQL-side customer filter (cheap; pushes down to Postgres).
+		const customerWhere: Record<string, unknown> = {
+			status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
+			...EXCLUDE_FREE_GROUP,
+			...getDealerScopeFilter(activeDealerId),
+		};
 		if (input.groupName) {
-			where["groupName"] = input.groupName;
+			customerWhere["groupName"] = input.groupName;
 		}
 		if (input.excludeGroupName) {
-			where["AND"] = [
-				...((where["AND"] as unknown[]) ?? []),
+			customerWhere["AND"] = [
+				...((customerWhere["AND"] as unknown[]) ?? []),
 				excludeGroupFilter(input.excludeGroupName),
 			];
 		}
 		if (input.search) {
-			where["AND"] = [
-				...((where["AND"] as unknown[]) ?? []),
-				customerSearchFilter(input.search),
+			customerWhere["AND"] = [
+				...((customerWhere["AND"] as unknown[]) ?? []),
+				{
+					OR: [
+						{
+							firstName: {
+								contains: input.search,
+								mode: "insensitive" as const,
+							},
+						},
+						{
+							lastName: {
+								contains: input.search,
+								mode: "insensitive" as const,
+							},
+						},
+						{
+							username: {
+								contains: input.search,
+								mode: "insensitive" as const,
+							},
+						},
+						{
+							mobile: {
+								contains: input.search,
+								mode: "insensitive" as const,
+							},
+						},
+						{
+							phone: {
+								contains: input.search,
+								mode: "insensitive" as const,
+							},
+						},
+					],
+				},
 			];
 		}
-		if (input.expiryFrom || input.expiryTo) {
-			const billingExpiresAt: Record<string, unknown> = {};
-			if (input.expiryFrom) {
-				billingExpiresAt["gte"] = new Date(input.expiryFrom);
-			}
-			if (input.expiryTo) {
-				const to = new Date(input.expiryTo);
-				to.setHours(23, 59, 59, 999);
-				billingExpiresAt["lte"] = to;
-			}
-			where["billingExpiresAt"] = billingExpiresAt;
-		}
+		await applyCollectorScope(customerWhere, permCtx, input.collectorId);
 
-		// We need to filter out customers whose enrichment yields zero unpaid
-		// months (dormant PENDING with only pre-expiry invoices — iRadius kept
-		// the subscription row but stopped billing them). That decision
-		// requires invoice-level per-customer data the SQL filter can't
-		// correlate in Prisma's `where`, so we fetch the full eligible set
-		// and paginate/aggregate in JS. Cap prevents runaway if the filter
-		// ever mis-scopes on a very large org.
-		const FETCH_CAP = 10_000;
-		const customers = await db.customer.findMany({
-			where,
+		// Fetch invoices for relevant months, scoped to customers matching the
+		// filter. Capped to keep the worst-case org bounded; 10k invoices across
+		// ~12k billable customers and ~3 months is comfortably within range.
+		const INVOICE_FETCH_CAP = 50_000;
+		const invoices = await db.customerInvoice.findMany({
+			where: {
+				organizationId: input.organizationId,
+				OR: relevantMonths.map((m) => ({
+					year: m.year,
+					month: m.month,
+				})),
+				customer: customerWhere,
+			},
 			select: {
-				id: true,
-				externalId: true,
-				accountNumber: true,
-				firstName: true,
-				lastName: true,
-				username: true,
-				mobile: true,
-				phone: true,
-				phones: true,
-				address: true,
-				groupName: true,
-				billingExpiresAt: true,
-				monthlyRate: true,
-				discount: true,
-				iptvPrice: true,
-				realIpPrice: true,
-				latitude: true,
-				longitude: true,
-				planId: true,
-				plan: {
+				customerId: true,
+				year: true,
+				month: true,
+				total: true,
+				totalWithTax: true,
+				expiryDate: true,
+				customer: {
 					select: {
 						id: true,
-						name: true,
-						monthlyPrice: true,
 						externalId: true,
+						accountNumber: true,
+						firstName: true,
+						lastName: true,
+						username: true,
+						mobile: true,
+						phone: true,
+						phones: true,
+						address: true,
+						groupName: true,
+						monthlyRate: true,
+						discount: true,
+						iptvPrice: true,
+						realIpPrice: true,
+						latitude: true,
+						longitude: true,
+						planId: true,
+						expiresAt: true,
+						plan: {
+							select: {
+								id: true,
+								name: true,
+								monthlyPrice: true,
+								externalId: true,
+							},
+						},
+						collector: { select: { id: true, name: true } },
+						dealer: { select: { id: true, name: true } },
+						station: { select: { id: true, name: true } },
 					},
 				},
-				collector: { select: { id: true, name: true } },
-				dealer: { select: { id: true, name: true } },
-				station: { select: { id: true, name: true } },
 			},
-			orderBy: { [input.sortBy]: input.sortOrder },
-			take: FETCH_CAP,
+			take: INVOICE_FETCH_CAP,
 		});
 
-		// ── Accumulated debt enrichment ──────────────────────────
-		const customerIds = customers.map((c) => c.id);
+		if (invoices.length === 0) {
+			return {
+				customers: [],
+				total: 0,
+				totalAmountDue: 0,
+				expiredCount: 0,
+				page: input.page,
+				pageSize: input.pageSize,
+				totalPages: 0,
+			};
+		}
 
-		type EnrichedCustomer = (typeof customers)[number] & {
+		// Build a (customerId, billingMonthId) paid set from Payment rows.
+		const billingMonthIdByYM = new Map<string, string>();
+		for (const bm of relevantMonths) {
+			billingMonthIdByYM.set(`${bm.year}-${bm.month}`, bm.id);
+		}
+		const customerIds = [...new Set(invoices.map((i) => i.customerId))];
+		const relevantMonthIds = relevantMonths.map((m) => m.id);
+		const payments = await db.payment.findMany({
+			where: {
+				organizationId: input.organizationId,
+				customerId: { in: customerIds },
+				billingMonthId: { in: relevantMonthIds },
+				...EXCLUDE_STOPPED,
+			},
+			select: { customerId: true, billingMonthId: true },
+		});
+		const paidSet = new Map<string, Set<string>>();
+		for (const p of payments) {
+			let set = paidSet.get(p.customerId);
+			if (!set) {
+				set = new Set();
+				paidSet.set(p.customerId, set);
+			}
+			set.add(p.billingMonthId);
+		}
+
+		// Aggregate unpaid invoices per customer.
+		type Customer = (typeof invoices)[number]["customer"];
+		interface UnpaidRow {
+			customer: Customer;
+			monthlyDue: number;
 			unpaidMonths: number;
 			accumulatedDue: number;
 			pastDueMonths: number;
 			pastDueAmount: number;
-		};
-
-		let enrichedCustomers: EnrichedCustomer[];
-
-		if (customerIds.length > 0) {
-			const [paidPayments, invoices] = await Promise.all([
-				db.payment.findMany({
-					where: {
-						customerId: { in: customerIds },
-						...EXCLUDE_STOPPED,
-					},
-					select: { customerId: true, billingMonthId: true },
-				}),
-				db.customerInvoice.findMany({
-					where: {
-						customerId: { in: customerIds },
-						// Loop below only consults months ≤ (year, month); skip
-						// any future invoices to keep the row count bounded.
-						OR: [
-							{ year: { lt: year } },
-							{ year, month: { lte: month } },
-						],
-					},
-					select: { customerId: true, year: true, month: true },
-				}),
-			]);
-
-			const paidMap = new Map<string, Set<string>>();
-			for (const p of paidPayments) {
-				let set = paidMap.get(p.customerId);
-				if (!set) {
-					set = new Set();
-					paidMap.set(p.customerId, set);
-				}
-				set.add(p.billingMonthId);
+			oldestUnpaidExpiry: Date | null;
+		}
+		const byCustomer = new Map<string, UnpaidRow>();
+		for (const inv of invoices) {
+			const billingMonthId = billingMonthIdByYM.get(
+				`${inv.year}-${inv.month}`,
+			);
+			if (!billingMonthId) {
+				continue;
 			}
-
-			// A customer is only "owed" for months they were actually billed.
-			// Months with no customer_invoice row = stopped periods; skip them
-			// so reactivated customers aren't counted as owing for months iRadius
-			// never billed.
-			const billedMap = new Map<string, Set<string>>();
-			for (const inv of invoices) {
-				let set = billedMap.get(inv.customerId);
-				if (!set) {
-					set = new Set();
-					billedMap.set(inv.customerId, set);
-				}
-				set.add(`${inv.year}-${inv.month}`);
+			if (paidSet.get(inv.customerId)?.has(billingMonthId)) {
+				continue;
 			}
-
-			enrichedCustomers = customers.map((customer) => {
-				const exp = customer.billingExpiresAt
-					? new Date(customer.billingExpiresAt)
-					: null;
-				const monthlyDue = customerMonthlyDue(customer);
-
-				if (!exp) {
-					return {
-						...customer,
-						monthlyDue,
-						unpaidMonths: 1,
-						accumulatedDue: monthlyDue,
-						pastDueMonths: 0,
-						pastDueAmount: 0,
-					};
-				}
-
-				// Use UTC accessors: `billing_cycle.year/month` and
-				// `customer_invoice.year/month` are TZ-naive integers that
-				// match the timestamp's UTC value. With a non-UTC server TZ
-				// (e.g. Asia/Beirut, UTC+3) `exp.getMonth()` shifts a date
-				// like 2026-03-31T23:55:00Z forward to April, causing the
-				// loop to skip March and miss the unpaid month.
-				const expiryMonthNum = yearMonthToNum(
-					exp.getUTCFullYear(),
-					exp.getUTCMonth() + 1,
-				);
-				const paidIds = paidMap.get(customer.id) ?? new Set();
-				const billed = billedMap.get(customer.id) ?? new Set();
-
-				let unpaidCount = 0;
-				let pastDueCount = 0;
-
-				for (const bm of relevantMonths) {
-					const bmNum = yearMonthToNum(bm.year, bm.month);
-					if (bmNum < expiryMonthNum) {
-						continue;
-					}
-					if (!billed.has(`${bm.year}-${bm.month}`)) {
-						continue;
-					}
-					if (!paidIds.has(bm.id)) {
-						unpaidCount++;
-						if (bmNum < currentMonthNum) {
-							pastDueCount++;
-						}
-					}
-				}
-
-				return {
-					...customer,
-					monthlyDue,
-					unpaidMonths: unpaidCount,
-					accumulatedDue: unpaidCount * monthlyDue,
-					pastDueMonths: pastDueCount,
-					pastDueAmount: pastDueCount * monthlyDue,
+			const amount = inv.totalWithTax > 0 ? inv.totalWithTax : inv.total;
+			let row = byCustomer.get(inv.customerId);
+			if (!row) {
+				row = {
+					customer: inv.customer,
+					monthlyDue: customerMonthlyDue(inv.customer),
+					unpaidMonths: 0,
+					accumulatedDue: 0,
+					pastDueMonths: 0,
+					pastDueAmount: 0,
+					oldestUnpaidExpiry: null,
 				};
-			});
-		} else {
-			enrichedCustomers = [];
+				byCustomer.set(inv.customerId, row);
+			}
+			row.unpaidMonths++;
+			row.accumulatedDue += amount;
+			const invMonthNum = yearMonthToNum(inv.year, inv.month);
+			if (invMonthNum < currentMonthNum) {
+				row.pastDueMonths++;
+				row.pastDueAmount += amount;
+			}
+			if (
+				inv.expiryDate &&
+				(!row.oldestUnpaidExpiry ||
+					inv.expiryDate < row.oldestUnpaidExpiry)
+			) {
+				row.oldestUnpaidExpiry = inv.expiryDate;
+			}
 		}
 
-		// Hide customers with nothing to collect (iRadius stopped billing
-		// them, or their only in-window invoices are before expiry). They'd
-		// otherwise show as "$0.00" rows and confuse the collector.
-		const withDebt = enrichedCustomers.filter((c) => c.unpaidMonths > 0);
+		let rows = Array.from(byCustomer.values());
 
-		const total = withDebt.length;
-		const totalAmountDue = withDebt.reduce(
-			(sum, c) => sum + c.accumulatedDue,
+		// Expiry-range filter now matches against the oldest unpaid invoice.
+		if (input.expiryFrom || input.expiryTo) {
+			const from = input.expiryFrom ? new Date(input.expiryFrom) : null;
+			const to = input.expiryTo ? new Date(input.expiryTo) : null;
+			if (to) {
+				to.setHours(23, 59, 59, 999);
+			}
+			rows = rows.filter((r) => {
+				if (!r.oldestUnpaidExpiry) {
+					return false;
+				}
+				if (from && r.oldestUnpaidExpiry < from) {
+					return false;
+				}
+				if (to && r.oldestUnpaidExpiry > to) {
+					return false;
+				}
+				return true;
+			});
+		}
+
+		// Sort.
+		const dir = input.sortOrder === "asc" ? 1 : -1;
+		rows.sort((a, b) => {
+			if (input.sortBy === "firstName") {
+				const av = a.customer.firstName ?? "";
+				const bv = b.customer.firstName ?? "";
+				return av.localeCompare(bv) * dir;
+			}
+			if (input.sortBy === "groupName") {
+				const av = a.customer.groupName ?? "";
+				const bv = b.customer.groupName ?? "";
+				return av.localeCompare(bv) * dir;
+			}
+			if (input.sortBy === "monthlyRate") {
+				return (a.monthlyDue - b.monthlyDue) * dir;
+			}
+			const at =
+				a.oldestUnpaidExpiry?.getTime() ?? Number.MAX_SAFE_INTEGER;
+			const bt =
+				b.oldestUnpaidExpiry?.getTime() ?? Number.MAX_SAFE_INTEGER;
+			return (at - bt) * dir;
+		});
+
+		const total = rows.length;
+		const totalAmountDue = rows.reduce(
+			(sum, r) => sum + r.accumulatedDue,
 			0,
 		);
 		const now = new Date();
-		const expiredCount = withDebt.filter(
-			(c) => c.billingExpiresAt && new Date(c.billingExpiresAt) < now,
+		const expiredCount = rows.filter(
+			(r) => r.oldestUnpaidExpiry && r.oldestUnpaidExpiry < now,
 		).length;
 
 		const skip = (input.page - 1) * input.pageSize;
-		const pageCustomers = withDebt.slice(skip, skip + input.pageSize);
+		const pageRows = rows.slice(skip, skip + input.pageSize).map((r) => ({
+			...r.customer,
+			monthlyDue: r.monthlyDue,
+			unpaidMonths: r.unpaidMonths,
+			accumulatedDue: r.accumulatedDue,
+			pastDueMonths: r.pastDueMonths,
+			pastDueAmount: r.pastDueAmount,
+			oldestUnpaidExpiry: r.oldestUnpaidExpiry,
+		}));
 
 		return {
-			customers: pageCustomers,
+			customers: pageRows,
 			total,
 			totalAmountDue,
 			expiredCount,

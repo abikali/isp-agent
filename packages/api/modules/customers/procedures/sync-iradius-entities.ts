@@ -519,7 +519,6 @@ export const importCustomerFromIRadius = protectedProcedure
 				accountNumber: nextAccountNumber(),
 				lastSyncedAt: new Date(),
 				...customerData,
-				billingExpiresAt: customerData.expiresAt,
 			},
 			select: { id: true },
 		});

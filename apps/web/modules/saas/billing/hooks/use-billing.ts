@@ -211,7 +211,7 @@ export function useUnpaidCustomers(filters: {
 	page?: number;
 	pageSize?: number;
 	refetchInterval?: number;
-	sortBy?: "billingExpiresAt" | "firstName" | "groupName" | "monthlyRate";
+	sortBy?: "oldestUnpaidExpiry" | "firstName" | "groupName" | "monthlyRate";
 	sortOrder?: "asc" | "desc";
 }) {
 	const organizationId = useOrganizationId();

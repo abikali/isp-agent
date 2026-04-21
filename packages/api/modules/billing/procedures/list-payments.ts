@@ -223,7 +223,7 @@ export const listPayments = protectedProcedure
 							phones: true,
 							address: true,
 							groupName: true,
-							billingExpiresAt: true,
+							expiresAt: true,
 							iptvPrice: true,
 							realIpPrice: true,
 							discount: true,

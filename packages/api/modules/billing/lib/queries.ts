@@ -10,11 +10,7 @@ import type { PermissionContext } from "@repo/api/lib/permission";
 import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
-import {
-	BILLABLE_CUSTOMER_STATUSES,
-	EXCLUDE_FREE_GROUP,
-	hasBilledInvoiceFilter,
-} from "./filters";
+import { BILLABLE_CUSTOMER_STATUSES, EXCLUDE_FREE_GROUP } from "./filters";
 import { yearMonthToNum } from "./resolve-month";
 
 // ── Collector Balance ────────────────────────────────────────────
@@ -133,50 +129,41 @@ export async function fetchRelevantBillingMonths(
 /**
  * Build a Prisma `where` clause for "customers due this billing month".
  *
- * A customer is "due" if:
- *   - They are ACTIVE and not in the free group, AND
- *   - Their billingExpiresAt falls within the month range, OR
- *   - They already have a COLLECTED payment for this month
- *     (meaning they were due and already paid — their expiry moved forward).
+ * A customer is "due" if we billed them for this month (an invoice row
+ * exists) — paid or not — OR they recorded a payment for this month
+ * (defensive catch for customers billed outside the normal flow).
  */
 export function customersDueThisMonthWhere(
 	organizationId: string,
 	billingMonthId: string,
-	monthRange: { gte: Date; lte: Date },
+	_monthRange: { gte: Date; lte: Date },
 	opts: {
 		/** One collector (string) or a batch (string[]) — both produce the right Prisma clause. */
 		collectorId?: string | string[];
 		dealerFilter?: Record<string, unknown>;
-		/**
-		 * Drops dormant PENDING customers whose iRadius billing has gone silent
-		 * — unpaid candidates must have an invoice for one of these months.
-		 */
+		/** Billing months to consider (typically just the active month). */
 		relevantMonths: readonly { year: number; month: number }[];
 	},
 ) {
-	const invoiceFilter = hasBilledInvoiceFilter(opts.relevantMonths);
-
 	const where: Record<string, unknown> = {
 		organizationId,
 		...EXCLUDE_FREE_GROUP,
-		AND: [
+		OR: [
 			{
-				OR: [
-					// Unpaid customers due this month (active/pending, billing expiry in range, no payment)
-					{
-						status: { in: BILLABLE_CUSTOMER_STATUSES },
-						billingExpiresAt: monthRange,
-						payments: { none: { billingMonthId } },
-						...invoiceFilter,
+				status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
+				invoices: {
+					some: {
+						OR: opts.relevantMonths.map((m) => ({
+							year: m.year,
+							month: m.month,
+						})),
 					},
-					// Customers who actually paid real money (any status — covers
-					// stopped-with-pay, free-with-pay, and normal payments)
-					{
-						payments: {
-							some: { billingMonthId, paidAmount: { gt: 0 } },
-						},
-					},
-				],
+				},
+			},
+			{
+				payments: {
+					some: { billingMonthId, paidAmount: { gt: 0 } },
+				},
 			},
 		],
 	};
@@ -196,39 +183,38 @@ export function customersDueThisMonthWhere(
 // ── Unpaid Customers ─────────────────────────────────────────────
 
 /**
- * Build a Prisma `where` clause for "unpaid customers this billing month".
- *
- * Uses `billingExpiresAt: { lte: monthRange.lte }` (NOT `monthRange`) so that
- * customers who were due in PREVIOUS months and are still unpaid (past-due)
- * are included. This is the canonical definition used everywhere.
+ * Build a Prisma `where` clause for "customers with any unpaid invoice across
+ * the relevant months." Each relevant month produces a sub-OR: customer has
+ * an invoice for that month AND no payment for that month's billing_cycle.
+ * A match in any month qualifies the customer as unpaid.
  */
 export function unpaidCustomersWhere(
 	organizationId: string,
-	billingMonthId: string,
-	monthRange: { gte: Date; lte: Date },
+	_billingMonthId: string,
+	_monthRange: { gte: Date; lte: Date },
 	opts: {
 		collectorId?: string;
 		dealerFilter?: Record<string, unknown>;
-		/**
-		 * Require at least one invoice for one of these months — drops
-		 * dormant PENDING customers whose iRadius billing has gone silent.
-		 */
-		relevantMonths: readonly { year: number; month: number }[];
+		/** Must include every month whose unpaid invoices should count. */
+		relevantMonths: readonly {
+			id: string;
+			year: number;
+			month: number;
+		}[];
 	},
 ) {
-	const invoiceFilter = hasBilledInvoiceFilter(opts.relevantMonths);
-
 	const where: Record<string, unknown> = {
 		organizationId,
-		status: { in: BILLABLE_CUSTOMER_STATUSES },
+		status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
 		...EXCLUDE_FREE_GROUP,
-		billingExpiresAt: { lte: monthRange.lte },
-		payments: {
-			none: {
-				billingMonthId,
+		OR: opts.relevantMonths.map((m) => ({
+			invoices: {
+				some: { year: m.year, month: m.month },
 			},
-		},
-		...invoiceFilter,
+			payments: {
+				none: { billingMonthId: m.id },
+			},
+		})),
 	};
 
 	if (opts.collectorId) {

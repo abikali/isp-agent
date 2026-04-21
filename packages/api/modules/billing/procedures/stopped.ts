@@ -93,7 +93,7 @@ export const listStoppedAccounts = protectedProcedure
 							mobile: true,
 							phone: true,
 							groupName: true,
-							billingExpiresAt: true,
+							expiresAt: true,
 							status: true,
 							plan: { select: { id: true, name: true } },
 							collector: { select: { id: true, name: true } },
@@ -180,12 +180,7 @@ export const reactivateAccount = protectedProcedure
 						where: { id: payment.customerId },
 						data: {
 							status: "ACTIVE",
-							...(newExpiry
-								? {
-										expiresAt: newExpiry,
-										billingExpiresAt: newExpiry,
-									}
-								: {}),
+							...(newExpiry ? { expiresAt: newExpiry } : {}),
 						},
 					});
 				}),

@@ -52,7 +52,7 @@ export const bulkExportCustomers = protectedProcedure
 		};
 		if (input.filters?.status === "EXPIRED") {
 			where["status"] = "ACTIVE";
-			where["billingExpiresAt"] = { lt: new Date() };
+			where["expiresAt"] = { lt: new Date() };
 		} else if (input.filters?.status === "ONLINE") {
 			where["status"] = "ACTIVE";
 			where["online"] = true;

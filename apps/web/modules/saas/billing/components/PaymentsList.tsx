@@ -203,7 +203,7 @@ interface PaymentRow {
 		mobile: string | null;
 		phone: string | null;
 		phones: unknown;
-		billingExpiresAt: string | Date | null;
+		expiresAt: string | Date | null;
 		iptvPrice: number;
 		realIpPrice: number;
 		discount: number;
@@ -779,12 +779,10 @@ export function PaymentsList() {
 			},
 			{
 				id: "expiry",
-				header: "Billing Expiry",
+				header: "Expiry",
 				enableSorting: false,
 				cell: ({ row }) => (
-					<DateTimeCell
-						value={row.original.customer.billingExpiresAt}
-					/>
+					<DateTimeCell value={row.original.customer.expiresAt} />
 				),
 			},
 			{
