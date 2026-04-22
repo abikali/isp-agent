@@ -107,8 +107,8 @@ export async function fetchCollectorBalanceBatch(
 
 /**
  * Billing months ≤ (upToYear, upToMonth) for the org. The full set of months
- * `list-unpaid`'s enrichment loop would visit — other billing views pass it
- * into `hasBilledInvoiceFilter` so their counts align with the list.
+ * unpaid-list aggregation visits — shared with collector/payment stats so
+ * their counts align with the unpaid list.
  */
 export async function fetchRelevantBillingMonths(
 	organizationId: string,
