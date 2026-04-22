@@ -554,6 +554,105 @@ export function useAccountingReports(
 	);
 }
 
+// ─── Invoices (org-wide CRUD) ───────────────────────────────────
+
+export function useInvoices(filters: {
+	year?: number;
+	month?: number;
+	search?: string;
+	status?: "all" | "paid" | "unpaid";
+	page?: number;
+	pageSize?: number;
+	sortBy?: "invoiceDate" | "total" | "totalWithTax" | "paid" | "expiryDate";
+	sortOrder?: "asc" | "desc";
+}) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId
+			? orpc.billing.invoices.list.queryOptions({
+					input: { organizationId, ...filters },
+				})
+			: disabledQuery(["billing", "invoices", "list"]),
+	);
+}
+
+export function useInvoice(invoiceId: string | null) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId && invoiceId
+			? orpc.billing.invoices.get.queryOptions({
+					input: { organizationId, invoiceId },
+				})
+			: disabledQuery(["billing", "invoices", "get"]),
+	);
+}
+
+export function useCreateInvoice() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.create.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+export function useUpdateInvoice() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.update.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+export function useDeleteInvoice() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.delete.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+export function useUpdatePayment() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.update.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+		},
+	});
+}
+
 // ─── Billing Sync ───────────────────────────────────────────────
 
 export function useTestBilling() {

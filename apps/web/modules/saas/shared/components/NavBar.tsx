@@ -24,6 +24,7 @@ import {
 	ClipboardListIcon,
 	DollarSignIcon,
 	EyeIcon,
+	FileTextIcon,
 	HardHatIcon,
 	HeartIcon,
 	LayoutDashboardIcon,
@@ -223,6 +224,14 @@ export function NavBar() {
 								},
 								...(canManageBilling
 									? [
+											{
+												label: "Invoices",
+												href: `${basePath}/billing/invoices`,
+												icon: FileTextIcon,
+												isActive: under(
+													`${basePath}/billing/invoices`,
+												),
+											},
 											{
 												label: "Paid Bills",
 												href: `${basePath}/billing/payments`,

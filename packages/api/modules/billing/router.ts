@@ -2,12 +2,16 @@ import { getCollectorBalance } from "./procedures/collector-balance";
 import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
 import { createCollection } from "./procedures/create-collection";
+import { createInvoice } from "./procedures/create-invoice";
 import { createLocationRequest } from "./procedures/create-location-request";
 import { createPayment } from "./procedures/create-payment";
 import { getCurrentMonth } from "./procedures/current-month";
 import { deleteCollection } from "./procedures/delete-collection";
+import { deleteInvoice } from "./procedures/delete-invoice";
 import { deletePayment } from "./procedures/delete-payment";
 import { getInvoice } from "./procedures/get-invoice";
+import { getInvoiceDetail } from "./procedures/get-invoice-detail";
+import { listAllInvoices } from "./procedures/list-all-invoices";
 import { listCollections } from "./procedures/list-collections";
 import { listCollectors } from "./procedures/list-collectors";
 import { listCustomerGroups } from "./procedures/list-groups";
@@ -35,6 +39,8 @@ import {
 	testBilling,
 } from "./procedures/sync-billing";
 import { toggleMonthLock } from "./procedures/toggle-month-lock";
+import { updateInvoice } from "./procedures/update-invoice";
+import { updatePayment } from "./procedures/update-payment";
 
 export const billingRouter = {
 	months: {
@@ -45,12 +51,20 @@ export const billingRouter = {
 	payments: {
 		list: listPayments,
 		create: createPayment,
+		update: updatePayment,
 		delete: deletePayment,
 		review: reviewPayment,
 		resendReceipt: resendReceipt,
 		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,
 		stats: getPaymentStats,
+	},
+	invoices: {
+		list: listAllInvoices,
+		get: getInvoiceDetail,
+		create: createInvoice,
+		update: updateInvoice,
+		delete: deleteInvoice,
 	},
 	unpaid: {
 		list: listUnpaidCustomers,
