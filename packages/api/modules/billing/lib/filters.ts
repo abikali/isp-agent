@@ -32,14 +32,12 @@ export const EXCLUDE_FREE_GROUP = excludeGroupFilter("free");
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 
 /**
- * Customer statuses that should be collectible. PENDING covers reactivated
- * customers whose iRadius `Active` flag hasn't flipped back to 1 yet — they
- * still owe and should appear in collector lists. Dormant PENDING customers
- * naturally don't appear in billing views because no invoice is generated
- * for them (the generator requires a positive monthly due and non-"free"
- * group).
+ * Customer statuses that should be collectible. Only ACTIVE customers are
+ * billed, appear in collector lists, and count toward billing stats.
+ * PENDING customers are excluded until their iRadius `Active` flag flips
+ * back to 1 and their status is promoted to ACTIVE.
  */
-export const BILLABLE_CUSTOMER_STATUSES = ["ACTIVE", "PENDING"] as const;
+export const BILLABLE_CUSTOMER_STATUSES = ["ACTIVE"] as const;
 
 /**
  * Build a Prisma date range filter from optional dateFrom/dateTo strings.
