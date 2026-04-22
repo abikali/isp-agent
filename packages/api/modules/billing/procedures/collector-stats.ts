@@ -147,12 +147,13 @@ export const getCollectorStats = protectedProcedure
 		]);
 
 		// Stopped+paid customers count as "paid" (collector has the cash).
-		// Pending-stopped sit in review limbo — not paid, not unpaid, not
-		// yet "stopped" (customer is still ACTIVE). Surface them separately.
+		// Pending-stopped sit in admin-review limbo — the collector cannot
+		// act on them, so they must NOT inflate "bills to collect" (that
+		// would make the stat bar diverge from the unpaid list, which also
+		// hides them). They're surfaced separately via pendingStoppedCustomers.
 		const stoppedCustomers =
 			pendingStoppedCustomers + approvedStoppedCustomers;
-		const totalCustomers =
-			paidCustomers + unpaidCustomers + pendingStoppedCustomers;
+		const totalCustomers = paidCustomers + unpaidCustomers;
 
 		return {
 			collectorId,
