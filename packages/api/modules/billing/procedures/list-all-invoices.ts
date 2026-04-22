@@ -23,7 +23,7 @@ export const listAllInvoices = protectedProcedure
 			year: z.number().int().optional(),
 			month: z.number().int().min(1).max(12).optional(),
 			search: z.string().optional(),
-			status: z.enum(["all", "paid", "unpaid"]).default("all"),
+			status: z.enum(["all", "paid", "unpaid", "voided"]).default("all"),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -99,8 +99,12 @@ export const listAllInvoices = protectedProcedure
 
 		if (input.status === "paid") {
 			where["payment"] = { is: {} };
+			where["voidedAt"] = null;
 		} else if (input.status === "unpaid") {
 			where["payment"] = { is: null };
+			where["voidedAt"] = null;
+		} else if (input.status === "voided") {
+			where["voidedAt"] = { not: null };
 		}
 
 		const [invoices, total] = await Promise.all([
@@ -117,6 +121,8 @@ export const listAllInvoices = protectedProcedure
 					tax: true,
 					totalWithTax: true,
 					paid: true,
+					voidedAt: true,
+					voidReason: true,
 					createdAt: true,
 					customer: {
 						select: {

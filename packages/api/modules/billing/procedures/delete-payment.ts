@@ -10,6 +10,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { unvoidInvoice } from "../lib/invoice-void";
 
 export const deletePayment = protectedProcedure
 	.route({
@@ -44,6 +45,8 @@ export const deletePayment = protectedProcedure
 				collectorId: true,
 				paidAmount: true,
 				stoppedAccount: true,
+				reviewedAt: true,
+				invoiceId: true,
 				customer: {
 					select: { externalId: true, username: true },
 				},
@@ -56,23 +59,31 @@ export const deletePayment = protectedProcedure
 			});
 		}
 
-		// If the payment had marked the customer as stopped (INACTIVE),
-		// reactivate in iRadius FIRST — if that fails, do not delete the
-		// payment locally either, otherwise we'd drift in two directions.
-		if (payment.stoppedAccount) {
+		// Approved stops flipped the customer to INACTIVE and voided the invoice;
+		// reactivate iRadius FIRST so a remote failure aborts the local cleanup
+		// (otherwise we'd drift in two directions). Pending-stops and plain
+		// payments delete outright with no side effects.
+		const isApprovedStop =
+			payment.stoppedAccount && payment.reviewedAt !== null;
+
+		if (isApprovedStop) {
 			await mirrorToIRadius({
 				logTag: "iRadius reactivate on payment delete",
 				failureMessage: "Failed to reactivate customer in iRadius",
 				remote: () => iradiusSetActive(payment.customer, true),
-				local: async () => {
-					await db.payment.delete({
-						where: { id: input.paymentId },
-					});
-					await db.customer.update({
-						where: { id: payment.customerId },
-						data: { status: "ACTIVE" },
-					});
-				},
+				local: () =>
+					db.$transaction(async (tx) => {
+						await tx.payment.delete({
+							where: { id: input.paymentId },
+						});
+						await tx.customer.update({
+							where: { id: payment.customerId },
+							data: { status: "ACTIVE" },
+						});
+						if (payment.invoiceId) {
+							await unvoidInvoice(tx, payment.invoiceId);
+						}
+					}),
 			});
 		} else {
 			await db.payment.delete({

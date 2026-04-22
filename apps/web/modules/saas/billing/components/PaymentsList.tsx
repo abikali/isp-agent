@@ -77,6 +77,7 @@ import {
 	RotateCcwIcon,
 	SendIcon,
 	TrashIcon,
+	XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -84,6 +85,7 @@ import { useSetDiscount } from "../../customers/hooks/use-customers";
 import {
 	useCollectors,
 	useCustomerGroups,
+	useDeclineStoppedPayment,
 	useDeletePayment,
 	useMarkReceiptSent,
 	useMonthFilter,
@@ -663,6 +665,7 @@ export function PaymentsList() {
 	const orgSlug = activeOrganization?.slug ?? "";
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
+	const declineStoppedPayment = useDeclineStoppedPayment();
 	const markReceiptSent = useMarkReceiptSent();
 	const setDiscount = useSetDiscount();
 	const [discountDialog, setDiscountDialog] = useState<{
@@ -938,6 +941,13 @@ export function PaymentsList() {
 						payment.customer,
 					);
 
+					const isPendingStopped =
+						payment.stoppedAccount && payment.reviewedAt === null;
+					const isDeclining =
+						declineStoppedPayment.isPending &&
+						declineStoppedPayment.variables?.paymentId ===
+							payment.id;
+
 					return (
 						<div className="flex items-center gap-1">
 							{/* Review button — always visible when needed */}
@@ -948,7 +958,9 @@ export function PaymentsList() {
 											size="sm"
 											variant="ghost"
 											className="text-emerald-600"
-											disabled={isReviewing}
+											disabled={
+												isReviewing || isDeclining
+											}
 											onClick={() =>
 												reviewPayment.mutate(
 													{
@@ -981,6 +993,84 @@ export function PaymentsList() {
 											: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
+							)}
+
+							{/* Decline — only for pending-stopped payments */}
+							{organizationId && isPendingStopped && (
+								<AlertDialog>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<AlertDialogTrigger asChild>
+												<Button
+													size="sm"
+													variant="ghost"
+													className="text-destructive"
+													disabled={
+														isReviewing ||
+														isDeclining
+													}
+												>
+													{isDeclining ? (
+														<Loader2Icon className="size-3.5 animate-spin" />
+													) : (
+														<XIcon className="size-3.5" />
+													)}
+												</Button>
+											</AlertDialogTrigger>
+										</TooltipTrigger>
+										<TooltipContent>
+											Decline stop request
+										</TooltipContent>
+									</Tooltip>
+									<AlertDialogContent>
+										<AlertDialogHeader>
+											<AlertDialogTitle>
+												Decline stop request?
+											</AlertDialogTitle>
+											<AlertDialogDescription>
+												The stop request for{" "}
+												{displayName(
+													payment.customer.firstName,
+													payment.customer.lastName,
+												)}{" "}
+												will be deleted and the customer
+												will reappear on the collector's
+												unpaid list. The customer is not
+												yet deactivated, so nothing
+												changes in iRadius.
+											</AlertDialogDescription>
+										</AlertDialogHeader>
+										<AlertDialogFooter>
+											<AlertDialogCancel>
+												Cancel
+											</AlertDialogCancel>
+											<AlertDialogAction
+												disabled={isDeclining}
+												onClick={() =>
+													declineStoppedPayment.mutate(
+														{
+															organizationId,
+															paymentId:
+																payment.id,
+														},
+														{
+															onSuccess: () =>
+																toast.success(
+																	"Stop request declined",
+																),
+															onError: (error) =>
+																toast.error(
+																	error.message,
+																),
+														},
+													)
+												}
+											>
+												Decline
+											</AlertDialogAction>
+										</AlertDialogFooter>
+									</AlertDialogContent>
+								</AlertDialog>
 							)}
 
 							{/* Three-dots menu */}
@@ -1233,6 +1323,7 @@ export function PaymentsList() {
 			organizationId,
 			deletePayment,
 			reviewPayment,
+			declineStoppedPayment,
 			orgSlug,
 			markReceiptSent,
 		],

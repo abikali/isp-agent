@@ -10,7 +10,12 @@ import type { PermissionContext } from "@repo/api/lib/permission";
 import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
-import { BILLABLE_CUSTOMER_STATUSES, EXCLUDE_FREE_GROUP } from "./filters";
+import {
+	BILLABLE_CUSTOMER_STATUSES,
+	EXCLUDE_FREE_GROUP,
+	NOT_VOIDED,
+	PENDING_STOPPED_PAYMENT,
+} from "./filters";
 import { yearMonthToNum } from "./resolve-month";
 
 // ── Collector Balance ────────────────────────────────────────────
@@ -148,11 +153,19 @@ export function customersDueThisMonthWhere(
 	const where: Record<string, unknown> = {
 		organizationId,
 		...EXCLUDE_FREE_GROUP,
+		// Pending-stop customers are in admin-review limbo — not "due" to
+		// anyone until admin resolves the review.
+		NOT: {
+			payments: {
+				some: { billingMonthId, ...PENDING_STOPPED_PAYMENT },
+			},
+		},
 		OR: [
 			{
 				status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
 				invoices: {
 					some: {
+						...NOT_VOIDED,
 						OR: opts.relevantMonths.map((m) => ({
 							year: m.year,
 							month: m.month,
@@ -203,13 +216,24 @@ export function unpaidCustomersWhere(
 		}[];
 	},
 ) {
+	const relevantMonthIds = opts.relevantMonths.map((m) => m.id);
 	const where: Record<string, unknown> = {
 		organizationId,
 		status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
 		...EXCLUDE_FREE_GROUP,
+		// Hide customers with a pending-stop payment in any relevant month —
+		// they're in admin review, not truly "unpaid".
+		NOT: {
+			payments: {
+				some: {
+					billingMonthId: { in: relevantMonthIds },
+					...PENDING_STOPPED_PAYMENT,
+				},
+			},
+		},
 		OR: opts.relevantMonths.map((m) => ({
 			invoices: {
-				some: { year: m.year, month: m.month },
+				some: { year: m.year, month: m.month, ...NOT_VOIDED },
 			},
 			payments: {
 				none: { billingMonthId: m.id },
@@ -230,6 +254,21 @@ export function unpaidCustomersWhere(
 // ── Paid Customers Count ─────────────────────────────────────────
 
 /**
+ * Count distinct customers matched by a Payment `where` clause.
+ * Uses `groupBy` to push distinct-on into Postgres rather than fetching
+ * full rows and deduping in JS.
+ */
+export async function countDistinctCustomersWithPayments(
+	where: Record<string, unknown>,
+): Promise<number> {
+	const groups = await db.payment.groupBy({
+		by: ["customerId"],
+		where,
+	});
+	return groups.length;
+}
+
+/**
  * Count distinct customers with a COLLECTED payment in a billing month.
  */
 export async function countPaidCustomers(
@@ -237,17 +276,12 @@ export async function countPaidCustomers(
 	billingMonthId: string,
 	extraWhere?: Record<string, unknown>,
 ): Promise<number> {
-	const ids = await db.payment.findMany({
-		where: {
-			organizationId,
-			billingMonthId,
-			status: "COLLECTED",
-			...extraWhere,
-		},
-		select: { customerId: true },
-		distinct: ["customerId"],
+	return countDistinctCustomersWithPayments({
+		organizationId,
+		billingMonthId,
+		status: "COLLECTED",
+		...extraWhere,
 	});
-	return ids.length;
 }
 
 // ── Collector Name Resolution ────────────────────────────────────

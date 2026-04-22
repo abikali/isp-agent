@@ -9,6 +9,8 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { VOID_REASON, voidInvoice } from "../lib/invoice-void";
+import { closeReviewTasksForCustomer } from "../lib/review-tasks";
 
 export const reviewPayment = protectedProcedure
 	.route({
@@ -42,6 +44,7 @@ export const reviewPayment = protectedProcedure
 				reviewedAt: true,
 				stoppedAccount: true,
 				customerId: true,
+				invoiceId: true,
 				customer: {
 					select: { externalId: true, username: true },
 				},
@@ -67,6 +70,17 @@ export const reviewPayment = protectedProcedure
 						where: { id: payment.customerId },
 						data: { status: "INACTIVE" },
 					});
+					// Void the invoice this stop replaces — the customer is
+					// no longer on the hook for this month. Keeps a full audit
+					// trail (row stays; voidedAt + voidedById flag the write).
+					if (payment.invoiceId) {
+						await voidInvoice(
+							tx,
+							payment.invoiceId,
+							user.id,
+							VOID_REASON.STOPPED,
+						);
+					}
 				}
 			});
 
@@ -77,6 +91,10 @@ export const reviewPayment = protectedProcedure
 				remote: () => iradiusSetActive(payment.customer, false),
 				local: runLocal,
 			});
+			await closeReviewTasksForCustomer(
+				input.organizationId,
+				payment.customerId,
+			);
 		} else {
 			await runLocal();
 		}

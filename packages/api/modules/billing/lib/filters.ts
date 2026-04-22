@@ -32,6 +32,31 @@ export const EXCLUDE_FREE_GROUP = excludeGroupFilter("free");
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 
 /**
+ * A "pending stopped" payment: collector flagged the customer as stopped,
+ * admin has not yet approved or declined. While in this state, the customer
+ * should be hidden from collector lists and shown in the admin review queue.
+ */
+export const PENDING_STOPPED_PAYMENT = {
+	stoppedAccount: true,
+	reviewedAt: null,
+} as const;
+
+/**
+ * A stopped payment that admin has approved — the customer is now INACTIVE.
+ */
+export const APPROVED_STOPPED_PAYMENT = {
+	stoppedAccount: true,
+	reviewedAt: { not: null },
+} as const;
+
+/**
+ * Invoice filter: exclude voided invoices. A voided invoice exists in
+ * history (for audit) but does not count toward "customer owes" or
+ * "customer due" in any billing view.
+ */
+export const NOT_VOIDED = { voidedAt: null } as const;
+
+/**
  * Customer statuses that should be collectible. Only ACTIVE customers are
  * billed, appear in collector lists, and count toward billing stats.
  * PENDING customers are excluded until their iRadius `Active` flag flips

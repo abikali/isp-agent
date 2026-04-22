@@ -7,9 +7,10 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
-import { EXCLUDE_STOPPED } from "../lib/filters";
+import { EXCLUDE_STOPPED, PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	applyCollectorScope,
+	countDistinctCustomersWithPayments,
 	countPaidCustomers,
 	fetchRelevantBillingMonths,
 	resolveCollectorNames,
@@ -125,6 +126,7 @@ export const getPaymentStats = protectedProcedure
 		const [
 			collectedPayments,
 			stoppedPayments,
+			pendingStoppedPayments,
 			totalCollected,
 			byCollector,
 			paidCustomers,
@@ -136,6 +138,9 @@ export const getPaymentStats = protectedProcedure
 			}),
 			db.payment.count({
 				where: { ...baseWhere, stoppedAccount: true },
+			}),
+			db.payment.count({
+				where: { ...baseWhere, ...PENDING_STOPPED_PAYMENT },
 			}),
 			db.payment.aggregate({
 				where: collectedWhere,
@@ -180,22 +185,26 @@ export const getPaymentStats = protectedProcedure
 		]);
 
 		// Stopped customers: distinct customers with a stoppedAccount payment this month
-		const stoppedCustomers = monthId
-			? await db.payment
-					.findMany({
-						where: {
-							organizationId: input.organizationId,
-							billingMonthId: monthId,
-							stoppedAccount: true,
-							...dealerViaCustomer,
-						},
-						select: { customerId: true },
-						distinct: ["customerId"],
-					})
-					.then((ids) => ids.length)
-			: 0;
+		const [stoppedCustomers, pendingStoppedCustomers] = monthId
+			? await Promise.all([
+					countDistinctCustomersWithPayments({
+						organizationId: input.organizationId,
+						billingMonthId: monthId,
+						stoppedAccount: true,
+						...dealerViaCustomer,
+					}),
+					countDistinctCustomersWithPayments({
+						organizationId: input.organizationId,
+						billingMonthId: monthId,
+						...PENDING_STOPPED_PAYMENT,
+						...dealerViaCustomer,
+					}),
+				])
+			: [0, 0];
 
-		// Total = paid + stopped + still unpaid
+		// Total = paid + stopped + still unpaid. `unpaidCustomers` already
+		// excludes pending-stopped (they're in admin-review limbo), but we
+		// add pending-stopped explicitly so the total includes them.
 		const totalCustomers =
 			paidCustomers + stoppedCustomers + unpaidCustomers;
 
@@ -213,11 +222,14 @@ export const getPaymentStats = protectedProcedure
 		return {
 			collectedPayments,
 			stoppedPayments,
+			pendingStoppedPayments,
 			unreviewedCount,
 			totalCollected: sumOrZero(totalCollected),
 			collectorBreakdown,
 			paidCustomers,
 			unpaidCustomers,
+			stoppedCustomers,
+			pendingStoppedCustomers,
 			totalCustomers,
 			paidPercentage:
 				totalCustomers > 0

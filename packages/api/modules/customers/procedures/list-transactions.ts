@@ -78,6 +78,7 @@ export const listCustomerTransactions = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
+					voidedAt: null,
 				},
 				select: {
 					id: true,

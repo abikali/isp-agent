@@ -327,6 +327,22 @@ export function useReactivateAccount() {
 	});
 }
 
+export function useDeclineStoppedPayment() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.stopped.decline.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 // ─── Collectors ─────────────────────────────────────────────────
 
 export function useCollectors() {

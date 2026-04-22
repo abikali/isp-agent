@@ -16,6 +16,7 @@ import {
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
+import { REVIEW_STOPPED_TASK_TITLE_PREFIX } from "../lib/review-tasks";
 
 export const createPayment = protectedProcedure
 	.route({
@@ -195,14 +196,13 @@ export const createPayment = protectedProcedure
 			// billable customer when the month opens; may be null for edge
 			// cases (customer added or activated mid-month outside the
 			// generator's eligibility, free-group customers collecting addons).
-			const invoice = await tx.customerInvoice.findUnique({
+			const invoice = await tx.customerInvoice.findFirst({
 				where: {
-					organizationId_customerId_year_month: {
-						organizationId: input.organizationId,
-						customerId: input.customerId,
-						year: billingMonth.year,
-						month: billingMonth.month,
-					},
+					organizationId: input.organizationId,
+					customerId: input.customerId,
+					year: billingMonth.year,
+					month: billingMonth.month,
+					voidedAt: null,
 				},
 				select: { id: true },
 			});
@@ -345,7 +345,7 @@ export const createPayment = protectedProcedure
 				.create({
 					data: {
 						organizationId: input.organizationId,
-						title: `Review stopped payment: ${customerName}`,
+						title: `${REVIEW_STOPPED_TASK_TITLE_PREFIX} ${customerName}`,
 						description: taskDescription,
 						priority: "HIGH",
 						status: "OPEN",

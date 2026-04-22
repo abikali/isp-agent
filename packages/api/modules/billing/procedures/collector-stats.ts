@@ -10,6 +10,11 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import {
+	APPROVED_STOPPED_PAYMENT,
+	PENDING_STOPPED_PAYMENT,
+} from "../lib/filters";
+import {
+	countDistinctCustomersWithPayments,
 	countPaidCustomers,
 	fetchCollectorBalance,
 	fetchRelevantBillingMonths,
@@ -79,11 +84,14 @@ export const getCollectorStats = protectedProcedure
 		const [
 			unpaidCustomers,
 			paidCustomers,
-			stoppedCustomers,
+			pendingStoppedCustomers,
+			approvedStoppedCustomers,
 			balanceData,
 			dailyPayments,
 		] = await Promise.all([
-			// Unpaid customers: expiry up to this month (includes past-due), no payment at all
+			// Unpaid customers: expiry up to this month (includes past-due),
+			// no payment at all. `unpaidCustomersWhere` already excludes
+			// pending-stopped customers (they're in admin-review limbo).
 			fetchRelevantBillingMonths(
 				input.organizationId,
 				activeMonth.year,
@@ -105,20 +113,22 @@ export const getCollectorStats = protectedProcedure
 				paidAmount: { gt: 0 },
 				...dealerViaCustomer,
 			}),
-			// Stopped customers this month: distinct customerIds with stoppedAccount payment
-			db.payment
-				.findMany({
-					where: {
-						organizationId: input.organizationId,
-						billingMonthId: activeMonth.id,
-						collectorId,
-						stoppedAccount: true,
-						...dealerViaCustomer,
-					},
-					select: { customerId: true },
-					distinct: ["customerId"],
-				})
-				.then((ids) => ids.length),
+			// Pending-stopped this month: collector's stops awaiting admin review.
+			countDistinctCustomersWithPayments({
+				organizationId: input.organizationId,
+				billingMonthId: activeMonth.id,
+				collectorId,
+				...PENDING_STOPPED_PAYMENT,
+				...dealerViaCustomer,
+			}),
+			// Approved-stopped this month: already confirmed by admin (customer now INACTIVE).
+			countDistinctCustomersWithPayments({
+				organizationId: input.organizationId,
+				billingMonthId: activeMonth.id,
+				collectorId,
+				...APPROVED_STOPPED_PAYMENT,
+				...dealerViaCustomer,
+			}),
 			// Balance: physical cash collected − handed off (not dealer-scoped)
 			fetchCollectorBalance(input.organizationId, collectorId),
 			// Daily collected (today only) — only real cash, not stopped-no-pay
@@ -137,14 +147,20 @@ export const getCollectorStats = protectedProcedure
 		]);
 
 		// Stopped+paid customers count as "paid" (collector has the cash).
-		// unpaidCustomersWhere already excludes anyone with a payment (including stopped).
-		const totalCustomers = paidCustomers + unpaidCustomers;
+		// Pending-stopped sit in review limbo — not paid, not unpaid, not
+		// yet "stopped" (customer is still ACTIVE). Surface them separately.
+		const stoppedCustomers =
+			pendingStoppedCustomers + approvedStoppedCustomers;
+		const totalCustomers =
+			paidCustomers + unpaidCustomers + pendingStoppedCustomers;
 
 		return {
 			collectorId,
 			totalCustomers,
 			paidCustomers,
 			stoppedCustomers,
+			pendingStoppedCustomers,
+			approvedStoppedCustomers,
 			totalCollected: balanceData.totalCollected,
 			totalHandedOff: balanceData.totalHandedOff,
 			netBalance: balanceData.balance,

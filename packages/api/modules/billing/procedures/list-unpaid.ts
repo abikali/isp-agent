@@ -11,6 +11,8 @@ import {
 	EXCLUDE_FREE_GROUP,
 	EXCLUDE_STOPPED,
 	excludeGroupFilter,
+	NOT_VOIDED,
+	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
 import {
 	applyCollectorScope,
@@ -93,11 +95,24 @@ export const listUnpaidCustomers = protectedProcedure
 			};
 		}
 
+		const relevantMonthIds = relevantMonths.map((m) => m.id);
+
 		// Build SQL-side customer filter (cheap; pushes down to Postgres).
+		// Excludes customers with a pending-stop payment in any relevant month —
+		// those are in admin-review limbo and must be hidden from collectors
+		// until admin approves or declines.
 		const customerWhere: Record<string, unknown> = {
 			status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
 			...EXCLUDE_FREE_GROUP,
 			...getDealerScopeFilter(activeDealerId),
+			NOT: {
+				payments: {
+					some: {
+						billingMonthId: { in: relevantMonthIds },
+						...PENDING_STOPPED_PAYMENT,
+					},
+				},
+			},
 		};
 		if (input.groupName) {
 			customerWhere["groupName"] = input.groupName;
@@ -156,6 +171,7 @@ export const listUnpaidCustomers = protectedProcedure
 		const invoices = await db.customerInvoice.findMany({
 			where: {
 				organizationId: input.organizationId,
+				...NOT_VOIDED,
 				OR: relevantMonths.map((m) => ({
 					year: m.year,
 					month: m.month,
@@ -225,7 +241,6 @@ export const listUnpaidCustomers = protectedProcedure
 			billingMonthIdByYM.set(`${bm.year}-${bm.month}`, bm.id);
 		}
 		const customerIds = [...new Set(invoices.map((i) => i.customerId))];
-		const relevantMonthIds = relevantMonths.map((m) => m.id);
 		const payments = await db.payment.findMany({
 			where: {
 				organizationId: input.organizationId,

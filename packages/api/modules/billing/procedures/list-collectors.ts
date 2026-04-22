@@ -7,6 +7,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
+import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalanceBatch,
@@ -93,6 +94,7 @@ export const listCollectors = protectedProcedure
 			monthPayments,
 			monthDueByCollector,
 			stoppedByCollector,
+			pendingStoppedByCollector,
 		] = await Promise.all([
 			// Balance: physical cash only (workerId: null), not dealer-scoped
 			fetchCollectorBalanceBatch(input.organizationId, collectorIds),
@@ -130,7 +132,8 @@ export const listCollectors = protectedProcedure
 					_count: true,
 				}),
 			),
-			// Stopped accounts this month per collector (for admin badge)
+			// Stopped accounts this month per collector (for admin badge).
+			// Includes both approved and pending-review stops.
 			db.payment.groupBy({
 				by: ["collectorId"],
 				where: {
@@ -138,6 +141,18 @@ export const listCollectors = protectedProcedure
 					collectorId: { in: collectorIds },
 					billingMonthId: activeMonth.id,
 					stoppedAccount: true,
+					...dealerViaCustomer,
+				},
+				_count: true,
+			}),
+			// Pending-review stops per collector (admin action required).
+			db.payment.groupBy({
+				by: ["collectorId"],
+				where: {
+					organizationId: input.organizationId,
+					collectorId: { in: collectorIds },
+					billingMonthId: activeMonth.id,
+					...PENDING_STOPPED_PAYMENT,
 					...dealerViaCustomer,
 				},
 				_count: true,
@@ -152,6 +167,9 @@ export const listCollectors = protectedProcedure
 		);
 		const stoppedMap = new Map(
 			stoppedByCollector.map((c) => [c.collectorId, c._count]),
+		);
+		const pendingStoppedMap = new Map(
+			pendingStoppedByCollector.map((c) => [c.collectorId, c._count]),
 		);
 
 		return {
@@ -169,6 +187,7 @@ export const listCollectors = protectedProcedure
 					monthCollected: monthPaymentsMap.get(c.id) ?? 0,
 					monthTotal: monthDueMap.get(c.id) ?? 0,
 					stoppedCount: stoppedMap.get(c.id) ?? 0,
+					pendingStoppedCount: pendingStoppedMap.get(c.id) ?? 0,
 				};
 			}),
 		};

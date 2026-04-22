@@ -31,7 +31,12 @@ import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
 import { resendReceipt } from "./procedures/resend-receipt";
 import { reviewPayment } from "./procedures/review-payment";
-import { listStoppedAccounts, reactivateAccount } from "./procedures/stopped";
+import {
+	declineStoppedPayment,
+	listPendingStoppedPayments,
+	listStoppedAccounts,
+	reactivateAccount,
+} from "./procedures/stopped";
 import {
 	getBillingSyncStatus,
 	previewBillingSync,
@@ -74,6 +79,8 @@ export const billingRouter = {
 	},
 	stopped: {
 		list: listStoppedAccounts,
+		pending: listPendingStoppedPayments,
+		decline: declineStoppedPayment,
 	},
 	collectors: {
 		list: listCollectors,

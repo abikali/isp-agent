@@ -1170,6 +1170,9 @@ model CustomerInvoice {
   tax            Float     @default(0)
   totalWithTax   Float     @default(0)
   paid           Boolean   @default(false)
+  voidedAt       DateTime?
+  voidedById     String?
+  voidReason     String?
   createdAt      DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1179,6 +1182,7 @@ model CustomerInvoice {
   @@unique([organizationId, customerId, year, month])
   @@index([customerId])
   @@index([organizationId])
+  @@index([voidedAt])
   @@map("customer_invoice")
 }
 
