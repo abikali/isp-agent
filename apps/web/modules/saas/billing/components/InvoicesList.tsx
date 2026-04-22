@@ -106,8 +106,10 @@ export function InvoicesList() {
 		SORT_BY_MAP,
 		() => setPage(1),
 	);
-	const { monthFilter, setMonthFilter, options } = useMonthFilter();
-	const selected = options.find((o) => o.value === monthFilter);
+	const { monthFilter, setMonthFilter, options, isAll } = useMonthFilter();
+	const selected = isAll
+		? undefined
+		: options.find((o) => o.value === monthFilter);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
 	const [deleteInvoice, setDeleteInvoice] = useState<InvoiceRow | null>(null);
@@ -296,6 +298,7 @@ export function InvoicesList() {
 						options={options}
 						value={monthFilter}
 						onValueChange={setMonthFilter}
+						allLabel="All months"
 					/>
 					<Select
 						value={status}
