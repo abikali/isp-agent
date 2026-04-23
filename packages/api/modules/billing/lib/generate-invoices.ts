@@ -52,6 +52,15 @@ export async function generateInvoicesForMonth(
 						{ activatedAt: { lte: range.lte } },
 					],
 				},
+				// Only bill customers whose service lapses in (or before) this
+				// cycle. Anyone already paid through a later month does not owe
+				// for this one.
+				{
+					OR: [
+						{ expiresAt: null },
+						{ expiresAt: { lte: range.lte } },
+					],
+				},
 			],
 		},
 		select: {
