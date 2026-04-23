@@ -98,6 +98,10 @@ async function openMysqlOverSsh(
 						database: config.db.database,
 						stream: stream as unknown as net.Socket,
 						charset: "utf8mb4",
+						// iRadius stores naive Beirut-local datetimes. Opt out of
+						// the driver's UTC interpretation; safeDate() parses the
+						// raw string under the worker's TZ=Asia/Beirut.
+						dateStrings: true,
 					});
 					resolve(connection);
 				} catch (dbErr) {

@@ -72,6 +72,10 @@ async function createTunnel(config: BillingConfig): Promise<{
 							database: config.db.database,
 							stream: stream as unknown as net.Socket,
 							charset: "utf8mb4",
+							// Legacy PHP billing stores naive Beirut-local datetimes.
+							// Receive them as raw strings and parse under the worker's
+							// TZ=Asia/Beirut instead of mysql2's default UTC coercion.
+							dateStrings: true,
 						});
 
 						resolve({

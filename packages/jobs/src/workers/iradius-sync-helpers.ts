@@ -74,7 +74,12 @@ export function safeDate(val: unknown): Date | null {
 	if (val instanceof Date) {
 		return Number.isNaN(val.getTime()) ? null : val;
 	}
-	const d = new Date(val as string);
+	// iRadius datetimes arrive as naive strings (mysql2 `dateStrings: true`).
+	// Swap the MySQL "YYYY-MM-DD HH:MM:SS" space for the ISO "T" separator so
+	// the Date constructor interprets it in the process-local TZ (Asia/Beirut)
+	// instead of UTC, which is what mysql2's default UTC coercion silently did.
+	const normalized = (val as string).replace(" ", "T");
+	const d = new Date(normalized);
 	return Number.isNaN(d.getTime()) ? null : d;
 }
 
