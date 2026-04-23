@@ -7,6 +7,7 @@ import {
 	useTestBilling,
 } from "@saas/billing/client";
 import { SettingsItem } from "@saas/shared/components/SettingsItem";
+import { formatDateTime } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -342,9 +343,7 @@ export function BillingSyncSettings() {
 								<CheckCircle2Icon className="size-4 text-green-600" />
 								Last synced:{" "}
 								{operation.completedAt
-									? new Date(
-											operation.completedAt,
-										).toLocaleString("en-GB")
+									? formatDateTime(operation.completedAt)
 									: "Unknown"}
 							</div>
 						)}
@@ -950,10 +949,7 @@ function SyncResult({ operation }: { operation: BillingOperation }) {
 				</AlertTitle>
 				{operation.completedAt && (
 					<AlertDescription>
-						Completed at{" "}
-						{new Date(operation.completedAt).toLocaleString(
-							"en-GB",
-						)}
+						Completed at {formatDateTime(operation.completedAt)}
 					</AlertDescription>
 				)}
 			</Alert>

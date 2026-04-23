@@ -2,6 +2,7 @@
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { useRouter } from "@shared/hooks/router";
+import { formatDateTime } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import {
@@ -38,13 +39,6 @@ import {
 	toApiNotificationConfig,
 } from "./NotificationSettings";
 import { WatcherStatusBadge } from "./WatcherStatusBadge";
-
-function formatTime(date: string | Date | null): string {
-	if (!date) {
-		return "Never";
-	}
-	return new Date(date).toLocaleString("en-GB");
-}
 
 export function WatcherDetail({
 	watcherId,
@@ -222,13 +216,21 @@ export function WatcherDetail({
 							<span className="text-muted-foreground">
 								Last Checked
 							</span>
-							<span>{formatTime(watcher.lastCheckedAt)}</span>
+							<span>
+								{watcher.lastCheckedAt
+									? formatDateTime(watcher.lastCheckedAt)
+									: "Never"}
+							</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-muted-foreground">
 								Last Status Change
 							</span>
-							<span>{formatTime(watcher.lastStatusChange)}</span>
+							<span>
+								{watcher.lastStatusChange
+									? formatDateTime(watcher.lastStatusChange)
+									: "Never"}
+							</span>
 						</div>
 					</CardContent>
 				</Card>

@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import { Logo } from "@shared/components/Logo";
+import { getBeirutDate } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 import { HeartIcon } from "lucide-react";
 
@@ -10,8 +11,8 @@ export function Footer() {
 				<div>
 					<Logo className="opacity-70 grayscale" />
 					<p className="mt-4 text-sm text-muted-foreground">
-						© {new Date().getFullYear()} {config.appName}. All
-						rights reserved.
+						© {getBeirutDate().year} {config.appName}. All rights
+						reserved.
 					</p>
 				</div>
 

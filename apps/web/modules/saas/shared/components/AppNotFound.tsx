@@ -1,6 +1,7 @@
 "use client";
 
 import { config } from "@repo/config";
+import { getBeirutDate } from "@shared/lib/format";
 import { Link, useRouter } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { ArrowLeftIcon, HomeIcon, SearchIcon } from "lucide-react";
@@ -73,7 +74,7 @@ export function AppNotFound({
 
 			<footer className="mt-auto pt-8 text-center text-xs text-muted-foreground">
 				<span>
-					© {new Date().getFullYear()} {config.appName}
+					© {getBeirutDate().year} {config.appName}
 				</span>
 			</footer>
 		</div>

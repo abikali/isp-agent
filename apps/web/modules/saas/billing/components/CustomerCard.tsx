@@ -1,7 +1,7 @@
 "use client";
 
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -63,13 +63,6 @@ interface CustomerCardProps {
 	onPay: (customer: UnpaidCustomer) => void;
 }
 
-function formatDateDMY(date: Date): string {
-	const d = String(date.getDate()).padStart(2, "0");
-	const m = String(date.getMonth() + 1).padStart(2, "0");
-	const y = date.getFullYear();
-	return `${d}/${m}/${y}`;
-}
-
 function CopyButton({ value }: { value: string }) {
 	const [copied, setCopied] = useState(false);
 
@@ -106,7 +99,7 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 
 	const expiry = getExpiryInfo(customer.oldestUnpaidExpiry ?? null);
 	const expiryDateLabel = customer.oldestUnpaidExpiry
-		? formatDateDMY(new Date(customer.oldestUnpaidExpiry))
+		? formatDate(customer.oldestUnpaidExpiry)
 		: "";
 	const waLink = formatWhatsAppLink(customer.mobile ?? customer.phone);
 	const phoneNumber = customer.mobile ?? customer.phone;

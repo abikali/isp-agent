@@ -2,6 +2,7 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { SearchInput } from "@shared/components/SearchInput";
+import { formatDate } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -56,11 +57,14 @@ export function CollectorPortal() {
 		).getDate();
 		const days: { day: number; label: string; weekday: string }[] = [];
 		for (let d = 1; d <= daysInMonth; d++) {
-			const date = new Date(activeMonth.year, activeMonth.month - 1, d);
+			// Use UTC noon so the weekday is stable across all viewer timezones
+			const date = new Date(
+				Date.UTC(activeMonth.year, activeMonth.month - 1, d, 12),
+			);
 			days.push({
 				day: d,
 				label: String(d),
-				weekday: date.toLocaleDateString("en-US", { weekday: "short" }),
+				weekday: formatDate(date, { weekday: "short" }),
 			});
 		}
 		return days;

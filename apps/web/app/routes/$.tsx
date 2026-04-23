@@ -1,4 +1,5 @@
 import { config } from "@repo/config";
+import { getBeirutDate } from "@shared/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 /**
@@ -79,7 +80,7 @@ function NotFoundPage() {
 
 			<footer className="py-6 text-center text-xs text-muted-foreground">
 				<span>
-					© {new Date().getFullYear()} {config.appName}
+					© {getBeirutDate().year} {config.appName}
 				</span>
 				<span className="mx-2 opacity-50">|</span>
 				<Link to={"/legal/privacy-policy" as "/"}>Privacy Policy</Link>

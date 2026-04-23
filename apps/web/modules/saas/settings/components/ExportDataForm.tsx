@@ -1,6 +1,7 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/client";
+import { formatDateInput } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
@@ -21,7 +22,7 @@ export function ExportDataForm() {
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
-			link.download = `user-data-export-${new Date().toISOString().split("T")[0]}.json`;
+			link.download = `user-data-export-${formatDateInput()}.json`;
 			document.body.appendChild(link);
 			link.click();
 			document.body.removeChild(link);

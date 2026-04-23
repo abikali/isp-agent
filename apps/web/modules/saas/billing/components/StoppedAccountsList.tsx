@@ -6,6 +6,7 @@ import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
+import { formatDate, formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -148,9 +149,7 @@ export function StoppedAccountsList() {
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(row.original.paidAt).toLocaleDateString(
-							"en-GB",
-						)}
+						{formatDate(row.original.paidAt)}
 					</span>
 				),
 			},
@@ -180,9 +179,9 @@ export function StoppedAccountsList() {
 									row.original.customer.lastName,
 								),
 								currentExpiry: row.original.customer.expiresAt
-									? (new Date(row.original.customer.expiresAt)
-											.toISOString()
-											.split("T")[0] ?? null)
+									? formatDateInput(
+											row.original.customer.expiresAt,
+										)
 									: null,
 							})
 						}

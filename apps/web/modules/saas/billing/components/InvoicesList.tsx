@@ -5,7 +5,7 @@ import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -237,10 +237,7 @@ export function InvoicesList() {
 				accessorFn: (row) => row.invoiceDate,
 				enableSorting: true,
 				meta: { className: "text-xs" },
-				cell: ({ row }) =>
-					new Date(row.original.invoiceDate).toLocaleDateString(
-						"en-GB",
-					),
+				cell: ({ row }) => formatDate(row.original.invoiceDate),
 			},
 			{
 				id: "expiry",
@@ -250,9 +247,7 @@ export function InvoicesList() {
 				meta: { className: "text-xs" },
 				cell: ({ row }) =>
 					row.original.expiryDate
-						? new Date(row.original.expiryDate).toLocaleDateString(
-								"en-GB",
-							)
+						? formatDate(row.original.expiryDate)
 						: "—",
 			},
 			{

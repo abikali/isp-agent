@@ -1,6 +1,7 @@
 "use client";
 
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
+import { formatDate } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -63,10 +64,7 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 				accessorFn: (row) => row.invoiceDate,
 				enableSorting: true,
 				meta: { className: "text-xs" },
-				cell: ({ row }) =>
-					new Date(row.original.invoiceDate).toLocaleDateString(
-						"en-GB",
-					),
+				cell: ({ row }) => formatDate(row.original.invoiceDate),
 			},
 			{
 				id: "total",

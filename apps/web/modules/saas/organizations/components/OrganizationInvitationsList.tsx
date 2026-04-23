@@ -8,6 +8,7 @@ import {
 	organizationsQueryKeys,
 	useFullOrganizationSuspense,
 } from "@saas/organizations/lib/api";
+import { BEIRUT_TIMEZONE } from "@shared/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
@@ -92,6 +93,7 @@ export function OrganizationInvitationsList({
 			new Intl.DateTimeFormat("en-GB", {
 				dateStyle: "medium",
 				timeStyle: "short",
+				timeZone: BEIRUT_TIMEZONE,
 			}),
 		[],
 	);

@@ -6,6 +6,7 @@ import { OrganizationLogo } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { Spinner } from "@shared/components/Spinner";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
+import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -263,9 +264,7 @@ export function OrganizationList() {
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
-						{new Date(row.original.createdAt).toLocaleDateString(
-							"en-GB",
-						)}
+						{formatDate(row.original.createdAt)}
 					</span>
 				),
 			},

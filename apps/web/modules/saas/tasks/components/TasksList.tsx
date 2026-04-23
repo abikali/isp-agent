@@ -3,6 +3,7 @@
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
+import { formatDate } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -72,7 +73,7 @@ function formatRelativeDate(date: string | Date): string {
 	if (diffDays <= 7) {
 		return `Due in ${diffDays} days`;
 	}
-	return d.toLocaleDateString("en-GB");
+	return formatDate(d);
 }
 
 type TaskItem = ReturnType<typeof useTasks>["tasks"][number];

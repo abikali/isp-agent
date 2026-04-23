@@ -1,6 +1,7 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/client";
+import { formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
@@ -53,13 +54,6 @@ interface ApiKey {
 	lastUsedAt: Date | string | null;
 	expiresAt: Date | string | null;
 }
-
-const formatDate = (date: string | null | undefined) => {
-	if (!date) {
-		return "Never";
-	}
-	return new Date(date).toLocaleDateString("en-GB");
-};
 
 export function ApiKeysList() {
 	const queryClient = useQueryClient();
@@ -114,7 +108,9 @@ export function ApiKeysList() {
 				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
-						{formatDate(row.original.lastUsedAt?.toString())}
+						{row.original.lastUsedAt
+							? formatDate(row.original.lastUsedAt)
+							: "Never"}
 					</span>
 				),
 			},
@@ -125,7 +121,7 @@ export function ApiKeysList() {
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
 						{row.original.expiresAt
-							? formatDate(row.original.expiresAt.toString())
+							? formatDate(row.original.expiresAt)
 							: "No expiration"}
 					</span>
 				),

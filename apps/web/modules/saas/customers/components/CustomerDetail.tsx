@@ -9,7 +9,7 @@ import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc, type orpcClient } from "@shared/lib/orpc";
 import type {
@@ -1374,17 +1374,13 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 						{
 							label: "Override Expiry",
 							value: customer.overrideExpiryAccount
-								? new Date(
-										customer.overrideExpiryAccount,
-									).toLocaleDateString("en-GB")
+								? formatDate(customer.overrideExpiryAccount)
 								: null,
 						},
 						{
 							label: "Temp Expiry",
 							value: customer.tempExpiryAccount
-								? new Date(
-										customer.tempExpiryAccount,
-									).toLocaleDateString("en-GB")
+								? formatDate(customer.tempExpiryAccount)
 								: null,
 						},
 					]}
@@ -1819,49 +1815,37 @@ function SyncTab({ customer }: { customer: CustomerData }) {
 						{
 							label: "Original Created",
 							value: customer.originalCreatedAt
-								? new Date(
-										customer.originalCreatedAt,
-									).toLocaleDateString("en-GB")
+								? formatDate(customer.originalCreatedAt)
 								: null,
 						},
 						{
 							label: "Activated",
 							value: customer.activatedAt
-								? new Date(
-										customer.activatedAt,
-									).toLocaleDateString("en-GB")
+								? formatDate(customer.activatedAt)
 								: null,
 						},
 						{
 							label: "Service Expiry",
 							value: customer.expiresAt
-								? new Date(
-										customer.expiresAt,
-									).toLocaleDateString("en-GB")
+								? formatDate(customer.expiresAt)
 								: null,
 						},
 						{
 							label: "Last Login",
 							value: customer.lastLogin
-								? new Date(customer.lastLogin).toLocaleString(
-										"en-GB",
-									)
+								? formatDateTime(customer.lastLogin)
 								: null,
 						},
 						{
 							label: "Last Log Out",
 							value: customer.lastLogOut
-								? new Date(customer.lastLogOut).toLocaleString(
-										"en-GB",
-									)
+								? formatDateTime(customer.lastLogOut)
 								: null,
 						},
 						{
 							label: "NAS Last Log Out",
 							value: customer.nasLastLogOut
-								? new Date(
-										customer.nasLastLogOut,
-									).toLocaleString("en-GB")
+								? formatDateTime(customer.nasLastLogOut)
 								: null,
 						},
 						{ label: "MOF", value: customer.mof },

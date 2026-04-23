@@ -1,6 +1,7 @@
 "use client";
 
 import { config } from "@repo/config";
+import { getBeirutDate } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@ui/lib";
 
@@ -12,7 +13,7 @@ export function Footer() {
 			)}
 		>
 			<span>
-				© {new Date().getFullYear()} {config.appName}
+				© {getBeirutDate().year} {config.appName}
 			</span>
 			<span className="opacity-50"> | </span>
 			<Link to={"/legal/privacy-policy" as "/"}>Privacy policy</Link>

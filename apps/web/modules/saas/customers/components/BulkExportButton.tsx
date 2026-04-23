@@ -1,6 +1,7 @@
 "use client";
 
 import type { CustomerExportStatus } from "@repo/api/modules/customers/lib/statuses";
+import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { DownloadIcon } from "lucide-react";
@@ -29,8 +30,7 @@ export function BulkExportButton({ filters }: BulkExportButtonProps) {
 			filters,
 		});
 
-		const date = new Date().toISOString().slice(0, 10);
-		downloadCsv(result.csv, `customers-export-${date}.csv`);
+		downloadCsv(result.csv, `customers-export-${formatDateInput()}.csv`);
 	}
 
 	return (

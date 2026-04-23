@@ -2,7 +2,11 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { SearchInput } from "@shared/components/SearchInput";
-import { formatCurrency } from "@shared/lib/format";
+import {
+	formatCurrency,
+	formatDate,
+	formatDateInput,
+} from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -301,14 +305,13 @@ function groupByDay(payments: PaymentRowProps["payment"][]): GroupedDay[] {
 	const map = new Map<string, GroupedDay>();
 
 	for (const payment of payments) {
-		const date = new Date(payment.paidAt);
-		const key = date.toISOString().slice(0, 10); // "2026-04-01"
+		const key = formatDateInput(payment.paidAt);
 
 		let group = map.get(key);
 		if (!group) {
 			group = {
 				key,
-				label: date.toLocaleDateString("en-GB", DAY_FORMAT),
+				label: formatDate(payment.paidAt, DAY_FORMAT),
 				total: 0,
 				payments: [],
 			};

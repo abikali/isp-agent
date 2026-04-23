@@ -1,13 +1,10 @@
 "use client";
 
+import { formatDateTime } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { DataTable } from "@ui/components/data-table";
 import { useWatcherExecutions } from "../hooks/use-executions";
-
-function formatTime(date: string | Date): string {
-	return new Date(date).toLocaleString("en-GB");
-}
 
 interface Execution {
 	id: string;
@@ -23,7 +20,7 @@ const columns: ColumnDef<Execution, unknown>[] = [
 		header: "Time",
 		cell: ({ row }) => (
 			<span className="whitespace-nowrap text-sm">
-				{formatTime(row.original.createdAt)}
+				{formatDateTime(row.original.createdAt)}
 			</span>
 		),
 	},

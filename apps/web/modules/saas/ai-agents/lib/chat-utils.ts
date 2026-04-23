@@ -1,64 +1,60 @@
 /**
  * Utility functions for WhatsApp-style chat UI formatting.
+ * All times/dates are anchored to Asia/Beirut so viewers in other timezones
+ * see the same day boundaries.
  */
+
+import { formatDate, formatTime, getBeirutDate } from "@shared/lib/format";
 
 const ONE_DAY_MS = 86_400_000;
 
-function startOfDay(date: Date): Date {
-	const d = new Date(date);
-	d.setHours(0, 0, 0, 0);
-	return d;
+function beirutDayIndex(date: Date | string): number {
+	const { year, month, day } = getBeirutDate(date);
+	return Date.UTC(year, month - 1, day) / ONE_DAY_MS;
 }
 
-/** Format a date as "HH:MM" (24h). */
+/** Format a date as "HH:MM" (24h) in Beirut time. */
 export function formatMessageTime(date: Date | string): string {
-	const d = new Date(date);
-	return d.toLocaleTimeString([], {
+	return formatTime(date, {
 		hour: "2-digit",
 		minute: "2-digit",
-		hour12: false,
+		hourCycle: "h23",
 	});
 }
 
 /** Format a date for chat date separators: "TODAY", "YESTERDAY", or "Mon, Dec 25". */
 export function formatChatDate(date: Date | string): string {
-	const d = startOfDay(new Date(date));
-	const now = startOfDay(new Date());
-	const diffMs = now.getTime() - d.getTime();
+	const diffDays = beirutDayIndex(new Date()) - beirutDayIndex(date);
 
-	if (diffMs < ONE_DAY_MS) {
+	if (diffDays <= 0) {
 		return "TODAY";
 	}
-	if (diffMs < 2 * ONE_DAY_MS) {
+	if (diffDays === 1) {
 		return "YESTERDAY";
 	}
 
-	return d
-		.toLocaleDateString("en-GB", {
-			weekday: "short",
-			month: "short",
-			day: "numeric",
-		})
-		.toUpperCase();
+	return formatDate(date, {
+		weekday: "short",
+		month: "short",
+		day: "numeric",
+	}).toUpperCase();
 }
 
 /** Format a timestamp for the conversation list: "Today", "Yesterday", "Mon", or short date. */
 export function formatListTimestamp(date: Date | string): string {
-	const d = startOfDay(new Date(date));
-	const now = startOfDay(new Date());
-	const diffMs = now.getTime() - d.getTime();
+	const diffDays = beirutDayIndex(new Date()) - beirutDayIndex(date);
 
-	if (diffMs < ONE_DAY_MS) {
+	if (diffDays <= 0) {
 		return formatMessageTime(date);
 	}
-	if (diffMs < 2 * ONE_DAY_MS) {
+	if (diffDays === 1) {
 		return "Yesterday";
 	}
-	if (diffMs < 7 * ONE_DAY_MS) {
-		return new Date(date).toLocaleDateString("en-GB", { weekday: "short" });
+	if (diffDays < 7) {
+		return formatDate(date, { weekday: "short" });
 	}
 
-	return new Date(date).toLocaleDateString("en-GB", {
+	return formatDate(date, {
 		month: "short",
 		day: "numeric",
 	});

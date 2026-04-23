@@ -3,6 +3,8 @@
  * across billing components.
  */
 
+import { getBeirutDate } from "@shared/lib/format";
+
 // ─── Cycle Constants & Formatting ──────────────────────────────
 
 export const MONTH_SHORT = [
@@ -67,14 +69,14 @@ export function buildCycleOptions(
 ): CycleOption[] {
 	const pastMonths = opts?.pastMonths ?? 6;
 	const futureMonths = opts?.futureMonths ?? 1;
-	const now = new Date();
+	const today = getBeirutDate();
 
 	const dbMap = new Map(dbCycles.map((c) => [`${c.year}-${c.month}`, c]));
 
 	const options: CycleOption[] = [];
 
 	for (let offset = -pastMonths; offset <= futureMonths; offset++) {
-		const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+		const d = new Date(today.year, today.month - 1 + offset, 1);
 		const year = d.getFullYear();
 		const month = d.getMonth() + 1;
 		const key = `${year}-${month}`;

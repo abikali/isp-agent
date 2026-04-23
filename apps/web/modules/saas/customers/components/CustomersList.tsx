@@ -8,6 +8,7 @@ import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
+import { formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -374,8 +375,7 @@ export function CustomersList({
 					if (!value) {
 						return <span className="text-muted-foreground">-</span>;
 					}
-					const date = new Date(value);
-					const isExpired = date.getTime() < Date.now();
+					const isExpired = new Date(value).getTime() < Date.now();
 					return (
 						<span
 							className={
@@ -384,7 +384,7 @@ export function CustomersList({
 									: undefined
 							}
 						>
-							{date.toLocaleDateString("en-GB")}
+							{formatDate(value)}
 						</span>
 					);
 				},

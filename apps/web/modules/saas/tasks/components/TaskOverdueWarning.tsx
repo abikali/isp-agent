@@ -1,7 +1,7 @@
 "use client";
 
+import { formatDate, MEDIUM_DATE_FORMAT } from "@shared/lib/format";
 import { AlertTriangleIcon } from "lucide-react";
-import { formatDate } from "../lib/task-utils";
 
 interface TaskOverdueWarningProps {
 	dueDate: Date | string | null;
@@ -17,7 +17,7 @@ export function TaskOverdueWarning({
 			<AlertTriangleIcon className="size-4 shrink-0" />
 			<span>
 				This {label} is overdue — was due{" "}
-				{dueDate ? formatDate(dueDate) : ""}
+				{dueDate ? formatDate(dueDate, MEDIUM_DATE_FORMAT) : ""}
 			</span>
 		</div>
 	);

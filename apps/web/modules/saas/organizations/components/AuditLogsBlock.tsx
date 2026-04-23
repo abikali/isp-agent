@@ -2,6 +2,7 @@
 
 import { SettingsItem } from "@saas/shared/client";
 import { UserAvatar } from "@shared/components/UserAvatar";
+import { formatDateTime } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
@@ -16,7 +17,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import { format } from "date-fns";
 import { FilterIcon, XIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { AuditLogEntry } from "../lib/types";
@@ -147,7 +147,13 @@ const auditLogColumns: ColumnDef<AuditLogEntry, unknown>[] = [
 		enableSorting: false,
 		cell: ({ row }) => (
 			<span className="whitespace-nowrap text-muted-foreground text-sm">
-				{format(new Date(row.original.createdAt), "d MMM, HH:mm")}
+				{formatDateTime(row.original.createdAt, {
+					day: "numeric",
+					month: "short",
+					hour: "2-digit",
+					minute: "2-digit",
+					hourCycle: "h23",
+				})}
 			</span>
 		),
 	},

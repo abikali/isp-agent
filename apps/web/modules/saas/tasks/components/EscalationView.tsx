@@ -1,5 +1,11 @@
 "use client";
 
+import {
+	formatDate,
+	formatDateTime,
+	MEDIUM_DATE_FORMAT,
+	MEDIUM_DATE_TIME_FORMAT,
+} from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -36,7 +42,7 @@ import {
 	TASK_STATUS_BG_COLORS,
 	TASK_STATUS_LABELS,
 } from "../lib/constants";
-import { formatDate, formatDateTime, isOverdue } from "../lib/task-utils";
+import { isOverdue } from "../lib/task-utils";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 import { TaskCustomerCard } from "./TaskCustomerCard";
 import { TaskEmployeeCard } from "./TaskEmployeeCard";
@@ -121,7 +127,9 @@ export function EscalationView({ taskId }: { taskId: string }) {
 						</span>
 						<Separator orientation="vertical" className="h-4" />
 						<span>Created by AI Agent</span>
-						<span>{formatDate(task.createdAt)}</span>
+						<span>
+							{formatDate(task.createdAt, MEDIUM_DATE_FORMAT)}
+						</span>
 					</div>
 				</div>
 				<div className="flex items-center gap-2">
@@ -244,7 +252,10 @@ export function EscalationView({ taskId }: { taskId: string }) {
 											)}
 										>
 											<CalendarIcon className="size-3.5" />
-											{formatDate(task.dueDate)}
+											{formatDate(
+												task.dueDate,
+												MEDIUM_DATE_FORMAT,
+											)}
 										</dd>
 									</div>
 								)}
@@ -255,7 +266,10 @@ export function EscalationView({ taskId }: { taskId: string }) {
 										</dt>
 										<dd className="mt-0.5 flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
 											<ClockIcon className="size-3.5" />
-											{formatDateTime(task.completedAt)}
+											{formatDateTime(
+												task.completedAt,
+												MEDIUM_DATE_TIME_FORMAT,
+											)}
 										</dd>
 									</div>
 								)}
@@ -382,6 +396,7 @@ export function EscalationView({ taskId }: { taskId: string }) {
 													<div className="mt-1 text-[10px] text-muted-foreground">
 														{formatDateTime(
 															msg.createdAt,
+															MEDIUM_DATE_TIME_FORMAT,
 														)}
 													</div>
 												</div>

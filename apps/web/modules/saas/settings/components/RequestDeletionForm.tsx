@@ -1,6 +1,7 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/client";
+import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -66,12 +67,10 @@ export function RequestDeletionForm() {
 		}
 	};
 
-	const formatDate = (dateString: string) => {
-		return new Date(dateString).toLocaleDateString("en-GB", {
-			year: "numeric",
-			month: "long",
-			day: "numeric",
-		});
+	const longDateOptions: Intl.DateTimeFormatOptions = {
+		year: "numeric",
+		month: "long",
+		day: "numeric",
 	};
 
 	if (isLoading) {
@@ -95,7 +94,7 @@ export function RequestDeletionForm() {
 		return (
 			<SettingsItem
 				title="Account Deletion Scheduled"
-				description={`Your account is scheduled for deletion on ${formatDate(deletionStatus.deletionScheduledFor)}`}
+				description={`Your account is scheduled for deletion on ${formatDate(deletionStatus.deletionScheduledFor, longDateOptions)}`}
 			>
 				<div className="rounded-md border border-destructive/50 bg-destructive/10 p-4">
 					<div className="flex items-start gap-3">
@@ -106,6 +105,7 @@ export function RequestDeletionForm() {
 								<strong>
 									{formatDate(
 										deletionStatus.deletionScheduledFor,
+										longDateOptions,
 									)}
 								</strong>
 								.

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { DownloadIcon } from "lucide-react";
@@ -43,8 +44,7 @@ export function BulkExportButton({ filters }: BulkExportButtonProps) {
 					: undefined,
 		});
 
-		const date = new Date().toISOString().split("T")[0];
-		downloadCsv(result.csv, `employees-${date}.csv`);
+		downloadCsv(result.csv, `employees-${formatDateInput()}.csv`);
 	}
 
 	return (

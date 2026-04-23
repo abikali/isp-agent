@@ -4,6 +4,7 @@ import {
 	useApplyIRadiusEntitySync,
 	usePreviewIRadiusEntitySync,
 } from "@saas/customers/client";
+import { formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -143,11 +144,10 @@ function formatValue(val: string | null): string {
 		return "—";
 	}
 
-	// ISO dates → show date + time in local timezone
+	// ISO dates → show date + time in Beirut timezone
 	if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
 		try {
-			const d = new Date(val);
-			return d.toLocaleString("en-GB", {
+			return formatDateTime(val, {
 				year: "numeric",
 				month: "short",
 				day: "numeric",

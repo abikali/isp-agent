@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Checkbox } from "@ui/components/checkbox";
@@ -132,7 +133,7 @@ function formatValue(val: string | null): string {
 	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) {
 		const d = new Date(val);
 		if (!Number.isNaN(d.getTime())) {
-			return d.toLocaleDateString("en-GB", {
+			return formatDate(d, {
 				year: "numeric",
 				month: "short",
 				day: "numeric",

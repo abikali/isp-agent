@@ -1,3 +1,5 @@
+import { formatDate } from "@shared/lib/format";
+
 export function isOverdue(
 	dueDate: string | Date | null,
 	status: string,
@@ -6,24 +8,6 @@ export function isOverdue(
 		return false;
 	}
 	return new Date(dueDate) < new Date();
-}
-
-export function formatDate(date: string | Date): string {
-	return new Date(date).toLocaleDateString("en-GB", {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
-}
-
-export function formatDateTime(date: string | Date): string {
-	return new Date(date).toLocaleString("en-GB", {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
 }
 
 export function timeAgo(date: string | Date): string {
@@ -43,5 +27,5 @@ export function timeAgo(date: string | Date): string {
 	if (diffDays < 7) {
 		return `${diffDays}d ago`;
 	}
-	return d.toLocaleDateString("en-GB");
+	return formatDate(d);
 }

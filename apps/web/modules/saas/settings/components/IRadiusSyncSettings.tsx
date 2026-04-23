@@ -1,6 +1,7 @@
 "use client";
 
 import { SettingsItem } from "@saas/shared/components/SettingsItem";
+import { formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQueryClient } from "@tanstack/react-query";
@@ -262,9 +263,7 @@ export function IRadiusSyncSettings() {
 								<CheckCircle2Icon className="size-4 text-green-600" />
 								Last synced:{" "}
 								{operation.completedAt
-									? new Date(
-											operation.completedAt,
-										).toLocaleString("en-GB")
+									? formatDateTime(operation.completedAt)
 									: "Unknown"}
 							</div>
 						)}
@@ -397,9 +396,7 @@ function IRadiusPushSettingsItem() {
 							<CheckCircle2Icon className="size-4 text-green-600" />
 							Last pushed:{" "}
 							{operation.completedAt
-								? new Date(
-										operation.completedAt,
-									).toLocaleString("en-GB")
+								? formatDateTime(operation.completedAt)
 								: "Unknown"}
 						</div>
 					)}
@@ -514,10 +511,7 @@ function PushResult({ operation }: { operation: PushOperation }) {
 				</AlertTitle>
 				{operation.completedAt && (
 					<AlertDescription>
-						Completed at{" "}
-						{new Date(operation.completedAt).toLocaleString(
-							"en-GB",
-						)}
+						Completed at {formatDateTime(operation.completedAt)}
 					</AlertDescription>
 				)}
 			</Alert>
@@ -765,10 +759,7 @@ function SyncResult({ operation }: { operation: Operation }) {
 				</AlertTitle>
 				{operation.completedAt && (
 					<AlertDescription>
-						Completed at{" "}
-						{new Date(operation.completedAt).toLocaleString(
-							"en-GB",
-						)}
+						Completed at {formatDateTime(operation.completedAt)}
 					</AlertDescription>
 				)}
 			</Alert>

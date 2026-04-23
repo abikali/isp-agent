@@ -1,6 +1,7 @@
 "use client";
 
 import { displayName } from "@shared/lib/display-name";
+import { formatDate } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -67,8 +68,7 @@ export function CustomerPayments({
 				id: "date",
 				header: "Date",
 				meta: { className: "text-xs whitespace-nowrap" },
-				cell: ({ row }) =>
-					new Date(row.original.paidAt).toLocaleDateString("en-GB"),
+				cell: ({ row }) => formatDate(row.original.paidAt),
 			},
 			{
 				id: "amount",

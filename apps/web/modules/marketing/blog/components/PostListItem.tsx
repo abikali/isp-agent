@@ -1,6 +1,7 @@
 "use client";
 
 import type { Post } from "@marketing/blog/types";
+import { formatDate } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 
 export function PostListItem({ post }: { post: Post }) {
@@ -67,7 +68,7 @@ export function PostListItem({ post }: { post: Post }) {
 				)}
 
 				<time className="ml-auto text-xs text-muted-foreground">
-					{Intl.DateTimeFormat("en-GB").format(new Date(date))}
+					{formatDate(date)}
 				</time>
 			</div>
 		</article>

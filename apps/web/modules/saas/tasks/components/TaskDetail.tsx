@@ -1,6 +1,7 @@
 "use client";
 
 import { useStationsQuery } from "@saas/customers/client";
+import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -57,9 +58,7 @@ export function TaskDetail({
 			status: task.status,
 			priority: task.priority,
 			category: task.category,
-			dueDate: task.dueDate
-				? (new Date(task.dueDate).toISOString().split("T")[0] ?? "")
-				: "",
+			dueDate: task.dueDate ? formatDateInput(task.dueDate) : "",
 			stationId: task.stationId ?? "",
 			notes: task.notes ?? "",
 		},

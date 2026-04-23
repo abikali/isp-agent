@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@shared/lib/format";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -68,7 +69,7 @@ export function ChannelCard({ channel, onDelete }: ChannelCardProps) {
 							{channel._count.conversations} conversation
 							{channel._count.conversations !== 1 ? "s" : ""}
 							{channel.lastActivityAt &&
-								` · Last active ${new Date(channel.lastActivityAt).toLocaleDateString("en-GB")}`}
+								` · Last active ${formatDate(channel.lastActivityAt)}`}
 						</p>
 					</div>
 

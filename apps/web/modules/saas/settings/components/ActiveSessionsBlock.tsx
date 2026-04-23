@@ -4,6 +4,7 @@ import { config } from "@repo/config";
 import { useSession } from "@saas/auth/client";
 import { authQueryKeys } from "@saas/auth/lib/api";
 import { SettingsItem } from "@saas/shared/client";
+import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@ui/components/badge";
@@ -195,9 +196,7 @@ export function ActiveSessionsBlock() {
 											</div>
 											<small className="block text-muted-foreground text-xs">
 												Created on{" "}
-												{new Date(
-													session.createdAt,
-												).toLocaleDateString("en-GB")}
+												{formatDate(session.createdAt)}
 											</small>
 										</div>
 									</div>

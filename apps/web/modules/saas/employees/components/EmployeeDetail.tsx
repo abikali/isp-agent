@@ -11,7 +11,11 @@ import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import {
+	formatCurrency,
+	formatDate,
+	formatDateInput,
+} from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc, type orpcClient } from "@shared/lib/orpc";
 import type {
@@ -114,9 +118,7 @@ function getEmployeeFormDefaults(employee: EmployeeData) {
 		phone: employee.phone ?? "",
 		position: employee.position ?? "",
 		department: employee.department ?? "",
-		hireDate: employee.hireDate
-			? (new Date(employee.hireDate).toISOString().split("T")[0] ?? "")
-			: "",
+		hireDate: employee.hireDate ? formatDateInput(employee.hireDate) : "",
 		status: employee.status,
 		preferredLayout: employee.preferredLayout ?? "standard",
 		telegramChatId: employee.telegramChatId ?? "",
@@ -1117,9 +1119,7 @@ function TasksSection({
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{row.original.task.dueDate
-							? new Date(
-									row.original.task.dueDate,
-								).toLocaleDateString("en-GB")
+							? formatDate(row.original.task.dueDate)
 							: "-"}
 					</span>
 				),
@@ -1293,9 +1293,7 @@ function PaymentsSection({
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(row.original.paidAt).toLocaleDateString(
-							"en-GB",
-						)}
+						{formatDate(row.original.paidAt)}
 					</span>
 				),
 			},
@@ -1395,9 +1393,7 @@ function FinancialTab({
 											{formatCurrency(c.amount)}
 										</p>
 										<p className="text-xs text-muted-foreground">
-											{new Date(
-												c.collectedAt,
-											).toLocaleDateString("en-GB")}
+											{formatDate(c.collectedAt)}
 											{c.notes && ` — ${c.notes}`}
 										</p>
 									</div>
@@ -1569,9 +1565,7 @@ function useInstallationColumns(organizationSlug: string) {
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm">
-						{new Date(row.original.installedAt).toLocaleDateString(
-							"en-GB",
-						)}
+						{formatDate(row.original.installedAt)}
 					</span>
 				),
 			},

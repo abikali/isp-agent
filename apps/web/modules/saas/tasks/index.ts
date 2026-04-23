@@ -17,9 +17,4 @@ export {
 	TASK_STATUS_OPTIONS,
 } from "./lib/constants";
 
-export {
-	formatDate,
-	formatDateTime,
-	isOverdue,
-	timeAgo,
-} from "./lib/task-utils";
+export { isOverdue, timeAgo } from "./lib/task-utils";

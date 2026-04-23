@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTime } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -105,11 +106,7 @@ export function ConversationThread({
 										"mt-1 flex items-center gap-2 text-xs opacity-60",
 									)}
 								>
-									<span>
-										{new Date(
-											msg.createdAt,
-										).toLocaleTimeString()}
-									</span>
+									<span>{formatTime(msg.createdAt)}</span>
 									{msg.latencyMs && (
 										<span>{msg.latencyMs}ms</span>
 									)}

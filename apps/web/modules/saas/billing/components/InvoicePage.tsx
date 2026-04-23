@@ -1,6 +1,7 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import type { DehydratedState } from "@tanstack/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -48,7 +49,6 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	const accountPrice = payment.accountPrice;
 	const total = accountPrice + iptvPrice + realIpPrice - discount;
 
-	const paidAt = new Date(payment.paidAt);
 	const monthName = new Date(cycle.year, cycle.month - 1).toLocaleString(
 		"en-US",
 		{ month: "long" },
@@ -114,7 +114,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 								Date
 							</p>
 							<p className="font-medium text-gray-700 mt-0.5">
-								{paidAt.toLocaleDateString("en-GB", {
+								{formatDate(payment.paidAt, {
 									year: "numeric",
 									month: "short",
 									day: "numeric",

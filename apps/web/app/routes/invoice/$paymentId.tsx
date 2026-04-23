@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import { InvoicePage } from "@saas/billing/components/InvoicePage";
+import { getBeirutDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate } from "@tanstack/react-query";
@@ -84,7 +85,7 @@ function InvoiceNotFound() {
 
 			<footer className="py-6 text-center text-xs text-muted-foreground">
 				<span>
-					&copy; {new Date().getFullYear()} {config.appName}
+					&copy; {getBeirutDate().year} {config.appName}
 				</span>
 			</footer>
 		</div>

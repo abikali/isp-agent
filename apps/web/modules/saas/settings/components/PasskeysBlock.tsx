@@ -2,6 +2,7 @@
 import { authClient } from "@repo/auth/client";
 import { authQueryKeys, useUserPasskeysQuery } from "@saas/auth/lib/api";
 import { SettingsItem } from "@saas/shared/client";
+import { formatDate } from "@shared/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
 import { Skeleton } from "@ui/components/skeleton";
@@ -74,9 +75,7 @@ export function PasskeysBlock() {
 									{passkey.name ?? "Passkey"}
 								</strong>
 								<small className="block text-foreground/60 text-xs leading-tight">
-									{new Date(
-										passkey.createdAt,
-									).toLocaleDateString("en-GB")}
+									{formatDate(passkey.createdAt)}
 								</small>
 							</div>
 							<Button

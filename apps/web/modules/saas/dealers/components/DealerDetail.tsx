@@ -5,7 +5,7 @@ import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { orpc, type orpcClient } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -68,9 +68,7 @@ const accountColumns: ColumnDef<DealerAccount, unknown>[] = [
 		cell: ({ row }) => (
 			<span className="text-sm">
 				{row.original.operationDate
-					? new Date(row.original.operationDate).toLocaleDateString(
-							"en-GB",
-						)
+					? formatDate(row.original.operationDate)
 					: "-"}
 			</span>
 		),

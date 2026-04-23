@@ -1,6 +1,7 @@
 import { PostContent } from "@marketing/blog/components/PostContent";
 import { getPostBySlug } from "@marketing/blog/utils/lib/posts";
 import { config } from "@repo/config";
+import { formatDate } from "@shared/lib/format";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
@@ -92,11 +93,7 @@ function BlogPostPage() {
 					)}
 
 					<div>
-						<p className="text-sm opacity-30">
-							{Intl.DateTimeFormat("en-GB").format(
-								new Date(date),
-							)}
-						</p>
+						<p className="text-sm opacity-30">{formatDate(date)}</p>
 					</div>
 
 					{tags && (

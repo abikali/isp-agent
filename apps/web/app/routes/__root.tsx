@@ -2,6 +2,7 @@
 import { config } from "@repo/config";
 import { NavigationProgress } from "@shared/components/NavigationProgress";
 import { ThemeProvider } from "@shared/components/ThemeProvider";
+import { getBeirutDate } from "@shared/lib/format";
 import { themeScript } from "@shared/stores/theme-store";
 import {
 	keepPreviousData,
@@ -215,7 +216,7 @@ function GlobalErrorComponent({ error }: { error: Error }) {
 
 				<footer className="py-6 text-center text-xs text-muted-foreground">
 					<span>
-						© {new Date().getFullYear()} {config.appName}
+						© {getBeirutDate().year} {config.appName}
 					</span>
 					<span className="mx-2 opacity-50">|</span>
 					<a href="/legal/privacy-policy">Privacy Policy</a>
@@ -296,7 +297,7 @@ function NotFoundComponent() {
 
 			<footer className="py-6 text-center text-xs text-muted-foreground">
 				<span>
-					© {new Date().getFullYear()} {config.appName}
+					© {getBeirutDate().year} {config.appName}
 				</span>
 				<span className="mx-2 opacity-50">|</span>
 				<a href="/legal/privacy-policy">Privacy Policy</a>

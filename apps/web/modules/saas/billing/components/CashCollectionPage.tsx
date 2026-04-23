@@ -7,7 +7,7 @@ import {
 } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -762,7 +762,7 @@ function getPaymentColumns(actions: {
 			header: "Paid",
 			cell: ({ row }) => (
 				<span className="text-muted-foreground">
-					{new Date(row.original.paidAt).toLocaleDateString("en-GB")}
+					{formatDate(row.original.paidAt)}
 				</span>
 			),
 		},
@@ -1018,9 +1018,7 @@ function HandoffsTable({
 				enableSorting: true,
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">
-						{new Date(row.original.collectedAt).toLocaleDateString(
-							"en-GB",
-						)}
+						{formatDate(row.original.collectedAt)}
 					</span>
 				),
 			},

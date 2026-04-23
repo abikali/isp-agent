@@ -2,6 +2,7 @@ import type { ActiveOrganization } from "@repo/auth";
 import { config } from "@repo/config";
 import { CollectorShell } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { getBeirutDate } from "@shared/lib/format";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate } from "@tanstack/react-query";
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
@@ -121,7 +122,7 @@ function CollectorNotFound() {
 
 			<footer className="py-6 text-center text-xs text-muted-foreground">
 				<span>
-					&copy; {new Date().getFullYear()} {config.appName}
+					&copy; {getBeirutDate().year} {config.appName}
 				</span>
 			</footer>
 		</div>

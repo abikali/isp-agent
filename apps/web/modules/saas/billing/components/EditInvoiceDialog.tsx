@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import {
@@ -23,11 +24,7 @@ interface Props {
 }
 
 function toDateInput(d: string | Date | null | undefined): string {
-	if (!d) {
-		return "";
-	}
-	const date = typeof d === "string" ? new Date(d) : d;
-	return date.toISOString().slice(0, 10);
+	return d ? formatDateInput(d) : "";
 }
 
 export function EditInvoiceDialog({ invoiceId, onClose }: Props) {

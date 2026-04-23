@@ -11,7 +11,11 @@ import {
 } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import {
+	formatCurrency,
+	formatDate,
+	formatDateInput,
+} from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -122,12 +126,11 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | Date | null }) {
 	}
 
 	const { label, variant } = getExpiryInfo(expiresAt);
-	const date = new Date(expiresAt);
 
 	return (
 		<div className="flex flex-col items-start gap-1">
 			<span className="text-sm tabular-nums">
-				{date.toLocaleDateString("en-GB")}
+				{formatDate(expiresAt)}
 			</span>
 			{label && (
 				<Badge variant={variant} className="text-[10px] px-1.5 py-0">
@@ -461,7 +464,7 @@ export function UnpaidCustomersList() {
 	const { groups } = useCustomerGroups();
 	const { data: collectorsData } = useCollectors();
 	const collectors = collectorsData?.collectors ?? [];
-	const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+	const today = formatDateInput();
 
 	const { customers, total, totalAmountDue, expiredCount, isLoading } =
 		useUnpaidCustomers({

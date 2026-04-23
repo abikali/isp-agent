@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { MessageSquareIcon } from "lucide-react";
@@ -82,9 +83,7 @@ export function ConversationsList({
 							</p>
 							{conv.lastMessageAt && (
 								<p className="text-xs text-muted-foreground">
-									{new Date(
-										conv.lastMessageAt,
-									).toLocaleDateString("en-GB")}
+									{formatDate(conv.lastMessageAt)}
 								</p>
 							)}
 						</div>

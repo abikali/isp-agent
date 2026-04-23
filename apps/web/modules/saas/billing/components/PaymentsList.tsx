@@ -8,7 +8,12 @@ import { SearchInput } from "@shared/components/SearchInput";
 import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import {
+	formatCurrency,
+	formatDate,
+	formatDateTime,
+	formatTime,
+} from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -157,17 +162,18 @@ function DateTimeCell({ value }: { value: string | Date | null | undefined }) {
 	if (!value) {
 		return <span className="text-xs text-muted-foreground">—</span>;
 	}
-	const d = new Date(value);
-	const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+	const time = formatTime(value, {
+		hour: "2-digit",
+		minute: "2-digit",
+		hourCycle: "h23",
+	});
+	const hasTime = time !== "00:00";
 	return (
 		<div className="flex flex-col leading-tight">
-			<span className="text-sm">{d.toLocaleDateString("en-GB")}</span>
+			<span className="text-sm">{formatDate(value)}</span>
 			{hasTime && (
 				<span className="text-[11px] tabular-nums text-muted-foreground">
-					{d.toLocaleTimeString([], {
-						hour: "2-digit",
-						minute: "2-digit",
-					})}
+					{time}
 				</span>
 			)}
 		</div>
@@ -529,9 +535,7 @@ function ActivityLogDialog({
 											</p>
 										)}
 										<p className="text-xs text-muted-foreground mt-1">
-											{new Date(
-												entry.timestamp,
-											).toLocaleString("en-GB")}
+											{formatDateTime(entry.timestamp)}
 										</p>
 									</div>
 								</div>
