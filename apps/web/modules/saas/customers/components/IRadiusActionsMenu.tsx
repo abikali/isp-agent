@@ -20,6 +20,7 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
+	CalendarClockIcon,
 	MonitorIcon,
 	PercentIcon,
 	UserCogIcon,
@@ -30,6 +31,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
 	useResetMacAddress,
+	useSetCustomerExpiryDate,
 	useSetDiscount,
 	useSetIptvPrice,
 	useUpdateNameInIRadius,
@@ -44,6 +46,7 @@ interface IRadiusActionsMenuProps {
 		lastName: string | null;
 		discount: number | null;
 		iptvPrice: number | null;
+		expiresAt: string | Date | null;
 	};
 }
 
@@ -52,7 +55,24 @@ type DialogState =
 	| { kind: "reset-mac" }
 	| { kind: "update-name"; firstName: string; lastName: string }
 	| { kind: "set-discount"; discount: string }
-	| { kind: "set-iptv-price"; iptvPrice: string };
+	| { kind: "set-iptv-price"; iptvPrice: string }
+	| { kind: "set-expiry"; expiryDate: string };
+
+function toDateInputValue(value: string | Date | null): string {
+	if (!value) {
+		return "";
+	}
+	const d = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(d.getTime())) {
+		return "";
+	}
+	// Use UTC components — `expiresAt` is stored tz-naive but aligned to UTC,
+	// so UTC accessors give the date iRadius has on record.
+	const y = d.getUTCFullYear();
+	const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(d.getUTCDate()).padStart(2, "0");
+	return `${y}-${m}-${day}`;
+}
 
 /**
  * iRadius admin actions dropdown for the customer detail page.
@@ -68,13 +88,15 @@ export function IRadiusActionsMenu({
 	const updateName = useUpdateNameInIRadius();
 	const setDiscount = useSetDiscount();
 	const setIptvPrice = useSetIptvPrice();
+	const setExpiryDate = useSetCustomerExpiryDate();
 
 	const isLinked = !!customer.externalId;
 	const anyPending =
 		resetMac.isPending ||
 		updateName.isPending ||
 		setDiscount.isPending ||
-		setIptvPrice.isPending;
+		setIptvPrice.isPending ||
+		setExpiryDate.isPending;
 
 	function close() {
 		setDialog({ kind: "none" });
@@ -146,6 +168,19 @@ export function IRadiusActionsMenu({
 					>
 						<MonitorIcon className="mr-2 size-4" />
 						Set IPTV price
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onClick={() =>
+							setDialog({
+								kind: "set-expiry",
+								expiryDate: toDateInputValue(
+									customer.expiresAt,
+								),
+							})
+						}
+					>
+						<CalendarClockIcon className="mr-2 size-4" />
+						Set billing expiry date
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -427,6 +462,77 @@ export function IRadiusActionsMenu({
 							}}
 						>
 							{setIptvPrice.isPending ? "Saving…" : "Save"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Set billing expiry dialog */}
+			<Dialog
+				open={dialog.kind === "set-expiry"}
+				onOpenChange={(o) => !o && close()}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Set billing expiry date</DialogTitle>
+						<DialogDescription>
+							Overrides the customer's RADIUS expiry in iRadius
+							(UserNas.ExpiryAccount) and mirrors the value
+							locally. Set at 23:59 of the chosen day. Leave empty
+							and save to clear the expiry.
+						</DialogDescription>
+					</DialogHeader>
+					{dialog.kind === "set-expiry" && (
+						<div>
+							<Label htmlFor="iradius-expiry-date">
+								Expiry date
+							</Label>
+							<Input
+								id="iradius-expiry-date"
+								type="date"
+								value={dialog.expiryDate}
+								onChange={(e) =>
+									setDialog({
+										...dialog,
+										expiryDate: e.target.value,
+									})
+								}
+							/>
+						</div>
+					)}
+					<DialogFooter>
+						<Button variant="outline" onClick={close}>
+							Cancel
+						</Button>
+						<Button
+							disabled={setExpiryDate.isPending}
+							onClick={() => {
+								if (dialog.kind !== "set-expiry") {
+									return;
+								}
+								const value = dialog.expiryDate.trim() || null;
+								setExpiryDate.mutate(
+									{
+										organizationId,
+										customerId: customer.id,
+										expiryDate: value,
+									},
+									{
+										onSuccess: () => {
+											toast.success(
+												value
+													? "Expiry date updated"
+													: "Expiry date cleared",
+											);
+											close();
+										},
+										onError: (err) =>
+											toast.error(err.message),
+									},
+								);
+							}}
+						>
+							{setExpiryDate.isPending ? "Saving…" : "Save"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

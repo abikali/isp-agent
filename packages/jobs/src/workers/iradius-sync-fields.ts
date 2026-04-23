@@ -101,8 +101,12 @@ export const AUTO_UPDATE_FIELDS = new Set([
 	"excludeFreeMonthlyDownloadBytes",
 	"excludeFreeDailyUploadBytes",
 	"excludeFreeMonthlyUploadBytes",
-	// iRadius-owned subscription/network infrastructure
-	// (no local edit UI; iRadius is authoritative — silent overwrite is fine)
+	// iRadius-owned subscription/network infrastructure.
+	// `expiresAt` has an admin override (customers.setExpiryDate) routed
+	// through mirrorToIRadius — the override writes iRadius first, so any
+	// sync that runs afterwards sees the same value we just stored. Payments
+	// on iRadius bump ExpiryAccount later; silent overwrite is the desired
+	// behaviour there (the admin override is a one-off, not a freeze).
 	"expiresAt",
 	"ipAddress",
 	"macAddress",

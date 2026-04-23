@@ -12,6 +12,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
 	iradiusResetMacAddress,
+	iradiusSetExpiryAccount,
 	iradiusSetIptvPrice,
 	iradiusSetRecurringDiscount,
 	iradiusUpdateUserName,
@@ -189,6 +190,46 @@ export const setCustomerRecurringDiscount = protectedProcedure
 			localData: { discount: input.discount },
 		}),
 	);
+
+export const setCustomerExpiryDate = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/set-expiry-date",
+		tags: ["Customers"],
+		summary:
+			"Set a customer's billing expiry date in iRadius (UserNas.ExpiryAccount)",
+	})
+	.input(
+		baseInput.extend({
+			/** YYYY-MM-DD. Pass null to clear. */
+			expiryDate: z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+				.nullable(),
+		}),
+	)
+	.handler(({ context: { user, headers }, input }) => {
+		// End-of-day 23:59:00 matches iRadius' usual billing-cycle expiry time.
+		// Both sides store the same tz-naive literal.
+		const mysqlDateTime = input.expiryDate
+			? `${input.expiryDate} 23:59:00`
+			: null;
+		const localDate = input.expiryDate
+			? new Date(`${input.expiryDate}T23:59:00.000Z`)
+			: null;
+
+		return runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to set expiry date in iRadius",
+			logTag: "iRadius set expiry date",
+			mutate: (customer) =>
+				iradiusSetExpiryAccount(customer, mysqlDateTime),
+			localData: { expiresAt: localDate },
+		});
+	});
 
 export const setCustomerIptvPrice = protectedProcedure
 	.route({

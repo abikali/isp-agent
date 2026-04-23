@@ -349,6 +349,26 @@ export async function iradiusSetIptvPrice(
 }
 
 /**
+ * Set a customer's billing expiry in iRadius (UserNas.ExpiryAccount).
+ * Caller passes a MySQL DATETIME literal ("YYYY-MM-DD HH:MM:SS") or null to
+ * clear — the same literal is also written to local Postgres so both sides
+ * hold the tz-naive, UTC-aligned value the sync pipeline assumes.
+ */
+export async function iradiusSetExpiryAccount(
+	customer: { externalId?: string | null },
+	mysqlDateTime: string | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET ExpiryAccount = ? WHERE UserId = ?",
+			[mysqlDateTime, userId],
+		);
+	});
+}
+
+/**
  * Change a customer's collector in iRadius (User.CollectorId). Past
  * UserBalance.CollectorId rows are preserved (commission history intact).
  * Pass `null` to clear the assignment.

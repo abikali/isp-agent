@@ -417,6 +417,7 @@ export function CustomerDetail({
 								lastName: customer.lastName ?? null,
 								discount: customer.discount ?? null,
 								iptvPrice: customer.iptvPrice ?? null,
+								expiresAt: customer.expiresAt ?? null,
 							}}
 						/>
 					)}

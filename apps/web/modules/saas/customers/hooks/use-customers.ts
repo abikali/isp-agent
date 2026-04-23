@@ -175,6 +175,11 @@ export const useSetIptvPrice = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const useSetCustomerExpiryDate = createInvalidatingMutation(
+	() => orpc.customers.setExpiryDate.mutationOptions(),
+	invalidateCustomers,
+);
+
 export const useCreateLocationRequest = createInvalidatingMutation(
 	() => orpc.customers.createLocationRequest.mutationOptions(),
 	invalidateCustomers,
