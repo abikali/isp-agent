@@ -13,6 +13,7 @@ type Tx = Prisma.TransactionClient;
 
 export const VOID_REASON = {
 	STOPPED: "STOPPED",
+	ADMIN: "ADMIN",
 } as const;
 
 export type VoidReason = (typeof VOID_REASON)[keyof typeof VOID_REASON];

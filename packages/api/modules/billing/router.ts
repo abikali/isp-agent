@@ -46,6 +46,10 @@ import {
 import { toggleMonthLock } from "./procedures/toggle-month-lock";
 import { updateInvoice } from "./procedures/update-invoice";
 import { updatePayment } from "./procedures/update-payment";
+import {
+	unvoidInvoiceProcedure,
+	voidInvoiceProcedure,
+} from "./procedures/void-invoice";
 
 export const billingRouter = {
 	months: {
@@ -70,6 +74,8 @@ export const billingRouter = {
 		create: createInvoice,
 		update: updateInvoice,
 		delete: deleteInvoice,
+		void: voidInvoiceProcedure,
+		unvoid: unvoidInvoiceProcedure,
 	},
 	unpaid: {
 		list: listUnpaidCustomers,

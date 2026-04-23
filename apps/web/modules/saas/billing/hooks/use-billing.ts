@@ -653,6 +653,38 @@ export function useDeleteInvoice() {
 	});
 }
 
+export function useVoidInvoice() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.void.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
+export function useUnvoidInvoice() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.unvoid.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+		},
+	});
+}
+
 export function useUpdatePayment() {
 	const queryClient = useQueryClient();
 

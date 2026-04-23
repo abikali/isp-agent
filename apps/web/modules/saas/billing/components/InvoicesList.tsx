@@ -37,10 +37,12 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import {
+	BanIcon,
 	FileTextIcon,
 	MoreHorizontalIcon,
 	PencilIcon,
 	PlusIcon,
+	RotateCcwIcon,
 	TrashIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -49,6 +51,8 @@ import {
 	useDeleteInvoice,
 	useInvoices,
 	useMonthFilter,
+	useUnvoidInvoice,
+	useVoidInvoice,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
@@ -78,6 +82,8 @@ interface InvoiceRow {
 	tax: number;
 	totalWithTax: number;
 	paid: boolean;
+	voidedAt: string | Date | null;
+	voidReason: string | null;
 	createdAt: string | Date;
 	customer: {
 		id: string;
@@ -113,6 +119,12 @@ export function InvoicesList() {
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
 	const [deleteInvoice, setDeleteInvoice] = useState<InvoiceRow | null>(null);
+	const [voidInvoiceRow, setVoidInvoiceRow] = useState<InvoiceRow | null>(
+		null,
+	);
+	const [unvoidInvoiceRow, setUnvoidInvoiceRow] = useState<InvoiceRow | null>(
+		null,
+	);
 
 	const { data, isLoading } = useInvoices({
 		search: debouncedSearch || undefined,
@@ -128,6 +140,8 @@ export function InvoicesList() {
 	const total = data?.total ?? 0;
 
 	const deleteMutation = useDeleteInvoice();
+	const voidMutation = useVoidInvoice();
+	const unvoidMutation = useUnvoidInvoice();
 
 	function confirmDelete() {
 		if (!deleteInvoice || !organizationId) {
@@ -145,6 +159,42 @@ export function InvoicesList() {
 				},
 				onError: (err) => {
 					toast.error(err.message || "Failed to delete invoice");
+				},
+			},
+		);
+	}
+
+	function confirmVoid() {
+		if (!voidInvoiceRow || !organizationId) {
+			return;
+		}
+		voidMutation.mutate(
+			{ organizationId, invoiceId: voidInvoiceRow.id },
+			{
+				onSuccess: () => {
+					toast.success("Invoice voided");
+					setVoidInvoiceRow(null);
+				},
+				onError: (err) => {
+					toast.error(err.message || "Failed to void invoice");
+				},
+			},
+		);
+	}
+
+	function confirmUnvoid() {
+		if (!unvoidInvoiceRow || !organizationId) {
+			return;
+		}
+		unvoidMutation.mutate(
+			{ organizationId, invoiceId: unvoidInvoiceRow.id },
+			{
+				onSuccess: () => {
+					toast.success("Invoice restored");
+					setUnvoidInvoiceRow(null);
+				},
+				onError: (err) => {
+					toast.error(err.message || "Failed to restore invoice");
 				},
 			},
 		);
@@ -227,6 +277,9 @@ export function InvoicesList() {
 				accessorFn: (row) => row.paid,
 				enableSorting: true,
 				cell: ({ row }) => {
+					if (row.original.voidedAt) {
+						return <Badge variant="secondary">Voided</Badge>;
+					}
 					const paid = !!row.original.payment || row.original.paid;
 					return (
 						<Badge variant={paid ? "success" : "destructive"}>
@@ -238,38 +291,63 @@ export function InvoicesList() {
 			{
 				id: "actions",
 				enableSorting: false,
-				cell: ({ row }) => (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-8"
-							>
-								<MoreHorizontalIcon className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={() =>
-									setEditInvoiceId(row.original.id)
-								}
-							>
-								<PencilIcon className="mr-2 size-4" />
-								Edit
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								disabled={!!row.original.payment}
-								onClick={() => setDeleteInvoice(row.original)}
-							>
-								<TrashIcon className="mr-2 size-4" />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				),
+				cell: ({ row }) => {
+					const isVoided = !!row.original.voidedAt;
+					return (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="size-8"
+								>
+									<MoreHorizontalIcon className="size-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() =>
+										setEditInvoiceId(row.original.id)
+									}
+								>
+									<PencilIcon className="mr-2 size-4" />
+									Edit
+								</DropdownMenuItem>
+								{isVoided ? (
+									<DropdownMenuItem
+										onClick={() =>
+											setUnvoidInvoiceRow(row.original)
+										}
+									>
+										<RotateCcwIcon className="mr-2 size-4" />
+										Restore
+									</DropdownMenuItem>
+								) : (
+									<DropdownMenuItem
+										disabled={!!row.original.payment}
+										onClick={() =>
+											setVoidInvoiceRow(row.original)
+										}
+									>
+										<BanIcon className="mr-2 size-4" />
+										Void
+									</DropdownMenuItem>
+								)}
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									className="text-destructive focus:text-destructive"
+									disabled={!!row.original.payment}
+									onClick={() =>
+										setDeleteInvoice(row.original)
+									}
+								>
+									<TrashIcon className="mr-2 size-4" />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					);
+				},
 			},
 		],
 		[],
@@ -378,6 +456,76 @@ export function InvoicesList() {
 							disabled={deleteMutation.isPending}
 						>
 							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog
+				open={!!voidInvoiceRow}
+				onOpenChange={(open) => !open && setVoidInvoiceRow(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Void invoice?</AlertDialogTitle>
+						<AlertDialogDescription>
+							The{" "}
+							{voidInvoiceRow
+								? `${String(voidInvoiceRow.month).padStart(2, "0")}/${voidInvoiceRow.year}`
+								: ""}{" "}
+							invoice for{" "}
+							{voidInvoiceRow
+								? displayName(
+										voidInvoiceRow.customer.firstName,
+										voidInvoiceRow.customer.lastName,
+									)
+								: ""}{" "}
+							will be excluded from collector lists and billing
+							stats, but kept in history. You can restore it
+							later.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={confirmVoid}
+							disabled={voidMutation.isPending}
+						>
+							Void
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog
+				open={!!unvoidInvoiceRow}
+				onOpenChange={(open) => !open && setUnvoidInvoiceRow(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Restore invoice?</AlertDialogTitle>
+						<AlertDialogDescription>
+							The{" "}
+							{unvoidInvoiceRow
+								? `${String(unvoidInvoiceRow.month).padStart(2, "0")}/${unvoidInvoiceRow.year}`
+								: ""}{" "}
+							invoice for{" "}
+							{unvoidInvoiceRow
+								? displayName(
+										unvoidInvoiceRow.customer.firstName,
+										unvoidInvoiceRow.customer.lastName,
+									)
+								: ""}{" "}
+							will re-appear in collector lists and billing stats.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={confirmUnvoid}
+							disabled={unvoidMutation.isPending}
+						>
+							Restore
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
