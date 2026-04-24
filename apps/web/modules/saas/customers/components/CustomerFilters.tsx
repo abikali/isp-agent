@@ -149,6 +149,7 @@ export function CustomerFilters({
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value="all">All Collectors</SelectItem>
+					<SelectItem value="none">No Collector</SelectItem>
 					{collectors.map((c) => (
 						<SelectItem key={c.id} value={c.id}>
 							{c.name}

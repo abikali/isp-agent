@@ -89,7 +89,9 @@ export const listCustomers = protectedProcedure
 		if (input.groupName) {
 			where["groupName"] = input.groupName;
 		}
-		if (input.collectorId) {
+		if (input.collectorId === "none") {
+			where["collectorId"] = null;
+		} else if (input.collectorId) {
 			where["collectorId"] = input.collectorId;
 		}
 		if (input.hasLocation === "yes") {
