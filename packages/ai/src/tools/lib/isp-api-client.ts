@@ -35,19 +35,19 @@ export interface IspApiConfig {
 }
 
 /**
- * Clean a phone number for the ISP API (domestic format with leading 0).
+ * Clean a phone number for the ISP API (bare digits, no country code, no leading 0).
  *
- * Lebanese numbers are 8 digits locally (0X XXXXXX). The international format
- * drops the leading 0 (+961 X XXXXXX = 7 digits after country code).
- * WhatsApp sends 961XXXXXXX, so stripping 961 gives 7 digits — we restore
- * the leading 0 to match what the ISP API expects.
+ * iRadius stores Lebanese phones in three formats: international (+961XXXXXXX),
+ * domestic with leading zero (0XXXXXXX), and bare digits (XXXXXXX). The
+ * /user-info endpoint does a substring LIKE match, so we output the bare form
+ * which substring-matches all three.
  *
  * Examples:
- *   +96171234567  → 71234567  (8 digits, no 0 needed — 70/71/76/78 prefixes)
- *   +9613123456   → 03123456  (7 digits after strip → prepend 0)
- *   9611234567    → 01234567  (7 digits after strip → prepend 0)
- *   03 123 456    → 03123456  (already domestic, just strip spaces)
- *   71234567      → 71234567  (already clean)
+ *   +96171234567  → 71234567   (8-digit mobile, 70/71/76/78 prefix)
+ *   +9613123456   → 3123456    (7-digit mobile, 03 prefix)
+ *   9611234567    → 1234567
+ *   03 123 456    → 3123456    (already domestic, strip leading 0)
+ *   71234567      → 71234567   (already bare)
  *   josephuser    → josephuser (username passes through)
  */
 export function cleanPhoneNumber(phone: string): string {
@@ -66,11 +66,10 @@ export function cleanPhoneNumber(phone: string): string {
 		cleaned = cleaned.slice(3);
 	}
 
-	// After stripping country code, Lebanese numbers are 7 digits (0 was dropped
-	// in international format). Restore the domestic 0 prefix so the ISP API
-	// gets the format it expects (8 digits starting with 0X).
-	if (/^\d{7}$/.test(cleaned)) {
-		cleaned = `0${cleaned}`;
+	// Strip leading 0 from Lebanese domestic format (03125551 → 3125551).
+	// The bare form substring-matches all iRadius storage formats via LIKE.
+	if (/^0\d{6,7}$/.test(cleaned)) {
+		cleaned = cleaned.slice(1);
 	}
 
 	return cleaned;
@@ -78,11 +77,7 @@ export function cleanPhoneNumber(phone: string): string {
 
 /** Normalize a Lebanese phone number for comparison (no country code, no leading zero). */
 export function normalizeLebanesPhone(phone: string): string {
-	let cleaned = cleanPhoneNumber(phone);
-	if (cleaned.startsWith("0")) {
-		cleaned = cleaned.slice(1);
-	}
-	return cleaned;
+	return cleanPhoneNumber(phone);
 }
 
 /**
