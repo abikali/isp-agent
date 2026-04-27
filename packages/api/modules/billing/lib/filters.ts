@@ -32,6 +32,23 @@ export const EXCLUDE_FREE_GROUP = excludeGroupFilter("free");
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 
 /**
+ * A payment that "settles" a customer for a billing month — either real cash
+ * came in (`paidAmount > 0`) or the customer was marked free for the month
+ * (`freeAccount = true`). Stopped payments are excluded; they go through the
+ * separate review/approval flow.
+ *
+ * Use this anywhere we ask "did this customer get handled this month?" so
+ * paid counts and unpaid lists stay aligned. Without it, free-account rows
+ * fall into a gap: `paidAmount > 0` excludes them from "paid", but a payment
+ * row exists so they're not "unpaid" either — they vanish from collector
+ * stats while the admin total still counts their invoice.
+ */
+export const SETTLED_PAYMENT = {
+	stoppedAccount: false,
+	OR: [{ paidAmount: { gt: 0 } }, { freeAccount: true }],
+};
+
+/**
  * A "pending stopped" payment: collector flagged the customer as stopped,
  * admin has not yet approved or declined. While in this state, the customer
  * should be hidden from collector lists and shown in the admin review queue.

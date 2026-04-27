@@ -7,7 +7,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
-import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
+import { PENDING_STOPPED_PAYMENT, SETTLED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalanceBatch,
@@ -98,7 +98,7 @@ export const listCollectors = protectedProcedure
 		] = await Promise.all([
 			// Balance: physical cash only (workerId: null), not dealer-scoped
 			fetchCollectorBalanceBatch(input.organizationId, collectorIds),
-			// Collected this month: only payments with real money (excludes stopped-no-pay)
+			// Collected this month: settled payments per collector
 			db.payment.groupBy({
 				by: ["collectorId"],
 				where: {
@@ -106,7 +106,7 @@ export const listCollectors = protectedProcedure
 					collectorId: { in: collectorIds },
 					billingMonthId: activeMonth.id,
 					status: "COLLECTED",
-					paidAmount: { gt: 0 },
+					...SETTLED_PAYMENT,
 					...dealerViaCustomer,
 				},
 				_count: true,

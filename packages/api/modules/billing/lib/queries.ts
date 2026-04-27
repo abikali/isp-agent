@@ -15,6 +15,7 @@ import {
 	EXCLUDE_FREE_GROUP,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
+	SETTLED_PAYMENT,
 } from "./filters";
 import { yearMonthToNum } from "./resolve-month";
 
@@ -175,7 +176,7 @@ export function customersDueThisMonthWhere(
 			},
 			{
 				payments: {
-					some: { billingMonthId, paidAmount: { gt: 0 } },
+					some: { billingMonthId, ...SETTLED_PAYMENT },
 				},
 			},
 		],
@@ -236,7 +237,7 @@ export function unpaidCustomersWhere(
 				some: { year: m.year, month: m.month, ...NOT_VOIDED },
 			},
 			payments: {
-				none: { billingMonthId: m.id },
+				none: { billingMonthId: m.id, ...SETTLED_PAYMENT },
 			},
 		})),
 	};
@@ -269,7 +270,11 @@ export async function countDistinctCustomersWithPayments(
 }
 
 /**
- * Count distinct customers with a COLLECTED payment in a billing month.
+ * Count distinct customers settled for a billing month.
+ *
+ * "Settled" = a COLLECTED, non-stopped payment with either real cash
+ * (`paidAmount > 0`) or `freeAccount: true`. Bakes `SETTLED_PAYMENT` in so
+ * every caller gets the same definition of "paid this month".
  */
 export async function countPaidCustomers(
 	organizationId: string,
@@ -280,6 +285,7 @@ export async function countPaidCustomers(
 		organizationId,
 		billingMonthId,
 		status: "COLLECTED",
+		...SETTLED_PAYMENT,
 		...extraWhere,
 	});
 }

@@ -9,10 +9,10 @@ import { customerMonthlyDue } from "../lib/calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
 	EXCLUDE_FREE_GROUP,
-	EXCLUDE_STOPPED,
 	excludeGroupFilter,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
+	SETTLED_PAYMENT,
 } from "../lib/filters";
 import {
 	applyCollectorScope,
@@ -246,7 +246,7 @@ export const listUnpaidCustomers = protectedProcedure
 				organizationId: input.organizationId,
 				customerId: { in: customerIds },
 				billingMonthId: { in: relevantMonthIds },
-				...EXCLUDE_STOPPED,
+				...SETTLED_PAYMENT,
 			},
 			select: { customerId: true, billingMonthId: true },
 		});

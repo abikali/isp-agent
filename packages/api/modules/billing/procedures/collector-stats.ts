@@ -106,11 +106,9 @@ export const getCollectorStats = protectedProcedure
 					),
 				}),
 			),
-			// Paid customers this month: distinct customerIds with real payment
-			// (paidAmount > 0 — includes stopped-with-pay, excludes stopped-no-pay)
+			// Paid customers this month: distinct customerIds settled for the month
 			countPaidCustomers(input.organizationId, activeMonth.id, {
 				collectorId,
-				paidAmount: { gt: 0 },
 				...dealerViaCustomer,
 			}),
 			// Pending-stopped this month: collector's stops awaiting admin review.

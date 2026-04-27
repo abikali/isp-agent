@@ -152,12 +152,13 @@ export const getPaymentStats = protectedProcedure
 				_sum: { paidAmount: true },
 				_count: true,
 			}),
-			// Paid customers: distinct customers with a non-stopped payment this month
+			// Paid customers: distinct customers settled for the month
 			monthId
-				? countPaidCustomers(input.organizationId, monthId, {
-						...EXCLUDE_STOPPED,
-						...dealerViaCustomer,
-					})
+				? countPaidCustomers(
+						input.organizationId,
+						monthId,
+						dealerViaCustomer,
+					)
 				: Promise.resolve(0),
 			// Unpaid customers: any customer with an unpaid invoice in relevant months
 			monthId
