@@ -35,6 +35,18 @@ export const getInvoice = publicProcedure
 						realIpPrice: true,
 					},
 				},
+				invoice: {
+					select: {
+						accountPrice: true,
+						iptvPrice: true,
+						realIpPrice: true,
+						discount: true,
+						total: true,
+						tax: true,
+						totalWithTax: true,
+						note: true,
+					},
+				},
 				organization: {
 					select: {
 						name: true,

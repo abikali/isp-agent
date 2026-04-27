@@ -43,11 +43,16 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	const org = payment.organization;
 	const cycle = payment.billingMonth;
 
-	const iptvPrice = customer.iptvPrice ?? 0;
-	const realIpPrice = customer.realIpPrice ?? 0;
-	const discount = payment.discount;
-	const accountPrice = payment.accountPrice;
-	const total = accountPrice + iptvPrice + realIpPrice - discount;
+	// Prefer line items frozen on the invoice at creation time; fall back to
+	// the payment/customer snapshot for pre-line-items invoices.
+	const invoice = payment.invoice;
+	const accountPrice = invoice?.accountPrice ?? payment.accountPrice;
+	const iptvPrice = invoice?.iptvPrice ?? customer.iptvPrice ?? 0;
+	const realIpPrice = invoice?.realIpPrice ?? customer.realIpPrice ?? 0;
+	const discount = invoice?.discount ?? payment.discount;
+	const total =
+		invoice?.total ?? accountPrice + iptvPrice + realIpPrice - discount;
+	const note = invoice?.note ?? null;
 
 	const monthName = new Date(cycle.year, cycle.month - 1).toLocaleString(
 		"en-US",
@@ -214,6 +219,16 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 							</span>
 						</div>
 					</div>
+
+					{/* Note */}
+					{note && (
+						<div className="border-t pt-3 pb-1 text-sm text-gray-600">
+							<p className="text-xs uppercase tracking-wider text-gray-400 mb-1">
+								Note
+							</p>
+							<p className="whitespace-pre-wrap">{note}</p>
+						</div>
+					)}
 
 					{/* Collector */}
 					{payment.collector && (

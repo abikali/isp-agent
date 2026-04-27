@@ -26,11 +26,15 @@ export const createInvoice = protectedProcedure
 			customerId: z.string(),
 			year: z.number().int().min(2000).max(3000),
 			month: z.number().int().min(1).max(12),
-			total: z.number().finite().min(0),
+			accountPrice: z.number().finite().min(0).optional(),
+			iptvPrice: z.number().finite().min(0).optional(),
+			realIpPrice: z.number().finite().min(0).optional(),
+			total: z.number().finite().min(0).optional(),
 			discount: z.number().finite().min(0).default(0),
 			tax: z.number().finite().min(0).default(0),
 			totalWithTax: z.number().finite().min(0).optional(),
 			expiryDate: z.string().optional(),
+			note: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -71,7 +75,22 @@ export const createInvoice = protectedProcedure
 		}
 
 		const range = getMonthDateRange(input.year, input.month);
-		const totalWithTax = input.totalWithTax ?? input.total + input.tax;
+		const hasLineItems =
+			input.accountPrice !== undefined ||
+			input.iptvPrice !== undefined ||
+			input.realIpPrice !== undefined;
+		if (input.total === undefined && !hasLineItems) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Provide either total or line-item amounts",
+			});
+		}
+		const lineItemTotal =
+			(input.accountPrice ?? 0) +
+			(input.iptvPrice ?? 0) +
+			(input.realIpPrice ?? 0) -
+			input.discount;
+		const total = input.total ?? Math.max(0, lineItemTotal);
+		const totalWithTax = input.totalWithTax ?? total + input.tax;
 		const expiryDate = input.expiryDate
 			? new Date(input.expiryDate)
 			: (customer.expiresAt ?? range.lte);
@@ -84,10 +103,14 @@ export const createInvoice = protectedProcedure
 				month: input.month,
 				invoiceDate: range.gte,
 				expiryDate,
-				total: input.total,
+				accountPrice: input.accountPrice ?? null,
+				iptvPrice: input.iptvPrice ?? null,
+				realIpPrice: input.realIpPrice ?? null,
+				total,
 				discount: input.discount,
 				tax: input.tax,
 				totalWithTax,
+				note: input.note ?? null,
 				paid: false,
 			},
 		});

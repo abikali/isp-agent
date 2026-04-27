@@ -617,6 +617,9 @@ export function useCreateInvoice() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
+			});
 		},
 	});
 }
@@ -632,6 +635,9 @@ export function useUpdateInvoice() {
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
 			});
 		},
 	});
@@ -649,6 +655,9 @@ export function useDeleteInvoice() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
+			});
 		},
 	});
 }
@@ -665,6 +674,9 @@ export function useVoidInvoice() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
+			});
 		},
 	});
 }
@@ -680,6 +692,9 @@ export function useUnvoidInvoice() {
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.unpaid.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
 			});
 		},
 	});

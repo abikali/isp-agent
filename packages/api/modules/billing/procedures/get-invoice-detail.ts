@@ -44,11 +44,17 @@ export const getInvoiceDetail = protectedProcedure
 				month: true,
 				invoiceDate: true,
 				expiryDate: true,
+				accountPrice: true,
+				iptvPrice: true,
+				realIpPrice: true,
 				total: true,
 				discount: true,
 				tax: true,
 				totalWithTax: true,
+				note: true,
 				paid: true,
+				voidedAt: true,
+				voidReason: true,
 				createdAt: true,
 				customer: {
 					select: {

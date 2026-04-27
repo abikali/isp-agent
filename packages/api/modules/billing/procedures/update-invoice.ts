@@ -22,11 +22,15 @@ export const updateInvoice = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			invoiceId: z.string(),
+			accountPrice: z.number().finite().min(0).nullable().optional(),
+			iptvPrice: z.number().finite().min(0).nullable().optional(),
+			realIpPrice: z.number().finite().min(0).nullable().optional(),
 			total: z.number().finite().min(0).optional(),
 			discount: z.number().finite().min(0).optional(),
 			tax: z.number().finite().min(0).optional(),
 			totalWithTax: z.number().finite().min(0).optional(),
 			expiryDate: z.string().optional(),
+			note: z.string().nullable().optional(),
 			paid: z.boolean().optional(),
 		}),
 	)
@@ -51,6 +55,15 @@ export const updateInvoice = protectedProcedure
 		}
 
 		const data: Record<string, unknown> = {};
+		if (input.accountPrice !== undefined) {
+			data["accountPrice"] = input.accountPrice;
+		}
+		if (input.iptvPrice !== undefined) {
+			data["iptvPrice"] = input.iptvPrice;
+		}
+		if (input.realIpPrice !== undefined) {
+			data["realIpPrice"] = input.realIpPrice;
+		}
 		if (input.total !== undefined) {
 			data["total"] = input.total;
 		}
@@ -65,6 +78,9 @@ export const updateInvoice = protectedProcedure
 		}
 		if (input.expiryDate !== undefined) {
 			data["expiryDate"] = new Date(input.expiryDate);
+		}
+		if (input.note !== undefined) {
+			data["note"] = input.note;
 		}
 		if (input.paid !== undefined) {
 			data["paid"] = input.paid;

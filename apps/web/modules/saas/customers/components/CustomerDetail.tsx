@@ -207,7 +207,7 @@ export function CustomerDetail({
 		return {
 			organizationId: organizationId ?? "",
 			id: customerId,
-			firstName: values.firstName,
+			firstName: values.firstName || undefined,
 			lastName: values.lastName || undefined,
 			email: values.email || undefined,
 			phones: values.phones.filter((p) => p.number.trim() !== ""),
@@ -309,23 +309,14 @@ export function CustomerDetail({
 		const { pendingFormValues, newPlanId, previewData } =
 			accountTypePreview;
 
+		let iRadiusResult: Awaited<
+			ReturnType<typeof executeAccountType.mutateAsync>
+		>;
 		try {
-			const [, iRadiusResult] = await Promise.all([
-				updateCustomer.mutateAsync(
-					buildUpdatePayload(pendingFormValues),
-				),
-				executeAccountType.mutateAsync({
-					organizationId,
-					customerId,
-					newPlanId,
-				}),
-			]);
-
-			setChangeResult({
-				success: true,
-				oldPlanName: previewData.oldAccountType.name,
-				newPlanName: previewData.newAccountType.name,
-				disconnected: iRadiusResult.disconnected,
+			iRadiusResult = await executeAccountType.mutateAsync({
+				organizationId,
+				customerId,
+				newPlanId,
 			});
 		} catch (err) {
 			setChangeResult({
@@ -334,8 +325,29 @@ export function CustomerDetail({
 				newPlanName: previewData.newAccountType.name,
 				error: err instanceof Error ? err.message : "Unknown error",
 			});
+			setAccountTypePreview(null);
+			return;
 		}
+
+		setChangeResult({
+			success: true,
+			oldPlanName: previewData.oldAccountType.name,
+			newPlanName: previewData.newAccountType.name,
+			disconnected: iRadiusResult.disconnected,
+		});
 		setAccountTypePreview(null);
+
+		try {
+			await updateCustomer.mutateAsync(
+				buildUpdatePayload(pendingFormValues),
+			);
+		} catch (err) {
+			toast.error(
+				`Plan changed, but other profile fields did not save: ${
+					err instanceof Error ? err.message : "Unknown error"
+				}`,
+			);
+		}
 	}
 
 	function handleCancelAccountTypeChange() {

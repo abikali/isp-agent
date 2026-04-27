@@ -1165,10 +1165,17 @@ model CustomerInvoice {
   month          Int
   invoiceDate    DateTime
   expiryDate     DateTime?
+  // Line items — frozen at invoice creation so the receipt is immutable.
+  // `total` must equal accountPrice + iptvPrice + realIpPrice - discount
+  // when the three line items are set; otherwise `total` is the source of truth.
+  accountPrice   Float?
+  iptvPrice      Float?
+  realIpPrice    Float?
   total          Float     @default(0)
   discount       Float     @default(0)
   tax            Float     @default(0)
   totalWithTax   Float     @default(0)
+  note           String?   @db.Text
   paid           Boolean   @default(false)
   voidedAt       DateTime?
   voidedById     String?

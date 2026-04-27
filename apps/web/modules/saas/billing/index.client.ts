@@ -28,6 +28,7 @@ export {
 } from "./components/CollectorPortal";
 export { CollectorShell } from "./components/CollectorShell";
 export { CustomerCard, type UnpaidCustomer } from "./components/CustomerCard";
+export { InvoiceFormDialog } from "./components/InvoiceFormDialog";
 export { InvoicesList } from "./components/InvoicesList";
 export { PaymentDialog } from "./components/PaymentDialog";
 export { PaymentSheet } from "./components/PaymentSheet";
@@ -75,8 +76,10 @@ export {
 	useTestBilling,
 	useToggleMonthLock,
 	useUnpaidCustomers,
+	useUnvoidInvoice,
 	useUpdateInvoice,
 	useUpdatePayment,
+	useVoidInvoice,
 } from "./hooks/use-billing";
 export {
 	buildCycleOptions,
