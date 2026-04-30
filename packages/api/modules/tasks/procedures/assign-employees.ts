@@ -1,9 +1,13 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { taskInDealerScope } from "../lib/dealer-scope";
 
 export const assignEmployees = protectedProcedure
 	.route({
@@ -34,32 +38,24 @@ export const assignEmployees = protectedProcedure
 			},
 			include: {
 				customer: { select: { dealerId: true } },
+				assignments: {
+					select: { employee: { select: { dealerId: true } } },
+				},
 			},
 		});
-		if (!existing) {
+		if (!existing || !taskInDealerScope(existing, activeDealerId)) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
 			});
 		}
 
-		// Dealer scoping: if task has a customer, it must belong to the active dealer
-		if (
-			existing.customerId &&
-			existing.customer?.dealerId !== (activeDealerId ?? null)
-		) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Task not found",
-			});
-		}
-
-		// Verify employees belong to active dealer and are active
 		if (input.employeeIds.length > 0) {
 			const validCount = await db.employee.count({
 				where: {
 					id: { in: input.employeeIds },
 					organizationId: input.organizationId,
 					status: "ACTIVE",
-					dealerId: activeDealerId ?? null,
+					...getDealerScopeFilter(activeDealerId),
 				},
 			});
 			if (validCount !== input.employeeIds.length) {

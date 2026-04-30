@@ -1,11 +1,13 @@
 import { ORPCError } from "@orpc/server";
 import {
 	getDealerScopeFilter,
+	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { taskDealerScopeWhere } from "../../tasks/lib/dealer-scope";
 
 export const getEmployee = protectedProcedure
 	.route({
@@ -28,11 +30,17 @@ export const getEmployee = protectedProcedure
 			"read",
 		);
 
+		// Cross-dealer assignments can exist for employees reassigned across
+		// dealers; the scoped includes hide rows that pre-date the current
+		// active dealer.
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
+
 		const employee = await db.employee.findFirst({
 			where: {
 				id: input.id,
 				organizationId: input.organizationId,
-				...getDealerScopeFilter(activeDealerId),
+				...dealerFilter,
 			},
 			include: {
 				dealer: { select: { id: true, name: true } },
@@ -50,6 +58,7 @@ export const getEmployee = protectedProcedure
 					},
 				},
 				taskAssignments: {
+					where: { task: taskDealerScopeWhere(activeDealerId) },
 					select: {
 						assignedAt: true,
 						task: {
@@ -68,6 +77,7 @@ export const getEmployee = protectedProcedure
 					take: 20,
 				},
 				customerCollections: {
+					where: dealerFilter,
 					select: {
 						id: true,
 						accountNumber: true,
@@ -80,6 +90,7 @@ export const getEmployee = protectedProcedure
 					take: 100,
 				},
 				customerWorkerAssignments: {
+					where: dealerFilter,
 					select: {
 						id: true,
 						accountNumber: true,
@@ -91,6 +102,7 @@ export const getEmployee = protectedProcedure
 					take: 100,
 				},
 				paymentsCollected: {
+					where: dealerViaCustomer,
 					select: {
 						id: true,
 						paidAmount: true,
@@ -133,6 +145,7 @@ export const getEmployee = protectedProcedure
 					take: 20,
 				},
 				installationsDone: {
+					where: dealerViaCustomer,
 					select: {
 						id: true,
 						status: true,

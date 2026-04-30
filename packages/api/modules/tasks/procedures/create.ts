@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
@@ -54,19 +57,36 @@ export const createTask = protectedProcedure
 			"create",
 		);
 
-		// Verify customer belongs to active dealer
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+
 		if (input.customerId) {
 			const customer = await db.customer.findFirst({
 				where: {
 					id: input.customerId,
 					organizationId: input.organizationId,
-					dealerId: activeDealerId ?? null,
+					...dealerFilter,
 				},
 				select: { id: true },
 			});
 			if (!customer) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "Customer does not belong to your dealer",
+				});
+			}
+		}
+
+		if (input.employeeIds?.length) {
+			const validCount = await db.employee.count({
+				where: {
+					id: { in: input.employeeIds },
+					organizationId: input.organizationId,
+					...dealerFilter,
+				},
+			});
+			if (validCount !== input.employeeIds.length) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						"One or more employees do not belong to your dealer",
 				});
 			}
 		}

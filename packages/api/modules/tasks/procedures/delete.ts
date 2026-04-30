@@ -7,6 +7,7 @@ import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { taskInDealerScope } from "../lib/dealer-scope";
 
 export const deleteTask = protectedProcedure
 	.route({
@@ -32,27 +33,22 @@ export const deleteTask = protectedProcedure
 		const existing = await db.task.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },
 			include: {
-				assignments: { select: { employeeId: true } },
+				assignments: {
+					select: {
+						employeeId: true,
+						employee: { select: { id: true, dealerId: true } },
+					},
+				},
 				customer: { select: { dealerId: true } },
 			},
 		});
-		if (!existing) {
+		if (!existing || !taskInDealerScope(existing, activeDealerId)) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Task not found",
 			});
 		}
 
 		await verifyTaskOwnership(permCtx, "delete", existing);
-
-		// Dealer scoping: if task has a customer, it must belong to the active dealer
-		if (
-			existing.customerId &&
-			existing.customer?.dealerId !== (activeDealerId ?? null)
-		) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Task not found",
-			});
-		}
 
 		await db.task.update({
 			where: { id: input.id },

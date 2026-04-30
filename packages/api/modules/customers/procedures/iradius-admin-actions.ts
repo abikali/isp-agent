@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
@@ -31,12 +32,17 @@ interface LinkedCustomer {
 	collectorId: string | null;
 }
 
-async function loadLinkedCustomer(
-	organizationId: string,
-	customerId: string,
-): Promise<LinkedCustomer> {
+async function loadLinkedCustomer(opts: {
+	organizationId: string;
+	customerId: string;
+	activeDealerId: string | null;
+}): Promise<LinkedCustomer> {
 	const customer = await db.customer.findFirst({
-		where: { id: customerId, organizationId },
+		where: {
+			id: opts.customerId,
+			organizationId: opts.organizationId,
+			...getDealerScopeFilter(opts.activeDealerId),
+		},
 		select: {
 			id: true,
 			externalId: true,
@@ -69,16 +75,17 @@ async function runIRadiusAdminAction(opts: {
 	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
 	localData: Prisma.CustomerUpdateInput;
 }): Promise<{ success: true }> {
-	const { permCtx } = await requirePermission(
+	const { permCtx, activeDealerId } = await requirePermission(
 		opts.organizationId,
 		opts.userId,
 		"customers",
 		"update",
 	);
-	const customer = await loadLinkedCustomer(
-		opts.organizationId,
-		opts.customerId,
-	);
+	const customer = await loadLinkedCustomer({
+		organizationId: opts.organizationId,
+		customerId: opts.customerId,
+		activeDealerId,
+	});
 	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
 
 	await mirrorToIRadius({

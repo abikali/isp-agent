@@ -294,7 +294,8 @@ model Organization {
   noteCategories           NoteCategory[]
   syncConflicts            SyncConflict[]
 
-  // Dealer scoping (null = show all dealers' data)
+  // Dealer scope for queries through `getDealerScopeFilter` and friends.
+  // When null, scoped queries match only orphan rows (`dealerId IS NULL`).
   activeDealerId String?    @unique
   activeDealer   IspDealer? @relation("ActiveDealer", fields: [activeDealerId], references: [id], onDelete: SetNull)
 

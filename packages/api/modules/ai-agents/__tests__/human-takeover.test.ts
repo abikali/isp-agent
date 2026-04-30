@@ -349,7 +349,10 @@ describe("Human Takeover - Bot Echo Detection", () => {
 		// Should set humanTakeoverAt on the conversation
 		expect(mockDb.aiConversation.update).toHaveBeenCalledWith({
 			where: { id: "conv-1" },
-			data: { humanTakeoverAt: expect.any(Date) },
+			data: {
+				lastMessageAt: expect.any(Date),
+				humanTakeoverAt: expect.any(Date),
+			},
 		});
 	});
 
@@ -375,11 +378,14 @@ describe("Human Takeover - Bot Echo Detection", () => {
 		// Should still trigger takeover — bot never sends voice
 		expect(mockDb.aiConversation.update).toHaveBeenCalledWith({
 			where: { id: "conv-1" },
-			data: { humanTakeoverAt: expect.any(Date) },
+			data: {
+				lastMessageAt: expect.any(Date),
+				humanTakeoverAt: expect.any(Date),
+			},
 		});
 	});
 
-	it("does NOT trigger takeover when humanTakeoverHours is null (feature disabled)", async () => {
+	it("does NOT set humanTakeoverAt when humanTakeoverHours is null (feature disabled)", async () => {
 		// Agent has takeover disabled
 		mockDb.aiAgentChannel.findUnique.mockResolvedValue({
 			...CHANNEL_FIXTURE,
@@ -397,13 +403,28 @@ describe("Human Takeover - Bot Echo Detection", () => {
 			},
 		]);
 
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+
 		const request = makeRequest({ test: true });
 		whatsappWebhookHandler(request, "token-1");
 		await flushBackground(2000);
 
-		// Should NOT attempt to find conversation for takeover
-		expect(mockDb.aiConversation.findFirst).not.toHaveBeenCalled();
-		expect(mockDb.aiConversation.update).not.toHaveBeenCalled();
+		// The handler still bumps lastMessageAt and persists the admin message,
+		// but it must not set humanTakeoverAt when the feature is disabled.
+		expect(mockDb.aiConversation.update).toHaveBeenCalledWith({
+			where: { id: "conv-1" },
+			data: { lastMessageAt: expect.any(Date) },
+		});
+		const updateCalls = mockDb.aiConversation.update.mock.calls;
+		const takeoverCalls = updateCalls.filter(
+			(c: unknown[]) =>
+				"humanTakeoverAt" in
+				((c[0] as Record<string, unknown>).data as Record<
+					string,
+					unknown
+				>),
+		);
+		expect(takeoverCalls).toHaveLength(0);
 	});
 });
 
@@ -460,7 +481,10 @@ describe("Human Takeover - JID Mismatch Handling", () => {
 		// Should activate takeover
 		expect(mockDb.aiConversation.update).toHaveBeenCalledWith({
 			where: { id: "conv-1" },
-			data: { humanTakeoverAt: expect.any(Date) },
+			data: {
+				lastMessageAt: expect.any(Date),
+				humanTakeoverAt: expect.any(Date),
+			},
 		});
 	});
 });

@@ -1,166 +1,87 @@
-import {
-	isAdminRole,
-	isOrganizationAdmin,
-	isOrganizationOwner,
-	verifyOrganizationMembership,
-} from "@repo/api/lib/membership";
 import { describe, expect, it, vi } from "vitest";
 
-// Mock the database module
 vi.mock("@repo/database", () => ({
 	db: {
 		member: {
+			findUnique: vi.fn(),
+		},
+		organizationRole: {
 			findUnique: vi.fn(),
 		},
 	},
 }));
 
 import { db } from "@repo/database";
+import {
+	isAdminRole,
+	verifyOrganizationMembership,
+} from "../../../lib/membership";
 
 const mockFindUnique = vi.mocked(db.member.findUnique);
+const mockOrgRoleFindUnique = vi.mocked(db.organizationRole.findUnique);
 
 describe("verifyOrganizationMembership", () => {
-	const mockOrganizationId = "org-123";
-	const mockUserId = "user-456";
+	const organizationId = "org-123";
+	const userId = "user-456";
 
-	it("returns membership data when user is a member", async () => {
-		const mockMembership = {
+	it("returns membership data with rolePermissions and activeDealerId when user is a member", async () => {
+		mockFindUnique.mockResolvedValue({
 			id: "member-1",
-			organization: {
-				id: mockOrganizationId,
-				name: "Test Org",
-				slug: "test-org",
-			},
+			organizationId,
+			userId,
 			role: "owner",
-			userId: mockUserId,
-			organizationId: mockOrganizationId,
-		};
-
-		mockFindUnique.mockResolvedValue(mockMembership as any);
+			organization: { activeDealerId: "dealer-1" },
+		} as never);
 
 		const result = await verifyOrganizationMembership(
-			mockOrganizationId,
-			mockUserId,
+			organizationId,
+			userId,
 		);
 
-		expect(result).toEqual(mockMembership);
+		expect(result).not.toBeNull();
+		expect(result?.role).toBe("owner");
+		expect(result?.activeDealerId).toBe("dealer-1");
+		expect(result?.rolePermissions).toBeUndefined();
 		expect(mockFindUnique).toHaveBeenCalledWith({
 			where: {
-				organizationId_userId: {
-					organizationId: mockOrganizationId,
-					userId: mockUserId,
-				},
+				organizationId_userId: { organizationId, userId },
 			},
 			include: {
-				organization: true,
+				organization: { select: { activeDealerId: true } },
 			},
 		});
+	});
+
+	it("loads custom role permissions for non-system roles", async () => {
+		mockFindUnique.mockResolvedValue({
+			id: "member-1",
+			organizationId,
+			userId,
+			role: "custom-collector",
+			organization: { activeDealerId: null },
+		} as never);
+		mockOrgRoleFindUnique.mockResolvedValue({
+			organizationId,
+			role: "custom-collector",
+			permission: JSON.stringify({ customers: ["read:own"] }),
+		} as never);
+
+		const result = await verifyOrganizationMembership(
+			organizationId,
+			userId,
+		);
+
+		expect(result?.rolePermissions).toEqual({ customers: ["read:own"] });
 	});
 
 	it("returns null when user is not a member", async () => {
 		mockFindUnique.mockResolvedValue(null);
 
 		const result = await verifyOrganizationMembership(
-			mockOrganizationId,
-			mockUserId,
+			organizationId,
+			userId,
 		);
-
 		expect(result).toBeNull();
-	});
-});
-
-describe("isOrganizationAdmin", () => {
-	const mockOrganizationId = "org-123";
-	const mockUserId = "user-456";
-
-	it("returns true when user is owner", async () => {
-		mockFindUnique.mockResolvedValue({
-			role: "owner",
-			organization: {},
-		} as any);
-
-		const result = await isOrganizationAdmin(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(true);
-	});
-
-	it("returns true when user is admin", async () => {
-		mockFindUnique.mockResolvedValue({
-			role: "admin",
-			organization: {},
-		} as any);
-
-		const result = await isOrganizationAdmin(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(true);
-	});
-
-	it("returns false when user is member", async () => {
-		mockFindUnique.mockResolvedValue({
-			role: "member",
-			organization: {},
-		} as any);
-
-		const result = await isOrganizationAdmin(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(false);
-	});
-
-	it("returns false when user is not a member", async () => {
-		mockFindUnique.mockResolvedValue(null);
-
-		const result = await isOrganizationAdmin(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(false);
-	});
-});
-
-describe("isOrganizationOwner", () => {
-	const mockOrganizationId = "org-123";
-	const mockUserId = "user-456";
-
-	it("returns true when user is owner", async () => {
-		mockFindUnique.mockResolvedValue({
-			role: "owner",
-			organization: {},
-		} as any);
-
-		const result = await isOrganizationOwner(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(true);
-	});
-
-	it("returns false when user is admin", async () => {
-		mockFindUnique.mockResolvedValue({
-			role: "admin",
-			organization: {},
-		} as any);
-
-		const result = await isOrganizationOwner(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(false);
-	});
-
-	it("returns false when user is not a member", async () => {
-		mockFindUnique.mockResolvedValue(null);
-
-		const result = await isOrganizationOwner(
-			mockOrganizationId,
-			mockUserId,
-		);
-		expect(result).toBe(false);
 	});
 });
 

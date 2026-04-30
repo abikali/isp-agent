@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -9,7 +12,7 @@ export const searchCustomersForPicker = protectedProcedure
 		path: "/customers/search-for-picker",
 		tags: ["Customers"],
 		summary:
-			"Search customers org-wide for selection pickers (ignores collector/dealer scoping)",
+			"Search customers within the active dealer scope for selection pickers (ignores collector :own scope)",
 	})
 	.input(
 		z.object({
@@ -20,7 +23,7 @@ export const searchCustomersForPicker = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -29,6 +32,7 @@ export const searchCustomersForPicker = protectedProcedure
 
 		const where: Prisma.CustomerWhereInput = {
 			organizationId: input.organizationId,
+			...getDealerScopeFilter(activeDealerId),
 		};
 
 		if (input.excludeCustomerId) {

@@ -1,6 +1,7 @@
 import type { ActiveOrganization } from "@repo/auth";
 import { config } from "@repo/config";
 import { CollectorShell } from "@saas/billing/client";
+import { NoDealerAssigned } from "@saas/organizations/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { getBeirutDate } from "@shared/lib/format";
 import { getServerQueryClient } from "@shared/lib/server";
@@ -20,18 +21,29 @@ const getOrganizationFn = createServerFn({ method: "GET" })
 		const { logger } = await import("@repo/logs");
 
 		try {
-			const organization = await authApi.getFullOrganization({
-				query: {
-					organizationSlug: data.organizationSlug,
-				},
-				headers: getRequest().headers,
-			});
+			const { db } = await import("@repo/database");
+
+			const [organization, orgData] = await Promise.all([
+				authApi.getFullOrganization({
+					query: {
+						organizationSlug: data.organizationSlug,
+					},
+					headers: getRequest().headers,
+				}),
+				db.organization.findUnique({
+					where: { slug: data.organizationSlug },
+					select: { activeDealerId: true },
+				}),
+			]);
 
 			if (!organization) {
 				return null;
 			}
 
-			return organization;
+			return {
+				...organization,
+				activeDealerId: orgData?.activeDealerId ?? null,
+			};
 		} catch (error) {
 			logger.error("Failed to get active organization", {
 				slug: data.organizationSlug,
@@ -62,7 +74,9 @@ export const Route = createFileRoute("/_collector/collect/$organizationSlug")({
 		);
 
 		return {
-			organization: context.organization as ActiveOrganization,
+			organization: context.organization as ActiveOrganization & {
+				activeDealerId: string | null;
+			},
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 		};
 	},
@@ -72,6 +86,15 @@ export const Route = createFileRoute("/_collector/collect/$organizationSlug")({
 
 function CollectorOrganizationLayout() {
 	const loaderData = Route.useLoaderData();
+
+	if (!loaderData.organization.activeDealerId) {
+		return (
+			<NoDealerAssigned
+				organizationName={loaderData.organization.name}
+				fullScreen
+			/>
+		);
+	}
 
 	return (
 		<AsyncBoundary

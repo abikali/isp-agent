@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import {
 	customerAudit,
 	getAuditContextFromHeaders,
@@ -54,21 +57,23 @@ export const bulkImportCustomers = protectedProcedure
 			"import",
 		);
 
-		// Resolve plan names to IDs
-		const plans = await db.servicePlan.findMany({
-			where: {
-				organizationId: input.organizationId,
-				archived: false,
-			},
-			select: { id: true, name: true },
-		});
+		// Plans are dealer-scoped; stations have no dealer column and are
+		// org-shared.
+		const [plans, stations] = await Promise.all([
+			db.servicePlan.findMany({
+				where: {
+					organizationId: input.organizationId,
+					archived: false,
+					...getDealerScopeFilter(activeDealerId),
+				},
+				select: { id: true, name: true },
+			}),
+			db.station.findMany({
+				where: { organizationId: input.organizationId },
+				select: { id: true, name: true },
+			}),
+		]);
 		const planMap = new Map(plans.map((p) => [p.name.toLowerCase(), p.id]));
-
-		// Resolve station names to IDs
-		const stations = await db.station.findMany({
-			where: { organizationId: input.organizationId },
-			select: { id: true, name: true },
-		});
 		const stationMap = new Map(
 			stations.map((s) => [s.name.toLowerCase(), s.id]),
 		);

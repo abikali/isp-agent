@@ -79,49 +79,49 @@ export const createPayment = protectedProcedure
 		}
 
 		const activeDealerId = member.activeDealerId ?? null;
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
-		// Verify customer exists (and belongs to active dealer if scoped)
-		const customer = await db.customer.findFirst({
-			where: {
-				id: input.customerId,
-				organizationId: input.organizationId,
-				...getDealerScopeFilter(activeDealerId),
-			},
-		});
+		const [customer, collector, worker] = await Promise.all([
+			db.customer.findFirst({
+				where: {
+					id: input.customerId,
+					organizationId: input.organizationId,
+					...dealerFilter,
+				},
+			}),
+			db.employee.findFirst({
+				where: {
+					id: input.collectorId,
+					organizationId: input.organizationId,
+					status: "ACTIVE",
+					...dealerFilter,
+				},
+			}),
+			input.workerId
+				? db.employee.findFirst({
+						where: {
+							id: input.workerId,
+							organizationId: input.organizationId,
+							status: "ACTIVE",
+							...dealerFilter,
+						},
+					})
+				: Promise.resolve(null),
+		]);
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Customer not found",
 			});
 		}
-
-		// Verify collector exists and is active
-		const collector = await db.employee.findFirst({
-			where: {
-				id: input.collectorId,
-				organizationId: input.organizationId,
-				status: "ACTIVE",
-			},
-		});
 		if (!collector) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Collector not found or inactive",
 			});
 		}
-
-		// Verify worker exists and is active if provided
-		if (input.workerId) {
-			const worker = await db.employee.findFirst({
-				where: {
-					id: input.workerId,
-					organizationId: input.organizationId,
-					status: "ACTIVE",
-				},
+		if (input.workerId && !worker) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Worker not found or inactive",
 			});
-			if (!worker) {
-				throw new ORPCError("NOT_FOUND", {
-					message: "Worker not found or inactive",
-				});
-			}
 		}
 
 		// Use the active billing month (latest unlocked)
@@ -207,13 +207,14 @@ export const createPayment = protectedProcedure
 				select: { id: true },
 			});
 
-			// Validate referrer belongs to the same organization (only when
-			// free account; ignored otherwise)
+			// Validate referrer belongs to the same organization and dealer
+			// (only when free account; ignored otherwise)
 			if (input.referredCustomerId && input.freeAccount) {
 				const referrer = await tx.customer.findFirst({
 					where: {
 						id: input.referredCustomerId,
 						organizationId: input.organizationId,
+						...getDealerScopeFilter(activeDealerId),
 					},
 					select: { id: true },
 				});

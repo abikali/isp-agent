@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
@@ -32,7 +33,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 	})
 	.input(input)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -43,6 +44,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 			where: {
 				id: input.customerId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { externalId: true, username: true },
 		});
@@ -61,6 +63,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 			where: {
 				id: input.newPlanId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { externalId: true },
 		});
@@ -86,7 +89,7 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 	})
 	.input(input)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -97,6 +100,7 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 			where: {
 				id: input.customerId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { externalId: true, username: true, collectorId: true },
 		});
@@ -112,6 +116,7 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 			where: {
 				id: input.newPlanId,
 				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: {
 				externalId: true,
@@ -127,8 +132,8 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 		}
 
 		// Mirror what iRadius just set on User.AccountPrice so the local
-		// monthlyRate doesn't go stale (and doesn't land in the conflict
-		// queue on the next sync). Prefer sellingPrice → rate → monthlyPrice.
+		// monthlyRate doesn't drift and trip the next sync's conflict queue.
+		// Prefer sellingPrice → rate → monthlyPrice.
 		const newMonthlyRate =
 			newPlan.sellingPrice ?? newPlan.rate ?? newPlan.monthlyPrice;
 

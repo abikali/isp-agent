@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import {
 	getDealerScopeFilter,
 	requirePermission,
@@ -34,7 +35,6 @@ export const listCustomerInvoices = protectedProcedure
 			"read",
 		);
 
-		// Verify the user can access this customer (ownership check for :own scope)
 		const customer = await db.customer.findFirst({
 			where: {
 				id: input.customerId,
@@ -43,13 +43,10 @@ export const listCustomerInvoices = protectedProcedure
 			},
 			select: { collectorId: true },
 		});
-		if (customer) {
-			await verifyCustomerOwnership(
-				permCtx,
-				"read",
-				customer.collectorId,
-			);
+		if (!customer) {
+			throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
 		}
+		await verifyCustomerOwnership(permCtx, "read", customer.collectorId);
 
 		const [invoices, total] = await Promise.all([
 			db.customerInvoice.findMany({

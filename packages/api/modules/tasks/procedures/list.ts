@@ -6,6 +6,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { taskDealerScopeWhere } from "../lib/dealer-scope";
 
 export const listTasks = protectedProcedure
 	.route({
@@ -93,26 +94,7 @@ export const listTasks = protectedProcedure
 			});
 		}
 
-		// Dealer scoping: only show tasks whose customer belongs to the active dealer
-		// Tasks without a customer are also scoped — they need an assigned employee from the dealer
-		if (activeDealerId) {
-			andClauses.push({
-				OR: [
-					{ customer: { dealerId: activeDealerId } },
-					{
-						customerId: null,
-						assignments: {
-							some: {
-								employee: { dealerId: activeDealerId },
-							},
-						},
-					},
-				],
-			});
-		} else {
-			// No dealer assigned — show nothing
-			andClauses.push({ id: { in: [] as string[] } });
-		}
+		andClauses.push(taskDealerScopeWhere(activeDealerId));
 
 		if (andClauses.length > 0) {
 			where["AND"] = andClauses;

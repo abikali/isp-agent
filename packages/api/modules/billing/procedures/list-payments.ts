@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -53,13 +56,12 @@ export const listPayments = protectedProcedure
 			"view",
 		);
 
-		const where: Record<string, unknown> = {
-			organizationId: input.organizationId,
+		const customerWhere: Record<string, unknown> = {
+			...getDealerScopeFilter(activeDealerId),
 		};
 
-		// Build customer sub-filter (dealer scope + groupName + search)
-		const customerWhere: Record<string, unknown> = {
-			dealerId: activeDealerId ?? null,
+		const where: Record<string, unknown> = {
+			organizationId: input.organizationId,
 		};
 
 		await applyCollectorScope(where, permCtx, input.collectorId);
@@ -78,11 +80,11 @@ export const listPayments = protectedProcedure
 		}
 		if (input.unreviewedOnly) {
 			where["reviewedAt"] = null;
-			// Get IDs of amount-mismatch payments to include in unreviewedOnly filter
 			const mismatchIdsForReview = await db.$queryRaw<{ id: string }[]>`
 				SELECT p.id FROM "payment" p
 				JOIN "customer" c ON c.id = p."customerId"
 				WHERE p."organizationId" = ${input.organizationId}
+				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
 				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > 0.01
@@ -132,12 +134,11 @@ export const listPayments = protectedProcedure
 		if (dateRange) {
 			where["paidAt"] = dateRange;
 		}
+		// Dealer scope lives on `where.customer`; Prisma AND-combines it with
+		// any OR branch below, so the payment-id search branch can't bypass it.
+		where["customer"] = customerWhere;
 		if (input.search) {
 			const searchLower = input.search.toLowerCase();
-			const customerSearch = {
-				...customerWhere,
-				...customerSearchFilter(input.search),
-			};
 			where["AND"] = [
 				...((where["AND"] as unknown[]) ?? []),
 				{
@@ -148,12 +149,10 @@ export const listPayments = protectedProcedure
 								mode: "insensitive" as const,
 							},
 						},
-						{ customer: customerSearch },
+						{ customer: customerSearchFilter(input.search) },
 					],
 				},
 			];
-		} else if (Object.keys(customerWhere).length > 0) {
-			where["customer"] = customerWhere;
 		}
 
 		// For amount mismatch, we need to get IDs via raw SQL then filter
@@ -169,10 +168,12 @@ export const listPayments = protectedProcedure
 				`SELECT p.id FROM "payment" p
 				JOIN "customer" c ON c.id = p."customerId"
 				WHERE p."organizationId" = $1
+				  AND c."dealerId" IS NOT DISTINCT FROM $2
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
 				  ${direction}`,
 				input.organizationId,
+				activeDealerId,
 			);
 			const ids = mismatchIds.map((r) => r.id);
 			if (ids.length === 0) {

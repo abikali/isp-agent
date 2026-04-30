@@ -12,6 +12,7 @@ export { CreateOrganizationForm } from "./components/CreateOrganizationForm";
 export { CreateWebhookForm } from "./components/CreateWebhookForm";
 export { DeleteOrganizationForm } from "./components/DeleteOrganizationForm";
 export { InviteMemberForm } from "./components/InviteMemberForm";
+export { NoDealerAssigned } from "./components/NoDealerAssigned";
 // Components - Invitations
 export { OrganizationInvitationAlert } from "./components/OrganizationInvitationAlert";
 export { OrganizationInvitationModal } from "./components/OrganizationInvitationModal";

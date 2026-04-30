@@ -1,4 +1,8 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	getDealerScopeViaCustomer,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -29,7 +33,7 @@ export const getCollectorBalance = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -43,6 +47,9 @@ export const getCollectorBalance = protectedProcedure
 			activeMonth.year,
 			activeMonth.month,
 		);
+
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
 		const [balanceData, monthCustomers, monthPaymentsAgg] =
 			await Promise.all([
@@ -58,7 +65,11 @@ export const getCollectorBalance = protectedProcedure
 							input.organizationId,
 							activeMonth.id,
 							monthRange,
-							{ collectorId: input.collectorId, relevantMonths },
+							{
+								collectorId: input.collectorId,
+								dealerFilter,
+								relevantMonths,
+							},
 						),
 						select: {
 							monthlyRate: true,
@@ -77,6 +88,7 @@ export const getCollectorBalance = protectedProcedure
 						billingMonthId: activeMonth.id,
 						status: "COLLECTED",
 						...SETTLED_PAYMENT,
+						...dealerViaCustomer,
 					},
 					_sum: { paidAmount: true },
 					_count: true,

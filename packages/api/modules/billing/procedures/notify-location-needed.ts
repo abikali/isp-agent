@@ -1,4 +1,7 @@
-import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { queueTelegramLocationNotify } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -21,19 +24,38 @@ export const notifyLocationNeeded = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const member = await verifyOrganizationMembership(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
+			"customers",
+			"update",
 		);
-		if (!member) {
+
+		// Both lookups must hit the user's dealer scope; otherwise we'd be
+		// pinging another dealer's employee about a customer they shouldn't see.
+		const dealerFilter = getDealerScopeFilter(activeDealerId);
+
+		const [customer, employee] = await Promise.all([
+			db.customer.findFirst({
+				where: {
+					id: input.customerId,
+					organizationId: input.organizationId,
+					...dealerFilter,
+				},
+				select: { id: true },
+			}),
+			db.employee.findFirst({
+				where: {
+					id: input.employeeId,
+					organizationId: input.organizationId,
+					...dealerFilter,
+				},
+				select: { telegramChatId: true },
+			}),
+		]);
+		if (!customer) {
 			return { queued: false, reason: null };
 		}
-
-		const employee = await db.employee.findFirst({
-			where: { id: input.employeeId },
-			select: { telegramChatId: true },
-		});
-
 		if (!employee?.telegramChatId) {
 			return { queued: false, reason: "no-telegram" as const };
 		}

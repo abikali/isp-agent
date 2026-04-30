@@ -146,24 +146,30 @@ export const updateCustomer = protectedProcedure
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
 		}
+		let collectorEmployee: {
+			name: string;
+			phone: string | null;
+			externalId: string | null;
+		} | null = null;
 		if (input.collectorId !== undefined) {
 			if (input.collectorId) {
-				const employee = await db.employee.findFirst({
+				collectorEmployee = await db.employee.findFirst({
 					where: {
 						id: input.collectorId,
 						organizationId: input.organizationId,
 						status: "ACTIVE",
+						...getDealerScopeFilter(activeDealerId),
 					},
-					select: { id: true, name: true, phone: true },
+					select: { name: true, phone: true, externalId: true },
 				});
-				if (!employee) {
+				if (!collectorEmployee) {
 					throw new ORPCError("NOT_FOUND", {
 						message: "Collector employee not found or inactive",
 					});
 				}
 				updateData["collectorId"] = input.collectorId;
-				updateData["collectorName"] = employee.name;
-				updateData["collectorPhone"] = employee.phone ?? null;
+				updateData["collectorName"] = collectorEmployee.name;
+				updateData["collectorPhone"] = collectorEmployee.phone ?? null;
 			} else {
 				updateData["collectorId"] = null;
 				updateData["collectorName"] = null;
@@ -177,22 +183,10 @@ export const updateCustomer = protectedProcedure
 			input.status !== undefined && input.status !== existing.status;
 		const diff = syncEnabled ? diffMirrorFields(existing, input) : null;
 
-		let collectorIRadiusUserId: number | null = null;
-		if (diff?.collectorChanged && input.collectorId) {
-			const collectorEmployee = await db.employee.findFirst({
-				where: {
-					id: input.collectorId,
-					organizationId: input.organizationId,
-				},
-				select: { externalId: true },
-			});
-			if (collectorEmployee?.externalId) {
-				collectorIRadiusUserId = Number.parseInt(
-					collectorEmployee.externalId,
-					10,
-				);
-			}
-		}
+		const collectorIRadiusUserId =
+			diff?.collectorChanged && collectorEmployee?.externalId
+				? Number.parseInt(collectorEmployee.externalId, 10)
+				: null;
 
 		const customer = await mirrorToIRadius({
 			logTag: "iRadius customer update",

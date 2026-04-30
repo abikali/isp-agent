@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ORPCError } from "@orpc/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock the database module
 vi.mock("@repo/database", () => ({
 	db: {
 		apiKey: {
@@ -9,560 +9,226 @@ vi.mock("@repo/database", () => ({
 			findUnique: vi.fn(),
 			update: vi.fn(),
 		},
-		auditLog: {
-			create: vi.fn(),
-		},
 	},
 	getOrganizationById: vi.fn(),
 }));
 
-// Mock the membership verification
-vi.mock("@repo/api/lib/membership", () => ({
-	verifyOrganizationMembership: vi.fn(),
-	checkOrganizationAdmin: vi.fn(),
-}));
-
-// Mock permission functions
 vi.mock("@repo/api/lib/permission", () => ({
-	getPermissionContext: vi.fn((userId, orgId, role) => ({
-		userId,
-		organizationId: orgId,
-		memberRole: role,
-	})),
-	getOwnershipFilter: vi.fn(),
+	requirePermission: vi.fn(),
+	getOwnershipFilterAsync: vi.fn(),
 }));
 
-// Mock the hash module - use literal values since mocks are hoisted
-// Valid key format: libancom_ (6 chars) + 43 base64url chars = 49 chars total
-vi.mock("../lib/hash", () => ({
-	generateApiKey: () => ({
-		plainKey: "libancom_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq",
-		keyHash:
-			"mockedhash123456789abcdef0123456789abcdef0123456789abcdef01234567",
-		keyPrefix: "libancom_ABCDEFGH",
-	}),
+vi.mock("@repo/auth/lib/audit", () => ({
+	apiKeyAudit: {
+		created: vi.fn(),
+		revoked: vi.fn(),
+	},
+	getAuditContextFromHeaders: vi.fn(() => ({})),
 }));
 
-// Constants for tests (must match mock values)
 const MOCK_PLAIN_KEY = "libancom_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq";
 const MOCK_KEY_HASH =
 	"mockedhash123456789abcdef0123456789abcdef0123456789abcdef01234567";
 const MOCK_KEY_PREFIX = "libancom_ABCDEFGH";
 
+vi.mock("../lib/hash", () => ({
+	generateApiKey: () => ({
+		plainKey: MOCK_PLAIN_KEY,
+		keyHash: MOCK_KEY_HASH,
+		keyPrefix: MOCK_KEY_PREFIX,
+	}),
+}));
+
 import {
-	checkOrganizationAdmin,
-	verifyOrganizationMembership,
-} from "@repo/api/lib/membership";
-import { getOwnershipFilter } from "@repo/api/lib/permission";
+	getOwnershipFilterAsync,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db, getOrganizationById } from "@repo/database";
-
-const mockDb = vi.mocked(db);
-const mockGetOrganizationById = vi.mocked(getOrganizationById);
-const mockVerifyMembership = vi.mocked(verifyOrganizationMembership);
-const mockCheckAdmin = vi.mocked(checkOrganizationAdmin);
-const mockGetOwnershipFilter = vi.mocked(getOwnershipFilter);
-
-// Import handlers after mocking
 import { createApiKey } from "../procedures/create";
 import { listApiKeys } from "../procedures/list";
 import { revokeApiKey } from "../procedures/revoke";
 
-describe("API Key Procedures", () => {
-	const mockUser = { id: "user-123", email: "test@example.com" };
-	const mockOrganization = {
-		id: "org-456",
-		name: "Test Org",
-		slug: "test-org",
+const mockDb = vi.mocked(db);
+const mockRequirePermission = vi.mocked(requirePermission);
+const mockGetOwnershipFilter = vi.mocked(getOwnershipFilterAsync);
+const mockGetOrganizationById = vi.mocked(getOrganizationById);
+
+const user = { id: "user-1", email: "u@example.com" };
+const orgId = "org-1";
+const headers = new Headers();
+const ctx = { user, headers };
+
+const ALLOW_PERMISSION = {
+	member: { role: "owner" } as never,
+	permCtx: {
+		userId: user.id,
+		organizationId: orgId,
+		memberRole: "owner",
+	} as never,
+	activeDealerId: null,
+};
+
+const FORBIDDEN = new ORPCError("FORBIDDEN", { message: "denied" });
+
+beforeEach(() => {
+	vi.clearAllMocks();
+});
+
+async function call<T>(
+	procedure: { "~orpc": { handler: (args: unknown) => Promise<T> } },
+	input: unknown,
+): Promise<T> {
+	return procedure["~orpc"].handler({ context: ctx, input });
+}
+
+describe("createApiKey", () => {
+	const validInput = {
+		organizationId: orgId,
+		name: "Key",
+		permissions: [{ resource: "apiKeys", actions: ["read"] }],
 	};
-	const mockContext = { user: mockUser, headers: new Headers() };
 
-	beforeEach(() => {
-		vi.clearAllMocks();
+	it("creates a key when permission allows", async () => {
+		mockGetOrganizationById.mockResolvedValue({ id: orgId } as never);
+		mockRequirePermission.mockResolvedValue(ALLOW_PERMISSION);
+		mockDb.apiKey.create.mockResolvedValue({
+			id: "key-1",
+			name: "Key",
+			keyPrefix: MOCK_KEY_PREFIX,
+			permissions: validInput.permissions,
+			expiresAt: null,
+			createdAt: new Date(),
+		} as never);
+
+		const result = await call(createApiKey, validInput);
+
+		expect(result.key).toBe(MOCK_PLAIN_KEY);
+		expect(result.keyPrefix).toBe(MOCK_KEY_PREFIX);
+		expect(mockRequirePermission).toHaveBeenCalledWith(
+			orgId,
+			user.id,
+			"apiKeys",
+			"create",
+		);
+		expect(mockDb.apiKey.create).toHaveBeenCalled();
 	});
 
-	afterEach(() => {
-		vi.resetAllMocks();
+	it("throws BAD_REQUEST when organization is missing", async () => {
+		mockGetOrganizationById.mockResolvedValue(null);
+
+		await expect(call(createApiKey, validInput)).rejects.toThrow(ORPCError);
+		expect(mockRequirePermission).not.toHaveBeenCalled();
 	});
 
-	describe("createApiKey", () => {
-		const validInput = {
-			organizationId: "org-456",
-			name: "My API Key",
-			permissions: ["read:users", "write:members"],
+	it("propagates FORBIDDEN from requirePermission", async () => {
+		mockGetOrganizationById.mockResolvedValue({ id: orgId } as never);
+		mockRequirePermission.mockRejectedValue(FORBIDDEN);
+
+		await expect(call(createApiKey, validInput)).rejects.toBe(FORBIDDEN);
+		expect(mockDb.apiKey.create).not.toHaveBeenCalled();
+	});
+
+	it("stores expiresAt when provided", async () => {
+		mockGetOrganizationById.mockResolvedValue({ id: orgId } as never);
+		mockRequirePermission.mockResolvedValue(ALLOW_PERMISSION);
+		mockDb.apiKey.create.mockResolvedValue({
+			id: "key-1",
+			name: "Key",
+			keyPrefix: MOCK_KEY_PREFIX,
+			permissions: validInput.permissions,
+			expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+			createdAt: new Date(),
+		} as never);
+
+		await call(createApiKey, {
+			...validInput,
+			expiresAt: "2030-01-01T00:00:00.000Z",
+		});
+
+		const createArgs = mockDb.apiKey.create.mock.calls[0]?.[0] as {
+			data: { expiresAt: Date | null };
 		};
+		expect(createArgs.data.expiresAt).toEqual(
+			new Date("2030-01-01T00:00:00.000Z"),
+		);
+	});
+});
 
-		it("creates an API key when user is admin", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockDb.apiKey.create.mockResolvedValue({
-				id: "key-789",
-				name: validInput.name,
-				keyPrefix: "libancom_MockedAP",
-				permissions: validInput.permissions,
-				expiresAt: null,
-				createdAt: new Date(),
-			} as any);
+describe("listApiKeys", () => {
+	it("returns keys filtered by ownership scope", async () => {
+		mockGetOrganizationById.mockResolvedValue({ id: orgId } as never);
+		mockRequirePermission.mockResolvedValue(ALLOW_PERMISSION);
+		mockGetOwnershipFilter.mockResolvedValue({ createdById: user.id });
+		mockDb.apiKey.findMany.mockResolvedValue([
+			{ id: "k1", name: "K1" } as never,
+		]);
 
-			const handler = createApiKey["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: validInput,
-			} as any);
+		const result = await call(listApiKeys, { organizationId: orgId });
 
-			expect(result).toHaveProperty("id", "key-789");
-			expect(result).toHaveProperty("key", MOCK_PLAIN_KEY);
-			expect(result).toHaveProperty("name", validInput.name);
-			expect(mockDb.apiKey.create).toHaveBeenCalledWith({
-				data: expect.objectContaining({
-					name: validInput.name,
-					keyHash: MOCK_KEY_HASH,
-					keyPrefix: MOCK_KEY_PREFIX,
-					organizationId: validInput.organizationId,
-					createdById: mockUser.id,
-					permissions: validInput.permissions,
-				}),
-				select: expect.any(Object),
-			});
-		});
-
-		it("creates an API key when user is owner", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue({
-				organization: mockOrganization,
-				role: "owner",
-			});
-			mockDb.apiKey.create.mockResolvedValue({
-				id: "key-789",
-				name: validInput.name,
-				keyPrefix: "libancom_MockedAP",
-				permissions: validInput.permissions,
-				expiresAt: null,
-				createdAt: new Date(),
-			} as any);
-
-			const handler = createApiKey["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: validInput,
-			} as any);
-
-			expect(result).toHaveProperty("id");
-			expect(result).toHaveProperty("key");
-			expect(mockDb.apiKey.create).toHaveBeenCalled();
-		});
-
-		it("throws FORBIDDEN when user is a member but not admin/owner", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue(null);
-
-			const handler = createApiKey["~orpc"].handler;
-
-			await expect(
-				handler({ context: mockContext, input: validInput } as any),
-			).rejects.toThrow("Only organization admins can create API keys");
-		});
-
-		it("throws FORBIDDEN when user is not a member", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue(null);
-
-			const handler = createApiKey["~orpc"].handler;
-
-			await expect(
-				handler({ context: mockContext, input: validInput } as any),
-			).rejects.toThrow("Only organization admins can create API keys");
-		});
-
-		it("throws BAD_REQUEST when organization does not exist", async () => {
-			mockGetOrganizationById.mockResolvedValue(null);
-
-			const handler = createApiKey["~orpc"].handler;
-
-			await expect(
-				handler({ context: mockContext, input: validInput } as any),
-			).rejects.toThrow("Organization not found");
-		});
-
-		it("creates an API key with expiration date", async () => {
-			const expirationDate = new Date();
-			expirationDate.setFullYear(expirationDate.getFullYear() + 1);
-			const inputWithExpiration = {
-				...validInput,
-				expiresAt: expirationDate.toISOString(),
-			};
-
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockDb.apiKey.create.mockResolvedValue({
-				id: "key-789",
-				name: validInput.name,
-				keyPrefix: "libancom_MockedAP",
-				permissions: validInput.permissions,
-				expiresAt: expirationDate,
-				createdAt: new Date(),
-			} as any);
-
-			const handler = createApiKey["~orpc"].handler;
-			await handler({
-				context: mockContext,
-				input: inputWithExpiration,
-			} as any);
-
-			expect(mockDb.apiKey.create).toHaveBeenCalledWith({
-				data: expect.objectContaining({
-					expiresAt: expect.any(Date),
-				}),
-				select: expect.any(Object),
-			});
-		});
-
-		it("stores createdById to track key creator", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockCheckAdmin.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockDb.apiKey.create.mockResolvedValue({
-				id: "key-789",
-				name: validInput.name,
-				keyPrefix: "libancom_MockedAP",
-				permissions: validInput.permissions,
-				expiresAt: null,
-				createdAt: new Date(),
-			} as any);
-
-			const handler = createApiKey["~orpc"].handler;
-			await handler({ context: mockContext, input: validInput } as any);
-
-			expect(mockDb.apiKey.create).toHaveBeenCalledWith({
-				data: expect.objectContaining({
-					createdById: mockUser.id,
-				}),
-				select: expect.any(Object),
-			});
+		expect(result.apiKeys).toHaveLength(1);
+		const findArgs = mockDb.apiKey.findMany.mock.calls[0]?.[0] as {
+			where: Record<string, unknown>;
+		};
+		expect(findArgs.where).toMatchObject({
+			organizationId: orgId,
+			revokedAt: null,
+			createdById: user.id,
 		});
 	});
 
-	describe("listApiKeys", () => {
-		const validInput = { organizationId: "org-456" };
+	it("throws BAD_REQUEST when organization is missing", async () => {
+		mockGetOrganizationById.mockResolvedValue(null);
 
-		it("returns API keys for organization admins", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockGetOwnershipFilter.mockReturnValue(undefined); // Admin sees all
-			mockDb.apiKey.findMany.mockResolvedValue([
-				{
-					id: "key-1",
-					name: "API Key 1",
-					keyPrefix: "libancom_key1...",
-					permissions: ["read:users"],
-					expiresAt: null,
-					lastUsedAt: new Date(),
-					createdAt: new Date(),
-					user: {
-						id: "user-123",
-						name: "Test User",
-						email: "test@example.com",
-					},
-				},
-			] as any);
+		await expect(
+			call(listApiKeys, { organizationId: orgId }),
+		).rejects.toThrow(ORPCError);
+		expect(mockRequirePermission).not.toHaveBeenCalled();
+	});
+});
 
-			const handler = listApiKeys["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: validInput,
-			} as any);
+describe("revokeApiKey", () => {
+	it("sets revokedAt when permitted", async () => {
+		mockDb.apiKey.findUnique.mockResolvedValue({
+			id: "key-1",
+			name: "Key",
+			organizationId: orgId,
+			revokedAt: null,
+		} as never);
+		mockRequirePermission.mockResolvedValue(ALLOW_PERMISSION);
+		mockDb.apiKey.update.mockResolvedValue({} as never);
 
-			expect(result.apiKeys).toHaveLength(1);
-			expect(result.apiKeys[0]).toHaveProperty("id", "key-1");
-			expect(result.apiKeys[0]).toHaveProperty("user");
-		});
+		await call(revokeApiKey, { id: "key-1" });
 
-		it("returns API keys for organization owners", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "owner",
-			});
-			mockGetOwnershipFilter.mockReturnValue(undefined); // Owner sees all
-			mockDb.apiKey.findMany.mockResolvedValue([]);
-
-			const handler = listApiKeys["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: validInput,
-			} as any);
-
-			expect(result.apiKeys).toEqual([]);
-		});
-
-		it("returns only own API keys for regular member", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "member",
-			});
-			// Member gets ownership filter applied
-			mockGetOwnershipFilter.mockReturnValue({
-				createdById: mockUser.id,
-			});
-			mockDb.apiKey.findMany.mockResolvedValue([]);
-
-			const handler = listApiKeys["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: validInput,
-			} as any);
-
-			expect(result.apiKeys).toEqual([]);
-			// Verify ownership filter was applied
-			expect(mockDb.apiKey.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						createdById: mockUser.id,
-					}),
-				}),
-			);
-		});
-
-		it("throws FORBIDDEN when user is not a member", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue(null);
-
-			const handler = listApiKeys["~orpc"].handler;
-
-			await expect(
-				handler({ context: mockContext, input: validInput } as any),
-			).rejects.toThrow("You must be a member of this organization");
-		});
-
-		it("only returns non-revoked keys", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockGetOwnershipFilter.mockReturnValue(undefined);
-			mockDb.apiKey.findMany.mockResolvedValue([]);
-
-			const handler = listApiKeys["~orpc"].handler;
-			await handler({ context: mockContext, input: validInput } as any);
-
-			expect(mockDb.apiKey.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: expect.objectContaining({
-						revokedAt: null,
-					}),
-				}),
-			);
-		});
-
-		it("orders API keys by creation date descending", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockGetOwnershipFilter.mockReturnValue(undefined);
-			mockDb.apiKey.findMany.mockResolvedValue([]);
-
-			const handler = listApiKeys["~orpc"].handler;
-			await handler({ context: mockContext, input: validInput } as any);
-
-			expect(mockDb.apiKey.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					orderBy: { createdAt: "desc" },
-				}),
-			);
-		});
-
-		it("includes user relation in response", async () => {
-			mockGetOrganizationById.mockResolvedValue(mockOrganization as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockGetOwnershipFilter.mockReturnValue(undefined);
-			mockDb.apiKey.findMany.mockResolvedValue([]);
-
-			const handler = listApiKeys["~orpc"].handler;
-			await handler({ context: mockContext, input: validInput } as any);
-
-			expect(mockDb.apiKey.findMany).toHaveBeenCalledWith(
-				expect.objectContaining({
-					select: expect.objectContaining({
-						user: expect.any(Object),
-					}),
-				}),
-			);
-		});
+		const updateArgs = mockDb.apiKey.update.mock.calls[0]?.[0] as {
+			data: { revokedAt: Date };
+		};
+		expect(updateArgs.data.revokedAt).toBeInstanceOf(Date);
+		expect(mockRequirePermission).toHaveBeenCalledWith(
+			orgId,
+			user.id,
+			"apiKeys",
+			"delete",
+		);
 	});
 
-	describe("revokeApiKey", () => {
-		const keyId = "key-789";
+	it("throws NOT_FOUND when key does not exist", async () => {
+		mockDb.apiKey.findUnique.mockResolvedValue(null);
 
-		it("revokes an API key when user is admin", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: null,
-			} as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockDb.apiKey.update.mockResolvedValue({} as any);
+		await expect(call(revokeApiKey, { id: "missing" })).rejects.toThrow(
+			ORPCError,
+		);
+	});
 
-			const handler = revokeApiKey["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: { id: keyId },
-			} as any);
+	it("rejects an already-revoked key", async () => {
+		mockDb.apiKey.findUnique.mockResolvedValue({
+			id: "key-1",
+			organizationId: orgId,
+			revokedAt: new Date(),
+		} as never);
 
-			expect(result).toEqual({ success: true });
-			expect(mockDb.apiKey.update).toHaveBeenCalledWith({
-				where: { id: keyId },
-				data: { revokedAt: expect.any(Date) },
-			});
-		});
-
-		it("revokes an API key when user is owner", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: null,
-			} as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "owner",
-			});
-			mockDb.apiKey.update.mockResolvedValue({} as any);
-
-			const handler = revokeApiKey["~orpc"].handler;
-			const result = await handler({
-				context: mockContext,
-				input: { id: keyId },
-			} as any);
-
-			expect(result).toEqual({ success: true });
-		});
-
-		it("throws NOT_FOUND when API key does not exist", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue(null);
-
-			const handler = revokeApiKey["~orpc"].handler;
-
-			await expect(
-				handler({
-					context: mockContext,
-					input: { id: keyId },
-				} as any),
-			).rejects.toThrow("API key not found");
-		});
-
-		it("throws BAD_REQUEST when API key is already revoked", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: new Date("2024-01-01"), // Already revoked
-			} as any);
-
-			const handler = revokeApiKey["~orpc"].handler;
-
-			await expect(
-				handler({
-					context: mockContext,
-					input: { id: keyId },
-				} as any),
-			).rejects.toThrow("API key is already revoked");
-		});
-
-		it("throws FORBIDDEN when user is a regular member", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: null,
-			} as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "member",
-			});
-
-			const handler = revokeApiKey["~orpc"].handler;
-
-			await expect(
-				handler({
-					context: mockContext,
-					input: { id: keyId },
-				} as any),
-			).rejects.toThrow("Only organization admins can revoke API keys");
-		});
-
-		it("throws FORBIDDEN when user is not a member", async () => {
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: null,
-			} as any);
-			mockVerifyMembership.mockResolvedValue(null);
-
-			const handler = revokeApiKey["~orpc"].handler;
-
-			await expect(
-				handler({
-					context: mockContext,
-					input: { id: keyId },
-				} as any),
-			).rejects.toThrow(); // Just verify it throws
-		});
-
-		it("sets revokedAt to current date/time", async () => {
-			const beforeRevoke = new Date();
-
-			mockDb.apiKey.findUnique.mockResolvedValue({
-				id: keyId,
-				organizationId: "org-456",
-				revokedAt: null,
-			} as any);
-			mockVerifyMembership.mockResolvedValue({
-				organization: mockOrganization,
-				role: "admin",
-			});
-			mockDb.apiKey.update.mockResolvedValue({} as any);
-
-			const handler = revokeApiKey["~orpc"].handler;
-			await handler({
-				context: mockContext,
-				input: { id: keyId },
-			} as any);
-
-			const afterRevoke = new Date();
-
-			expect(mockDb.apiKey.update).toHaveBeenCalledWith({
-				where: { id: keyId },
-				data: {
-					revokedAt: expect.any(Date),
-				},
-			});
-
-			// Verify the date is reasonable (between before and after)
-			const callArgs = mockDb.apiKey.update.mock.calls[0]?.[0];
-			const revokedAt = callArgs?.data?.revokedAt as Date;
-			expect(revokedAt.getTime()).toBeGreaterThanOrEqual(
-				beforeRevoke.getTime(),
-			);
-			expect(revokedAt.getTime()).toBeLessThanOrEqual(
-				afterRevoke.getTime(),
-			);
-		});
+		await expect(call(revokeApiKey, { id: "key-1" })).rejects.toThrow(
+			ORPCError,
+		);
+		expect(mockRequirePermission).not.toHaveBeenCalled();
 	});
 });

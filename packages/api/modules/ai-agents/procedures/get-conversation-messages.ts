@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db, normalizeLebanesePhone } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -20,7 +23,7 @@ export const getConversationMessages = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"aiAgents",
@@ -131,10 +134,14 @@ export const getConversationMessages = protectedProcedure
 		} | null = null;
 		if (conversation.contactId) {
 			const normalized = normalizeLebanesePhone(conversation.contactId);
+			// Conversations are org-shared (no dealer column on the AI agent),
+			// but the customer enrichment has to honour dealer scope so the
+			// resolved customer never crosses the active-dealer boundary.
 			const match = await db.customer.findFirst({
 				where: {
 					organizationId: input.organizationId,
 					mobile: normalized,
+					...getDealerScopeFilter(activeDealerId),
 				},
 				select: { id: true, username: true, accountNumber: true },
 			});

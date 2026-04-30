@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
@@ -24,14 +25,18 @@ async function assertCustomerUpdateAccess(
 	customerId: string,
 	userId: string,
 ): Promise<void> {
-	const { permCtx } = await requirePermission(
+	const { permCtx, activeDealerId } = await requirePermission(
 		organizationId,
 		userId,
 		"customers",
 		"update",
 	);
 	const customer = await db.customer.findFirst({
-		where: { id: customerId, organizationId },
+		where: {
+			id: customerId,
+			organizationId,
+			...getDealerScopeFilter(activeDealerId),
+		},
 		select: { collectorId: true },
 	});
 	if (!customer) {
@@ -110,22 +115,28 @@ export const bulkRequestLocation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		// Dealer-scoped ownership is not enforced here — each worker job
-		// calls `runCreateLocationRequest` which loads the customer itself
-		// and will reject customer rows outside this organization. For
-		// tighter per-row scope, pre-filter `customerIds` to dealer scope
-		// before enqueuing (follow-up).
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"update",
 		);
 
-		const jobIds = await queueLocationRequestsBulk(
-			input.customerIds.map((customerId) => ({
+		// The worker only validates org membership, so we pre-filter here to
+		// keep cross-dealer customer IDs out of the queue.
+		const allowed = await db.customer.findMany({
+			where: {
+				id: { in: input.customerIds },
 				organizationId: input.organizationId,
-				customerId,
+				...getDealerScopeFilter(activeDealerId),
+			},
+			select: { id: true },
+		});
+
+		const jobIds = await queueLocationRequestsBulk(
+			allowed.map((c) => ({
+				organizationId: input.organizationId,
+				customerId: c.id,
 				createdById: user.id,
 			})),
 		);
@@ -133,6 +144,7 @@ export const bulkRequestLocation = protectedProcedure
 		return {
 			success: true,
 			queued: jobIds.length,
+			skipped: input.customerIds.length - allowed.length,
 		};
 	});
 
