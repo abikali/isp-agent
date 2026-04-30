@@ -65,7 +65,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true },
+			select: { externalId: true, name: true },
 		});
 		if (!newPlan?.externalId) {
 			throw new ORPCError("BAD_REQUEST", {
@@ -73,11 +73,26 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 			});
 		}
 
-		const preview = await previewAccountTypeChange(
-			customer,
-			Number.parseInt(newPlan.externalId, 10),
-		);
-		return preview;
+		try {
+			return await previewAccountTypeChange(
+				customer,
+				Number.parseInt(newPlan.externalId, 10),
+			);
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "iRadius preview failed";
+
+			// iRadius reports the customer is already on this account type — local
+			// planId has drifted. Don't silently overwrite (planId is conflict-
+			// tracked); direct the user to resync.
+			if (/already on this account type/i.test(message)) {
+				throw new ORPCError("CONFLICT", {
+					message: `This customer is already on "${newPlan.name}" in iRadius. The local plan is out of sync — click "Sync from iRadius" to refresh.`,
+				});
+			}
+
+			throw new ORPCError("BAD_REQUEST", { message });
+		}
 	});
 
 export const executeAccountTypeChangeProcedure = protectedProcedure
