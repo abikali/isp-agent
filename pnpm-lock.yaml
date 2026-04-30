@@ -741,6 +741,9 @@ importers:
       redis:
         specifier: ^5.10.0
         version: 5.10.0
+      xlsx:
+        specifier: ^0.18.5
+        version: 0.18.5
 
   packages/feature-flags:
     dependencies:
