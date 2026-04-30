@@ -50,6 +50,7 @@ dist/
 
 # Claude Code per-developer overrides
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # SSL certificates (Cloudflare Origin CA)
 config/nginx/certs/*.pem
