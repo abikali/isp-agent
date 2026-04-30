@@ -48,6 +48,9 @@ dist/
 .content-collections/
 .prisma-zod-generator-manifest.json
 
+# Claude Code per-developer overrides
+.claude/settings.local.json
+
 # SSL certificates (Cloudflare Origin CA)
 config/nginx/certs/*.pem
 config/nginx/certs/*.key
