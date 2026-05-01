@@ -32,6 +32,7 @@ export const Route = createFileRoute(
 			organization,
 			session?.user,
 		);
+		const userIsPlatformAdmin = session?.user?.role === "admin";
 
 		return {
 			organization: {
@@ -40,6 +41,7 @@ export const Route = createFileRoute(
 				slug: organization.slug,
 			},
 			userIsOrganizationAdmin,
+			userIsPlatformAdmin,
 		};
 	},
 	component: OrganizationSettingsLayout,
@@ -51,7 +53,8 @@ function OrgSettingsNotFound() {
 }
 
 function OrganizationSettingsLayout() {
-	const { organization, userIsOrganizationAdmin } = Route.useLoaderData();
+	const { organization, userIsOrganizationAdmin, userIsPlatformAdmin } =
+		Route.useLoaderData();
 	const { organizationSlug } = Route.useParams();
 
 	const organizationSettingsBasePath = `/app/${organizationSlug}/settings`;
@@ -86,24 +89,10 @@ function OrganizationSettingsLayout() {
 								),
 							},
 							{
-								title: "iRadius Sync",
-								href: `${organizationSettingsBasePath}/iradius`,
-								icon: (
-									<DatabaseIcon className="size-4 opacity-50" />
-								),
-							},
-							{
 								title: "Note Categories",
 								href: `${organizationSettingsBasePath}/note-categories`,
 								icon: (
 									<TagsIcon className="size-4 opacity-50" />
-								),
-							},
-							{
-								title: "Billing Sync",
-								href: `${organizationSettingsBasePath}/billing-sync`,
-								icon: (
-									<CreditCardIcon className="size-4 opacity-50" />
 								),
 							},
 							{
@@ -118,6 +107,24 @@ function OrganizationSettingsLayout() {
 								href: `${organizationSettingsBasePath}/ai`,
 								icon: (
 									<SparklesIcon className="size-4 opacity-50" />
+								),
+							},
+						]
+					: []),
+				...(userIsPlatformAdmin
+					? [
+							{
+								title: "iRadius Sync",
+								href: `${organizationSettingsBasePath}/iradius`,
+								icon: (
+									<DatabaseIcon className="size-4 opacity-50" />
+								),
+							},
+							{
+								title: "Billing Sync",
+								href: `${organizationSettingsBasePath}/billing-sync`,
+								icon: (
+									<CreditCardIcon className="size-4 opacity-50" />
 								),
 							},
 						]
