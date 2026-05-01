@@ -9,7 +9,7 @@ import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
@@ -36,7 +36,7 @@ import {
 	RotateCcwIcon,
 	TrashIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useDeleteInvoice,
@@ -44,6 +44,7 @@ import {
 	useMonthFilter,
 	useUnvoidInvoice,
 	useVoidInvoice,
+	useVoidInvoices,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { InvoiceFormDialog } from "./InvoiceFormDialog";
@@ -116,6 +117,7 @@ export function InvoicesList() {
 		: options.find((o) => o.value === monthFilter);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
 	const { data, isLoading } = useInvoices({
 		search: debouncedSearch || undefined,
@@ -132,7 +134,44 @@ export function InvoicesList() {
 
 	const deleteMutation = useDeleteInvoice();
 	const voidMutation = useVoidInvoice();
+	const voidManyMutation = useVoidInvoices();
 	const unvoidMutation = useUnvoidInvoice();
+
+	const selectedIds = useMemo(
+		() => Object.keys(rowSelection),
+		[rowSelection],
+	);
+	const selectedCount = selectedIds.length;
+
+	function handleVoidSelected() {
+		if (!organizationId || selectedCount === 0) {
+			return;
+		}
+		confirm({
+			title: `Void ${selectedCount} invoice${selectedCount === 1 ? "" : "s"}?`,
+			message:
+				"The selected invoices will be excluded from collector lists and billing stats, but kept in history. You can restore them later.",
+			confirmLabel: "Void",
+			onConfirm: async () => {
+				try {
+					const result = await voidManyMutation.mutateAsync({
+						organizationId,
+						invoiceIds: selectedIds,
+					});
+					setRowSelection({});
+					toast.success(
+						`${result.count} invoice${result.count === 1 ? "" : "s"} voided`,
+					);
+				} catch (err) {
+					toast.error(
+						err instanceof Error
+							? err.message
+							: "Failed to void invoices",
+					);
+				}
+			},
+		});
+	}
 
 	function handleDelete(row: InvoiceRow) {
 		if (!organizationId) {
@@ -395,6 +434,23 @@ export function InvoicesList() {
 					</Select>
 				</div>
 
+				{selectedCount > 0 && (
+					<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+						<span className="text-sm text-muted-foreground">
+							{selectedCount} selected
+						</span>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={voidManyMutation.isPending}
+							onClick={handleVoidSelected}
+						>
+							<BanIcon className="mr-2 size-4" />
+							Void selected ({selectedCount})
+						</Button>
+					</div>
+				)}
+
 				<DataTable
 					columns={columns}
 					data={invoices}
@@ -404,9 +460,18 @@ export function InvoicesList() {
 						totalItems: total,
 						currentPage: page,
 						itemsPerPage: PAGE_SIZE,
-						onPageChange: setPage,
+						onPageChange: (p) => {
+							setPage(p);
+							setRowSelection({});
+						},
 					}}
 					isLoading={isLoading}
+					enableRowSelection={(row) =>
+						!row.original.voidedAt && !row.original.payment
+					}
+					rowSelection={rowSelection}
+					onRowSelectionChange={setRowSelection}
+					getRowId={(row) => row.id}
 					emptyState={
 						<EmptyState
 							icon={FileTextIcon}

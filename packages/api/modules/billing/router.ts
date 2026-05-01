@@ -49,6 +49,7 @@ import { updatePayment } from "./procedures/update-payment";
 import {
 	unvoidInvoiceProcedure,
 	voidInvoiceProcedure,
+	voidManyInvoicesProcedure,
 } from "./procedures/void-invoice";
 
 export const billingRouter = {
@@ -75,6 +76,7 @@ export const billingRouter = {
 		update: updateInvoice,
 		delete: deleteInvoice,
 		void: voidInvoiceProcedure,
+		voidMany: voidManyInvoicesProcedure,
 		unvoid: unvoidInvoiceProcedure,
 	},
 	unpaid: {
