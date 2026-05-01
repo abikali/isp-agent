@@ -30,7 +30,10 @@ describe("verifyOrganizationMembership", () => {
 			organizationId,
 			userId,
 			role: "owner",
-			organization: { activeDealerId: "dealer-1" },
+			organization: {
+				activeDealerId: "dealer-1",
+				iradiusDisabled: false,
+			},
 		} as never);
 
 		const result = await verifyOrganizationMembership(
@@ -41,13 +44,19 @@ describe("verifyOrganizationMembership", () => {
 		expect(result).not.toBeNull();
 		expect(result?.role).toBe("owner");
 		expect(result?.activeDealerId).toBe("dealer-1");
+		expect(result?.iradiusDisabled).toBe(false);
 		expect(result?.rolePermissions).toBeUndefined();
 		expect(mockFindUnique).toHaveBeenCalledWith({
 			where: {
 				organizationId_userId: { organizationId, userId },
 			},
 			include: {
-				organization: { select: { activeDealerId: true } },
+				organization: {
+					select: {
+						activeDealerId: true,
+						iradiusDisabled: true,
+					},
+				},
 			},
 		});
 	});
@@ -58,7 +67,7 @@ describe("verifyOrganizationMembership", () => {
 			organizationId,
 			userId,
 			role: "custom-collector",
-			organization: { activeDealerId: null },
+			organization: { activeDealerId: null, iradiusDisabled: false },
 		} as never);
 		mockOrgRoleFindUnique.mockResolvedValue({
 			organizationId,

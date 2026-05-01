@@ -2,9 +2,9 @@
 
 import { SettingsItem } from "@saas/shared/components/SettingsItem";
 import { formatDateTime } from "@shared/lib/format";
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import { Button } from "@ui/components/button";
 import { ScrollArea } from "@ui/components/scroll-area";
@@ -41,6 +41,35 @@ interface Counts {
 }
 
 export function IRadiusSyncSettings() {
+	const organizationId = useOrganizationId();
+	const { data: iradiusStatus } = useQuery(
+		organizationId
+			? orpc.organizations.getIradiusStatus.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["organizations", "getIradiusStatus"]),
+	);
+
+	if (iradiusStatus?.iradiusDisabled) {
+		return (
+			<Alert variant="default">
+				<TriangleAlertIcon className="size-4" />
+				<AlertTitle>
+					iRadius is disabled for this organization
+				</AlertTitle>
+				<AlertDescription>
+					This organization opted out of the legacy iRadius
+					integration. Customers, plans, employees, and payments are
+					managed locally — no data flows to or from iRadius.
+				</AlertDescription>
+			</Alert>
+		);
+	}
+
+	return <IRadiusSyncSettingsInner />;
+}
+
+function IRadiusSyncSettingsInner() {
 	const organizationId = useOrganizationId();
 	const testConnection = useTestIRadius();
 	const syncIRadius = useSyncFromIRadius();

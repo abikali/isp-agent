@@ -33,12 +33,18 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 	})
 	.input(input)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"update",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"iRadius is disabled for this organization — preview is not available",
+			});
+		}
 
 		const customer = await db.customer.findFirst({
 			where: {
@@ -104,12 +110,19 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 	})
 	.input(input)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx, activeDealerId } = await requirePermission(
-			input.organizationId,
-			user.id,
-			"customers",
-			"update",
-		);
+		const { permCtx, activeDealerId, iradiusDisabled } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"customers",
+				"update",
+			);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"iRadius is disabled for this organization — change the plan via the customer edit form instead",
+			});
+		}
 
 		const customer = await db.customer.findFirst({
 			where: {

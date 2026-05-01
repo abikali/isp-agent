@@ -43,12 +43,17 @@ export const pushCustomerToIRadius = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
 
 		const customer = await db.customer.findFirst({
 			where: {
@@ -114,12 +119,18 @@ export const startIRadiusPush = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"iRadius is disabled for this organization — push cannot be triggered",
+			});
+		}
 
 		// Guard against double-queueing
 		const active = await db.iRadiusPushOperation.findFirst({

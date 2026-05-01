@@ -106,6 +106,7 @@ export async function verifyOrganizationMembership(
 			organization: {
 				select: {
 					activeDealerId: true,
+					iradiusDisabled: true,
 				},
 			},
 		},
@@ -124,5 +125,6 @@ export async function verifyOrganizationMembership(
 		...member,
 		rolePermissions,
 		activeDealerId: member.organization.activeDealerId,
+		iradiusDisabled: member.organization.iradiusDisabled,
 	};
 }

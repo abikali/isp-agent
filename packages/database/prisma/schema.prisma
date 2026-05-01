@@ -299,6 +299,12 @@ model Organization {
   activeDealerId String?    @unique
   activeDealer   IspDealer? @relation("ActiveDealer", fields: [activeDealerId], references: [id], onDelete: SetNull)
 
+  // When true, every iRadius integration surface is disabled for this org:
+  // mirror writes skip the remote call, sync workers refuse to run, push
+  // workers bail out. Used for orgs whose dealer is "local-only" — i.e.
+  // their customers should never flow to/from the legacy iRadius system.
+  iradiusDisabled Boolean @default(false)
+
   @@map("organization")
 }
 

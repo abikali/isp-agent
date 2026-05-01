@@ -234,12 +234,17 @@ export const previewIRadiusEntitySync = protectedProcedure
 	})
 	.input(entitySyncInput)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
 
 		const { entityType, organizationId } = input;
 
@@ -354,12 +359,17 @@ export const applyIRadiusEntitySync = protectedProcedure
 	})
 	.input(entitySyncApplyInput)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
 
 		const { entityType, entities: entitySelections } = input;
 		const entityIds = entitySelections.map((e) => e.id);
@@ -460,12 +470,17 @@ export const importCustomerFromIRadius = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
 
 		const username = input.username.trim();
 

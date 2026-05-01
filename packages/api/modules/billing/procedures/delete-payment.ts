@@ -26,7 +26,7 @@ export const deletePayment = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -68,6 +68,7 @@ export const deletePayment = protectedProcedure
 
 		if (isApprovedStop) {
 			await mirrorToIRadius({
+				iradiusDisabled,
 				logTag: "iRadius reactivate on payment delete",
 				failureMessage: "Failed to reactivate customer in iRadius",
 				remote: () => iradiusSetActive(payment.customer, true),

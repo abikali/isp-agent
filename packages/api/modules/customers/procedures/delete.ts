@@ -28,12 +28,13 @@ export const deleteCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx, activeDealerId } = await requirePermission(
-			input.organizationId,
-			user.id,
-			"customers",
-			"delete",
-		);
+		const { permCtx, activeDealerId, iradiusDisabled } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"customers",
+				"delete",
+			);
 
 		const existing = await db.customer.findFirst({
 			where: {
@@ -52,6 +53,7 @@ export const deleteCustomer = protectedProcedure
 
 		// iRadius first — if it fails the local status is left untouched.
 		await mirrorToIRadius({
+			iradiusDisabled,
 			logTag: "iRadius deactivate",
 			failureMessage: "Failed to deactivate customer in iRadius",
 			remote: () => iradiusSetActive(existing, false),

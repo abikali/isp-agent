@@ -75,12 +75,18 @@ async function runIRadiusAdminAction(opts: {
 	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
 	localData: Prisma.CustomerUpdateInput;
 }): Promise<{ success: true }> {
-	const { permCtx, activeDealerId } = await requirePermission(
-		opts.organizationId,
-		opts.userId,
-		"customers",
-		"update",
-	);
+	const { permCtx, activeDealerId, iradiusDisabled } =
+		await requirePermission(
+			opts.organizationId,
+			opts.userId,
+			"customers",
+			"update",
+		);
+	if (iradiusDisabled) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "iRadius is disabled for this organization",
+		});
+	}
 	const customer = await loadLinkedCustomer({
 		organizationId: opts.organizationId,
 		customerId: opts.customerId,

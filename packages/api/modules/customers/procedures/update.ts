@@ -71,12 +71,13 @@ export const updateCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		const { permCtx, activeDealerId } = await requirePermission(
-			input.organizationId,
-			user.id,
-			"customers",
-			"update",
-		);
+		const { permCtx, activeDealerId, iradiusDisabled } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"customers",
+				"update",
+			);
 
 		const existing = await db.customer.findFirst({
 			where: {
@@ -178,7 +179,9 @@ export const updateCustomer = protectedProcedure
 		}
 
 		const syncEnabled =
-			input.syncToIRadius === true && !!existing.externalId;
+			!iradiusDisabled &&
+			input.syncToIRadius === true &&
+			!!existing.externalId;
 		const statusChanged =
 			input.status !== undefined && input.status !== existing.status;
 		const diff = syncEnabled ? diffMirrorFields(existing, input) : null;
@@ -189,6 +192,7 @@ export const updateCustomer = protectedProcedure
 				: null;
 
 		const customer = await mirrorToIRadius({
+			iradiusDisabled,
 			logTag: "iRadius customer update",
 			failureMessage: "Failed to sync customer changes to iRadius",
 			remote: async () => {

@@ -19,12 +19,17 @@ export const testIRadius = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
 
 		return testIRadiusConnection();
 	});
@@ -46,12 +51,18 @@ export const syncFromIRadius = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"connections",
 			"sync",
 		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"iRadius is disabled for this organization — sync cannot be triggered",
+			});
+		}
 
 		// Check no active sync for this org
 		const active = await db.iRadiusSyncOperation.findFirst({

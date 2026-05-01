@@ -241,6 +241,7 @@ export async function requirePermission(
 		member,
 		permCtx,
 		activeDealerId: member.activeDealerId ?? null,
+		iradiusDisabled: member.iradiusDisabled === true,
 	};
 }
 

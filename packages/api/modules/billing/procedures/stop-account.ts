@@ -59,6 +59,7 @@ export const stopAccount = protectedProcedure
 		}
 
 		await mirrorToIRadius({
+			iradiusDisabled: member.iradiusDisabled === true,
 			logTag: "iRadius stop account",
 			failureMessage: "Failed to deactivate customer in iRadius",
 			remote: () => iradiusSetActive(customer, false),

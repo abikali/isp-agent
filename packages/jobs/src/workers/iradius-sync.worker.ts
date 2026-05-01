@@ -247,6 +247,31 @@ async function processIRadiusSync(
 	}
 	const organizationId = job.data.organizationId as string;
 
+	// Belt-and-suspenders: refuse to run for orgs with iRadius disabled.
+	// Anything queued before the API gate was added (or queued through a
+	// different path) bails here instead of creating duplicate rows.
+	if (mode !== "dealers-only" && organizationId) {
+		const org = await db.organization.findUnique({
+			where: { id: organizationId },
+			select: { iradiusDisabled: true },
+		});
+		if (org?.iradiusDisabled) {
+			await updateProgress(operationId, {
+				status: "failed",
+				completedAt: new Date(),
+				result: {
+					errors: [
+						{
+							phase: "guard",
+							detail: "iRadius is disabled for this organization",
+						},
+					],
+				},
+			});
+			return { success: false, operationId };
+		}
+	}
+
 	logger.info(`[iRadius Sync] Starting operation ${operationId}`, {
 		operationId,
 		organizationId: organizationId || "(global)",

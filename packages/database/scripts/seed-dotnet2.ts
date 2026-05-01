@@ -377,12 +377,19 @@ async function upsertOrganization(
 		[ORG_SLUG],
 	);
 	if (existing.rows[0]) {
+		// Always re-assert iRadius is disabled — this dealer is local-only.
+		// If someone toggled it off through the UI, the next seed run flips
+		// it back. The flag is policy, not configuration.
+		await client.query(
+			`UPDATE organization SET "iradiusDisabled" = true WHERE id = $1`,
+			[existing.rows[0].id],
+		);
 		return existing.rows[0].id;
 	}
 	const id = createId();
 	await client.query(
-		`INSERT INTO organization (id, name, slug, "createdAt")
-		 VALUES ($1, $2, $3, $4)`,
+		`INSERT INTO organization (id, name, slug, "createdAt", "iradiusDisabled")
+		 VALUES ($1, $2, $3, $4, true)`,
 		[id, ORG_NAME, ORG_SLUG, now],
 	);
 	return id;

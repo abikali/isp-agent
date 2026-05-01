@@ -144,7 +144,7 @@ export const reactivateAccount = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -172,6 +172,7 @@ export const reactivateAccount = protectedProcedure
 			: null;
 
 		await mirrorToIRadius({
+			iradiusDisabled,
 			logTag: "iRadius reactivate stopped account",
 			failureMessage: "Failed to reactivate customer in iRadius",
 			remote: () => iradiusSetActive(payment.customer, true),

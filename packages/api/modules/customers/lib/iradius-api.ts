@@ -57,15 +57,18 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
  * Throws on any HTTP / configuration failure so callers (via
  * `mirrorToIRadius`) can abort the local write.
  *
- * No-op (resolves) when the customer is not linked to iRadius —
- * unlinked customers have no remote state to keep in sync.
+ * No-op (resolves) when the customer has no `externalId` — unlinked
+ * customers have no remote state to keep in sync. Falling back to
+ * `username` here is unsafe: a locally-created customer or a customer
+ * in an iRadius-disabled org may share a username with a real iRadius
+ * user we don't intend to touch (defense in depth alongside the
+ * org-level `iradiusDisabled` flag).
  */
 export async function iradiusSetActive(
-	customer: { externalId?: string | null; username?: string | null },
+	customer: { externalId?: string | null },
 	active: boolean,
 ): Promise<void> {
-	// Unlinked customer — nothing to sync.
-	if (!customer.externalId && !customer.username) {
+	if (!customer.externalId) {
 		return;
 	}
 
@@ -74,12 +77,10 @@ export async function iradiusSetActive(
 		throw new Error("ISP API not configured");
 	}
 
-	const body: Record<string, unknown> = { active };
-	if (customer.externalId) {
-		body["userId"] = Number.parseInt(customer.externalId, 10);
-	} else {
-		body["username"] = customer.username;
-	}
+	const body: Record<string, unknown> = {
+		active,
+		userId: Number.parseInt(customer.externalId, 10),
+	};
 
 	const result = await ispPost<{ success?: boolean; error?: string }>(
 		config,

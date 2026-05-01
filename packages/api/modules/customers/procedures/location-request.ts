@@ -24,13 +24,9 @@ async function assertCustomerUpdateAccess(
 	organizationId: string,
 	customerId: string,
 	userId: string,
-): Promise<void> {
-	const { permCtx, activeDealerId } = await requirePermission(
-		organizationId,
-		userId,
-		"customers",
-		"update",
-	);
+): Promise<{ iradiusDisabled: boolean }> {
+	const { permCtx, activeDealerId, iradiusDisabled } =
+		await requirePermission(organizationId, userId, "customers", "update");
 	const customer = await db.customer.findFirst({
 		where: {
 			id: customerId,
@@ -43,6 +39,7 @@ async function assertCustomerUpdateAccess(
 		throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
 	}
 	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
+	return { iradiusDisabled };
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +165,7 @@ export const updateCustomerLocation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await assertCustomerUpdateAccess(
+		const { iradiusDisabled } = await assertCustomerUpdateAccess(
 			input.organizationId,
 			input.customerId,
 			user.id,
@@ -178,6 +175,7 @@ export const updateCustomerLocation = protectedProcedure
 			select: { externalId: true },
 		});
 		await mirrorToIRadius({
+			iradiusDisabled,
 			logTag: "iRadius update location",
 			failureMessage: "Failed to update location in iRadius",
 			remote: async () => {
@@ -220,7 +218,7 @@ export const clearCustomerLocation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await assertCustomerUpdateAccess(
+		const { iradiusDisabled } = await assertCustomerUpdateAccess(
 			input.organizationId,
 			input.customerId,
 			user.id,
@@ -230,6 +228,7 @@ export const clearCustomerLocation = protectedProcedure
 			select: { externalId: true },
 		});
 		await mirrorToIRadius({
+			iradiusDisabled,
 			logTag: "iRadius clear location",
 			failureMessage: "Failed to clear location in iRadius",
 			remote: async () => {
@@ -297,10 +296,14 @@ export const submitLocationByToken = publicProcedure
 
 		const customer = await db.customer.findUnique({
 			where: { id: request.customerId },
-			select: { externalId: true },
+			select: {
+				externalId: true,
+				organization: { select: { iradiusDisabled: true } },
+			},
 		});
 
 		await mirrorToIRadius({
+			iradiusDisabled: customer?.organization?.iradiusDisabled ?? false,
 			logTag: "iRadius submit location by token",
 			failureMessage: "Failed to save location in iRadius",
 			remote: async () => {

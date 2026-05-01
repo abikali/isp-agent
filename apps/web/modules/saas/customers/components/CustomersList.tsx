@@ -9,8 +9,10 @@ import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate } from "@shared/lib/format";
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
+import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import {
@@ -111,6 +113,14 @@ export function CustomersList({
 		);
 	}
 	const organizationId: string = maybeOrganizationId;
+	const { data: iradiusStatus } = useQuery(
+		organizationId
+			? orpc.organizations.getIradiusStatus.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["organizations", "getIradiusStatus"]),
+	);
+	const iradiusEnabled = !iradiusStatus?.iradiusDisabled;
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState("all");
@@ -438,13 +448,15 @@ export function CustomersList({
 							stationId: filters.stationId,
 						}}
 					/>
-					<Button
-						variant="outline"
-						onClick={() => setDialog("iradius-import")}
-					>
-						<DownloadIcon className="mr-2 size-4" />
-						Import from iRadius
-					</Button>
+					{iradiusEnabled && (
+						<Button
+							variant="outline"
+							onClick={() => setDialog("iradius-import")}
+						>
+							<DownloadIcon className="mr-2 size-4" />
+							Import from iRadius
+						</Button>
+					)}
 					<Button
 						variant="outline"
 						onClick={() => setDialog("import")}

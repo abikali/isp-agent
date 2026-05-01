@@ -99,6 +99,27 @@ export function createIRadiusPushWorker(): Worker<
 			const { operationId, organizationId } = job.data;
 			const errors: PushError[] = [];
 
+			// Belt-and-suspenders: refuse to run for orgs with iRadius disabled.
+			const org = await db.organization.findUnique({
+				where: { id: organizationId },
+				select: { iradiusDisabled: true },
+			});
+			if (org?.iradiusDisabled) {
+				await updateProgress(operationId, {
+					status: "failed",
+					completedAt: new Date(),
+					result: {
+						errors: [
+							{
+								phase: "guard",
+								detail: "iRadius is disabled for this organization",
+							},
+						],
+					},
+				});
+				return { success: false, operationId };
+			}
+
 			logger.info("[iRadius Push] Starting", {
 				operationId,
 				organizationId,

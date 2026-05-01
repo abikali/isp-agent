@@ -7,6 +7,11 @@ import { logger } from "@repo/logs";
  * run. On any remote failure the local write is never executed and the
  * caller sees an ORPCError — no silent drift.
  *
+ * When `iradiusDisabled` is true (org has opted out of iRadius integration)
+ * the remote call is skipped entirely and only the local write runs. The
+ * org-level flag is the single source of truth for this — every mirror call
+ * site must read it from `requirePermission` and forward it here.
+ *
  * Do NOT introduce local-first or fire-and-forget alternatives.
  */
 export async function mirrorToIRadius<T>(opts: {
@@ -14,7 +19,11 @@ export async function mirrorToIRadius<T>(opts: {
 	failureMessage: string;
 	remote: () => Promise<unknown>;
 	local: () => Promise<T>;
+	iradiusDisabled?: boolean;
 }): Promise<T> {
+	if (opts.iradiusDisabled) {
+		return opts.local();
+	}
 	try {
 		await opts.remote();
 	} catch (error) {
