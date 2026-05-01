@@ -36,6 +36,7 @@ export {
 	PaymentsList,
 	PaymentsListSkeleton,
 } from "./components/PaymentsList";
+export { RegenerateInvoicesCard } from "./components/RegenerateInvoicesCard";
 export {
 	StoppedAccountsList,
 	StoppedAccountsListSkeleton,
@@ -70,6 +71,7 @@ export {
 	usePaymentsQuery,
 	usePreviewBillingSync,
 	useReactivateAccount,
+	useRegenerateMonthInvoices,
 	useRequestLocation,
 	useStoppedAccounts,
 	useSyncFromBilling,

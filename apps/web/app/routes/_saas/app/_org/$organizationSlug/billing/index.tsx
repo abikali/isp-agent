@@ -3,6 +3,7 @@ import {
 	BillingCycleManager,
 	BillingDashboard,
 	BillingDashboardSkeleton,
+	RegenerateInvoicesCard,
 } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { PermissionGate } from "@shared/components/PermissionGate";
@@ -25,6 +26,7 @@ function BillingPage() {
 				<AsyncBoundary fallback={<BillingDashboardSkeleton />}>
 					<BillingDashboard />
 				</AsyncBoundary>
+				<RegenerateInvoicesCard />
 			</div>
 		</PermissionGate>
 	);

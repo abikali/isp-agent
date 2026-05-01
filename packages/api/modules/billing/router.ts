@@ -27,6 +27,7 @@ import {
 } from "./procedures/note-categories";
 import { notifyLocationNeeded } from "./procedures/notify-location-needed";
 import { getPaymentStats } from "./procedures/payment-stats";
+import { regenerateMonthInvoices } from "./procedures/regenerate-invoices";
 import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
 import { resendReceipt } from "./procedures/resend-receipt";
@@ -58,6 +59,7 @@ export const billingRouter = {
 		current: getCurrentMonth,
 		list: listMonths,
 		toggleLock: toggleMonthLock,
+		regenerateInvoices: regenerateMonthInvoices,
 	},
 	payments: {
 		list: listPayments,
