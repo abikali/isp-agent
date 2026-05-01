@@ -1,4 +1,5 @@
 import { dealersRouter } from "../dealers/router";
+import { createOrganizationOwner } from "./procedures/create-org-owner";
 import { findOrganization } from "./procedures/find-organization";
 import { listOrganizations } from "./procedures/list-organizations";
 import { listUsers } from "./procedures/list-users";
@@ -13,6 +14,7 @@ export const adminRouter = {
 		list: listOrganizations,
 		find: findOrganization,
 		setIradiusDisabled: setOrganizationIradiusDisabled,
+		createOwner: createOrganizationOwner,
 	},
 	dealers: {
 		...dealersRouter,

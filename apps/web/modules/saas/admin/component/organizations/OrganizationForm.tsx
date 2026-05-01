@@ -31,6 +31,7 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CreateOwnerDialog } from "./CreateOwnerDialog";
 
 export function OrganizationForm({
 	organizationId,
@@ -244,11 +245,15 @@ export function OrganizationForm({
 				{/* Members card */}
 				{organization && (
 					<Card>
-						<CardHeader>
+						<CardHeader className="flex flex-row items-center justify-between">
 							<CardTitle className="flex items-center gap-2 text-base">
 								<UsersIcon className="size-4" />
 								Members
 							</CardTitle>
+							<CreateOwnerDialog
+								organizationId={organization.id}
+								organizationName={organization.name}
+							/>
 						</CardHeader>
 						<CardContent>
 							{organization.members.length > 0 ? (

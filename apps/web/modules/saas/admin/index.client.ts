@@ -4,6 +4,7 @@
 export { EmailVerified } from "./component/EmailVerified";
 export { CreateFeatureFlagForm } from "./component/feature-flags/CreateFeatureFlagForm";
 export { FeatureFlagsList } from "./component/feature-flags/FeatureFlagsList";
+export { CreateOwnerDialog } from "./component/organizations/CreateOwnerDialog";
 export { OrganizationForm } from "./component/organizations/OrganizationForm";
 export {
 	ADMIN_ORGANIZATIONS_ITEMS_PER_PAGE,

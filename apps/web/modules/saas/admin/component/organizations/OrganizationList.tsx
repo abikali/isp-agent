@@ -29,6 +29,7 @@ import {
 	DatabaseIcon,
 	EditIcon,
 	HandshakeIcon,
+	KeyRoundIcon,
 	MoreVerticalIcon,
 	PlusIcon,
 	PowerIcon,
@@ -39,6 +40,7 @@ import {
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { withQuery } from "ufo";
+import { CreateOwnerDialog } from "./CreateOwnerDialog";
 
 // Get typed route API without importing the route file (avoids circular deps)
 const routeApi = getRouteApi("/_saas/app/_account/admin/organizations/");
@@ -348,6 +350,21 @@ export function OrganizationList() {
 											</a>
 										</DropdownMenuItem>
 									)}
+									<DropdownMenuSeparator />
+									<CreateOwnerDialog
+										organizationId={id}
+										organizationName={name}
+										trigger={
+											<DropdownMenuItem
+												onSelect={(e) =>
+													e.preventDefault()
+												}
+											>
+												<KeyRoundIcon className="mr-2 size-4" />
+												Create owner login
+											</DropdownMenuItem>
+										}
+									/>
 									<DropdownMenuSeparator />
 									<DropdownMenuItem
 										onClick={() =>
