@@ -364,23 +364,36 @@ async function upsertOrganization(
 
 async function upsertUser(
 	client: pg.Client,
-	def: { email: string; name: string; password: string },
+	def: { email: string; name: string; password: string; username?: string },
 	now: Date,
 ): Promise<string> {
+	const username = def.username?.toLowerCase() ?? null;
+	const displayUsername = def.username ?? null;
+
 	const existing = await client.query<{ id: string }>(
 		`SELECT id FROM "user" WHERE email = $1`,
 		[def.email],
 	);
 	if (existing.rows[0]) {
+		if (username) {
+			await client.query(
+				`UPDATE "user"
+				 SET username = COALESCE(username, $2),
+				     "displayUsername" = COALESCE("displayUsername", $3)
+				 WHERE id = $1`,
+				[existing.rows[0].id, username, displayUsername],
+			);
+		}
 		return existing.rows[0].id;
 	}
 
 	const userId = createId();
 	await client.query(
 		`INSERT INTO "user"
-		   (id, name, email, "emailVerified", "createdAt", "updatedAt", "onboardingComplete")
-		 VALUES ($1, $2, $3, true, $4, $4, true)`,
-		[userId, def.name, def.email, now],
+		   (id, name, email, "emailVerified", "createdAt", "updatedAt",
+		    "onboardingComplete", username, "displayUsername")
+		 VALUES ($1, $2, $3, true, $4, $4, true, $5, $6)`,
+		[userId, def.name, def.email, now, username, displayUsername],
 	);
 
 	const passwordHash = hashPasswordSync(def.password);
