@@ -22,8 +22,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import { Switch } from "@ui/components/switch";
 import {
 	CheckCircleIcon,
+	DatabaseIcon,
 	HandshakeIcon,
 	ShieldAlertIcon,
 	UsersIcon,
@@ -57,6 +59,23 @@ export function OrganizationForm({
 		},
 		onError: () => {
 			toast.error("Failed to update dealer assignment");
+		},
+	});
+
+	const setIradiusDisabledMutation = useMutation({
+		...orpc.admin.organizations.setIradiusDisabled.mutationOptions(),
+		onSuccess: (result) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.admin.organizations.key(),
+			});
+			toast.success(
+				result.iradiusDisabled
+					? "iRadius disabled for this organization"
+					: "iRadius enabled for this organization",
+			);
+		},
+		onError: (err) => {
+			toast.error(err?.message || "Failed to update iRadius status");
 		},
 	});
 
@@ -369,6 +388,61 @@ export function OrganizationForm({
 								<p>
 									Selecting "No dealer" blocks all data access
 									until a dealer is assigned.
+								</p>
+							</div>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-base">
+								<DatabaseIcon className="size-4" />
+								iRadius Integration
+							</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="flex items-center justify-between gap-4 rounded-lg bg-muted/50 p-3">
+								<div className="space-y-0.5">
+									<div className="text-sm font-medium">
+										{organization.iradiusDisabled
+											? "Disabled — local-only"
+											: "Enabled — mirroring to iRadius"}
+									</div>
+									<div className="text-xs text-muted-foreground">
+										{organization.iradiusDisabled
+											? "Customers, plans, employees and payments are managed entirely locally. No data flows to or from iRadius."
+											: "Customer mutations mirror to iRadius. Sync and push tools are available."}
+									</div>
+								</div>
+								<Switch
+									checked={!organization.iradiusDisabled}
+									onCheckedChange={(checked) =>
+										setIradiusDisabledMutation.mutate({
+											id: organization.id,
+											disabled: !checked,
+										})
+									}
+									disabled={
+										setIradiusDisabledMutation.isPending
+									}
+									aria-label="Toggle iRadius integration"
+								/>
+							</div>
+							<div className="text-xs text-muted-foreground space-y-1">
+								<p>
+									Disable when an organization's data should
+									never sync to or from the legacy iRadius
+									system (e.g. dealers managed only inside
+									LibanCom).
+								</p>
+								<p>
+									When disabled: customer status changes, plan
+									changes, location updates, billing
+									stop/reactivate flows write only to the
+									local database. The "Import from iRadius"
+									button is hidden in the customers page and
+									the iRadius settings tab is replaced with a
+									notice.
 								</p>
 							</div>
 						</CardContent>

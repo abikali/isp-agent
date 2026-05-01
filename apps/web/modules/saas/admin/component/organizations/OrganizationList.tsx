@@ -9,7 +9,7 @@ import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useLocation } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -26,10 +26,12 @@ import {
 import { Input } from "@ui/components/input";
 import { Skeleton } from "@ui/components/skeleton";
 import {
+	DatabaseIcon,
 	EditIcon,
 	HandshakeIcon,
 	MoreVerticalIcon,
 	PlusIcon,
+	PowerIcon,
 	ShieldAlertIcon,
 	TrashIcon,
 	UsersIcon,
@@ -151,6 +153,23 @@ export function OrganizationList() {
 		setCurrentPage(1);
 	}, [debouncedSearchTerm]);
 
+	const setIradiusDisabledMutation = useMutation({
+		...orpc.admin.organizations.setIradiusDisabled.mutationOptions(),
+		onSuccess: (result) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.admin.organizations.list.key(),
+			});
+			toast.success(
+				result.iradiusDisabled
+					? "iRadius disabled for this organization"
+					: "iRadius enabled for this organization",
+			);
+		},
+		onError: (err) => {
+			toast.error(err?.message || "Failed to update iRadius status");
+		},
+	});
+
 	const deleteOrganization = useCallback(
 		async (id: string) => {
 			toast.promise(
@@ -236,6 +255,29 @@ export function OrganizationList() {
 				},
 			},
 			{
+				id: "iradius",
+				header: "iRadius",
+				enableSorting: false,
+				cell: ({ row }) =>
+					row.original.iradiusDisabled ? (
+						<Badge
+							variant="outline"
+							className="text-muted-foreground"
+						>
+							<DatabaseIcon className="mr-1 size-3" />
+							Disabled
+						</Badge>
+					) : (
+						<Badge
+							variant="outline"
+							className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30"
+						>
+							<DatabaseIcon className="mr-1 size-3" />
+							Enabled
+						</Badge>
+					),
+			},
+			{
 				id: "customers",
 				header: "Customers",
 				accessorFn: (row) => row.customersCount,
@@ -274,7 +316,7 @@ export function OrganizationList() {
 				enableSorting: false,
 				cell: ({
 					row: {
-						original: { id, slug },
+						original: { id, name, slug, iradiusDisabled },
 					},
 				}) => {
 					return (
@@ -310,6 +352,36 @@ export function OrganizationList() {
 									<DropdownMenuItem
 										onClick={() =>
 											confirm({
+												title: iradiusDisabled
+													? "Enable iRadius?"
+													: "Disable iRadius?",
+												message: iradiusDisabled
+													? `Re-enable iRadius integration for "${name}"? Customer changes will start mirroring to iRadius again.`
+													: `Disable iRadius integration for "${name}"? All iRadius mirroring (status changes, plan changes, sync, push) will stop. Local data will not be affected.`,
+												confirmLabel: iradiusDisabled
+													? "Enable"
+													: "Disable",
+												destructive: !iradiusDisabled,
+												onConfirm: () =>
+													setIradiusDisabledMutation.mutate(
+														{
+															id,
+															disabled:
+																!iradiusDisabled,
+														},
+													),
+											})
+										}
+									>
+										<PowerIcon className="mr-2 size-4" />
+										{iradiusDisabled
+											? "Enable iRadius"
+											: "Disable iRadius"}
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										onClick={() =>
+											confirm({
 												title: "Delete Organization",
 												message:
 													"Are you sure you want to delete this organization? This action cannot be undone.",
@@ -332,7 +404,12 @@ export function OrganizationList() {
 				},
 			},
 		],
-		[confirm, deleteOrganization, getOrganizationEditPath],
+		[
+			confirm,
+			deleteOrganization,
+			getOrganizationEditPath,
+			setIradiusDisabledMutation,
+		],
 	);
 
 	const organizations = useMemo(
