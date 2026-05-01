@@ -302,18 +302,38 @@ export async function countPaidCustomers(
  * Apply collector scope filtering to a where clause.
  * If the user has "own" scope, restricts to their employeeId.
  * Otherwise allows an explicit collectorId filter from input.
+ *
+ * `via: "customer"` writes the filter onto `customer.collectorId` (the
+ * customer's *current* collector), merging with any existing `customer`
+ * relation filter on the where. Use this for performance/progress metrics
+ * so reassignment reattributes correctly.
+ *
+ * `via: "payment"` (default) writes onto the row's `collectorId` directly —
+ * appropriate when filtering Customer rows, or when scoping a Payment query
+ * by who actually handled the cash (cash audit views).
  */
 export async function applyCollectorScope(
 	where: Record<string, unknown>,
 	permCtx: PermissionContext,
 	inputCollectorId?: string | null,
+	options?: { via?: "payment" | "customer" },
 ): Promise<void> {
 	const { scope, employeeId } = await resolveCollectorScope(permCtx);
-	if (scope === "own" && employeeId) {
-		where["collectorId"] = employeeId;
-	} else if (inputCollectorId) {
-		where["collectorId"] = inputCollectorId;
+	const target =
+		scope === "own" && employeeId
+			? employeeId
+			: inputCollectorId
+				? inputCollectorId
+				: null;
+	if (!target) {
+		return;
 	}
+	if (options?.via === "customer") {
+		const existing = (where["customer"] as Record<string, unknown>) ?? {};
+		where["customer"] = { ...existing, collectorId: target };
+		return;
+	}
+	where["collectorId"] = target;
 }
 
 // ── Collector Name Resolution ───────────────────────────────────

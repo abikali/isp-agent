@@ -80,6 +80,14 @@ export const getCollectorStats = protectedProcedure
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
+		// Performance metrics (paid / pending-stopped / approved-stopped) are
+		// scoped via `customer.collectorId` so they reattribute when an admin
+		// reassigns a customer mid-cycle. Cash-trail queries (in-hand balance,
+		// daily collected) keep `Payment.collectorId` — they answer "who
+		// physically held this money," which doesn't change on reassignment.
+		const customerScopeViaCustomer = {
+			customer: { collectorId, dealerId: activeDealerId ?? null },
+		};
 
 		const [
 			unpaidCustomers,
@@ -107,29 +115,30 @@ export const getCollectorStats = protectedProcedure
 				}),
 			),
 			// Paid customers this month: distinct customerIds settled for the month
-			countPaidCustomers(input.organizationId, activeMonth.id, {
-				collectorId,
-				...dealerViaCustomer,
-			}),
+			countPaidCustomers(
+				input.organizationId,
+				activeMonth.id,
+				customerScopeViaCustomer,
+			),
 			// Pending-stopped this month: collector's stops awaiting admin review.
 			countDistinctCustomersWithPayments({
 				organizationId: input.organizationId,
 				billingMonthId: activeMonth.id,
-				collectorId,
 				...PENDING_STOPPED_PAYMENT,
-				...dealerViaCustomer,
+				...customerScopeViaCustomer,
 			}),
 			// Approved-stopped this month: already confirmed by admin (customer now INACTIVE).
 			countDistinctCustomersWithPayments({
 				organizationId: input.organizationId,
 				billingMonthId: activeMonth.id,
-				collectorId,
 				...APPROVED_STOPPED_PAYMENT,
-				...dealerViaCustomer,
+				...customerScopeViaCustomer,
 			}),
 			// Balance: physical cash collected − handed off (not dealer-scoped)
 			fetchCollectorBalance(input.organizationId, collectorId),
-			// Daily collected (today only) — only real cash, not stopped-no-pay
+			// Daily collected (today only) — only real cash, not stopped-no-pay.
+			// Uses Payment.collectorId on purpose: this is "what hit my hand
+			// today," not "performance on currently-assigned customers."
 			db.payment.aggregate({
 				where: {
 					organizationId: input.organizationId,

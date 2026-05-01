@@ -1,6 +1,5 @@
 import {
 	getDealerScopeFilter,
-	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
@@ -39,7 +38,6 @@ export const listCollectors = protectedProcedure
 		);
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
-		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
 		const collectors = await db.employee.findMany({
 			where: {
@@ -81,33 +79,36 @@ export const listCollectors = protectedProcedure
 			activeMonth.month,
 		);
 
-		// Two different views of "collected":
-		//  - Balance (workerId: null): physical cash the collector personally holds.
-		//    When a worker collects on behalf of a collector, the cash is with the
-		//    worker, not the collector — so it doesn't count toward the collector's
-		//    in-hand balance.
-		//  - monthCollected (no workerId filter): all payments attributed to this
-		//    collector as a performance/progress metric, regardless of who physically
-		//    collected the cash.
+		// All performance metrics (paid / due / stopped / pending-stopped) are
+		// keyed off `Customer.collectorId` — the *live* assignment — so they
+		// stay aligned when an admin reassigns a customer mid-cycle. The frozen
+		// `Payment.collectorId` is reserved for cash-trail views (in-hand
+		// balance, ledger, accounting reports) where the question is "who
+		// actually handled the cash," not "whose performance bucket is this in."
 		const [
 			{ collectedMap, handedOffMap },
-			monthPayments,
+			monthPaidByCollector,
 			monthDueByCollector,
 			stoppedByCollector,
 			pendingStoppedByCollector,
 		] = await Promise.all([
 			// Balance: physical cash only (workerId: null), not dealer-scoped
 			fetchCollectorBalanceBatch(input.organizationId, collectorIds),
-			// Collected this month: settled payments per collector
-			db.payment.groupBy({
+			// Collected this month: distinct customers (currently assigned to
+			// this collector) with at least one settled payment for the month.
+			db.customer.groupBy({
 				by: ["collectorId"],
 				where: {
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
-					billingMonthId: activeMonth.id,
-					status: "COLLECTED",
-					...SETTLED_PAYMENT,
-					...dealerViaCustomer,
+					...dealerFilter,
+					payments: {
+						some: {
+							billingMonthId: activeMonth.id,
+							status: "COLLECTED",
+							...SETTLED_PAYMENT,
+						},
+					},
 				},
 				_count: true,
 			}),
@@ -134,43 +135,55 @@ export const listCollectors = protectedProcedure
 			),
 			// Stopped accounts this month per collector (for admin badge).
 			// Includes both approved and pending-review stops.
-			db.payment.groupBy({
+			db.customer.groupBy({
 				by: ["collectorId"],
 				where: {
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
-					billingMonthId: activeMonth.id,
-					stoppedAccount: true,
-					...dealerViaCustomer,
+					...dealerFilter,
+					payments: {
+						some: {
+							billingMonthId: activeMonth.id,
+							stoppedAccount: true,
+						},
+					},
 				},
 				_count: true,
 			}),
 			// Pending-review stops per collector (admin action required).
-			db.payment.groupBy({
+			db.customer.groupBy({
 				by: ["collectorId"],
 				where: {
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
-					billingMonthId: activeMonth.id,
-					...PENDING_STOPPED_PAYMENT,
-					...dealerViaCustomer,
+					...dealerFilter,
+					payments: {
+						some: {
+							billingMonthId: activeMonth.id,
+							...PENDING_STOPPED_PAYMENT,
+						},
+					},
 				},
 				_count: true,
 			}),
 		]);
 
-		const monthPaymentsMap = new Map(
-			monthPayments.map((c) => [c.collectorId, c._count]),
-		);
-		const monthDueMap = new Map(
-			monthDueByCollector.map((c) => [c.collectorId, c._count]),
-		);
-		const stoppedMap = new Map(
-			stoppedByCollector.map((c) => [c.collectorId, c._count]),
-		);
-		const pendingStoppedMap = new Map(
-			pendingStoppedByCollector.map((c) => [c.collectorId, c._count]),
-		);
+		const toMap = (
+			rows: { collectorId: string | null; _count: number }[],
+		): Map<string, number> => {
+			const map = new Map<string, number>();
+			for (const row of rows) {
+				if (row.collectorId) {
+					map.set(row.collectorId, row._count);
+				}
+			}
+			return map;
+		};
+
+		const monthPaymentsMap = toMap(monthPaidByCollector);
+		const monthDueMap = toMap(monthDueByCollector);
+		const stoppedMap = toMap(stoppedByCollector);
+		const pendingStoppedMap = toMap(pendingStoppedByCollector);
 
 		return {
 			collectors: collectors.map((c) => {

@@ -1,6 +1,5 @@
 import {
 	getDealerScopeFilter,
-	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
@@ -49,7 +48,6 @@ export const getCollectorBalance = protectedProcedure
 		);
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
-		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 
 		const [balanceData, monthCustomers, monthPaymentsAgg] =
 			await Promise.all([
@@ -80,15 +78,20 @@ export const getCollectorBalance = protectedProcedure
 						},
 					}),
 				),
-				// Amount collected this month by this collector
+				// Amount collected this month for customers *currently* assigned
+				// to this collector. Scoped via `customer.collectorId` so the
+				// numerator stays aligned with `monthCustomers` (the denominator
+				// — also keyed off `Customer.collectorId`) when admin reassigns.
 				db.payment.aggregate({
 					where: {
 						organizationId: input.organizationId,
-						collectorId: input.collectorId,
+						customer: {
+							collectorId: input.collectorId,
+							dealerId: activeDealerId ?? null,
+						},
 						billingMonthId: activeMonth.id,
 						status: "COLLECTED",
 						...SETTLED_PAYMENT,
-						...dealerViaCustomer,
 					},
 					_sum: { paidAmount: true },
 					_count: true,

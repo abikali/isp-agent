@@ -2,6 +2,7 @@ import {
 	getDealerScopeFilter,
 	getDealerScopeViaCustomer,
 	requirePermission,
+	resolveCollectorScope,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
@@ -9,7 +10,6 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import { EXCLUDE_STOPPED, PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
-	applyCollectorScope,
 	countDistinctCustomersWithPayments,
 	countPaidCustomers,
 	fetchRelevantBillingMonths,
@@ -113,13 +113,31 @@ export const getPaymentStats = protectedProcedure
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
+		// Resolve own-scope collector once and apply it two ways:
+		//  - Payment-side queries (`baseWhere.collectorId`): "payments I handled."
+		//  - Customer-side queries (`customer.collectorId`): "my currently-assigned
+		//    customers' status." Performance metrics use the customer scope so
+		//    they reattribute when admin reassigns mid-cycle.
+		const { scope, employeeId } = await resolveCollectorScope(permCtx);
+		const ownCollectorId = scope === "own" ? employeeId : null;
+
 		const baseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			...(monthId ? { billingMonthId: monthId } : {}),
 			...dealerViaCustomer,
 		};
+		if (ownCollectorId) {
+			baseWhere["collectorId"] = ownCollectorId;
+		}
 
-		await applyCollectorScope(baseWhere, permCtx);
+		const customerScopeViaCustomer: Record<string, unknown> = ownCollectorId
+			? {
+					customer: {
+						dealerId: activeDealerId ?? null,
+						collectorId: ownCollectorId,
+					},
+				}
+			: dealerViaCustomer;
 
 		const collectedWhere = { ...baseWhere, ...EXCLUDE_STOPPED };
 
@@ -146,6 +164,9 @@ export const getPaymentStats = protectedProcedure
 				where: collectedWhere,
 				_sum: { paidAmount: true },
 			}),
+			// Per-collector cash breakdown: stays on `Payment.collectorId` since
+			// this answers "how much money each collector physically brought in,"
+			// not "performance on currently-assigned customers."
 			db.payment.groupBy({
 				by: ["collectorId"],
 				where: collectedWhere,
@@ -157,7 +178,7 @@ export const getPaymentStats = protectedProcedure
 				? countPaidCustomers(
 						input.organizationId,
 						monthId,
-						dealerViaCustomer,
+						customerScopeViaCustomer,
 					)
 				: Promise.resolve(0),
 			// Unpaid customers: any customer with an unpaid invoice in relevant months
@@ -172,7 +193,13 @@ export const getPaymentStats = protectedProcedure
 								input.organizationId,
 								monthId,
 								monthRange,
-								{ dealerFilter, relevantMonths },
+								{
+									dealerFilter,
+									relevantMonths,
+									...(ownCollectorId
+										? { collectorId: ownCollectorId }
+										: {}),
+								},
 							),
 						}),
 					)
@@ -192,13 +219,13 @@ export const getPaymentStats = protectedProcedure
 						organizationId: input.organizationId,
 						billingMonthId: monthId,
 						stoppedAccount: true,
-						...dealerViaCustomer,
+						...customerScopeViaCustomer,
 					}),
 					countDistinctCustomersWithPayments({
 						organizationId: input.organizationId,
 						billingMonthId: monthId,
 						...PENDING_STOPPED_PAYMENT,
-						...dealerViaCustomer,
+						...customerScopeViaCustomer,
 					}),
 				])
 			: [0, 0];
