@@ -6,7 +6,10 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { SETTLED_PAYMENT } from "../lib/filters";
 import { unvoidInvoice, VOID_REASON, voidInvoice } from "../lib/invoice-void";
+import { fetchRelevantBillingMonths } from "../lib/queries";
+import { resolveYearMonth } from "../lib/resolve-month";
 
 /**
  * Admin void / unvoid for an invoice. Voided invoices stay in the table
@@ -112,6 +115,97 @@ export const voidManyInvoicesProcedure = protectedProcedure
 			},
 		});
 		return { count: result.count, requested: input.invoiceIds.length };
+	});
+
+export const voidUnpaidForCustomersProcedure = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/billing/invoices/void-unpaid-for-customers",
+		tags: ["Billing"],
+		summary:
+			"Void all unpaid invoices for the given customers across relevant months",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			customerIds: z.array(z.string()).min(1).max(500),
+			year: z.number().int().optional(),
+			month: z.number().int().min(1).max(12).optional(),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		const { activeDealerId } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"billing",
+			"manage",
+		);
+		const { year, month } = await resolveYearMonth(
+			input.organizationId,
+			input.year,
+			input.month,
+		);
+		const relevantMonths = await fetchRelevantBillingMonths(
+			input.organizationId,
+			year,
+			month,
+		);
+		if (relevantMonths.length === 0) {
+			return { count: 0 };
+		}
+		const billingMonthIdByYM = new Map<string, string>();
+		for (const m of relevantMonths) {
+			billingMonthIdByYM.set(`${m.year}-${m.month}`, m.id);
+		}
+		const candidates = await db.customerInvoice.findMany({
+			where: {
+				organizationId: input.organizationId,
+				customerId: { in: input.customerIds },
+				voidedAt: null,
+				customer: getDealerScopeFilter(activeDealerId),
+				OR: relevantMonths.map((m) => ({
+					year: m.year,
+					month: m.month,
+				})),
+			},
+			select: { id: true, customerId: true, year: true, month: true },
+		});
+		if (candidates.length === 0) {
+			return { count: 0 };
+		}
+		const settledPayments = await db.payment.findMany({
+			where: {
+				organizationId: input.organizationId,
+				customerId: { in: input.customerIds },
+				billingMonthId: { in: relevantMonths.map((m) => m.id) },
+				...SETTLED_PAYMENT,
+			},
+			select: { customerId: true, billingMonthId: true },
+		});
+		const paidSet = new Set(
+			settledPayments.map((p) => `${p.customerId}|${p.billingMonthId}`),
+		);
+		const idsToVoid = candidates
+			.filter((c) => {
+				const bmId = billingMonthIdByYM.get(`${c.year}-${c.month}`);
+				if (!bmId) {
+					return false;
+				}
+				return !paidSet.has(`${c.customerId}|${bmId}`);
+			})
+			.map((c) => c.id);
+		if (idsToVoid.length === 0) {
+			return { count: 0 };
+		}
+		const result = await db.customerInvoice.updateMany({
+			where: { id: { in: idsToVoid } },
+			data: {
+				voidedAt: new Date(),
+				voidedById: user.id,
+				voidReason: VOID_REASON.ADMIN,
+			},
+		});
+		return { count: result.count };
 	});
 
 export const unvoidInvoiceProcedure = protectedProcedure

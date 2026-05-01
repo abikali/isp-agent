@@ -50,6 +50,7 @@ import {
 	unvoidInvoiceProcedure,
 	voidInvoiceProcedure,
 	voidManyInvoicesProcedure,
+	voidUnpaidForCustomersProcedure,
 } from "./procedures/void-invoice";
 
 export const billingRouter = {
@@ -77,6 +78,7 @@ export const billingRouter = {
 		delete: deleteInvoice,
 		void: voidInvoiceProcedure,
 		voidMany: voidManyInvoicesProcedure,
+		voidUnpaidForCustomers: voidUnpaidForCustomersProcedure,
 		unvoid: unvoidInvoiceProcedure,
 	},
 	unpaid: {

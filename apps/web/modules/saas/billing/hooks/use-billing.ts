@@ -700,6 +700,25 @@ export function useVoidInvoices() {
 	});
 }
 
+export function useVoidUnpaidForCustomers() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.voidUnpaidForCustomers.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.invoices.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
+			});
+		},
+	});
+}
+
 export function useUnvoidInvoice() {
 	const queryClient = useQueryClient();
 

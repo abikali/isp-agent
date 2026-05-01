@@ -1,6 +1,7 @@
 "use client";
 
 import { useActiveOrganization } from "@saas/organizations/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -17,7 +18,7 @@ import {
 	formatDateInput,
 } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
@@ -29,6 +30,7 @@ import {
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import {
+	BanIcon,
 	BanknoteIcon,
 	CalendarXIcon,
 	DollarSignIcon,
@@ -38,12 +40,14 @@ import {
 	WalletIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
 	useCollectorStats,
 	useCollectors,
 	useCurrentMonth,
 	useCustomerGroups,
 	useUnpaidCustomers,
+	useVoidUnpaidForCustomers,
 } from "../hooks/use-billing";
 import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
@@ -442,7 +446,10 @@ const SORT_BY_MAP = {
 >;
 
 export function UnpaidCustomersList() {
-	const { employee, isOrganizationAdmin } = useActiveOrganization();
+	const { employee, isOrganizationAdmin, activeOrganization } =
+		useActiveOrganization();
+	const organizationId = activeOrganization?.id ?? null;
+	const { confirm } = useConfirmationAlert();
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [page, setPage] = useState(1);
@@ -456,6 +463,7 @@ export function UnpaidCustomersList() {
 	const [selectedCustomer, setSelectedCustomer] = useState<
 		Parameters<typeof PaymentDialog>[0]["customer"] | null
 	>(null);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
 	const isCollector = !isOrganizationAdmin && !!employee?.id;
 
@@ -504,6 +512,51 @@ export function UnpaidCustomersList() {
 		isOrganizationAdmin,
 		onSelectCustomer: setSelectedCustomer,
 	});
+
+	const voidUnpaidMutation = useVoidUnpaidForCustomers();
+	const selectedCustomerIds = useMemo(
+		() => Object.keys(rowSelection),
+		[rowSelection],
+	);
+	const selectedCount = selectedCustomerIds.length;
+
+	function handleVoidSelected() {
+		if (!organizationId || selectedCount === 0) {
+			return;
+		}
+		confirm({
+			title: `Void unpaid invoices for ${selectedCount} customer${
+				selectedCount === 1 ? "" : "s"
+			}?`,
+			message:
+				"All unpaid invoices for the selected customers will be excluded from collector lists and billing stats, but kept in history. You can restore them later from the Invoices page.",
+			confirmLabel: "Void",
+			onConfirm: async () => {
+				try {
+					const result = await voidUnpaidMutation.mutateAsync({
+						organizationId,
+						customerIds: selectedCustomerIds,
+						...(activeMonth?.year !== undefined
+							? { year: activeMonth.year }
+							: {}),
+						...(activeMonth?.month !== undefined
+							? { month: activeMonth.month }
+							: {}),
+					});
+					setRowSelection({});
+					toast.success(
+						`${result.count} invoice${result.count === 1 ? "" : "s"} voided`,
+					);
+				} catch (err) {
+					toast.error(
+						err instanceof Error
+							? err.message
+							: "Failed to void invoices",
+					);
+				}
+			},
+		});
+	}
 
 	return (
 		<PageShell
@@ -579,6 +632,23 @@ export function UnpaidCustomersList() {
 					</div>
 				</div>
 
+				{isOrganizationAdmin && selectedCount > 0 && (
+					<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+						<span className="text-sm text-muted-foreground">
+							{selectedCount} selected
+						</span>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={voidUnpaidMutation.isPending}
+							onClick={handleVoidSelected}
+						>
+							<BanIcon className="mr-2 size-4" />
+							Void unpaid ({selectedCount})
+						</Button>
+					</div>
+				)}
+
 				<TooltipProvider>
 					<DataTable
 						columns={columns}
@@ -590,8 +660,15 @@ export function UnpaidCustomersList() {
 							totalItems: total,
 							currentPage: page,
 							itemsPerPage: 25,
-							onPageChange: setPage,
+							onPageChange: (p) => {
+								setPage(p);
+								setRowSelection({});
+							},
 						}}
+						enableRowSelection={isOrganizationAdmin}
+						rowSelection={rowSelection}
+						onRowSelectionChange={setRowSelection}
+						getRowId={(row) => row.id}
 						emptyState={
 							<EmptyState
 								icon={UsersIcon}
