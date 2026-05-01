@@ -52,7 +52,6 @@
 		"@orpc/server": "^1.12.2",
 		"@orpc/zod": "^1.12.2",
 		"@paralleldrive/cuid2": "3.0.6",
-		"@tanstack/ai": "^0.5.0",
 		"@repo/ai": "workspace:*",
 		"@repo/audit": "workspace:*",
 		"@repo/auth": "workspace:*",
@@ -72,14 +71,10 @@
 		"@repo/storage": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@repo/webhooks": "workspace:*",
-		"@scalar/hono-api-reference": "^0.9.28",
 		"@sentry/node": "^10.30.0",
 		"@sindresorhus/slugify": "^3.0.0",
-		"franc-min": "^6.2.0",
 		"hono": "^4.10.8",
-		"ioredis": "^5.8.2",
 		"nanoid": "^5.1.6",
-		"xlsx": "^0.18.5",
 		"zod": "^4.3.0"
 	},
 	"devDependencies": {

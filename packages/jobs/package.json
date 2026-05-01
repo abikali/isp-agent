@@ -23,7 +23,6 @@
 	},
 	"dependencies": {
 		"@paralleldrive/cuid2": "3.0.6",
-		"@react-email/render": "^2.0.0",
 		"@repo/ai": "workspace:*",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
@@ -31,7 +30,6 @@
 		"@repo/logs": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@repo/mail": "workspace:*",
-		"@repo/storage": "workspace:*",
 		"bullmq": "^5.65.1",
 		"ioredis": "^5.8.2"
 	},

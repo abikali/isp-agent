@@ -35,6 +35,7 @@
 				"@shikijs/rehype",
 				"tailwindcss",
 				"@tailwindcss/postcss",
+				"fumadocs-ui",
 				"localtunnel",
 				"mixpanel-browser",
 				"posthog-js",
@@ -42,7 +43,12 @@
 			]
 		},
 		"packages/api": {
-			"entry": ["index.ts", "orpc/router.ts", "modules/*/router.ts"],
+			"entry": [
+				"index.ts",
+				"orpc/router.ts",
+				"modules/*/router.ts",
+				"scripts/*.ts"
+			],
 			"project": ["**/*.ts"],
 			"ignoreDependencies": ["@repo/tsconfig"]
 		},
@@ -54,20 +60,17 @@
 		"packages/database": {
 			"entry": ["index.ts", "scripts/*.ts"],
 			"project": ["**/*.ts"],
-			"ignoreDependencies": ["@repo/tsconfig", "prisma"]
+			"ignoreDependencies": ["@repo/tsconfig", "prisma", "@prisma/client"]
 		},
 		"packages/jobs": {
 			"entry": [
 				"index.ts",
-				"worker.ts",
-				"integration-sync.ts",
 				"src/queues/index.ts",
 				"src/workers/index.ts",
-				"src/jobs/index.ts",
-				"vitest.config.ts"
+				"src/jobs/index.ts"
 			],
 			"project": ["**/*.ts"],
-			"ignoreDependencies": ["@repo/tsconfig"]
+			"ignoreDependencies": ["@repo/tsconfig", "tsx"]
 		},
 		"packages/mail": {
 			"entry": ["index.ts", "src/provider/*.ts", "emails/*.tsx"],
@@ -148,6 +151,11 @@
 			"project": ["**/*.ts"],
 			"ignoreDependencies": ["@repo/tsconfig"]
 		},
+		"packages/ai": {
+			"entry": ["index.ts", "src/**/*.ts", "vitest.config.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig", "@repo/config"]
+		},
 		"config": {
 			"entry": ["index.ts"],
 			"project": ["**/*.ts"],
@@ -155,6 +163,16 @@
 		},
 		"tooling/tailwind-config": {
 			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig"]
+		},
+		"tooling/tailwind": {
+			"entry": ["index.ts"],
+			"project": ["**/*.ts"],
+			"ignoreDependencies": ["@repo/tsconfig", "tailwindcss"]
+		},
+		"tooling/scripts": {
+			"entry": ["src/*.ts"],
 			"project": ["**/*.ts"],
 			"ignoreDependencies": ["@repo/tsconfig"]
 		}

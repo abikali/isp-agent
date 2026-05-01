@@ -71,16 +71,10 @@ export default defineConfig(({ mode }) => {
 			noExternal: [
 				"browser-image-compression",
 				"react-easy-crop",
-				"react-colorful",
 				"react-dropzone",
 				"recharts",
 				"qrcode.react",
-				"@fingerprintjs/fingerprintjs",
 			],
-			// Pre-bundle CJS packages to fix deprecation warnings
-			optimizeDeps: {
-				include: ["@paralleldrive/cuid2"],
-			},
 		},
 		plugins: [
 			// Stub native .node binaries (e.g. cpu-features used by ssh2)
