@@ -68,6 +68,16 @@ const COLLECTOR_LOGIN = {
 	role: "member",
 };
 
+const PLATFORM_ADMIN_EMAIL = "test@example.com";
+
+// Mirror of ISP_ROLE_TEMPLATES.collector from packages/auth.
+// Inlined so this script stays decoupled from the auth package.
+const COLLECTOR_PERMISSIONS = {
+	customers: ["read:own"],
+	billing: ["view", "collect:own"],
+	tasks: ["read:own"],
+} as const;
+
 const PLAN_DEFS = [
 	{
 		name: "4MB - 6GB",
@@ -208,11 +218,27 @@ async function main() {
 		const collectorUserId = await upsertUser(client, COLLECTOR_LOGIN, now);
 		log(`✓ User ${COLLECTOR_LOGIN.email} → ${collectorUserId}`);
 
-		// 3. Memberships.
+		// 3. Memberships. The collector needs the "collector" ISP role
+		//    (read:own customers, billing:view + collect:own, tasks:read:own).
+		//    The system "member" role has no billing perms so the collector
+		//    portal would 403 every billing endpoint.
+		await upsertOrgRole(
+			client,
+			orgId,
+			"collector",
+			COLLECTOR_PERMISSIONS,
+			now,
+		);
 		await upsertMember(client, orgId, dealerUserId, "owner", now);
 		log(`✓ Member: ${DEALER_LOGIN.email} (owner)`);
-		await upsertMember(client, orgId, collectorUserId, "member", now);
-		log(`✓ Member: ${COLLECTOR_LOGIN.email} (member)`);
+		await upsertMember(client, orgId, collectorUserId, "collector", now);
+		log(`✓ Member: ${COLLECTOR_LOGIN.email} (collector)`);
+		// Enroll platform admin if present so support can switch into the org.
+		const adminId = await findUserIdByEmail(client, PLATFORM_ADMIN_EMAIL);
+		if (adminId) {
+			await upsertMember(client, orgId, adminId, "owner", now);
+			log(`✓ Member: ${PLATFORM_ADMIN_EMAIL} (owner)`);
+		}
 
 		// 4. Find or create the dealer record. Prod has it from a prior
 		//    iRadius sync (externalId 82095); local dev usually doesn't —
@@ -409,6 +435,33 @@ async function upsertUser(
 	return userId;
 }
 
+async function findUserIdByEmail(
+	client: pg.Client,
+	email: string,
+): Promise<string | null> {
+	const res = await client.query<{ id: string }>(
+		`SELECT id FROM "user" WHERE email = $1`,
+		[email],
+	);
+	return res.rows[0]?.id ?? null;
+}
+
+async function upsertOrgRole(
+	client: pg.Client,
+	orgId: string,
+	role: string,
+	permissions: Readonly<Record<string, readonly string[]>>,
+	now: Date,
+): Promise<void> {
+	await client.query(
+		`INSERT INTO organization_role
+		   (id, "organizationId", role, permission, "createdAt", "updatedAt")
+		 VALUES ($1, $2, $3, $4, $5, $5)
+		 ON CONFLICT ("organizationId", role) DO NOTHING`,
+		[createId(), orgId, role, JSON.stringify(permissions), now],
+	);
+}
+
 async function upsertMember(
 	client: pg.Client,
 	orgId: string,
@@ -416,11 +469,17 @@ async function upsertMember(
 	role: string,
 	now: Date,
 ): Promise<void> {
-	const existing = await client.query<{ id: string }>(
-		`SELECT id FROM member WHERE "organizationId" = $1 AND "userId" = $2`,
+	const existing = await client.query<{ id: string; role: string }>(
+		`SELECT id, role FROM member WHERE "organizationId" = $1 AND "userId" = $2`,
 		[orgId, userId],
 	);
 	if (existing.rows[0]) {
+		if (existing.rows[0].role !== role) {
+			await client.query("UPDATE member SET role = $2 WHERE id = $1", [
+				existing.rows[0].id,
+				role,
+			]);
+		}
 		return;
 	}
 	await client.query(
