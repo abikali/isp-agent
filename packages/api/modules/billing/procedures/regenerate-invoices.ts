@@ -1,8 +1,7 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
-import { protectedProcedure } from "../../../orpc/procedures";
+import { adminProcedure } from "../../../orpc/procedures";
 import { generateInvoicesForMonth } from "../lib/generate-invoices";
 
 /**
@@ -14,10 +13,12 @@ import { generateInvoicesForMonth } from "../lib/generate-invoices";
  * the active month. This procedure replays the generator over the existing
  * cycle. `skipDuplicates` on the underlying createMany makes it safe to
  * re-run.
+ *
+ * Platform-admin only — org owners cannot run it.
  */
 const REGENERATE_CONFIRMATION = "REGENERATE";
 
-export const regenerateMonthInvoices = protectedProcedure
+export const regenerateMonthInvoices = adminProcedure
 	.route({
 		method: "POST",
 		path: "/billing/months/{billingMonthId}/regenerate-invoices",
@@ -31,14 +32,7 @@ export const regenerateMonthInvoices = protectedProcedure
 			confirmation: z.literal(REGENERATE_CONFIRMATION),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
-			input.organizationId,
-			user.id,
-			"billing",
-			"manage",
-		);
-
+	.handler(async ({ input }) => {
 		const month = await db.billingMonth.findFirst({
 			where: {
 				id: input.billingMonthId,

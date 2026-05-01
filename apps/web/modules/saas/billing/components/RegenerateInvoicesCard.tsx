@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "@saas/auth/client";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import {
@@ -28,10 +29,11 @@ import { formatCycleLong } from "../lib/billing-utils";
 const CONFIRM_PHRASE = "REGENERATE";
 
 export function RegenerateInvoicesCard() {
+	const { user } = useSession();
 	const { data: currentMonthData } = useCurrentMonth();
 	const activeMonth = currentMonthData?.month;
 
-	if (!activeMonth || activeMonth.locked) {
+	if (user?.role !== "admin" || !activeMonth || activeMonth.locked) {
 		return null;
 	}
 
