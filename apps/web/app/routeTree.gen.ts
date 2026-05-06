@@ -39,6 +39,7 @@ import { Route as MarketingBlogSplatRouteImport } from "./routes/_marketing/blog
 import { Route as CollectorCollectOrganizationSlugRouteImport } from "./routes/_collector/collect/$organizationSlug"
 import { Route as SaasAppAccountIndexRouteImport } from "./routes/_saas/app/_account/index"
 import { Route as CollectorCollectOrganizationSlugIndexRouteImport } from "./routes/_collector/collect/$organizationSlug/index"
+import { Route as ApiWhatsappFlowOrganizationSlugDealerRouteImport } from "./routes/api/whatsapp-flow/$organizationSlug/dealer"
 import { Route as SaasAppOrgOrganizationSlugRouteImport } from "./routes/_saas/app/_org/$organizationSlug"
 import { Route as SaasAppFullbleedOrganizationSlugRouteImport } from "./routes/_saas/app/_fullbleed/$organizationSlug"
 import { Route as SaasAppAccountSettingsRouteImport } from "./routes/_saas/app/_account/settings"
@@ -260,6 +261,12 @@ const CollectorCollectOrganizationSlugIndexRoute =
     id: "/",
     path: "/",
     getParentRoute: () => CollectorCollectOrganizationSlugRoute,
+  } as any)
+const ApiWhatsappFlowOrganizationSlugDealerRoute =
+  ApiWhatsappFlowOrganizationSlugDealerRouteImport.update({
+    id: "/api/whatsapp-flow/$organizationSlug/dealer",
+    path: "/api/whatsapp-flow/$organizationSlug/dealer",
+    getParentRoute: () => rootRouteImport,
   } as any)
 const SaasAppOrgOrganizationSlugRoute =
   SaasAppOrgOrganizationSlugRouteImport.update({
@@ -672,6 +679,7 @@ export interface FileRoutesByFullPath {
   "/app/admin": typeof SaasAppAccountAdminRouteWithChildren
   "/app/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
+  "/api/whatsapp-flow/$organizationSlug/dealer": typeof ApiWhatsappFlowOrganizationSlugDealerRoute
   "/collect/$organizationSlug/": typeof CollectorCollectOrganizationSlugIndexRoute
   "/app/": typeof SaasAppAccountIndexRoute
   "/app/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
@@ -760,6 +768,7 @@ export interface FileRoutesByTo {
   "/blog": typeof MarketingBlogIndexRoute
   "/collect/$organizationSlug/payments": typeof CollectorCollectOrganizationSlugPaymentsRoute
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugIndexRoute
+  "/api/whatsapp-flow/$organizationSlug/dealer": typeof ApiWhatsappFlowOrganizationSlugDealerRoute
   "/collect/$organizationSlug": typeof CollectorCollectOrganizationSlugIndexRoute
   "/app/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
   "/app/admin/users": typeof SaasAppAccountAdminUsersRoute
@@ -855,6 +864,7 @@ export interface FileRoutesById {
   "/_saas/app/_account/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/_saas/app/_fullbleed/$organizationSlug": typeof SaasAppFullbleedOrganizationSlugRoute
   "/_saas/app/_org/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
+  "/api/whatsapp-flow/$organizationSlug/dealer": typeof ApiWhatsappFlowOrganizationSlugDealerRoute
   "/_collector/collect/$organizationSlug/": typeof CollectorCollectOrganizationSlugIndexRoute
   "/_saas/app/_account/": typeof SaasAppAccountIndexRoute
   "/_saas/app/_account/admin/feature-flags": typeof SaasAppAccountAdminFeatureFlagsRoute
@@ -948,6 +958,7 @@ export interface FileRouteTypes {
     | "/app/admin"
     | "/app/settings"
     | "/app/$organizationSlug"
+    | "/api/whatsapp-flow/$organizationSlug/dealer"
     | "/collect/$organizationSlug/"
     | "/app/"
     | "/app/admin/feature-flags"
@@ -1036,6 +1047,7 @@ export interface FileRouteTypes {
     | "/blog"
     | "/collect/$organizationSlug/payments"
     | "/app/$organizationSlug"
+    | "/api/whatsapp-flow/$organizationSlug/dealer"
     | "/collect/$organizationSlug"
     | "/app/admin/feature-flags"
     | "/app/admin/users"
@@ -1130,6 +1142,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_account/settings"
     | "/_saas/app/_fullbleed/$organizationSlug"
     | "/_saas/app/_org/$organizationSlug"
+    | "/api/whatsapp-flow/$organizationSlug/dealer"
     | "/_collector/collect/$organizationSlug/"
     | "/_saas/app/_account/"
     | "/_saas/app/_account/admin/feature-flags"
@@ -1204,6 +1217,7 @@ export interface RootRouteChildren {
   ImageProxySplatRoute: typeof ImageProxySplatRoute
   InvoicePaymentIdRoute: typeof InvoicePaymentIdRoute
   LTokenRoute: typeof LTokenRoute
+  ApiWhatsappFlowOrganizationSlugDealerRoute: typeof ApiWhatsappFlowOrganizationSlugDealerRoute
 }
 
 declare module "@tanstack/react-router" {
@@ -1431,6 +1445,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/collect/$organizationSlug/"
       preLoaderRoute: typeof CollectorCollectOrganizationSlugIndexRouteImport
       parentRoute: typeof CollectorCollectOrganizationSlugRoute
+    }
+    "/api/whatsapp-flow/$organizationSlug/dealer": {
+      id: "/api/whatsapp-flow/$organizationSlug/dealer"
+      path: "/api/whatsapp-flow/$organizationSlug/dealer"
+      fullPath: "/api/whatsapp-flow/$organizationSlug/dealer"
+      preLoaderRoute: typeof ApiWhatsappFlowOrganizationSlugDealerRouteImport
+      parentRoute: typeof rootRouteImport
     }
     "/_saas/app/_org/$organizationSlug": {
       id: "/_saas/app/_org/$organizationSlug"
@@ -2221,6 +2242,8 @@ const rootRouteChildren: RootRouteChildren = {
   ImageProxySplatRoute: ImageProxySplatRoute,
   InvoicePaymentIdRoute: InvoicePaymentIdRoute,
   LTokenRoute: LTokenRoute,
+  ApiWhatsappFlowOrganizationSlugDealerRoute:
+    ApiWhatsappFlowOrganizationSlugDealerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
