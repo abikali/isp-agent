@@ -15,13 +15,13 @@ import {
 	isWhishMoneyMessage,
 	markAsRead,
 	parseWebhookPayload,
-	processMedia,
 	resolveTools,
 	sendTextMessage,
 	sendTypingIndicator,
 	sendWhishPaymentEscalation,
 	stripToolAnnotation,
 	telegram,
+	transcribeMessageMedia,
 	triageBufferedMessages,
 	whatsapp,
 } from "@repo/ai";
@@ -207,7 +207,9 @@ async function handleMessages(
 
 				// Persist the admin's phone message so it shows in the
 				// dashboard conversation view. De-dupe by externalMsgId in
-				// case WaSender retries the webhook.
+				// case WaSender retries the webhook — check this BEFORE the
+				// expensive media transcription so retried deliveries don't
+				// re-burn LLM calls.
 				if (msg.text) {
 					const existing = await db.aiMessage.findFirst({
 						where: {
@@ -217,11 +219,14 @@ async function handleMessages(
 						select: { id: true },
 					});
 					if (!existing) {
+						const adminContent =
+							(await transcribeMessageMedia(apiToken, msg)) ??
+							msg.text;
 						await db.aiMessage.create({
 							data: {
 								conversationId: takeoverConversation.id,
 								role: "admin",
-								content: msg.text,
+								content: adminContent,
 								externalMsgId: msg.messageId,
 							},
 						});
@@ -319,10 +324,12 @@ async function handleMessages(
 				continue;
 			}
 
-			// Process media attachments (voice → transcription, image → description, document → extraction)
 			let messageText = msg.text;
 			if (msg.mediaId && msg.mediaType) {
-				// Use caption as language hint; if absent, fetch last user message from conversation
+				// Caption is the cheapest language hint; otherwise borrow the
+				// last user message so the transcriber knows which language to
+				// expect (it has a strong default of Arabic which is wrong for
+				// French/English subscribers).
 				let languageHint = msg.mediaCaption;
 				if (!languageHint) {
 					const lastMsg = await db.aiMessage.findFirst({
@@ -338,30 +345,17 @@ async function handleMessages(
 						select: { content: true },
 					});
 					if (lastMsg?.content) {
-						// Use a short snippet — enough for language detection
 						languageHint = lastMsg.content.slice(0, 100);
 					}
 				}
 
-				const processed = await processMedia(
+				const transcribed = await transcribeMessageMedia(
 					apiToken,
-					msg.mediaType,
-					msg.mediaId,
-					msg.mediaCaption,
-					msg.mediaLink,
-					msg.mediaFileName,
+					msg,
 					languageHint ?? undefined,
 				);
-				if (processed) {
-					if (msg.mediaType === "voice") {
-						messageText = processed;
-					} else if (msg.mediaType === "image") {
-						messageText = msg.mediaCaption
-							? `[Image: ${processed}] ${msg.mediaCaption}`
-							: `[Image: ${processed}]`;
-					} else if (msg.mediaType === "document") {
-						messageText = `[Document: ${msg.mediaFileName ?? "file"}]\n${processed}`;
-					}
+				if (transcribed) {
+					messageText = transcribed;
 				}
 			}
 

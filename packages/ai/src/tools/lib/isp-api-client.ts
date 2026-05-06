@@ -81,6 +81,28 @@ export function normalizeLebanesPhone(phone: string): string {
 }
 
 /**
+ * Whether a query is something the iRadius `/user-info` endpoint can usefully match.
+ *
+ * The endpoint searches `u.Mobile`/`u.Phone` (substring LIKE) and `u.UserName`
+ * (exact). Non-ASCII queries (Arabic names, etc.) match accidentally against
+ * UTF-8-corrupted Mobile data in iRadius and return unrelated customers — so
+ * we refuse those at the tool boundary and ask for a phone or username.
+ */
+export function isSearchableQuery(query: string): boolean {
+	const trimmed = query.trim();
+	if (trimmed.length === 0) {
+		return false;
+	}
+	for (const ch of trimmed) {
+		const code = ch.codePointAt(0) ?? 0;
+		if (code < 0x20 || code > 0x7e) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
  * Extract and validate ISP API config from tool context.
  * Falls back to environment variables when per-agent config is not set.
  */
@@ -161,9 +183,51 @@ function clearToken(config: IspApiConfig): void {
 	tokenCache.delete(cacheKey(config));
 }
 
+// 5xx backoff schedule in ms — up to 3 attempts total (initial + 2 retries).
+// iRadius API has known intermittent 500/502 hiccups; one quick retry catches
+// the bulk of them without making slow paths painful.
+const FIVE_XX_BACKOFF_MS = [200, 800];
+
+/**
+ * Run an authenticated request with one 401 retry (fresh token) and a small
+ * number of 5xx retries with backoff. Caller provides a `send(token)` thunk
+ * so this works for both GET and POST without duplicating fetch wiring.
+ */
+async function sendWithRetries(
+	config: IspApiConfig,
+	send: (token: string) => Promise<Response>,
+): Promise<Response> {
+	let token = await getToken(config);
+	let res = await send(token);
+
+	if (res.status === 401) {
+		clearToken(config);
+		token = await getToken(config);
+		res = await send(token);
+	}
+
+	for (const delay of FIVE_XX_BACKOFF_MS) {
+		if (res.status < 500 || res.status > 599) {
+			break;
+		}
+		await new Promise((resolve) => setTimeout(resolve, delay));
+		res = await send(token);
+	}
+
+	// 5xx backoff can outlive the JWT TTL — re-mint and retry once if the
+	// server now answers with 401.
+	if (res.status === 401) {
+		clearToken(config);
+		token = await getToken(config);
+		res = await send(token);
+	}
+
+	return res;
+}
+
 /**
  * Authenticated GET request to the ISP API.
- * Automatically handles JWT auth and retries once on 401.
+ * Handles JWT auth (401 retry) and intermittent 5xx (backoff retry).
  */
 export async function ispGet<T>(
 	config: IspApiConfig,
@@ -175,19 +239,11 @@ export async function ispGet<T>(
 		url.searchParams.set(key, value);
 	}
 
-	const token = await getToken(config);
-	let res = await fetch(url.toString(), {
-		headers: { Authorization: `Bearer ${token}` },
-	});
-
-	// Retry once on 401 with a fresh token
-	if (res.status === 401) {
-		clearToken(config);
-		const freshToken = await getToken(config);
-		res = await fetch(url.toString(), {
-			headers: { Authorization: `Bearer ${freshToken}` },
-		});
-	}
+	const res = await sendWithRetries(config, (token) =>
+		fetch(url.toString(), {
+			headers: { Authorization: `Bearer ${token}` },
+		}),
+	);
 
 	if (!res.ok) {
 		throw new Error(
@@ -205,7 +261,7 @@ export async function ispGet<T>(
 
 /**
  * Authenticated POST request to the ISP API.
- * Automatically handles JWT auth and retries once on 401.
+ * Handles JWT auth (401 retry) and intermittent 5xx (backoff retry).
  */
 export async function ispPost<T>(
 	config: IspApiConfig,
@@ -214,29 +270,16 @@ export async function ispPost<T>(
 ): Promise<T> {
 	const url = `${config.baseUrl}${path}`;
 
-	const token = await getToken(config);
-	let res = await fetch(url, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${token}`,
-		},
-		body: JSON.stringify(body),
-	});
-
-	// Retry once on 401 with a fresh token
-	if (res.status === 401) {
-		clearToken(config);
-		const freshToken = await getToken(config);
-		res = await fetch(url, {
+	const res = await sendWithRetries(config, (token) =>
+		fetch(url, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${freshToken}`,
+				Authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify(body),
-		});
-	}
+		}),
+	);
 
 	if (!res.ok) {
 		throw new Error(

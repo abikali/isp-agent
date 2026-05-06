@@ -109,6 +109,52 @@ export async function processMedia(
 }
 
 /**
+ * Process media attachments and return them already wrapped in the same
+ * placeholder shape (e.g. `[Image: ...]`) used in stored conversation
+ * content. Returns null when there's no media or when processing failed —
+ * in either case the caller should fall back to its existing text.
+ */
+export async function transcribeMessageMedia(
+	apiToken: string,
+	msg: {
+		mediaId?: string | undefined;
+		mediaType?: string | undefined;
+		mediaCaption?: string | undefined;
+		mediaLink?: string | undefined;
+		mediaFileName?: string | undefined;
+	},
+	userLanguageHint?: string,
+): Promise<string | null> {
+	if (!msg.mediaId || !msg.mediaType) {
+		return null;
+	}
+	const processed = await processMedia(
+		apiToken,
+		msg.mediaType,
+		msg.mediaId,
+		msg.mediaCaption,
+		msg.mediaLink,
+		msg.mediaFileName,
+		userLanguageHint,
+	);
+	if (!processed) {
+		return null;
+	}
+	switch (msg.mediaType) {
+		case "voice":
+			return processed;
+		case "image":
+			return msg.mediaCaption
+				? `[Image: ${processed}] ${msg.mediaCaption}`
+				: `[Image: ${processed}]`;
+		case "document":
+			return `[Document: ${msg.mediaFileName ?? "file"}]\n${processed}`;
+		default:
+			return null;
+	}
+}
+
+/**
  * Send a media message (image, video, audio, document, sticker, location) to an external channel.
  */
 export async function sendMediaMessage(

@@ -34,6 +34,7 @@ export {
 	sendTextMessage,
 	sendTypingIndicator,
 	telegram,
+	transcribeMessageMedia,
 	whatsapp,
 } from "./src/providers";
 export { initRateLimiter } from "./src/providers/rate-limiter";

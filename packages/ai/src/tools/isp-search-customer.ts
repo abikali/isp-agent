@@ -4,6 +4,7 @@ import {
 	cleanPhoneNumber,
 	getIspApiConfigFields,
 	ispGet,
+	isSearchableQuery,
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
@@ -105,6 +106,12 @@ function createIspSearchCustomerTool(context: ToolContext) {
 				),
 		}),
 		execute: async (args) => {
+			if (!isSearchableQuery(args.query)) {
+				return {
+					success: false,
+					message: `Cannot search by name "${args.query}". The system only matches phone numbers or exact PPPoE/Hotspot usernames. Ask the customer for their phone number, or for the username printed on a previous bill or on the antenna sticker.`,
+				};
+			}
 			return withIspErrorHandling(
 				context,
 				"isp-search-customer",

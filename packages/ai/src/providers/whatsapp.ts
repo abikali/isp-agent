@@ -229,6 +229,11 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				chatId: msg.key.remoteJid,
 				messageId: msg.key.id,
 				text: extracted?.text ?? "",
+				mediaId: extracted?.mediaId,
+				mediaLink: extracted?.mediaLink,
+				mediaType: extracted?.mediaType,
+				mediaCaption: extracted?.mediaCaption,
+				mediaFileName: extracted?.mediaFileName,
 				fromMe: true,
 			});
 			continue;
