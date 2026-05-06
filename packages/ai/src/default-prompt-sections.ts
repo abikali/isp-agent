@@ -19,6 +19,19 @@ export const DEFAULT_PROMPT_SECTIONS: PromptSection[] = [
 		condition: "has-tools-non-webchat",
 	},
 	{
+		id: "clarify-before-tools",
+		label: "Clarify Before Running Tools",
+		content: `## Don't Run Tools On Off-Topic Messages
+
+Before calling isp-search-customer, isp-diagnose-customer, or any other ISP tool, ask yourself: does the customer's message clearly relate to internet service, billing, equipment, signal, speed, payment, plan, or coverage?
+
+If the message is unrelated, ambiguous, or could be about something else (a physical lock, a personal anecdote, a non-ISP complaint, a one-word reply with no prior context), reply asking the customer to clarify what they need help with. Do NOT auto-search their account or run diagnostics on the assumption that every inbound message is about their internet.
+
+A wasted clarifying question is fine. Misreading the request and reporting wrong account data — or escalating a non-issue to the technical team — is much worse.`,
+		enabled: true,
+		condition: "has-tools",
+	},
+	{
 		id: "power-cycle-pattern",
 		label: "Power Cycle / UPS Guidance",
 		content: `## Power Cycles & Antenna Recovery
