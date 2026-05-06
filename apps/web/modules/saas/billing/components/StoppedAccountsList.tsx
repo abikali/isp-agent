@@ -21,15 +21,18 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Skeleton } from "@ui/components/skeleton";
-import { OctagonXIcon, PlayIcon } from "lucide-react";
+import { OctagonXIcon, PlayIcon, RotateCcwIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+	useCollectors,
+	useCustomerGroups,
 	useMonthFilter,
 	useReactivateAccount,
 	useStoppedAccounts,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
+import { CollectorSelect, GroupSelect } from "./BillingFilters";
 
 const PAGE_SIZE = 25;
 
@@ -59,6 +62,10 @@ interface StoppedPaymentRow {
 export function StoppedAccountsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
+	const [collectorFilter, setCollectorFilter] = useState<
+		string | undefined
+	>();
+	const [groupFilter, setGroupFilter] = useState<string | undefined>();
 	const [page, setPage] = useState(1);
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		SORT_BY_MAP,
@@ -73,15 +80,49 @@ export function StoppedAccountsList() {
 	const { activeOrganization } = useActiveOrganization();
 	const orgSlug = activeOrganization?.slug ?? "";
 
+	const { data: collectorsData } = useCollectors();
+	const { groups } = useCustomerGroups();
+	const collectors = collectorsData?.collectors ?? [];
+
 	// Extract year/month from the selected billing month option
 	const selectedOption = options.find((o) => o.value === monthFilter);
 	const filterYear = selectedOption?.year;
 	const filterMonth = selectedOption?.month;
 
+	const resetPage = () => setPage(1);
+	const handleCollectorChange = (value: string) => {
+		setCollectorFilter(value || undefined);
+		resetPage();
+	};
+	const handleGroupChange = (value: string) => {
+		setGroupFilter(value || undefined);
+		resetPage();
+	};
+	const handleMonthChange = (value: string) => {
+		setMonthFilter(value);
+		resetPage();
+	};
+
+	const hasActiveFilters =
+		!!search ||
+		!!collectorFilter ||
+		!!groupFilter ||
+		(!!monthFilter && monthFilter !== "all");
+
+	const resetFilters = () => {
+		setSearch("");
+		setCollectorFilter(undefined);
+		setGroupFilter(undefined);
+		setMonthFilter("");
+		setPage(1);
+	};
+
 	const { payments, total } = useStoppedAccounts({
 		year: filterYear,
 		month: filterMonth,
 		search: debouncedSearch || undefined,
+		collectorId: collectorFilter,
+		groupName: groupFilter,
 		page,
 		sortBy,
 		sortOrder,
@@ -201,18 +242,41 @@ export function StoppedAccountsList() {
 			description={`${total} stopped accounts`}
 		>
 			<div className="space-y-4">
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+				<div className="flex flex-wrap items-center gap-2 sm:gap-3">
 					<SearchInput
 						value={search}
-						onChange={setSearch}
+						onChange={(v) => {
+							setSearch(v);
+							resetPage();
+						}}
 						placeholder="Search customers..."
-						className="sm:max-w-xs"
+						className="w-full sm:max-w-xs"
+					/>
+					<CollectorSelect
+						value={collectorFilter ?? ""}
+						onChange={handleCollectorChange}
+						collectors={collectors}
+					/>
+					<GroupSelect
+						value={groupFilter ?? ""}
+						onChange={handleGroupChange}
+						groups={groups}
 					/>
 					<BillingCycleSelect
 						options={options}
 						value={monthFilter}
-						onValueChange={setMonthFilter}
+						onValueChange={handleMonthChange}
 					/>
+					{hasActiveFilters && (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={resetFilters}
+						>
+							<RotateCcwIcon className="mr-1 size-3.5" />
+							Reset
+						</Button>
+					)}
 				</div>
 
 				<DataTable
