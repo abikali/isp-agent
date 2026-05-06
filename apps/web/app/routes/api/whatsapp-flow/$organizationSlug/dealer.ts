@@ -12,24 +12,14 @@ function plainText(body: string): Response {
 	});
 }
 
-// Build the set of stored-phone variants we should match against.
-// iRadius sync historically stores mobile in mixed formats — sometimes
-// canonical "+961…", sometimes legacy local "79143071" or "03092449" —
-// so a single normalized lookup misses real customers. Generate every
-// reasonable variant for the input and match any of them.
-function buildPhoneCandidates(digitsOnly: string): string[] {
-	const local = digitsOnly.slice(3); // strip "961"
-	// Lebanese mobiles starting with 3 historically carry a leading 0
-	// in local form (`3092449` ↔ `03092449`).
-	const localWithLeadingZero = local.startsWith("3") ? `0${local}` : local;
-	return Array.from(
-		new Set([
-			`+${digitsOnly}`, // +96179143071
-			digitsOnly, // 96179143071
-			local, // 79143071
-			localWithLeadingZero, // 03092449 (only when 3-prefix)
-		]),
-	);
+// The local Lebanese number (without country code) is the most stable
+// part of a phone across formats. iRadius mirrors phones in mixed
+// shapes — "+96170442737", "70442737", "070442737", "03092449" — so
+// suffix-matching on the local digits catches all of them in one query.
+function extractCore(rawPhone: string): string {
+	const normalized = normalizeLebanesePhone(rawPhone);
+	const digits = normalized.replace(/\D/g, "");
+	return digits.startsWith("961") ? digits.slice(3) : digits;
 }
 
 export const Route = createFileRoute(
@@ -40,18 +30,15 @@ export const Route = createFileRoute(
 			GET: async ({ request, params }) => {
 				const url = new URL(request.url);
 				const rawPhone = url.searchParams.get("phone") ?? "";
-				const digitsOnly = rawPhone.replace(/\D/g, "");
+				const core = extractCore(rawPhone);
 
-				if (!digitsOnly.startsWith("961")) {
+				if (core.length < 7) {
 					logger.info("[WhatsApp Flow] dealer lookup: bad phone", {
 						orgSlug: params.organizationSlug,
 						rawPhone,
 					});
 					return plainText(NOT_AVAILABLE);
 				}
-
-				const normalizedPhone = normalizeLebanesePhone(digitsOnly);
-				const candidates = buildPhoneCandidates(digitsOnly);
 
 				const organization = await db.organization.findUnique({
 					where: { slug: params.organizationSlug },
@@ -63,7 +50,7 @@ export const Route = createFileRoute(
 						"[WhatsApp Flow] dealer lookup: org not found",
 						{
 							orgSlug: params.organizationSlug,
-							normalizedPhone,
+							core,
 						},
 					);
 					return plainText(NOT_AVAILABLE);
@@ -72,12 +59,14 @@ export const Route = createFileRoute(
 				const customer = await db.customer.findFirst({
 					where: {
 						organizationId: organization.id,
+						// A phone can be shared by multiple customer rows
+						// (duplicates, historical records). Skip ones with
+						// no dealer so we don't return "notavailable" while
+						// a sibling row has the answer.
+						dealerId: { not: null },
 						OR: [
-							{ mobile: { in: candidates } },
-							{ phone: { in: candidates } },
-							...candidates.map((c) => ({
-								phones: { array_contains: [{ number: c }] },
-							})),
+							{ mobile: { endsWith: core } },
+							{ phone: { endsWith: core } },
 						],
 					},
 					select: {
@@ -91,8 +80,7 @@ export const Route = createFileRoute(
 				logger.info("[WhatsApp Flow] dealer lookup", {
 					orgSlug: params.organizationSlug,
 					rawPhone,
-					normalizedPhone,
-					candidates,
+					core,
 					customerId: customer?.id ?? null,
 					dealer: dealerUsername,
 				});
