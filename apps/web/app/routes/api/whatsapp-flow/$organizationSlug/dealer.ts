@@ -12,6 +12,26 @@ function plainText(body: string): Response {
 	});
 }
 
+// Build the set of stored-phone variants we should match against.
+// iRadius sync historically stores mobile in mixed formats — sometimes
+// canonical "+961…", sometimes legacy local "79143071" or "03092449" —
+// so a single normalized lookup misses real customers. Generate every
+// reasonable variant for the input and match any of them.
+function buildPhoneCandidates(digitsOnly: string): string[] {
+	const local = digitsOnly.slice(3); // strip "961"
+	// Lebanese mobiles starting with 3 historically carry a leading 0
+	// in local form (`3092449` ↔ `03092449`).
+	const localWithLeadingZero = local.startsWith("3") ? `0${local}` : local;
+	return Array.from(
+		new Set([
+			`+${digitsOnly}`, // +96179143071
+			digitsOnly, // 96179143071
+			local, // 79143071
+			localWithLeadingZero, // 03092449 (only when 3-prefix)
+		]),
+	);
+}
+
 export const Route = createFileRoute(
 	"/api/whatsapp-flow/$organizationSlug/dealer",
 )({
@@ -31,6 +51,7 @@ export const Route = createFileRoute(
 				}
 
 				const normalizedPhone = normalizeLebanesePhone(digitsOnly);
+				const candidates = buildPhoneCandidates(digitsOnly);
 
 				const organization = await db.organization.findUnique({
 					where: { slug: params.organizationSlug },
@@ -52,15 +73,11 @@ export const Route = createFileRoute(
 					where: {
 						organizationId: organization.id,
 						OR: [
-							{ mobile: normalizedPhone },
-							{ phone: normalizedPhone },
-							{
-								phones: {
-									array_contains: [
-										{ number: normalizedPhone },
-									],
-								},
-							},
+							{ mobile: { in: candidates } },
+							{ phone: { in: candidates } },
+							...candidates.map((c) => ({
+								phones: { array_contains: [{ number: c }] },
+							})),
 						],
 					},
 					select: {
@@ -75,6 +92,7 @@ export const Route = createFileRoute(
 					orgSlug: params.organizationSlug,
 					rawPhone,
 					normalizedPhone,
+					candidates,
 					customerId: customer?.id ?? null,
 					dealer: dealerUsername,
 				});
