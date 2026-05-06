@@ -161,6 +161,21 @@ export const createPayment = protectedProcedure
 			});
 		}
 
+		// Reject "ghost" rows: paidAmount=0 with neither flag set. They satisfy
+		// the dedupe check but never count as settled (see SETTLED_PAYMENT in
+		// lib/filters.ts), so the customer reappears in the unpaid list every
+		// month yet can never be re-collected — they're stuck.
+		if (
+			input.paidAmount === 0 &&
+			!input.freeAccount &&
+			!input.stoppedAccount
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Mark the payment as Free Account or Stopped if no cash was collected",
+			});
+		}
+
 		// Require a note when paid amount differs from total due
 		const isAmountMismatch =
 			Math.abs(input.paidAmount - totalDue) >= 0.01 &&
@@ -176,11 +191,19 @@ export const createPayment = protectedProcedure
 
 		// Create payment in a transaction
 		const payment = await db.$transaction(async (tx) => {
-			// Prevent duplicate payments for the same customer in the same month
+			// Prevent duplicate payments for the same customer in the same month.
+			// Only block when an existing row is settled (cash or free) or stopped
+			// — any leftover ghost row (paidAmount=0, both flags false) shouldn't
+			// permanently lock the customer out of being re-collected.
 			const existing = await tx.payment.findFirst({
 				where: {
 					customerId: input.customerId,
 					billingMonthId: billingMonth.id,
+					OR: [
+						{ paidAmount: { gt: 0 } },
+						{ freeAccount: true },
+						{ stoppedAccount: true },
+					],
 				},
 				select: { id: true },
 			});

@@ -142,6 +142,8 @@ export function PaymentSheet({
 		!stoppedAccount &&
 		amountNum > 0;
 	const mismatchMissingNote = isAmountMismatch && missingNote;
+	const zeroAmountWithoutFlag =
+		amountNum === 0 && !freeAccount && !stoppedAccount;
 
 	const hasValidPhone = phones.some((p) => isValidPhone(p.number));
 
@@ -659,6 +661,13 @@ export function PaymentSheet({
 							</p>
 						)}
 
+						{zeroAmountWithoutFlag && (
+							<p className="text-xs font-medium text-destructive">
+								Mark the payment as Free or Stopped if no cash
+								was collected
+							</p>
+						)}
+
 						<Button
 							type="submit"
 							size="lg"
@@ -668,6 +677,7 @@ export function PaymentSheet({
 								stoppedMissingNote ||
 								freeMissingNote ||
 								mismatchMissingNote ||
+								zeroAmountWithoutFlag ||
 								!hasValidPhone
 							}
 						>
