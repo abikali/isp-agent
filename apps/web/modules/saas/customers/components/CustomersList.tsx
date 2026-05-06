@@ -241,15 +241,16 @@ export function CustomersList({
 		() => [
 			{
 				id: "status",
+				header: "Status",
 				enableSorting: false,
-				meta: { className: "w-10 pr-0" },
+				meta: { className: "whitespace-nowrap" },
 				cell: ({ row }) => (
 					<StatusIndicator
 						status={getConnectivityStatus(
 							row.original.status,
 							row.original.online,
 						)}
-						label=""
+						variant="badge"
 						size="sm"
 					/>
 				),

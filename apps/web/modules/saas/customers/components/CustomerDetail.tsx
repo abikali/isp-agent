@@ -79,7 +79,6 @@ import {
 	useUpdateCustomer,
 } from "../hooks/use-customers";
 import { usePlansQuery } from "../hooks/use-plans";
-import { useStationsQuery } from "../hooks/use-stations";
 import {
 	CONNECTION_TYPE_OPTIONS,
 	CUSTOMER_STATUS_OPTIONS,
@@ -100,10 +99,6 @@ type PlanItem = Awaited<
 	ReturnType<typeof orpcClient.servicePlans.list>
 >["plans"][number];
 
-type StationItem = Awaited<
-	ReturnType<typeof orpcClient.stations.list>
->["stations"][number];
-
 type EmployeeItem = Awaited<
 	ReturnType<typeof orpcClient.employees.list>
 >["employees"][number];
@@ -119,9 +114,7 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		email: customer.email ?? "",
 		phones: phones.length > 0 ? phones : [{ number: "", primary: true }],
 		address: customer.address ?? "",
-		username: customer.username ?? "",
 		planId: customer.planId ?? "",
-		stationId: customer.stationId ?? "",
 		status: customer.status,
 		connectionType: customer.connectionType ?? "",
 		monthlyRate: customer.monthlyRate?.toString() ?? "",
@@ -180,7 +173,6 @@ export function CustomerDetail({
 		error?: string;
 	} | null>(null);
 	const { plans } = usePlansQuery();
-	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery();
 	const { groups: iradiusGroups } = useIRadiusGroups();
 
@@ -212,8 +204,6 @@ export function CustomerDetail({
 			email: values.email || undefined,
 			phones: values.phones.filter((p) => p.number.trim() !== ""),
 			address: values.address || undefined,
-			username: values.username || undefined,
-			stationId: values.stationId || null,
 			status: values.status as
 				| "ACTIVE"
 				| "INACTIVE"
@@ -495,7 +485,6 @@ export function CustomerDetail({
 									form={form}
 									customer={customer}
 									plans={plans}
-									stations={stations}
 									employees={employees}
 									iradiusGroups={iradiusGroups}
 								/>
@@ -922,14 +911,12 @@ function OverviewTab({
 	form,
 	customer,
 	plans,
-	stations,
 	employees,
 	iradiusGroups,
 }: {
 	form: CustomerForm;
 	customer: CustomerData;
 	plans: PlanItem[];
-	stations: StationItem[];
 	employees: EmployeeItem[];
 	iradiusGroups: Array<{ id: number; name: string }>;
 }) {
@@ -1048,31 +1035,10 @@ function OverviewTab({
 								</Field>
 							)}
 						</form.Field>
-						<form.Field name="stationId">
-							{(field) => (
-								<Field>
-									<FieldLabel>Station</FieldLabel>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select station" />
-										</SelectTrigger>
-										<SelectContent>
-											{stations.map((s) => (
-												<SelectItem
-													key={s.id}
-													value={s.id}
-												>
-													{s.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							)}
-						</form.Field>
+						<ReadOnlyField
+							label="Station"
+							value={customer.station?.name}
+						/>
 						<form.Field name="collectorId">
 							{(field) => (
 								<Field>
@@ -1138,23 +1104,12 @@ function OverviewTab({
 								</Field>
 							)}
 						</form.Field>
-						<form.Field name="username">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="username">
-										PPPoE Username
-									</FieldLabel>
-									<Input
-										id="username"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="PPPoE username"
-									/>
-								</Field>
-							)}
-						</form.Field>
+						<ReadOnlyField
+							label="PPPoE Username"
+							value={customer.username}
+							mono
+							copyable
+						/>
 						<form.Field name="groupExternalId">
 							{(field) => (
 								<Field>
