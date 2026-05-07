@@ -131,23 +131,16 @@ const PAGE_SIZE = 25;
 
 const sortByMap = {
 	name: "lastName",
-	accountNumber: "accountNumber",
-	username: "username",
-	balance: "balance",
-	expiry: "expiresAt",
-	createdAt: "createdAt",
 	status: "status",
+	expiry: "expiresAt",
+	balance: "balance",
 } as const satisfies Record<string, string>;
 
 const TOGGLEABLE_COLUMNS = [
-	{ id: "status", label: "Status" },
-	{ id: "accountNumber", label: "Account" },
 	{ id: "name", label: "Customer", alwaysVisible: true },
-	{ id: "username", label: "Username" },
+	{ id: "status", label: "Status" },
 	{ id: "plan", label: "Plan" },
-	{ id: "groupName", label: "Group" },
-	{ id: "station", label: "Station" },
-	{ id: "collector", label: "Collector" },
+	{ id: "assignment", label: "Assignment" },
 	{ id: "expiry", label: "Expiry" },
 	{ id: "balance", label: "Balance" },
 ] as const;
@@ -453,46 +446,11 @@ export function CustomersList({
 	const columns = useMemo<ColumnDef<CustomerRow, unknown>[]>(
 		() => [
 			{
-				id: "status",
-				header: "Status",
-				enableSorting: true,
-				meta: { className: "whitespace-nowrap" },
-				cell: ({ row }) => (
-					<StatusIndicator
-						status={getConnectivityStatus(
-							row.original.status,
-							row.original.online,
-						)}
-						variant="badge"
-						size="sm"
-					/>
-				),
-			},
-			{
-				id: "accountNumber",
-				header: "Account",
-				accessorFn: (row) => row.accountNumber,
-				enableSorting: true,
-				meta: { className: "whitespace-nowrap" },
-				cell: ({ row }) => (
-					<Link
-						to="/app/$organizationSlug/customers/$customerId"
-						params={{
-							organizationSlug,
-							customerId: row.original.id,
-						}}
-						className="font-mono text-xs text-primary hover:underline"
-						preload="intent"
-					>
-						{row.original.accountNumber}
-					</Link>
-				),
-			},
-			{
 				id: "name",
 				header: "Customer",
 				accessorFn: (row) => row.lastName,
 				enableSorting: true,
+				meta: { className: "min-w-[220px]" },
 				cell: ({ row }) => {
 					const note = row.original.notes?.trim();
 					const fullName = displayName(
@@ -506,6 +464,13 @@ export function CustomersList({
 					const hasLocation =
 						row.original.latitude != null &&
 						row.original.longitude != null;
+					const meta = [
+						`#${row.original.accountNumber}`,
+						row.original.username
+							? `@${row.original.username}`
+							: null,
+						row.original.email,
+					].filter(Boolean) as string[];
 					return (
 						<div className="flex min-w-0 items-center gap-2.5">
 							<Avatar className="size-8 shrink-0 rounded-full">
@@ -551,102 +516,124 @@ export function CustomersList({
 										</Tooltip>
 									) : null}
 								</div>
-								{row.original.email && (
-									<p className="truncate text-xs text-muted-foreground">
-										{row.original.email}
-									</p>
-								)}
+								<p className="truncate text-xs text-muted-foreground">
+									{meta.map((m, i) => (
+										<span key={m}>
+											{i > 0 && (
+												<span className="mx-1.5 text-muted-foreground/50">
+													·
+												</span>
+											)}
+											<span
+												className={
+													m.startsWith("#") ||
+													m.startsWith("@")
+														? "font-mono"
+														: undefined
+												}
+											>
+												{m}
+											</span>
+										</span>
+									))}
+								</p>
 							</div>
 						</div>
 					);
 				},
 			},
 			{
-				id: "username",
-				header: "Username",
-				accessorFn: (row) => row.username,
+				id: "status",
+				header: "Status",
 				enableSorting: true,
-				meta: { className: "hidden md:table-cell" },
-				cell: ({ row }) =>
-					row.original.username ? (
-						<span className="font-mono text-xs text-foreground/80">
-							{row.original.username}
-						</span>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
+				meta: { className: "whitespace-nowrap w-[1%]" },
+				cell: ({ row }) => (
+					<StatusIndicator
+						status={getConnectivityStatus(
+							row.original.status,
+							row.original.online,
+						)}
+						variant="badge"
+						size="sm"
+					/>
+				),
 			},
 			{
 				id: "plan",
 				header: "Plan",
 				enableSorting: false,
-				meta: { className: "hidden md:table-cell" },
-				cell: ({ row }) =>
-					row.original.plan?.name ? (
-						<div className="flex flex-col leading-tight">
-							<span className="text-sm">
-								{row.original.plan.name}
-							</span>
-							{row.original.connectionType && (
+				meta: {
+					className: "hidden md:table-cell whitespace-nowrap",
+				},
+				cell: ({ row }) => {
+					const plan = row.original.plan?.name;
+					const conn = row.original.connectionType;
+					const group = row.original.groupName;
+					if (!plan && !conn && !group) {
+						return <span className="text-muted-foreground">—</span>;
+					}
+					return (
+						<div className="flex flex-col gap-1 leading-tight">
+							<div className="flex items-center gap-1.5">
+								<span className="truncate text-sm">
+									{plan ?? (
+										<span className="text-muted-foreground">
+											No plan
+										</span>
+									)}
+								</span>
+								{group && (
+									<span className="inline-flex shrink-0 items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+										{group}
+									</span>
+								)}
+							</div>
+							{conn && (
 								<span className="text-xs text-muted-foreground">
-									{CONNECTION_TYPE_LABELS[
-										row.original.connectionType
-									] ?? row.original.connectionType}
+									{CONNECTION_TYPE_LABELS[conn] ?? conn}
 								</span>
 							)}
 						</div>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
+					);
+				},
 			},
 			{
-				id: "groupName",
-				header: "Group",
+				id: "assignment",
+				header: "Assignment",
 				enableSorting: false,
-				meta: { className: "hidden xl:table-cell" },
-				cell: ({ row }) =>
-					row.original.groupName ? (
-						<span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs">
-							{row.original.groupName}
-						</span>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
-			},
-			{
-				id: "station",
-				header: "Station",
-				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
-				cell: ({ row }) =>
-					row.original.station?.name ? (
-						<span className="text-sm">
-							{row.original.station.name}
-						</span>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
-			},
-			{
-				id: "collector",
-				header: "Collector",
-				enableSorting: false,
-				meta: { className: "hidden xl:table-cell" },
-				cell: ({ row }) =>
-					row.original.collector?.name ? (
-						<span className="text-sm">
-							{row.original.collector.name}
-						</span>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
+				meta: {
+					className: "hidden lg:table-cell whitespace-nowrap",
+				},
+				cell: ({ row }) => {
+					const station = row.original.station?.name;
+					const collector = row.original.collector?.name;
+					if (!station && !collector) {
+						return <span className="text-muted-foreground">—</span>;
+					}
+					return (
+						<div className="flex flex-col leading-tight">
+							<span className="truncate text-sm">
+								{station ?? (
+									<span className="text-muted-foreground">
+										No station
+									</span>
+								)}
+							</span>
+							<span className="truncate text-xs text-muted-foreground">
+								{collector ?? "Unassigned"}
+							</span>
+						</div>
+					);
+				},
 			},
 			{
 				id: "expiry",
 				header: "Expiry",
 				accessorFn: (row) => row.expiresAt,
 				enableSorting: true,
-				meta: { className: "hidden lg:table-cell whitespace-nowrap" },
+				meta: {
+					className: "hidden lg:table-cell whitespace-nowrap",
+				},
 				cell: ({ row }) => {
 					const value = row.original.expiresAt;
 					if (!value) {
@@ -692,7 +679,10 @@ export function CustomersList({
 				header: "Balance",
 				accessorFn: (row) => row.balance,
 				enableSorting: true,
-				meta: { className: "hidden sm:table-cell text-right" },
+				meta: {
+					className:
+						"hidden sm:table-cell text-right whitespace-nowrap w-[1%]",
+				},
 				cell: ({ row }) => {
 					const balance = row.original.balance;
 					const isOwed = balance < 0;
@@ -700,7 +690,7 @@ export function CustomersList({
 					return (
 						<span
 							className={cn(
-								"font-mono tabular-nums",
+								"font-mono text-sm tabular-nums",
 								isOwed &&
 									"font-semibold text-red-600 dark:text-red-400",
 								isCredit &&
@@ -716,7 +706,7 @@ export function CustomersList({
 			{
 				id: "actions",
 				enableSorting: false,
-				meta: { className: "w-12" },
+				meta: { className: "w-[1%] whitespace-nowrap text-right" },
 				cell: ({ row }) => (
 					<CustomerRowActions
 						customerId={row.original.id}
