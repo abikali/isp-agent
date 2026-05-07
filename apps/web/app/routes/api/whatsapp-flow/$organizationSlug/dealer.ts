@@ -56,26 +56,36 @@ export const Route = createFileRoute(
 					return plainText(NOT_AVAILABLE);
 				}
 
-				const customer = await db.customer.findFirst({
-					where: {
-						organizationId: organization.id,
-						// A phone can be shared by multiple customer rows
-						// (duplicates, historical records). Skip ones with
-						// no dealer so we don't return "notavailable" while
-						// a sibling row has the answer.
-						dealerId: { not: null },
-						OR: [
-							{ mobile: { endsWith: core } },
-							{ phone: { endsWith: core } },
-						],
-					},
-					select: {
-						id: true,
-						dealer: { select: { username: true } },
-					},
-				});
+				// Match against `mobile`, `phone`, AND every entry in the
+				// `phones` JSON array. Customers with multiple numbers can
+				// only be reached by the secondary number via the JSON
+				// array — Prisma's `array_contains` requires exact match,
+				// so we drop to raw SQL for a uniform suffix LIKE.
+				// Skip rows with no dealer: a phone is sometimes shared by
+				// duplicate rows, and we don't want to return "notavailable"
+				// while a sibling row has the answer.
+				const suffix = `%${core}`;
+				const matches = await db.$queryRaw<
+					Array<{ id: string; dealer_username: string | null }>
+				>`
+					SELECT c.id, d.username AS dealer_username
+					FROM customer c
+					LEFT JOIN isp_dealer d ON d.id = c."dealerId"
+					WHERE c."organizationId" = ${organization.id}
+					  AND c."dealerId" IS NOT NULL
+					  AND (
+					    c.mobile LIKE ${suffix}
+					    OR c.phone LIKE ${suffix}
+					    OR EXISTS (
+					      SELECT 1 FROM jsonb_array_elements(c.phones) AS p
+					      WHERE p->>'number' LIKE ${suffix}
+					    )
+					  )
+					LIMIT 1
+				`;
 
-				const dealerUsername = customer?.dealer?.username ?? null;
+				const customer = matches[0] ?? null;
+				const dealerUsername = customer?.dealer_username ?? null;
 
 				logger.info("[WhatsApp Flow] dealer lookup", {
 					orgSlug: params.organizationSlug,
