@@ -546,17 +546,39 @@ export function CustomersList({
 				id: "status",
 				header: "Status",
 				enableSorting: true,
-				meta: { className: "whitespace-nowrap w-[1%]" },
-				cell: ({ row }) => (
-					<StatusIndicator
-						status={getConnectivityStatus(
-							row.original.status,
-							row.original.online,
-						)}
-						variant="badge"
-						size="sm"
-					/>
-				),
+				meta: { className: "whitespace-nowrap w-[1%] text-center" },
+				cell: ({ row }) => {
+					const connStatus = getConnectivityStatus(
+						row.original.status,
+						row.original.online,
+					);
+					const labels: Record<typeof connStatus, string> = {
+						online: "Online",
+						offline: "Offline",
+						inactive: "Inactive",
+					};
+					return (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									role="img"
+									aria-label={labels[connStatus]}
+									className="inline-flex"
+								>
+									<StatusIndicator
+										status={connStatus}
+										variant="dot"
+										size="md"
+										label=""
+									/>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>
+								{labels[connStatus]}
+							</TooltipContent>
+						</Tooltip>
+					);
+				},
 			},
 			{
 				id: "plan",
