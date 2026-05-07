@@ -37,6 +37,7 @@ export const listCustomers = protectedProcedure
 					"createdAt",
 					"status",
 					"balance",
+					"monthlyRate",
 					"username",
 					"expiresAt",
 				])

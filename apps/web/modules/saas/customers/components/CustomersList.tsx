@@ -133,7 +133,7 @@ const sortByMap = {
 	name: "lastName",
 	status: "status",
 	expiry: "expiresAt",
-	balance: "balance",
+	monthlyRate: "monthlyRate",
 } as const satisfies Record<string, string>;
 
 const TOGGLEABLE_COLUMNS = [
@@ -142,7 +142,7 @@ const TOGGLEABLE_COLUMNS = [
 	{ id: "plan", label: "Plan" },
 	{ id: "assignment", label: "Assignment" },
 	{ id: "expiry", label: "Expiry" },
-	{ id: "balance", label: "Balance" },
+	{ id: "monthlyRate", label: "Rate" },
 ] as const;
 
 const DEFAULT_FILTERS: CustomerFiltersValue = {
@@ -166,10 +166,11 @@ interface CustomerRow {
 	email: string | null;
 	groupName: string | null;
 	externalId: string | null;
-	plan: { name: string } | null;
+	plan: { name: string; monthlyPrice: number } | null;
 	station: { name: string } | null;
 	collector: { id: string; name: string } | null;
 	connectionType: string | null;
+	monthlyRate: number | null;
 	balance: number;
 	latitude: number | null;
 	longitude: number | null;
@@ -697,30 +698,32 @@ export function CustomersList({
 				},
 			},
 			{
-				id: "balance",
-				header: "Balance",
-				accessorFn: (row) => row.balance,
+				id: "monthlyRate",
+				header: "Rate",
+				accessorFn: (row) =>
+					row.monthlyRate ?? row.plan?.monthlyPrice ?? 0,
 				enableSorting: true,
 				meta: {
 					className:
 						"hidden sm:table-cell text-right whitespace-nowrap w-[1%]",
 				},
 				cell: ({ row }) => {
-					const balance = row.original.balance;
-					const isOwed = balance < 0;
-					const isCredit = balance > 0;
+					// Customer's effective rate = override on the customer
+					// (monthlyRate) or the plan's price as fallback.
+					const override = row.original.monthlyRate;
+					const planPrice = row.original.plan?.monthlyPrice ?? null;
+					const value = override ?? planPrice;
+					if (value == null) {
+						return <span className="text-muted-foreground">—</span>;
+					}
 					return (
-						<span
-							className={cn(
-								"font-mono text-sm tabular-nums",
-								isOwed &&
-									"font-semibold text-red-600 dark:text-red-400",
-								isCredit &&
-									"text-emerald-600 dark:text-emerald-400",
-								!isOwed && !isCredit && "text-muted-foreground",
-							)}
-						>
-							${balance.toFixed(2)}
+						<span className="inline-flex items-baseline gap-1">
+							<span className="font-mono text-sm tabular-nums">
+								${value.toFixed(2)}
+							</span>
+							<span className="text-[10px] text-muted-foreground">
+								/mo
+							</span>
 						</span>
 					);
 				},

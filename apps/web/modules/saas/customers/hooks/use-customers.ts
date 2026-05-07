@@ -29,6 +29,7 @@ interface CustomerListInput {
 		| "createdAt"
 		| "status"
 		| "balance"
+		| "monthlyRate"
 		| "username"
 		| "expiresAt"
 		| undefined;
