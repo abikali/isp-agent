@@ -1,11 +1,15 @@
 "use client";
 
 import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
+import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
+import { SearchInput } from "@shared/components/SearchInput";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
+import { TableColumnsToggle } from "@shared/components/TableColumnsToggle";
+import { usePersistedColumnVisibility } from "@shared/hooks/use-persisted-column-visibility";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate } from "@shared/lib/format";
@@ -26,6 +30,7 @@ import {
 	AlertDialogTitle,
 } from "@ui/components/alert-dialog";
 import { Avatar, AvatarFallback } from "@ui/components/avatar";
+import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
@@ -42,6 +47,7 @@ import {
 	StickyNoteIcon,
 	UploadIcon,
 	UsersIcon,
+	XIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -50,7 +56,13 @@ import {
 	useCreateLocationRequest,
 	useCustomers,
 } from "../hooks/use-customers";
-import { CONNECTION_TYPE_LABELS } from "../lib/constants";
+import { usePlansQuery } from "../hooks/use-plans";
+import { useStationsQuery } from "../hooks/use-stations";
+import {
+	CONNECTION_TYPE_LABELS,
+	CONNECTION_TYPE_OPTIONS,
+	CUSTOMER_STATUS_OPTIONS,
+} from "../lib/constants";
 import {
 	formatLocationRequestAge,
 	isLocationRequestRecent,
@@ -58,7 +70,7 @@ import {
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
-import { CustomerFilters } from "./CustomerFilters";
+import { CustomerFilters, type CustomerFiltersValue } from "./CustomerFilters";
 import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
@@ -93,7 +105,7 @@ function formatRelativeFromNow(value: Date | string): {
 	const day = 1000 * 60 * 60 * 24;
 	const days = Math.round(absMs / day);
 	if (days === 0) {
-		return { text: expired ? "today" : "today", expired };
+		return { text: "today", expired };
 	}
 	if (days < 30) {
 		return {
@@ -126,6 +138,29 @@ const sortByMap = {
 	createdAt: "createdAt",
 	status: "status",
 } as const satisfies Record<string, string>;
+
+const TOGGLEABLE_COLUMNS = [
+	{ id: "status", label: "Status" },
+	{ id: "accountNumber", label: "Account" },
+	{ id: "name", label: "Customer", alwaysVisible: true },
+	{ id: "username", label: "Username" },
+	{ id: "plan", label: "Plan" },
+	{ id: "groupName", label: "Group" },
+	{ id: "station", label: "Station" },
+	{ id: "collector", label: "Collector" },
+	{ id: "expiry", label: "Expiry" },
+	{ id: "balance", label: "Balance" },
+] as const;
+
+const DEFAULT_FILTERS: CustomerFiltersValue = {
+	status: "all",
+	planId: "all",
+	stationId: "all",
+	connectionType: "all",
+	groupName: "all",
+	collectorId: "all",
+	hasLocation: "all",
+};
 
 interface CustomerRow {
 	id: string;
@@ -173,20 +208,18 @@ export function CustomersList({
 			: disabledQuery(["organizations", "getIradiusStatus"]),
 	);
 	const iradiusEnabled = !iradiusStatus?.iradiusDisabled;
+
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
-	const [status, setStatus] = useState("all");
-	const [planId, setPlanId] = useState("all");
-	const [stationId, setStationId] = useState("all");
-	const [connectionType, setConnectionType] = useState("all");
-	const [groupName, setGroupName] = useState("all");
-	const [collectorId, setCollectorId] = useState("all");
-	const [hasLocation, setHasLocation] = useState<"all" | "yes" | "no">("all");
+	const [filterValues, setFilterValues] =
+		useState<CustomerFiltersValue>(DEFAULT_FILTERS);
 	const [page, setPage] = useState(1);
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		sortByMap,
 		() => setPage(1),
 	);
+	const [columnVisibility, setColumnVisibility] =
+		usePersistedColumnVisibility("customers");
 	const [dialog, setDialog] = useState<
 		| "create"
 		| "import"
@@ -200,14 +233,34 @@ export function CustomersList({
 		customerId: string;
 		label: string;
 	} | null>(null);
+
 	const createLocationRequest = useCreateLocationRequest();
 	const bulkRequestLocation = useBulkRequestLocation();
+
+	// Fetched solely to label active filter chips.
+	const { plans } = usePlansQuery();
+	const { stations } = useStationsQuery();
+	const { groups } = useCustomerGroups();
+	const { data: collectorsData } = useCollectors();
+	const collectors = collectorsData?.collectors ?? [];
 
 	const selectedIds = useMemo(
 		() => Object.keys(rowSelection),
 		[rowSelection],
 	);
 	const selectedCount = selectedIds.length;
+
+	const updateFilters = useCallback(
+		(patch: Partial<CustomerFiltersValue>) => {
+			setFilterValues((prev) => ({ ...prev, ...patch }));
+			setPage(1);
+		},
+		[],
+	);
+	const resetFilters = useCallback(() => {
+		setFilterValues(DEFAULT_FILTERS);
+		setPage(1);
+	}, []);
 
 	const sendLocationRequest = useCallback(
 		(customerId: string) => {
@@ -267,27 +320,135 @@ export function CustomersList({
 
 	const filters = {
 		search: debouncedSearch || undefined,
-		status: status !== "all" ? (status as CustomerListStatus) : undefined,
-		planId: planId !== "all" ? planId : undefined,
-		stationId: stationId !== "all" ? stationId : undefined,
+		status:
+			filterValues.status !== "all"
+				? (filterValues.status as CustomerListStatus)
+				: undefined,
+		planId: filterValues.planId !== "all" ? filterValues.planId : undefined,
+		stationId:
+			filterValues.stationId !== "all"
+				? filterValues.stationId
+				: undefined,
 		connectionType:
-			connectionType !== "all"
-				? (connectionType as
+			filterValues.connectionType !== "all"
+				? (filterValues.connectionType as
 						| "FIBER"
 						| "WIRELESS"
 						| "DSL"
 						| "CABLE"
 						| "ETHERNET")
 				: undefined,
-		groupName: groupName !== "all" ? groupName : undefined,
-		collectorId: collectorId !== "all" ? collectorId : undefined,
-		hasLocation: hasLocation !== "all" ? hasLocation : undefined,
+		groupName:
+			filterValues.groupName !== "all"
+				? filterValues.groupName
+				: undefined,
+		collectorId:
+			filterValues.collectorId !== "all"
+				? filterValues.collectorId
+				: undefined,
+		hasLocation:
+			filterValues.hasLocation !== "all"
+				? filterValues.hasLocation
+				: undefined,
 		page,
 		sortBy,
 		sortOrder,
 	};
 
 	const { customers, total, isLoading, isFetching } = useCustomers(filters);
+
+	// Active chips: derived from filterValues so the toolbar stays in sync.
+	const activeChips = useMemo(() => {
+		const out: Array<{
+			key: keyof CustomerFiltersValue;
+			label: string;
+			onRemove: () => void;
+		}> = [];
+
+		if (filterValues.status !== "all") {
+			const label = CUSTOMER_STATUS_OPTIONS.find(
+				(o) => o.value === filterValues.status,
+			)?.label;
+			if (label) {
+				out.push({
+					key: "status",
+					label: `Status: ${label}`,
+					onRemove: () => updateFilters({ status: "all" }),
+				});
+			}
+		}
+		if (filterValues.planId !== "all") {
+			const label = plans.find((p) => p.id === filterValues.planId)?.name;
+			if (label) {
+				out.push({
+					key: "planId",
+					label: `Plan: ${label}`,
+					onRemove: () => updateFilters({ planId: "all" }),
+				});
+			}
+		}
+		if (filterValues.stationId !== "all") {
+			const label = stations.find(
+				(s) => s.id === filterValues.stationId,
+			)?.name;
+			if (label) {
+				out.push({
+					key: "stationId",
+					label: `Station: ${label}`,
+					onRemove: () => updateFilters({ stationId: "all" }),
+				});
+			}
+		}
+		if (filterValues.groupName !== "all") {
+			out.push({
+				key: "groupName",
+				label: `Group: ${filterValues.groupName}`,
+				onRemove: () => updateFilters({ groupName: "all" }),
+			});
+		}
+		if (filterValues.collectorId !== "all") {
+			const label =
+				filterValues.collectorId === "none"
+					? "Unassigned"
+					: collectors.find((c) => c.id === filterValues.collectorId)
+							?.name;
+			if (label) {
+				out.push({
+					key: "collectorId",
+					label: `Collector: ${label}`,
+					onRemove: () => updateFilters({ collectorId: "all" }),
+				});
+			}
+		}
+		if (filterValues.connectionType !== "all") {
+			const label = CONNECTION_TYPE_OPTIONS.find(
+				(o) => o.value === filterValues.connectionType,
+			)?.label;
+			if (label) {
+				out.push({
+					key: "connectionType",
+					label: `Connection: ${label}`,
+					onRemove: () => updateFilters({ connectionType: "all" }),
+				});
+			}
+		}
+		if (filterValues.hasLocation !== "all") {
+			out.push({
+				key: "hasLocation",
+				label:
+					filterValues.hasLocation === "yes"
+						? "Has location"
+						: "Missing location",
+				onRemove: () => updateFilters({ hasLocation: "all" }),
+			});
+		}
+		// groups param is referenced for parity with filter source; not used
+		// for chip labels but listed here so eslint sees it.
+		void groups;
+		return out;
+	}, [filterValues, plans, stations, collectors, groups, updateFilters]);
+
+	const activeCount = activeChips.length;
 
 	const columns = useMemo<ColumnDef<CustomerRow, unknown>[]>(
 		() => [
@@ -346,9 +507,9 @@ export function CustomersList({
 						row.original.latitude != null &&
 						row.original.longitude != null;
 					return (
-						<div className="flex min-w-0 items-center gap-3">
-							<Avatar className="size-9 shrink-0 rounded-full">
-								<AvatarFallback className="rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+						<div className="flex min-w-0 items-center gap-2.5">
+							<Avatar className="size-8 shrink-0 rounded-full">
+								<AvatarFallback className="rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
 									{initials}
 								</AvatarFallback>
 							</Avatar>
@@ -360,7 +521,7 @@ export function CustomersList({
 											organizationSlug,
 											customerId: row.original.id,
 										}}
-										className="truncate font-medium hover:underline"
+										className="truncate text-sm font-medium hover:underline"
 										preload="intent"
 									>
 										{fullName}
@@ -422,7 +583,7 @@ export function CustomersList({
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
 					row.original.plan?.name ? (
-						<div className="flex flex-col">
+						<div className="flex flex-col leading-tight">
 							<span className="text-sm">
 								{row.original.plan.name}
 							</span>
@@ -555,7 +716,7 @@ export function CustomersList({
 			{
 				id: "actions",
 				enableSorting: false,
-				meta: { className: "w-20" },
+				meta: { className: "w-12" },
 				cell: ({ row }) => (
 					<CustomerRowActions
 						customerId={row.original.id}
@@ -614,59 +775,76 @@ export function CustomersList({
 		>
 			<AsyncBoundary fallback={<CustomerStatsSkeleton />}>
 				<CustomerStats
-					activeStatus={status}
-					onStatusChange={(v) => {
-						setStatus(v);
-						setPage(1);
-					}}
+					activeStatus={filterValues.status}
+					onStatusChange={(v) => updateFilters({ status: v })}
 				/>
 			</AsyncBoundary>
 
-			<CustomerFilters
-				search={search}
-				onSearchChange={(v) => {
-					setSearch(v);
-					setPage(1);
-				}}
-				status={status}
-				onStatusChange={(v) => {
-					setStatus(v);
-					setPage(1);
-				}}
-				planId={planId}
-				onPlanIdChange={(v) => {
-					setPlanId(v);
-					setPage(1);
-				}}
-				stationId={stationId}
-				onStationIdChange={(v) => {
-					setStationId(v);
-					setPage(1);
-				}}
-				connectionType={connectionType}
-				onConnectionTypeChange={(v) => {
-					setConnectionType(v);
-					setPage(1);
-				}}
-				groupName={groupName}
-				onGroupNameChange={(v) => {
-					setGroupName(v);
-					setPage(1);
-				}}
-				collectorId={collectorId}
-				onCollectorIdChange={(v) => {
-					setCollectorId(v);
-					setPage(1);
-				}}
-				hasLocation={hasLocation}
-				onHasLocationChange={(v) => {
-					setHasLocation(v);
-					setPage(1);
-				}}
-			/>
+			<div className="space-y-2">
+				<div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2 shadow-card">
+					<SearchInput
+						placeholder="Search name, account, phone, email, IP, MAC, address…"
+						hint="Searches name, account, username, email, phone, address, IP, MAC, plan, station, collector, group, notes, MOF and external ID"
+						value={search}
+						onChange={(v) => {
+							setSearch(v);
+							setPage(1);
+						}}
+					/>
+					<div className="ml-auto flex items-center gap-2">
+						<CustomerFilters
+							value={filterValues}
+							onChange={updateFilters}
+							onReset={resetFilters}
+							activeCount={activeCount}
+						/>
+						<TableColumnsToggle
+							columns={
+								TOGGLEABLE_COLUMNS as unknown as Array<{
+									id: string;
+									label: string;
+									alwaysVisible?: boolean;
+								}>
+							}
+							value={columnVisibility}
+							onChange={setColumnVisibility}
+						/>
+					</div>
+				</div>
+
+				{activeChips.length > 0 && (
+					<div className="flex flex-wrap items-center gap-1.5">
+						{activeChips.map((chip) => (
+							<Badge
+								key={chip.key}
+								variant="secondary"
+								className="gap-1 py-1 pl-2 pr-1 font-normal"
+							>
+								<span className="text-xs">{chip.label}</span>
+								<button
+									type="button"
+									onClick={chip.onRemove}
+									className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+									aria-label={`Remove ${chip.label}`}
+								>
+									<XIcon className="size-3" />
+								</button>
+							</Badge>
+						))}
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs text-muted-foreground"
+							onClick={resetFilters}
+						>
+							Clear all
+						</Button>
+					</div>
+				)}
+			</div>
 
 			{selectedCount > 0 && (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 shadow-card">
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 shadow-card">
 					<div className="flex items-center gap-2 text-sm">
 						<span className="inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground tabular-nums">
 							{selectedCount}
@@ -712,7 +890,8 @@ export function CustomersList({
 				data={customers}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
-				columnVisibilityKey="customers"
+				columnVisibility={columnVisibility}
+				onColumnVisibilityChange={setColumnVisibility}
 				pagination={{
 					totalItems: total,
 					currentPage: page,

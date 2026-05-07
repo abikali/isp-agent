@@ -98,11 +98,22 @@ interface DataTableProps<TData> {
 	className?: string;
 
 	/**
-	 * Unique key for persisting column visibility to localStorage.
-	 * When set, a column toggle dropdown is rendered and visibility
-	 * is saved/restored automatically.
+	 * Legacy: unique key for persisting column visibility to localStorage.
+	 * When set (and `columnVisibility` is NOT also passed), a column toggle
+	 * dropdown is rendered and visibility is saved/restored automatically.
 	 */
 	columnVisibilityKey?: string;
+
+	/**
+	 * Controlled column visibility state. Pair with onColumnVisibilityChange
+	 * to fully control visibility from the consumer (e.g. when rendering the
+	 * column toggle inside an external toolbar). When provided, the internal
+	 * Columns dropdown is suppressed.
+	 */
+	columnVisibility?: VisibilityState;
+
+	/** Setter for controlled column visibility. */
+	onColumnVisibilityChange?: (next: VisibilityState) => void;
 
 	/** Enable row selection with checkboxes. Pass a function to control per-row selectability. */
 	enableRowSelection?: boolean | ((row: Row<TData>) => boolean);
@@ -234,6 +245,8 @@ export function DataTable<TData>({
 	getRowClassName,
 	className,
 	columnVisibilityKey,
+	columnVisibility: controlledVisibility,
+	onColumnVisibilityChange,
 	enableRowSelection,
 	rowSelection,
 	onRowSelectionChange,
@@ -241,9 +254,11 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
 	const [internalSorting, setInternalSorting] = useState<SortingState>([]);
 
-	const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-		() => {
-			if (!columnVisibilityKey) {
+	const isVisibilityControlled = controlledVisibility !== undefined;
+
+	const [internalVisibility, setInternalVisibility] =
+		useState<VisibilityState>(() => {
+			if (!columnVisibilityKey || isVisibilityControlled) {
 				return {};
 			}
 			try {
@@ -254,8 +269,11 @@ export function DataTable<TData>({
 			} catch {
 				return {};
 			}
-		},
-	);
+		});
+
+	const columnVisibility = isVisibilityControlled
+		? controlledVisibility
+		: internalVisibility;
 
 	const handleVisibilityChange = useCallback(
 		(
@@ -263,7 +281,15 @@ export function DataTable<TData>({
 				| VisibilityState
 				| ((old: VisibilityState) => VisibilityState),
 		) => {
-			setColumnVisibility((prev) => {
+			if (isVisibilityControlled) {
+				const next =
+					typeof updater === "function"
+						? updater(controlledVisibility ?? {})
+						: updater;
+				onColumnVisibilityChange?.(next);
+				return;
+			}
+			setInternalVisibility((prev) => {
 				const next =
 					typeof updater === "function" ? updater(prev) : updater;
 				if (columnVisibilityKey) {
@@ -275,8 +301,15 @@ export function DataTable<TData>({
 				return next;
 			});
 		},
-		[columnVisibilityKey],
+		[
+			columnVisibilityKey,
+			isVisibilityControlled,
+			controlledVisibility,
+			onColumnVisibilityChange,
+		],
 	);
+
+	const visibilityActive = isVisibilityControlled || !!columnVisibilityKey;
 
 	const hasSelection = !!enableRowSelection;
 
@@ -339,17 +372,17 @@ export function DataTable<TData>({
 					state: {
 						sorting,
 						rowSelection: rowSelection ?? {},
-						...(columnVisibilityKey ? { columnVisibility } : {}),
+						...(visibilityActive ? { columnVisibility } : {}),
 					},
 				}
 			: {
 					state: {
 						sorting,
-						...(columnVisibilityKey ? { columnVisibility } : {}),
+						...(visibilityActive ? { columnVisibility } : {}),
 					},
 				}),
 		...(getRowId ? { getRowId } : {}),
-		...(columnVisibilityKey
+		...(visibilityActive
 			? { onColumnVisibilityChange: handleVisibilityChange }
 			: {}),
 		...(handleSortingChange
@@ -375,7 +408,12 @@ export function DataTable<TData>({
 		return <>{emptyState}</>;
 	}
 
-	const toggleableColumns = columnVisibilityKey
+	// Only render the built-in Columns dropdown for legacy/uncontrolled usage.
+	// When the consumer controls visibility, they render their own toggle
+	// inside their toolbar (see TableColumnsToggle).
+	const showInternalColumnsToggle =
+		!!columnVisibilityKey && !isVisibilityControlled;
+	const toggleableColumns = showInternalColumnsToggle
 		? table
 				.getAllColumns()
 				.filter(
@@ -457,7 +495,7 @@ export function DataTable<TData>({
 												<button
 													type="button"
 													className={cn(
-														"inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 font-medium uppercase tracking-wide text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+														"inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 														sorted &&
 															"text-foreground",
 													)}
