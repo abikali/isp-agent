@@ -25,8 +25,15 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@ui/components/alert-dialog";
+import { Avatar, AvatarFallback } from "@ui/components/avatar";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
+import { cn } from "@ui/lib";
 import {
 	DownloadIcon,
 	MapPinIcon,
@@ -43,6 +50,7 @@ import {
 	useCreateLocationRequest,
 	useCustomers,
 } from "../hooks/use-customers";
+import { CONNECTION_TYPE_LABELS } from "../lib/constants";
 import {
 	formatLocationRequestAge,
 	isLocationRequestRecent,
@@ -66,6 +74,47 @@ function getConnectivityStatus(
 	return online ? "online" : "offline";
 }
 
+function getInitials(first: string | null, last: string | null): string {
+	const f = first?.trim()?.[0] ?? "";
+	const l = last?.trim()?.[0] ?? "";
+	const out = `${f}${l}`.toUpperCase();
+	return out || "?";
+}
+
+function formatRelativeFromNow(value: Date | string): {
+	text: string;
+	expired: boolean;
+} {
+	const target = new Date(value).getTime();
+	const now = Date.now();
+	const diffMs = target - now;
+	const expired = diffMs < 0;
+	const absMs = Math.abs(diffMs);
+	const day = 1000 * 60 * 60 * 24;
+	const days = Math.round(absMs / day);
+	if (days === 0) {
+		return { text: expired ? "today" : "today", expired };
+	}
+	if (days < 30) {
+		return {
+			text: expired ? `${days}d ago` : `in ${days}d`,
+			expired,
+		};
+	}
+	const months = Math.round(days / 30);
+	if (months < 12) {
+		return {
+			text: expired ? `${months}mo ago` : `in ${months}mo`,
+			expired,
+		};
+	}
+	const years = Math.round(months / 12);
+	return {
+		text: expired ? `${years}y ago` : `in ${years}y`,
+		expired,
+	};
+}
+
 const PAGE_SIZE = 25;
 
 const sortByMap = {
@@ -73,6 +122,9 @@ const sortByMap = {
 	accountNumber: "accountNumber",
 	username: "username",
 	balance: "balance",
+	expiry: "expiresAt",
+	createdAt: "createdAt",
+	status: "status",
 } as const satisfies Record<string, string>;
 
 interface CustomerRow {
@@ -242,7 +294,7 @@ export function CustomersList({
 			{
 				id: "status",
 				header: "Status",
-				enableSorting: false,
+				enableSorting: true,
 				meta: { className: "whitespace-nowrap" },
 				cell: ({ row }) => (
 					<StatusIndicator
@@ -260,6 +312,7 @@ export function CustomersList({
 				header: "Account",
 				accessorFn: (row) => row.accountNumber,
 				enableSorting: true,
+				meta: { className: "whitespace-nowrap" },
 				cell: ({ row }) => (
 					<Link
 						to="/app/$organizationSlug/customers/$customerId"
@@ -276,42 +329,73 @@ export function CustomersList({
 			},
 			{
 				id: "name",
-				header: "Name",
+				header: "Customer",
 				accessorFn: (row) => row.lastName,
 				enableSorting: true,
 				cell: ({ row }) => {
 					const note = row.original.notes?.trim();
+					const fullName = displayName(
+						row.original.firstName,
+						row.original.lastName,
+					);
+					const initials = getInitials(
+						row.original.firstName,
+						row.original.lastName,
+					);
+					const hasLocation =
+						row.original.latitude != null &&
+						row.original.longitude != null;
 					return (
-						<div>
-							<div className="flex items-center gap-1.5">
-								<Link
-									to="/app/$organizationSlug/customers/$customerId"
-									params={{
-										organizationSlug,
-										customerId: row.original.id,
-									}}
-									className="font-medium hover:underline"
-									preload="intent"
-								>
-									{displayName(
-										row.original.firstName,
-										row.original.lastName,
-									)}
-								</Link>
-								{note && (
-									<span
-										title={note}
-										className="inline-flex shrink-0"
+						<div className="flex min-w-0 items-center gap-3">
+							<Avatar className="size-9 shrink-0 rounded-full">
+								<AvatarFallback className="rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+									{initials}
+								</AvatarFallback>
+							</Avatar>
+							<div className="min-w-0 flex-1">
+								<div className="flex min-w-0 items-center gap-1.5">
+									<Link
+										to="/app/$organizationSlug/customers/$customerId"
+										params={{
+											organizationSlug,
+											customerId: row.original.id,
+										}}
+										className="truncate font-medium hover:underline"
+										preload="intent"
 									>
-										<StickyNoteIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
-									</span>
+										{fullName}
+									</Link>
+									{note && (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex shrink-0">
+													<StickyNoteIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
+												</span>
+											</TooltipTrigger>
+											<TooltipContent className="max-w-xs whitespace-pre-wrap">
+												{note}
+											</TooltipContent>
+										</Tooltip>
+									)}
+									{hasLocation ? (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex shrink-0">
+													<MapPinIcon className="size-3 text-emerald-600 dark:text-emerald-400" />
+												</span>
+											</TooltipTrigger>
+											<TooltipContent>
+												Location captured
+											</TooltipContent>
+										</Tooltip>
+									) : null}
+								</div>
+								{row.original.email && (
+									<p className="truncate text-xs text-muted-foreground">
+										{row.original.email}
+									</p>
 								)}
 							</div>
-							{row.original.email && (
-								<p className="text-xs text-muted-foreground">
-									{row.original.email}
-								</p>
-							)}
 						</div>
 					);
 				},
@@ -324,25 +408,11 @@ export function CustomersList({
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
 					row.original.username ? (
-						<span className="font-mono text-xs">
+						<span className="font-mono text-xs text-foreground/80">
 							{row.original.username}
 						</span>
 					) : (
-						<span className="text-muted-foreground">-</span>
-					),
-			},
-			{
-				id: "groupName",
-				header: "Group",
-				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
-				cell: ({ row }) =>
-					row.original.groupName ? (
-						<span className="text-xs">
-							{row.original.groupName}
-						</span>
-					) : (
-						<span className="text-muted-foreground">-</span>
+						<span className="text-muted-foreground">—</span>
 					),
 			},
 			{
@@ -351,8 +421,35 @@ export function CustomersList({
 				enableSorting: false,
 				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) =>
-					row.original.plan?.name ?? (
-						<span className="text-muted-foreground">-</span>
+					row.original.plan?.name ? (
+						<div className="flex flex-col">
+							<span className="text-sm">
+								{row.original.plan.name}
+							</span>
+							{row.original.connectionType && (
+								<span className="text-xs text-muted-foreground">
+									{CONNECTION_TYPE_LABELS[
+										row.original.connectionType
+									] ?? row.original.connectionType}
+								</span>
+							)}
+						</div>
+					) : (
+						<span className="text-muted-foreground">—</span>
+					),
+			},
+			{
+				id: "groupName",
+				header: "Group",
+				enableSorting: false,
+				meta: { className: "hidden xl:table-cell" },
+				cell: ({ row }) =>
+					row.original.groupName ? (
+						<span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs">
+							{row.original.groupName}
+						</span>
+					) : (
+						<span className="text-muted-foreground">—</span>
 					),
 			},
 			{
@@ -361,42 +458,71 @@ export function CustomersList({
 				enableSorting: false,
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) =>
-					row.original.station?.name ?? (
-						<span className="text-muted-foreground">-</span>
+					row.original.station?.name ? (
+						<span className="text-sm">
+							{row.original.station.name}
+						</span>
+					) : (
+						<span className="text-muted-foreground">—</span>
 					),
 			},
 			{
 				id: "collector",
 				header: "Collector",
 				enableSorting: false,
-				meta: { className: "hidden lg:table-cell" },
+				meta: { className: "hidden xl:table-cell" },
 				cell: ({ row }) =>
-					row.original.collector?.name ?? (
-						<span className="text-muted-foreground">-</span>
+					row.original.collector?.name ? (
+						<span className="text-sm">
+							{row.original.collector.name}
+						</span>
+					) : (
+						<span className="text-muted-foreground">—</span>
 					),
 			},
 			{
 				id: "expiry",
 				header: "Expiry",
 				accessorFn: (row) => row.expiresAt,
-				enableSorting: false,
+				enableSorting: true,
 				meta: { className: "hidden lg:table-cell whitespace-nowrap" },
 				cell: ({ row }) => {
 					const value = row.original.expiresAt;
 					if (!value) {
-						return <span className="text-muted-foreground">-</span>;
+						return <span className="text-muted-foreground">—</span>;
 					}
-					const isExpired = new Date(value).getTime() < Date.now();
+					const { text, expired } = formatRelativeFromNow(value);
 					return (
-						<span
-							className={
-								isExpired
-									? "font-medium text-red-600 dark:text-red-400"
-									: undefined
-							}
-						>
-							{formatDate(value)}
-						</span>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex flex-col leading-tight">
+									<span
+										className={cn(
+											"text-sm",
+											expired
+												? "font-medium text-red-600 dark:text-red-400"
+												: "text-foreground",
+										)}
+									>
+										{formatDate(value)}
+									</span>
+									<span
+										className={cn(
+											"text-xs",
+											expired
+												? "text-red-600/80 dark:text-red-400/80"
+												: "text-muted-foreground",
+										)}
+									>
+										{text}
+									</span>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								{expired ? "Expired " : "Expires "}
+								{formatDate(value)}
+							</TooltipContent>
+						</Tooltip>
 					);
 				},
 			},
@@ -406,11 +532,25 @@ export function CustomersList({
 				accessorFn: (row) => row.balance,
 				enableSorting: true,
 				meta: { className: "hidden sm:table-cell text-right" },
-				cell: ({ row }) => (
-					<span className="font-mono tabular-nums">
-						${row.original.balance.toFixed(2)}
-					</span>
-				),
+				cell: ({ row }) => {
+					const balance = row.original.balance;
+					const isOwed = balance < 0;
+					const isCredit = balance > 0;
+					return (
+						<span
+							className={cn(
+								"font-mono tabular-nums",
+								isOwed &&
+									"font-semibold text-red-600 dark:text-red-400",
+								isCredit &&
+									"text-emerald-600 dark:text-emerald-400",
+								!isOwed && !isCredit && "text-muted-foreground",
+							)}
+						>
+							${balance.toFixed(2)}
+						</span>
+					);
+				},
 			},
 			{
 				id: "actions",
@@ -526,27 +666,44 @@ export function CustomersList({
 			/>
 
 			{selectedCount > 0 && (
-				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
-					<span className="text-sm text-muted-foreground">
-						{selectedCount} selected
-					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => setDialog("sync-preview")}
-					>
-						<RefreshCwIcon className="mr-2 size-4" />
-						Sync from iRadius
-					</Button>
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={bulkRequestLocation.isPending}
-						onClick={() => setDialog("bulk-request")}
-					>
-						<MapPinIcon className="mr-2 size-4" />
-						Request location ({selectedCount})
-					</Button>
+				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 shadow-card">
+					<div className="flex items-center gap-2 text-sm">
+						<span className="inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground tabular-nums">
+							{selectedCount}
+						</span>
+						<span className="font-medium">
+							{selectedCount === 1
+								? "customer selected"
+								: "customers selected"}
+						</span>
+					</div>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => setDialog("sync-preview")}
+						>
+							<RefreshCwIcon className="mr-2 size-4" />
+							Sync from iRadius
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={bulkRequestLocation.isPending}
+							onClick={() => setDialog("bulk-request")}
+						>
+							<MapPinIcon className="mr-2 size-4" />
+							Request location
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={() => setRowSelection({})}
+							className="text-muted-foreground"
+						>
+							Clear
+						</Button>
+					</div>
 				</div>
 			)}
 
@@ -555,6 +712,7 @@ export function CustomersList({
 				data={customers}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
+				columnVisibilityKey="customers"
 				pagination={{
 					totalItems: total,
 					currentPage: page,

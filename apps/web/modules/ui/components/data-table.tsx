@@ -33,6 +33,8 @@ import {
 	ArrowUpIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	ChevronsLeftIcon,
+	ChevronsRightIcon,
 	SlidersHorizontalIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -47,6 +49,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "./dropdown-menu";
+import { Skeleton } from "./skeleton";
 import {
 	Table,
 	TableBody,
@@ -120,7 +123,7 @@ function PaginationBar({
 	itemsPerPage,
 	onPageChange,
 }: DataTablePagination) {
-	const pageCount = Math.ceil(totalItems / itemsPerPage);
+	const pageCount = Math.max(1, Math.ceil(totalItems / itemsPerPage));
 	if (pageCount <= 1) {
 		return null;
 	}
@@ -129,32 +132,92 @@ function PaginationBar({
 	const end = Math.min(currentPage * itemsPerPage, totalItems);
 
 	return (
-		<div className="flex items-center justify-between px-1 pt-4">
+		<div className="flex flex-col items-center justify-between gap-3 px-1 pt-4 sm:flex-row">
 			<p className="text-sm text-muted-foreground">
-				{start}–{end} of {totalItems}
+				Showing{" "}
+				<span className="font-medium text-foreground tabular-nums">
+					{start.toLocaleString()}–{end.toLocaleString()}
+				</span>{" "}
+				of{" "}
+				<span className="font-medium text-foreground tabular-nums">
+					{totalItems.toLocaleString()}
+				</span>
 			</p>
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-1">
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => onPageChange(1)}
+					disabled={currentPage <= 1}
+					aria-label="First page"
+					className="size-8 p-0"
+				>
+					<ChevronsLeftIcon className="size-4" />
+				</Button>
 				<Button
 					variant="outline"
 					size="sm"
 					onClick={() => onPageChange(currentPage - 1)}
 					disabled={currentPage <= 1}
+					aria-label="Previous page"
+					className="size-8 p-0"
 				>
 					<ChevronLeftIcon className="size-4" />
 				</Button>
-				<span className="text-sm tabular-nums text-muted-foreground">
-					{currentPage} / {pageCount}
+				<span className="px-2 text-sm tabular-nums text-muted-foreground">
+					Page{" "}
+					<span className="font-medium text-foreground">
+						{currentPage}
+					</span>{" "}
+					of{" "}
+					<span className="font-medium text-foreground">
+						{pageCount}
+					</span>
 				</span>
 				<Button
 					variant="outline"
 					size="sm"
 					onClick={() => onPageChange(currentPage + 1)}
 					disabled={currentPage >= pageCount}
+					aria-label="Next page"
+					className="size-8 p-0"
 				>
 					<ChevronRightIcon className="size-4" />
 				</Button>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => onPageChange(pageCount)}
+					disabled={currentPage >= pageCount}
+					aria-label="Last page"
+					className="size-8 p-0"
+				>
+					<ChevronsRightIcon className="size-4" />
+				</Button>
 			</div>
 		</div>
+	);
+}
+
+function SkeletonRows({
+	columnCount,
+	rowCount = 8,
+}: {
+	columnCount: number;
+	rowCount?: number;
+}) {
+	return (
+		<>
+			{Array.from({ length: rowCount }).map((_, rowIdx) => (
+				<TableRow key={`sk-${rowIdx}`} className="hover:bg-transparent">
+					{Array.from({ length: columnCount }).map((__, colIdx) => (
+						<TableCell key={`sk-${rowIdx}-${colIdx}`}>
+							<Skeleton className="h-4 w-full max-w-[180px]" />
+						</TableCell>
+					))}
+				</TableRow>
+			))}
+		</>
 	);
 }
 
@@ -355,15 +418,24 @@ export function DataTable<TData>({
 			)}
 			<div
 				className={cn(
-					"rounded-xl border bg-card overflow-hidden transition-opacity",
-					isFetching && "opacity-60",
+					"relative rounded-xl border bg-card overflow-hidden transition-opacity",
+					isFetching && !isLoading && "opacity-80",
 					className,
 				)}
 			>
+				{isFetching && !isLoading && (
+					<div
+						className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary/60"
+						aria-hidden
+					/>
+				)}
 				<Table>
-					<TableHeader>
+					<TableHeader className="bg-muted/30">
 						{table.getHeaderGroups().map((headerGroup) => (
-							<TableRow key={headerGroup.id}>
+							<TableRow
+								key={headerGroup.id}
+								className="hover:bg-transparent"
+							>
 								{headerGroup.headers.map((header) => {
 									const meta = header.column.columnDef.meta;
 									const canSort = header.column.getCanSort();
@@ -373,11 +445,22 @@ export function DataTable<TData>({
 										<TableHead
 											key={header.id}
 											className={cn(meta?.className)}
+											aria-sort={
+												sorted === "asc"
+													? "ascending"
+													: sorted === "desc"
+														? "descending"
+														: undefined
+											}
 										>
 											{header.isPlaceholder ? null : canSort ? (
 												<button
 													type="button"
-													className="inline-flex items-center gap-1 font-medium"
+													className={cn(
+														"inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 font-medium uppercase tracking-wide text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+														sorted &&
+															"text-foreground",
+													)}
 													onClick={header.column.getToggleSortingHandler()}
 												>
 													{flexRender(
@@ -386,11 +469,11 @@ export function DataTable<TData>({
 														header.getContext(),
 													)}
 													{sorted === "asc" ? (
-														<ArrowUpIcon className="size-3" />
+														<ArrowUpIcon className="size-3 text-foreground" />
 													) : sorted === "desc" ? (
-														<ArrowDownIcon className="size-3" />
+														<ArrowDownIcon className="size-3 text-foreground" />
 													) : (
-														<ArrowUpDownIcon className="size-3 opacity-30" />
+														<ArrowUpDownIcon className="size-3 opacity-40" />
 													)}
 												</button>
 											) : (
@@ -408,20 +491,18 @@ export function DataTable<TData>({
 					</TableHeader>
 					<TableBody>
 						{isLoading ? (
-							<TableRow>
-								<TableCell
-									colSpan={allColumns.length}
-									className="h-24 text-center text-muted-foreground"
-								>
-									Loading...
-								</TableCell>
-							</TableRow>
+							<SkeletonRows columnCount={allColumns.length} />
 						) : rows.length > 0 ? (
 							rows.map((row) => (
 								<TableRow
 									key={row.id}
+									data-state={
+										row.getIsSelected()
+											? "selected"
+											: undefined
+									}
 									className={cn(
-										"hover:bg-muted/30 transition-colors",
+										"hover:bg-muted/40 transition-colors",
 										getRowClassName?.(row),
 									)}
 								>

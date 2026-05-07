@@ -38,6 +38,7 @@ export const listCustomers = protectedProcedure
 					"status",
 					"balance",
 					"username",
+					"expiresAt",
 				])
 				.default("createdAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
@@ -161,6 +162,12 @@ export const listCustomers = protectedProcedure
 				},
 				{ username: { contains: input.search, mode: "insensitive" } },
 				{ groupName: { contains: input.search, mode: "insensitive" } },
+				{ address: { contains: input.search, mode: "insensitive" } },
+				{ ipAddress: { contains: input.search, mode: "insensitive" } },
+				{ macAddress: { contains: input.search, mode: "insensitive" } },
+				{ externalId: { contains: input.search, mode: "insensitive" } },
+				{ notes: { contains: input.search, mode: "insensitive" } },
+				{ mof: { contains: input.search, mode: "insensitive" } },
 				{
 					plan: {
 						name: { contains: input.search, mode: "insensitive" },

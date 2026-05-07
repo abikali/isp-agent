@@ -12,25 +12,39 @@ const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
+interface SelectTriggerProps
+	extends React.ComponentProps<typeof SelectPrimitive.Trigger> {
+	leadingIcon?: React.ReactNode;
+}
+
 const SelectTrigger = ({
 	className,
 	children,
+	leadingIcon,
 	...props
-}: React.ComponentProps<typeof SelectPrimitive.Trigger>) => (
+}: SelectTriggerProps) => (
 	<SelectPrimitive.Trigger
 		className={cn(
-			"flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
+			"flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
 			"placeholder:text-muted-foreground",
 			"focus:outline-none focus:ring-1 focus:ring-ring",
 			"disabled:cursor-not-allowed disabled:opacity-50",
-			"[&>span]:line-clamp-1",
+			"[&>span]:line-clamp-1 [&>span]:flex-1 [&>span]:text-left",
 			className,
 		)}
 		{...props}
 	>
+		{leadingIcon && (
+			<div
+				className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground [&>svg]:size-3.5"
+				aria-hidden
+			>
+				{leadingIcon}
+			</div>
+		)}
 		{children}
 		<SelectPrimitive.Icon asChild>
-			<ChevronsUpDownIcon className="size-4 opacity-50" />
+			<ChevronsUpDownIcon className="size-4 shrink-0 opacity-50" />
 		</SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );

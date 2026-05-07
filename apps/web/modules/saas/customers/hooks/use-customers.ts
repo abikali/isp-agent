@@ -30,6 +30,7 @@ interface CustomerListInput {
 		| "status"
 		| "balance"
 		| "username"
+		| "expiresAt"
 		| undefined;
 	sortOrder?: "asc" | "desc" | undefined;
 }
