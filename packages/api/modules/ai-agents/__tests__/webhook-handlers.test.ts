@@ -66,6 +66,9 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 				update: vi.fn(),
 				deleteMany: vi.fn(),
 			},
+			customer: {
+				findMany: vi.fn().mockResolvedValue([]),
+			},
 		};
 
 		const mockSendTextMessage = vi

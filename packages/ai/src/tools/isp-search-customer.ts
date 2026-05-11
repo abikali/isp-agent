@@ -109,7 +109,7 @@ function createIspSearchCustomerTool(context: ToolContext) {
 			if (!isSearchableQuery(args.query)) {
 				return {
 					success: false,
-					message: `Cannot search by name "${args.query}". The system only matches phone numbers or exact PPPoE/Hotspot usernames. Ask the customer for their phone number, or for the username printed on a previous bill or on the antenna sticker.`,
+					message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Retry using the phone or username from your VERIFIED CUSTOMER / CUSTOMER CONTACT INFO section. Only ask the customer if neither is available there or the customer has indicated the account is under different details.`,
 				};
 			}
 			return withIspErrorHandling(

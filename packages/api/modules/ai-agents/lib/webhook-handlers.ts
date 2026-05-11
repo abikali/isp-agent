@@ -36,6 +36,7 @@ import {
 	isHumanTakeoverActive,
 	trackBotMessage,
 } from "./bot-fingerprint";
+import { resolveVerifiedCustomerId } from "./resolve-verified-customer";
 import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
@@ -395,6 +396,23 @@ async function handleMessages(
 						messageCount: 0,
 					},
 				});
+			}
+
+			// Link the conversation to a customer when we can — saves the agent
+			// from re-asking for a phone/username it already has from the
+			// messaging provider. Only auto-links on a unique match to avoid
+			// guessing on shared family phones.
+			if (conversation.contactId && !conversation.verifiedCustomerId) {
+				const customerId = await resolveVerifiedCustomerId(
+					channel.agent.organizationId,
+					conversation.contactId,
+				);
+				if (customerId) {
+					conversation = await db.aiConversation.update({
+						where: { id: conversation.id },
+						data: { verifiedCustomerId: customerId },
+					});
+				}
 			}
 
 			// Upload incoming media to R2 for display in dashboard

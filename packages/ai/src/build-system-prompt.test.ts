@@ -249,6 +249,38 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("messaging");
 	});
 
+	it("renders verified customer with username as the tool query", () => {
+		const result = buildSystemPrompt({
+			basePrompt: BASE_PROMPT,
+			enabledTools: [],
+			contactName: "اااا",
+			contactPhone: "9613035468",
+			verifiedCustomer: {
+				fullName: "ali kandi",
+				username: "alikandi",
+				accountNumber: "12345",
+				status: "ACTIVE",
+				planName: "Fiber 30Mbps",
+			},
+		});
+		expect(result).toContain("VERIFIED CUSTOMER");
+		expect(result).toContain("username: alikandi");
+		expect(result).toContain('Pass "alikandi" as the `query`');
+		expect(result).toContain("Fiber 30Mbps");
+		// Soft contact-info section should be suppressed when verified
+		expect(result).not.toContain("CUSTOMER CONTACT INFO");
+	});
+
+	it("falls back to soft contact info when no verified customer", () => {
+		const result = buildSystemPrompt({
+			basePrompt: BASE_PROMPT,
+			enabledTools: [],
+			contactPhone: "9613035468",
+		});
+		expect(result).toContain("CUSTOMER CONTACT INFO");
+		expect(result).not.toContain("VERIFIED CUSTOMER");
+	});
+
 	// -----------------------------------------------------------------------
 	// Tool prompt overrides
 	// -----------------------------------------------------------------------

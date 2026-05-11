@@ -63,6 +63,9 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 				update: vi.fn(),
 				deleteMany: vi.fn(),
 			},
+			customer: {
+				findMany: vi.fn().mockResolvedValue([]),
+			},
 		};
 
 		const mockSendTextMessage = vi
@@ -147,6 +150,7 @@ vi.mock("@repo/ai", () => ({
 	resolveTools: vi.fn().mockReturnValue({}),
 	formatHistoryMessage: vi.fn((m: unknown) => m),
 	processMedia: vi.fn().mockResolvedValue(null),
+	transcribeMessageMedia: vi.fn().mockResolvedValue(null),
 	triageBufferedMessages: vi.fn(),
 	executeEscalationGuard: vi.fn().mockResolvedValue(null),
 	extractToolPromptOverrides: vi.fn().mockReturnValue({}),

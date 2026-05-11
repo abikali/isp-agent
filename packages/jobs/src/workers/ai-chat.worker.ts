@@ -42,6 +42,16 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				include: {
 					agent: true,
 					channel: true,
+					verifiedCustomer: {
+						select: {
+							firstName: true,
+							lastName: true,
+							username: true,
+							accountNumber: true,
+							status: true,
+							plan: { select: { name: true } },
+						},
+					},
 				},
 			});
 
@@ -170,12 +180,34 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				}
 			}
 
+			const verifiedCustomer = conversation.verifiedCustomer
+				? {
+						fullName:
+							[
+								conversation.verifiedCustomer.firstName,
+								conversation.verifiedCustomer.lastName,
+							]
+								.filter(Boolean)
+								.join(" ") || undefined,
+						username:
+							conversation.verifiedCustomer.username ?? undefined,
+						accountNumber:
+							conversation.verifiedCustomer.accountNumber ??
+							undefined,
+						status: conversation.verifiedCustomer.status,
+						planName:
+							conversation.verifiedCustomer.plan?.name ??
+							undefined,
+					}
+				: undefined;
+
 			// Build system prompt
 			const systemPrompt = buildSystemPrompt({
 				basePrompt: conversation.agent.systemPrompt,
 				enabledTools: conversation.agent.enabledTools,
 				contactName: conversation.contactName ?? undefined,
 				contactPhone: conversation.contactId ?? undefined,
+				verifiedCustomer,
 				maintenanceMode: conversation.agent.maintenanceMode,
 				maintenanceMessage:
 					conversation.agent.maintenanceMessage ?? undefined,

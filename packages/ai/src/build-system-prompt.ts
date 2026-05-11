@@ -4,12 +4,27 @@ import {
 } from "./default-prompt-sections";
 import { getToolRegistry } from "./tools";
 
+export interface VerifiedCustomerSummary {
+	fullName?: string | undefined;
+	username?: string | undefined;
+	accountNumber?: string | undefined;
+	status?: string | undefined;
+	planName?: string | undefined;
+}
+
 export interface BuildSystemPromptOptions {
 	basePrompt: string;
 	enabledTools: string[];
 	knowledgeBase?: string | undefined;
 	contactName?: string | undefined;
 	contactPhone?: string | undefined;
+	/**
+	 * The ISP customer this conversation has been linked to (auto-resolved
+	 * from the messaging provider's phone). When set, the agent renders a
+	 * stronger identity section with a concrete `username` the model can
+	 * pass directly to ISP tools — no search step required.
+	 */
+	verifiedCustomer?: VerifiedCustomerSummary | undefined;
 	maintenanceMode?: boolean | undefined;
 	maintenanceMessage?: string | undefined;
 	/** Provider name for contact info section (e.g. "whatsapp", "telegram") */
@@ -39,8 +54,13 @@ export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
 		sections.push(opts.basePrompt);
 	}
 
-	// Contact info (dynamic runtime data — stays in code)
-	if (opts.contactName || opts.contactPhone) {
+	// Contact info (dynamic runtime data — stays in code).
+	// When the conversation is linked to a known customer, render that as
+	// hard facts (with username) so the model can call ISP tools directly
+	// instead of asking the user for information we already have.
+	if (opts.verifiedCustomer) {
+		sections.push(verifiedCustomerSection(opts));
+	} else if (opts.contactName || opts.contactPhone) {
 		sections.push(contactInfoSection(opts));
 	}
 
@@ -169,5 +189,41 @@ function contactInfoSection(opts: BuildSystemPromptOptions): string {
 		`Confirm naturally (e.g. "I see your number is ${opts.contactPhone ?? "..."}, is that correct?"). ` +
 		"Use it for account lookups, escalations, sales leads, and any situation requiring the customer's identity. " +
 		"If the customer provides a DIFFERENT phone number or name, use that instead."
+	);
+}
+
+function verifiedCustomerSection(opts: BuildSystemPromptOptions): string {
+	const customer = opts.verifiedCustomer;
+	if (!customer) {
+		return "";
+	}
+	const provider = opts.provider ?? "messaging";
+	const facts: string[] = [];
+	if (customer.fullName) {
+		facts.push(`name on file: ${customer.fullName}`);
+	}
+	if (customer.username) {
+		facts.push(`username: ${customer.username}`);
+	}
+	if (customer.accountNumber) {
+		facts.push(`account #: ${customer.accountNumber}`);
+	}
+	if (customer.status) {
+		facts.push(`status: ${customer.status}`);
+	}
+	if (customer.planName) {
+		facts.push(`plan: ${customer.planName}`);
+	}
+	if (opts.contactPhone) {
+		facts.push(`phone: ${opts.contactPhone}`);
+	}
+	const usernameNote = customer.username
+		? ` Pass "${customer.username}" as the \`query\` argument to ISP tools (isp-search-customer, isp-diagnose-customer, etc.) — do NOT search by phone or name.`
+		: "";
+	return (
+		`VERIFIED CUSTOMER (auto-linked from their ${provider} number): ${facts.join(", ")}. ` +
+		"This is the account this conversation is about. Do NOT ask the customer for their phone, username, or account number — you already have them." +
+		usernameNote +
+		" If the customer says the account is under a different person or number, only then ask for clarification."
 	);
 }
