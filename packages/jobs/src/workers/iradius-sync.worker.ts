@@ -1514,6 +1514,33 @@ async function processIRadiusSync(
 					.map((c) => [c.externalId, c.id]),
 			);
 
+			// Unlinked-by-username map: locally-created rows (externalId IS NULL)
+			// that we'll try to claim by matching iRadius UserName. Only single-
+			// occurrence usernames are eligible — ambiguous matches (the same
+			// username on multiple unlinked rows) stay unclaimed so we never
+			// guess which row owns an iRadius identity.
+			const unlinkedByUsername = await (async () => {
+				const rows = await db.customer.findMany({
+					where: {
+						organizationId,
+						externalId: null,
+						username: { not: null },
+					},
+				});
+				const map = new Map<
+					string,
+					(typeof rows)[number] | "ambiguous"
+				>();
+				for (const row of rows) {
+					const key = row.username?.toLowerCase();
+					if (!key) {
+						continue;
+					}
+					map.set(key, map.has(key) ? "ambiguous" : row);
+				}
+				return map;
+			})();
+
 			// Supersede unresolved conflicts from prior sync operations
 			await db.syncConflict.deleteMany({
 				where: {
@@ -1538,7 +1565,34 @@ async function processIRadiusSync(
 					continue;
 				}
 				const extId = String(userId);
-				const existing = customerRecordByExtId.get(extId);
+				let existing = customerRecordByExtId.get(extId);
+
+				// Username-fallback claim: if no externalId match, try to adopt
+				// a local-only row with the same (lowered) username. This
+				// reunites rows created locally (e.g. via an import script)
+				// with their iRadius identity instead of creating a duplicate.
+				// Ambiguous usernames (multiple unlinked rows) are skipped so
+				// we never guess which row owns the iRadius id.
+				if (!existing) {
+					const candidateUsername = (
+						u["UserName"] as string | null
+					)?.toLowerCase();
+					const candidate = candidateUsername
+						? unlinkedByUsername.get(candidateUsername)
+						: undefined;
+					if (candidate && candidate !== "ambiguous") {
+						const claimed = await db.customer.update({
+							where: { id: candidate.id },
+							data: { externalId: extId },
+						});
+						existing = claimed;
+						customerRecordByExtId.set(extId, claimed);
+						customerByExtId.set(extId, claimed.id);
+						if (candidateUsername) {
+							unlinkedByUsername.delete(candidateUsername);
+						}
+					}
+				}
 
 				const planName = u["AccountTypeId"]
 					? planNames.get(u["AccountTypeId"] as number)

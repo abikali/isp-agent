@@ -36,7 +36,6 @@
 		"type-check": "tsc --noEmit",
 		"seed": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed.ts",
 		"seed:products": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-products.ts",
-		"seed:dotnet2": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-dotnet2.ts",
 		"backfill:shortcodes": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-shortcodes.ts"
 	},
 	"dependencies": {
