@@ -1301,6 +1301,30 @@ async function processIRadiusSync(
 				existingEmployees.map((e) => [e.externalId, e.id]),
 			);
 
+			// Unlinked-by-username map for employees, mirroring the customer
+			// loop above. Lets the sync claim a locally-created employee row
+			// (e.g. from a manual seed or the org's onboarding flow) instead
+			// of creating a duplicate. Ambiguous usernames are left alone.
+			const unlinkedEmployeesByUsername = await (async () => {
+				const rows = await db.employee.findMany({
+					where: {
+						organizationId,
+						externalId: null,
+						username: { not: null },
+					},
+					select: { id: true, username: true },
+				});
+				const map = new Map<string, string | "ambiguous">();
+				for (const row of rows) {
+					const key = row.username?.toLowerCase();
+					if (!key) {
+						continue;
+					}
+					map.set(key, map.has(key) ? "ambiguous" : row.id);
+				}
+				return map;
+			})();
+
 			const nextEmployeeNumber =
 				await createEmployeeNumberGenerator(organizationId);
 
@@ -1311,7 +1335,29 @@ async function processIRadiusSync(
 				}
 				const empUserId = emp["Id"] as number;
 				const extId = String(empUserId);
-				const existingId = employeeByExtId.get(extId);
+				let existingId = employeeByExtId.get(extId);
+
+				if (!existingId) {
+					const candidateUsername = (
+						emp["UserName"] as string | null
+					)?.toLowerCase();
+					const claim = candidateUsername
+						? unlinkedEmployeesByUsername.get(candidateUsername)
+						: undefined;
+					if (claim && claim !== "ambiguous") {
+						await db.employee.update({
+							where: { id: claim },
+							data: { externalId: extId },
+						});
+						existingId = claim;
+						employeeByExtId.set(extId, claim);
+						if (candidateUsername) {
+							unlinkedEmployeesByUsername.delete(
+								candidateUsername,
+							);
+						}
+					}
+				}
 				const profileId = emp["ProfileId"] as number;
 
 				// Resolve dealer from iRadius ParentId hierarchy, fall back to org's active dealer
