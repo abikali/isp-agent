@@ -11,6 +11,13 @@
  * out across a pool of parallel MySQL connections over a shared SSH tunnel
  * — a single connection serialises queries, so fan-out is the only way to
  * amortise the ~250ms SSH+MySQL round-trip cost.
+ *
+ * Dealer scope: customers are filtered by the org's `activeDealerId`,
+ * mirroring `getDealerScopeFilter` in permission.ts. Without this filter,
+ * a sync would import cross-dealer customers from iRadius (e.g. sakonet's)
+ * into our org and the push would overwrite their iRadius `User.Mobile`
+ * with our locally-normalized `+961…` phones — clobbering another dealer's
+ * data. See incident 2026-05-08 for the regression this guard prevents.
  */
 
 import { buildIRadiusMobile, db } from "@repo/database";
@@ -102,7 +109,7 @@ export function createIRadiusPushWorker(): Worker<
 			// Belt-and-suspenders: refuse to run for orgs with iRadius disabled.
 			const org = await db.organization.findUnique({
 				where: { id: organizationId },
-				select: { iradiusDisabled: true },
+				select: { iradiusDisabled: true, activeDealerId: true },
 			});
 			if (org?.iradiusDisabled) {
 				await updateProgress(operationId, {
@@ -119,6 +126,7 @@ export function createIRadiusPushWorker(): Worker<
 				});
 				return { success: false, operationId };
 			}
+			const activeDealerId = org?.activeDealerId ?? null;
 
 			logger.info("[iRadius Push] Starting", {
 				operationId,
@@ -131,10 +139,15 @@ export function createIRadiusPushWorker(): Worker<
 				startedAt: new Date(),
 			});
 
-			// Pull all linked customers for this org. Non-linked (no externalId)
-			// customers get counted as skipped and never touch iRadius.
+			// Pull all linked customers for this org, scoped to the org's
+			// `activeDealerId` (same semantics as `getDealerScopeFilter` in
+			// permission.ts: customers whose `dealerId` does not match are
+			// invisible everywhere else in the app, and must also be invisible
+			// here so we don't push them back to iRadius). Non-linked (no
+			// externalId) customers get counted as skipped and never touch
+			// iRadius.
 			const customers = await db.customer.findMany({
-				where: { organizationId },
+				where: { organizationId, dealerId: activeDealerId },
 				select: {
 					id: true,
 					externalId: true,

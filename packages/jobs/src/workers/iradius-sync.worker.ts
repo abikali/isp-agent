@@ -1400,6 +1400,41 @@ async function processIRadiusSync(
 			// ================================================================
 			await updateProgress(operationId, { phase: "customers" });
 
+			// Resolve which iRadius dealers belong to this org's subtree so we
+			// only import customers we're allowed to manage. Without this,
+			// every org syncs every iRadius customer and a subsequent push
+			// overwrites another dealer's `User.Mobile` (see sakonet incident
+			// 2026-05-08). The set contains the active dealer's iRadius
+			// `User.Id` plus any sub-dealers whose `User.ParentId` points at
+			// it. We treat the active dealer's *iRadius* extId as the root —
+			// our local `IspDealer.parentDealerId` is mirrored from the same
+			// hierarchy but lives a sync behind, so reading the source of
+			// truth from iRadius keeps the filter consistent across runs.
+			const allowedIRadiusDealerExtIds = new Set<number>();
+			if (activeDealerId !== null) {
+				const activeDealer = await db.ispDealer.findUnique({
+					where: { id: activeDealerId },
+					select: { externalId: true },
+				});
+				const activeDealerExtId = activeDealer?.externalId
+					? Number(activeDealer.externalId)
+					: null;
+				if (activeDealerExtId !== null) {
+					allowedIRadiusDealerExtIds.add(activeDealerExtId);
+					const subDealers = await queryIRadius(
+						conn,
+						"SELECT Id FROM User WHERE ProfileId = 2 AND ParentId = ?",
+						[activeDealerExtId],
+					);
+					for (const row of subDealers) {
+						const subId = row["Id"] as number | null;
+						if (subId !== null) {
+							allowedIRadiusDealerExtIds.add(subId);
+						}
+					}
+				}
+			}
+
 			const users = await queryIRadius(
 				conn,
 				`SELECT u.Id AS Id, u.UserName, u.FirstName, u.LastName, u.Mobile, u.Phone,
@@ -1520,6 +1555,25 @@ async function processIRadiusSync(
 
 				// Resolve dealer from iRadius ParentId, fall back to org's active dealer
 				const custParentId = u["ParentId"] as number | null;
+
+				// Cross-dealer guard: if this iRadius customer is parented to
+				// a dealer outside our org's allowed subtree, skip the row
+				// entirely (no insert, no update). ParentId === 1 means the
+				// admin user — those flow through to the activeDealerId
+				// fallback like before. A null/0 ParentId, or one that maps
+				// to no IspDealer record (deleted dealer, etc.), also falls
+				// through to the legacy behaviour for backwards compat.
+				if (
+					custParentId !== null &&
+					custParentId !== 0 &&
+					custParentId !== 1 &&
+					dealerMap.has(custParentId) &&
+					allowedIRadiusDealerExtIds.size > 0 &&
+					!allowedIRadiusDealerExtIds.has(custParentId)
+				) {
+					continue;
+				}
+
 				const dealerId =
 					(custParentId ? dealerMap.get(custParentId) : null) ??
 					activeDealerId;
