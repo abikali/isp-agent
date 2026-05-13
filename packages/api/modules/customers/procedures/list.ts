@@ -217,6 +217,11 @@ export const listCustomers = protectedProcedure
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
+					// Surfaced for the row-action iRadius dialogs (Set
+					// discount / Set IPTV price) so they can pre-seed the
+					// current value when opened from the table.
+					discount: true,
+					iptvPrice: true,
 					expiresAt: true,
 					lastLogin: true,
 					fupMode: true,

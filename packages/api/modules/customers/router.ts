@@ -1,6 +1,13 @@
 import { getCustomerActivity } from "./procedures/activity";
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
+import {
+	bulkChangeCollector,
+	bulkResetMacAddress,
+	bulkSetDiscount,
+	bulkSetExpiryDate,
+	bulkSetIptvPrice,
+} from "./procedures/bulk-iradius-actions";
 import { bulkSetCustomerStatus } from "./procedures/bulk-set-status";
 import {
 	executeAccountTypeChangeProcedure,
@@ -75,6 +82,11 @@ export const customersRouter = {
 	bulkImport: bulkImportCustomers,
 	bulkExport: bulkExportCustomers,
 	bulkSetStatus: bulkSetCustomerStatus,
+	bulkResetMac: bulkResetMacAddress,
+	bulkSetDiscount,
+	bulkSetIptvPrice,
+	bulkSetExpiry: bulkSetExpiryDate,
+	bulkChangeCollector,
 	setPin: setCustomerPin,
 	resetPin: resetCustomerPin,
 	generatePin: generateCustomerPin,

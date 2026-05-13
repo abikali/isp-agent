@@ -36,6 +36,14 @@ import { Avatar, AvatarFallback } from "@ui/components/avatar";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@ui/components/dropdown-menu";
 import { Separator } from "@ui/components/separator";
 import {
 	Tooltip,
@@ -44,15 +52,21 @@ import {
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import {
+	CalendarClockIcon,
 	DownloadIcon,
 	MapPinIcon,
+	MonitorIcon,
+	MoreHorizontalIcon,
+	PercentIcon,
 	PlusIcon,
 	RefreshCwIcon,
 	StickyNoteIcon,
 	UploadIcon,
 	UserCheckIcon,
+	UserCogIcon,
 	UsersIcon,
 	UserXIcon,
+	WifiOffIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -76,6 +90,13 @@ import {
 } from "../lib/location-utils";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
+import {
+	BulkChangeCollectorDialog,
+	BulkResetMacDialog,
+	BulkSetDiscountDialog,
+	BulkSetExpiryDialog,
+	BulkSetIptvPriceDialog,
+} from "./BulkIradiusDialogs";
 import { ConnectivityCell } from "./ConnectivityCell";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
 import { CustomerFilters, type CustomerFiltersValue } from "./CustomerFilters";
@@ -174,6 +195,8 @@ interface CustomerRow {
 	connectionType: string | null;
 	monthlyRate: number | null;
 	balance: number;
+	discount: number;
+	iptvPrice: number;
 	latitude: number | null;
 	longitude: number | null;
 	locationRequestedAt: Date | string | null;
@@ -249,6 +272,18 @@ export function CustomersList({
 	// network operation, not a UI no-op.
 	const [confirmBulkStatus, setConfirmBulkStatus] = useState<
 		"ACTIVE" | "INACTIVE" | null
+	>(null);
+	// Open-state for the iRadius bulk dialogs surfaced via the toolbar's
+	// "More" dropdown. Each kind maps 1:1 to a `Bulk*Dialog` component;
+	// we keep them all in one piece of state so only one can be open
+	// at a time and `null` cleanly represents "nothing open".
+	const [bulkDialog, setBulkDialog] = useState<
+		| "reset-mac"
+		| "set-discount"
+		| "set-iptv-price"
+		| "set-expiry"
+		| "change-collector"
+		| null
 	>(null);
 
 	// Fetched solely to label active filter chips.
@@ -837,6 +872,11 @@ export function CustomersList({
 						onRequestLocation={() =>
 							handleRequestClick(row.original)
 						}
+						customerFirstName={row.original.firstName}
+						customerLastName={row.original.lastName}
+						customerDiscount={row.original.discount}
+						customerIptvPrice={row.original.iptvPrice}
+						customerExpiresAt={row.original.expiresAt}
 					/>
 				),
 			},
@@ -942,6 +982,59 @@ export function CustomersList({
 							<MapPinIcon className="mr-2 size-4" />
 							Request location
 						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm" variant="outline">
+									<MoreHorizontalIcon className="mr-2 size-4" />
+									More
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-56">
+								<DropdownMenuLabel className="text-xs text-muted-foreground">
+									iRadius
+								</DropdownMenuLabel>
+								<DropdownMenuItem
+									onClick={() => setBulkDialog("reset-mac")}
+								>
+									<WifiOffIcon className="mr-2 size-4" />
+									Reset MAC address
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() =>
+										setBulkDialog("set-discount")
+									}
+								>
+									<PercentIcon className="mr-2 size-4" />
+									Set recurring discount
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() =>
+										setBulkDialog("set-iptv-price")
+									}
+								>
+									<MonitorIcon className="mr-2 size-4" />
+									Set IPTV price
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => setBulkDialog("set-expiry")}
+								>
+									<CalendarClockIcon className="mr-2 size-4" />
+									Set billing expiry date
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuLabel className="text-xs text-muted-foreground">
+									Assignment
+								</DropdownMenuLabel>
+								<DropdownMenuItem
+									onClick={() =>
+										setBulkDialog("change-collector")
+									}
+								>
+									<UserCogIcon className="mr-2 size-4" />
+									Change collector
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						<Separator
 							orientation="vertical"
 							className="h-6 bg-primary/20"
@@ -1202,6 +1295,49 @@ export function CustomersList({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
+
+			{/*
+			 * Bulk iRadius dialogs. Each clears the selection on success so
+			 * an operator can chain actions without re-checking 200 boxes.
+			 */}
+			<BulkResetMacDialog
+				open={bulkDialog === "reset-mac"}
+				onOpenChange={(o) => setBulkDialog(o ? "reset-mac" : null)}
+				organizationId={organizationId}
+				customerIds={selectedIds}
+				onCompleted={() => setRowSelection({})}
+			/>
+			<BulkSetDiscountDialog
+				open={bulkDialog === "set-discount"}
+				onOpenChange={(o) => setBulkDialog(o ? "set-discount" : null)}
+				organizationId={organizationId}
+				customerIds={selectedIds}
+				onCompleted={() => setRowSelection({})}
+			/>
+			<BulkSetIptvPriceDialog
+				open={bulkDialog === "set-iptv-price"}
+				onOpenChange={(o) => setBulkDialog(o ? "set-iptv-price" : null)}
+				organizationId={organizationId}
+				customerIds={selectedIds}
+				onCompleted={() => setRowSelection({})}
+			/>
+			<BulkSetExpiryDialog
+				open={bulkDialog === "set-expiry"}
+				onOpenChange={(o) => setBulkDialog(o ? "set-expiry" : null)}
+				organizationId={organizationId}
+				customerIds={selectedIds}
+				onCompleted={() => setRowSelection({})}
+			/>
+			<BulkChangeCollectorDialog
+				open={bulkDialog === "change-collector"}
+				onOpenChange={(o) =>
+					setBulkDialog(o ? "change-collector" : null)
+				}
+				organizationId={organizationId}
+				customerIds={selectedIds}
+				collectors={collectors}
+				onCompleted={() => setRowSelection({})}
+			/>
 		</PageShell>
 	);
 }

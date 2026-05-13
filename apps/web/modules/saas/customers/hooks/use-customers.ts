@@ -197,6 +197,31 @@ export const useBulkSetCustomerStatus = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const useBulkResetMac = createInvalidatingMutation(
+	() => orpc.customers.bulkResetMac.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkSetDiscount = createInvalidatingMutation(
+	() => orpc.customers.bulkSetDiscount.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkSetIptvPrice = createInvalidatingMutation(
+	() => orpc.customers.bulkSetIptvPrice.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkSetExpiry = createInvalidatingMutation(
+	() => orpc.customers.bulkSetExpiry.mutationOptions(),
+	invalidateCustomers,
+);
+
+export const useBulkChangeCollector = createInvalidatingMutation(
+	() => orpc.customers.bulkChangeCollector.mutationOptions(),
+	invalidateCustomers,
+);
+
 /**
  * Live online status for a customer's station + access point.
  * Refetches every 15s so the badge tracks the monitor sync cadence.
