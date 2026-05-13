@@ -50,6 +50,7 @@ import { Route as SaasAppAccountSettingsIndexRouteImport } from "./routes/_saas/
 import { Route as SaasAppAccountAdminIndexRouteImport } from "./routes/_saas/app/_account/admin/index"
 import { Route as SaasAppOrgOrganizationSlugSettingsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings"
 import { Route as SaasAppOrgOrganizationSlugNotificationsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/notifications"
+import { Route as SaasAppOrgOrganizationSlugIradiusRouteImport } from "./routes/_saas/app/_org/$organizationSlug/iradius"
 import { Route as SaasAppAccountSettingsSecurityRouteImport } from "./routes/_saas/app/_account/settings/security"
 import { Route as SaasAppAccountSettingsPrivacyRouteImport } from "./routes/_saas/app/_account/settings/privacy"
 import { Route as SaasAppAccountSettingsNotificationsRouteImport } from "./routes/_saas/app/_account/settings/notifications"
@@ -329,6 +330,12 @@ const SaasAppOrgOrganizationSlugNotificationsRoute =
   SaasAppOrgOrganizationSlugNotificationsRouteImport.update({
     id: "/notifications",
     path: "/notifications",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugIradiusRoute =
+  SaasAppOrgOrganizationSlugIradiusRouteImport.update({
+    id: "/iradius",
+    path: "/iradius",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
 const SaasAppAccountSettingsSecurityRoute =
@@ -724,6 +731,7 @@ export interface FileRoutesByFullPath {
   "/app/settings/notifications": typeof SaasAppAccountSettingsNotificationsRoute
   "/app/settings/privacy": typeof SaasAppAccountSettingsPrivacyRoute
   "/app/settings/security": typeof SaasAppAccountSettingsSecurityRoute
+  "/app/$organizationSlug/iradius": typeof SaasAppOrgOrganizationSlugIradiusRoute
   "/app/$organizationSlug/notifications": typeof SaasAppOrgOrganizationSlugNotificationsRoute
   "/app/$organizationSlug/settings": typeof SaasAppOrgOrganizationSlugSettingsRouteWithChildren
   "/app/admin/": typeof SaasAppAccountAdminIndexRoute
@@ -817,6 +825,7 @@ export interface FileRoutesByTo {
   "/app/settings/notifications": typeof SaasAppAccountSettingsNotificationsRoute
   "/app/settings/privacy": typeof SaasAppAccountSettingsPrivacyRoute
   "/app/settings/security": typeof SaasAppAccountSettingsSecurityRoute
+  "/app/$organizationSlug/iradius": typeof SaasAppOrgOrganizationSlugIradiusRoute
   "/app/$organizationSlug/notifications": typeof SaasAppOrgOrganizationSlugNotificationsRoute
   "/app/admin": typeof SaasAppAccountAdminIndexRoute
   "/app/settings": typeof SaasAppAccountSettingsIndexRoute
@@ -919,6 +928,7 @@ export interface FileRoutesById {
   "/_saas/app/_account/settings/notifications": typeof SaasAppAccountSettingsNotificationsRoute
   "/_saas/app/_account/settings/privacy": typeof SaasAppAccountSettingsPrivacyRoute
   "/_saas/app/_account/settings/security": typeof SaasAppAccountSettingsSecurityRoute
+  "/_saas/app/_org/$organizationSlug/iradius": typeof SaasAppOrgOrganizationSlugIradiusRoute
   "/_saas/app/_org/$organizationSlug/notifications": typeof SaasAppOrgOrganizationSlugNotificationsRoute
   "/_saas/app/_org/$organizationSlug/settings": typeof SaasAppOrgOrganizationSlugSettingsRouteWithChildren
   "/_saas/app/_account/admin/": typeof SaasAppAccountAdminIndexRoute
@@ -1018,6 +1028,7 @@ export interface FileRouteTypes {
     | "/app/settings/notifications"
     | "/app/settings/privacy"
     | "/app/settings/security"
+    | "/app/$organizationSlug/iradius"
     | "/app/$organizationSlug/notifications"
     | "/app/$organizationSlug/settings"
     | "/app/admin/"
@@ -1111,6 +1122,7 @@ export interface FileRouteTypes {
     | "/app/settings/notifications"
     | "/app/settings/privacy"
     | "/app/settings/security"
+    | "/app/$organizationSlug/iradius"
     | "/app/$organizationSlug/notifications"
     | "/app/admin"
     | "/app/settings"
@@ -1212,6 +1224,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_account/settings/notifications"
     | "/_saas/app/_account/settings/privacy"
     | "/_saas/app/_account/settings/security"
+    | "/_saas/app/_org/$organizationSlug/iradius"
     | "/_saas/app/_org/$organizationSlug/notifications"
     | "/_saas/app/_org/$organizationSlug/settings"
     | "/_saas/app/_account/admin/"
@@ -1586,6 +1599,13 @@ declare module "@tanstack/react-router" {
       path: "/notifications"
       fullPath: "/app/$organizationSlug/notifications"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugNotificationsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/iradius": {
+      id: "/_saas/app/_org/$organizationSlug/iradius"
+      path: "/iradius"
+      fullPath: "/app/$organizationSlug/iradius"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugIradiusRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_account/settings/security": {
@@ -2193,6 +2213,7 @@ const SaasAppOrgOrganizationSlugSettingsRouteWithChildren =
   )
 
 interface SaasAppOrgOrganizationSlugRouteChildren {
+  SaasAppOrgOrganizationSlugIradiusRoute: typeof SaasAppOrgOrganizationSlugIradiusRoute
   SaasAppOrgOrganizationSlugNotificationsRoute: typeof SaasAppOrgOrganizationSlugNotificationsRoute
   SaasAppOrgOrganizationSlugSettingsRoute: typeof SaasAppOrgOrganizationSlugSettingsRouteWithChildren
   SaasAppOrgOrganizationSlugIndexRoute: typeof SaasAppOrgOrganizationSlugIndexRoute
@@ -2233,6 +2254,8 @@ interface SaasAppOrgOrganizationSlugRouteChildren {
 
 const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteChildren =
   {
+    SaasAppOrgOrganizationSlugIradiusRoute:
+      SaasAppOrgOrganizationSlugIradiusRoute,
     SaasAppOrgOrganizationSlugNotificationsRoute:
       SaasAppOrgOrganizationSlugNotificationsRoute,
     SaasAppOrgOrganizationSlugSettingsRoute:

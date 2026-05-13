@@ -242,6 +242,20 @@ export function AppSidebar() {
 			groups.push({ id: "growth", label: "Growth", items });
 		}
 
+		if (isOrganizationAdmin) {
+			groups.push({
+				id: "infrastructure",
+				label: "Infrastructure",
+				items: [
+					{
+						label: "iRadius",
+						to: `${basePath}/iradius`,
+						icon: RadioTowerIcon,
+					},
+				],
+			});
+		}
+
 		return groups;
 	}, [
 		activeOrganization,
