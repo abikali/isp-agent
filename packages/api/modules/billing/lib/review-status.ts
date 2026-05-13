@@ -43,7 +43,7 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 				JOIN "customer" c ON c.id = p."customerId"
 				WHERE p."organizationId" = ${organizationId}
 				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
-				  AND p."billingMonthId" = ${billingMonthId}
+				  AND p."billingCycleId" = ${billingMonthId}
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
 				  AND p."reviewedAt" IS NULL
