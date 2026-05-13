@@ -20,6 +20,7 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
+import { cn } from "@ui/lib";
 import {
 	HardDriveIcon,
 	HomeIcon,
@@ -76,7 +77,12 @@ export function UserMenu({ showUserName }: { showUserName?: boolean }) {
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="flex cursor-pointer w-full items-center justify-between gap-2 rounded-lg outline-hidden focus-visible:ring-2 focus-visible:ring-primary md:px-2 md:py-1.5 md:hover:bg-primary/5"
+					className={cn(
+						"flex cursor-pointer items-center gap-2 rounded-lg outline-hidden focus-visible:ring-2 focus-visible:ring-primary md:hover:bg-primary/5",
+						showUserName
+							? "w-full justify-between md:px-2 md:py-1.5"
+							: "p-0.5",
+					)}
 					aria-label="User menu"
 				>
 					<span className="flex min-w-0 items-center gap-2">

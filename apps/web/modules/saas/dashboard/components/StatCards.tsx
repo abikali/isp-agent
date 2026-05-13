@@ -1,76 +1,81 @@
 "use client";
 
-import { ChartCard, ChartCardSkeleton } from "@shared/components/ChartCard";
 import {
-	StatCard,
-	StatCardGroup,
-	StatCardSkeleton,
-} from "@shared/components/StatCard";
+	ContentCard,
+	ContentCardSection,
+} from "@shared/components/ContentCard";
+import {
+	MetricCard,
+	MetricCardSkeleton,
+	MetricStrip,
+} from "@shared/components/MetricCard";
 import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { Progress } from "@ui/components/progress";
-import { cn } from "@ui/lib";
 import {
-	AlertTriangle,
-	DollarSign,
-	UserCheck,
-	Users,
-	UserX,
-	Wifi,
-	WifiOff,
+	AlertTriangleIcon,
+	BanknoteIcon,
+	CalendarXIcon,
+	ClipboardListIcon,
+	DollarSignIcon,
+	HandCoinsIcon,
+	type LucideIcon,
+	OctagonXIcon,
+	UserCheckIcon,
+	WifiIcon,
+	WifiOffIcon,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
-	Online: "var(--color-chart-3)",
-	Offline: "var(--color-chart-1)",
-	Active: "var(--color-chart-3)",
-	Expired: "var(--color-chart-4)",
-	Inactive: "var(--color-chart-1)",
-	Suspended: "var(--color-chart-5)",
-	Pending: "var(--color-chart-6)",
+	Online: "var(--chart-2)",
+	Offline: "var(--chart-1)",
+	Active: "var(--chart-2)",
+	Expired: "var(--chart-3)",
+	Inactive: "var(--chart-1)",
+	Suspended: "var(--chart-5)",
+	Pending: "var(--chart-6)",
 };
 
 const TASK_COLORS: Record<string, string> = {
-	Open: "var(--color-chart-2)",
-	"In Progress": "var(--color-chart-6)",
-	Completed: "var(--color-chart-3)",
-	Overdue: "var(--color-chart-4)",
-	"On Hold": "var(--color-chart-5)",
+	Open: "var(--chart-2)",
+	"In Progress": "var(--chart-6)",
+	Completed: "var(--chart-3)",
+	Overdue: "var(--destructive)",
+	"On Hold": "var(--chart-5)",
 };
 
 export function StatCards() {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 
-	const { stats, isLoading: isLoadingStats } =
+	const { stats: customers, isLoading: isLoadingCustomers } =
 		useCustomerStatsQuery(organizationId);
 	const { stats: watcherStats, isLoading: isLoadingWatchers } =
 		useWatcherStatsQuery(organizationId);
 	const { stats: taskStats, isLoading: isLoadingTasks } =
 		useTaskStatsQuery(organizationId);
-	const { stats: billingStats, isLoading: isLoadingBilling } =
+	const { stats: billing, isLoading: isLoadingBilling } =
 		useBillingStatsQuery(organizationId);
 
 	const networkData =
-		stats && stats.online + stats.offline > 0
+		customers && customers.online + customers.offline > 0
 			? [
-					{ name: "Online", value: stats.online },
-					{ name: "Offline", value: stats.offline },
+					{ name: "Online", value: customers.online },
+					{ name: "Offline", value: customers.offline },
 				]
 			: [];
 
 	const customerStatusData =
-		stats && stats.total > 0
+		customers && customers.total > 0
 			? [
-					{ name: "Active", value: stats.active },
-					{ name: "Expired", value: stats.expired },
-					{ name: "Inactive", value: stats.inactive },
-					{ name: "Suspended", value: stats.suspended },
-					{ name: "Pending", value: stats.pending },
+					{ name: "Active", value: customers.active },
+					{ name: "Expired", value: customers.expired },
+					{ name: "Inactive", value: customers.inactive },
+					{ name: "Suspended", value: customers.suspended },
+					{ name: "Pending", value: customers.pending },
 				].filter((d) => d.value > 0)
 			: [];
 
@@ -84,249 +89,228 @@ export function StatCards() {
 			].filter((d) => d.value > 0)
 		: [];
 
+	const base = `/app/${organizationSlug ?? ""}`;
+
+	const isLoading =
+		isLoadingCustomers ||
+		isLoadingWatchers ||
+		isLoadingTasks ||
+		isLoadingBilling;
+
 	return (
 		<div className="space-y-6">
-			{/* Primary Stats */}
-			<StatCardGroup columns={4}>
-				{isLoadingStats ? (
-					<>
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-					</>
-				) : (
-					<>
-						<StatCard
-							title="Online"
-							value={stats?.online ?? 0}
-							icon={Wifi}
-							color="green"
-						/>
-						<StatCard
-							title="Offline"
-							value={stats?.offline ?? 0}
-							icon={WifiOff}
-							color="red"
-						/>
-						<StatCard
-							title="Active"
-							value={stats?.active ?? 0}
-							icon={UserCheck}
-							color="blue"
-						/>
-						<StatCard
-							title="Total"
-							value={stats?.total ?? 0}
-							icon={Users}
-						/>
-					</>
-				)}
-			</StatCardGroup>
-
-			{/* Secondary Stats */}
-			<StatCardGroup columns={4}>
-				{isLoadingStats ? (
-					<>
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-						<StatCardSkeleton />
-					</>
-				) : (
-					<>
-						<StatCard
-							title="Expired"
-							value={stats?.expired ?? 0}
-							icon={AlertTriangle}
-							color={
-								(stats?.expired ?? 0) > 0 ? "amber" : "default"
-							}
-						/>
-						<StatCard
-							title="Archived"
-							value={stats?.inactive ?? 0}
-							icon={UserX}
-						/>
-						<StatCard
-							title="Revenue"
-							value={formatCurrency(
-								stats?.totalMonthlyRevenue ?? 0,
-							)}
-							icon={DollarSign}
-							color="emerald"
-						/>
-						<StatCard
-							title="Employees"
-							value={stats?.employeeCount ?? 0}
-							icon={Users}
-						/>
-					</>
-				)}
-			</StatCardGroup>
-
-			{/* Charts Row */}
-			<div className="grid gap-4 lg:grid-cols-3">
-				{isLoadingStats ? (
-					<ChartCardSkeleton />
-				) : networkData.length > 0 ? (
-					<StatusPieChart
-						title="Network Health"
-						data={networkData}
-						colorMap={STATUS_COLORS}
-						size="lg"
-						footer={
-							stats && stats.online + stats.offline > 0
-								? `${Math.round((stats.online / (stats.online + stats.offline)) * 100)}% uptime`
-								: undefined
-						}
-					/>
-				) : (
-					<ChartCard title="Network Health">
-						<p className="text-sm text-muted-foreground">
-							No connectivity data
-						</p>
-					</ChartCard>
-				)}
-
-				{isLoadingStats ? (
-					<ChartCardSkeleton />
-				) : customerStatusData.length > 0 ? (
-					<StatusPieChart
-						title="Customer Status"
-						data={customerStatusData}
-						colorMap={STATUS_COLORS}
-						size="lg"
-					/>
-				) : (
-					<ChartCard title="Customer Status">
-						<p className="text-sm text-muted-foreground">
-							No customer data
-						</p>
-					</ChartCard>
-				)}
-
-				{isLoadingTasks ? (
-					<ChartCardSkeleton />
-				) : taskStats && taskStats.total > 0 ? (
-					<StatusPieChart
-						title="Tasks Overview"
-						data={taskStatusData}
-						colorMap={TASK_COLORS}
-						size="lg"
-						footer={
-							taskStats.unassigned > 0
-								? `${taskStats.unassigned} unassigned`
-								: undefined
-						}
-					/>
-				) : (
-					<ChartCard title="Tasks Overview">
-						<p className="text-sm text-muted-foreground">
-							No tasks yet
-						</p>
-					</ChartCard>
-				)}
-			</div>
-
-			{/* Billing + Dealers Row */}
-			<div className="grid gap-4 lg:grid-cols-2">
-				{/* Collection Progress */}
-				{isLoadingBilling ? (
-					<ChartCardSkeleton />
-				) : billingStats ? (
-					<ChartCard title="Billing Collection">
-						<div className="space-y-4">
-							<div className="flex flex-wrap items-baseline justify-between gap-x-2">
-								<span className="text-xl sm:text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
-									{formatCurrency(
-										billingStats.totalCollected,
-									)}
-								</span>
-								<span className="text-sm text-muted-foreground">
-									collected this cycle
-								</span>
-							</div>
-							<div className="space-y-2">
-								<div className="flex items-center justify-between text-sm">
-									<span className="text-muted-foreground">
-										Collection rate
-									</span>
-									<span className="font-medium">
-										{billingStats.paidPercentage}%
-									</span>
-								</div>
-								<Progress
-									value={billingStats.paidPercentage}
-									className="h-2"
-								/>
-							</div>
-							<div className="grid grid-cols-3 gap-2 sm:gap-4 border-t pt-4">
-								<div className="text-center">
-									<div className="text-lg font-semibold tabular-nums">
-										{billingStats.collectedPayments}
-									</div>
-									<div className="text-xs text-muted-foreground">
-										Collected
-									</div>
-								</div>
-								<div className="text-center">
-									<div
-										className={cn(
-											"text-lg font-semibold tabular-nums",
-											billingStats.stoppedPayments > 0 &&
-												"text-amber-600 dark:text-amber-400",
-										)}
-									>
-										{billingStats.stoppedPayments}
-									</div>
-									<div className="text-xs text-muted-foreground">
-										Stopped
-									</div>
-								</div>
-								<div className="text-center">
-									<div
-										className={cn(
-											"text-lg font-semibold tabular-nums",
-											billingStats.unpaidCustomers > 0 &&
-												"text-red-600 dark:text-red-400",
-										)}
-									>
-										{billingStats.unpaidCustomers}
-									</div>
-									<div className="text-xs text-muted-foreground">
-										Unpaid
-									</div>
-								</div>
-							</div>
-						</div>
-					</ChartCard>
-				) : null}
-			</div>
-
-			{/* Watcher Alert Bar */}
-			{!isLoadingWatchers && watcherStats && watcherStats.down > 0 && (
+			{watcherStats && watcherStats.down > 0 && organizationSlug && (
 				<Link
 					to="/app/$organizationSlug/watchers"
-					params={{ organizationSlug: organizationSlug ?? "" }}
-					className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 transition-colors hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:hover:bg-red-950/50"
+					params={{ organizationSlug }}
+					className="flex items-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 transition-colors hover:bg-destructive/10"
 				>
-					<AlertTriangle className="size-5 shrink-0 text-red-600 dark:text-red-400" />
-					<div className="min-w-0">
-						<span className="text-sm font-medium text-red-700 dark:text-red-300">
+					<AlertTriangleIcon className="size-4 shrink-0 text-destructive" />
+					<div className="min-w-0 flex-1 text-sm">
+						<span className="font-medium text-destructive">
 							{watcherStats.down} watcher
 							{watcherStats.down > 1 ? "s" : ""} down
 						</span>
-						<span className="ml-2 text-xs text-red-600/70 dark:text-red-400/70">
+						<span className="ml-2 text-xs text-muted-foreground">
 							{watcherStats.up} of {watcherStats.total} up
 						</span>
 					</div>
-					<span className="ml-auto hidden shrink-0 text-xs text-red-600/70 sm:inline dark:text-red-400/70">
-						View watchers &rarr;
+					<span className="text-xs text-muted-foreground">
+						View →
 					</span>
 				</Link>
 			)}
+
+			{/* Hero metric strip — ordered by operator importance */}
+			<MetricStrip columns={8}>
+				{isLoading ? (
+					Array.from({ length: 8 }).map((_, i) => (
+						<MetricCardSkeleton key={i} />
+					))
+				) : (
+					<>
+						<MetricCard
+							label="Collected"
+							value={formatCurrency(billing?.totalCollected ?? 0)}
+							icon={BanknoteIcon}
+							tone="success"
+							hint="This cycle"
+							href={`${base}/billing/payments`}
+						/>
+						<MetricCard
+							label="Collection rate"
+							value={`${billing?.paidPercentage ?? 0}%`}
+							icon={HandCoinsIcon}
+							tone="info"
+							hint={
+								billing
+									? `${billing.totalCustomers - billing.unpaidCustomers} of ${billing.totalCustomers}`
+									: undefined
+							}
+						/>
+						<MetricCard
+							label="Unpaid"
+							value={billing?.unpaidCustomers ?? 0}
+							icon={DollarSignIcon}
+							tone={
+								(billing?.unpaidCustomers ?? 0) > 0
+									? "warning"
+									: "default"
+							}
+							href={`${base}/billing/collect`}
+						/>
+						<MetricCard
+							label="Online now"
+							value={customers?.online ?? 0}
+							icon={WifiIcon}
+							tone="success"
+							hint={`of ${customers?.total ?? 0} total`}
+							href={`${base}/customers`}
+						/>
+						<MetricCard
+							label="Offline"
+							value={customers?.offline ?? 0}
+							icon={WifiOffIcon}
+							tone={
+								(customers?.offline ?? 0) > 0
+									? "default"
+									: "default"
+							}
+						/>
+						<MetricCard
+							label="Expired"
+							value={customers?.expired ?? 0}
+							icon={CalendarXIcon}
+							tone={
+								(customers?.expired ?? 0) > 0
+									? "warning"
+									: "default"
+							}
+						/>
+						<MetricCard
+							label="Stopped"
+							value={billing?.stoppedPayments ?? 0}
+							icon={OctagonXIcon}
+							tone={
+								(billing?.stoppedPayments ?? 0) > 0
+									? "danger"
+									: "default"
+							}
+							href={`${base}/billing/stopped`}
+						/>
+						<MetricCard
+							label="Open tasks"
+							value={
+								(taskStats?.open ?? 0) +
+								(taskStats?.inProgress ?? 0)
+							}
+							icon={ClipboardListIcon}
+							tone={
+								(taskStats?.overdue ?? 0) > 0
+									? "warning"
+									: "default"
+							}
+							hint={
+								(taskStats?.overdue ?? 0) > 0
+									? `${taskStats?.overdue} overdue`
+									: undefined
+							}
+							href={`${base}/tasks`}
+						/>
+					</>
+				)}
+			</MetricStrip>
+
+			{/* Charts row — connectivity, customer status, tasks */}
+			<div className="grid gap-4 lg:grid-cols-3">
+				<DistributionCard
+					title="Connectivity"
+					subtitle="Online vs offline subscribers"
+					data={networkData}
+					colorMap={STATUS_COLORS}
+					footer={
+						customers && customers.online + customers.offline > 0
+							? `${Math.round((customers.online / (customers.online + customers.offline)) * 100)}% online`
+							: undefined
+					}
+					isLoading={isLoadingCustomers}
+					icon={WifiIcon}
+				/>
+				<DistributionCard
+					title="Customer status"
+					subtitle="Active vs other states"
+					data={customerStatusData}
+					colorMap={STATUS_COLORS}
+					isLoading={isLoadingCustomers}
+					icon={UserCheckIcon}
+				/>
+				<DistributionCard
+					title="Tasks overview"
+					subtitle={
+						taskStats?.unassigned
+							? `${taskStats.unassigned} unassigned`
+							: "By status"
+					}
+					data={taskStatusData}
+					colorMap={TASK_COLORS}
+					isLoading={isLoadingTasks}
+					icon={ClipboardListIcon}
+				/>
+			</div>
 		</div>
+	);
+}
+
+function DistributionCard({
+	title,
+	subtitle,
+	data,
+	colorMap,
+	footer,
+	isLoading,
+	icon: Icon,
+}: {
+	title: string;
+	subtitle?: string;
+	data: { name: string; value: number }[];
+	colorMap: Record<string, string>;
+	footer?: string;
+	isLoading?: boolean;
+	icon?: LucideIcon;
+}) {
+	return (
+		<ContentCard>
+			<ContentCardSection className="border-b border-border">
+				<div className="flex items-center gap-2">
+					{Icon && (
+						<Icon className="size-3.5 text-muted-foreground" />
+					)}
+					<div className="text-sm font-medium">{title}</div>
+				</div>
+				{subtitle && (
+					<p className="mt-0.5 text-xs text-muted-foreground">
+						{subtitle}
+					</p>
+				)}
+			</ContentCardSection>
+			<ContentCardSection>
+				{isLoading ? (
+					<div className="h-44 animate-pulse rounded bg-muted/40" />
+				) : data.length === 0 ? (
+					<p className="py-12 text-center text-sm text-muted-foreground">
+						No data
+					</p>
+				) : (
+					<StatusPieChart
+						title=""
+						data={data}
+						colorMap={colorMap}
+						size="sm"
+						footer={footer}
+					/>
+				)}
+			</ContentCardSection>
+		</ContentCard>
 	);
 }
 
@@ -341,11 +325,7 @@ function useCustomerStatsQuery(organizationId: string | null) {
 				}
 			: disabledQuery(["customers", "stats"]),
 	);
-
-	return {
-		stats: query.data,
-		isLoading: query.isLoading,
-	};
+	return { stats: query.data, isLoading: query.isLoading };
 }
 
 function useWatcherStatsQuery(organizationId: string | null) {
@@ -356,11 +336,7 @@ function useWatcherStatsQuery(organizationId: string | null) {
 				})
 			: disabledQuery(["watchers", "getStats"]),
 	);
-
-	return {
-		stats: query.data,
-		isLoading: query.isLoading,
-	};
+	return { stats: query.data, isLoading: query.isLoading };
 }
 
 function useTaskStatsQuery(organizationId: string | null) {
@@ -371,11 +347,7 @@ function useTaskStatsQuery(organizationId: string | null) {
 				})
 			: disabledQuery(["tasks", "stats"]),
 	);
-
-	return {
-		stats: query.data,
-		isLoading: query.isLoading,
-	};
+	return { stats: query.data, isLoading: query.isLoading };
 }
 
 function useBillingStatsQuery(organizationId: string | null) {
@@ -386,9 +358,5 @@ function useBillingStatsQuery(organizationId: string | null) {
 				})
 			: disabledQuery(["billing", "payments", "stats"]),
 	);
-
-	return {
-		stats: query.data,
-		isLoading: query.isLoading,
-	};
+	return { stats: query.data, isLoading: query.isLoading };
 }
