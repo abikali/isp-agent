@@ -32,7 +32,12 @@ export const listServicePlans = protectedProcedure
 				"read",
 			);
 
-			const where: Record<string, unknown> = { organizationId };
+			const where: Record<string, unknown> = {
+				organizationId,
+				// Hide plans soft-deleted by the iRadius sync cleanup.
+				// `archived` is a separate, manually-toggled flag.
+				deletedAt: null,
+			};
 			if (!includeArchived) {
 				where["archived"] = false;
 			}

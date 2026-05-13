@@ -26,7 +26,11 @@ export const listDealers = adminProcedure
 		}),
 	)
 	.handler(async ({ input }) => {
-		const where: Record<string, unknown> = {};
+		const where: Record<string, unknown> = {
+			// Hide dealers soft-deleted by the global dealers-only sync
+			// cleanup (User row gone from iRadius).
+			deletedAt: null,
+		};
 
 		if (input.organizationId) {
 			where["organizationId"] = input.organizationId;

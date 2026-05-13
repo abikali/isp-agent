@@ -46,6 +46,8 @@ export const listEmployees = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Hide employees soft-deleted by the iRadius sync cleanup.
+			deletedAt: null,
 			...getDealerScopeFilter(activeDealerId),
 		};
 

@@ -43,6 +43,8 @@ export const listCollectors = protectedProcedure
 			where: {
 				organizationId: input.organizationId,
 				status: "ACTIVE",
+				// Match employee list — skip soft-deleted collectors.
+				deletedAt: null,
 				OR: [
 					{ ...dealerFilter, department: "BILLING" },
 					{ customerCollections: { some: dealerFilter } },

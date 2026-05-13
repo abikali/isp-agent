@@ -15,7 +15,10 @@ export const getDealerStats = adminProcedure
 		}),
 	)
 	.handler(async ({ input: { organizationId } }) => {
-		const base: Record<string, unknown> = {};
+		const base: Record<string, unknown> = {
+			// Match the dealer list — exclude soft-deleted dealers.
+			deletedAt: null,
+		};
 
 		if (organizationId) {
 			base["organizationId"] = organizationId;

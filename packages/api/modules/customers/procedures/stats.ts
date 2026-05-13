@@ -76,6 +76,8 @@ export const getCustomerStats = protectedProcedure
 			db.employee.count({
 				where: {
 					organizationId,
+					// Match the employees list/stats — skip soft-deleted rows.
+					deletedAt: null,
 					...getDealerScopeFilter(activeDealerId),
 				},
 			}),
@@ -133,6 +135,7 @@ export const getCustomerStats = protectedProcedure
 						AND c."status" = 'ACTIVE'
 						AND c."monthlyRate" IS NULL
 						AND c."dealerId" = ${activeDealerId}
+						AND c."deletedAt" IS NULL
 					`
 					: db.$queryRaw<[{ total: number | null }]>`
 						SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
@@ -142,6 +145,7 @@ export const getCustomerStats = protectedProcedure
 						AND c."status" = 'ACTIVE'
 						AND c."monthlyRate" IS NULL
 						AND c."dealerId" IS NULL
+						AND c."deletedAt" IS NULL
 					`,
 		]);
 

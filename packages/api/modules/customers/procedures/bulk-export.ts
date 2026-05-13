@@ -47,6 +47,11 @@ export const bulkExportCustomers = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Skip soft-deleted rows (iRadius `User` row gone, or `ParentId`
+			// now outside the org's allowed dealer subtree). They live in the
+			// table only as back-references for payments/installations and
+			// shouldn't show up in exports.
+			deletedAt: null,
 			...ownerFilter,
 			...getDealerScopeFilter(activeDealerId),
 		};

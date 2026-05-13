@@ -32,6 +32,10 @@ export const searchCustomersForPicker = protectedProcedure
 
 		const where: Prisma.CustomerWhereInput = {
 			organizationId: input.organizationId,
+			// Don't surface soft-deleted customers in pickers — assigning a
+			// task or payment to a customer that's been removed from iRadius
+			// would silently break the next sync.
+			deletedAt: null,
 			...getDealerScopeFilter(activeDealerId),
 		};
 

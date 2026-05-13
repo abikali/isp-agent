@@ -30,6 +30,8 @@ export const listStations = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Hide stations soft-deleted by the iRadius sync cleanup.
+			deletedAt: null,
 		};
 
 		if (input.online !== undefined) {

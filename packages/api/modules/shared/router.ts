@@ -82,6 +82,9 @@ const find = protectedProcedure
 					? db.customer.findMany({
 							where: {
 								organizationId: input.organizationId,
+								// Skip soft-deleted customers in global search —
+								// they're back-references only.
+								deletedAt: null,
 								OR: [
 									{
 										firstName: {
@@ -156,6 +159,8 @@ const find = protectedProcedure
 					? db.employee.findMany({
 							where: {
 								organizationId: input.organizationId,
+								// Match the employees list — skip soft-deleted.
+								deletedAt: null,
 								OR: [
 									{
 										name: {

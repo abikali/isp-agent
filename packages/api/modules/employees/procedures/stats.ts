@@ -27,6 +27,13 @@ export const getEmployeeStats = protectedProcedure
 		);
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
+		// Exclude soft-deleted employees from every count/group/find so stats
+		// match the employee list view.
+		const baseEmployeeWhere = {
+			organizationId,
+			deletedAt: null,
+			...dealerFilter,
+		};
 
 		const [
 			total,
@@ -37,34 +44,32 @@ export const getEmployeeStats = protectedProcedure
 			topCollectors,
 		] = await Promise.all([
 			db.employee.count({
-				where: { organizationId, ...dealerFilter },
+				where: baseEmployeeWhere,
 			}),
 			db.employee.count({
-				where: { organizationId, status: "ACTIVE", ...dealerFilter },
+				where: { ...baseEmployeeWhere, status: "ACTIVE" },
 			}),
 			db.employee.count({
-				where: { organizationId, status: "INACTIVE", ...dealerFilter },
+				where: { ...baseEmployeeWhere, status: "INACTIVE" },
 			}),
 			db.employee.count({
-				where: { organizationId, status: "ON_LEAVE", ...dealerFilter },
+				where: { ...baseEmployeeWhere, status: "ON_LEAVE" },
 			}),
 			db.employee.groupBy({
 				by: ["department"],
 				where: {
-					organizationId,
+					...baseEmployeeWhere,
 					status: "ACTIVE",
 					department: { not: null },
-					...dealerFilter,
 				},
 				_count: true,
 				orderBy: { _count: { department: "desc" } },
 			}),
 			db.employee.findMany({
 				where: {
-					organizationId,
+					...baseEmployeeWhere,
 					status: "ACTIVE",
 					department: "BILLING",
-					...dealerFilter,
 				},
 				select: {
 					id: true,

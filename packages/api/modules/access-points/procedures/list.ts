@@ -31,6 +31,8 @@ export const listAccessPoints = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Hide access points soft-deleted by the iRadius sync cleanup.
+			deletedAt: null,
 		};
 
 		if (input.stationId) {
