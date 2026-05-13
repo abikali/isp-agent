@@ -143,8 +143,8 @@ function PaginationBar({
 	const end = Math.min(currentPage * itemsPerPage, totalItems);
 
 	return (
-		<div className="flex flex-col items-center justify-between gap-3 px-1 pt-4 sm:flex-row">
-			<p className="text-sm text-muted-foreground">
+		<div className="flex flex-col items-center justify-between gap-2 border-t border-border bg-surface-subtle/40 px-3 py-2 sm:flex-row md:px-4">
+			<p className="text-xs text-muted-foreground">
 				Showing{" "}
 				<span className="font-medium text-foreground tabular-nums">
 					{start.toLocaleString()}–{end.toLocaleString()}
@@ -156,26 +156,26 @@ function PaginationBar({
 			</p>
 			<div className="flex items-center gap-1">
 				<Button
-					variant="outline"
-					size="sm"
+					variant="ghost"
+					size="icon"
 					onClick={() => onPageChange(1)}
 					disabled={currentPage <= 1}
 					aria-label="First page"
-					className="size-8 p-0"
+					className="size-7"
 				>
-					<ChevronsLeftIcon className="size-4" />
+					<ChevronsLeftIcon className="size-3.5" />
 				</Button>
 				<Button
-					variant="outline"
-					size="sm"
+					variant="ghost"
+					size="icon"
 					onClick={() => onPageChange(currentPage - 1)}
 					disabled={currentPage <= 1}
 					aria-label="Previous page"
-					className="size-8 p-0"
+					className="size-7"
 				>
-					<ChevronLeftIcon className="size-4" />
+					<ChevronLeftIcon className="size-3.5" />
 				</Button>
-				<span className="px-2 text-sm tabular-nums text-muted-foreground">
+				<span className="px-2 text-xs tabular-nums text-muted-foreground">
 					Page{" "}
 					<span className="font-medium text-foreground">
 						{currentPage}
@@ -186,24 +186,24 @@ function PaginationBar({
 					</span>
 				</span>
 				<Button
-					variant="outline"
-					size="sm"
+					variant="ghost"
+					size="icon"
 					onClick={() => onPageChange(currentPage + 1)}
 					disabled={currentPage >= pageCount}
 					aria-label="Next page"
-					className="size-8 p-0"
+					className="size-7"
 				>
-					<ChevronRightIcon className="size-4" />
+					<ChevronRightIcon className="size-3.5" />
 				</Button>
 				<Button
-					variant="outline"
-					size="sm"
+					variant="ghost"
+					size="icon"
 					onClick={() => onPageChange(pageCount)}
 					disabled={currentPage >= pageCount}
 					aria-label="Last page"
-					className="size-8 p-0"
+					className="size-7"
 				>
-					<ChevronsRightIcon className="size-4" />
+					<ChevronsRightIcon className="size-3.5" />
 				</Button>
 			</div>
 		</div>
@@ -456,7 +456,7 @@ export function DataTable<TData>({
 			)}
 			<div
 				className={cn(
-					"relative rounded-xl border bg-card overflow-hidden transition-opacity",
+					"relative transition-opacity",
 					isFetching && !isLoading && "opacity-80",
 					className,
 				)}
@@ -468,7 +468,7 @@ export function DataTable<TData>({
 					/>
 				)}
 				<Table>
-					<TableHeader className="bg-muted/30">
+					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
 							<TableRow
 								key={headerGroup.id}
@@ -495,7 +495,7 @@ export function DataTable<TData>({
 												<button
 													type="button"
 													className={cn(
-														"inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 -my-0.5 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+														"-mx-1.5 -my-0.5 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 														sorted &&
 															"text-foreground",
 													)}
@@ -540,7 +540,7 @@ export function DataTable<TData>({
 											: undefined
 									}
 									className={cn(
-										"hover:bg-muted/40 transition-colors",
+										"transition-colors hover:bg-accent/40",
 										getRowClassName?.(row),
 									)}
 								>
@@ -572,18 +572,17 @@ export function DataTable<TData>({
 						)}
 					</TableBody>
 				</Table>
+
+				{isManual && pagination && <PaginationBar {...pagination} />}
+				{enableClientPagination && table.getPageCount() > 1 && (
+					<PaginationBar
+						totalItems={data.length}
+						currentPage={table.getState().pagination.pageIndex + 1}
+						itemsPerPage={pageSize}
+						onPageChange={(p) => table.setPageIndex(p - 1)}
+					/>
+				)}
 			</div>
-
-			{isManual && pagination && <PaginationBar {...pagination} />}
-
-			{enableClientPagination && table.getPageCount() > 1 && (
-				<PaginationBar
-					totalItems={data.length}
-					currentPage={table.getState().pagination.pageIndex + 1}
-					itemsPerPage={pageSize}
-					onPageChange={(p) => table.setPageIndex(p - 1)}
-				/>
-			)}
 		</div>
 	);
 }
