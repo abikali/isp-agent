@@ -29,6 +29,7 @@ export {
 	useBulkExport,
 	useBulkImport,
 	useCreateCustomer,
+	useCustomerNetworkStatus,
 	useCustomerStats,
 	useCustomerStatsQuery,
 	useCustomers,

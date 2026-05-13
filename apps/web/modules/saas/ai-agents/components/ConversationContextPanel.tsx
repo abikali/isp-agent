@@ -1,5 +1,6 @@
 "use client";
 
+import { useCustomerNetworkStatus } from "@saas/customers/client";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery } from "@shared/lib/organization";
@@ -9,6 +10,11 @@ import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Skeleton } from "@ui/components/skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import {
 	ArrowUpRightIcon,
@@ -151,15 +157,72 @@ interface CustomerSummary {
 	accessPoint: { name: string } | null;
 }
 
+interface LiveNetworkStatus {
+	online: boolean;
+	uptime?: string | null;
+	signal?: string | null;
+}
+
+function NetworkStatusValue({
+	name,
+	live,
+	kind,
+}: {
+	name: string;
+	live: LiveNetworkStatus | null;
+	kind: "station" | "accessPoint";
+}) {
+	return (
+		<span className="inline-flex items-center justify-end gap-1.5">
+			<span className="min-w-0 truncate">{name}</span>
+			{live ? (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span>
+							<StatusIndicator
+								status={live.online ? "online" : "offline"}
+								variant="dot"
+								size="sm"
+							/>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent>{liveTooltip(live, kind)}</TooltipContent>
+				</Tooltip>
+			) : null}
+		</span>
+	);
+}
+
+function liveTooltip(
+	live: LiveNetworkStatus,
+	kind: "station" | "accessPoint",
+): string {
+	const lines: string[] = [
+		`Live from iRadius — ${live.online ? "online" : "offline"}`,
+	];
+	if (live.uptime) {
+		lines.push(`Uptime: ${live.uptime}`);
+	}
+	if (kind === "accessPoint" && live.signal) {
+		lines.push(`Signal: ${live.signal}`);
+	}
+	return lines.join(" · ");
+}
+
 function CustomerCard({
 	loading,
 	customer,
+	customerId,
 	organizationSlug,
 }: {
 	loading: boolean;
 	customer: CustomerSummary | null;
+	customerId: string;
 	organizationSlug: string;
 }) {
+	const { station: liveStation, accessPoint: liveAccessPoint } =
+		useCustomerNetworkStatus(customerId);
+
 	if (loading) {
 		return (
 			<div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
@@ -290,14 +353,26 @@ function CustomerCard({
 					<Row
 						label="Station"
 						icon={RadioTowerIcon}
-						value={customer.station.name}
+						value={
+							<NetworkStatusValue
+								name={customer.station.name}
+								live={liveStation}
+								kind="station"
+							/>
+						}
 					/>
 				)}
 				{customer.accessPoint?.name && (
 					<Row
 						label="Access point"
 						icon={WifiIcon}
-						value={customer.accessPoint.name}
+						value={
+							<NetworkStatusValue
+								name={customer.accessPoint.name}
+								live={liveAccessPoint}
+								kind="accessPoint"
+							/>
+						}
 					/>
 				)}
 				<Row
@@ -436,6 +511,7 @@ export function ConversationContextPanel({
 					<CustomerCard
 						loading={customerQuery.isLoading}
 						customer={customerSummary}
+						customerId={conversation.customer.id}
 						organizationSlug={organizationSlug}
 					/>
 				</Section>
