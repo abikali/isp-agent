@@ -10,6 +10,9 @@ export function getRouter() {
 		scrollRestoration: true,
 		defaultPendingMs: 150,
 		defaultPendingMinMs: 100,
+		// Enable native View Transitions API for soft route cross-fades.
+		// No-op on browsers that don't support startViewTransition.
+		defaultViewTransition: true,
 	});
 
 	// Initialize Sentry on client only, and only on deployed environments (not localhost)
