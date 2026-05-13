@@ -1,11 +1,14 @@
 import { cn } from "@ui/lib";
 import React from "react";
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
+export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+	ref?: React.Ref<HTMLInputElement>;
+};
 
-const Input = ({ className, type, ...props }: InputProps) => {
+const Input = ({ className, type, ref, ...props }: InputProps) => {
 	return (
 		<input
+			ref={ref}
 			type={type}
 			className={cn(
 				"flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors",

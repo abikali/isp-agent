@@ -1,5 +1,13 @@
+/* ============================================================================
+   LIBANCOM APP THEME — Dev-tool minimal (Resend / Trigger.dev / Supabase)
+   - Near-black dark mode with saturated indigo accent
+   - Monochrome light mode
+   - Token-only theming: NEVER use `dark:` overrides in components
+   - Borders > shadows for surface hierarchy
+   ============================================================================ */
+
 @theme {
-	/* Color mappings */
+	/* ---- Color mappings (Tailwind utility generation) ---- */
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -14,75 +22,142 @@
 	--color-muted-foreground: var(--muted-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
-	--color-success: var(--success);
-	--color-success-foreground: var(--success-foreground);
 	--color-destructive: var(--destructive);
 	--color-destructive-foreground: var(--destructive-foreground);
-	--color-border: var(--border);
-	--color-input: var(--input);
-	--color-ring: var(--ring);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
+	--color-info: var(--info);
+	--color-info-foreground: var(--info-foreground);
 	--color-highlight: var(--highlight);
 	--color-highlight-foreground: var(--highlight-foreground);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
 
-	/* Chart colors */
+	/* Connectivity status (replaces ad-hoc green/red literals) */
+	--color-online: var(--online);
+	--color-offline: var(--offline);
+	--color-idle: var(--idle);
+
+	/* Sidebar (shadcn sidebar primitive) */
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	/* Charts */
 	--color-chart-1: var(--chart-1);
 	--color-chart-2: var(--chart-2);
 	--color-chart-3: var(--chart-3);
 	--color-chart-4: var(--chart-4);
 	--color-chart-5: var(--chart-5);
 	--color-chart-6: var(--chart-6);
+	--color-chart-grid: var(--chart-grid);
+	--color-chart-axis: var(--chart-axis);
+	--color-chart-tooltip-bg: var(--chart-tooltip-bg);
 
-	/* Glass morphism colors */
+	/* Glass morphism (preserved for back-compat) */
 	--color-glass-bg: var(--glass-bg);
 	--color-glass-border: var(--glass-border);
 
-	/* Radius scale */
-	--radius-lg: var(--radius);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-xs: calc(var(--radius) - 6px);
+	/* ---- Radius scale (tighter dev-tool feel) ---- */
+	--radius-xs: calc(var(--radius) - 4px);
+	--radius-sm: calc(var(--radius) - 2px);
+	--radius-md: var(--radius);
+	--radius-lg: calc(var(--radius) + 2px);
+	--radius-xl: calc(var(--radius) + 6px);
 
-	/* Shadows */
-	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
-	--shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
-	--shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+	/* ---- Shadows (simplified — borders define hierarchy) ---- */
+	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
+	--shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
+	--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+	/* Back-compat aliases (used in legacy components — remove in Class Hygiene pass) */
 	--shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
 	--shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
 	--shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
-	--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-	--shadow-status-online: 0 0 0 3px rgba(34, 197, 94, 0.2);
-	--shadow-status-offline: 0 0 0 3px rgba(239, 68, 68, 0.2);
 
-	/* Animation timing */
+	/* ---- Motion tokens ---- */
+	--duration-fast: 120ms;
+	--duration-normal: 180ms;
+	--duration-slow: 280ms;
+	--duration-page: 220ms;
+	--ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 	--ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-	--duration-fast: 150ms;
-	--duration-normal: 200ms;
 
+	/* ---- Font families ---- */
+	--font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--font-mono: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+	/* ---- Animations (Radix) ---- */
 	--animation-accordion-down: accordion-down 0.2s ease-out;
 	--animation-accordion-up: accordion-up 0.2s ease-out;
+	--animation-fade-in: fade-in 0.18s var(--ease-out) forwards;
+	--animation-fade-up: fade-up 0.22s var(--ease-out) forwards;
+	--animation-scale-in: scale-in 0.18s var(--ease-out) forwards;
+	--animation-slide-in-right: slide-in-right 0.28s var(--ease-out) forwards;
+	--animation-slide-in-bottom: slide-in-bottom 0.28s var(--ease-out) forwards;
+	--animation-wiggle: wiggle 0.4s ease-in-out;
+	--animation-pulse-dot: pulse-dot 2s ease-in-out infinite;
+	--animation-shimmer: shimmer 1.8s linear infinite;
 
 	@keyframes accordion-down {
-		from {
-			height: 0;
-		}
-		to {
-			height: var(--radix-accordion-content-height);
-		}
+		from { height: 0; }
+		to { height: var(--radix-accordion-content-height); }
 	}
 	@keyframes accordion-up {
-		from {
-			height: var(--radix-accordion-content-height);
-		}
-		to {
-			height: 0;
-		}
+		from { height: var(--radix-accordion-content-height); }
+		to { height: 0; }
+	}
+	@keyframes fade-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+	@keyframes fade-up {
+		from { opacity: 0; transform: translateY(6px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	@keyframes scale-in {
+		from { opacity: 0; transform: scale(0.96); }
+		to { opacity: 1; transform: scale(1); }
+	}
+	@keyframes slide-in-right {
+		from { transform: translateX(100%); }
+		to { transform: translateX(0); }
+	}
+	@keyframes slide-in-bottom {
+		from { transform: translateY(100%); }
+		to { transform: translateY(0); }
+	}
+	@keyframes wiggle {
+		0%, 100% { transform: rotate(0); }
+		20% { transform: rotate(-8deg); }
+		40% { transform: rotate(6deg); }
+		60% { transform: rotate(-4deg); }
+		80% { transform: rotate(2deg); }
+	}
+	@keyframes pulse-dot {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.5; transform: scale(0.85); }
+	}
+	@keyframes shimmer {
+		0% { background-position: -200% 0; }
+		100% { background-position: 200% 0; }
 	}
 }
 
 @layer base {
 	:root {
-		/* Light Mode - Monochrome Black Palette */
+		/* ---- LIGHT MODE — monochrome zinc ---- */
 		--background: #fafafa;
 		--foreground: #09090b;
 		--card: #ffffff;
@@ -90,106 +165,140 @@
 		--popover: #ffffff;
 		--popover-foreground: #09090b;
 
-		/* Primary: Black */
 		--primary: #18181b;
 		--primary-foreground: #fafafa;
 
-		/* Secondary: Lightest surface */
 		--secondary: #f4f4f5;
 		--secondary-foreground: #18181b;
 
-		/* Muted: Slightly darker for distinction */
-		--muted: #e4e4e7;
-		--muted-foreground: #52525b; /* WCAG AA compliant ~5.0:1 */
+		--muted: #f4f4f5;
+		--muted-foreground: #52525b; /* WCAG AA ~5.0:1 on background */
 
-		/* Accent: Matches muted for hover states */
 		--accent: #e4e4e7;
 		--accent-foreground: #18181b;
 
-		/* Borders: Darker for visibility */
-		--border: #d4d4d8;
+		--border: #e4e4e7;
+		--border-strong: #d4d4d8;
 		--input: #d4d4d8;
 		--ring: #18181b;
 
-		/* Semantic colors */
+		/* Semantic */
 		--destructive: #ef4444;
 		--destructive-foreground: #fafafa;
-		--success: #22c55e;
+		--success: #10b981;
 		--success-foreground: #fafafa;
-		--highlight: #f59e0b;
+		--warning: #f59e0b;
+		--warning-foreground: #fafafa;
+		--info: #3b82f6;
+		--info-foreground: #fafafa;
+		--highlight: #f59e0b; /* alias for back-compat */
 		--highlight-foreground: #fafafa;
 
-		/* Radius */
-		--radius: 0.625rem;
+		/* Connectivity */
+		--online: #10b981;
+		--offline: #ef4444;
+		--idle: #f59e0b;
 
-		/* Glass morphism tokens */
+		/* Sidebar — slightly recessed surface */
+		--sidebar: #ffffff;
+		--sidebar-foreground: #18181b;
+		--sidebar-primary: #18181b;
+		--sidebar-primary-foreground: #fafafa;
+		--sidebar-accent: #f4f4f5;
+		--sidebar-accent-foreground: #18181b;
+		--sidebar-border: #e4e4e7;
+		--sidebar-ring: #18181b;
+
+		/* Charts */
+		--chart-1: #6366f1; /* indigo (brand) */
+		--chart-2: #3b82f6; /* blue */
+		--chart-3: #10b981; /* green */
+		--chart-4: #f59e0b; /* amber */
+		--chart-5: #8b5cf6; /* purple */
+		--chart-6: #06b6d4; /* cyan */
+		--chart-grid: #e4e4e7;
+		--chart-axis: #a1a1aa;
+		--chart-tooltip-bg: rgba(255, 255, 255, 0.96);
+
+		--radius: 0.5rem;
+
+		/* Glass */
 		--glass-bg: rgba(255, 255, 255, 0.8);
 		--glass-border: rgba(0, 0, 0, 0.08);
-
-		/* Chart colors - semantic colors for data visualization */
-		--chart-1: #18181b; /* Primary chart color */
-		--chart-2: #3b82f6; /* Blue */
-		--chart-3: #22c55e; /* Green */
-		--chart-4: #f59e0b; /* Amber */
-		--chart-5: #8b5cf6; /* Purple */
-		--chart-6: #06b6d4; /* Cyan */
 
 		/* fumadocs */
 		--fd-banner-height: 4.5rem;
 	}
 
 	.dark {
-		/* Dark Mode - Modern slate with indigo accent.
-		   Surfaces use a faint blue-slate undertone (not pure zinc) — easier on the eyes
-		   and gives the UI a premium, non-cold feel. Layering steps are intentional:
-		   background < card < popover < secondary < muted < accent. */
-		--background: #0b0d12;
+		/* ---- DARK MODE — near-black + saturated indigo (dev-tool minimal) ----
+		   Surface hierarchy by elevation:
+		   background < sidebar < card < secondary < muted < popover < accent */
+		--background: #08090b;
 		--foreground: #e8eaf0;
-		--card: #14171f;
+		--card: #0d0f13;
 		--card-foreground: #e8eaf0;
-		--popover: #181b25;
-		--popover-foreground: #e8eaf0;
+		--popover: #11141a;
+		--popover-foreground: #f2f4f9;
 
-		/* Primary: Vibrant indigo — brand-able accent for CTAs, replaces stark white */
-		--primary: #818cf8;
+		--primary: #6366f1; /* saturated indigo */
 		--primary-foreground: #0b0d12;
 
-		/* Secondary: Subtle elevated surface for chips, subtle blocks */
-		--secondary: #1e2230;
+		--secondary: #181b22;
 		--secondary-foreground: #e8eaf0;
 
-		/* Muted: Quiet surface; foreground meets WCAG AA (~5.4:1 on background) */
-		--muted: #232836;
-		--muted-foreground: #9ba3b8;
+		--muted: #1c1f27;
+		--muted-foreground: #a1a8b8; /* WCAG AA ~5.4:1 on background */
 
-		/* Accent: Hover surface — one step brighter than secondary for visible feedback */
-		--accent: #262b3b;
+		--accent: #232733;
 		--accent-foreground: #f2f4f9;
 
-		/* Borders: Slate with a hint of blue — visible against surfaces without harshness */
-		--border: #2a3040;
-		--input: #2a3040;
-		--ring: #818cf8; /* Matches primary so focus rings feel intentional */
+		--border: #1f2330;
+		--border-strong: #2a2f3d;
+		--input: #2a2f3d;
+		--ring: #6366f1;
 
-		/* Semantic colors — lighter-400 tones with dark foregrounds for AA+ contrast */
+		/* Semantic */
 		--destructive: #f87171;
 		--destructive-foreground: #1a0707;
 		--success: #4ade80;
 		--success-foreground: #052e14;
+		--warning: #fbbf24;
+		--warning-foreground: #422006;
+		--info: #60a5fa;
+		--info-foreground: #0c1e3a;
 		--highlight: #fbbf24;
 		--highlight-foreground: #422006;
 
-		/* Glass morphism — matches card tone, indigo-tinted border for cohesion */
-		--glass-bg: rgba(20, 23, 31, 0.75);
-		--glass-border: rgba(129, 140, 248, 0.14);
+		/* Connectivity */
+		--online: #4ade80;
+		--offline: #f87171;
+		--idle: #fbbf24;
 
-		/* Chart colors — cohesive, readable against new background */
-		--chart-1: #818cf8; /* Indigo — primary */
-		--chart-2: #60a5fa; /* Blue */
-		--chart-3: #4ade80; /* Green */
-		--chart-4: #fbbf24; /* Amber */
-		--chart-5: #c084fc; /* Purple */
-		--chart-6: #22d3ee; /* Cyan */
+		/* Sidebar — even darker than background for the "negative space" feel */
+		--sidebar: #0a0c10;
+		--sidebar-foreground: #d4d8e1;
+		--sidebar-primary: #6366f1;
+		--sidebar-primary-foreground: #f2f4f9;
+		--sidebar-accent: #181b22;
+		--sidebar-accent-foreground: #f2f4f9;
+		--sidebar-border: #1f2330;
+		--sidebar-ring: #6366f1;
+
+		/* Charts */
+		--chart-1: #818cf8;
+		--chart-2: #60a5fa;
+		--chart-3: #4ade80;
+		--chart-4: #fbbf24;
+		--chart-5: #c084fc;
+		--chart-6: #22d3ee;
+		--chart-grid: #1f2330;
+		--chart-axis: #6b7280;
+		--chart-tooltip-bg: rgba(13, 15, 19, 0.96);
+
+		/* Glass */
+		--glass-bg: rgba(13, 15, 19, 0.75);
+		--glass-border: rgba(99, 102, 241, 0.14);
 	}
 
 	*,
@@ -198,6 +307,73 @@
 	::backdrop,
 	::file-selector-button {
 		@apply border-border;
+	}
+
+	html {
+		font-family: var(--font-sans);
+		font-feature-settings: "cv11", "ss01", "ss03";
+	}
+
+	/* Apply tabular-nums to inputs and any element that wants aligned digits */
+	[data-tabular-nums],
+	.tabular-nums {
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+/* ---- App-level motion utilities ---- */
+@utility animate-fade-in {
+	animation: var(--animation-fade-in);
+}
+@utility animate-fade-up {
+	animation: var(--animation-fade-up);
+	opacity: 0;
+}
+@utility animate-scale-in {
+	animation: var(--animation-scale-in);
+	opacity: 0;
+}
+@utility animate-slide-in-right {
+	animation: var(--animation-slide-in-right);
+}
+@utility animate-slide-in-bottom {
+	animation: var(--animation-slide-in-bottom);
+}
+@utility animate-wiggle {
+	animation: var(--animation-wiggle);
+}
+@utility animate-pulse-dot {
+	animation: var(--animation-pulse-dot);
+}
+@utility animate-shimmer {
+	animation: var(--animation-shimmer);
+	background: linear-gradient(90deg, transparent 0%, var(--color-accent) 50%, transparent 100%);
+	background-size: 200% 100%;
+}
+
+/* Stagger delays for animated lists */
+@utility stagger-0 { animation-delay: 0ms; }
+@utility stagger-1 { animation-delay: 40ms; }
+@utility stagger-2 { animation-delay: 80ms; }
+@utility stagger-3 { animation-delay: 120ms; }
+@utility stagger-4 { animation-delay: 160ms; }
+@utility stagger-5 { animation-delay: 200ms; }
+@utility stagger-6 { animation-delay: 240ms; }
+@utility stagger-7 { animation-delay: 280ms; }
+
+/* Reduced motion for app animations */
+@media (prefers-reduced-motion: reduce) {
+	.animate-fade-in,
+	.animate-fade-up,
+	.animate-scale-in,
+	.animate-slide-in-right,
+	.animate-slide-in-bottom,
+	.animate-wiggle,
+	.animate-pulse-dot,
+	.animate-shimmer {
+		animation: none !important;
+		opacity: 1 !important;
+		transform: none !important;
 	}
 }
 
