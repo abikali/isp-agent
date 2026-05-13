@@ -16,11 +16,14 @@ import { notificationsRouter } from "../modules/notifications/router";
 import { organizationsRouter } from "../modules/organizations/router";
 import { paymentsRouter } from "../modules/payments/router";
 import { pushRouter } from "../modules/push/router";
+import { savedViewsRouter } from "../modules/saved-views/router";
 import { securityRouter } from "../modules/security/router";
 import { servicePlansRouter } from "../modules/service-plans/router";
 import { sessionsRouter } from "../modules/sessions/router";
+import { sharedRouter } from "../modules/shared/router";
 import { stationsRouter } from "../modules/stations/router";
 import { tasksRouter } from "../modules/tasks/router";
+import { userPrefsRouter } from "../modules/user-prefs/router";
 import { usersRouter } from "../modules/users/router";
 import { watchersRouter } from "../modules/watchers/router";
 import { webhooksRouter } from "../modules/webhooks/router";
@@ -49,8 +52,11 @@ export const router = publicProcedure.router({
 	sessions: sessionsRouter,
 	security: securityRouter,
 	servicePlans: servicePlansRouter,
+	shared: sharedRouter,
 	stations: stationsRouter,
 	tasks: tasksRouter,
+	userPrefs: userPrefsRouter,
+	savedViews: savedViewsRouter,
 	watchers: watchersRouter,
 });
 

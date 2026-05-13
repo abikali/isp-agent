@@ -4,6 +4,7 @@ import {
 	executeAccountTypeChangeProcedure,
 	previewAccountTypeChangeProcedure,
 } from "./procedures/change-account-type";
+import { getConnectivityStatus } from "./procedures/connectivity-status";
 import { createCustomer } from "./procedures/create";
 import { deleteCustomer } from "./procedures/delete";
 import { generateCustomerPin } from "./procedures/generate-pin";
@@ -65,6 +66,7 @@ export const customersRouter = {
 	update: updateCustomer,
 	delete: deleteCustomer,
 	stats: getCustomerStats,
+	connectivityStatus: getConnectivityStatus,
 	bulkImport: bulkImportCustomers,
 	bulkExport: bulkExportCustomers,
 	setPin: setCustomerPin,

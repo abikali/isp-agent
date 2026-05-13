@@ -243,6 +243,45 @@ model NotificationPreference {
   @@map("notification_preference")
 }
 
+// Per-user preferences for the redesigned dashboard (density, sidebar state,
+// pinned shortcuts, recent items cache, etc.). Stored as JSON values keyed by
+// preference name so we can add new prefs without migrations.
+model UserPref {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+  @@map("user_pref")
+}
+
+// Server-persisted saved views for list pages (customers, tasks, payments, etc.).
+// Stores filters / sort / columns / density. `pinned` adds the view as a quick
+// shortcut in the sidebar.
+model SavedView {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  resource       String
+  name           String
+  config         Json
+  pinned         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, resource, name])
+  @@index([userId, organizationId, resource])
+  @@index([organizationId])
+  @@map("saved_view")
+}
+
 model Organization {
   id                   String             @id @default(cuid())
   name                 String
@@ -295,6 +334,7 @@ model Organization {
   syncConflicts            SyncConflict[]
   saltiIntegration         SaltiIntegration?
   marketingBroadcasts      MarketingBroadcast[]
+  savedViews               SavedView[]
 
   // Dealer scope for queries through `getDealerScopeFilter` and friends.
   // When null, scoped queries match only orphan rows (`dealerId IS NULL`).
@@ -458,6 +498,8 @@ model User {
   installationsApproved Installation[]   @relation("InstallationApprover")
   resolvedConflicts     SyncConflict[]   @relation("ConflictResolver")
   pushSubscriptions     PushSubscription[]
+  userPrefs             UserPref[]
+  savedViews            SavedView[]
 
   @@map("user")
 }
