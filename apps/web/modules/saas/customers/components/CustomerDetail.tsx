@@ -1,6 +1,7 @@
 "use client";
 
 import { diffMirrorFields } from "@repo/api/modules/customers/lib/mirror-fields";
+import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
 import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
 import { MetricDisplay } from "@shared/components/MetricDisplay";
@@ -51,6 +52,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Separator } from "@ui/components/separator";
+import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
 import {
 	ActivityIcon,
@@ -60,6 +62,7 @@ import {
 	FileTextIcon,
 	NetworkIcon,
 	PlusIcon,
+	RadioTowerIcon,
 	RefreshCwIcon,
 	ServerIcon,
 	UserIcon,
@@ -83,7 +86,9 @@ import {
 	CONNECTION_TYPE_OPTIONS,
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
+import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
 import { CustomerInvoices } from "./CustomerInvoices";
+import { CustomerIradiusPanel } from "./CustomerIradiusPanel";
 import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerPayments } from "./CustomerPayments";
 import { CustomerTransactions } from "./CustomerTransactions";
@@ -495,6 +500,41 @@ export function CustomerDetail({
 							label: "Network",
 							icon: NetworkIcon,
 							content: <NetworkTab customer={customer} />,
+						},
+						{
+							id: "iradius",
+							label: "iRadius",
+							icon: RadioTowerIcon,
+							hidden: !customer.externalId,
+							content: (
+								<DetailSection
+									title="iRadius live"
+									description="Live connection status and bandwidth from the legacy RADIUS system"
+								>
+									<CustomerIradiusPanel
+										online={customer.online ?? false}
+										username={customer.username}
+										ipAddress={customer.ipAddress}
+										macAddress={customer.macAddress}
+										nasHost={customer.nasHost}
+										lastLogin={customer.lastLogin ?? null}
+										expiresAt={customer.expiresAt ?? null}
+										downloadBytes={
+											customer.downloadBytes ?? null
+										}
+										uploadBytes={
+											customer.uploadBytes ?? null
+										}
+										dailyDownloadBytes={
+											customer.dailyDownloadBytes ?? null
+										}
+										dailyUploadBytes={
+											customer.dailyUploadBytes ?? null
+										}
+										fupMode={customer.fupMode ?? null}
+									/>
+								</DetailSection>
+							),
 						},
 						{
 							id: "billing",
@@ -1633,6 +1673,27 @@ function ActivityTab({
 
 	return (
 		<>
+			<DetailSection
+				title="Recent activity"
+				description="Unified timeline across payments, invoices, location, tasks, and audit log"
+			>
+				<AsyncBoundary
+					fallback={
+						<div className="space-y-1.5">
+							{[0, 1, 2, 3, 4].map((i) => (
+								<Skeleton
+									key={i}
+									className="h-11 w-full rounded-md"
+								/>
+							))}
+						</div>
+					}
+					errorFallback="inline"
+				>
+					<CustomerActivityTimeline customerId={customerId} />
+				</AsyncBoundary>
+			</DetailSection>
+
 			{organizationId && (
 				<CustomerLocationSection
 					organizationId={organizationId}
