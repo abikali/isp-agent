@@ -6,6 +6,7 @@ import {
 } from "@shared/components/ContentCard";
 import { TopConsumersChart } from "@shared/components/charts";
 import { formatBytes } from "@shared/components/charts/chart-utils";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -18,12 +19,17 @@ import {
 	ActivityIcon,
 	AlertTriangleIcon,
 	ArrowUpRightIcon,
+	CalendarXIcon,
 	CheckCircleIcon,
 	CircleIcon,
 	GaugeIcon,
 	RadioIcon,
 	RouterIcon,
+	UsersIcon,
+	WifiIcon,
+	WifiOffIcon,
 	XCircleIcon,
+	ZapIcon,
 } from "lucide-react";
 
 function formatRelative(d: Date | string | null): string {
@@ -44,43 +50,6 @@ function formatRelative(d: Date | string | null): string {
 		return `${hrs}h ago`;
 	}
 	return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function StatBlock({
-	label,
-	value,
-	hint,
-	tone = "default",
-}: {
-	label: string;
-	value: string | number;
-	hint?: string;
-	tone?: "default" | "success" | "warning" | "danger";
-}) {
-	const toneClasses = {
-		default: "text-foreground",
-		success: "text-success",
-		warning: "text-warning",
-		danger: "text-destructive",
-	};
-	return (
-		<div className="space-y-1">
-			<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-				{label}
-			</div>
-			<div
-				className={cn(
-					"text-2xl font-medium tabular-nums tracking-tight",
-					toneClasses[tone],
-				)}
-			>
-				{value}
-			</div>
-			{hint && (
-				<div className="text-xs text-muted-foreground">{hint}</div>
-			)}
-		</div>
-	);
 }
 
 export function IRadiusControlCenter() {
@@ -129,113 +98,123 @@ function IRadiusControlCenterInner({
 	const stationsOnline = nas.stations.filter((s) => s.online).length;
 	const apsOnline = nas.accessPoints.filter((a) => a.online).length;
 
+	const onlinePct =
+		health.liveStats &&
+		health.liveStats.online + health.liveStats.offline > 0
+			? Math.round(
+					(health.liveStats.online /
+						(health.liveStats.online + health.liveStats.offline)) *
+						100,
+				)
+			: 0;
+
 	return (
 		<div className="space-y-6">
-			<ContentCard>
-				<ContentCardSection>
-					<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-						<div className="flex items-center gap-3">
-							<div
-								className={cn(
-									"flex size-10 items-center justify-center rounded-md",
-									health.ok
-										? "bg-success/10 text-success"
-										: "bg-destructive/10 text-destructive",
-								)}
-							>
-								{health.ok ? (
-									<CheckCircleIcon className="size-5" />
-								) : (
-									<XCircleIcon className="size-5" />
-								)}
-							</div>
-							<div>
-								<div className="text-sm font-medium">
-									iRadius{" "}
-									{health.ok
-										? "is reachable"
-										: "is unreachable"}
-								</div>
-								<div className="text-xs text-muted-foreground">
-									Probed in {health.latencyMs}ms · last sync{" "}
-									{lastSyncRelative}
-								</div>
-							</div>
-						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() =>
-								navigate({
-									to: "/app/$organizationSlug/settings/iradius",
-									params: {
-										organizationSlug:
-											organizationSlug ?? "",
-									},
-								})
-							}
-						>
-							Open sync settings
-							<ArrowUpRightIcon className="ml-1.5 size-3.5" />
-						</Button>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div className="flex items-center gap-3">
+					<div
+						className={cn(
+							"flex size-8 items-center justify-center rounded-md",
+							health.ok
+								? "bg-success/10 text-success"
+								: "bg-destructive/10 text-destructive",
+						)}
+					>
+						{health.ok ? (
+							<CheckCircleIcon className="size-4" />
+						) : (
+							<XCircleIcon className="size-4" />
+						)}
 					</div>
-				</ContentCardSection>
-				{health.liveStats && (
-					<ContentCardSection>
-						<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-							<StatBlock
-								label="Online now"
-								value={health.liveStats.online.toLocaleString()}
-								hint={`of ${health.liveStats.totalSubscribers.toLocaleString()} subscribers`}
-								tone="success"
-							/>
-							<StatBlock
-								label="Offline"
-								value={health.liveStats.offline.toLocaleString()}
-								tone="default"
-							/>
-							<StatBlock
-								label="Expired"
-								value={health.liveStats.expired.toLocaleString()}
-								tone="warning"
-							/>
-							<StatBlock
-								label="In FUP"
-								value={health.liveStats.fup.toLocaleString()}
-								tone="warning"
-							/>
+					<div>
+						<div className="text-sm font-medium">
+							{health.ok
+								? "iRadius is reachable"
+								: "iRadius is unreachable"}
 						</div>
-					</ContentCardSection>
-				)}
-				{syncs.pendingConflicts > 0 && (
-					<ContentCardSection>
-						<div className="flex items-center gap-3 rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
-							<AlertTriangleIcon className="size-4 text-warning" />
-							<span className="flex-1 text-sm">
-								{syncs.pendingConflicts} unresolved sync
-								conflict
-								{syncs.pendingConflicts === 1 ? "" : "s"}
-							</span>
-							<Button
-								size="sm"
-								variant="ghost"
-								onClick={() =>
-									navigate({
-										to: "/app/$organizationSlug/customers",
-										params: {
-											organizationSlug:
-												organizationSlug ?? "",
-										},
-										search: { conflicts: "1" } as never,
-									})
-								}
-							>
-								Review
-							</Button>
+						<div className="text-xs text-muted-foreground">
+							Probed in {health.latencyMs}ms · last sync{" "}
+							{lastSyncRelative}
 						</div>
-					</ContentCardSection>
-				)}
-			</ContentCard>
+					</div>
+				</div>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() =>
+						navigate({
+							to: "/app/$organizationSlug/settings/iradius",
+							params: {
+								organizationSlug: organizationSlug ?? "",
+							},
+						})
+					}
+				>
+					Open sync settings
+					<ArrowUpRightIcon className="ml-1.5 size-3.5" />
+				</Button>
+			</div>
+
+			{health.liveStats && (
+				<MetricStrip columns={6}>
+					<MetricCard
+						label="Online now"
+						value={health.liveStats.online.toLocaleString()}
+						icon={WifiIcon}
+						tone="success"
+						hint={`${onlinePct}% of subscribers`}
+					/>
+					<MetricCard
+						label="Offline"
+						value={health.liveStats.offline.toLocaleString()}
+						icon={WifiOffIcon}
+					/>
+					<MetricCard
+						label="Active"
+						value={health.liveStats.active.toLocaleString()}
+						icon={UsersIcon}
+						tone="info"
+						hint={`of ${health.liveStats.totalSubscribers.toLocaleString()}`}
+					/>
+					<MetricCard
+						label="Expired"
+						value={health.liveStats.expired.toLocaleString()}
+						icon={CalendarXIcon}
+						tone={
+							health.liveStats.expired > 0 ? "warning" : "default"
+						}
+					/>
+					<MetricCard
+						label="In FUP"
+						value={health.liveStats.fup.toLocaleString()}
+						icon={ZapIcon}
+						tone={health.liveStats.fup > 0 ? "warning" : "default"}
+					/>
+					<MetricCard
+						label="Pending conflicts"
+						value={syncs.pendingConflicts}
+						icon={AlertTriangleIcon}
+						tone={
+							syncs.pendingConflicts > 0 ? "warning" : "default"
+						}
+						onClick={
+							syncs.pendingConflicts > 0
+								? () =>
+										navigate({
+											to: "/app/$organizationSlug/customers",
+											params: {
+												organizationSlug:
+													organizationSlug ?? "",
+											},
+											search: {
+												conflicts: "1",
+											} as never,
+										})
+								: undefined
+						}
+					/>
+				</MetricStrip>
+			)}
 
 			<div className="grid gap-6 lg:grid-cols-3">
 				<ContentCard className="lg:col-span-2">
