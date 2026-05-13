@@ -4,13 +4,13 @@ import type { PermissionRecord } from "@repo/auth/permissions";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useUpdateRoleMutation } from "../../hooks/use-roles";
@@ -86,20 +86,23 @@ export function EditRoleDialog({
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[90vh] w-full sm:max-w-3xl overflow-y-auto">
-				<DialogHeader>
-					<DialogTitle>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-3xl"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>
 						Edit Role{" "}
 						<span className="font-mono text-muted-foreground">
 							{role?.name}
 						</span>
-					</DialogTitle>
-					<DialogDescription>
+					</SheetTitle>
+					<SheetDescription>
 						Update the permissions for this role. Changes apply
 						immediately to all members with this role.
-					</DialogDescription>
-				</DialogHeader>
+					</SheetDescription>
+				</SheetHeader>
 
 				<form
 					onSubmit={(e) => {
@@ -107,18 +110,22 @@ export function EditRoleDialog({
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
-					className="space-y-6"
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<form.Field name="permissions">
-						{(field) => (
-							<RolePermissionsGrid
-								value={field.state.value as PermissionRecord}
-								onChange={(v) => field.handleChange(v)}
-							/>
-						)}
-					</form.Field>
+					<div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+						<form.Field name="permissions">
+							{(field) => (
+								<RolePermissionsGrid
+									value={
+										field.state.value as PermissionRecord
+									}
+									onChange={(v) => field.handleChange(v)}
+								/>
+							)}
+						</form.Field>
+					</div>
 
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -129,9 +136,9 @@ export function EditRoleDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Saving..." : "Save Changes"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

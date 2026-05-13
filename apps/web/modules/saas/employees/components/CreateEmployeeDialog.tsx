@@ -4,13 +4,6 @@ import { emailSchema } from "@repo/api/lib/validation";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -21,6 +14,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
 import { toast } from "sonner";
 import { useCreateEmployee } from "../hooks/use-employees";
@@ -85,78 +85,154 @@ export function CreateEmployeeDialog({
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Add Employee</DialogTitle>
-				</DialogHeader>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Add Employee</SheetTitle>
+				</SheetHeader>
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
-					className="space-y-4"
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<form.Field name="name">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="emp-name">Name *</Label>
-								<Input
-									id="emp-name"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Full name"
-								/>
-							</div>
-						)}
-					</form.Field>
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+						<form.Field name="name">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="emp-name">Name *</Label>
+									<Input
+										id="emp-name"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Full name"
+									/>
+								</div>
+							)}
+						</form.Field>
 
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field
-							name="email"
-							validators={{
-								onBlur: emailSchema,
-							}}
-						>
-							{(field) => {
-								const hasErrors =
-									field.state.meta.isTouched &&
-									field.state.meta.errors.length > 0;
-								return (
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field
+								name="email"
+								validators={{
+									onBlur: emailSchema,
+								}}
+							>
+								{(field) => {
+									const hasErrors =
+										field.state.meta.isTouched &&
+										field.state.meta.errors.length > 0;
+									return (
+										<div className="space-y-2">
+											<Label htmlFor="emp-email">
+												Email
+											</Label>
+											<Input
+												id="emp-email"
+												type="email"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={field.handleBlur}
+												aria-invalid={
+													hasErrors || undefined
+												}
+											/>
+											{hasErrors && (
+												<FieldError
+													errors={
+														field.state.meta.errors
+													}
+												/>
+											)}
+										</div>
+									);
+								}}
+							</form.Field>
+							<form.Field name="phone">
+								{(field) => (
 									<div className="space-y-2">
-										<Label htmlFor="emp-email">Email</Label>
+										<Label htmlFor="emp-phone">Phone</Label>
 										<Input
-											id="emp-email"
-											type="email"
+											id="emp-phone"
 											value={field.state.value}
 											onChange={(e) =>
 												field.handleChange(
 													e.target.value,
 												)
 											}
-											onBlur={field.handleBlur}
-											aria-invalid={
-												hasErrors || undefined
-											}
 										/>
-										{hasErrors && (
-											<FieldError
-												errors={field.state.meta.errors}
-											/>
-										)}
 									</div>
-								);
-							}}
-						</form.Field>
-						<form.Field name="phone">
+								)}
+							</form.Field>
+						</div>
+
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field name="position">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="emp-position">
+											Position
+										</Label>
+										<Input
+											id="emp-position"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+											placeholder="e.g. Network Technician"
+										/>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="department">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Department</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select department" />
+											</SelectTrigger>
+											<SelectContent>
+												{EMPLOYEE_DEPARTMENT_OPTIONS.map(
+													(opt) => (
+														<SelectItem
+															key={opt.value}
+															value={opt.value}
+														>
+															{opt.label}
+														</SelectItem>
+													),
+												)}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+						</div>
+
+						<form.Field name="hireDate">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="emp-phone">Phone</Label>
+									<Label htmlFor="emp-hire">Hire Date</Label>
 									<Input
-										id="emp-phone"
+										id="emp-hire"
+										type="date"
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
@@ -165,88 +241,24 @@ export function CreateEmployeeDialog({
 								</div>
 							)}
 						</form.Field>
-					</div>
 
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="position">
+						<form.Field name="notes">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="emp-position">
-										Position
-									</Label>
-									<Input
-										id="emp-position"
+									<Label htmlFor="emp-notes">Notes</Label>
+									<Textarea
+										id="emp-notes"
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
 										}
-										placeholder="e.g. Network Technician"
+										rows={2}
 									/>
 								</div>
 							)}
 						</form.Field>
-						<form.Field name="department">
-							{(field) => (
-								<div className="space-y-2">
-									<Label>Department</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select department" />
-										</SelectTrigger>
-										<SelectContent>
-											{EMPLOYEE_DEPARTMENT_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
-											)}
-										</SelectContent>
-									</Select>
-								</div>
-							)}
-						</form.Field>
 					</div>
-
-					<form.Field name="hireDate">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="emp-hire">Hire Date</Label>
-								<Input
-									id="emp-hire"
-									type="date"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<form.Field name="notes">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="emp-notes">Notes</Label>
-								<Textarea
-									id="emp-notes"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									rows={2}
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -257,9 +269,9 @@ export function CreateEmployeeDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Creating..." : "Add Employee"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

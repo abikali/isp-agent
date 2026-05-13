@@ -11,6 +11,8 @@ const Sheet = SheetPrimitive.Root;
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
+const SheetClose = SheetPrimitive.Close;
+
 const SheetPortal = ({ ...props }: SheetPrimitive.DialogPortalProps) => (
 	<SheetPrimitive.Portal {...props} />
 );
@@ -105,10 +107,25 @@ const SheetDescription = ({
 	/>
 );
 
+const SheetFooter = ({
+	className,
+	...props
+}: React.HTMLAttributes<HTMLDivElement>) => (
+	<div
+		className={cn(
+			"flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+			className,
+		)}
+		{...props}
+	/>
+);
+
 export {
 	Sheet,
+	SheetClose,
 	SheetContent,
 	SheetDescription,
+	SheetFooter,
 	SheetHeader,
 	SheetTitle,
 	SheetTrigger,

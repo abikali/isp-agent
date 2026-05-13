@@ -3,14 +3,6 @@
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import {
@@ -20,6 +12,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreateWatcher } from "../hooks/use-watchers";
@@ -106,15 +106,18 @@ export function CreateWatcherDialog({
 	const watcherType = useStore(form.store, (s) => s.values.type);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Create Watcher</DialogTitle>
-					<DialogDescription>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Create Watcher</SheetTitle>
+					<SheetDescription>
 						Set up a new infrastructure monitor. It will start
 						checking immediately after creation.
-					</DialogDescription>
-				</DialogHeader>
+					</SheetDescription>
+				</SheetHeader>
 
 				<form
 					onSubmit={(e) => {
@@ -122,8 +125,9 @@ export function CreateWatcherDialog({
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<div className="space-y-4 py-4">
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
 						<form.Field name="name">
 							{(field) => (
 								<Field>
@@ -362,7 +366,7 @@ export function CreateWatcherDialog({
 						</div>
 					</div>
 
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -373,9 +377,9 @@ export function CreateWatcherDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Creating..." : "Create Watcher"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

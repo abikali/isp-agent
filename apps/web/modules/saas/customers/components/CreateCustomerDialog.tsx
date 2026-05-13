@@ -4,13 +4,6 @@ import { emailSchema } from "@repo/api/lib/validation";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -22,6 +15,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useCreateCustomer } from "../hooks/use-customers";
@@ -179,293 +179,305 @@ export function CreateCustomerDialog({
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Add Customer</DialogTitle>
-				</DialogHeader>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Add Customer</SheetTitle>
+				</SheetHeader>
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
-					className="space-y-4"
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="firstName">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-fname">
-										First Name *
-									</Label>
-									<Input
-										id="cust-fname"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="lastName">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="cust-lname">
-										Last Name
-									</Label>
-									<Input
-										id="cust-lname"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-					</div>
-
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field
-							name="email"
-							validators={{
-								onBlur: emailSchema,
-							}}
-						>
-							{(field) => {
-								const hasErrors =
-									field.state.meta.isTouched &&
-									field.state.meta.errors.length > 0;
-								return (
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field name="firstName">
+								{(field) => (
 									<div className="space-y-2">
-										<Label htmlFor="cust-email">
-											Email
+										<Label htmlFor="cust-fname">
+											First Name *
 										</Label>
 										<Input
-											id="cust-email"
-											type="email"
+											id="cust-fname"
 											value={field.state.value}
 											onChange={(e) =>
 												field.handleChange(
 													e.target.value,
 												)
 											}
-											onBlur={field.handleBlur}
-											aria-invalid={
-												hasErrors || undefined
+										/>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="lastName">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="cust-lname">
+											Last Name
+										</Label>
+										<Input
+											id="cust-lname"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
 											}
 										/>
-										{hasErrors && (
-											<FieldError
-												errors={field.state.meta.errors}
-											/>
-										)}
 									</div>
-								);
-							}}
-						</form.Field>
-					</div>
+								)}
+							</form.Field>
+						</div>
 
-					<PhoneFieldsCreate form={form} />
-
-					<form.Field name="address">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-address">Address</Label>
-								<Input
-									id="cust-address"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="planId">
-							{(field) => (
-								<div className="space-y-2">
-									<Label>Plan</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select plan" />
-										</SelectTrigger>
-										<SelectContent>
-											{plans.map((p) => (
-												<SelectItem
-													key={p.id}
-													value={p.id}
-												>
-													{p.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="stationId">
-							{(field) => (
-								<div className="space-y-2">
-									<Label>Station</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select station" />
-										</SelectTrigger>
-										<SelectContent>
-											{stations.map((s) => (
-												<SelectItem
-													key={s.id}
-													value={s.id}
-												>
-													{s.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							)}
-						</form.Field>
-					</div>
-
-					<div className="grid gap-4 sm:grid-cols-2">
-						<form.Field name="status">
-							{(field) => (
-								<div className="space-y-2">
-									<Label>Status</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{CUSTOMER_STATUS_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field
+								name="email"
+								validators={{
+									onBlur: emailSchema,
+								}}
+							>
+								{(field) => {
+									const hasErrors =
+										field.state.meta.isTouched &&
+										field.state.meta.errors.length > 0;
+									return (
+										<div className="space-y-2">
+											<Label htmlFor="cust-email">
+												Email
+											</Label>
+											<Input
+												id="cust-email"
+												type="email"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={field.handleBlur}
+												aria-invalid={
+													hasErrors || undefined
+												}
+											/>
+											{hasErrors && (
+												<FieldError
+													errors={
+														field.state.meta.errors
+													}
+												/>
 											)}
-										</SelectContent>
-									</Select>
+										</div>
+									);
+								}}
+							</form.Field>
+						</div>
+
+						<PhoneFieldsCreate form={form} />
+
+						<form.Field name="address">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="cust-address">
+										Address
+									</Label>
+									<Input
+										id="cust-address"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
 								</div>
 							)}
 						</form.Field>
-						<form.Field name="connectionType">
+
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field name="planId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Plan</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select plan" />
+											</SelectTrigger>
+											<SelectContent>
+												{plans.map((p) => (
+													<SelectItem
+														key={p.id}
+														value={p.id}
+													>
+														{p.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="stationId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Station</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select station" />
+											</SelectTrigger>
+											<SelectContent>
+												{stations.map((s) => (
+													<SelectItem
+														key={s.id}
+														value={s.id}
+													>
+														{s.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+						</div>
+
+						<div className="grid gap-4 sm:grid-cols-2">
+							<form.Field name="status">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Status</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{CUSTOMER_STATUS_OPTIONS.map(
+													(opt) => (
+														<SelectItem
+															key={opt.value}
+															value={opt.value}
+														>
+															{opt.label}
+														</SelectItem>
+													),
+												)}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="connectionType">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Connection Type</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="Select type" />
+											</SelectTrigger>
+											<SelectContent>
+												{CONNECTION_TYPE_OPTIONS.map(
+													(opt) => (
+														<SelectItem
+															key={opt.value}
+															value={opt.value}
+														>
+															{opt.label}
+														</SelectItem>
+													),
+												)}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+						</div>
+
+						<form.Field name="username">
 							{(field) => (
 								<div className="space-y-2">
-									<Label>Connection Type</Label>
-									<Select
+									<Label htmlFor="cust-user">
+										PPPoE Username
+									</Label>
+									<Input
+										id="cust-user"
 										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select type" />
-										</SelectTrigger>
-										<SelectContent>
-											{CONNECTION_TYPE_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
-											)}
-										</SelectContent>
-									</Select>
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)}
+						</form.Field>
+
+						<form.Field name="groupName">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="cust-group">Group</Label>
+									<Input
+										id="cust-group"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="e.g. Residential, Business"
+									/>
+								</div>
+							)}
+						</form.Field>
+
+						<form.Field name="monthlyRate">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="cust-rate">
+										Monthly Rate Override ($)
+									</Label>
+									<Input
+										id="cust-rate"
+										type="number"
+										min={0}
+										step="0.01"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Use plan price"
+									/>
+								</div>
+							)}
+						</form.Field>
+
+						<form.Field name="notes">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="cust-notes">Notes</Label>
+									<Textarea
+										id="cust-notes"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										rows={2}
+									/>
 								</div>
 							)}
 						</form.Field>
 					</div>
-
-					<form.Field name="username">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-user">
-									PPPoE Username
-								</Label>
-								<Input
-									id="cust-user"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<form.Field name="groupName">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-group">Group</Label>
-								<Input
-									id="cust-group"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="e.g. Residential, Business"
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<form.Field name="monthlyRate">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-rate">
-									Monthly Rate Override ($)
-								</Label>
-								<Input
-									id="cust-rate"
-									type="number"
-									min={0}
-									step="0.01"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Use plan price"
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<form.Field name="notes">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="cust-notes">Notes</Label>
-								<Textarea
-									id="cust-notes"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									rows={2}
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -476,9 +488,9 @@ export function CreateCustomerDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Creating..." : "Add Customer"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

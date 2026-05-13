@@ -4,14 +4,6 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import {
@@ -22,6 +14,14 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Separator } from "@ui/components/separator";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
 import { toast } from "sonner";
 import { useCreateAgent } from "../hooks/use-agents";
@@ -71,16 +71,19 @@ export function CreateAgentDialog({
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Create AI Agent</DialogTitle>
-					<DialogDescription>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-2xl"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Create AI Agent</SheetTitle>
+					<SheetDescription>
 						Set up a new AI agent to handle conversations
 						automatically. You can configure advanced settings
 						later.
-					</DialogDescription>
-				</DialogHeader>
+					</SheetDescription>
+				</SheetHeader>
 
 				<form
 					onSubmit={(e) => {
@@ -88,8 +91,9 @@ export function CreateAgentDialog({
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<div className="space-y-4 py-4">
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
 						<form.Field name="name">
 							{(field) => (
 								<Field>
@@ -193,7 +197,7 @@ export function CreateAgentDialog({
 						</form.Field>
 					</div>
 
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -204,9 +208,9 @@ export function CreateAgentDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Creating..." : "Create Agent"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

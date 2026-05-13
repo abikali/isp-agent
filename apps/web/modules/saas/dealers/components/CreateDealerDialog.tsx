@@ -5,13 +5,6 @@ import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -22,6 +15,13 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { toast } from "sonner";
 import { useCreateDealer, useDealersQuery } from "../hooks/use-dealers";
 
@@ -91,144 +91,176 @@ export function CreateDealerDialog({
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Add Dealer</DialogTitle>
-				</DialogHeader>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Add Dealer</SheetTitle>
+				</SheetHeader>
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
-					className="space-y-4"
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<form.Field name="organizationId">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Organization</Label>
-								<Select
-									value={field.state.value}
-									onValueChange={field.handleChange}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="No organization (assign later)" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">
-											No organization (assign later)
-										</SelectItem>
-										{organizations.map((org) => (
-											<SelectItem
-												key={org.id}
-												value={org.id}
-											>
-												{org.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-					</form.Field>
-
-					<form.Field name="name">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="dealer-name">Name *</Label>
-								<Input
-									id="dealer-name"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Dealer name"
-								/>
-							</div>
-						)}
-					</form.Field>
-
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<form.Field name="username">
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+						<form.Field name="organizationId">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="dealer-username">
-										Username
-									</Label>
+									<Label>Organization</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="No organization (assign later)" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">
+												No organization (assign later)
+											</SelectItem>
+											{organizations.map((org) => (
+												<SelectItem
+													key={org.id}
+													value={org.id}
+												>
+													{org.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
+						</form.Field>
+
+						<form.Field name="name">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="dealer-name">Name *</Label>
 									<Input
-										id="dealer-username"
+										id="dealer-name"
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
 										}
+										placeholder="Dealer name"
 									/>
 								</div>
 							)}
 						</form.Field>
-						<form.Field
-							name="email"
-							validators={{
-								onBlur: emailSchema,
-							}}
-						>
-							{(field) => {
-								const hasErrors =
-									field.state.meta.isTouched &&
-									field.state.meta.errors.length > 0;
-								return (
+
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<form.Field name="username">
+								{(field) => (
 									<div className="space-y-2">
-										<Label htmlFor="dealer-email">
-											Email
+										<Label htmlFor="dealer-username">
+											Username
 										</Label>
 										<Input
-											id="dealer-email"
-											type="email"
+											id="dealer-username"
 											value={field.state.value}
 											onChange={(e) =>
 												field.handleChange(
 													e.target.value,
 												)
 											}
-											onBlur={field.handleBlur}
-											aria-invalid={
-												hasErrors || undefined
+										/>
+									</div>
+								)}
+							</form.Field>
+							<form.Field
+								name="email"
+								validators={{
+									onBlur: emailSchema,
+								}}
+							>
+								{(field) => {
+									const hasErrors =
+										field.state.meta.isTouched &&
+										field.state.meta.errors.length > 0;
+									return (
+										<div className="space-y-2">
+											<Label htmlFor="dealer-email">
+												Email
+											</Label>
+											<Input
+												id="dealer-email"
+												type="email"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={field.handleBlur}
+												aria-invalid={
+													hasErrors || undefined
+												}
+											/>
+											{hasErrors && (
+												<FieldError
+													errors={
+														field.state.meta.errors
+													}
+												/>
+											)}
+										</div>
+									);
+								}}
+							</form.Field>
+						</div>
+
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<form.Field name="phone">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="dealer-phone">
+											Phone
+										</Label>
+										<Input
+											id="dealer-phone"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
 											}
 										/>
-										{hasErrors && (
-											<FieldError
-												errors={field.state.meta.errors}
-											/>
-										)}
 									</div>
-								);
-							}}
-						</form.Field>
-					</div>
+								)}
+							</form.Field>
+							<form.Field name="companyName">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="dealer-company">
+											Company Name
+										</Label>
+										<Input
+											id="dealer-company"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</div>
+								)}
+							</form.Field>
+						</div>
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<form.Field name="phone">
+						<form.Field name="companyAddress">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="dealer-phone">Phone</Label>
-									<Input
-										id="dealer-phone"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="companyName">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="dealer-company">
-										Company Name
+									<Label htmlFor="dealer-address">
+										Company Address
 									</Label>
 									<Input
-										id="dealer-company"
+										id="dealer-address"
 										value={field.state.value}
 										onChange={(e) =>
 											field.handleChange(e.target.value)
@@ -237,87 +269,76 @@ export function CreateDealerDialog({
 								</div>
 							)}
 						</form.Field>
-					</div>
 
-					<form.Field name="companyAddress">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor="dealer-address">
-									Company Address
-								</Label>
-								<Input
-									id="dealer-address"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-							</div>
-						)}
-					</form.Field>
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<form.Field name="companyPhone">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="dealer-cphone">
+											Company Phone
+										</Label>
+										<Input
+											id="dealer-cphone"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="companyMobile">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="dealer-cmobile">
+											Company Mobile
+										</Label>
+										<Input
+											id="dealer-cmobile"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</div>
+								)}
+							</form.Field>
+						</div>
 
-					<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<form.Field name="companyPhone">
+						<form.Field name="parentDealerId">
 							{(field) => (
 								<div className="space-y-2">
-									<Label htmlFor="dealer-cphone">
-										Company Phone
-									</Label>
-									<Input
-										id="dealer-cphone"
+									<Label>Parent Dealer</Label>
+									<Select
 										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-						<form.Field name="companyMobile">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="dealer-cmobile">
-										Company Mobile
-									</Label>
-									<Input
-										id="dealer-cmobile"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
-					</div>
-
-					<form.Field name="parentDealerId">
-						{(field) => (
-							<div className="space-y-2">
-								<Label>Parent Dealer</Label>
-								<Select
-									value={field.state.value}
-									onValueChange={field.handleChange}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="None" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">
-											None
-										</SelectItem>
-										{parentDealers.map((d) => (
-											<SelectItem key={d.id} value={d.id}>
-												{d.name}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue placeholder="None" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="none">
+												None
 											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						)}
-					</form.Field>
-
-					<DialogFooter>
+											{parentDealers.map((d) => (
+												<SelectItem
+													key={d.id}
+													value={d.id}
+												>
+													{d.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
+						</form.Field>
+					</div>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -328,9 +349,9 @@ export function CreateDealerDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Creating..." : "Add Dealer"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

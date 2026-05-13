@@ -2,14 +2,6 @@
 
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@ui/components/dialog";
 import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import {
@@ -19,6 +11,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetFooter,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { toast } from "sonner";
 import { useCreateChannel } from "../hooks/use-channels";
 import { PROVIDER_OPTIONS } from "../lib/constants";
@@ -92,14 +92,17 @@ export function CreateChannelDialog({
 	const tokenConfig = PROVIDER_TOKEN_CONFIG[selectedProvider];
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-md">
-				<DialogHeader>
-					<DialogTitle>Add Channel</DialogTitle>
-					<DialogDescription>
+		<Sheet open={open} onOpenChange={onOpenChange}>
+			<SheetContent
+				side="right"
+				className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+			>
+				<SheetHeader className="border-b border-border px-6 py-4">
+					<SheetTitle>Add Channel</SheetTitle>
+					<SheetDescription>
 						Connect a WhatsApp or Telegram channel to this agent.
-					</DialogDescription>
-				</DialogHeader>
+					</SheetDescription>
+				</SheetHeader>
 
 				<form
 					onSubmit={(e) => {
@@ -107,8 +110,9 @@ export function CreateChannelDialog({
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
+					className="flex flex-1 flex-col overflow-hidden"
 				>
-					<div className="space-y-4 py-4">
+					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
 						<form.Field name="provider">
 							{(field) => (
 								<Field>
@@ -238,7 +242,7 @@ export function CreateChannelDialog({
 						)}
 					</div>
 
-					<DialogFooter>
+					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button
 							type="button"
 							variant="outline"
@@ -249,9 +253,9 @@ export function CreateChannelDialog({
 						<Button type="submit" disabled={isSubmitting}>
 							{isSubmitting ? "Adding..." : "Add Channel"}
 						</Button>
-					</DialogFooter>
+					</SheetFooter>
 				</form>
-			</DialogContent>
-		</Dialog>
+			</SheetContent>
+		</Sheet>
 	);
 }

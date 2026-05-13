@@ -3,6 +3,10 @@
 import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
 import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -795,69 +799,6 @@ export function CustomersList({
 				/>
 			</AsyncBoundary>
 
-			<div className="space-y-2">
-				<div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2 shadow-card">
-					<SearchInput
-						placeholder="Search name, account, phone, email, IP, MAC, address…"
-						hint="Searches name, account, username, email, phone, address, IP, MAC, plan, station, collector, group, notes, MOF and external ID"
-						value={search}
-						onChange={(v) => {
-							setSearch(v);
-							setPage(1);
-						}}
-					/>
-					<div className="ml-auto flex items-center gap-2">
-						<CustomerFilters
-							value={filterValues}
-							onChange={updateFilters}
-							onReset={resetFilters}
-							activeCount={activeCount}
-						/>
-						<TableColumnsToggle
-							columns={
-								TOGGLEABLE_COLUMNS as unknown as Array<{
-									id: string;
-									label: string;
-									alwaysVisible?: boolean;
-								}>
-							}
-							value={columnVisibility}
-							onChange={setColumnVisibility}
-						/>
-					</div>
-				</div>
-
-				{activeChips.length > 0 && (
-					<div className="flex flex-wrap items-center gap-1.5">
-						{activeChips.map((chip) => (
-							<Badge
-								key={chip.key}
-								variant="secondary"
-								className="gap-1 py-1 pl-2 pr-1 font-normal"
-							>
-								<span className="text-xs">{chip.label}</span>
-								<button
-									type="button"
-									onClick={chip.onRemove}
-									className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-									aria-label={`Remove ${chip.label}`}
-								>
-									<XIcon className="size-3" />
-								</button>
-							</Badge>
-						))}
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-6 px-2 text-xs text-muted-foreground"
-							onClick={resetFilters}
-						>
-							Clear all
-						</Button>
-					</div>
-				)}
-			</div>
-
 			{selectedCount > 0 && (
 				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 shadow-card">
 					<div className="flex items-center gap-2 text-sm">
@@ -900,52 +841,118 @@ export function CustomersList({
 				</div>
 			)}
 
-			<DataTable
-				columns={columns}
-				data={customers}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				columnVisibility={columnVisibility}
-				onColumnVisibilityChange={setColumnVisibility}
-				pagination={{
-					totalItems: total,
-					currentPage: page,
-					itemsPerPage: PAGE_SIZE,
-					onPageChange: (p) => {
-						setPage(p);
-						setRowSelection({});
-					},
-				}}
-				isLoading={isLoading}
-				isFetching={isFetching}
-				enableRowSelection={(row) => !!row.original.externalId}
-				rowSelection={rowSelection}
-				onRowSelectionChange={setRowSelection}
-				getRowId={(row) => row.id}
-				emptyState={
-					<EmptyState
-						icon={UsersIcon}
-						title={
-							total === 0
-								? "No customers yet"
-								: "No results found"
-						}
-						description={
-							total === 0
-								? "Add your first customer to get started."
-								: "Try adjusting your filters or search term."
-						}
-						action={
-							total === 0 ? (
-								<Button onClick={() => setDialog("create")}>
-									<PlusIcon className="mr-2 size-4" />
-									Add Customer
-								</Button>
-							) : undefined
-						}
+			<ContentCard>
+				<ContentCardToolbar
+					actions={
+						<>
+							<CustomerFilters
+								value={filterValues}
+								onChange={updateFilters}
+								onReset={resetFilters}
+								activeCount={activeCount}
+							/>
+							<TableColumnsToggle
+								columns={
+									TOGGLEABLE_COLUMNS as unknown as Array<{
+										id: string;
+										label: string;
+										alwaysVisible?: boolean;
+									}>
+								}
+								value={columnVisibility}
+								onChange={setColumnVisibility}
+							/>
+						</>
+					}
+				>
+					<SearchInput
+						placeholder="Search name, account, phone, email, IP, MAC, address…"
+						hint="Searches name, account, username, email, phone, address, IP, MAC, plan, station, collector, group, notes, MOF and external ID"
+						value={search}
+						onChange={(v) => {
+							setSearch(v);
+							setPage(1);
+						}}
 					/>
-				}
-			/>
+				</ContentCardToolbar>
+
+				{activeChips.length > 0 && (
+					<div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-surface-subtle/40 px-3 py-2 md:px-4">
+						{activeChips.map((chip) => (
+							<Badge
+								key={chip.key}
+								variant="secondary"
+								className="gap-1 py-1 pl-2 pr-1 font-normal"
+							>
+								<span className="text-xs">{chip.label}</span>
+								<button
+									type="button"
+									onClick={chip.onRemove}
+									className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+									aria-label={`Remove ${chip.label}`}
+								>
+									<XIcon className="size-3" />
+								</button>
+							</Badge>
+						))}
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs text-muted-foreground"
+							onClick={resetFilters}
+						>
+							Clear all
+						</Button>
+					</div>
+				)}
+
+				<DataTable
+					columns={columns}
+					data={customers}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					columnVisibility={columnVisibility}
+					onColumnVisibilityChange={setColumnVisibility}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: (p) => {
+							setPage(p);
+							setRowSelection({});
+						},
+					}}
+					isLoading={isLoading}
+					isFetching={isFetching}
+					enableRowSelection={(row) => !!row.original.externalId}
+					rowSelection={rowSelection}
+					onRowSelectionChange={setRowSelection}
+					getRowId={(row) => row.id}
+					emptyState={
+						<EmptyState
+							icon={UsersIcon}
+							title={
+								total === 0
+									? "No customers yet"
+									: "No results found"
+							}
+							description={
+								total === 0
+									? "Add your first customer to get started."
+									: "Try adjusting your filters or search term."
+							}
+							action={
+								total === 0 ? (
+									<Button onClick={() => setDialog("create")}>
+										<PlusIcon className="mr-2 size-4" />
+										Add Customer
+									</Button>
+								) : undefined
+							}
+						/>
+					}
+				/>
+			</ContentCard>
 
 			<CreateCustomerDialog
 				open={dialog === "create"}
