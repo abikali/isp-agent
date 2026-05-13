@@ -17,6 +17,12 @@ interface FilterBarProps {
 	onReset?: () => void;
 	/** Optional content rendered below the row (e.g. active filter chips). */
 	belowSlot?: ReactNode;
+	/**
+	 * Render without an outer card wrapper. Use when the FilterBar sits inside
+	 * a ContentCardToolbar (which already provides its own surface) — the
+	 * default keeps the existing card chrome for back-compat.
+	 */
+	bare?: boolean;
 	className?: string;
 }
 
@@ -29,14 +35,25 @@ export function FilterBar({
 	activeFilterCount = 0,
 	onReset,
 	belowSlot,
+	bare = false,
 	className,
 }: FilterBarProps) {
 	const hasFilters = !!children;
 	const hasActive = activeFilterCount > 0;
 
 	return (
-		<div className={cn("rounded-xl border bg-card shadow-card", className)}>
-			<div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+		<div
+			className={cn(
+				!bare && "rounded-lg border border-border bg-card shadow-xs",
+				className,
+			)}
+		>
+			<div
+				className={cn(
+					"flex flex-col gap-3 sm:flex-row sm:items-center",
+					bare ? "w-full" : "p-3",
+				)}
+			>
 				<SearchInput
 					placeholder={searchPlaceholder}
 					value={searchValue}
@@ -76,7 +93,11 @@ export function FilterBar({
 				)}
 			</div>
 
-			{belowSlot && <div className="border-t px-3 py-2">{belowSlot}</div>}
+			{belowSlot && (
+				<div className={cn("py-2", !bare && "border-t px-3")}>
+					{belowSlot}
+				</div>
+			)}
 		</div>
 	);
 }

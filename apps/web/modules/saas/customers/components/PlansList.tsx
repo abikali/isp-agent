@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { FilterBar } from "@shared/components/FilterBar";
 import { PageShell } from "@shared/components/PageShell";
@@ -180,57 +184,62 @@ export function PlansList() {
 	return (
 		<PageShell
 			title="Service Plans"
-			description="Manage internet packages for your customers"
+			description="Manage the internet packages you offer to customers — speeds, pricing, and IPs."
 			actions={
 				<Button onClick={() => setShowCreate(true)}>
 					<PlusIcon className="mr-2 size-4" />
-					Create Plan
+					Create plan
 				</Button>
 			}
 		>
-			<FilterBar
-				searchPlaceholder="Search plans..."
-				searchValue={search}
-				onSearchChange={setSearch}
-				activeFilterCount={activeFilterCount}
-				onReset={resetFilters}
-			>
-				<Button
-					variant={showArchived ? "primary" : "outline"}
-					size="sm"
-					onClick={() => setShowArchived(!showArchived)}
-				>
-					<ArchiveIcon className="mr-1.5 size-3.5" />
-					Archived
-				</Button>
-			</FilterBar>
+			<ContentCard>
+				<ContentCardToolbar>
+					<FilterBar
+						bare
+						searchPlaceholder="Search plans..."
+						searchValue={search}
+						onSearchChange={setSearch}
+						activeFilterCount={activeFilterCount}
+						onReset={resetFilters}
+					>
+						<Button
+							variant={showArchived ? "primary" : "outline"}
+							size="sm"
+							onClick={() => setShowArchived(!showArchived)}
+						>
+							<ArchiveIcon className="mr-1.5 size-3.5" />
+							Archived
+						</Button>
+					</FilterBar>
+				</ContentCardToolbar>
 
-			<DataTable
-				columns={columns}
-				data={filtered}
-				pageSize={15}
-				emptyState={
-					plans.length === 0 && !activeFilterCount ? (
-						<EmptyState
-							icon={PackageIcon}
-							title="No plans yet"
-							description="Create your first service plan to assign to customers."
-							action={
-								<Button onClick={() => setShowCreate(true)}>
-									<PlusIcon className="mr-2 size-4" />
-									Create Plan
-								</Button>
-							}
-						/>
-					) : (
-						<EmptyState
-							icon={PackageIcon}
-							title="No results found"
-							description="Try adjusting your search or filters."
-						/>
-					)
-				}
-			/>
+				<DataTable
+					columns={columns}
+					data={filtered}
+					pageSize={15}
+					emptyState={
+						plans.length === 0 && !activeFilterCount ? (
+							<EmptyState
+								icon={PackageIcon}
+								title="No plans yet"
+								description="Create your first service plan to assign to customers."
+								action={
+									<Button onClick={() => setShowCreate(true)}>
+										<PlusIcon className="mr-2 size-4" />
+										Create plan
+									</Button>
+								}
+							/>
+						) : (
+							<EmptyState
+								icon={PackageIcon}
+								title="No results found"
+								description="Try adjusting your search or filters."
+							/>
+						)
+					}
+				/>
+			</ContentCard>
 
 			<CreatePlanDialog open={showCreate} onOpenChange={setShowCreate} />
 			{editingPlan && (
