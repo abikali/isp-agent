@@ -85,6 +85,9 @@ export const permissionStatement = {
 	// Inventory & Installations
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "update", "approve"],
+
+	// Marketing (WhatsApp broadcasts via Salti)
+	marketing: ["read", "send", "manage"],
 } as const;
 
 /**
@@ -189,6 +192,10 @@ export const PERMISSION_GROUPS = {
 	integrations: {
 		resources: ["webhooks", "apiKeys", "connections"] as const,
 		label: "Integrations",
+	},
+	marketing: {
+		resources: ["marketing"] as const,
+		label: "Marketing",
 	},
 	insights: {
 		resources: ["audit"] as const,

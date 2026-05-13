@@ -17,62 +17,8 @@ import {
 	unpaidCustomersWhere,
 } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import { countUnreviewedPayments } from "../lib/review-status";
 import { monthSpecSchema } from "../lib/schemas";
-
-/**
- * Count unreviewed flagged payments: free, stopped, OR amount mismatch.
- * Uses Prisma for free/stopped counts, then a separate query + JS filter
- * for amount mismatches (paidAmount != accountPrice - discount).
- */
-async function countUnreviewedPayments(
-	organizationId: string,
-	monthId: string | undefined,
-	dealerViaCustomer: Record<string, unknown>,
-): Promise<number> {
-	const baseWhere = {
-		organizationId,
-		...(monthId ? { billingMonthId: monthId } : {}),
-		...dealerViaCustomer,
-		reviewedAt: null,
-	};
-
-	const [flaggedCount, mismatchCandidates] = await Promise.all([
-		// Free or stopped
-		db.payment.count({
-			where: {
-				...baseWhere,
-				OR: [{ freeAccount: true }, { stoppedAccount: true }],
-			},
-		}),
-		// Potential mismatches: not free, not stopped, unreviewed
-		db.payment.findMany({
-			where: {
-				...baseWhere,
-				freeAccount: false,
-				stoppedAccount: false,
-			},
-			select: {
-				paidAmount: true,
-				accountPrice: true,
-				discount: true,
-				customer: {
-					select: { iptvPrice: true, realIpPrice: true },
-				},
-			},
-		}),
-	]);
-
-	const mismatchCount = mismatchCandidates.filter((p) => {
-		const expected =
-			p.accountPrice +
-			(p.customer.iptvPrice ?? 0) +
-			(p.customer.realIpPrice ?? 0) -
-			p.discount;
-		return Math.abs(p.paidAmount - expected) > 0.01;
-	}).length;
-
-	return flaggedCount + mismatchCount;
-}
 
 export const getPaymentStats = protectedProcedure
 	.route({
@@ -205,11 +151,12 @@ export const getPaymentStats = protectedProcedure
 					)
 				: Promise.resolve(0),
 			// Flagged payments awaiting admin review (free, stopped, or amount mismatch)
-			countUnreviewedPayments(
-				input.organizationId,
-				monthId,
-				dealerViaCustomer,
-			),
+			countUnreviewedPayments({
+				organizationId: input.organizationId,
+				activeDealerId,
+				billingMonthId: monthId,
+				extraWhere: dealerViaCustomer,
+			}),
 		]);
 
 		// Stopped customers: distinct customers with a stoppedAccount payment this month

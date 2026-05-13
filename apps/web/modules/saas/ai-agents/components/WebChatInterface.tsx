@@ -117,14 +117,36 @@ function ToolResultDisplay({ content }: { content: string }) {
 	);
 }
 
-function convertHistoryToUIMessages(
-	history: Array<{ role: string; content: string; createdAt: string }>,
-): UIMessage[] {
-	return history.map((msg, i) => ({
-		id: `history-${i}`,
-		role: msg.role as "user" | "assistant",
-		parts: [{ type: "text" as const, text: msg.content }],
-	}));
+interface RawHistoryMessage {
+	id?: string;
+	role: string;
+	parts?: unknown[];
+	content?: string;
+	createdAt: string;
+}
+
+/**
+ * Convert persisted history rows into UIMessage[] for `useChat`. Prefers the
+ * canonical `parts` array (which preserves tool-call indicators on reload);
+ * falls back to a single text part for legacy text-only rows.
+ */
+function convertHistoryToUIMessages(history: RawHistoryMessage[]): UIMessage[] {
+	return history.map((msg, i) => {
+		const id = msg.id ?? `history-${i}`;
+		const role = msg.role as "user" | "assistant";
+		if (Array.isArray(msg.parts) && msg.parts.length > 0) {
+			return {
+				id,
+				role,
+				parts: msg.parts as UIMessage["parts"],
+			};
+		}
+		return {
+			id,
+			role,
+			parts: [{ type: "text" as const, text: msg.content ?? "" }],
+		};
+	});
 }
 
 function WebChatInner({

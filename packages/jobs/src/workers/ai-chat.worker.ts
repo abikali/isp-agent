@@ -1,25 +1,22 @@
-import type {
-	ChannelProvider,
-	GenerateResponseInput,
-	PromptSection,
-	ToolContext,
-} from "@repo/ai";
 import {
-	buildContextGapNote,
-	buildSystemPrompt,
+	assistantMessageToParts,
+	buildAgentMessages,
+	buildAgentTelemetry,
+	type ChannelProvider,
 	computeBotFingerprint,
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
-	formatHistoryMessage,
 	generateAgentResponse,
 	isHumanTakeoverActive,
-	resolveTools,
+	modelMessagesToRoleContent,
+	type PromptSection,
+	resolveAgentTools,
 	sendTextMessage,
 	sendTypingIndicator,
-	stripToolAnnotation,
 } from "@repo/ai";
-import { db } from "@repo/database";
+import { config } from "@repo/config";
+import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
@@ -59,7 +56,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				return { success: false, error: "Conversation not found" };
 			}
 
-			// Check if human takeover is active — skip AI generation
 			if (
 				isHumanTakeoverActive(
 					conversation.humanTakeoverAt,
@@ -73,71 +69,29 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				conversation.channel.encryptedApiToken,
 			);
 
-			// Load history
 			const history = await db.aiMessage.findMany({
 				where: { conversationId },
 				orderBy: { createdAt: "desc" },
 				take: conversation.agent.maxHistoryLength,
-				select: { role: true, content: true, toolCalls: true },
+				select: {
+					role: true,
+					content: true,
+					toolCalls: true,
+					parts: true,
+				},
 			});
 
-			const messages = history.reverse().map(formatHistoryMessage);
+			const historyRows = history.reverse();
 
-			// Inject context gap note if significant time has passed
-			const gapNote = buildContextGapNote(
-				conversation.lastMessageAt,
-				conversation.agent.contextGapThresholdMinutes,
-			);
-			if (gapNote && messages.length > 0) {
-				let insertIdx = messages.length - 1;
-				while (
-					insertIdx > 0 &&
-					messages[insertIdx - 1]?.role === "user"
-				) {
-					insertIdx--;
-				}
-				messages.splice(insertIdx, 0, {
-					role: "user",
-					content: gapNote,
-				});
-			}
+			const { tools, agentToolConfigs } = await resolveAgentTools({
+				agent: conversation.agent,
+				conversationId: conversation.id,
+				externalChatId: conversation.externalChatId,
+				contactName: conversation.contactName ?? undefined,
+				contactPhone: conversation.contactId ?? undefined,
+			});
 
-			// Resolve tools if agent has any enabled
-			let tools: GenerateResponseInput["tools"];
-			const agentToolConfigs =
-				conversation.agent.enabledTools.length > 0
-					? await db.aiAgentToolConfig.findMany({
-							where: { agentId: conversation.agent.id },
-						})
-					: [];
-
-			if (conversation.agent.enabledTools.length > 0) {
-				const perToolConfigs: Record<
-					string,
-					Record<string, unknown>
-				> = {};
-				for (const tc of agentToolConfigs) {
-					perToolConfigs[tc.toolId] = tc.config as Record<
-						string,
-						unknown
-					>;
-				}
-
-				const toolContext: ToolContext = {
-					organizationId: conversation.agent.organizationId,
-					agentId: conversation.agent.id,
-					conversationId: conversation.id,
-					externalChatId: conversation.externalChatId,
-					contactName: conversation.contactName ?? undefined,
-				};
-				tools = resolveTools(
-					conversation.agent.enabledTools,
-					toolContext,
-					perToolConfigs,
-				);
-			}
-
-			// Fetch service plans section (if enabled)
+			// Service plans section (if enabled)
 			let servicePlans: string | undefined;
 			if (conversation.agent.servicePlansEnabled) {
 				const hasFilter = conversation.agent.servicePlanIds.length > 0;
@@ -201,22 +155,27 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					}
 				: undefined;
 
-			// Build system prompt
-			const systemPrompt = buildSystemPrompt({
-				basePrompt: conversation.agent.systemPrompt,
-				enabledTools: conversation.agent.enabledTools,
-				contactName: conversation.contactName ?? undefined,
-				contactPhone: conversation.contactId ?? undefined,
-				verifiedCustomer,
-				maintenanceMode: conversation.agent.maintenanceMode,
-				maintenanceMessage:
-					conversation.agent.maintenanceMessage ?? undefined,
-				provider: conversation.channel?.provider ?? "messaging",
-				servicePlans,
-				promptSections: conversation.agent
-					.promptSections as unknown as PromptSection[],
-				toolPromptOverrides:
-					extractToolPromptOverrides(agentToolConfigs),
+			const messages = buildAgentMessages({
+				systemOptions: {
+					basePrompt: conversation.agent.systemPrompt,
+					enabledTools: conversation.agent.enabledTools,
+					contactName: conversation.contactName ?? undefined,
+					contactPhone: conversation.contactId ?? undefined,
+					verifiedCustomer,
+					maintenanceMode: conversation.agent.maintenanceMode,
+					maintenanceMessage:
+						conversation.agent.maintenanceMessage ?? undefined,
+					provider: conversation.channel?.provider ?? "messaging",
+					servicePlans,
+					promptSections: conversation.agent
+						.promptSections as unknown as PromptSection[],
+					toolPromptOverrides:
+						extractToolPromptOverrides(agentToolConfigs),
+				},
+				history: historyRows,
+				lastMessageAt: conversation.lastMessageAt,
+				contextGapThresholdMinutes:
+					conversation.agent.contextGapThresholdMinutes,
 			});
 
 			try {
@@ -224,7 +183,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					.provider as ChannelProvider;
 				const chatId = conversation.externalChatId;
 
-				// Send typing indicator before generation + refresh periodically
 				sendTypingIndicator(provider, apiToken, chatId).catch(() => {});
 				const typingInterval = setInterval(() => {
 					sendTypingIndicator(provider, apiToken, chatId).catch(
@@ -232,17 +190,28 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					);
 				}, 8000);
 
+				const abortController = new AbortController();
+				const timeout = setTimeout(
+					() => abortController.abort(),
+					config.ai.responseTimeoutMs,
+				);
+
 				let result: Awaited<ReturnType<typeof generateAgentResponse>>;
 				try {
 					result = await generateAgentResponse({
 						model: conversation.agent.model,
-						systemPrompt,
-						knowledgeBase:
-							conversation.agent.knowledgeBase ?? undefined,
 						messages,
 						temperature: conversation.agent.temperature,
 						tools,
-						maxSteps: tools ? 10 : undefined,
+						abortSignal: abortController.signal,
+						telemetry: buildAgentTelemetry({
+							conversationId: conversation.id,
+							agentId: conversation.agent.id,
+							organizationId: conversation.agent.organizationId,
+							channelId: conversation.channelId,
+							provider,
+							verifiedCustomerId: conversation.verifiedCustomerId,
+						}),
 						onToolActivity: () => {
 							sendTypingIndicator(
 								provider,
@@ -252,26 +221,26 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						},
 					});
 				} finally {
+					clearTimeout(timeout);
 					clearInterval(typingInterval);
 				}
 
-				// Strip tool annotations the model may have mimicked from history
-				result.text = stripToolAnnotation(result.text);
-
-				// Escalation safety net
+				// Escalation safety net.
 				if (
 					tools &&
 					conversation.agent.enabledTools.includes(
 						"escalate-telegram",
 					)
 				) {
+					const conversationMessages =
+						modelMessagesToRoleContent(messages);
 					const guardResult = await executeEscalationGuard({
 						tools,
 						responseText: result.text,
 						toolResults: result.toolResults,
 						customerName: conversation.contactName ?? undefined,
 						customerPhone: conversation.contactId ?? undefined,
-						conversationMessages: messages,
+						conversationMessages,
 						conversationId,
 					});
 					if (guardResult) {
@@ -282,10 +251,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					}
 				}
 
-				// Unknown-contact auto-escalation: if the conversation has no
-				// verified customer and the user has sent enough messages
-				// without successful identification, escalate proactively
-				// once per conversation. The bot keeps responding either way.
+				// Unknown-contact auto-escalation.
 				if (
 					tools &&
 					conversation.agent.enabledTools.includes(
@@ -301,19 +267,20 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						const escalateTool = tools["escalate-telegram"];
 						if (escalateTool?.execute) {
 							try {
+								const recentUserExcerpts = messages
+									.filter((m) => m.role === "user")
+									.slice(-3)
+									.map((m) =>
+										typeof m.content === "string"
+											? m.content.slice(0, 200)
+											: "",
+									)
+									.join("\n");
 								const args = {
 									reason: "Unknown contact — could not be identified after multiple turns",
 									priority: "medium" as const,
 									category: "general" as const,
-									summary: `Unknown contact (${conversation.contactName ?? conversation.contactId ?? "no name"}) has sent ${userMessageCount} messages but the bot could not link them to a customer. Recent messages:\n${messages
-										.filter((m) => m.role === "user")
-										.slice(-3)
-										.map((m) =>
-											typeof m.content === "string"
-												? m.content.slice(0, 200)
-												: "",
-										)
-										.join("\n")}`,
+									summary: `Unknown contact (${conversation.contactName ?? conversation.contactId ?? "no name"}) has sent ${userMessageCount} messages but the bot could not link them to a customer. Recent messages:\n${recentUserExcerpts}`,
 									customerName:
 										conversation.contactName ?? undefined,
 									actionRequired:
@@ -328,8 +295,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 									where: { id: conversationId },
 									data: { unknownEscalatedAt: new Date() },
 								});
-								// Append a one-time notice to the assistant's
-								// reply so the contact knows a human is coming.
 								result.text = `${result.text}\n\nI've notified a team member who will join you shortly.`;
 							} catch (error) {
 								logger.error(
@@ -351,7 +316,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					result.text,
 				);
 
-				// Track bot-sent message by content fingerprint
 				if (result.text) {
 					const redis = getRedisConnection();
 					const fp = computeBotFingerprint(result.text);
@@ -360,6 +324,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						.catch(() => {});
 				}
 
+				const assistantParts = assistantMessageToParts(
+					result.text,
+					result.toolResults,
+				);
 				await db.aiMessage.create({
 					data: {
 						conversationId,
@@ -367,13 +335,13 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						content: result.text,
 						externalMsgId: sendResult.messageId ?? null,
 						tokenCount: result.tokenCount,
+						inputTokens: result.inputTokens,
+						outputTokens: result.outputTokens,
+						cacheReadTokens: result.cacheReadTokens,
+						cacheWriteTokens: result.cacheWriteTokens,
 						latencyMs: result.latencyMs,
-						...(result.toolResults
-							? {
-									toolCalls: JSON.parse(
-										JSON.stringify(result.toolResults),
-									),
-								}
+						...(assistantParts.length > 0
+							? { parts: assistantParts as Prisma.InputJsonValue }
 							: {}),
 					},
 				});

@@ -143,6 +143,9 @@ importers:
       '@repo/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@repo/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@repo/logs':
         specifier: workspace:*
         version: link:../../packages/logs
@@ -152,6 +155,9 @@ importers:
       '@repo/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@repo/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@sentry/tanstackstart-react':
         specifier: ^10.33.0
         version: 10.33.0(react@19.2.1)
@@ -406,6 +412,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.35
         version: 2.0.35(zod@4.3.6)
+      '@openrouter/ai-sdk-provider':
+        specifier: ^2.9.0
+        version: 2.9.0(ai@6.0.116(zod@4.3.6))(zod@4.3.6)
       '@repo/config':
         specifier: workspace:*
         version: link:../../config
@@ -415,6 +424,9 @@ importers:
       '@repo/logs':
         specifier: workspace:*
         version: link:../logs
+      '@repo/utils':
+        specifier: workspace:*
+        version: link:../utils
       ai:
         specifier: ^6.0.116
         version: 6.0.116(zod@4.3.6)
@@ -1052,6 +1064,10 @@ importers:
         version: 25.0.9
 
   packages/utils:
+    dependencies:
+      libphonenumber-js:
+        specifier: ^1.12.41
+        version: 1.12.41
     devDependencies:
       '@biomejs/biome':
         specifier: 2.3.11
@@ -2502,6 +2518,13 @@ packages:
   '@oozcitak/util@10.0.0':
     resolution: {integrity: sha512-hAX0pT/73190NLqBPPWSdBVGtbY6VOhWYK3qqHqtXQ1gK7kS2yz4+ivsN07hpJ6I3aeMtKP6J6npsEKOAzuTLA==}
     engines: {node: '>=20.0'}
+
+  '@openrouter/ai-sdk-provider@2.9.0':
+    resolution: {integrity: sha512-Seva+NCa0WUQnJIUE5GzHsUv1WTIeyqwz0ELl2VtS6NP+eF+77yCXGFVOMbvoCM7QMjlnhv7931e89R+8pJdcQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      ai: ^6.0.0
+      zod: ^3.25.0 || ^4.0.0
 
   '@opentelemetry/api-logs@0.208.0':
     resolution: {integrity: sha512-CjruKY9V6NMssL/T1kAFgzosF1v9o6oeN+aX5JB/C/xPNtmgIJqcXHG7fA82Ou1zCpWGl4lROQUKwUNE1pMCyg==}
@@ -10747,6 +10770,11 @@ snapshots:
       '@oozcitak/util': 10.0.0
 
   '@oozcitak/util@10.0.0': {}
+
+  '@openrouter/ai-sdk-provider@2.9.0(ai@6.0.116(zod@4.3.6))(zod@4.3.6)':
+    dependencies:
+      ai: 6.0.116(zod@4.3.6)
+      zod: 4.3.6
 
   '@opentelemetry/api-logs@0.208.0':
     dependencies:

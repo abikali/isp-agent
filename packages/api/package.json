@@ -38,6 +38,10 @@
 		"./modules/customers/lib/mirror-fields": {
 			"types": "./modules/customers/lib/mirror-fields.ts",
 			"default": "./modules/customers/lib/mirror-fields.ts"
+		},
+		"./modules/marketing/lib/audience": {
+			"types": "./modules/marketing/lib/audience.ts",
+			"default": "./modules/marketing/lib/audience.ts"
 		}
 	},
 	"scripts": {

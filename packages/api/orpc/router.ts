@@ -10,6 +10,7 @@ import { customersRouter } from "../modules/customers/router";
 import { employeesRouter } from "../modules/employees/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
 import { integrationsRouter } from "../modules/integrations/router";
+import { marketingRouter } from "../modules/marketing/router";
 import { newsletterRouter } from "../modules/newsletter/router";
 import { notificationsRouter } from "../modules/notifications/router";
 import { organizationsRouter } from "../modules/organizations/router";
@@ -35,6 +36,7 @@ export const router = publicProcedure.router({
 	employees: employeesRouter,
 	newsletter: newsletterRouter,
 	integrations: integrationsRouter,
+	marketing: marketingRouter,
 	organizations: organizationsRouter,
 	users: usersRouter,
 	payments: paymentsRouter,

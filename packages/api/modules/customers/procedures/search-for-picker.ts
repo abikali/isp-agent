@@ -100,6 +100,7 @@ export const searchCustomersForPicker = protectedProcedure
 				firstName: true,
 				lastName: true,
 				username: true,
+				mobile: true,
 			},
 			orderBy: { lastName: "asc" },
 			take: input.pageSize,

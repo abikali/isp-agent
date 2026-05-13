@@ -293,6 +293,8 @@ model Organization {
   billingSyncOps           BillingSyncOperation[]
   noteCategories           NoteCategory[]
   syncConflicts            SyncConflict[]
+  saltiIntegration         SaltiIntegration?
+  marketingBroadcasts      MarketingBroadcast[]
 
   // Dealer scope for queries through `getDealerScopeFilter` and friends.
   // When null, scoped queries match only orphan rows (`dealerId IS NULL`).
@@ -607,7 +609,7 @@ model AiAgent {
   maintenanceMode     Boolean          @default(false)
   maintenanceMessage  String?          @db.Text
   maxHistoryLength Int              @default(20)
-  temperature      Float            @default(0.3)
+  temperature      Float            @default(0)
   enabledTools     String[]         @default([])
   promptSections   Json             @default("[]")
   servicePlansEnabled        Boolean       @default(false)
@@ -695,7 +697,12 @@ model AiMessage {
   tokenCount         Int?
   latencyMs          Int?
   error              String?
-  toolCalls          Json?     // Array of {toolName, args, result}
+  toolCalls          Json?     // Legacy: Array of {toolName, args, result}. New writes use `parts`.
+  parts              Json?     // Canonical UIMessage parts array (text, tool-call, tool-result, reasoning). Source of truth for new messages.
+  inputTokens        Int?
+  outputTokens       Int?
+  cacheReadTokens    Int?
+  cacheWriteTokens   Int?
   replyToId          String?
   deliveryStatus     String?   // "sent" | "delivered" | "read"
   editedAt           DateTime?
@@ -1141,6 +1148,7 @@ model Customer {
   followups      Followup[]
   syncConflicts  SyncConflict[]
   locationRequests LocationRequest[]
+  marketingMessages MarketingBroadcastRecipient[]
 
   @@unique([organizationId, accountNumber])
   @@unique([organizationId, externalId])
@@ -1964,4 +1972,66 @@ model UninstalledItem {
   @@index([organizationId])
   @@index([taskId])
   @@map("uninstalled_item")
+}
+
+model SaltiIntegration {
+  id                String    @id @default(cuid())
+  organizationId    String    @unique
+  apiEndpoint       String    @default("https://saltimarketing.com/")
+  encryptedApiToken String    @db.Text
+  lastTestedAt      DateTime?
+  lastTestStatus    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("salti_integration")
+}
+
+model MarketingBroadcast {
+  id              String    @id @default(cuid())
+  organizationId  String
+  createdById     String
+  name            String
+  templateName    String
+  templateLang    String
+  variables       Json
+  audienceType    String
+  audienceConfig  Json
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  status          String    @default("pending")
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipients   MarketingBroadcastRecipient[]
+
+  @@index([organizationId, createdAt])
+  @@map("marketing_broadcast")
+}
+
+model MarketingBroadcastRecipient {
+  id             String    @id @default(cuid())
+  broadcastId    String
+  customerId     String?
+  phone          String
+  contactName    String?
+  variables      Json      @default("{}")
+  status         String    @default("queued")
+  saltiMessageId String?
+  waMessageId    String?
+  errorMessage   String?   @db.Text
+  sentAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  broadcast MarketingBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  customer  Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([broadcastId, status])
+  @@index([customerId])
+  @@map("marketing_broadcast_recipient")
 }

@@ -11,6 +11,7 @@ import {
 } from "@ui/components/dropdown-menu";
 import { Input } from "@ui/components/input";
 import { cn } from "@ui/lib";
+import type { UIMessage } from "ai";
 import {
 	ArrowLeftIcon,
 	HandIcon,
@@ -424,13 +425,9 @@ export function ConversationDetailPanel({
 													| null
 													| undefined
 											}
-											toolCalls={
-												m.toolCalls as
-													| {
-															toolName: string;
-															args: unknown;
-															result: unknown;
-													  }[]
+											parts={
+												m.parts as
+													| UIMessage["parts"]
 													| null
 													| undefined
 											}

@@ -1,32 +1,32 @@
 import type {
+	BuildSystemPromptOptions,
 	ChannelProvider,
-	GenerateResponseInput,
+	ModelMessage,
 	PromptSection,
-	ToolContext,
 } from "@repo/ai";
 import {
-	buildContextGapNote,
-	buildSystemPrompt,
+	assistantMessageToParts,
+	buildAgentMessages,
+	buildAgentTelemetry,
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
-	formatHistoryMessage,
 	generateAgentResponse,
 	isWhishMoneyMessage,
 	markAsRead,
+	modelMessagesToRoleContent,
 	parseWebhookPayload,
-	resolveTools,
+	resolveAgentTools,
 	sendTextMessage,
 	sendTypingIndicator,
 	sendWhishPaymentEscalation,
-	stripToolAnnotation,
 	telegram,
 	transcribeMessageMedia,
 	triageBufferedMessages,
 	whatsapp,
 } from "@repo/ai";
 import { config } from "@repo/config";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
 import { getRedisConnection, queueAiChatRetry } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
@@ -587,39 +587,14 @@ async function handleMessages(
 			}
 
 			// Resolve tools once (same for all messages in this chat)
-			let tools: GenerateResponseInput["tools"];
-			const agentToolConfigs =
-				channel.agent.enabledTools.length > 0
-					? await db.aiAgentToolConfig.findMany({
-							where: { agentId: channel.agent.id },
-						})
-					: [];
-
-			if (channel.agent.enabledTools.length > 0) {
-				const perToolConfigs: Record<
-					string,
-					Record<string, unknown>
-				> = {};
-				for (const tc of agentToolConfigs) {
-					perToolConfigs[tc.toolId] = tc.config as Record<
-						string,
-						unknown
-					>;
-				}
-
-				const toolContext: ToolContext = {
-					organizationId: channel.agent.organizationId,
-					agentId: channel.agent.id,
-					conversationId: conversation.id,
-					externalChatId: msg.chatId,
-					contactName: msg.contactName,
-				};
-				tools = resolveTools(
-					channel.agent.enabledTools,
-					toolContext,
-					perToolConfigs,
-				);
-			}
+			const { tools, agentToolConfigs } = await resolveAgentTools({
+				agent: channel.agent,
+				conversationId: conversation.id,
+				externalChatId: msg.chatId,
+				contactName: msg.contactName,
+				contactPhone:
+					msg.contactId ?? conversation.contactId ?? undefined,
+			});
 
 			// Fetch service plans section (if enabled)
 			const servicePlans = await fetchServicePlansSection(
@@ -628,8 +603,9 @@ async function handleMessages(
 				channel.agent.servicePlanIds,
 			);
 
-			// Build system prompt once
-			const systemPrompt = buildSystemPrompt({
+			// Reusable system prompt options — `buildAgentMessages` rebuilds
+			// the prompt and stamps cache breakpoints on each iteration.
+			const systemOptions: BuildSystemPromptOptions = {
 				basePrompt: channel.agent.systemPrompt,
 				enabledTools: channel.agent.enabledTools,
 				contactName: msg.contactName ?? undefined,
@@ -643,7 +619,7 @@ async function handleMessages(
 					.promptSections as unknown as PromptSection[],
 				toolPromptOverrides:
 					extractToolPromptOverrides(agentToolConfigs),
-			});
+			};
 
 			// Renew lock every 30s to prevent expiry during long generations
 			const lockRenewal = setInterval(async () => {
@@ -802,57 +778,30 @@ async function handleMessages(
 						},
 						orderBy: { createdAt: "desc" },
 						take: channel.agent.maxHistoryLength,
-						select: { role: true, content: true, toolCalls: true },
+						select: {
+							role: true,
+							content: true,
+							toolCalls: true,
+							parts: true,
+						},
 					});
-					const historyMessages = history
-						.reverse()
-						.map(formatHistoryMessage);
+					const historyRows = history.reverse();
 
-					// Inject context gap note if significant time has passed
-					const gapNote = buildContextGapNote(
-						previousLastMessageAt,
-						channel.agent.contextGapThresholdMinutes,
-					);
-					if (gapNote && historyMessages.length > 0) {
-						// Insert just before the final user message(s)
-						let insertIdx = historyMessages.length - 1;
-						while (
-							insertIdx > 0 &&
-							historyMessages[insertIdx - 1]?.role === "user"
-						) {
-							insertIdx--;
-						}
-						historyMessages.splice(insertIdx, 0, {
-							role: "user",
-							content: gapNote,
-						});
-					}
+					const historyMessages = buildAgentMessages({
+						systemOptions,
+						history: historyRows,
+						lastMessageAt: previousLastMessageAt,
+						contextGapThresholdMinutes:
+							channel.agent.contextGapThresholdMinutes,
+					});
 
 					// Merge consecutive trailing user messages into one
-					// (rapid-fire messages get stored separately but should be read as one thought)
-					if (
-						bufferedTexts.length > 1 &&
-						historyMessages.length > 1
-					) {
-						let i = historyMessages.length - 1;
-						const trailingParts: string[] = [];
-						while (i >= 0 && historyMessages[i]?.role === "user") {
-							trailingParts.unshift(
-								historyMessages[i]?.content ?? "",
-							);
-							i--;
-						}
-						if (trailingParts.length > 1) {
-							// Remove the individual trailing user messages
-							historyMessages.splice(
-								i + 1,
-								trailingParts.length,
-								{
-									role: "user",
-									content: trailingParts.join(" "),
-								},
-							);
-						}
+					// (rapid-fire messages get stored separately but should be
+					// read as one thought). With ModelMessage[], the trailing
+					// user run is identified by string-content user messages
+					// at the end of the array (post-system, post-history).
+					if (bufferedTexts.length > 1) {
+						mergeTrailingUserTextMessages(historyMessages);
 					}
 
 					// Send typing indicator before generation + refresh periodically
@@ -879,14 +828,19 @@ async function handleMessages(
 						let sentInitial = false;
 						const result = await generateAgentResponse({
 							model: channel.agent.model,
-							systemPrompt,
-							knowledgeBase:
-								channel.agent.knowledgeBase ?? undefined,
 							messages: historyMessages,
 							temperature: channel.agent.temperature,
 							abortSignal: controller.signal,
 							tools,
-							maxSteps: tools ? 10 : undefined,
+							telemetry: buildAgentTelemetry({
+								conversationId: conversation.id,
+								agentId: channel.agent.id,
+								organizationId: channel.agent.organizationId,
+								channelId: channel.id,
+								provider,
+								verifiedCustomerId:
+									conversation.verifiedCustomerId,
+							}),
 							onToolActivity: () => {
 								sendTypingIndicator(
 									provider,
@@ -926,9 +880,6 @@ async function handleMessages(
 						clearTimeout(timeout);
 						clearInterval(typingInterval);
 
-						// Strip tool annotations the model may have mimicked from history
-						result.text = stripToolAnnotation(result.text);
-
 						// Escalation safety net: if model said it would escalate but didn't call the tool, do it now
 						if (
 							tools &&
@@ -942,7 +893,8 @@ async function handleMessages(
 								toolResults: result.toolResults,
 								customerName: msg.contactName ?? undefined,
 								customerPhone: msg.contactId ?? undefined,
-								conversationMessages: historyMessages,
+								conversationMessages:
+									modelMessagesToRoleContent(historyMessages),
 								conversationId: conversation.id,
 							});
 							if (guardResult) {
@@ -994,6 +946,10 @@ async function handleMessages(
 							});
 
 						if (conversationExists) {
+							const assistantParts = assistantMessageToParts(
+								result.text,
+								result.toolResults,
+							);
 							await db.aiMessage.create({
 								data: {
 									conversationId: conversation.id,
@@ -1001,14 +957,16 @@ async function handleMessages(
 									content: result.text,
 									externalMsgId: sendResult.messageId ?? null,
 									tokenCount: result.tokenCount,
+									inputTokens: result.inputTokens,
+									outputTokens: result.outputTokens,
+									cacheReadTokens: result.cacheReadTokens,
+									cacheWriteTokens: result.cacheWriteTokens,
 									latencyMs: result.latencyMs,
-									toolCalls: result.toolResults
-										? JSON.parse(
-												JSON.stringify(
-													result.toolResults,
-												),
-											)
-										: null,
+									...(assistantParts.length > 0
+										? {
+												parts: assistantParts as Prisma.InputJsonValue,
+											}
+										: {}),
 								},
 							});
 
@@ -1298,6 +1256,34 @@ export async function whatsappWebhookHandler(
 	} catch (error) {
 		logger.error("WhatsApp webhook error", { error });
 		return new Response("OK", { status: 200 });
+	}
+}
+
+/**
+ * Merge a trailing run of plain-text user messages at the end of a
+ * ModelMessage[] into a single user message. This is the multi-message
+ * rapid-fire pattern (customer sends 3 quick messages while we're waiting):
+ * we want the model to see them as a single thought.
+ *
+ * Only flattens user messages whose content is a plain `string`; structured
+ * messages (with tool-call/tool-result parts) are left as-is.
+ */
+function mergeTrailingUserTextMessages(messages: ModelMessage[]): void {
+	let i = messages.length - 1;
+	const trailingParts: string[] = [];
+	while (i >= 0) {
+		const m = messages[i];
+		if (!m || m.role !== "user" || typeof m.content !== "string") {
+			break;
+		}
+		trailingParts.unshift(m.content);
+		i--;
+	}
+	if (trailingParts.length > 1) {
+		messages.splice(i + 1, trailingParts.length, {
+			role: "user",
+			content: trailingParts.join(" "),
+		});
 	}
 }
 

@@ -12,6 +12,7 @@ import {
 	ClipboardListIcon,
 	CreditCardIcon,
 	DatabaseIcon,
+	MegaphoneIcon,
 	Settings2Icon,
 	ShieldCheckIcon,
 	SparklesIcon,
@@ -107,6 +108,13 @@ function OrganizationSettingsLayout() {
 								href: `${organizationSettingsBasePath}/ai`,
 								icon: (
 									<SparklesIcon className="size-4 opacity-50" />
+								),
+							},
+							{
+								title: "Marketing",
+								href: `${organizationSettingsBasePath}/marketing`,
+								icon: (
+									<MegaphoneIcon className="size-4 opacity-50" />
 								),
 							},
 						]

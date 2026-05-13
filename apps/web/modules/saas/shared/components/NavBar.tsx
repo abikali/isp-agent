@@ -29,10 +29,12 @@ import {
 	HeartIcon,
 	LayoutDashboardIcon,
 	ListIcon,
+	MegaphoneIcon,
 	MessageSquareIcon,
 	OctagonXIcon,
 	PackageIcon,
 	RadioTowerIcon,
+	SendIcon,
 	SettingsIcon,
 	ShieldIcon,
 	UsersIcon,
@@ -106,6 +108,7 @@ export function NavBar() {
 		const canReadTasks = hasPermission("tasks", "read");
 		const canReadAiAgents = hasPermission("aiAgents", "read");
 		const canReadWatchers = hasPermission("watchers", "read");
+		const canReadMarketing = hasPermission("marketing", "read");
 		const canViewBilling = hasPermission("billing", "view");
 		const canManageBilling = hasPermission("billing", "manage");
 		const canCollectBilling = hasPermission("billing", "collect");
@@ -359,6 +362,24 @@ export function NavBar() {
 											},
 										]
 									: []),
+							],
+						},
+					]
+				: []),
+			// Marketing — requires marketing:read
+			...(canReadMarketing
+				? [
+						{
+							id: "marketing",
+							label: "Marketing",
+							icon: MegaphoneIcon,
+							items: [
+								{
+									label: "Broadcasts",
+									href: `${basePath}/marketing`,
+									icon: SendIcon,
+									isActive: under(`${basePath}/marketing`),
+								},
 							],
 						},
 					]

@@ -1,6 +1,6 @@
 import { db } from "@repo/database";
-import { normalizeLebanesePhone } from "@repo/database/phones";
 import { logger } from "@repo/logs";
+import { toNationalDigits } from "@repo/utils";
 import { createFileRoute } from "@tanstack/react-router";
 
 const NOT_AVAILABLE = "notavailable";
@@ -12,16 +12,6 @@ function plainText(body: string): Response {
 	});
 }
 
-// The local Lebanese number (without country code) is the most stable
-// part of a phone across formats. iRadius mirrors phones in mixed
-// shapes — "+96170442737", "70442737", "070442737", "03092449" — so
-// suffix-matching on the local digits catches all of them in one query.
-function extractCore(rawPhone: string): string {
-	const normalized = normalizeLebanesePhone(rawPhone);
-	const digits = normalized.replace(/\D/g, "");
-	return digits.startsWith("961") ? digits.slice(3) : digits;
-}
-
 export const Route = createFileRoute(
 	"/api/whatsapp-flow/$organizationSlug/dealer",
 )({
@@ -30,7 +20,10 @@ export const Route = createFileRoute(
 			GET: async ({ request, params }) => {
 				const url = new URL(request.url);
 				const rawPhone = url.searchParams.get("phone") ?? "";
-				const core = extractCore(rawPhone);
+				// iRadius mirrors phones in mixed shapes ("+96170442737",
+				// "70442737", "070442737"); suffix-match on national digits
+				// catches all variants.
+				const core = toNationalDigits(rawPhone);
 
 				if (core.length < 7) {
 					logger.info("[WhatsApp Flow] dealer lookup: bad phone", {

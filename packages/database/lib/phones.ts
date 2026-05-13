@@ -1,3 +1,5 @@
+import { toE164 } from "@repo/utils";
+
 /**
  * Structured phone number entry stored in Customer.phones JSON field.
  * The `primary` phone is used for WhatsApp receipts and is cached in Customer.mobile.
@@ -31,24 +33,18 @@ export function getPrimaryPhone(phones: unknown): string | null {
 }
 
 /**
- * Normalize a Lebanese phone number to international format (+961...).
- * Handles local formats like 03609014 → +9613609014, 70302582 → +96170302582.
+ * Normalize any phone number to E.164 format (`+96171234567`).
+ *
+ * Delegates to libphonenumber-js so country handling stays uniform — Syrian,
+ * Iraqi, Saudi etc. numbers parse correctly without per-country branching.
+ * Bare-national inputs without an explicit country code (e.g. `71234567` or
+ * `03609014`) are interpreted as Lebanese, matching the historical behaviour.
+ *
+ * Name kept as `normalizeLebanesePhone` for back-compat; the implementation
+ * is now country-agnostic.
  */
 export function normalizeLebanesePhone(raw: string): string {
-	const digits = raw.replace(/[^0-9+]/g, "");
-	if (digits.startsWith("+961")) {
-		return digits;
-	}
-	if (digits.startsWith("961") && digits.length > 9) {
-		return `+${digits}`;
-	}
-	if (digits.startsWith("0") && digits.length >= 8) {
-		return `+961${digits.slice(1)}`;
-	}
-	if (/^[1-9]\d{6,7}$/.test(digits)) {
-		return `+961${digits}`;
-	}
-	return raw;
+	return toE164(raw);
 }
 
 /**

@@ -40,6 +40,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		audit: ["view"],
 		// Billing
 		billing: ["view", "manage", "collect"],
+		// Marketing
+		marketing: ["read", "send", "manage"],
 	},
 	admin: {
 		// Organization management (cannot delete)
@@ -76,6 +78,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		audit: ["view"],
 		// Billing
 		billing: ["view", "manage", "collect"],
+		// Marketing
+		marketing: ["read", "send", "manage"],
 	},
 	member: {
 		// AI & Monitoring - read only
@@ -168,6 +172,8 @@ export const owner = ac.newRole({
 	audit: ["view"],
 	// Billing
 	billing: ["view", "manage", "collect", "collect:own"],
+	// Marketing
+	marketing: ["read", "send", "manage"],
 });
 
 /**
@@ -243,6 +249,8 @@ export const admin = ac.newRole({
 	audit: ["view"],
 	// Billing
 	billing: ["view", "manage", "collect", "collect:own"],
+	// Marketing
+	marketing: ["read", "send", "manage"],
 });
 
 /**

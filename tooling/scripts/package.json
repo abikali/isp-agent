@@ -16,6 +16,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"backfill:ai-parts": "dotenv -c -e ../../.env -- tsx ./src/backfill-ai-message-parts.ts",
 		"create:user": "dotenv -c -e ../../.env -- tsx ./src/create-user.ts",
 		"type-check": "tsc --noEmit"
 	},

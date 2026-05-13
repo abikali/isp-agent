@@ -1,5 +1,6 @@
 import { type IspApiConfig, ispPost } from "@repo/ai/isp-api-client";
 import { executeIRadius, withIRadiusConnection } from "@repo/database/iradius";
+import { iradiusForceDisconnect } from "./iradius-disconnect";
 
 export interface AccountTypeChangePreview {
 	success: boolean;
@@ -63,6 +64,14 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
  * in an iRadius-disabled org may share a username with a real iRadius
  * user we don't intend to touch (defense in depth alongside the
  * org-level `iradiusDisabled` flag).
+ *
+ * When deactivating: iRadius's own MikroTik disconnect inside
+ * `/activate-user` is buggy (radclient command has a literal `+ userName +`
+ * typo, and the API-fallback probes hotspot first and throws on PPP-only
+ * routers — see investigation notes). If the response shows the live
+ * session was NOT kicked, we invoke `iradiusForceDisconnect` to do it
+ * ourselves via the MikroTik RouterOS API. Best-effort: the DB write is
+ * already correct either way.
  */
 export async function iradiusSetActive(
 	customer: { externalId?: string | null },
@@ -82,13 +91,17 @@ export async function iradiusSetActive(
 		userId: Number.parseInt(customer.externalId, 10),
 	};
 
-	const result = await ispPost<{ success?: boolean; error?: string }>(
-		config,
-		"/activate-user",
-		body,
-	);
+	const result = await ispPost<{
+		success?: boolean;
+		error?: string;
+		disconnected?: boolean;
+	}>(config, "/activate-user", body);
 	if (result && result.success === false) {
 		throw new Error(result.error ?? "iRadius activate-user failed");
+	}
+
+	if (!active && result?.disconnected !== true) {
+		await iradiusForceDisconnect({ externalId: customer.externalId });
 	}
 }
 
@@ -391,6 +404,13 @@ export async function iradiusChangeCollector(
 /**
  * Execute an account type change in iRadius.
  * Updates the plan, adjusts dealer billing, disconnects from MikroTik.
+ *
+ * iRadius's own MikroTik disconnect inside this endpoint is buggy
+ * (`/ppp/active/remove =.id=…` has an extra `=` prefix that RouterOS
+ * rejects as "unknown parameter"). If the response indicates the live
+ * session was NOT kicked, we follow up with `iradiusForceDisconnect` so
+ * the new plan actually takes effect on the next reconnect rather than
+ * waiting for the natural session expiry. Best-effort.
  */
 export async function executeAccountTypeChange(
 	customer: { externalId?: string | null; username?: string | null },
@@ -422,5 +442,10 @@ export async function executeAccountTypeChange(
 				"iRadius account type change failed",
 		);
 	}
+
+	if (customer.externalId && result.disconnected !== true) {
+		await iradiusForceDisconnect({ externalId: customer.externalId });
+	}
+
 	return result;
 }

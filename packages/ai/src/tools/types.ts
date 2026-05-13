@@ -6,7 +6,22 @@ export interface ToolContext {
 	conversationId: string;
 	externalChatId: string;
 	contactName?: string | undefined;
+	/**
+	 * Digit-only phone the messaging provider has on file for this contact
+	 * (e.g. WhatsApp `cleanedSenderPn`). Tools that look up an ISP customer
+	 * use this as the authoritative identifier so the agent can't substitute
+	 * a name or a remembered-from-history username instead.
+	 */
+	contactPhone?: string | undefined;
 	toolConfig?: Record<string, unknown> | undefined;
+	/**
+	 * Returns the iRadius customer matching `contactPhone`, memoized for the
+	 * lifetime of this turn so multiple ISP tools share one network round-trip.
+	 * Returns `null` when no phone is set, ISP API is not configured, or the
+	 * lookup result is empty/ambiguous. Wired by `resolveTools`; tools should
+	 * call this instead of `lookupCustomerByContactPhone` directly.
+	 */
+	getVerifiedIspCustomer?: () => Promise<Record<string, unknown> | null>;
 }
 
 export interface ToolMetadata {

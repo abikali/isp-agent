@@ -6,6 +6,7 @@ import {
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../lib/needs-review";
 import { CUSTOMER_LIST_STATUSES } from "../lib/statuses";
 
 export const listCustomers = protectedProcedure
@@ -75,7 +76,7 @@ export const listCustomers = protectedProcedure
 			where["status"] = "ACTIVE";
 			where["online"] = false;
 		} else if (input.status === "NEEDS_REVIEW") {
-			where["notes"] = { not: "" };
+			Object.assign(where, CUSTOMER_NEEDS_REVIEW_WHERE);
 		} else if (input.status) {
 			where["status"] = input.status;
 		}

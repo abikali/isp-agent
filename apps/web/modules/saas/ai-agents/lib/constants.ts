@@ -9,7 +9,46 @@ export interface AiModelOption {
 	recommended?: boolean;
 }
 
+/**
+ * IDs MUST match `packages/ai/src/model-registry.ts` modelMap keys.
+ * Verified against OpenRouter `/api/v1/models` on 2026-05-13.
+ */
 export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
+	{
+		label: "Anthropic",
+		models: [
+			{
+				id: "claude-haiku",
+				label: "Claude Haiku 4.5",
+				provider: "anthropic",
+				priceIn: 1,
+				priceOut: 5,
+				recommended: true,
+			},
+			{
+				id: "claude-sonnet",
+				label: "Claude Sonnet 4.5",
+				provider: "anthropic",
+				priceIn: 3,
+				priceOut: 15,
+				recommended: true,
+			},
+			{
+				id: "claude-sonnet-4.6",
+				label: "Claude Sonnet 4.6",
+				provider: "anthropic",
+				priceIn: 3,
+				priceOut: 15,
+			},
+			{
+				id: "claude-opus",
+				label: "Claude Opus 4.5",
+				provider: "anthropic",
+				priceIn: 15,
+				priceOut: 75,
+			},
+		],
+	},
 	{
 		label: "Google",
 		models: [
@@ -19,23 +58,6 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				provider: "google",
 				priceIn: 1.25,
 				priceOut: 10,
-				recommended: true,
-			},
-			{
-				id: "gemini-3-flash",
-				label: "Gemini 3 Flash",
-				provider: "google",
-				priceIn: 0.5,
-				priceOut: 3,
-				recommended: true,
-			},
-			{
-				id: "gemini-3.1-flash-lite",
-				label: "Gemini 3.1 Flash Lite",
-				provider: "google",
-				priceIn: 0.25,
-				priceOut: 1.5,
-				recommended: true,
 			},
 			{
 				id: "gemini-2.5-flash",
@@ -43,6 +65,7 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				provider: "google",
 				priceIn: 0.3,
 				priceOut: 2.5,
+				recommended: true,
 			},
 			{
 				id: "gemini-2.5-flash-lite",
@@ -51,24 +74,45 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				priceIn: 0.1,
 				priceOut: 0.4,
 			},
+			{
+				id: "gemini-3-flash",
+				label: "Gemini 3 Flash (preview)",
+				provider: "google",
+				priceIn: 0.5,
+				priceOut: 3,
+			},
+			{
+				id: "gemini-3.1-flash-lite",
+				label: "Gemini 3.1 Flash Lite",
+				provider: "google",
+				priceIn: 0.25,
+				priceOut: 1.5,
+			},
 		],
 	},
 	{
 		label: "OpenAI",
 		models: [
 			{
+				id: "gpt-5.4",
+				label: "GPT-5.4",
+				provider: "openai",
+				priceIn: 2.5,
+				priceOut: 10,
+			},
+			{
+				id: "gpt-5.4-mini",
+				label: "GPT-5.4 Mini",
+				provider: "openai",
+				priceIn: 0.75,
+				priceOut: 4.5,
+			},
+			{
 				id: "gpt-4.1",
 				label: "GPT-4.1",
 				provider: "openai",
 				priceIn: 2,
 				priceOut: 8,
-			},
-			{
-				id: "gpt-5.2",
-				label: "GPT-5.2",
-				provider: "openai",
-				priceIn: 1.75,
-				priceOut: 14,
 			},
 			{
 				id: "gpt-4.1-mini",
@@ -78,18 +122,18 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				priceOut: 1.6,
 			},
 			{
-				id: "gpt-4o",
-				label: "GPT-4o",
-				provider: "openai",
-				priceIn: 2.5,
-				priceOut: 10,
-			},
-			{
 				id: "gpt-4.1-nano",
 				label: "GPT-4.1 Nano",
 				provider: "openai",
 				priceIn: 0.1,
 				priceOut: 0.4,
+			},
+			{
+				id: "gpt-4o",
+				label: "GPT-4o",
+				provider: "openai",
+				priceIn: 2.5,
+				priceOut: 10,
 			},
 			{
 				id: "gpt-4o-mini",
@@ -101,26 +145,14 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 		],
 	},
 	{
-		label: "Anthropic",
-		models: [
-			{
-				id: "claude-sonnet",
-				label: "Claude Sonnet 4",
-				provider: "anthropic",
-				priceIn: 3,
-				priceOut: 15,
-			},
-		],
-	},
-	{
 		label: "Mistral",
 		models: [
 			{
 				id: "mistral-large",
-				label: "Mistral Large 3",
+				label: "Mistral Large 2512",
 				provider: "mistral",
-				priceIn: 0.5,
-				priceOut: 1.5,
+				priceIn: 2,
+				priceOut: 6,
 			},
 			{
 				id: "mistral-medium",
@@ -128,18 +160,6 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				provider: "mistral",
 				priceIn: 0.4,
 				priceOut: 2,
-			},
-		],
-	},
-	{
-		label: "Qwen",
-		models: [
-			{
-				id: "qwen-3.5",
-				label: "Qwen 3.5 397B",
-				provider: "qwen",
-				priceIn: 0.39,
-				priceOut: 2.34,
 			},
 		],
 	},

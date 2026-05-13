@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { legacyRowToParts } from "@repo/ai";
 import {
 	getDealerScopeFilter,
 	requirePermission,
@@ -67,6 +68,7 @@ export const getConversationMessages = protectedProcedure
 				tokenCount: true,
 				latencyMs: true,
 				error: true,
+				parts: true,
 				toolCalls: true,
 				replyToId: true,
 				deliveryStatus: true,
@@ -108,6 +110,18 @@ export const getConversationMessages = protectedProcedure
 		const hasMore = messages.length > input.limit;
 		const items = hasMore ? messages.slice(0, input.limit) : messages;
 		const nextCursor = hasMore ? items[items.length - 1]?.id : undefined;
+
+		// Canonical UIMessage parts for every row. Legacy rows (no `parts`
+		// column populated) are synthesised from `content + toolCalls` so the
+		// dashboard's MessageBubble receives one consistent shape.
+		const itemsWithParts = items.map((m) => {
+			const partsSource =
+				Array.isArray(m.parts) && m.parts.length > 0
+					? m.parts
+					: legacyRowToParts(m.content, m.toolCalls);
+			const { toolCalls: _legacy, parts: _stored, ...rest } = m;
+			return { ...rest, parts: partsSource };
+		});
 
 		// Compute takeover expiry: null if not active or expired
 		let humanTakeoverExpiresAt: Date | null = null;
@@ -161,7 +175,7 @@ export const getConversationMessages = protectedProcedure
 				channel: conversation.channel,
 				customer,
 			},
-			messages: items,
+			messages: itemsWithParts,
 			nextCursor,
 		};
 	});

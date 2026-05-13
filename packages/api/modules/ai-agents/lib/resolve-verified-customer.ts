@@ -1,4 +1,5 @@
 import { db } from "@repo/database";
+import { phoneSearchVariants } from "@repo/utils";
 
 /**
  * Resolve an AI conversation contact to a single ISP customer by phone.
@@ -11,12 +12,15 @@ import { db } from "@repo/database";
  * Returns the customer id only if exactly one ACTIVE customer in the org
  * matches. Multiple matches (e.g. shared family phone) → null, so the agent
  * falls back to its normal "ask which account" flow rather than guessing.
+ *
+ * Country handling is uniform — libphonenumber-js parses Lebanese, Syrian,
+ * any other country code without us hand-rolling per-country branches.
  */
 export async function resolveVerifiedCustomerId(
 	organizationId: string,
 	contactId: string,
 ): Promise<string | null> {
-	const variants = phoneVariants(contactId);
+	const variants = phoneSearchVariants(contactId);
 	if (variants.length === 0) {
 		return null;
 	}
@@ -39,16 +43,4 @@ export async function resolveVerifiedCustomerId(
 		return matches[0]?.id ?? null;
 	}
 	return null;
-}
-
-function phoneVariants(contactId: string): string[] {
-	const digits = contactId.replace(/\D/g, "");
-	if (!digits) {
-		return [];
-	}
-	const set = new Set<string>([digits, `+${digits}`]);
-	if (digits.startsWith("961") && digits.length > 3) {
-		set.add(`0${digits.slice(3)}`);
-	}
-	return Array.from(set);
 }

@@ -1,20 +1,19 @@
-import type {
-	GenerateResponseInput,
-	PromptSection,
-	ToolContext,
-	ToolResult,
-} from "@repo/ai";
 import {
-	buildContextGapNote,
-	buildSystemPrompt,
+	buildAgentMessages,
+	buildAgentTelemetry,
 	createAgentStream,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
-	formatHistoryMessage,
-	resolveTools,
+	getToolName,
+	isToolUIPart,
+	modelMessagesToRoleContent,
+	type PromptSection,
+	resolveAgentTools,
+	type ToolResult,
+	type UIMessage,
 } from "@repo/ai";
 import { config } from "@repo/config";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { fetchServicePlansSection } from "./service-plans-context";
@@ -22,55 +21,43 @@ import { fetchServicePlansSection } from "./service-plans-context";
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
 
+/**
+ * Streaming web chat endpoint. Returns a UI-message SSE stream consumed by
+ * `useChat` on the frontend.
+ *
+ * Persistence uses `toUIMessageStreamResponse`'s built-in `onFinish` callback
+ * combined with `consumeSseStream` so the assistant message gets written to
+ * the database even when the client disconnects mid-stream. The previous
+ * implementation hand-rolled this with `consumeStream() + awaiting
+ * streamResult.text/usage/toolResults` in a fire-and-forget chain, which
+ * only captured the final step in a multi-step run and never received
+ * abort/error signals from the SDK.
+ */
 export async function handleWebChatStream(
 	request: Request,
 	token: string,
 ): Promise<Response> {
-	// Parse request body — AI SDK client sends { messages, data, ...body }
 	let body: Record<string, unknown>;
 	try {
-		body = await request.json();
+		body = (await request.json()) as Record<string, unknown>;
 	} catch {
 		return new Response("Invalid request body", { status: 400 });
 	}
 
-	// sessionId is sent at the top level of the body by the client
 	const rawSessionId = body["sessionId"];
 	const sessionId =
 		typeof rawSessionId === "string" ? rawSessionId : crypto.randomUUID();
 
-	// Extract last user message from the messages array
 	const rawMessages = body["messages"];
 	if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
 		return new Response("No messages provided", { status: 400 });
 	}
 
-	const lastMessage = rawMessages[rawMessages.length - 1];
-	let userText: string;
-
-	if (typeof lastMessage === "object" && lastMessage !== null) {
-		const msg = lastMessage as Record<string, unknown>;
-		if (typeof msg["content"] === "string") {
-			userText = msg["content"];
-		} else if (Array.isArray(msg["parts"])) {
-			const textPart = (
-				msg["parts"] as Array<Record<string, unknown>>
-			).find(
-				(p) => p["type"] === "text" && typeof p["content"] === "string",
-			);
-			userText = (textPart?.["content"] as string) ?? "";
-		} else {
-			userText = "";
-		}
-	} else {
-		userText = "";
-	}
-
+	const userText = extractUserTextFromLastMessage(rawMessages);
 	if (!userText.trim()) {
 		return new Response("Empty message", { status: 400 });
 	}
 
-	// Look up agent by webChatToken
 	const agent = await db.aiAgent.findFirst({
 		where: {
 			webChatToken: token,
@@ -85,10 +72,20 @@ export async function handleWebChatStream(
 		});
 	}
 
-	// Truncate incoming message
+	// Check quota BEFORE any writes.
+	const quotaResult = await checkAndIncrementQuota(
+		{ type: "organization", organizationId: agent.organizationId },
+		"aiMessages",
+	);
+	if (!quotaResult.allowed) {
+		return new Response(
+			"This agent has reached its message limit. Please try again later.",
+			{ status: 429 },
+		);
+	}
+
 	const truncatedText = userText.slice(0, config.ai.maxMessageLength);
 
-	// Find or create conversation
 	let conversation = await db.aiConversation.findFirst({
 		where: {
 			agentId: agent.id,
@@ -114,7 +111,6 @@ export async function handleWebChatStream(
 		});
 	}
 
-	// Store user message
 	await db.aiMessage.create({
 		data: {
 			conversationId: conversation.id,
@@ -123,22 +119,6 @@ export async function handleWebChatStream(
 		},
 	});
 
-	// Check AI messages quota
-	const quotaResult = await checkAndIncrementQuota(
-		{
-			type: "organization",
-			organizationId: agent.organizationId,
-		},
-		"aiMessages",
-	);
-	if (!quotaResult.allowed) {
-		return new Response(
-			"This agent has reached its message limit. Please try again later.",
-			{ status: 429 },
-		);
-	}
-
-	// Load conversation history
 	const history = await db.aiMessage.findMany({
 		where: { conversationId: conversation.id },
 		orderBy: { createdAt: "desc" },
@@ -147,219 +127,228 @@ export async function handleWebChatStream(
 			role: true,
 			content: true,
 			toolCalls: true,
+			parts: true,
 		},
 	});
 
-	const historyMessages = history.reverse().map(formatHistoryMessage);
+	const historyRows = history.reverse();
 
-	// Inject context gap note if significant time has passed
-	const gapNote = buildContextGapNote(
-		previousLastMessageAt,
-		agent.contextGapThresholdMinutes,
-	);
-	if (gapNote && historyMessages.length > 0) {
-		let insertIdx = historyMessages.length - 1;
-		while (
-			insertIdx > 0 &&
-			historyMessages[insertIdx - 1]?.role === "user"
-		) {
-			insertIdx--;
-		}
-		historyMessages.splice(insertIdx, 0, {
-			role: "user",
-			content: gapNote,
-		});
-	}
+	const { tools, agentToolConfigs } = await resolveAgentTools({
+		agent,
+		conversationId: conversation.id,
+		externalChatId: sessionId,
+	});
 
-	// Resolve tools
-	let tools: GenerateResponseInput["tools"];
-	const agentToolConfigs =
-		agent.enabledTools.length > 0
-			? await db.aiAgentToolConfig.findMany({
-					where: { agentId: agent.id },
-				})
-			: [];
-
-	if (agent.enabledTools.length > 0) {
-		const perToolConfigs: Record<string, Record<string, unknown>> = {};
-		for (const tc of agentToolConfigs) {
-			perToolConfigs[tc.toolId] = tc.config as Record<string, unknown>;
-		}
-
-		const toolContext: ToolContext = {
-			organizationId: agent.organizationId,
-			agentId: agent.id,
-			conversationId: conversation.id,
-			externalChatId: sessionId,
-		};
-		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
-	}
-
-	// Fetch service plans section (if enabled)
 	const servicePlans = await fetchServicePlansSection(
 		agent.organizationId,
 		agent.servicePlansEnabled,
 		agent.servicePlanIds,
 	);
 
-	// Build system prompt (streaming web chat needs verbose tool narration)
-	const systemPrompt = buildSystemPrompt({
-		basePrompt: agent.systemPrompt,
-		enabledTools: agent.enabledTools,
-		maintenanceMode: agent.maintenanceMode,
-		maintenanceMessage: agent.maintenanceMessage ?? undefined,
-		servicePlans,
-		promptSections: agent.promptSections as unknown as PromptSection[],
-		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
+	const messages = buildAgentMessages({
+		systemOptions: {
+			basePrompt: agent.systemPrompt,
+			enabledTools: agent.enabledTools,
+			maintenanceMode: agent.maintenanceMode,
+			maintenanceMessage: agent.maintenanceMessage ?? undefined,
+			isWebChat: true,
+			servicePlans,
+			promptSections: agent.promptSections as unknown as PromptSection[],
+			toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
+		},
+		history: historyRows,
+		lastMessageAt: previousLastMessageAt,
+		contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
 	});
 
-	// Stream the response
 	const abortController = new AbortController();
-	const timeoutMs = config.ai.responseTimeoutMs;
-	const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+	const timeout = setTimeout(
+		() => abortController.abort(),
+		config.ai.responseTimeoutMs,
+	);
 
+	const streamStart = Date.now();
 	const streamResult = createAgentStream({
 		model: agent.model,
-		systemPrompt,
-		knowledgeBase: agent.knowledgeBase ?? undefined,
-		messages: historyMessages,
+		messages,
 		temperature: agent.temperature,
 		abortSignal: abortController.signal,
 		tools,
-		maxSteps: tools ? 10 : undefined,
+		telemetry: buildAgentTelemetry({
+			conversationId: conversation.id,
+			agentId: agent.id,
+			organizationId: agent.organizationId,
+		}),
 	});
 
-	// Fire-and-forget: track completion data from the stream for DB storage
 	const conversationId = conversation.id;
-	const streamStartTime = Date.now();
+	const conversationModelMessages = messages;
 
-	Promise.resolve(streamResult.consumeStream())
-		.then(async () => {
+	// Drain the model stream on the server side too — keeps the SDK pumping
+	// tokens even after a client disconnect, so `onFinish` always fires.
+	streamResult.consumeStream();
+
+	return streamResult.toUIMessageStreamResponse({
+		onFinish: async ({ messages: finishedMessages, isAborted }) => {
 			clearTimeout(timeout);
 
 			try {
-				const [fullText, usage, toolResultsRaw] = await Promise.all([
-					streamResult.text,
-					streamResult.usage,
-					streamResult.toolResults,
-				]);
+				const assistantMessage =
+					pickLatestAssistantMessage(finishedMessages);
 
-				const tokenCount =
-					(usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0);
+				const { text: assistantText, toolResults } =
+					extractTextAndToolResults(assistantMessage?.parts);
 
-				const toolResults: ToolResult[] = Array.isArray(toolResultsRaw)
-					? toolResultsRaw.map((tr) => ({
-							toolName: tr.toolName,
-							args: tr.input,
-							result: tr.output,
-						}))
+				// SDK-streamed parts already include the model's tool calls.
+				// The escalation guard fires post-stream and may append a
+				// guard-triggered tool result, which we fold into the parts
+				// array so persistence captures it.
+				const partsToStore: UIMessage["parts"] = assistantMessage?.parts
+					? [...assistantMessage.parts]
 					: [];
 
-				// Escalation safety net
 				if (tools && agent.enabledTools.includes("escalate-telegram")) {
 					try {
 						const guardResult = await executeEscalationGuard({
 							tools,
-							responseText: fullText,
+							responseText: assistantText,
 							toolResults:
 								toolResults.length > 0
 									? toolResults
 									: undefined,
-							conversationMessages: historyMessages,
+							conversationMessages: modelMessagesToRoleContent(
+								conversationModelMessages,
+							),
 							conversationId,
 						});
 						if (guardResult) {
-							toolResults.push(guardResult);
+							partsToStore.push(
+								toolResultToPart(guardResult, conversationId),
+							);
 						}
-					} catch {
-						// Guard failure should not affect DB storage
+					} catch (err) {
+						logger.error("Web chat escalation guard failed", {
+							error: err,
+							conversationId,
+						});
 					}
 				}
 
-				// Store assistant message
-				const messageData: Record<string, unknown> = {
-					conversationId,
-					role: "assistant",
-					content: fullText,
-					tokenCount,
-					latencyMs: Date.now() - streamStartTime,
-				};
-				if (toolResults.length > 0) {
-					messageData["toolCalls"] = JSON.parse(
-						JSON.stringify(toolResults),
-					);
-				}
+				await db.aiMessage.create({
+					data: {
+						conversationId,
+						role: "assistant",
+						content: assistantText,
+						latencyMs: Date.now() - streamStart,
+						...(partsToStore.length > 0
+							? { parts: partsToStore as Prisma.InputJsonValue }
+							: {}),
+						...(isAborted
+							? { error: "client_aborted_before_finish" }
+							: {}),
+					},
+				});
 
-				await db.aiMessage
-					.create({ data: messageData as never })
-					.catch((err) =>
-						logger.error("Failed to store assistant message", {
-							error: err,
-							conversationId,
-						}),
-					);
-				await db.aiConversation
-					.update({
-						where: { id: conversationId },
-						data: {
-							messageCount: { increment: 2 },
-							lastMessageAt: new Date(),
-						},
-					})
-					.catch((err) =>
-						logger.error("Failed to update conversation counters", {
-							error: err,
-							conversationId,
-						}),
-					);
+				await db.aiConversation.update({
+					where: { id: conversationId },
+					data: {
+						messageCount: { increment: 2 },
+						lastMessageAt: new Date(),
+					},
+				});
 			} catch (error) {
-				logger.error("Web chat stream completion failed", {
+				logger.error("Web chat stream onFinish persistence failed", {
 					error,
 					conversationId,
 				});
-
-				db.aiMessage
-					.create({
-						data: {
-							conversationId,
-							role: "assistant",
-							content: FALLBACK_MESSAGE,
-							error:
-								error instanceof Error
-									? error.message
-									: "Unknown error",
-						},
-					})
-					.catch((err) =>
-						logger.error("Failed to store fallback message", {
-							error: err,
-							conversationId,
-						}),
-					);
-
-				db.aiConversation
-					.update({
-						where: { id: conversationId },
-						data: {
-							messageCount: { increment: 2 },
-							lastMessageAt: new Date(),
-						},
-					})
-					.catch((err) =>
-						logger.error(
-							"Failed to update conversation after error",
-							{ error: err, conversationId },
-						),
-					);
 			}
-		})
-		.catch((err) => {
+		},
+		onError: (error) => {
 			clearTimeout(timeout);
-			logger.error("Web chat stream consumption failed", {
-				error: err,
-				conversationId,
-			});
-		});
+			logger.error("Web chat stream errored", { error, conversationId });
+			return FALLBACK_MESSAGE;
+		},
+	});
+}
 
-	return streamResult.toUIMessageStreamResponse();
+function extractUserTextFromLastMessage(rawMessages: unknown[]): string {
+	const last = rawMessages[rawMessages.length - 1];
+	if (typeof last !== "object" || last === null) {
+		return "";
+	}
+	const msg = last as Record<string, unknown>;
+	if (typeof msg["content"] === "string") {
+		return msg["content"];
+	}
+	if (Array.isArray(msg["parts"])) {
+		const parts = msg["parts"] as Array<Record<string, unknown>>;
+		const textPart = parts.find(
+			(p) =>
+				p["type"] === "text" &&
+				(typeof p["content"] === "string" ||
+					typeof p["text"] === "string"),
+		);
+		if (textPart) {
+			const value = textPart["text"] ?? textPart["content"];
+			if (typeof value === "string") {
+				return value;
+			}
+		}
+	}
+	return "";
+}
+
+function pickLatestAssistantMessage(
+	messages: UIMessage[],
+): UIMessage | undefined {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const m = messages[i];
+		if (m?.role === "assistant") {
+			return m;
+		}
+	}
+	return undefined;
+}
+
+function extractTextAndToolResults(parts: UIMessage["parts"] | undefined): {
+	text: string;
+	toolResults: ToolResult[];
+} {
+	if (!parts) {
+		return { text: "", toolResults: [] };
+	}
+	const textChunks: string[] = [];
+	const toolResults: ToolResult[] = [];
+	for (const part of parts) {
+		if (part.type === "text" && typeof part.text === "string") {
+			textChunks.push(part.text);
+			continue;
+		}
+		if (!isToolUIPart(part)) {
+			continue;
+		}
+		if (part.state !== "output-available") {
+			continue;
+		}
+		toolResults.push({
+			toolCallId: part.toolCallId,
+			toolName: getToolName(part),
+			args: part.input,
+			result: part.output,
+		});
+	}
+	return { text: textChunks.join(""), toolResults };
+}
+
+function toolResultToPart(
+	tr: ToolResult,
+	conversationId: string,
+): UIMessage["parts"][number] {
+	return {
+		type: `tool-${tr.toolName}`,
+		toolCallId: tr.toolCallId ?? `guard-${conversationId}`,
+		state: "output-available",
+		input: tr.args ?? {},
+		output: tr.result,
+	} as UIMessage["parts"][number];
 }

@@ -1,11 +1,19 @@
+export type { UIMessage } from "ai";
+export { getToolName, isToolUIPart } from "ai";
+export type { BuildAgentMessagesInput } from "./src/agent-context";
+export { buildAgentMessages, buildAgentTelemetry } from "./src/agent-context";
 export { needsAudioRemux, remuxWebmToOgg } from "./src/audio-remux";
 export {
 	computeBotFingerprint,
 	isHumanTakeoverActive,
 } from "./src/bot-fingerprint";
-export type { BuildSystemPromptOptions } from "./src/build-system-prompt";
+export type {
+	BuildSystemPromptOptions,
+	SystemPromptParts,
+} from "./src/build-system-prompt";
 export {
 	buildSystemPrompt,
+	buildSystemPromptParts,
 	extractToolPromptOverrides,
 } from "./src/build-system-prompt";
 export { classifyText } from "./src/classify";
@@ -19,12 +27,21 @@ export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
 export { generateSystemPrompt } from "./src/generate-system-prompt";
+export type { DbMessageRow } from "./src/history";
 export {
+	assistantMessageToParts,
 	buildContextGapNote,
-	formatHistoryMessage,
-	stripToolAnnotation,
+	dbMessagesToModelMessages,
+	legacyRowToParts,
+	modelMessagesToRoleContent,
 } from "./src/history";
-export { getModel, isValidModel } from "./src/model-registry";
+export {
+	CACHE_BREAKPOINT,
+	CACHE_BREAKPOINT_1H,
+	getModel,
+	isValidModel,
+	listAvailableModels,
+} from "./src/model-registry";
 export { hashPin } from "./src/pin";
 export {
 	markAsRead,
@@ -43,6 +60,12 @@ export type {
 	ReactionEvent,
 	ReceiptUpdate,
 } from "./src/providers/whatsapp";
+export type {
+	AgentToolConfigRow,
+	ResolveAgentToolsInput,
+	ResolveAgentToolsResult,
+} from "./src/resolve-agent-tools";
+export { resolveAgentTools } from "./src/resolve-agent-tools";
 export {
 	getAvailableTools,
 	getToolRegistry,
@@ -61,6 +84,7 @@ export type {
 	ChannelProvider,
 	GenerateResponseInput,
 	GenerateResponseResult,
+	ModelMessage,
 	ParsedMessage,
 	SendMediaOptions,
 	SendMessageOptions,

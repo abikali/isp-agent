@@ -30,6 +30,7 @@ import {
 	CreditCardIcon,
 	GlobeIcon,
 	type LucideIcon,
+	MegaphoneIcon,
 	MonitorIcon,
 	NetworkIcon,
 	SearchIcon,
@@ -61,6 +62,7 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
 	inventory: "Inventory",
 	installations: "Installations",
 	connections: "Integrations",
+	marketing: "Marketing",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -77,6 +79,7 @@ const ACTION_LABELS: Record<string, string> = {
 	collect: "Collect",
 	approve: "Approve",
 	sync: "Sync",
+	send: "Send",
 };
 
 const GROUP_ICONS: Record<string, LucideIcon> = {
@@ -84,6 +87,7 @@ const GROUP_ICONS: Record<string, LucideIcon> = {
 	ispManagement: NetworkIcon,
 	aiMonitoring: MonitorIcon,
 	integrations: GlobeIcon,
+	marketing: MegaphoneIcon,
 	insights: SearchIcon,
 	billing: CreditCardIcon,
 };
@@ -95,6 +99,8 @@ const GROUP_DESCRIPTIONS: Record<string, string> = {
 		"Manage access to customers, plans, stations, employees, tasks, and more",
 	aiMonitoring: "Configure access to AI agents and automated monitoring",
 	integrations: "Control webhooks, API keys, and third-party connections",
+	marketing:
+		"Send WhatsApp broadcasts via Salti and manage marketing credentials",
 	insights: "Manage access to audit logs and analytics",
 	billing:
 		"Control payment collection, billing management, and financial data",

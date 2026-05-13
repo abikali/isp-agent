@@ -7,6 +7,10 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { buildDateRangeFilter, customerSearchFilter } from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
+import {
+	findUnreviewedAmountMismatchPaymentIds,
+	unreviewedPaymentsWhereFragment,
+} from "../lib/review-status";
 import { paginationSchema } from "../lib/schemas";
 
 export const listPayments = protectedProcedure
@@ -79,29 +83,18 @@ export const listPayments = protectedProcedure
 			where["freeAccount"] = input.freeAccount;
 		}
 		if (input.unreviewedOnly) {
-			where["reviewedAt"] = null;
-			const mismatchIdsForReview = await db.$queryRaw<{ id: string }[]>`
-				SELECT p.id FROM "payment" p
-				JOIN "customer" c ON c.id = p."customerId"
-				WHERE p."organizationId" = ${input.organizationId}
-				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
-				  AND p."freeAccount" = false
-				  AND p."stoppedAccount" = false
-				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > 0.01
-				  AND p."reviewedAt" IS NULL
-			`;
-			const mismatchIds = mismatchIdsForReview.map((r) => r.id);
+			const mismatchIds = await findUnreviewedAmountMismatchPaymentIds({
+				organizationId: input.organizationId,
+				activeDealerId,
+				...(input.billingMonthId
+					? { billingMonthId: input.billingMonthId }
+					: {}),
+			});
+			const fragment = unreviewedPaymentsWhereFragment(mismatchIds);
+			where["reviewedAt"] = fragment.reviewedAt;
 			where["AND"] = [
 				...((where["AND"] as unknown[]) ?? []),
-				{
-					OR: [
-						{ freeAccount: true },
-						{ stoppedAccount: true },
-						...(mismatchIds.length > 0
-							? [{ id: { in: mismatchIds } }]
-							: []),
-					],
-				},
+				{ OR: fragment.OR },
 			];
 		}
 		if (input.reviewedOnly) {

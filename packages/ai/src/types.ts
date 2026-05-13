@@ -1,4 +1,11 @@
-import type { ToolSet } from "ai";
+import type {
+	JSONValue,
+	ModelMessage,
+	PrepareStepFunction,
+	StopCondition,
+	TelemetrySettings,
+	ToolSet,
+} from "ai";
 
 export interface ParsedMessage {
 	chatId: string;
@@ -38,15 +45,31 @@ export interface SendMessageOptions {
 /** A tool record as accepted by streamText/generateText. */
 export type ToolRecord = ToolSet;
 
+/** Structural type for `providerOptions` — see model-registry CACHE_BREAKPOINT. */
+export type ProviderOptions = Record<string, Record<string, JSONValue>>;
+
 export interface GenerateResponseInput {
 	model: string;
-	systemPrompt: string;
-	knowledgeBase?: string | undefined;
-	messages: Array<{ role: "user" | "assistant"; content: string }>;
+	/**
+	 * Full canonical message list — system message(s) + history + new user
+	 * message. The caller is responsible for building this; this preserves
+	 * tool-call/tool-result structure across turns.
+	 */
+	messages: ModelMessage[];
 	temperature?: number | undefined;
 	abortSignal?: AbortSignal | undefined;
 	tools?: ToolRecord | undefined;
-	maxSteps?: number | undefined;
+	/** Stop conditions. Defaults to stepCountIs(20). */
+	stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined;
+	/** OpenTelemetry settings — wire to Langfuse/Phoenix/Helicone. */
+	telemetry?: TelemetrySettings | undefined;
+	/** Per-step settings override (model/activeTools/toolChoice). */
+	// biome-ignore lint/suspicious/noExplicitAny: PrepareStepFunction is heavily generic.
+	prepareStep?: PrepareStepFunction<any> | undefined;
+	/** Subset of tools active for THIS call (full registry is still attached). */
+	activeTools?: string[] | undefined;
+	/** Top-level provider options forwarded to streamText. */
+	providerOptions?: ProviderOptions | undefined;
 	/** Called with intermediate text when a step finishes with a tool call (for sending progress messages). */
 	onStepText?: ((text: string) => Promise<void>) | undefined;
 	/** Called on tool call start/end events. Use to re-send typing indicators during long tool chains. */
@@ -54,6 +77,7 @@ export interface GenerateResponseInput {
 }
 
 export interface ToolResult {
+	toolCallId?: string | undefined;
 	toolName: string;
 	args: unknown;
 	result: unknown;
@@ -61,7 +85,12 @@ export interface ToolResult {
 
 export interface GenerateResponseResult {
 	text: string;
+	/** Total tokens (input + output). Kept for backward compatibility. */
 	tokenCount: number;
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
 	latencyMs: number;
 	toolResults?: ToolResult[] | undefined;
 }
@@ -82,3 +111,5 @@ export interface SendMediaOptions {
 	latitude?: number | undefined;
 	longitude?: number | undefined;
 }
+
+export type { ModelMessage };

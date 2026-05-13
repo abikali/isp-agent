@@ -217,6 +217,77 @@ export async function executeIRadius(
 }
 
 /**
+ * Run a shell command on the iRadius server over SSH, optionally piping
+ * `stdin` into it. Returns the combined stdout/stderr text plus the exit
+ * code (signal-terminated processes report code `null` from ssh2; that is
+ * surfaced as `-1`).
+ *
+ * The shell command runs as the SSH user (root on iRadius). Callers must
+ * treat any user-provided values as shell-untrusted and shell-quote them
+ * — there is no built-in argv mode for ssh2's `exec`.
+ *
+ * This is the carve-out used by `iradiusForceDisconnect` to invoke the
+ * MikroTik RouterOS API directly from the iRadius host (which is the only
+ * machine with network reach to the NAS routers' private IPs).
+ */
+export async function execIRadiusShell(
+	command: string,
+	options?: { stdin?: string; timeoutMs?: number },
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+	const config = getConfig();
+	const sshClient = await connectSsh(config);
+	try {
+		return await new Promise<{
+			stdout: string;
+			stderr: string;
+			exitCode: number;
+		}>((resolve, reject) => {
+			let timer: NodeJS.Timeout | null = null;
+			sshClient.exec(command, (err, stream) => {
+				if (err) {
+					reject(err);
+					return;
+				}
+				let stdout = "";
+				let stderr = "";
+				let exitCode = -1;
+				stream.on("data", (chunk: Buffer) => {
+					stdout += chunk.toString("utf8");
+				});
+				stream.stderr.on("data", (chunk: Buffer) => {
+					stderr += chunk.toString("utf8");
+				});
+				stream.on("close", (code: number | null) => {
+					if (timer) {
+						clearTimeout(timer);
+					}
+					exitCode = typeof code === "number" ? code : -1;
+					resolve({ stdout, stderr, exitCode });
+				});
+				if (options?.stdin !== undefined) {
+					stream.stdin.end(options.stdin);
+				} else {
+					stream.stdin.end();
+				}
+				if (options?.timeoutMs && options.timeoutMs > 0) {
+					timer = setTimeout(() => {
+						stream.signal?.("KILL");
+						stream.destroy();
+						reject(
+							new Error(
+								`SSH exec timed out after ${options.timeoutMs}ms`,
+							),
+						);
+					}, options.timeoutMs);
+				}
+			});
+		});
+	} finally {
+		sshClient.end();
+	}
+}
+
+/**
  * Test the iRadius connection and return table counts.
  */
 export async function testIRadiusConnection(): Promise<{

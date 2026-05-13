@@ -314,24 +314,42 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 			query: z.string().describe("Customer phone number or ISP username"),
 		}),
 		execute: async (args) => {
-			if (!isSearchableQuery(args.query)) {
-				return {
-					found: false,
-					message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Retry using the phone or username from your VERIFIED CUSTOMER / CUSTOMER CONTACT INFO section. Only ask the customer if neither is available there or the customer has indicated the account is under different details.`,
-				};
-			}
 			return withIspErrorHandling(
 				context,
 				"isp-diagnose-customer",
 				async (config) => {
-					const query = cleanPhoneNumber(args.query);
+					// PHONE-FIRST: try the messaging provider's verified phone
+					// before honouring `args.query`. The verified phone is the
+					// only identifier the agent can't fake or pull from
+					// poisoned history. Memoized per turn via ToolContext.
+					const phoneMatch =
+						(await context.getVerifiedIspCustomer?.()) ?? null;
 
-					// -------------------------------------------------------
-					// 1. SEARCH
-					// -------------------------------------------------------
-					const data = await ispGet<
-						Record<string, unknown> | Record<string, unknown>[]
-					>(config, "/user-info", { mobile: query });
+					let queryForApi: string;
+					let data:
+						| Record<string, unknown>
+						| Record<string, unknown>[]
+						| null;
+
+					if (phoneMatch) {
+						queryForApi = (phoneMatch["userName"] as string) ?? "";
+						data = phoneMatch;
+					} else {
+						if (!isSearchableQuery(args.query)) {
+							return {
+								found: false,
+								message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Ask the customer for the phone number their account is registered under, or for their exact PPPoE/Hotspot username (e.g. from a past invoice). Do NOT reuse usernames mentioned earlier in this conversation unless the customer has just confirmed them in this turn.`,
+							};
+						}
+						queryForApi = cleanPhoneNumber(args.query);
+
+						// -------------------------------------------------------
+						// 1. SEARCH
+						// -------------------------------------------------------
+						data = await ispGet<
+							Record<string, unknown> | Record<string, unknown>[]
+						>(config, "/user-info", { mobile: queryForApi });
+					}
 
 					if (!data) {
 						return {
@@ -420,7 +438,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					]
 						.filter(Boolean)
 						.join(" ");
-					const userName = (customer["userName"] as string) ?? query;
+					const userName =
+						(customer["userName"] as string) ?? queryForApi;
 
 					// -------------------------------------------------------
 					// 2. ACCOUNT GATE

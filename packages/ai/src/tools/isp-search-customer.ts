@@ -106,20 +106,35 @@ function createIspSearchCustomerTool(context: ToolContext) {
 				),
 		}),
 		execute: async (args) => {
-			if (!isSearchableQuery(args.query)) {
-				return {
-					success: false,
-					message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Retry using the phone or username from your VERIFIED CUSTOMER / CUSTOMER CONTACT INFO section. Only ask the customer if neither is available there or the customer has indicated the account is under different details.`,
-				};
-			}
 			return withIspErrorHandling(
 				context,
 				"isp-search-customer",
 				async (config) => {
-					const query = cleanPhoneNumber(args.query);
-					const data = await ispGet<
-						Record<string, unknown> | Record<string, unknown>[]
-					>(config, "/user-info", { mobile: query });
+					// PHONE-FIRST: prefer the messaging provider's verified
+					// phone over the agent-supplied query. Memoized per turn
+					// via ToolContext so multiple ISP tools share one RTT.
+					const phoneMatch =
+						(await context.getVerifiedIspCustomer?.()) ?? null;
+
+					let data:
+						| Record<string, unknown>
+						| Record<string, unknown>[]
+						| null;
+
+					if (phoneMatch) {
+						data = phoneMatch;
+					} else {
+						if (!isSearchableQuery(args.query)) {
+							return {
+								success: false,
+								message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Ask the customer for the phone number their account is registered under, or for their exact PPPoE/Hotspot username (e.g. from a past invoice). Do NOT reuse usernames mentioned earlier in this conversation unless the customer has just confirmed them in this turn.`,
+							};
+						}
+						const query = cleanPhoneNumber(args.query);
+						data = await ispGet<
+							Record<string, unknown> | Record<string, unknown>[]
+						>(config, "/user-info", { mobile: query });
+					}
 
 					// API may return null (empty response), a single object, or an array
 					if (!data) {

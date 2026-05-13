@@ -39,57 +39,60 @@ export interface BuildSystemPromptOptions {
 	toolPromptOverrides?: Record<string, string | null> | undefined;
 }
 
-export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
-	const sections: string[] = [];
+/**
+ * Cacheable system content (agent personality, tool prompts, service plans,
+ * generic instructions) vs. per-conversation dynamic content (customer info,
+ * maintenance mode message).
+ *
+ * Splitting these lets the caller stamp a `cacheControl: { type: 'ephemeral' }`
+ * breakpoint on the static section. For Anthropic via OpenRouter that yields
+ * a ~90% input-token discount on cache hits, with a 5-minute (or 1-hour) TTL.
+ *
+ * The order is deliberate: static sections go first so they share a stable
+ * prefix; the dynamic block is appended after the breakpoint.
+ */
+export interface SystemPromptParts {
+	/** Stable across the conversation — safe to mark cacheable. */
+	staticPrompt: string;
+	/** Per-conversation context that should NOT be cached. */
+	dynamicPrompt: string;
+}
 
-	// Maintenance mode: override the entire prompt personality
+export function buildSystemPromptParts(
+	opts: BuildSystemPromptOptions,
+): SystemPromptParts {
+	const staticSections: string[] = [];
+	const dynamicSections: string[] = [];
+
+	// Maintenance mode WRAPS the base personality with extra rules; the
+	// `maintenanceMessage` itself (the admin context string) is dynamic and
+	// goes into the dynamic block below.
 	if (opts.maintenanceMode) {
-		sections.push(
-			maintenanceSystemPrompt(
-				opts.basePrompt,
-				opts.maintenanceMessage ?? undefined,
-			),
-		);
+		staticSections.push(maintenanceSystemPrompt(opts.basePrompt));
 	} else {
-		sections.push(opts.basePrompt);
+		staticSections.push(opts.basePrompt);
 	}
 
-	// Contact info (dynamic runtime data — stays in code).
-	// When the conversation is linked to a known customer, render that as
-	// hard facts (with username) so the model can call ISP tools directly
-	// instead of asking the user for information we already have.
-	if (opts.verifiedCustomer) {
-		sections.push(verifiedCustomerSection(opts));
-	} else if (opts.contactName || opts.contactPhone) {
-		sections.push(contactInfoSection(opts));
-	}
-
-	// Service plans (injected when toggle is enabled)
 	if (opts.servicePlans) {
-		sections.push(opts.servicePlans);
+		staticSections.push(opts.servicePlans);
 	}
 
-	// Tool-owned prompt sections — for each enabled tool, include its prompt
 	const registry = getToolRegistry();
 	for (const toolId of opts.enabledTools) {
 		const registered = registry[toolId];
 		if (!registered) {
 			continue;
 		}
-
-		// Use override if provided, fall back to tool's default
 		if (opts.toolPromptOverrides && toolId in opts.toolPromptOverrides) {
 			const override = opts.toolPromptOverrides[toolId];
-			// Non-empty override = use it; null/empty = intentionally cleared
 			if (override) {
-				sections.push(override);
+				staticSections.push(override);
 			}
 		} else if (registered.defaultPromptSection) {
-			sections.push(registered.defaultPromptSection);
+			staticSections.push(registered.defaultPromptSection);
 		}
 	}
 
-	// Agent-level prompt sections (configurable, with condition evaluation)
 	const agentSections =
 		opts.promptSections && opts.promptSections.length > 0
 			? opts.promptSections
@@ -101,15 +104,41 @@ export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
 		if (!section.enabled) {
 			continue;
 		}
-
 		if (!evaluateCondition(section.condition, hasTools, opts.isWebChat)) {
 			continue;
 		}
-
-		sections.push(section.content);
+		staticSections.push(section.content);
 	}
 
-	return sections.join("\n\n");
+	if (opts.maintenanceMode && opts.maintenanceMessage) {
+		dynamicSections.push(
+			`Admin context about the current issue (internal — do NOT repeat verbatim to customers): "${opts.maintenanceMessage}"`,
+		);
+	}
+
+	if (opts.verifiedCustomer) {
+		dynamicSections.push(verifiedCustomerSection(opts));
+	} else if (opts.contactName || opts.contactPhone) {
+		dynamicSections.push(contactInfoSection(opts));
+	}
+
+	return {
+		staticPrompt: staticSections.join("\n\n"),
+		dynamicPrompt: dynamicSections.join("\n\n"),
+	};
+}
+
+/**
+ * Backwards-compatible helper that joins `staticPrompt` + `dynamicPrompt` into
+ * a single string. New code that wants prompt caching should call
+ * `buildSystemPromptParts` instead.
+ */
+export function buildSystemPrompt(opts: BuildSystemPromptOptions): string {
+	const { staticPrompt, dynamicPrompt } = buildSystemPromptParts(opts);
+	if (!dynamicPrompt) {
+		return staticPrompt;
+	}
+	return `${staticPrompt}\n\n${dynamicPrompt}`;
 }
 
 /**
@@ -145,21 +174,13 @@ function evaluateCondition(
 		case "has-tools-non-webchat":
 			return hasTools && !isWebChat;
 		default:
-			// No condition = always include
 			return true;
 	}
 }
 
-function maintenanceSystemPrompt(
-	basePrompt: string,
-	message?: string | undefined,
-): string {
-	const context = message
-		? `\n\nAdmin context about the current issue (internal — do NOT repeat verbatim to customers): "${message}"`
-		: "";
-
+function maintenanceSystemPrompt(basePrompt: string): string {
 	return (
-		`MAINTENANCE MODE IS ACTIVE — THIS OVERRIDES YOUR NORMAL BEHAVIOR.${context}\n\n` +
+		"MAINTENANCE MODE IS ACTIVE — THIS OVERRIDES YOUR NORMAL BEHAVIOR.\n\n" +
 		"MAINTENANCE MODE RULES (follow strictly in order):\n" +
 		"1. When a customer reports ANY connectivity issue (slow internet, disconnection, no signal, etc.), " +
 		"your FIRST response MUST acknowledge the known service issue. Explain it empathetically in your own words. " +

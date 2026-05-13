@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import {
+	AgentDebugChat,
 	AgentSettings,
 	AgentStats,
 	AgentStatsSkeleton,
@@ -14,6 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/components/tabs";
 import {
 	BarChartIcon,
+	BugIcon,
 	MessageSquareIcon,
 	SettingsIcon,
 	Share2Icon,
@@ -56,6 +58,10 @@ function AgentDetailPage() {
 						<BarChartIcon className="size-3.5" />
 						<span className="hidden sm:inline">Stats</span>
 					</TabsTrigger>
+					<TabsTrigger value="debug" className="gap-1.5">
+						<BugIcon className="size-3.5" />
+						<span className="hidden sm:inline">Debug</span>
+					</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="settings">
@@ -95,6 +101,10 @@ function AgentDetailPage() {
 							organizationId={organizationId}
 						/>
 					</AsyncBoundary>
+				</TabsContent>
+
+				<TabsContent value="debug">
+					<AgentDebugChat agentId={agentId} />
 				</TabsContent>
 			</Tabs>
 		</PermissionGate>

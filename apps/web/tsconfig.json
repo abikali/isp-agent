@@ -52,6 +52,9 @@
 			"@saas/integrations/client": [
 				"./modules/saas/integrations/index.client.ts"
 			],
+			"@saas/marketing/client": [
+				"./modules/saas/marketing/index.client.ts"
+			],
 			"@saas/dashboard/client": [
 				"./modules/saas/dashboard/index.client.ts"
 			],

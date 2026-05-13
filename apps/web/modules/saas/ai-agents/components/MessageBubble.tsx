@@ -2,6 +2,7 @@
 
 import { getStorageImageUrl } from "@shared/lib/image-utils";
 import { cn } from "@ui/lib";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import {
 	BotIcon,
 	CheckCheckIcon,
@@ -36,6 +37,29 @@ interface ToolCallData {
 	result: unknown;
 }
 
+function partsToToolCalls(
+	parts: UIMessage["parts"] | undefined,
+): ToolCallData[] {
+	if (!Array.isArray(parts)) {
+		return [];
+	}
+	const out: ToolCallData[] = [];
+	for (const part of parts) {
+		if (!isToolUIPart(part)) {
+			continue;
+		}
+		if (part.state !== "output-available") {
+			continue;
+		}
+		out.push({
+			toolName: getToolName(part),
+			args: part.input,
+			result: part.output,
+		});
+	}
+	return out;
+}
+
 interface MessageBubbleProps {
 	id: string;
 	role: string;
@@ -55,7 +79,7 @@ interface MessageBubbleProps {
 	attachmentMimeType?: string | null | undefined;
 	attachmentSize?: number | null | undefined;
 	attachmentMeta?: Record<string, unknown> | null | undefined;
-	toolCalls?: ToolCallData[] | null | undefined;
+	parts?: UIMessage["parts"] | null | undefined;
 	onReply?: (() => void) | undefined;
 	onReact?: ((emoji: string) => void) | undefined;
 	onEdit?: (() => void) | undefined;
@@ -81,13 +105,14 @@ export function MessageBubble({
 	attachmentMimeType,
 	attachmentSize,
 	attachmentMeta,
-	toolCalls,
+	parts,
 	onReply,
 	onReact,
 	onEdit,
 	onDelete,
 	onReactionClick,
 }: MessageBubbleProps) {
+	const toolCalls = partsToToolCalls(parts ?? undefined);
 	const isUser = role === "user";
 	const isAssistant = role === "assistant";
 	const isAdmin = role === "admin";

@@ -2,6 +2,7 @@
 
 // Components
 export { AdminChatInput } from "./components/AdminChatInput";
+export { AgentDebugChat } from "./components/AgentDebugChat";
 export { AgentSettings } from "./components/AgentSettings";
 export { AgentStats } from "./components/AgentStats";
 export { AgentStatsSkeleton } from "./components/AgentStatsSkeleton";

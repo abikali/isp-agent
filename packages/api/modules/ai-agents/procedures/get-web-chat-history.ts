@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { legacyRowToParts } from "@repo/ai";
 import { db } from "@repo/database";
 import z from "zod";
 import { rateLimitedProcedure } from "../../../orpc/procedures";
@@ -49,19 +50,30 @@ export const getWebChatHistory = rateLimitedProcedure
 			where: { conversationId: conversation.id },
 			orderBy: { createdAt: "asc" },
 			select: {
+				id: true,
 				role: true,
 				content: true,
+				toolCalls: true,
+				parts: true,
 				createdAt: true,
 			},
 		});
 
 		return {
-			messages: messages.map((m) => ({
-				role: (m.role === "admin" ? "assistant" : m.role) as
+			messages: messages.map((m) => {
+				const role = (m.role === "admin" ? "assistant" : m.role) as
 					| "user"
-					| "assistant",
-				content: m.content,
-				createdAt: m.createdAt.toISOString(),
-			})),
+					| "assistant";
+				const parts =
+					Array.isArray(m.parts) && m.parts.length > 0
+						? (m.parts as unknown[])
+						: legacyRowToParts(m.content, m.toolCalls);
+				return {
+					id: m.id,
+					role,
+					parts,
+					createdAt: m.createdAt.toISOString(),
+				};
+			}),
 		};
 	});

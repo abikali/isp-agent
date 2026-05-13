@@ -20,6 +20,7 @@ interface CustomerComboboxValue {
 	id: string;
 	name: string;
 	username: string | null;
+	mobile?: string | null;
 }
 
 interface CustomerComboboxProps {
@@ -141,6 +142,7 @@ export function CustomerCombobox({
 													name,
 													username:
 														c.username ?? null,
+													mobile: c.mobile ?? null,
 												});
 												setOpen(false);
 												setSearch("");

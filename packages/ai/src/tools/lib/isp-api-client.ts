@@ -1,4 +1,5 @@
 import { logger } from "@repo/logs";
+import { toNationalDigits } from "@repo/utils";
 import type { ConfigField, ToolContext } from "../types";
 
 export function getIspApiConfigFields(): ConfigField[] {
@@ -35,47 +36,37 @@ export interface IspApiConfig {
 }
 
 /**
- * Clean a phone number for the ISP API (bare digits, no country code, no leading 0).
+ * Clean a phone number for the iRadius `/user-info` API (bare digits, no
+ * country code, no leading 0).
  *
- * iRadius stores Lebanese phones in three formats: international (+961XXXXXXX),
- * domestic with leading zero (0XXXXXXX), and bare digits (XXXXXXX). The
- * /user-info endpoint does a substring LIKE match, so we output the bare form
- * which substring-matches all three.
+ * iRadius stores Lebanese phones in three historical formats: international
+ * (`+961XXXXXXX`), domestic with leading zero (`0XXXXXXX`), and bare digits
+ * (`XXXXXXX`). The endpoint does a substring `LIKE` match, so we output the
+ * bare-national form which substring-matches all three shapes.
+ *
+ * This delegates to {@link toNationalDigits} (libphonenumber-js) for the
+ * actual parsing — that handles every country code uniformly and avoids the
+ * earlier hand-rolled +961/00961/961 branching. Usernames and other
+ * non-phone strings pass through digit-stripped (so `josephuser` becomes
+ * empty, which the caller handles via {@link isSearchableQuery}).
  *
  * Examples:
- *   +96171234567  → 71234567   (8-digit mobile, 70/71/76/78 prefix)
- *   +9613123456   → 3123456    (7-digit mobile, 03 prefix)
- *   9611234567    → 1234567
- *   03 123 456    → 3123456    (already domestic, strip leading 0)
- *   71234567      → 71234567   (already bare)
- *   josephuser    → josephuser (username passes through)
+ *   +96171234567  → 71234567   (Lebanese mobile)
+ *   9611234567    → 1234567    (no plus, parsed as +961 1234567)
+ *   03 123 456    → 3123456    (domestic, leading 0 stripped)
+ *   +963998184707 → 998184707  (Syrian — still bare-national)
+ *   71234567      → 71234567   (already bare; parsed with default LB)
  */
 export function cleanPhoneNumber(phone: string): string {
-	// Strip all whitespace, dashes, dots, and parentheses
-	let cleaned = phone.trim().replace(/[\s\-().]/g, "");
-
-	// Strip country code
-	if (cleaned.startsWith("+961")) {
-		cleaned = cleaned.slice(4);
-	} else if (cleaned.startsWith("00961")) {
-		cleaned = cleaned.slice(5);
-	} else if (cleaned.startsWith("961") && cleaned.length >= 10) {
-		// Strip 961 if the result is 7-8 digits (Lebanese phone number).
-		// 961 + 7 digits = 10 chars, 961 + 8 digits = 11 chars.
-		// This avoids mangling usernames that happen to start with "961".
-		cleaned = cleaned.slice(3);
-	}
-
-	// Strip leading 0 from Lebanese domestic format (03125551 → 3125551).
-	// The bare form substring-matches all iRadius storage formats via LIKE.
-	if (/^0\d{6,7}$/.test(cleaned)) {
-		cleaned = cleaned.slice(1);
-	}
-
-	return cleaned;
+	// Strip whitespace/punctuation up front so the parser sees clean input.
+	const cleaned = phone.trim().replace(/[\s\-().]/g, "");
+	return toNationalDigits(cleaned);
 }
 
-/** Normalize a Lebanese phone number for comparison (no country code, no leading zero). */
+/**
+ * Legacy alias — prefer {@link cleanPhoneNumber}.
+ * Kept because `whish-money-guard.ts` still imports it.
+ */
 export function normalizeLebanesPhone(phone: string): string {
 	return cleanPhoneNumber(phone);
 }
@@ -100,6 +91,48 @@ export function isSearchableQuery(query: string): boolean {
 		}
 	}
 	return true;
+}
+
+/**
+ * Resolve a single ISP customer record from the messaging provider's verified
+ * phone (e.g. WhatsApp `cleanedSenderPn` on the conversation contact).
+ *
+ * Why this exists: agents will otherwise search by whatever name/string the
+ * customer types, which used to false-match unrelated accounts via iRadius'
+ * latin1 Mobile column. The verified phone is the only identifier we can
+ * trust without asking the customer to repeat themselves. Tools call this
+ * before honouring the agent-provided `query` so the phone wins ties.
+ *
+ * Returns `null` if no contact phone, the API errors, or the result is
+ * ambiguous (0 or >1 match — both cases should fall back to `args.query`
+ * search so shared family numbers don't lock the agent onto one account).
+ */
+export async function lookupCustomerByContactPhone(
+	config: IspApiConfig,
+	contactPhone: string | undefined,
+): Promise<Record<string, unknown> | null> {
+	if (!contactPhone) {
+		return null;
+	}
+	const cleaned = cleanPhoneNumber(contactPhone);
+	if (cleaned.length < 6) {
+		return null;
+	}
+	try {
+		const data = await ispGet<
+			Record<string, unknown> | Record<string, unknown>[] | null
+		>(config, "/user-info", { mobile: cleaned });
+		if (!data) {
+			return null;
+		}
+		const list = Array.isArray(data) ? data : [data];
+		if (list.length !== 1) {
+			return null;
+		}
+		return list[0] ?? null;
+	} catch {
+		return null;
+	}
 }
 
 /**

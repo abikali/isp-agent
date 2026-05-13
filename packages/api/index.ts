@@ -5,6 +5,7 @@ import { getBaseUrl } from "@repo/utils";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
+import { handleDebugChatStream } from "./modules/ai-agents/lib/debug-stream-handler";
 import { handleWebChatStream } from "./modules/ai-agents/lib/web-chat-stream-handler";
 import {
 	telegramWebhookHandler,
@@ -43,6 +44,8 @@ export const app = new Hono()
 	.post("/ai-agents/web-chat/:token/stream", (c) =>
 		handleWebChatStream(c.req.raw, c.req.param("token")),
 	)
+	// AI Agent debug streaming endpoint (admin-authenticated, ephemeral)
+	.post("/ai-agents/debug/stream", (c) => handleDebugChatStream(c.req.raw))
 	// Health check
 	.get("/health", (c) => c.text("OK"))
 	// oRPC handlers (for RPC and OpenAPI)

@@ -15,6 +15,7 @@ export {
 	queueLocationRequest,
 	queueLocationRequestsBulk,
 } from "./src/jobs/location-request.jobs";
+export { queueMarketingSend } from "./src/jobs/marketing-send.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
@@ -71,6 +72,11 @@ export {
 	LOCATION_REQUEST_QUEUE_NAME,
 } from "./src/queues/location-request.queue";
 export {
+	closeMarketingSendQueue,
+	getMarketingSendQueue,
+	MARKETING_SEND_QUEUE_NAME,
+} from "./src/queues/marketing-send.queue";
+export {
 	closeOrgSetupQueue,
 	getOrgSetupQueue,
 	ORG_SETUP_QUEUE_NAME,
@@ -119,6 +125,8 @@ export type {
 	IRadiusSyncJobResult,
 	LocationRequestJobData,
 	LocationRequestJobResult,
+	MarketingSendJobData,
+	MarketingSendJobResult,
 	OrgSetupJobData,
 	OrgSetupJobResult,
 	ScheduledJobData,
@@ -157,6 +165,7 @@ export {
 	type SyncLookupMaps,
 } from "./src/workers/iradius-sync-helpers";
 export { createLocationRequestWorker } from "./src/workers/location-request.worker";
+export { createMarketingSendWorker } from "./src/workers/marketing-send.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
@@ -177,6 +186,7 @@ import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
 import { closeIRadiusPushQueue } from "./src/queues/iradius-push.queue";
 import { closeIRadiusSyncQueue } from "./src/queues/iradius-sync.queue";
 import { closeLocationRequestQueue } from "./src/queues/location-request.queue";
+import { closeMarketingSendQueue } from "./src/queues/marketing-send.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
 import { closeTelegramLocationQueue } from "./src/queues/telegram-location.queue";
@@ -197,6 +207,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeIRadiusSyncQueue(),
 		closeIntegrationSyncQueue(),
 		closeLocationRequestQueue(),
+		closeMarketingSendQueue(),
 		closeOrgSetupQueue(),
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),

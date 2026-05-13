@@ -12,3 +12,16 @@ export {
 	isNangoConfigured,
 	resetNangoClient,
 } from "./src/nango";
+export type {
+	SaltiClient,
+	SaltiClientConfig,
+	SaltiContact,
+	SaltiGroup,
+	SaltiMakeContactInput,
+	SaltiSendResult,
+	SaltiSendTemplateInput,
+	SaltiTemplate,
+	SaltiTemplateButton,
+	SaltiTemplateComponent,
+} from "./src/salti";
+export { createSaltiClient, SaltiApiError } from "./src/salti";

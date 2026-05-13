@@ -506,17 +506,22 @@ describe("buildSystemPrompt", () => {
 		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("## Language");
 
-		// Section ordering: base → maintenance → contact → tools → language
-		const maintenanceIdx = result.indexOf("MAINTENANCE MODE");
-		const contactIdx = result.indexOf("CUSTOMER CONTACT INFO");
+		// New section ordering (optimised for Anthropic prompt caching):
+		//   maintenance-wrapper → tools (incl. escalation, diagnostics)
+		//   → agent sections (incl. language) → [cache boundary]
+		//   → dynamic block (maintenance message, contact info)
+		const maintenanceWrapperIdx = result.indexOf("MAINTENANCE MODE");
 		const diagnosticsIdx = result.indexOf("Diagnostic Report Guide");
 		const escalationIdx = result.indexOf("## Escalation via Telegram");
 		const languageIdx = result.indexOf("## Language");
+		const maintenanceMsgIdx = result.indexOf("Jounieh");
+		const contactIdx = result.indexOf("CUSTOMER CONTACT INFO");
 
-		expect(maintenanceIdx).toBeLessThan(contactIdx);
-		expect(contactIdx).toBeLessThan(diagnosticsIdx);
+		expect(maintenanceWrapperIdx).toBeLessThan(diagnosticsIdx);
 		expect(diagnosticsIdx).toBeLessThan(escalationIdx);
 		expect(escalationIdx).toBeLessThan(languageIdx);
+		expect(languageIdx).toBeLessThan(maintenanceMsgIdx);
+		expect(maintenanceMsgIdx).toBeLessThan(contactIdx);
 	});
 
 	it("produces correct prompt for web chat (no contact, no verbose)", () => {

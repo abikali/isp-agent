@@ -6,6 +6,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../lib/needs-review";
 
 export const getCustomerStats = protectedProcedure
 	.route({
@@ -67,7 +68,7 @@ export const getCustomerStats = protectedProcedure
 				},
 			}),
 			db.customer.count({
-				where: { ...baseWhere, notes: { not: "" } },
+				where: { ...baseWhere, ...CUSTOMER_NEEDS_REVIEW_WHERE },
 			}),
 			db.employee.count({
 				where: {

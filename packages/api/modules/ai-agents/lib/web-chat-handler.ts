@@ -1,20 +1,17 @@
 import { ORPCError } from "@orpc/server";
-import type {
-	GenerateResponseInput,
-	PromptSection,
-	ToolContext,
-} from "@repo/ai";
 import {
-	buildContextGapNote,
-	buildSystemPrompt,
+	assistantMessageToParts,
+	buildAgentMessages,
+	buildAgentTelemetry,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
-	formatHistoryMessage,
 	generateAgentResponse,
-	resolveTools,
+	modelMessagesToRoleContent,
+	type PromptSection,
+	resolveAgentTools,
 } from "@repo/ai";
 import { config } from "@repo/config";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { fetchServicePlansSection } from "./service-plans-context";
@@ -42,10 +39,21 @@ export async function handleWebChatMessage(
 		});
 	}
 
-	// Truncate incoming message
 	const truncatedText = message.slice(0, config.ai.maxMessageLength);
 
-	// Find or create conversation (channelId is null for web chat)
+	// Check quota BEFORE any writes so we don't strand a user message.
+	const quotaResult = await checkAndIncrementQuota(
+		{ type: "organization", organizationId: agent.organizationId },
+		"aiMessages",
+	);
+	if (!quotaResult.allowed) {
+		throw new ORPCError("FORBIDDEN", {
+			message:
+				"This agent has reached its message limit. Please try again later.",
+		});
+	}
+
+	// Find or create conversation.
 	let conversation = await db.aiConversation.findFirst({
 		where: {
 			agentId: agent.id,
@@ -80,22 +88,7 @@ export async function handleWebChatMessage(
 		},
 	});
 
-	// Check AI messages quota
-	const quotaResult = await checkAndIncrementQuota(
-		{
-			type: "organization",
-			organizationId: agent.organizationId,
-		},
-		"aiMessages",
-	);
-	if (!quotaResult.allowed) {
-		throw new ORPCError("FORBIDDEN", {
-			message:
-				"This agent has reached its message limit. Please try again later.",
-		});
-	}
-
-	// Load conversation history
+	// Load history (already includes the user message we just stored)
 	const history = await db.aiMessage.findMany({
 		where: { conversationId: conversation.id },
 		orderBy: { createdAt: "desc" },
@@ -104,89 +97,58 @@ export async function handleWebChatMessage(
 			role: true,
 			content: true,
 			toolCalls: true,
+			parts: true,
 		},
 	});
 
-	// Reverse to chronological order
-	const historyMessages = history.reverse().map(formatHistoryMessage);
+	const historyRows = history.reverse();
 
-	// Inject context gap note if significant time has passed
-	const gapNote = buildContextGapNote(
-		previousLastMessageAt,
-		agent.contextGapThresholdMinutes,
-	);
-	if (gapNote && historyMessages.length > 0) {
-		let insertIdx = historyMessages.length - 1;
-		while (
-			insertIdx > 0 &&
-			historyMessages[insertIdx - 1]?.role === "user"
-		) {
-			insertIdx--;
-		}
-		historyMessages.splice(insertIdx, 0, {
-			role: "user",
-			content: gapNote,
-		});
-	}
+	const { tools, agentToolConfigs } = await resolveAgentTools({
+		agent,
+		conversationId: conversation.id,
+		externalChatId: sessionId,
+	});
 
-	// Resolve tools if agent has any enabled
-	let tools: GenerateResponseInput["tools"];
-	const agentToolConfigs =
-		agent.enabledTools.length > 0
-			? await db.aiAgentToolConfig.findMany({
-					where: { agentId: agent.id },
-				})
-			: [];
-
-	if (agent.enabledTools.length > 0) {
-		const perToolConfigs: Record<string, Record<string, unknown>> = {};
-		for (const tc of agentToolConfigs) {
-			perToolConfigs[tc.toolId] = tc.config as Record<string, unknown>;
-		}
-
-		const toolContext: ToolContext = {
-			organizationId: agent.organizationId,
-			agentId: agent.id,
-			conversationId: conversation.id,
-			externalChatId: sessionId,
-		};
-		tools = resolveTools(agent.enabledTools, toolContext, perToolConfigs);
-	}
-
-	// Fetch service plans section (if enabled)
 	const servicePlans = await fetchServicePlansSection(
 		agent.organizationId,
 		agent.servicePlansEnabled,
 		agent.servicePlanIds,
 	);
 
-	// Build system prompt
-	const systemPrompt = buildSystemPrompt({
-		basePrompt: agent.systemPrompt,
-		enabledTools: agent.enabledTools,
-		maintenanceMode: agent.maintenanceMode,
-		maintenanceMessage: agent.maintenanceMessage ?? undefined,
-		isWebChat: true,
-		servicePlans,
-		promptSections: agent.promptSections as unknown as PromptSection[],
-		toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
+	const messages = buildAgentMessages({
+		systemOptions: {
+			basePrompt: agent.systemPrompt,
+			enabledTools: agent.enabledTools,
+			maintenanceMode: agent.maintenanceMode,
+			maintenanceMessage: agent.maintenanceMessage ?? undefined,
+			isWebChat: true,
+			servicePlans,
+			promptSections: agent.promptSections as unknown as PromptSection[],
+			toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
+		},
+		history: historyRows,
+		lastMessageAt: previousLastMessageAt,
+		contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
 	});
 
-	// Generate AI response with timeout
-	const timeoutMs = config.ai.responseTimeoutMs;
 	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), timeoutMs);
+	const timeout = setTimeout(
+		() => controller.abort(),
+		config.ai.responseTimeoutMs,
+	);
 
 	try {
 		const result = await generateAgentResponse({
 			model: agent.model,
-			systemPrompt,
-			knowledgeBase: agent.knowledgeBase ?? undefined,
-			messages: historyMessages,
+			messages,
 			temperature: agent.temperature,
 			abortSignal: controller.signal,
 			tools,
-			maxSteps: tools ? 10 : undefined,
+			telemetry: buildAgentTelemetry({
+				conversationId: conversation.id,
+				agentId: agent.id,
+				organizationId: agent.organizationId,
+			}),
 		});
 
 		clearTimeout(timeout);
@@ -197,7 +159,7 @@ export async function handleWebChatMessage(
 				tools,
 				responseText: result.text,
 				toolResults: result.toolResults,
-				conversationMessages: historyMessages,
+				conversationMessages: modelMessagesToRoleContent(messages),
 				conversationId: conversation.id,
 			});
 			if (guardResult) {
@@ -208,22 +170,27 @@ export async function handleWebChatMessage(
 			}
 		}
 
-		// Store assistant message
-		const messageData: Record<string, unknown> = {
-			conversationId: conversation.id,
-			role: "assistant",
-			content: result.text,
-			tokenCount: result.tokenCount,
-			latencyMs: result.latencyMs,
-		};
-		if (result.toolResults) {
-			messageData["toolCalls"] = JSON.parse(
-				JSON.stringify(result.toolResults),
-			);
-		}
-		await db.aiMessage.create({ data: messageData as never });
+		const assistantParts = assistantMessageToParts(
+			result.text,
+			result.toolResults,
+		);
+		await db.aiMessage.create({
+			data: {
+				conversationId: conversation.id,
+				role: "assistant",
+				content: result.text,
+				tokenCount: result.tokenCount,
+				inputTokens: result.inputTokens,
+				outputTokens: result.outputTokens,
+				cacheReadTokens: result.cacheReadTokens,
+				cacheWriteTokens: result.cacheWriteTokens,
+				latencyMs: result.latencyMs,
+				...(assistantParts.length > 0
+					? { parts: assistantParts as Prisma.InputJsonValue }
+					: {}),
+			},
+		});
 
-		// Update conversation counters
 		await db.aiConversation.update({
 			where: { id: conversation.id },
 			data: {
@@ -257,7 +224,6 @@ export async function handleWebChatMessage(
 			});
 		}
 
-		// Store error message
 		await db.aiMessage.create({
 			data: {
 				conversationId: conversation.id,

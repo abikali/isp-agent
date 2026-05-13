@@ -139,10 +139,11 @@ function createTool() {
 async function askAgent(userMessage: string) {
 	const result = await generateAgentResponse({
 		model: MODEL,
-		systemPrompt: SYSTEM_PROMPT,
-		messages: [{ role: "user", content: userMessage }],
+		messages: [
+			{ role: "system", content: SYSTEM_PROMPT },
+			{ role: "user", content: userMessage },
+		],
 		tools: createTool(),
-		maxSteps: 3,
 		temperature: 0,
 	});
 	return result;

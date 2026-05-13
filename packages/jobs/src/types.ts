@@ -147,6 +147,17 @@ export interface WhatsAppReceiptJobResult {
 	success: boolean;
 }
 
+// Marketing send job types (Salti broadcasts)
+export interface MarketingSendJobData {
+	broadcastId: string;
+}
+
+export interface MarketingSendJobResult {
+	success: boolean;
+	sentCount: number;
+	failedCount: number;
+}
+
 // Telegram location notification job types
 export interface TelegramLocationJobData {
 	employeeId: string;

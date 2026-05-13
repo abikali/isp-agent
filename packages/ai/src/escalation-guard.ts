@@ -31,8 +31,87 @@ Return false for:
 - Anything that is merely an offer, question, or conditional — not a commitment`;
 
 /**
+ * Multilingual keyword filter — short-circuits the expensive LLM classify
+ * call. If the response text contains NONE of these tokens, the model almost
+ * certainly didn't promise to escalate, so we skip the round-trip entirely.
+ *
+ * The classifier still runs on positive matches because keywords alone over-
+ * fire: "I will *not* forward your case" matches, "port forwarding" matches,
+ * "the team already handled it" doesn't.
+ */
+const ESCALATION_KEYWORD_RE = new RegExp(
+	[
+		"forward",
+		"escal",
+		"transfer",
+		"notif",
+		"inform",
+		"send",
+		"sent",
+		"relay",
+		"handed",
+		"refer",
+		"follow up",
+		"follow-up",
+		"pass",
+		"contact",
+		"reach out",
+		"reach back",
+		"get back",
+		"reach you",
+		"someone",
+		"team",
+		"colleague",
+		"تحويل",
+		"حوّل",
+		"حول",
+		"بلّغ",
+		"بلغ",
+		"أبلغ",
+		"إبلاغ",
+		"بنبلغ",
+		"أنقل",
+		"بنحوّل",
+		"بحوّل",
+		"نقلت",
+		"حوّلت",
+		"سيتواصل",
+		"سنتواصل",
+		"يتواصل",
+		"تواصل",
+		"التواصل",
+		"إرسال",
+		"أرسل",
+		"يعود",
+		"شخص",
+		"فريق",
+		"يتابع",
+		"متابعة",
+		"transfér",
+		"équipe",
+		"signal",
+		"rappel",
+		"revenir",
+		"contacter",
+		"recontact",
+		"quelqu'un",
+		"reviendrons",
+	].join("|"),
+	"i",
+);
+
+/**
  * Detect whether the model's response text indicates it intended to escalate
  * but did not actually call the escalate-telegram tool.
+ *
+ * Two-stage detection:
+ *   1. Cheap regex pre-filter for escalation-related keywords across EN/AR/FR.
+ *   2. Only when the regex matches, an LLM classifier decides whether the
+ *      mention is a COMMITMENT (e.g. "I've forwarded your request") versus
+ *      an OFFER ("would you like me to forward?") or a NEGATION ("I won't
+ *      forward").
+ *
+ * On a typical run the regex misses, so the LLM round-trip is skipped.
  */
 export async function detectMissedEscalation(
 	responseText: string,
@@ -42,13 +121,18 @@ export async function detectMissedEscalation(
 		return false;
 	}
 
-	if (!responseText.trim()) {
+	const text = responseText.trim();
+	if (text.length < 12) {
+		return false;
+	}
+
+	if (!ESCALATION_KEYWORD_RE.test(text)) {
 		return false;
 	}
 
 	const result = await classifyText({
 		systemPrompt: ESCALATION_SYSTEM_PROMPT,
-		userPrompt: responseText,
+		userPrompt: text,
 		schema: escalationSchema,
 	});
 
