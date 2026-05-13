@@ -21,7 +21,6 @@ export {
 } from "./components/DataState";
 export { Footer } from "./components/Footer";
 // Components - Navigation
-export { NavBar } from "./components/NavBar";
 export { NotificationBell } from "./components/NotificationBell";
 // Components - Page Elements
 export { PageHeader } from "./components/PageHeader";
