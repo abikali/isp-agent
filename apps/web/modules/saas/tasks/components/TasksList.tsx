@@ -5,6 +5,7 @@ import {
 	ContentCard,
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
+import { PageShell } from "@shared/components/PageShell";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate } from "@shared/lib/format";
@@ -331,20 +332,19 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const columns = useTaskColumns(organizationSlug);
 
 	return (
-		<div>
-			<div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-				<h1 className="text-2xl font-bold">Tasks</h1>
+		<PageShell
+			title="Tasks"
+			description="Track and assign work across your team"
+			actions={
 				<Button onClick={() => setShowCreate(true)}>
-					<PlusIcon className="mr-2 size-4" />
-					Create Task
+					<PlusIcon className="size-4" />
+					New task
 				</Button>
-			</div>
-
-			<div className="mb-6">
-				<AsyncBoundary fallback={<TaskStatsSkeleton />}>
-					<TaskStats sources={["MANUAL", "LEGACY"]} />
-				</AsyncBoundary>
-			</div>
+			}
+		>
+			<AsyncBoundary fallback={<TaskStatsSkeleton />}>
+				<TaskStats sources={["MANUAL", "LEGACY"]} />
+			</AsyncBoundary>
 
 			<ContentCard>
 				<ContentCardToolbar>
@@ -416,6 +416,6 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 			</ContentCard>
 
 			<CreateTaskDialog open={showCreate} onOpenChange={setShowCreate} />
-		</div>
+		</PageShell>
 	);
 }

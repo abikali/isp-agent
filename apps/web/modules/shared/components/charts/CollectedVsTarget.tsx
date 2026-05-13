@@ -13,6 +13,10 @@ interface CollectedVsTargetProps {
 	target: number;
 	currency?: string;
 	height?: number;
+	/** When true, render the collected/target line as currency. Default true. */
+	asCurrency?: boolean;
+	/** Override the bottom caption entirely (e.g. "9 of 1957 customers"). */
+	caption?: string;
 }
 
 const config = {
@@ -24,9 +28,17 @@ export function CollectedVsTarget({
 	target,
 	currency = "USD",
 	height = 220,
+	asCurrency = true,
+	caption,
 }: CollectedVsTargetProps) {
 	const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
 	const data = [{ name: "collected", value: pct, fill: CHART_TOKENS.c1 }];
+
+	const captionText =
+		caption ??
+		(asCurrency
+			? `${formatCompactCurrency(collected, currency)} of ${formatCompactCurrency(target, currency)}`
+			: `${collected.toLocaleString()} of ${target.toLocaleString()}`);
 
 	return (
 		<div className="relative w-full" style={{ height }}>
@@ -57,8 +69,7 @@ export function CollectedVsTarget({
 					{formatPercent(pct)}
 				</div>
 				<div className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-					{formatCompactCurrency(collected, currency)} of{" "}
-					{formatCompactCurrency(target, currency)}
+					{captionText}
 				</div>
 			</div>
 		</div>

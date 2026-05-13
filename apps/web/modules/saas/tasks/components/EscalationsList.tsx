@@ -5,6 +5,7 @@ import {
 	ContentCard,
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
+import { PageShell } from "@shared/components/PageShell";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDateTime } from "@shared/lib/format";
@@ -289,21 +290,13 @@ export function EscalationsList({
 	const columns = useEscalationColumns(organizationSlug);
 
 	return (
-		<div>
-			<div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-				<div>
-					<h1 className="text-2xl font-bold">AI Escalations</h1>
-					<p className="text-sm text-muted-foreground">
-						Tasks created by AI agents that need human attention
-					</p>
-				</div>
-			</div>
-
-			<div className="mb-6">
-				<AsyncBoundary fallback={<TaskStatsSkeleton />}>
-					<TaskStats sources={["AI_ESCALATION"]} />
-				</AsyncBoundary>
-			</div>
+		<PageShell
+			title="AI Escalations"
+			description="Tasks created by AI agents that need human attention"
+		>
+			<AsyncBoundary fallback={<TaskStatsSkeleton />}>
+				<TaskStats sources={["AI_ESCALATION"]} />
+			</AsyncBoundary>
 
 			<ContentCard>
 				<ContentCardToolbar>
@@ -363,6 +356,6 @@ export function EscalationsList({
 					/>
 				</TooltipProvider>
 			</ContentCard>
-		</div>
+		</PageShell>
 	);
 }

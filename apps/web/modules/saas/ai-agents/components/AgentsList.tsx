@@ -1,17 +1,15 @@
 "use client";
 
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
+import { PageShell } from "@shared/components/PageShell";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@ui/components/card";
+import { Card, CardDescription, CardTitle } from "@ui/components/card";
 import {
 	AlertTriangleIcon,
 	BotIcon,
+	CheckCircleIcon,
 	MessageSquareIcon,
 	PlusIcon,
 	RadioIcon,
@@ -24,23 +22,58 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 	const { agents } = useAgents();
 	const [showCreate, setShowCreate] = useState(false);
 
+	const enabledCount = agents.filter((a) => a.enabled).length;
+	const channelCount = agents.reduce((a, ag) => a + ag._count.channels, 0);
+	const conversationCount = agents.reduce(
+		(a, ag) => a + ag._count.conversations,
+		0,
+	);
+	const maintenanceCount = agents.filter((a) => a.maintenanceMode).length;
+
 	return (
-		<div>
-			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<h1 className="text-2xl font-bold">AI Agents</h1>
-					<p className="text-muted-foreground">
-						Manage your chat agents for WhatsApp and Telegram
-					</p>
-				</div>
-				<Button
-					onClick={() => setShowCreate(true)}
-					className="w-full sm:w-auto"
-				>
-					<PlusIcon className="mr-2 size-4" />
-					Create Agent
+		<PageShell
+			title="AI Agents"
+			description="Manage your chat agents for web, WhatsApp, and Telegram"
+			actions={
+				<Button onClick={() => setShowCreate(true)}>
+					<PlusIcon className="size-4" />
+					New agent
 				</Button>
-			</div>
+			}
+		>
+			{agents.length > 0 && (
+				<MetricStrip columns={4}>
+					<MetricCard
+						label="Agents"
+						value={agents.length}
+						icon={BotIcon}
+						tone="info"
+					/>
+					<MetricCard
+						label="Active"
+						value={enabledCount}
+						icon={CheckCircleIcon}
+						tone="success"
+						hint={
+							maintenanceCount > 0
+								? `${maintenanceCount} in maintenance`
+								: undefined
+						}
+					/>
+					<MetricCard
+						label="Channels"
+						value={channelCount}
+						icon={RadioIcon}
+						tone="purple"
+					/>
+					<MetricCard
+						label="Conversations"
+						value={conversationCount}
+						icon={MessageSquareIcon}
+						tone="cyan"
+					/>
+				</MetricStrip>
+			)}
 
 			{agents.length === 0 ? (
 				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
@@ -56,7 +89,7 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 					</Button>
 				</div>
 			) : (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 					{agents.map((agent) => (
 						<Link
 							key={agent.id}
@@ -65,25 +98,27 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 								organizationSlug,
 								agentId: agent.id,
 							}}
-							className="block"
+							className="group block"
 							preload="intent"
 						>
-							<Card className="transition-colors hover:border-primary/50">
-								<CardHeader>
+							<Card className="h-full transition-all hover:-translate-y-px hover:border-border-strong hover:shadow-sm">
+								<div className="space-y-3 p-4">
 									<div className="flex items-start justify-between gap-2">
-										<CardTitle className="min-w-0 truncate text-base">
-											{agent.name}
-										</CardTitle>
-										<div className="flex shrink-0 items-center gap-1.5">
+										<div className="flex min-w-0 items-center gap-2.5">
+											<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-chart-4/12 text-chart-4">
+												<BotIcon className="size-4" />
+											</div>
+											<CardTitle className="min-w-0 truncate text-sm font-medium">
+												{agent.name}
+											</CardTitle>
+										</div>
+										<div className="flex shrink-0 items-center gap-1">
 											{agent.maintenanceMode && (
 												<Badge
 													variant="outline"
-													className="border-amber-500/50 text-amber-600 dark:text-amber-400"
+													className="border-warning/40 text-warning"
 												>
-													<AlertTriangleIcon className="mr-1 size-3" />
-													<span className="hidden sm:inline">
-														Maintenance
-													</span>
+													<AlertTriangleIcon className="size-3" />
 												</Badge>
 											)}
 											<Badge
@@ -92,6 +127,7 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 														? "default"
 														: "secondary"
 												}
+												className="text-[10px]"
 											>
 												{agent.enabled
 													? "Active"
@@ -100,28 +136,21 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 										</div>
 									</div>
 									{agent.description && (
-										<CardDescription className="line-clamp-2">
+										<CardDescription className="line-clamp-2 text-xs">
 											{agent.description}
 										</CardDescription>
 									)}
-									<div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-										<span className="flex items-center gap-1">
+									<div className="flex items-center gap-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
+										<span className="flex items-center gap-1 tabular-nums">
 											<RadioIcon className="size-3" />
-											{agent._count.channels} channel
-											{agent._count.channels !== 1
-												? "s"
-												: ""}
+											{agent._count.channels}
 										</span>
-										<span className="flex items-center gap-1">
+										<span className="flex items-center gap-1 tabular-nums">
 											<MessageSquareIcon className="size-3" />
-											{agent._count.conversations}{" "}
-											conversation
-											{agent._count.conversations !== 1
-												? "s"
-												: ""}
+											{agent._count.conversations}
 										</span>
 									</div>
-								</CardHeader>
+								</div>
 							</Card>
 						</Link>
 					))}
@@ -129,6 +158,6 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 			)}
 
 			<CreateAgentDialog open={showCreate} onOpenChange={setShowCreate} />
-		</div>
+		</PageShell>
 	);
 }

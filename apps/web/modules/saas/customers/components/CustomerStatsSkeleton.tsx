@@ -1,14 +1,13 @@
 "use client";
 
-import { StatCardGroup, StatCardSkeleton } from "@shared/components/StatCard";
+import { MetricCardSkeleton, MetricStrip } from "@shared/components/MetricCard";
 
 export function CustomerStatsSkeleton() {
 	return (
-		<StatCardGroup columns={4}>
-			<StatCardSkeleton />
-			<StatCardSkeleton />
-			<StatCardSkeleton />
-			<StatCardSkeleton />
-		</StatCardGroup>
+		<MetricStrip columns={8}>
+			{Array.from({ length: 8 }).map((_, i) => (
+				<MetricCardSkeleton key={i} />
+			))}
+		</MetricStrip>
 	);
 }

@@ -6,7 +6,6 @@ import {
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
-import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
@@ -396,16 +395,7 @@ export function InvoicesList() {
 	];
 
 	return (
-		<PageShell
-			title="Invoices"
-			description={`${total} invoice${total !== 1 ? "s" : ""}`}
-			actions={
-				<Button onClick={() => setCreateOpen(true)}>
-					<PlusIcon className="mr-2 size-4" />
-					New Invoice
-				</Button>
-			}
-		>
+		<>
 			{selectedCount > 0 && (
 				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
 					<span className="text-sm text-muted-foreground">
@@ -424,7 +414,14 @@ export function InvoicesList() {
 			)}
 
 			<ContentCard>
-				<ContentCardToolbar>
+				<ContentCardToolbar
+					actions={
+						<Button size="sm" onClick={() => setCreateOpen(true)}>
+							<PlusIcon className="size-3.5" />
+							New invoice
+						</Button>
+					}
+				>
 					<SearchInput
 						value={search}
 						onChange={setSearch}
@@ -499,6 +496,6 @@ export function InvoicesList() {
 					invoiceId: editInvoiceId ?? "",
 				}}
 			/>
-		</PageShell>
+		</>
 	);
 }

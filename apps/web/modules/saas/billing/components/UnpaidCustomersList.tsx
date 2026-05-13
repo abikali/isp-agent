@@ -7,13 +7,12 @@ import {
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
-import { PageShell } from "@shared/components/PageShell";
-import { SearchInput } from "@shared/components/SearchInput";
 import {
-	StatCard,
-	StatCardGroup,
-	StatCardSkeleton,
-} from "@shared/components/StatCard";
+	MetricCard,
+	MetricCardSkeleton,
+	MetricStrip,
+} from "@shared/components/MetricCard";
+import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import {
@@ -78,14 +77,12 @@ function CollectionOverview({
 }) {
 	if (isLoading && total === 0) {
 		return (
-			<div className="mb-4">
-				<StatCardGroup columns={4}>
-					<StatCardSkeleton />
-					<StatCardSkeleton />
-					<StatCardSkeleton />
-					<StatCardSkeleton />
-				</StatCardGroup>
-			</div>
+			<MetricStrip columns={4}>
+				<MetricCardSkeleton />
+				<MetricCardSkeleton />
+				<MetricCardSkeleton />
+				<MetricCardSkeleton />
+			</MetricStrip>
 		);
 	}
 
@@ -94,37 +91,33 @@ function CollectionOverview({
 		total > 0 ? `${Math.round((expiredCount / total) * 100)}%` : "";
 
 	return (
-		<div className="mb-4">
-			<StatCardGroup columns={4}>
-				<StatCard
-					title="Unpaid"
-					value={total}
-					icon={UsersIcon}
-					color="amber"
-				/>
-				<StatCard
-					title="To Collect"
-					value={formatCurrency(totalAmountDue)}
-					icon={DollarSignIcon}
-					color="red"
-				/>
-				<StatCard
-					title="Billing Expired"
-					value={expiredCount}
-					icon={CalendarXIcon}
-					color="orange"
-					description={
-						expiredPct ? `${expiredPct} of total` : undefined
-					}
-				/>
-				<StatCard
-					title="Avg. Due"
-					value={formatCurrency(avgDue)}
-					icon={WalletIcon}
-					color="blue"
-				/>
-			</StatCardGroup>
-		</div>
+		<MetricStrip columns={4}>
+			<MetricCard
+				label="Unpaid"
+				value={total}
+				icon={UsersIcon}
+				tone={total > 0 ? "warning" : "default"}
+			/>
+			<MetricCard
+				label="To collect"
+				value={formatCurrency(totalAmountDue)}
+				icon={DollarSignIcon}
+				tone={totalAmountDue > 0 ? "danger" : "default"}
+			/>
+			<MetricCard
+				label="Billing expired"
+				value={expiredCount}
+				icon={CalendarXIcon}
+				tone={expiredCount > 0 ? "warning" : "default"}
+				hint={expiredPct ? `${expiredPct} of total` : undefined}
+			/>
+			<MetricCard
+				label="Avg. due"
+				value={formatCurrency(avgDue)}
+				icon={WalletIcon}
+				tone="info"
+			/>
+		</MetricStrip>
 	);
 }
 
@@ -563,10 +556,7 @@ export function UnpaidCustomersList() {
 	}
 
 	return (
-		<PageShell
-			title="Collect Payments"
-			description={`${total} unpaid customer${total !== 1 ? "s" : ""}`}
-		>
+		<>
 			{isCollector && <CollectorStatsHeader />}
 			<CollectionOverview
 				total={total}
@@ -711,13 +701,13 @@ export function UnpaidCustomersList() {
 					customer={selectedCustomer}
 				/>
 			)}
-		</PageShell>
+		</>
 	);
 }
 
 export function UnpaidCustomersListSkeleton() {
 	return (
-		<PageShell title="Collect Payments" description="Loading...">
+		<div className="space-y-6">
 			<div className="space-y-4">
 				<div className="flex flex-col gap-2 sm:flex-row">
 					<Skeleton className="h-10 w-full sm:w-64" />
@@ -741,6 +731,6 @@ export function UnpaidCustomersListSkeleton() {
 					))}
 				</div>
 			</div>
-		</PageShell>
+		</div>
 	);
 }

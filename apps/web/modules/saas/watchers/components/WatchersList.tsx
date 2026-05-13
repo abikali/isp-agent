@@ -1,8 +1,9 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { MetricCardSkeleton, MetricStrip } from "@shared/components/MetricCard";
+import { PageShell } from "@shared/components/PageShell";
 import { Button } from "@ui/components/button";
-import { Skeleton } from "@ui/components/skeleton";
 import { EyeIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { useWatchers } from "../hooks/use-watchers";
@@ -19,40 +20,27 @@ export function WatchersList({
 	const [showCreate, setShowCreate] = useState(false);
 
 	return (
-		<div>
-			<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div>
-					<h1 className="text-xl font-bold sm:text-2xl">Watchers</h1>
-					<p className="text-sm text-muted-foreground">
-						Monitor your infrastructure and get notified when
-						something goes down
-					</p>
-				</div>
-				<Button
-					onClick={() => setShowCreate(true)}
-					className="w-full sm:w-auto"
-				>
-					<PlusIcon className="mr-2 size-4" />
-					Create Watcher
+		<PageShell
+			title="Watchers"
+			description="Monitor your infrastructure and get notified when something goes down"
+			actions={
+				<Button onClick={() => setShowCreate(true)}>
+					<PlusIcon className="size-4" />
+					New watcher
 				</Button>
-			</div>
-
-			<div className="mb-6">
-				<AsyncBoundary
-					fallback={
-						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-							{Array.from({ length: 4 }).map((_, i) => (
-								<Skeleton
-									key={`stat-${i}`}
-									className="h-24 rounded-lg"
-								/>
-							))}
-						</div>
-					}
-				>
-					<WatcherStatsCards />
-				</AsyncBoundary>
-			</div>
+			}
+		>
+			<AsyncBoundary
+				fallback={
+					<MetricStrip columns={5}>
+						{Array.from({ length: 5 }).map((_, i) => (
+							<MetricCardSkeleton key={`stat-${i}`} />
+						))}
+					</MetricStrip>
+				}
+			>
+				<WatcherStatsCards />
+			</AsyncBoundary>
 
 			{watchers.length === 0 ? (
 				<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
@@ -70,7 +58,7 @@ export function WatchersList({
 					</Button>
 				</div>
 			) : (
-				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 					{watchers.map((watcher) => (
 						<WatcherCard
 							key={watcher.id}
@@ -85,6 +73,6 @@ export function WatchersList({
 				open={showCreate}
 				onOpenChange={setShowCreate}
 			/>
-		</div>
+		</PageShell>
 	);
 }

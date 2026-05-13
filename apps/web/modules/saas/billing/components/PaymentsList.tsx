@@ -7,7 +7,6 @@ import {
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
-import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
@@ -1338,10 +1337,7 @@ export function PaymentsList() {
 	);
 
 	return (
-		<PageShell
-			title="Payments"
-			description={isLoading ? "Loading..." : `${total} payment records`}
-		>
+		<>
 			{/* Stats Summary */}
 			<StatsBar billingMonthId={activeMonthId} />
 
@@ -1657,32 +1653,29 @@ export function PaymentsList() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</PageShell>
+		</>
 	);
 }
 
 export function PaymentsListSkeleton() {
 	return (
-		<PageShell title="Payments" description="Loading...">
-			<div className="space-y-4">
-				{/* Stats skeleton */}
-				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-					{Array.from({ length: 4 }).map((_, i) => (
-						<Skeleton key={i} className="h-20 rounded-lg" />
-					))}
-				</div>
-				<Skeleton className="h-10 w-full" />
-				<div className="rounded-xl border bg-card p-4">
-					{Array.from({ length: 5 }).map((_, i) => (
-						<div key={i} className="flex items-center gap-4 py-3">
-							<Skeleton className="h-5 w-32" />
-							<Skeleton className="h-5 w-20" />
-							<Skeleton className="h-5 w-16" />
-							<Skeleton className="ml-auto h-5 w-16" />
-						</div>
-					))}
-				</div>
+		<div className="space-y-6">
+			<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+				{Array.from({ length: 4 }).map((_, i) => (
+					<Skeleton key={i} className="h-[88px] rounded-lg" />
+				))}
 			</div>
-		</PageShell>
+			<Skeleton className="h-10 w-full" />
+			<div className="rounded-lg border bg-card p-4">
+				{Array.from({ length: 5 }).map((_, i) => (
+					<div key={i} className="flex items-center gap-4 py-3">
+						<Skeleton className="h-5 w-32" />
+						<Skeleton className="h-5 w-20" />
+						<Skeleton className="h-5 w-16" />
+						<Skeleton className="ml-auto h-5 w-16" />
+					</div>
+				))}
+			</div>
+		</div>
 	);
 }

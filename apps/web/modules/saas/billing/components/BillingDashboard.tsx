@@ -18,6 +18,7 @@ import {
 import { formatCurrency } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@ui/components/data-table";
+import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import {
 	BanknoteIcon,
@@ -203,44 +204,60 @@ export function BillingDashboard() {
 				/>
 			</MetricStrip>
 
-			{/* Charts row — progress radial + payment status + expense summary */}
-			<div className="grid gap-4 lg:grid-cols-3">
-				<ContentCard>
-					<ContentCardSection className="border-b border-border">
-						<div className="text-sm font-medium">
-							Collection progress
+			{/* Charts row — progress + status + expenses */}
+			<div className="grid gap-3 lg:grid-cols-12">
+				<ContentCard className="lg:col-span-5">
+					<ContentCardSection className="flex items-center justify-between border-b border-border">
+						<div>
+							<div className="text-sm font-medium">
+								Collection progress
+							</div>
+							<p className="mt-0.5 text-xs text-muted-foreground">
+								Customers settled this cycle
+							</p>
 						</div>
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							% of customers settled this cycle
-						</p>
+						<div className="text-right">
+							<div className="text-base font-medium tabular-nums">
+								{stats.totalCustomers - stats.unpaidCustomers}{" "}
+								<span className="text-muted-foreground">
+									/ {stats.totalCustomers}
+								</span>
+							</div>
+							<div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+								Paid / Total
+							</div>
+						</div>
 					</ContentCardSection>
-					<ContentCardSection>
+					<div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3">
 						<CollectedVsTarget
-							collected={stats.paidPercentage}
-							target={100}
-							currency="USD"
-							height={180}
+							collected={
+								stats.totalCustomers - stats.unpaidCustomers
+							}
+							target={stats.totalCustomers}
+							asCurrency={false}
+							caption={`${stats.paidPercentage}% complete`}
+							height={150}
 						/>
-						<div className="mt-3 grid grid-cols-2 gap-3">
+						<div className="flex flex-col justify-center gap-2 pr-2">
 							<a
 								href={`${basePath}/payments`}
-								className="rounded-md border border-border px-2 py-1.5 text-center transition-colors hover:bg-accent/40"
+								className="block rounded-md border border-border px-3 py-2 transition-colors hover:border-success/40 hover:bg-success/5"
 							>
-								<div className="text-base font-medium tabular-nums text-success">
+								<div className="text-lg font-medium tabular-nums leading-none text-success">
 									{stats.totalCustomers -
 										stats.unpaidCustomers}
 								</div>
-								<div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+								<div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
 									Paid
 								</div>
 							</a>
 							<a
 								href={`${basePath}/collect`}
-								className="rounded-md border border-border px-2 py-1.5 text-center transition-colors hover:bg-accent/40"
+								className="block rounded-md border border-border px-3 py-2 transition-colors hover:border-warning/40 hover:bg-warning/5"
 							>
 								<div
 									className={cn(
-										"text-base font-medium tabular-nums",
+										"text-lg font-medium tabular-nums leading-none",
 										stats.unpaidCustomers > 0
 											? "text-warning"
 											: "text-foreground",
@@ -248,60 +265,66 @@ export function BillingDashboard() {
 								>
 									{stats.unpaidCustomers}
 								</div>
-								<div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+								<div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
 									Remaining
 								</div>
 							</a>
 						</div>
-					</ContentCardSection>
+					</div>
 				</ContentCard>
 
-				<DistributionCard
-					title="Payment status"
-					subtitle="payments"
-					icon={BanknoteIcon}
-					slices={paymentStatusSlices}
-				/>
+				<div className="lg:col-span-4">
+					<DistributionCard
+						title="Payment status"
+						subtitle="payments"
+						icon={BanknoteIcon}
+						slices={paymentStatusSlices}
+						className="h-full"
+					/>
+				</div>
 
-				<ContentCard>
+				<ContentCard className="flex flex-col lg:col-span-3">
 					<ContentCardSection className="border-b border-border">
-						<div className="text-sm font-medium">
-							Expense summary
-						</div>
+						<div className="text-sm font-medium">Expenses</div>
 						<p className="mt-0.5 text-xs text-muted-foreground">
-							Approved expenses this period
+							Approved this period
 						</p>
 					</ContentCardSection>
-					<ContentCardSection>
-						<div className="space-y-3">
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
-									<ReceiptIcon className="size-4" />
-								</div>
-								<div className="flex-1">
-									<div className="text-xl font-medium tabular-nums tracking-tight">
-										{formatCurrency(reports.totalExpenses)}
-									</div>
-									<div className="text-[11px] text-muted-foreground">
-										Total expenses
-									</div>
-								</div>
+					<div className="flex flex-1 flex-col justify-center gap-3 px-4 py-3">
+						<div className="flex items-center gap-3">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+								<ReceiptIcon className="size-4" />
 							</div>
-							<div className="flex items-center gap-3">
-								<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success">
-									<CalculatorIcon className="size-4" />
+							<div className="min-w-0 flex-1">
+								<div className="truncate text-xl font-medium tabular-nums leading-none tracking-tight">
+									{formatCurrency(reports.totalExpenses)}
 								</div>
-								<div className="flex-1">
-									<div className="text-xl font-medium tabular-nums tracking-tight text-success">
-										{formatCurrency(reports.grandTotal)}
-									</div>
-									<div className="text-[11px] text-muted-foreground">
-										Net (handed off − expenses)
-									</div>
+								<div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+									Expenses
 								</div>
 							</div>
 						</div>
-					</ContentCardSection>
+						<div className="flex items-center gap-3">
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success">
+								<CalculatorIcon className="size-4" />
+							</div>
+							<div className="min-w-0 flex-1">
+								<div
+									className={cn(
+										"truncate text-xl font-medium tabular-nums leading-none tracking-tight",
+										reports.grandTotal >= 0
+											? "text-success"
+											: "text-destructive",
+									)}
+								>
+									{formatCurrency(reports.grandTotal)}
+								</div>
+								<div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+									Net
+								</div>
+							</div>
+						</div>
+					</div>
 				</ContentCard>
 			</div>
 
@@ -354,11 +377,24 @@ export function BillingDashboard() {
 export function BillingDashboardSkeleton() {
 	return (
 		<div className="space-y-6">
+			<div className="flex items-center justify-between">
+				<Skeleton className="h-3 w-32" />
+				<Skeleton className="h-9 w-44 rounded-md" />
+			</div>
 			<MetricStrip columns={6}>
 				{Array.from({ length: 6 }).map((_, i) => (
 					<MetricCardSkeleton key={i} />
 				))}
 			</MetricStrip>
+			<div className="grid gap-3 lg:grid-cols-12">
+				<Skeleton className="h-56 rounded-lg lg:col-span-5" />
+				<Skeleton className="h-56 rounded-lg lg:col-span-4" />
+				<Skeleton className="h-56 rounded-lg lg:col-span-3" />
+			</div>
+			<div className="grid gap-3 lg:grid-cols-5">
+				<Skeleton className="h-72 rounded-lg lg:col-span-2" />
+				<Skeleton className="h-72 rounded-lg lg:col-span-3" />
+			</div>
 		</div>
 	);
 }

@@ -6,7 +6,6 @@ import {
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
-import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
@@ -241,10 +240,7 @@ export function StoppedAccountsList() {
 	);
 
 	return (
-		<PageShell
-			title="Stopped Accounts"
-			description={`${total} stopped accounts`}
-		>
+		<>
 			<ContentCard>
 				<ContentCardToolbar>
 					<SearchInput
@@ -317,7 +313,7 @@ export function StoppedAccountsList() {
 					currentExpiry={reactivatePayment.currentExpiry}
 				/>
 			)}
-		</PageShell>
+		</>
 	);
 }
 
@@ -426,19 +422,17 @@ function ReactivateDialog({
 
 export function StoppedAccountsListSkeleton() {
 	return (
-		<PageShell title="Stopped Accounts" description="Loading...">
-			<div className="space-y-4">
-				<Skeleton className="h-10 w-full" />
-				<div className="rounded-xl border bg-card p-4">
-					{Array.from({ length: 5 }).map((_, i) => (
-						<div key={i} className="flex items-center gap-4 py-3">
-							<Skeleton className="h-5 w-32" />
-							<Skeleton className="h-5 w-24" />
-							<Skeleton className="ml-auto h-8 w-20" />
-						</div>
-					))}
-				</div>
+		<div className="space-y-6">
+			<Skeleton className="h-10 w-full" />
+			<div className="rounded-lg border bg-card p-4">
+				{Array.from({ length: 5 }).map((_, i) => (
+					<div key={i} className="flex items-center gap-4 py-3">
+						<Skeleton className="h-5 w-32" />
+						<Skeleton className="h-5 w-24" />
+						<Skeleton className="ml-auto h-8 w-20" />
+					</div>
+				))}
 			</div>
-		</PageShell>
+		</div>
 	);
 }
