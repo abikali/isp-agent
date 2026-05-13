@@ -10,7 +10,6 @@ import {
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
-import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { TableColumnsToggle } from "@shared/components/TableColumnsToggle";
 import { usePersistedColumnVisibility } from "@shared/hooks/use-persisted-column-visibility";
@@ -73,22 +72,15 @@ import {
 } from "../lib/location-utils";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
+import { ConnectivityCell } from "./ConnectivityCell";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
 import { CustomerFilters, type CustomerFiltersValue } from "./CustomerFilters";
 import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
 import { CustomerStatsSkeleton } from "./CustomerStatsSkeleton";
 import { ImportFromIRadiusDialog } from "./ImportFromIRadiusDialog";
-
-function getConnectivityStatus(
-	customerStatus: string,
-	online: boolean,
-): "online" | "offline" | "inactive" {
-	if (customerStatus !== "ACTIVE") {
-		return "inactive";
-	}
-	return online ? "online" : "offline";
-}
+import { NetworkCell } from "./NetworkCell";
+import { UsageCell } from "./UsageCell";
 
 function getInitials(first: string | null, last: string | null): string {
 	const f = first?.trim()?.[0] ?? "";
@@ -145,6 +137,8 @@ const TOGGLEABLE_COLUMNS = [
 	{ id: "status", label: "Status" },
 	{ id: "plan", label: "Plan" },
 	{ id: "assignment", label: "Assignment" },
+	{ id: "usage", label: "Usage today" },
+	{ id: "network", label: "Network" },
 	{ id: "expiry", label: "Expiry" },
 	{ id: "monthlyRate", label: "Rate" },
 ] as const;
@@ -180,6 +174,15 @@ interface CustomerRow {
 	longitude: number | null;
 	locationRequestedAt: Date | string | null;
 	expiresAt: Date | string | null;
+	lastLogin: Date | string | null;
+	ipAddress: string | null;
+	macAddress: string | null;
+	nasHost: string | null;
+	fupMode: string | null;
+	downloadBytes: bigint | number | null;
+	uploadBytes: bigint | number | null;
+	dailyDownloadBytes: bigint | number | null;
+	dailyUploadBytes: bigint | number | null;
 	notes: string | null;
 }
 
@@ -552,38 +555,19 @@ export function CustomersList({
 				header: "Status",
 				enableSorting: true,
 				meta: { className: "whitespace-nowrap w-[1%] text-center" },
-				cell: ({ row }) => {
-					const connStatus = getConnectivityStatus(
-						row.original.status,
-						row.original.online,
-					);
-					const labels: Record<typeof connStatus, string> = {
-						online: "Online",
-						offline: "Offline",
-						inactive: "Inactive",
-					};
-					return (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span
-									role="img"
-									aria-label={labels[connStatus]}
-									className="inline-flex"
-								>
-									<StatusIndicator
-										status={connStatus}
-										variant="dot"
-										size="md"
-										label=""
-									/>
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>
-								{labels[connStatus]}
-							</TooltipContent>
-						</Tooltip>
-					);
-				},
+				cell: ({ row }) => (
+					<ConnectivityCell
+						status={
+							row.original.status as
+								| "ACTIVE"
+								| "INACTIVE"
+								| "SUSPENDED"
+								| "PENDING"
+						}
+						online={row.original.online}
+						lastLogin={row.original.lastLogin}
+					/>
+				),
 			},
 			{
 				id: "plan",
@@ -652,6 +636,54 @@ export function CustomersList({
 						</div>
 					);
 				},
+			},
+			{
+				id: "usage",
+				header: "Usage today",
+				enableSorting: false,
+				meta: {
+					className: "hidden xl:table-cell whitespace-nowrap",
+				},
+				cell: ({ row }) => (
+					<UsageCell
+						dailyDown={
+							typeof row.original.dailyDownloadBytes === "bigint"
+								? Number(row.original.dailyDownloadBytes)
+								: (row.original.dailyDownloadBytes ?? 0)
+						}
+						dailyUp={
+							typeof row.original.dailyUploadBytes === "bigint"
+								? Number(row.original.dailyUploadBytes)
+								: (row.original.dailyUploadBytes ?? 0)
+						}
+						totalDown={
+							typeof row.original.downloadBytes === "bigint"
+								? Number(row.original.downloadBytes)
+								: (row.original.downloadBytes ?? 0)
+						}
+						totalUp={
+							typeof row.original.uploadBytes === "bigint"
+								? Number(row.original.uploadBytes)
+								: (row.original.uploadBytes ?? 0)
+						}
+						fupMode={row.original.fupMode}
+					/>
+				),
+			},
+			{
+				id: "network",
+				header: "Network",
+				enableSorting: false,
+				meta: {
+					className: "hidden xl:table-cell whitespace-nowrap",
+				},
+				cell: ({ row }) => (
+					<NetworkCell
+						ipAddress={row.original.ipAddress}
+						macAddress={row.original.macAddress}
+						nasHost={row.original.nasHost}
+					/>
+				),
 			},
 			{
 				id: "expiry",
