@@ -192,6 +192,42 @@ export const useBulkRequestLocation = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const useBulkSetCustomerStatus = createInvalidatingMutation(
+	() => orpc.customers.bulkSetStatus.mutationOptions(),
+	invalidateCustomers,
+);
+
+/**
+ * Live online status for a customer's station + access point.
+ * Refetches every 15s so the badge tracks the monitor sync cadence.
+ * Returns `disabledQuery` while the org context is still resolving so we
+ * don't fire a request with a blank `organizationId`.
+ */
+export function useCustomerNetworkStatus(customerId: string) {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? {
+					...orpc.customers.networkStatus.queryOptions({
+						input: { organizationId, customerId },
+					}),
+					refetchInterval: 15_000,
+					// Keep the previous snapshot visible during the next poll so
+					// the badge doesn't flicker into a skeleton every 15s.
+					placeholderData: (prev) => prev,
+				}
+			: disabledQuery(["customers", "networkStatus", customerId]),
+	);
+
+	return {
+		station: query.data?.station ?? null,
+		accessPoint: query.data?.accessPoint ?? null,
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
+	};
+}
+
 export const useUpdateCustomerLocation = createInvalidatingMutation(
 	() => orpc.customers.updateCustomerLocation.mutationOptions(),
 	invalidateCustomers,
@@ -381,13 +417,16 @@ export function useSyncConflictsSummary(organizationId: string | null) {
 	);
 }
 
-export function useIRadiusGroups() {
+export function useIRadiusGroups(dealerId?: string | null) {
 	const organizationId = useOrganizationId();
 	const query = useQuery(
 		organizationId
 			? {
 					...orpc.customers.listIRadiusGroups.queryOptions({
-						input: { organizationId },
+						input: {
+							organizationId,
+							...(dealerId ? { dealerId } : {}),
+						},
 					}),
 					staleTime: 5 * 60 * 1000,
 				}

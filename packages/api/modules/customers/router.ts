@@ -1,6 +1,7 @@
 import { getCustomerActivity } from "./procedures/activity";
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
+import { bulkSetCustomerStatus } from "./procedures/bulk-set-status";
 import {
 	executeAccountTypeChangeProcedure,
 	previewAccountTypeChangeProcedure,
@@ -29,6 +30,7 @@ import {
 	submitLocationByToken,
 	updateCustomerLocation,
 } from "./procedures/location-request";
+import { getCustomerNetworkStatus } from "./procedures/network-status";
 import {
 	cancelIRadiusPush,
 	getIRadiusPushStatus,
@@ -68,9 +70,11 @@ export const customersRouter = {
 	delete: deleteCustomer,
 	stats: getCustomerStats,
 	connectivityStatus: getConnectivityStatus,
+	networkStatus: getCustomerNetworkStatus,
 	activity: getCustomerActivity,
 	bulkImport: bulkImportCustomers,
 	bulkExport: bulkExportCustomers,
+	bulkSetStatus: bulkSetCustomerStatus,
 	setPin: setCustomerPin,
 	resetPin: resetCustomerPin,
 	generatePin: generateCustomerPin,

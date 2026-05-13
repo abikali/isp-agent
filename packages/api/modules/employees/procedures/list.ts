@@ -28,6 +28,10 @@ export const listEmployees = protectedProcedure
 				])
 				.optional(),
 			stationId: z.string().optional(),
+			// When provided, scope to a specific dealer instead of the caller's
+			// activeDealerId. Used by forms that need the dealer of the record
+			// being edited (e.g. customer edit form's collector picker).
+			dealerId: z.string().optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -48,7 +52,9 @@ export const listEmployees = protectedProcedure
 			organizationId: input.organizationId,
 			// Hide employees soft-deleted by the iRadius sync cleanup.
 			deletedAt: null,
-			...getDealerScopeFilter(activeDealerId),
+			...(input.dealerId !== undefined
+				? { dealerId: input.dealerId }
+				: getDealerScopeFilter(activeDealerId)),
 		};
 
 		if (input.status) {

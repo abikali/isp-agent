@@ -1,4 +1,5 @@
 import { requirePermission } from "@repo/api/lib/permission";
+import { db } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -10,17 +11,56 @@ export const listIRadiusGroups = protectedProcedure
 		tags: ["Customers"],
 		summary: "List UserGroup rows from iRadius for the group picker",
 	})
-	.input(z.object({ organizationId: z.string() }))
+	.input(
+		z.object({
+			organizationId: z.string(),
+			// Local IspDealer.id — when provided, only return UserGroup rows
+			// whose iRadius DealerId matches that dealer's externalId.
+			dealerId: z.string().optional(),
+		}),
+	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
 			"read",
 		);
 
+		// Explicit input.dealerId (e.g. customer edit form) takes precedence;
+		// otherwise default to the caller's active dealer so dealer-scoped
+		// users only ever see their own groups. Super-admins (no active
+		// dealer) see every group.
+		const scopedDealerId = input.dealerId ?? activeDealerId;
+		let dealerExternalId: number | null = null;
+		if (scopedDealerId) {
+			const dealer = await db.ispDealer.findFirst({
+				where: {
+					id: scopedDealerId,
+					organizationId: input.organizationId,
+				},
+				select: { externalId: true },
+			});
+			const parsed = dealer?.externalId
+				? Number.parseInt(dealer.externalId, 10)
+				: Number.NaN;
+			if (!Number.isFinite(parsed)) {
+				return { groups: [] };
+			}
+			dealerExternalId = parsed;
+		}
+
 		const rows = await withIRadiusConnection((conn) =>
-			queryIRadius(conn, "SELECT Id, Name FROM UserGroup ORDER BY Name"),
+			dealerExternalId !== null
+				? queryIRadius(
+						conn,
+						"SELECT Id, Name FROM UserGroup WHERE DealerId = ? ORDER BY Name",
+						[dealerExternalId],
+					)
+				: queryIRadius(
+						conn,
+						"SELECT Id, Name FROM UserGroup ORDER BY Name",
+					),
 		);
 
 		const groups = rows

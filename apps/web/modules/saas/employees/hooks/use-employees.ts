@@ -88,13 +88,18 @@ export function useEmployeeStats() {
 	return query.data;
 }
 
-export function useEmployeesQuery() {
+export function useEmployeesQuery(opts?: { dealerId?: string | null }) {
 	const organizationId = useOrganizationId();
+	const dealerId = opts?.dealerId ?? undefined;
 
 	const query = useQuery(
 		organizationId
 			? orpc.employees.list.queryOptions({
-					input: { organizationId, status: "ACTIVE" },
+					input: {
+						organizationId,
+						status: "ACTIVE",
+						...(dealerId ? { dealerId } : {}),
+					},
 				})
 			: disabledQuery(["employees", "list"]),
 	);

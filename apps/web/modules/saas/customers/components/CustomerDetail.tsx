@@ -95,6 +95,7 @@ import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerPayments } from "./CustomerPayments";
 import { CustomerSaveBar } from "./CustomerSaveBar";
 import { CustomerTransactions } from "./CustomerTransactions";
+import { NetworkStatusField } from "./NetworkStatusField";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -181,8 +182,6 @@ export function CustomerDetail({
 	const [confirmReactivate, setConfirmReactivate] = useState(false);
 
 	const { plans } = usePlansQuery();
-	const { employees } = useEmployeesQuery();
-	const { groups: iradiusGroups } = useIRadiusGroups();
 
 	const { data } = useSuspenseQuery(
 		orpc.customers.get.queryOptions({
@@ -195,6 +194,8 @@ export function CustomerDetail({
 
 	const customer = data.customer;
 	const isLinked = !!customer.externalId;
+	const { employees } = useEmployeesQuery({ dealerId: customer.dealerId });
+	const { groups: iradiusGroups } = useIRadiusGroups(customer.dealerId);
 
 	function buildUpdatePayload(values: CustomerFormValues) {
 		const parsedGroupId = values.groupExternalId
@@ -1230,13 +1231,17 @@ function ServiceTab({
 				<Separator />
 
 				<FieldGroup columns={2}>
-					<ReadOnlyField
+					<NetworkStatusField
 						label="Station"
-						value={customer.station?.name}
+						name={customer.station?.name ?? null}
+						customerId={customer.id}
+						kind="station"
 					/>
-					<ReadOnlyField
+					<NetworkStatusField
 						label="Access point"
-						value={customer.accessPoint?.name}
+						name={customer.accessPoint?.name ?? null}
+						customerId={customer.id}
+						kind="accessPoint"
 					/>
 				</FieldGroup>
 			</DetailSection>

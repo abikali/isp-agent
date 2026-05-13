@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@ui/components/avatar";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import { Separator } from "@ui/components/separator";
 import {
 	Tooltip,
 	TooltipContent,
@@ -49,13 +50,16 @@ import {
 	RefreshCwIcon,
 	StickyNoteIcon,
 	UploadIcon,
+	UserCheckIcon,
 	UsersIcon,
+	UserXIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useBulkRequestLocation,
+	useBulkSetCustomerStatus,
 	useCreateLocationRequest,
 	useCustomers,
 } from "../hooks/use-customers";
@@ -237,6 +241,15 @@ export function CustomersList({
 
 	const createLocationRequest = useCreateLocationRequest();
 	const bulkRequestLocation = useBulkRequestLocation();
+	const bulkSetStatus = useBulkSetCustomerStatus();
+	// Mirrors the single-customer deactivate/reactivate confirmation flow on
+	// the detail page. Pre-warns the operator before flipping N customers in
+	// iRadius — the underlying procedure is idempotent (already-target rows
+	// are skipped) but a fan-out activate of 200 customers is still a real
+	// network operation, not a UI no-op.
+	const [confirmBulkStatus, setConfirmBulkStatus] = useState<
+		"ACTIVE" | "INACTIVE" | null
+	>(null);
 
 	// Fetched solely to label active filter chips.
 	const { plans } = usePlansQuery();
@@ -313,6 +326,41 @@ export function CustomersList({
 					);
 					setRowSelection({});
 					setDialog(null);
+				},
+				onError: (err) => toast.error(err.message),
+			},
+		);
+	}
+
+	function doBulkSetStatus(target: "ACTIVE" | "INACTIVE") {
+		if (selectedIds.length === 0) {
+			return;
+		}
+		bulkSetStatus.mutate(
+			{
+				organizationId,
+				customerIds: selectedIds,
+				status: target,
+			},
+			{
+				onSuccess: (result) => {
+					const verb =
+						target === "ACTIVE" ? "Activated" : "Deactivated";
+					const parts: string[] = [`${verb} ${result.succeeded}`];
+					if (result.skipped > 0) {
+						parts.push(`${result.skipped} already in target state`);
+					}
+					if (result.failed > 0) {
+						parts.push(`${result.failed} failed`);
+					}
+					const summary = parts.join(" · ");
+					if (result.failed > 0) {
+						toast.warning(summary);
+					} else {
+						toast.success(summary);
+					}
+					setRowSelection({});
+					setConfirmBulkStatus(null);
 				},
 				onError: (err) => toast.error(err.message),
 			},
@@ -766,12 +814,22 @@ export function CustomersList({
 			},
 			{
 				id: "actions",
+				header: "Actions",
 				enableSorting: false,
 				meta: { className: "w-[1%] whitespace-nowrap text-right" },
 				cell: ({ row }) => (
 					<CustomerRowActions
 						customerId={row.original.id}
+						customerName={
+							displayName(
+								row.original.firstName,
+								row.original.lastName,
+							) || row.original.accountNumber
+						}
+						customerStatus={row.original.status}
+						hasExternalId={!!row.original.externalId}
 						organizationSlug={organizationSlug}
+						organizationId={organizationId}
 						hasLocation={
 							row.original.latitude != null &&
 							row.original.longitude != null
@@ -783,7 +841,7 @@ export function CustomersList({
 				),
 			},
 		],
-		[organizationSlug, handleRequestClick],
+		[organizationSlug, organizationId, handleRequestClick],
 	);
 
 	return (
@@ -847,6 +905,29 @@ export function CustomersList({
 						<Button
 							size="sm"
 							variant="outline"
+							disabled={bulkSetStatus.isPending}
+							onClick={() => setConfirmBulkStatus("ACTIVE")}
+						>
+							<UserCheckIcon className="mr-2 size-4" />
+							Activate
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={bulkSetStatus.isPending}
+							onClick={() => setConfirmBulkStatus("INACTIVE")}
+							className="text-destructive hover:text-destructive"
+						>
+							<UserXIcon className="mr-2 size-4" />
+							Deactivate
+						</Button>
+						<Separator
+							orientation="vertical"
+							className="h-6 bg-primary/20"
+						/>
+						<Button
+							size="sm"
+							variant="outline"
 							onClick={() => setDialog("sync-preview")}
 						>
 							<RefreshCwIcon className="mr-2 size-4" />
@@ -861,6 +942,10 @@ export function CustomersList({
 							<MapPinIcon className="mr-2 size-4" />
 							Request location
 						</Button>
+						<Separator
+							orientation="vertical"
+							className="h-6 bg-primary/20"
+						/>
 						<Button
 							size="sm"
 							variant="ghost"
@@ -1033,6 +1118,54 @@ export function CustomersList({
 							{bulkRequestLocation.isPending
 								? "Sending…"
 								: "Send requests"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/*
+			 * Bulk activate / deactivate confirmation. One dialog reused for
+			 * both directions — the body and primary button copy switch on
+			 * `confirmBulkStatus` so we avoid a forked-twice copy of the same
+			 * shell. Already-target customers are silently skipped server-side
+			 * so the warning copy stays accurate even on mixed selections.
+			 */}
+			<AlertDialog
+				open={confirmBulkStatus !== null}
+				onOpenChange={(o) => {
+					if (!o) {
+						setConfirmBulkStatus(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{confirmBulkStatus === "ACTIVE"
+								? `Reactivate ${selectedCount} customer${selectedCount === 1 ? "" : "s"}?`
+								: `Deactivate ${selectedCount} customer${selectedCount === 1 ? "" : "s"}?`}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{confirmBulkStatus === "ACTIVE"
+								? "Each selected customer will be set to ACTIVE in iRadius and locally. Customers already active are skipped."
+								: "Each selected customer will be set to INACTIVE in iRadius (disconnecting active sessions) and locally. Customers already inactive are skipped. You can reactivate any of them later."}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (confirmBulkStatus) {
+									doBulkSetStatus(confirmBulkStatus);
+								}
+							}}
+							disabled={bulkSetStatus.isPending}
+						>
+							{bulkSetStatus.isPending
+								? "Working…"
+								: confirmBulkStatus === "ACTIVE"
+									? "Activate all"
+									: "Deactivate all"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
