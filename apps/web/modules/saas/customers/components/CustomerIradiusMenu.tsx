@@ -1,5 +1,6 @@
 "use client";
 
+import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { Button } from "@ui/components/button";
 import {
 	Dialog,
@@ -23,9 +24,10 @@ import {
 	CalendarClockIcon,
 	MonitorIcon,
 	PercentIcon,
+	RadioTowerIcon,
+	RefreshCwIcon,
 	UserCogIcon,
 	WifiOffIcon,
-	ZapIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -37,7 +39,7 @@ import {
 	useUpdateNameInIRadius,
 } from "../hooks/use-customers";
 
-interface IRadiusActionsMenuProps {
+interface CustomerIradiusMenuProps {
 	organizationId: string;
 	customer: {
 		id: string;
@@ -66,8 +68,6 @@ function toDateInputValue(value: string | Date | null): string {
 	if (Number.isNaN(d.getTime())) {
 		return "";
 	}
-	// Use UTC components — `expiresAt` is stored tz-naive but aligned to UTC,
-	// so UTC accessors give the date iRadius has on record.
 	const y = d.getUTCFullYear();
 	const m = String(d.getUTCMonth() + 1).padStart(2, "0");
 	const day = String(d.getUTCDate()).padStart(2, "0");
@@ -75,22 +75,28 @@ function toDateInputValue(value: string | Date | null): string {
 }
 
 /**
- * iRadius admin actions dropdown for the customer detail page.
- * Each action fires a direct-SQL write to iRadius via our backend wrapper
- * procedures, mirrors the value locally, and toasts the result.
+ * Single iRadius surface in the customer header. Combines the
+ * "Sync from iRadius" pull (preview + apply) with the five iRadius admin
+ * actions (Reset MAC, Change name, Set discount, Set IPTV price, Set expiry).
+ *
+ * Hidden when the customer isn't linked to iRadius — there's nothing to do.
  */
-export function IRadiusActionsMenu({
+export function CustomerIradiusMenu({
 	organizationId,
 	customer,
-}: IRadiusActionsMenuProps) {
+}: CustomerIradiusMenuProps) {
 	const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+	const [showSyncPreview, setShowSyncPreview] = useState(false);
 	const resetMac = useResetMacAddress();
 	const updateName = useUpdateNameInIRadius();
 	const setDiscount = useSetDiscount();
 	const setIptvPrice = useSetIptvPrice();
 	const setExpiryDate = useSetCustomerExpiryDate();
 
-	const isLinked = !!customer.externalId;
+	if (!customer.externalId) {
+		return null;
+	}
+
 	const anyPending =
 		resetMac.isPending ||
 		updateName.isPending ||
@@ -102,34 +108,23 @@ export function IRadiusActionsMenu({
 		setDialog({ kind: "none" });
 	}
 
-	function getInitialNames(): { firstName: string; lastName: string } {
-		return {
-			firstName: customer.firstName ?? "",
-			lastName: customer.lastName ?? "",
-		};
-	}
-
 	return (
 		<>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={!isLinked || anyPending}
-						title={
-							isLinked
-								? "iRadius actions"
-								: "Customer not linked to iRadius"
-						}
-					>
-						<ZapIcon className="mr-2 size-4" />
-						iRadius Actions
+					<Button variant="outline" size="sm" disabled={anyPending}>
+						<RadioTowerIcon className="mr-2 size-4" />
+						iRadius
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-56">
-					<DropdownMenuLabel>Apply in iRadius</DropdownMenuLabel>
+				<DropdownMenuContent align="end" className="w-60">
+					<DropdownMenuLabel>Pull from iRadius</DropdownMenuLabel>
+					<DropdownMenuItem onClick={() => setShowSyncPreview(true)}>
+						<RefreshCwIcon className="mr-2 size-4" />
+						Sync data from iRadius
+					</DropdownMenuItem>
 					<DropdownMenuSeparator />
+					<DropdownMenuLabel>Apply in iRadius</DropdownMenuLabel>
 					<DropdownMenuItem
 						onClick={() => setDialog({ kind: "reset-mac" })}
 					>
@@ -140,7 +135,8 @@ export function IRadiusActionsMenu({
 						onClick={() =>
 							setDialog({
 								kind: "update-name",
-								...getInitialNames(),
+								firstName: customer.firstName ?? "",
+								lastName: customer.lastName ?? "",
 							})
 						}
 					>
@@ -185,7 +181,14 @@ export function IRadiusActionsMenu({
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			{/* Reset MAC confirm */}
+			<SyncPreviewDialog
+				open={showSyncPreview}
+				onOpenChange={setShowSyncPreview}
+				entityType="customer"
+				entityIds={[customer.id]}
+			/>
+
+			{/* Reset MAC */}
 			<Dialog
 				open={dialog.kind === "reset-mac"}
 				onOpenChange={(o) => !o && close()}
@@ -194,9 +197,9 @@ export function IRadiusActionsMenu({
 					<DialogHeader>
 						<DialogTitle>Reset MAC address?</DialogTitle>
 						<DialogDescription>
-							This clears the stored MAC address in iRadius. The
-							customer's next connection will automatically
-							re-learn a new one. No disconnection is forced.
+							Clears the stored MAC in iRadius. The customer's
+							next connection will re-learn a new one. No
+							disconnection is forced.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
@@ -207,10 +210,7 @@ export function IRadiusActionsMenu({
 							disabled={resetMac.isPending}
 							onClick={() => {
 								resetMac.mutate(
-									{
-										organizationId,
-										customerId: customer.id,
-									},
+									{ organizationId, customerId: customer.id },
 									{
 										onSuccess: () => {
 											toast.success("MAC address reset");
@@ -228,7 +228,7 @@ export function IRadiusActionsMenu({
 				</DialogContent>
 			</Dialog>
 
-			{/* Update name dialog */}
+			{/* Change name */}
 			<Dialog
 				open={dialog.kind === "update-name"}
 				onOpenChange={(o) => !o && close()}
@@ -315,7 +315,7 @@ export function IRadiusActionsMenu({
 				</DialogContent>
 			</Dialog>
 
-			{/* Set discount dialog */}
+			{/* Discount */}
 			<Dialog
 				open={dialog.kind === "set-discount"}
 				onOpenChange={(o) => !o && close()}
@@ -391,7 +391,7 @@ export function IRadiusActionsMenu({
 				</DialogContent>
 			</Dialog>
 
-			{/* Set IPTV price dialog */}
+			{/* IPTV price */}
 			<Dialog
 				open={dialog.kind === "set-iptv-price"}
 				onOpenChange={(o) => !o && close()}
@@ -467,7 +467,7 @@ export function IRadiusActionsMenu({
 				</DialogContent>
 			</Dialog>
 
-			{/* Set billing expiry dialog */}
+			{/* Expiry */}
 			<Dialog
 				open={dialog.kind === "set-expiry"}
 				onOpenChange={(o) => !o && close()}

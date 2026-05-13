@@ -4,6 +4,7 @@ import {
 	BroadcastDetailSkeleton,
 } from "@saas/marketing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -20,7 +21,13 @@ function BroadcastDetailPage() {
 	const { organizationSlug, broadcastId } = Route.useParams();
 	return (
 		<PermissionGate resource="marketing" action="read">
-			<AsyncBoundary fallback={<BroadcastDetailSkeleton />}>
+			<AsyncBoundary
+				fallback={
+					<PageShellSkeleton showActions={false}>
+						<BroadcastDetailSkeleton />
+					</PageShellSkeleton>
+				}
+			>
 				<BroadcastDetail
 					broadcastId={broadcastId}
 					organizationSlug={organizationSlug}

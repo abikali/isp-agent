@@ -36,6 +36,9 @@ export const getCustomerStats = protectedProcedure
 		);
 		const baseWhere = {
 			organizationId,
+			// Exclude rows soft-deleted by the iRadius sync cleanup so stats
+			// match what the list view shows. See `list.ts` for context.
+			deletedAt: null,
 			...ownerFilter,
 			...getDealerScopeFilter(activeDealerId),
 		};

@@ -21,6 +21,10 @@ export {
 	CollectorPickerPage,
 } from "./components/CashCollectionPage";
 export {
+	CollectorBreakdownCard,
+	type CollectorBreakdownEntry,
+} from "./components/CollectorBreakdownCard";
+export {
 	CollectorPayments,
 	CollectorPaymentsSkeleton,
 } from "./components/CollectorPayments";
@@ -29,6 +33,14 @@ export {
 	CollectorPortalSkeleton,
 } from "./components/CollectorPortal";
 export { CollectorShell } from "./components/CollectorShell";
+export {
+	CollectorsHub,
+	CollectorsHubSkeleton,
+} from "./components/CollectorsHub";
+export {
+	CollectorWorkspace,
+	CollectorWorkspaceSkeleton,
+} from "./components/CollectorWorkspace";
 export { CustomerCard, type UnpaidCustomer } from "./components/CustomerCard";
 export { InvoiceFormDialog } from "./components/InvoiceFormDialog";
 export { InvoicesList } from "./components/InvoicesList";

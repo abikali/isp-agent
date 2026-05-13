@@ -20,8 +20,8 @@ export const getRecentSyncs = protectedProcedure
 		await requirePermission(
 			input.organizationId,
 			user.id,
-			"organization",
-			"view",
+			"connections",
+			"read",
 		);
 
 		const ops = await db.iRadiusSyncOperation.findMany({

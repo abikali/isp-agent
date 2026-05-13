@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { EmployeesList, EmployeesListSkeleton } from "@saas/employees/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -18,7 +19,13 @@ function EmployeesPage() {
 
 	return (
 		<PermissionGate resource="employees" action="read">
-			<AsyncBoundary fallback={<EmployeesListSkeleton />}>
+			<AsyncBoundary
+				fallback={
+					<PageShellSkeleton>
+						<EmployeesListSkeleton />
+					</PageShellSkeleton>
+				}
+			>
 				<EmployeesList organizationSlug={organizationSlug} />
 			</AsyncBoundary>
 		</PermissionGate>

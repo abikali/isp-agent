@@ -7,6 +7,7 @@ import {
 } from "@saas/organizations/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { PageShell } from "@shared/components/PageShell";
+import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_saas/app/_org/$organizationSlug/")({
@@ -35,7 +36,11 @@ function DashboardPage() {
 
 	// Show skeleton until permissions are loaded — prevents firing unauthorized queries
 	if (!permissionsLoaded) {
-		return <DashboardSkeleton />;
+		return (
+			<PageShellSkeleton>
+				<DashboardSkeleton />
+			</PageShellSkeleton>
+		);
 	}
 
 	// Dashboard requires full customer read access (not just :own)
@@ -64,7 +69,13 @@ function DashboardPage() {
 
 	// DashboardContent provides its own PageShell internally.
 	return (
-		<AsyncBoundary fallback={<DashboardSkeleton />}>
+		<AsyncBoundary
+			fallback={
+				<PageShellSkeleton>
+					<DashboardSkeleton />
+				</PageShellSkeleton>
+			}
+		>
 			<DashboardContent
 				organizationSlug={organizationSlug}
 				organizationId={loaderData.organizationId}

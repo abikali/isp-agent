@@ -1,6 +1,8 @@
 "use client";
 
+import { usePaymentStatsQuery } from "@saas/billing/client";
 import { useActiveOrganization } from "@saas/organizations/client";
+import { CountBadge } from "@shared/components/CountBadge";
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@ui/lib";
 import {
@@ -10,6 +12,7 @@ import {
 	HandCoinsIcon,
 	type LucideIcon,
 	OctagonXIcon,
+	WalletIcon,
 } from "lucide-react";
 
 interface BillingTab {
@@ -34,6 +37,13 @@ const TABS: BillingTab[] = [
 		to: "/collect",
 		icon: HandCoinsIcon,
 		resource: "collect",
+	},
+	{
+		id: "collectors",
+		label: "Collectors",
+		to: "/collectors",
+		icon: WalletIcon,
+		resource: "manage",
 	},
 	{
 		id: "invoices",
@@ -61,11 +71,18 @@ const TABS: BillingTab[] = [
 export function BillingNav() {
 	const { activeOrganization } = useActiveOrganization();
 	const location = useLocation();
+	const { data: paymentStats } = usePaymentStatsQuery();
 	if (!activeOrganization) {
 		return null;
 	}
 	const base = `/app/${activeOrganization.slug}/billing`;
 	const path = location.pathname.replace(base, "").replace(/\/$/, "");
+
+	// Per-tab badge counts. Same source as the sidebar's Billing badge so the
+	// number stays in sync when the user clicks through.
+	const badges: Record<string, number> = {
+		payments: paymentStats?.unreviewedCount ?? 0,
+	};
 
 	return (
 		<nav className="-mx-1 flex overflow-x-auto pb-1">
@@ -74,6 +91,7 @@ export function BillingNav() {
 					const target = `${base}${tab.to}`;
 					const isActive =
 						(tab.to === "" && path === "") || path === tab.to;
+					const count = badges[tab.id] ?? 0;
 					return (
 						<li key={tab.id} className="shrink-0">
 							<Link
@@ -89,6 +107,7 @@ export function BillingNav() {
 							>
 								<tab.icon className="size-3.5" />
 								{tab.label}
+								<CountBadge count={count} size="sm" />
 							</Link>
 						</li>
 					);

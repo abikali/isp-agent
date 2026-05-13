@@ -12,12 +12,7 @@ import {
 } from "@ui/components/accordion";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
-import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@ui/components/card";
+import { Card } from "@ui/components/card";
 import { Checkbox } from "@ui/components/checkbox";
 import { Field, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
@@ -40,6 +35,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@ui/components/tooltip";
+import { cn } from "@ui/lib";
 import {
 	AlertTriangleIcon,
 	BotIcon,
@@ -76,6 +72,85 @@ function FieldHint({ text }: { text: string }) {
 				{text}
 			</TooltipContent>
 		</Tooltip>
+	);
+}
+
+type ToggleCardTone = "default" | "warning" | "info";
+
+interface ToggleCardProps {
+	icon: typeof BotIcon;
+	title: string;
+	description: string;
+	active: boolean;
+	activeTone?: ToggleCardTone;
+	badgeLabel: string;
+	badgeVariant: "default" | "secondary" | "warning" | "destructive";
+	checked: boolean;
+	onCheckedChange: (next: boolean) => void;
+	children?: React.ReactNode;
+}
+
+/**
+ * Compact feature toggle. A single-line bar (icon · title · status hint ·
+ * badge · switch) that expands a contextual input below when the toggle is on.
+ * Replaces the old CardHeader-style toggles that had a heavy left side
+ * (icon tile + h3 title + description) sitting next to a tiny right-side
+ * switch — the asymmetry made the cards look unfinished.
+ */
+function ToggleCard({
+	icon: Icon,
+	title,
+	description,
+	active,
+	activeTone = "default",
+	badgeLabel,
+	badgeVariant,
+	checked,
+	onCheckedChange,
+	children,
+}: ToggleCardProps) {
+	const toneRing =
+		active && activeTone === "warning"
+			? "border-warning/40 bg-warning/5"
+			: active && activeTone === "info"
+				? "border-info/40 bg-info/5"
+				: "border-border";
+	const iconTone =
+		active && activeTone === "warning"
+			? "text-warning"
+			: active && activeTone === "info"
+				? "text-info"
+				: "text-muted-foreground";
+
+	return (
+		<div
+			className={cn(
+				"mb-3 rounded-lg border bg-card shadow-xs transition-colors",
+				toneRing,
+			)}
+		>
+			<div className="flex items-center justify-between gap-3 px-4 py-2.5">
+				<div className="flex min-w-0 items-center gap-2 text-sm">
+					<Icon className={cn("size-4 shrink-0", iconTone)} />
+					<span className="font-medium">{title}</span>
+					<span className="truncate text-xs text-muted-foreground">
+						{description}
+					</span>
+				</div>
+				<div className="flex shrink-0 items-center gap-2">
+					<Badge variant={badgeVariant}>{badgeLabel}</Badge>
+					<Switch
+						checked={checked}
+						onCheckedChange={onCheckedChange}
+					/>
+				</div>
+			</div>
+			{active && children && (
+				<div className="space-y-2 border-t border-border/60 px-4 py-3">
+					{children}
+				</div>
+			)}
+		</div>
 	);
 }
 
@@ -374,211 +449,152 @@ export function AgentSettings({
 					form.handleSubmit();
 				}}
 			>
-				{/* Header with status toggle */}
-				<Card className="mb-6">
-					<CardHeader>
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div className="flex items-center gap-3">
-								<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-									<BotIcon className="size-5 text-primary" />
-								</div>
-								<div className="min-w-0">
-									<CardTitle className="truncate text-lg">
-										{agent.name}
-									</CardTitle>
-									<CardDescription>
-										Configure how your agent behaves and
-										responds
-									</CardDescription>
-								</div>
-							</div>
-							<form.Field name="enabled">
-								{(field) => (
-									<div className="flex items-center gap-2">
-										<Badge
-											variant={
-												field.state.value
-													? "default"
-													: "secondary"
-											}
-										>
-											{field.state.value
-												? "Active"
-												: "Disabled"}
-										</Badge>
-										<Switch
-											checked={field.state.value}
-											onCheckedChange={field.handleChange}
-										/>
-									</div>
-								)}
-							</form.Field>
-						</div>
-					</CardHeader>
-				</Card>
-
-				{/* Maintenance Mode */}
-				<form.Field name="maintenanceMode">
-					{(modeField) => (
-						<Card
-							className={`mb-6 ${modeField.state.value ? "border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
-						>
-							<CardHeader>
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<div className="flex items-center gap-3">
-										<div
-											className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${modeField.state.value ? "bg-amber-100 dark:bg-amber-900/50" : "bg-muted"}`}
-										>
-											<AlertTriangleIcon
-												className={`size-5 ${modeField.state.value ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-											/>
-										</div>
-										<div className="min-w-0">
-											<CardTitle className="text-lg">
-												Maintenance Mode
-											</CardTitle>
-											<CardDescription>
-												Inform customers about known
-												issues or outages
-											</CardDescription>
-										</div>
-									</div>
-									<div className="flex shrink-0 items-center gap-2">
-										<Badge
-											variant={
-												modeField.state.value
-													? "destructive"
-													: "secondary"
-											}
-										>
-											{modeField.state.value
-												? "Active"
-												: "Off"}
-										</Badge>
-										<Switch
-											checked={modeField.state.value}
-											onCheckedChange={
-												modeField.handleChange
-											}
-										/>
-									</div>
-								</div>
-								{modeField.state.value && (
-									<form.Field name="maintenanceMessage">
-										{(msgField) => (
-											<div className="mt-4">
-												<FieldLabel htmlFor="maintenance-message">
-													What should the agent know?
-													<FieldHint text="Describe the issue internally. The agent will rephrase this naturally — it won't be shown verbatim to customers." />
-												</FieldLabel>
-												<Textarea
-													id="maintenance-message"
-													value={msgField.state.value}
-													onChange={(e) =>
-														msgField.handleChange(
-															e.target.value,
-														)
-													}
-													onBlur={msgField.handleBlur}
-													rows={3}
-													placeholder="e.g. Fiber cut in downtown area affecting ~200 customers. Repair crew dispatched, ETA 4 hours."
-													className="mt-1.5"
-												/>
-											</div>
-										)}
-									</form.Field>
-								)}
-							</CardHeader>
-						</Card>
+				{/* Agent status — compact toggle bar. The agent name already
+				    lives in the PageShell header; this only exposes the
+				    on/off switch + a one-liner status so operators can pause
+				    the agent while editing settings. */}
+				<form.Field name="enabled">
+					{(field) => (
+						<ToggleCard
+							icon={BotIcon}
+							title="Agent status"
+							description={
+								field.state.value
+									? "Responding to messages"
+									: "Paused — no replies will be sent"
+							}
+							active={field.state.value}
+							badgeLabel={
+								field.state.value ? "Active" : "Disabled"
+							}
+							badgeVariant={
+								field.state.value ? "default" : "secondary"
+							}
+							checked={field.state.value}
+							onCheckedChange={field.handleChange}
+						/>
 					)}
 				</form.Field>
 
-				{/* Human Takeover */}
+				{/* Maintenance Mode — compact toggle bar that expands below when on. */}
+				<form.Field name="maintenanceMode">
+					{(modeField) => (
+						<ToggleCard
+							icon={AlertTriangleIcon}
+							title="Maintenance mode"
+							description={
+								modeField.state.value
+									? "Customers see your maintenance message"
+									: "Inform customers about known issues or outages"
+							}
+							active={modeField.state.value}
+							activeTone="warning"
+							badgeLabel={
+								modeField.state.value ? "Active" : "Off"
+							}
+							badgeVariant={
+								modeField.state.value ? "warning" : "secondary"
+							}
+							checked={modeField.state.value}
+							onCheckedChange={modeField.handleChange}
+						>
+							{modeField.state.value && (
+								<form.Field name="maintenanceMessage">
+									{(msgField) => (
+										<Field>
+											<FieldLabel
+												htmlFor="maintenance-message"
+												className="text-xs"
+											>
+												What should the agent know?
+												<FieldHint text="Describe the issue internally. The agent will rephrase this naturally — it won't be shown verbatim to customers." />
+											</FieldLabel>
+											<Textarea
+												id="maintenance-message"
+												value={msgField.state.value}
+												onChange={(e) =>
+													msgField.handleChange(
+														e.target.value,
+													)
+												}
+												onBlur={msgField.handleBlur}
+												rows={3}
+												placeholder="e.g. Fiber cut in downtown area affecting ~200 customers. Repair crew dispatched, ETA 4 hours."
+											/>
+										</Field>
+									)}
+								</form.Field>
+							)}
+						</ToggleCard>
+					)}
+				</form.Field>
+
+				{/* Human Takeover — same toggle bar shape, blue tone when active. */}
 				<form.Field name="humanTakeoverEnabled">
 					{(enabledField) => (
-						<Card className="mb-6">
-							<CardHeader>
-								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<div className="flex items-center gap-3">
-										<div
-											className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${enabledField.state.value ? "bg-blue-100 dark:bg-blue-900/50" : "bg-muted"}`}
-										>
-											<HandIcon
-												className={`size-5 ${enabledField.state.value ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground"}`}
-											/>
-										</div>
-										<div className="min-w-0">
-											<CardTitle className="text-lg">
-												Human Takeover
-											</CardTitle>
-											<CardDescription>
-												Pause AI when a human sends a
-												message from the linked phone
-											</CardDescription>
-										</div>
-									</div>
-									<div className="flex shrink-0 items-center gap-2">
-										<Badge
-											variant={
-												enabledField.state.value
-													? "default"
-													: "secondary"
-											}
-										>
-											{enabledField.state.value
-												? "Active"
-												: "Off"}
-										</Badge>
-										<Switch
-											checked={enabledField.state.value}
-											onCheckedChange={
-												enabledField.handleChange
-											}
-										/>
-									</div>
-								</div>
-								{enabledField.state.value && (
-									<form.Field name="humanTakeoverHours">
-										{(hoursField) => (
-											<div className="mt-4">
-												<FieldLabel htmlFor="takeover-hours">
-													Pause duration (hours)
-													<FieldHint text="How long the AI stays paused after a human message. After this time, the AI will automatically resume responding." />
-												</FieldLabel>
-												<div className="flex items-center gap-3 mt-1.5">
-													<Input
-														id="takeover-hours"
-														type="number"
-														min={0.5}
-														max={48}
-														step={0.5}
-														value={
-															hoursField.state
-																.value
-														}
-														onChange={(e) =>
-															hoursField.handleChange(
-																Number.parseFloat(
-																	e.target
-																		.value,
-																) || 4,
-															)
-														}
-														onBlur={
-															hoursField.handleBlur
-														}
-														className="w-24"
-													/>
-													<span className="text-sm text-muted-foreground">
-														hours
-													</span>
-												</div>
+						<ToggleCard
+							icon={HandIcon}
+							title="Human takeover"
+							description={
+								enabledField.state.value
+									? "AI pauses when a human messages from the linked phone"
+									: "Pause AI when a human sends a message from the linked phone"
+							}
+							active={enabledField.state.value}
+							activeTone="info"
+							badgeLabel={
+								enabledField.state.value ? "Active" : "Off"
+							}
+							badgeVariant={
+								enabledField.state.value
+									? "default"
+									: "secondary"
+							}
+							checked={enabledField.state.value}
+							onCheckedChange={enabledField.handleChange}
+						>
+							{enabledField.state.value && (
+								<form.Field name="humanTakeoverHours">
+									{(hoursField) => (
+										<Field>
+											<FieldLabel
+												htmlFor="takeover-hours"
+												className="text-xs"
+											>
+												Pause duration (hours)
+												<FieldHint text="How long the AI stays paused after a human message. After this time, the AI will automatically resume responding." />
+											</FieldLabel>
+											<div className="flex items-center gap-2">
+												<Input
+													id="takeover-hours"
+													type="number"
+													min={0.5}
+													max={48}
+													step={0.5}
+													value={
+														hoursField.state.value
+													}
+													onChange={(e) =>
+														hoursField.handleChange(
+															Number.parseFloat(
+																e.target.value,
+															) || 4,
+														)
+													}
+													onBlur={
+														hoursField.handleBlur
+													}
+													className="w-24"
+												/>
+												<span className="text-sm text-muted-foreground">
+													hours
+												</span>
 											</div>
-										)}
-									</form.Field>
-								)}
-							</CardHeader>
-						</Card>
+										</Field>
+									)}
+								</form.Field>
+							)}
+						</ToggleCard>
 					)}
 				</form.Field>
 

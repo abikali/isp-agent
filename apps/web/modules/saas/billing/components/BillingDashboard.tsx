@@ -17,8 +17,6 @@ import {
 	MetricStrip,
 } from "@shared/components/MetricCard";
 import { formatCurrency } from "@shared/lib/format";
-import type { ColumnDef } from "@tanstack/react-table";
-import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import {
@@ -31,77 +29,16 @@ import {
 	TrendingUpIcon,
 	UsersIcon,
 } from "lucide-react";
+import { useMemo } from "react";
 import {
 	useAccountingReports,
+	useCollectors,
 	useCurrentMonth,
 	useMonthFilter,
 	usePaymentStats,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
-
-interface CollectorRow {
-	collectorId: string;
-	name: string;
-	paymentCount: number;
-	totalCollected: number;
-	totalHandedOff: number;
-	balance: number;
-}
-
-const collectorColumns: ColumnDef<CollectorRow, unknown>[] = [
-	{
-		accessorKey: "name",
-		header: "Collector",
-		cell: ({ row }) => (
-			<span className="font-medium">{row.original.name}</span>
-		),
-	},
-	{
-		accessorKey: "paymentCount",
-		header: "Payments",
-		meta: { className: "text-right" },
-		cell: ({ row }) => (
-			<span className="block text-right tabular-nums">
-				{row.original.paymentCount}
-			</span>
-		),
-	},
-	{
-		accessorKey: "totalCollected",
-		header: "Collected",
-		meta: { className: "text-right" },
-		cell: ({ row }) => (
-			<span className="block text-right tabular-nums">
-				{formatCurrency(row.original.totalCollected)}
-			</span>
-		),
-	},
-	{
-		accessorKey: "totalHandedOff",
-		header: "Handed Off",
-		meta: { className: "text-right" },
-		cell: ({ row }) => (
-			<span className="block text-right tabular-nums">
-				{formatCurrency(row.original.totalHandedOff)}
-			</span>
-		),
-	},
-	{
-		accessorKey: "balance",
-		header: "Balance",
-		meta: { className: "text-right" },
-		cell: ({ row }) => (
-			<span
-				className={cn(
-					"block text-right font-medium tabular-nums",
-					row.original.balance > 0 && "text-warning",
-				)}
-			>
-				{formatCurrency(row.original.balance)}
-			</span>
-		),
-	},
-];
+import { CollectorBreakdownCard } from "./CollectorBreakdownCard";
 
 export function BillingDashboard() {
 	const { data: currentMonthData } = useCurrentMonth();
@@ -138,6 +75,15 @@ export function BillingDashboard() {
 		stats.totalCustomers > 0 ? (paidCount / stats.totalCustomers) * 100 : 0;
 	const collectionPctLabel = formatSmartPercent(collectionPct);
 
+	const { data: collectorsListData } = useCollectors();
+	const usernameById = useMemo(() => {
+		const map = new Map<string, string | null>();
+		for (const c of collectorsListData?.collectors ?? []) {
+			map.set(c.id, c.username);
+		}
+		return map;
+	}, [collectorsListData]);
+
 	const collectorEntries = reports.collectorBreakdown
 		.map((c) => ({
 			collectorId: c.collectorId,
@@ -146,6 +92,18 @@ export function BillingDashboard() {
 			count: c.paymentCount,
 		}))
 		.filter((c) => c.amount > 0);
+
+	const breakdownEntries = reports.collectorBreakdown
+		.map((c) => ({
+			collectorId: c.collectorId,
+			username: usernameById.get(c.collectorId) ?? null,
+			name: c.name,
+			paymentCount: c.paymentCount,
+			totalCollected: c.totalCollected,
+			totalHandedOff: c.totalHandedOff,
+			balance: c.balance,
+		}))
+		.sort((a, b) => b.totalCollected - a.totalCollected);
 
 	return (
 		<div className="space-y-6">
@@ -354,26 +312,11 @@ export function BillingDashboard() {
 						</ContentCardSection>
 					</ContentCard>
 
-					<ContentCard className="lg:col-span-3">
-						<ContentCardSection className="border-b border-border">
-							<div className="text-sm font-medium">
-								Collector breakdown
-							</div>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								Per-collector cash position
-							</p>
-						</ContentCardSection>
-						<DataTable
-							columns={collectorColumns}
-							data={reports.collectorBreakdown}
-							pageSize={10}
-							emptyState={
-								<p className="py-8 text-center text-sm text-muted-foreground">
-									No data for selected period
-								</p>
-							}
-						/>
-					</ContentCard>
+					<CollectorBreakdownCard
+						entries={breakdownEntries}
+						basePath={basePath}
+						className="lg:col-span-3"
+					/>
 				</div>
 			)}
 		</div>

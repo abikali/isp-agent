@@ -48,7 +48,6 @@ import {
 	SettingsIcon,
 	ShieldIcon,
 	UsersIcon,
-	WifiIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useCommandPalette } from "./CommandPalette";
@@ -150,14 +149,9 @@ export function AppSidebar() {
 									icon: PackageIcon,
 								},
 								{
-									label: "Stations",
-									to: `${basePath}/customers/stations`,
+									label: "Network",
+									to: `${basePath}/customers/network`,
 									icon: RadioTowerIcon,
-								},
-								{
-									label: "Access Points",
-									to: `${basePath}/customers/access-points`,
-									icon: WifiIcon,
 								},
 							]
 						: []),
@@ -394,12 +388,11 @@ export function AppSidebar() {
 													<span>{item.label}</span>
 												</Link>
 											</SidebarMenuButton>
-											{item.badge != null &&
-												item.badge > 0 && (
-													<SidebarMenuBadge>
-														{item.badge}
-													</SidebarMenuBadge>
-												)}
+											{item.badge != null && (
+												<SidebarMenuBadge
+													count={item.badge}
+												/>
+											)}
 										</SidebarMenuItem>
 									);
 								})}

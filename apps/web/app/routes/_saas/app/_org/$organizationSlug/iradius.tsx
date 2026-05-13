@@ -18,7 +18,7 @@ function IRadiusRoute() {
 	return (
 		<PageShell
 			title="iRadius"
-			description="Live link health, NAS telemetry, sync state, and bandwidth leaders"
+			description="Live link health and network telemetry from your legacy RADIUS"
 		>
 			<AsyncBoundary fallback={<TableSkeleton rows={6} columns={1} />}>
 				<IRadiusControlCenter />

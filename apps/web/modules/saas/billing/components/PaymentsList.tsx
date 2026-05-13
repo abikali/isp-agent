@@ -6,6 +6,7 @@ import {
 	ContentCard,
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
+import { CountBadge } from "@shared/components/CountBadge";
 import { EmptyState } from "@shared/components/EmptyState";
 import { SearchInput } from "@shared/components/SearchInput";
 import { StatCard, StatCardGroup } from "@shared/components/StatCard";
@@ -65,6 +66,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@ui/components/tooltip";
+import { cn } from "@ui/lib";
 import {
 	AlertTriangleIcon,
 	ArrowDownIcon,
@@ -649,6 +651,11 @@ export function PaymentsList() {
 	};
 
 	const queryTypeFilters = deriveQueryFilters(typeFilter);
+
+	// Drives the Needs Review filter's red attention treatment in the toolbar
+	// — same source as the StatsBar card and the BillingNav badge.
+	const { data: parentStats } = usePaymentStatsQuery(activeMonthId);
+	const unreviewedCount = parentStats?.unreviewedCount ?? 0;
 
 	const { payments, total, isLoading, isFetching } = usePaymentsQuery({
 		search: debouncedSearch || undefined,
@@ -1406,17 +1413,44 @@ export function PaymentsList() {
 					<div className="flex flex-wrap gap-1">
 						{TYPE_FILTERS.map((f) => {
 							const active = typeFilter === f.key;
+							// Needs Review gets attention treatment when there
+							// are unreviewed payments waiting: solid red fill
+							// (active) or red outline + pulsing outward shadow
+							// (inactive). Drops back to neutral once the queue
+							// is clear so the page stops nagging.
+							const isNeedsReview = f.key === "needs_review";
+							const flagged =
+								isNeedsReview && unreviewedCount > 0;
 							return (
 								<Button
 									key={f.key}
 									size="sm"
 									variant={active ? "secondary" : "outline"}
 									onClick={() => handleTypeChange(f.key)}
+									className={cn(
+										flagged &&
+											!active &&
+											"border-destructive/40 bg-destructive/5 text-destructive animate-pulse-attention hover:bg-destructive/10 hover:text-destructive",
+										flagged &&
+											active &&
+											"border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+									)}
 								>
 									{f.icon && (
 										<f.icon className="mr-1 size-3.5" />
 									)}
 									{f.label}
+									{isNeedsReview && (
+										<CountBadge
+											count={unreviewedCount}
+											size="sm"
+											className={cn(
+												"ml-1.5",
+												active &&
+													"bg-destructive-foreground text-destructive ring-destructive-foreground/30",
+											)}
+										/>
+									)}
 								</Button>
 							);
 						})}

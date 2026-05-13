@@ -649,25 +649,35 @@ const SidebarMenuAction = React.forwardRef<
 });
 SidebarMenuAction.displayName = "SidebarMenuAction";
 
+// Positioning wrapper for the menu-row notification count. Keeps the
+// absolute-right placement + collapsible-icon hiding here, but defers all
+// visual treatment to <CountBadge> so every "needs attention" count in the
+// app reads as the same affordance.
 const SidebarMenuBadge = React.forwardRef<
 	HTMLDivElement,
-	React.ComponentProps<"div">
->(({ className, ...props }, ref) => (
-	<div
-		ref={ref}
-		data-sidebar="menu-badge"
-		className={cn(
-			"pointer-events-none absolute right-1 flex h-5 min-w-5 select-none items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums text-sidebar-foreground",
-			"peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:text-sidebar-accent-foreground",
-			"peer-data-[size=sm]/menu-button:top-1",
-			"peer-data-[size=default]/menu-button:top-1.5",
-			"peer-data-[size=lg]/menu-button:top-2.5",
-			"group-data-[collapsible=icon]:hidden",
-			className,
-		)}
-		{...props}
-	/>
-));
+	{ count: number; className?: string }
+>(({ count, className }, ref) => {
+	if (count <= 0) {
+		return null;
+	}
+	const display = count > 99 ? "99+" : String(count);
+	return (
+		<div
+			ref={ref}
+			data-sidebar="menu-badge"
+			className={cn(
+				"pointer-events-none absolute right-2 flex h-5 min-w-5 select-none items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold leading-none tabular-nums text-destructive-foreground shadow-sm ring-1 ring-destructive/20",
+				"peer-data-[size=sm]/menu-button:top-1.5",
+				"peer-data-[size=default]/menu-button:top-2",
+				"peer-data-[size=lg]/menu-button:top-3",
+				"group-data-[collapsible=icon]:hidden",
+				className,
+			)}
+		>
+			{display}
+		</div>
+	);
+});
 SidebarMenuBadge.displayName = "SidebarMenuBadge";
 
 const SidebarMenuSkeleton = React.forwardRef<

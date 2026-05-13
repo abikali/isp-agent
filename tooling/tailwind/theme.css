@@ -113,6 +113,7 @@
 	--animation-slide-in-bottom: slide-in-bottom 0.28s var(--ease-out) forwards;
 	--animation-wiggle: wiggle 0.4s ease-in-out;
 	--animation-pulse-dot: pulse-dot 2s ease-in-out infinite;
+	--animation-pulse-attention: pulse-attention 1.8s ease-out infinite;
 	--animation-shimmer: shimmer 1.8s linear infinite;
 
 	@keyframes accordion-down {
@@ -153,6 +154,26 @@
 	@keyframes pulse-dot {
 		0%, 100% { opacity: 1; transform: scale(1); }
 		50% { opacity: 0.5; transform: scale(0.85); }
+	}
+	/* Outward red "ping" used to draw attention to actionable filters
+	   (e.g. Needs Review when there are unreviewed payments). Animates
+	   box-shadow only so text/icons inside the element stay crisp. */
+	@keyframes pulse-attention {
+		0% {
+			box-shadow:
+				0 0 0 0 color-mix(in oklch, var(--destructive) 55%, transparent),
+				0 0 0 0 color-mix(in oklch, var(--destructive) 25%, transparent);
+		}
+		70% {
+			box-shadow:
+				0 0 0 5px color-mix(in oklch, var(--destructive) 0%, transparent),
+				0 0 0 9px color-mix(in oklch, var(--destructive) 0%, transparent);
+		}
+		100% {
+			box-shadow:
+				0 0 0 0 color-mix(in oklch, var(--destructive) 0%, transparent),
+				0 0 0 0 color-mix(in oklch, var(--destructive) 0%, transparent);
+		}
 	}
 	@keyframes shimmer {
 		0% { background-position: -200% 0; }
@@ -244,78 +265,104 @@
 	}
 
 	.dark {
-		/* ---- DARK MODE — Vercel/Resend near-black with alpha overlays ----
-		   Surface hierarchy via alpha layers instead of solid color steps,
-		   so every surface tints correctly when stacked. */
-		--background: hsl(0 0% 4%);        /* page bg — #0a0a0a */
-		--foreground: hsl(0 0% 93%);
-		--card: hsl(0 0% 4%);              /* same as bg, differentiated by border */
-		--card-foreground: hsl(0 0% 93%);
-		--popover: hsl(0 0% 10%);
-		--popover-foreground: hsl(0 0% 93%);
+		/* ---- DARK MODE — "Terminal" hackish near-black with cool tint ----
+		   Surfaces carry a faint cool (220° hue) cast so the UI reads slightly
+		   blueish under ambient light — feels like a backlit terminal rather
+		   than flat neutral. Shadows get a subtle cyan LED-glow underglow. */
+		--background: hsl(220 15% 4%);       /* page bg — cool near-black */
+		--foreground: hsl(210 15% 94%);
+		--card: hsl(220 15% 4%);             /* same as bg, differentiated by border */
+		--card-foreground: hsl(210 15% 94%);
+		--popover: hsl(220 14% 9%);
+		--popover-foreground: hsl(210 15% 94%);
 
-		--surface: hsl(0 0% 6%);           /* slightly elevated (sticky toolbar) */
-		--surface-subtle: hsl(0 0% 8%);    /* table header strip */
-		--surface-strong: hsl(0 0% 12%);   /* pressed row */
+		--surface: hsl(220 14% 6%);          /* slightly elevated (sticky toolbar) */
+		--surface-subtle: hsl(220 13% 8%);   /* table header strip */
+		--surface-strong: hsl(220 12% 12%);  /* pressed row */
 
-		--primary: hsl(0 0% 93%);          /* inverted: light bg, dark text */
-		--primary-foreground: hsl(0 0% 9%);
+		--primary: hsl(210 15% 94%);         /* inverted: light bg, dark text */
+		--primary-foreground: hsl(220 15% 6%);
 
-		--secondary: hsl(0 0% 10%);
-		--secondary-foreground: hsl(0 0% 93%);
+		--secondary: hsl(220 13% 10%);
+		--secondary-foreground: hsl(210 15% 94%);
 
-		--muted: hsl(0 0% 10%);
-		--muted-foreground: hsl(0 0% 56%); /* gray-700 */
+		--muted: hsl(220 13% 10%);
+		--muted-foreground: hsl(220 8% 60%); /* cool gray */
 
-		--accent: hsl(0 0% 12%);
-		--accent-foreground: hsl(0 0% 93%);
+		--accent: hsl(220 12% 13%);
+		--accent-foreground: hsl(210 15% 94%);
 
-		--border: rgba(255, 255, 255, 0.09);
-		--border-strong: rgba(255, 255, 255, 0.14);
-		--input: rgba(255, 255, 255, 0.14);
-		--ring: hsl(212 100% 48%);
+		/* Borders pick up a faint cyan tint so seams glow under the LED shadows */
+		--border: rgba(140, 200, 255, 0.10);
+		--border-strong: rgba(140, 200, 255, 0.18);
+		--input: rgba(140, 200, 255, 0.16);
+		--ring: hsl(195 100% 55%);           /* cyan focus glow */
 
-		/* Semantic */
-		--destructive: hsl(358 75% 59%);
+		/* Semantic — punchier saturation for that neon-terminal feel */
+		--destructive: hsl(0 85% 62%);
 		--destructive-foreground: hsl(0 0% 98%);
-		--success: hsl(160 60% 45%);
-		--success-foreground: hsl(0 0% 5%);
-		--warning: hsl(36 92% 55%);
-		--warning-foreground: hsl(0 0% 5%);
-		--info: hsl(212 100% 58%);
-		--info-foreground: hsl(0 0% 5%);
-		--highlight: hsl(36 92% 55%);
-		--highlight-foreground: hsl(0 0% 5%);
+		--success: hsl(150 75% 50%);
+		--success-foreground: hsl(220 15% 5%);
+		--warning: hsl(40 100% 58%);
+		--warning-foreground: hsl(220 15% 5%);
+		--info: hsl(195 100% 60%);
+		--info-foreground: hsl(220 15% 5%);
+		--highlight: hsl(40 100% 58%);
+		--highlight-foreground: hsl(220 15% 5%);
 
 		/* Connectivity */
-		--online: hsl(160 60% 45%);
-		--offline: hsl(358 75% 59%);
-		--idle: hsl(36 92% 55%);
+		--online: hsl(150 75% 50%);
+		--offline: hsl(0 85% 62%);
+		--idle: hsl(40 100% 58%);
 
-		/* Sidebar — same near-black as page bg, unified surface */
-		--sidebar: hsl(0 0% 4%);
-		--sidebar-foreground: hsl(0 0% 63%);
-		--sidebar-primary: hsl(0 0% 93%);
-		--sidebar-primary-foreground: hsl(0 0% 9%);
-		--sidebar-accent: hsl(0 0% 10%);
-		--sidebar-accent-foreground: hsl(0 0% 93%);
-		--sidebar-border: rgba(255, 255, 255, 0.09);
-		--sidebar-ring: hsl(212 100% 48%);
+		/* Sidebar — same cool near-black as page bg, unified surface */
+		--sidebar: hsl(220 15% 4%);
+		--sidebar-foreground: hsl(220 10% 65%);
+		--sidebar-primary: hsl(210 15% 94%);
+		--sidebar-primary-foreground: hsl(220 15% 6%);
+		--sidebar-accent: hsl(220 13% 10%);
+		--sidebar-accent-foreground: hsl(210 15% 94%);
+		--sidebar-border: rgba(140, 200, 255, 0.10);
+		--sidebar-ring: hsl(195 100% 55%);
 
-		/* Charts */
-		--chart-1: hsl(212 100% 58%);
-		--chart-2: hsl(160 60% 50%);
-		--chart-3: hsl(36 92% 55%);
-		--chart-4: hsl(265 70% 65%);
-		--chart-5: hsl(190 70% 55%);
-		--chart-6: hsl(340 75% 65%);
-		--chart-grid: rgba(255, 255, 255, 0.06);
-		--chart-axis: hsl(0 0% 40%);
-		--chart-tooltip-bg: rgba(10, 10, 10, 0.98);
+		/* Charts — more vibrant under dark glow */
+		--chart-1: hsl(195 100% 60%);   /* cyan */
+		--chart-2: hsl(150 75% 55%);    /* neon green */
+		--chart-3: hsl(40 100% 60%);    /* amber */
+		--chart-4: hsl(275 85% 70%);    /* electric purple */
+		--chart-5: hsl(180 80% 55%);    /* teal */
+		--chart-6: hsl(330 90% 68%);    /* magenta */
+		--chart-grid: rgba(140, 200, 255, 0.07);
+		--chart-axis: hsl(220 8% 45%);
+		--chart-tooltip-bg: rgba(10, 12, 16, 0.98);
 
 		/* Glass */
-		--glass-bg: rgba(10, 10, 10, 0.75);
-		--glass-border: rgba(255, 255, 255, 0.09);
+		--glass-bg: rgba(10, 12, 16, 0.75);
+		--glass-border: rgba(140, 200, 255, 0.10);
+
+		/* ---- LED-glow shadow overrides (dark only) ----
+		   Deeper black drop + cyan/violet ambient + subtle top hairline,
+		   so cards read like backlit panels rather than flat surfaces. */
+		--shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(140, 200, 255, 0.04);
+		--shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.45), 0 0 14px rgba(120, 200, 255, 0.06);
+		--shadow-md: 0 4px 10px rgba(0, 0, 0, 0.5), 0 0 22px rgba(120, 200, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+		--shadow-lg: 0 0 0 1px rgba(140, 200, 255, 0.08), 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 40px rgba(120, 200, 255, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+		--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+		--shadow-card: 0 1px 0 rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(140, 200, 255, 0.04);
+		--shadow-card-hover: 0 6px 16px rgba(0, 0, 0, 0.55), 0 0 28px rgba(120, 200, 255, 0.12);
+		--shadow-elevated: 0 8px 20px rgba(0, 0, 0, 0.6), 0 0 36px rgba(120, 200, 255, 0.10);
+	}
+
+	/* ---- Dark-mode ambient mesh ----
+	   Layered radial glows painted onto the body background. Cyan top-left,
+	   violet bottom-right, amber accent center-top — fixed attachment so the
+	   light follows the viewport instead of scrolling with content. */
+	html.dark body {
+		background-image:
+			radial-gradient(ellipse 60% 50% at 12% 8%, rgba(80, 180, 255, 0.10), transparent 60%),
+			radial-gradient(ellipse 50% 45% at 88% 92%, rgba(180, 100, 255, 0.09), transparent 60%),
+			radial-gradient(ellipse 70% 30% at 50% 0%, rgba(255, 180, 80, 0.04), transparent 70%);
+		background-attachment: fixed;
 	}
 
 	*,

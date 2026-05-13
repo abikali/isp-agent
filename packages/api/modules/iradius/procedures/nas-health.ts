@@ -16,7 +16,7 @@ export const getNasHealth = protectedProcedure
 			input.organizationId,
 			user.id,
 			"stations",
-			"view",
+			"read",
 		);
 
 		const monitor = await queryIRadiusNetworkMonitor();

@@ -44,13 +44,15 @@ export function FilterBar({
 	return (
 		<div
 			className={cn(
-				!bare && "rounded-lg border border-border bg-card shadow-xs",
+				bare
+					? "w-full min-w-0"
+					: "rounded-lg border border-border bg-card shadow-xs",
 				className,
 			)}
 		>
 			<div
 				className={cn(
-					"flex flex-col gap-3 sm:flex-row sm:items-center",
+					"flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-nowrap",
 					bare ? "w-full" : "p-3",
 				)}
 			>
@@ -64,9 +66,9 @@ export function FilterBar({
 				{hasFilters && (
 					<>
 						<div className="hidden h-6 w-px shrink-0 bg-border sm:block" />
-						<div className="flex flex-1 flex-wrap items-center gap-2">
+						<div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto sm:flex-nowrap">
 							<div
-								className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground md:inline-flex"
+								className="hidden shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground md:inline-flex"
 								aria-hidden
 							>
 								<FilterIcon className="size-3.5" />

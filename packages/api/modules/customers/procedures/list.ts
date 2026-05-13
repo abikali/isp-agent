@@ -62,6 +62,13 @@ export const listCustomers = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Hide rows soft-deleted by the iRadius sync cleanup. These are
+			// customers whose `User` row was removed from iRadius, or whose
+			// `ParentId` now sits outside this org's dealer subtree. They're
+			// kept in the table for payment/installation back-references but
+			// must not appear in lists. See `softDeleteStaleRecords` in
+			// `packages/jobs/src/workers/iradius-sync.worker.ts`.
+			deletedAt: null,
 			...ownerFilter,
 			...getDealerScopeFilter(activeDealerId),
 		};
@@ -205,10 +212,18 @@ export const listCustomers = protectedProcedure
 					online: true,
 					connectionType: true,
 					ipAddress: true,
+					macAddress: true,
+					nasHost: true,
 					monthlyRate: true,
 					groupName: true,
 					balance: true,
 					expiresAt: true,
+					lastLogin: true,
+					fupMode: true,
+					downloadBytes: true,
+					uploadBytes: true,
+					dailyDownloadBytes: true,
+					dailyUploadBytes: true,
 					notes: true,
 					externalId: true,
 					latitude: true,

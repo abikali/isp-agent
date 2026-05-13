@@ -1,6 +1,7 @@
 import { config } from "@repo/config";
 import { TasksList, TasksListSkeleton } from "@saas/tasks/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -18,7 +19,13 @@ function TasksPage() {
 
 	return (
 		<PermissionGate resource="tasks" action="read">
-			<AsyncBoundary fallback={<TasksListSkeleton />}>
+			<AsyncBoundary
+				fallback={
+					<PageShellSkeleton>
+						<TasksListSkeleton />
+					</PageShellSkeleton>
+				}
+			>
 				<TasksList organizationSlug={organizationSlug} />
 			</AsyncBoundary>
 		</PermissionGate>

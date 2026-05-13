@@ -4,6 +4,7 @@ import {
 	ConversationThreadSkeleton,
 } from "@saas/ai-agents/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
@@ -24,7 +25,13 @@ function ConversationPage() {
 	const { organizationId } = Route.useLoaderData();
 
 	return (
-		<AsyncBoundary fallback={<ConversationThreadSkeleton />}>
+		<AsyncBoundary
+			fallback={
+				<PageShellSkeleton showActions={false}>
+					<ConversationThreadSkeleton />
+				</PageShellSkeleton>
+			}
+		>
 			<ConversationThread
 				conversationId={conversationId}
 				agentId={agentId}

@@ -6,7 +6,6 @@ import {
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { FilterBar } from "@shared/components/FilterBar";
-import { PageShell } from "@shared/components/PageShell";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -42,8 +41,6 @@ export function AccessPointsList() {
 	});
 
 	const { stations } = useStationsQuery();
-
-	const onlineCount = accessPoints.filter((ap) => ap.online).length;
 
 	const activeFilterCount = (stationFilter ? 1 : 0) + (onlineFilter ? 1 : 0);
 
@@ -163,82 +160,77 @@ export function AccessPointsList() {
 	);
 
 	return (
-		<PageShell
-			title="Access Points"
-			description={`${accessPoints.length} access points (${onlineCount} online)`}
-		>
-			<ContentCard>
-				<ContentCardToolbar>
-					<FilterBar
-						bare
-						searchPlaceholder="Search by name, IP, or MAC..."
-						searchValue={search}
-						onSearchChange={setSearch}
-						activeFilterCount={activeFilterCount}
-						onReset={resetFilters}
-					>
-						{stations.length > 0 && (
-							<Select
-								value={stationFilter || "all"}
-								onValueChange={(val) =>
-									setStationFilter(val === "all" ? "" : val)
-								}
-							>
-								<SelectTrigger className="w-full sm:w-[170px]">
-									<SelectValue placeholder="All stations" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All stations
-									</SelectItem>
-									{stations.map((s) => (
-										<SelectItem key={s.id} value={s.id}>
-											{s.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						)}
+		<ContentCard>
+			<ContentCardToolbar>
+				<FilterBar
+					bare
+					searchPlaceholder="Search by name, IP, or MAC..."
+					searchValue={search}
+					onSearchChange={setSearch}
+					activeFilterCount={activeFilterCount}
+					onReset={resetFilters}
+				>
+					{stations.length > 0 && (
 						<Select
-							value={onlineFilter || "all"}
+							value={stationFilter || "all"}
 							onValueChange={(val) =>
-								setOnlineFilter(val === "all" ? "" : val)
+								setStationFilter(val === "all" ? "" : val)
 							}
 						>
-							<SelectTrigger className="w-full sm:w-[140px]">
-								<SelectValue placeholder="Connectivity" />
+							<SelectTrigger className="w-full sm:w-[170px]">
+								<SelectValue placeholder="All stations" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="all">All</SelectItem>
-								<SelectItem value="online">Online</SelectItem>
-								<SelectItem value="offline">Offline</SelectItem>
+								<SelectItem value="all">
+									All stations
+								</SelectItem>
+								{stations.map((s) => (
+									<SelectItem key={s.id} value={s.id}>
+										{s.name}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
-					</FilterBar>
-				</ContentCardToolbar>
+					)}
+					<Select
+						value={onlineFilter || "all"}
+						onValueChange={(val) =>
+							setOnlineFilter(val === "all" ? "" : val)
+						}
+					>
+						<SelectTrigger className="w-full sm:w-[140px]">
+							<SelectValue placeholder="Connectivity" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All</SelectItem>
+							<SelectItem value="online">Online</SelectItem>
+							<SelectItem value="offline">Offline</SelectItem>
+						</SelectContent>
+					</Select>
+				</FilterBar>
+			</ContentCardToolbar>
 
-				<DataTable
-					columns={columns}
-					data={accessPoints}
-					emptyState={
-						accessPoints.length === 0 &&
-						!activeFilterCount &&
-						!debouncedSearch ? (
-							<EmptyState
-								icon={WifiIcon}
-								title="No access points yet"
-								description="Access points will appear here after syncing from iRadius."
-							/>
-						) : (
-							<EmptyState
-								icon={WifiIcon}
-								title="No results found"
-								description="Try adjusting your search or filters."
-							/>
-						)
-					}
-				/>
-			</ContentCard>
-		</PageShell>
+			<DataTable
+				columns={columns}
+				data={accessPoints}
+				emptyState={
+					accessPoints.length === 0 &&
+					!activeFilterCount &&
+					!debouncedSearch ? (
+						<EmptyState
+							icon={WifiIcon}
+							title="No access points yet"
+							description="Access points will appear here after syncing from iRadius."
+						/>
+					) : (
+						<EmptyState
+							icon={WifiIcon}
+							title="No results found"
+							description="Try adjusting your search or filters."
+						/>
+					)
+				}
+			/>
+		</ContentCard>
 	);
 }

@@ -25,7 +25,7 @@ export const getTopConsumers = protectedProcedure
 			input.organizationId,
 			user.id,
 			"customers",
-			"view",
+			"read",
 		);
 
 		const customers = await db.customer.findMany({

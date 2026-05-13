@@ -1,14 +1,12 @@
 "use client";
 
-import { diffMirrorFields } from "@repo/api/modules/customers/lib/mirror-fields";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
 import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
-import { MetricDisplay } from "@shared/components/MetricDisplay";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
-import { SyncPreviewDialog } from "@shared/components/SyncPreviewDialog";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -29,7 +27,6 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-	AlertDialogTrigger,
 } from "@ui/components/alert-dialog";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -41,6 +38,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@ui/components/dropdown-menu";
 import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { PhoneInput } from "@ui/components/phone-input";
@@ -58,14 +61,12 @@ import {
 	ActivityIcon,
 	AlertCircleIcon,
 	CheckCircle2Icon,
-	DollarSignIcon,
-	FileTextIcon,
+	MoreVerticalIcon,
 	NetworkIcon,
 	PlusIcon,
-	RadioTowerIcon,
-	RefreshCwIcon,
-	ServerIcon,
 	UserIcon,
+	UserXIcon,
+	WalletIcon,
 	XIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -88,13 +89,14 @@ import {
 } from "../lib/constants";
 import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
 import { CustomerInvoices } from "./CustomerInvoices";
-import { CustomerIradiusPanel } from "./CustomerIradiusPanel";
+import { CustomerIradiusMenu } from "./CustomerIradiusMenu";
+import { CustomerLiveStrip } from "./CustomerLiveStrip";
 import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerPayments } from "./CustomerPayments";
+import { CustomerSaveBar } from "./CustomerSaveBar";
 import { CustomerTransactions } from "./CustomerTransactions";
-import { IRadiusActionsMenu } from "./IRadiusActionsMenu";
 
-// ─── Type Definitions ──────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────
 
 type CustomerData = Awaited<
 	ReturnType<typeof orpcClient.customers.get>
@@ -148,6 +150,8 @@ type CustomerForm = ReactFormExtendedApi<
 	unknown
 >;
 
+// ─── Parent ────────────────────────────────────────────────────────────
+
 export function CustomerDetail({
 	customerId,
 	organizationSlug,
@@ -160,15 +164,11 @@ export function CustomerDetail({
 	const deleteCustomer = useDeleteCustomer();
 	const previewAccountType = usePreviewAccountTypeChange();
 	const executeAccountType = useExecuteAccountTypeChange();
-	const [showSyncPreview, setShowSyncPreview] = useState(false);
+	const [syncToIRadius, setSyncToIRadius] = useState(true);
 	const [accountTypePreview, setAccountTypePreview] = useState<{
 		previewData: Awaited<ReturnType<typeof previewAccountType.mutateAsync>>;
 		newPlanId: string;
-		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
-	} | null>(null);
-	const [pendingIRadiusSync, setPendingIRadiusSync] = useState<{
-		pendingFormValues: ReturnType<typeof getCustomerFormDefaults>;
-		changedFieldLabels: string[];
+		pendingFormValues: CustomerFormValues;
 	} | null>(null);
 	const [changeResult, setChangeResult] = useState<{
 		success: boolean;
@@ -177,6 +177,8 @@ export function CustomerDetail({
 		disconnected?: boolean;
 		error?: string;
 	} | null>(null);
+	const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+
 	const { plans } = usePlansQuery();
 	const { employees } = useEmployeesQuery();
 	const { groups: iradiusGroups } = useIRadiusGroups();
@@ -191,6 +193,7 @@ export function CustomerDetail({
 	);
 
 	const customer = data.customer;
+	const isLinked = !!customer.externalId;
 
 	function buildUpdatePayload(values: CustomerFormValues) {
 		const parsedGroupId = values.groupExternalId
@@ -242,23 +245,6 @@ export function CustomerDetail({
 			const shouldPreview =
 				planChanged && customer.externalId && newPlan?.externalId;
 
-			const payload = buildUpdatePayload(value);
-			const diff = customer.externalId
-				? diffMirrorFields(customer, payload)
-				: null;
-			const needsIRadiusConfirm =
-				!!customer.externalId &&
-				!shouldPreview &&
-				(diff?.labels.length ?? 0) > 0;
-
-			if (needsIRadiusConfirm && diff) {
-				setPendingIRadiusSync({
-					pendingFormValues: { ...value },
-					changedFieldLabels: diff.labels,
-				});
-				return;
-			}
-
 			if (shouldPreview) {
 				try {
 					const preview = await previewAccountType.mutateAsync({
@@ -281,12 +267,16 @@ export function CustomerDetail({
 
 			toast.promise(
 				updateCustomer.mutateAsync({
-					...payload,
+					...buildUpdatePayload(value),
 					planId: value.planId || null,
+					syncToIRadius: isLinked ? syncToIRadius : undefined,
 				}),
 				{
-					loading: "Saving changes...",
-					success: "Customer updated successfully",
+					loading: "Saving changes…",
+					success: () => {
+						form.reset(value);
+						return "Customer updated";
+					},
 					error: (err: { message?: string }) =>
 						err?.message ?? "Failed to save changes",
 				},
@@ -295,6 +285,11 @@ export function CustomerDetail({
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+	const dirtyCount = useStore(
+		form.store,
+		(s) =>
+			Object.values(s.fieldMeta ?? {}).filter((m) => m?.isDirty).length,
+	);
 
 	async function handleConfirmAccountTypeChange() {
 		if (!organizationId || !accountTypePreview) {
@@ -333,9 +328,11 @@ export function CustomerDetail({
 		setAccountTypePreview(null);
 
 		try {
-			await updateCustomer.mutateAsync(
-				buildUpdatePayload(pendingFormValues),
-			);
+			await updateCustomer.mutateAsync({
+				...buildUpdatePayload(pendingFormValues),
+				syncToIRadius: isLinked ? syncToIRadius : undefined,
+			});
+			form.reset(pendingFormValues);
 		} catch (err) {
 			toast.error(
 				`Plan changed, but other profile fields did not save: ${
@@ -350,30 +347,11 @@ export function CustomerDetail({
 		setAccountTypePreview(null);
 	}
 
-	async function handleIRadiusSyncChoice(syncToIRadius: boolean) {
-		if (!organizationId || !pendingIRadiusSync) {
-			return;
-		}
-		const { pendingFormValues } = pendingIRadiusSync;
-		setPendingIRadiusSync(null);
-		toast.promise(
-			updateCustomer.mutateAsync({
-				...buildUpdatePayload(pendingFormValues),
-				planId: pendingFormValues.planId || null,
-				syncToIRadius,
-			}),
-			{
-				loading: "Saving changes...",
-				success: () =>
-					syncToIRadius
-						? "Saved locally and in iRadius"
-						: "Saved (panel only)",
-				error: (err: { message?: string }) =>
-					err?.message ?? "Failed to save changes",
-			},
-		);
-	}
-
+	// Two distinct badge axes that look similar without labels but mean
+	// different things:
+	//   - `statusType`  → subscription state (ACTIVE/INACTIVE/SUSPENDED/PENDING)
+	//   - `networkType` → live device auth state at the NAS (online/offline)
+	// Both are always rendered so the offline case is visible too.
 	const statusType =
 		customer.status === "ACTIVE"
 			? "active"
@@ -382,6 +360,16 @@ export function CustomerDetail({
 				: customer.status === "PENDING"
 					? "pending"
 					: "inactive";
+	const statusLabel =
+		statusType === "active"
+			? "Active"
+			: statusType === "inactive"
+				? "Inactive"
+				: statusType === "suspended"
+					? "Suspended"
+					: "Pending";
+	const networkType = customer.online ? "online" : "offline";
+	const networkLabel = customer.online ? "Online" : "Offline";
 
 	return (
 		<PageShell
@@ -390,32 +378,33 @@ export function CustomerDetail({
 			backLabel="Customers"
 			subtitle={
 				<span className="flex flex-wrap items-center gap-2 sm:gap-3">
-					<span className="font-mono">{customer.accountNumber}</span>
-					<StatusIndicator status={statusType} variant="badge" />
-					{customer.online && (
-						<StatusIndicator status="online" variant="badge" />
-					)}
+					<span className="font-mono text-xs">
+						{customer.accountNumber}
+					</span>
+					<StatusIndicator
+						status={statusType}
+						variant="badge"
+						label={`Account: ${statusLabel}`}
+					/>
+					<StatusIndicator
+						status={networkType}
+						variant="badge"
+						label={`Network: ${networkLabel}`}
+					/>
 					{customer.externalId && (
-						<Badge variant="outline">
-							iRadius: {customer.externalId}
+						<Badge
+							variant="outline"
+							className="font-mono text-[10px]"
+						>
+							iRadius #{customer.externalId}
 						</Badge>
 					)}
 				</span>
 			}
 			actions={
-				<div className="flex flex-wrap gap-2">
-					{customer.externalId && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setShowSyncPreview(true)}
-						>
-							<RefreshCwIcon className="mr-2 size-4" />
-							Sync from iRadius
-						</Button>
-					)}
+				<div className="flex flex-wrap items-center gap-2">
 					{organizationId && (
-						<IRadiusActionsMenu
+						<CustomerIradiusMenu
 							organizationId={organizationId}
 							customer={{
 								id: customer.id,
@@ -428,46 +417,28 @@ export function CustomerDetail({
 							}}
 						/>
 					)}
-					<AlertDialog>
-						<AlertDialogTrigger asChild>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
 							<Button variant="outline" size="sm">
-								Deactivate
+								<MoreVerticalIcon className="size-4" />
 							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>
-									Deactivate Customer
-								</AlertDialogTitle>
-								<AlertDialogDescription>
-									This will set the customer status to
-									inactive.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={() => {
-										if (!organizationId) {
-											return;
-										}
-										deleteCustomer.mutate({
-											organizationId,
-											id: customerId,
-										});
-									}}
-								>
-									Deactivate
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onClick={() => setConfirmDeactivate(true)}
+								className="text-destructive focus:text-destructive"
+							>
+								<UserXIcon className="mr-2 size-4" />
+								Deactivate
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<Button
 						size="sm"
-						disabled={isSubmitting}
+						disabled={isSubmitting || dirtyCount === 0}
 						onClick={() => form.handleSubmit()}
 					>
-						{isSubmitting ? "Saving..." : "Save Changes"}
+						{isSubmitting ? "Saving…" : "Save changes"}
 					</Button>
 				</div>
 			}
@@ -478,15 +449,48 @@ export function CustomerDetail({
 					e.stopPropagation();
 					form.handleSubmit();
 				}}
+				className="space-y-6"
 			>
+				<CustomerLiveStrip
+					online={customer.online ?? false}
+					lastLogin={customer.lastLogin ?? null}
+					plan={
+						customer.plan
+							? {
+									name: customer.plan.name,
+									downloadSpeed: customer.plan.downloadSpeed,
+									uploadSpeed: customer.plan.uploadSpeed,
+								}
+							: null
+					}
+					expiresAt={customer.expiresAt ?? null}
+					balance={customer.balance}
+					monthlyRate={customer.monthlyRate ?? null}
+					planMonthlyPrice={customer.plan?.monthlyPrice ?? null}
+					dailyDownloadBytes={customer.dailyDownloadBytes ?? null}
+					dailyUploadBytes={customer.dailyUploadBytes ?? null}
+				/>
+
 				<DetailPanel
 					tabs={[
 						{
-							id: "overview",
-							label: "Overview",
+							id: "profile",
+							label: "Profile",
 							icon: UserIcon,
 							content: (
-								<OverviewTab
+								<ProfileTab
+									form={form}
+									customer={customer}
+									customerId={customerId}
+								/>
+							),
+						},
+						{
+							id: "service",
+							label: "Service",
+							icon: WalletIcon,
+							content: (
+								<ServiceTab
 									form={form}
 									customer={customer}
 									plans={plans}
@@ -502,86 +506,31 @@ export function CustomerDetail({
 							content: <NetworkTab customer={customer} />,
 						},
 						{
-							id: "iradius",
-							label: "iRadius",
-							icon: RadioTowerIcon,
-							hidden: !customer.externalId,
-							content: (
-								<DetailSection
-									title="iRadius live"
-									description="Live connection status and bandwidth from the legacy RADIUS system"
-								>
-									<CustomerIradiusPanel
-										online={customer.online ?? false}
-										username={customer.username}
-										ipAddress={customer.ipAddress}
-										macAddress={customer.macAddress}
-										nasHost={customer.nasHost}
-										lastLogin={customer.lastLogin ?? null}
-										expiresAt={customer.expiresAt ?? null}
-										downloadBytes={
-											customer.downloadBytes ?? null
-										}
-										uploadBytes={
-											customer.uploadBytes ?? null
-										}
-										dailyDownloadBytes={
-											customer.dailyDownloadBytes ?? null
-										}
-										dailyUploadBytes={
-											customer.dailyUploadBytes ?? null
-										}
-										fupMode={customer.fupMode ?? null}
-									/>
-								</DetailSection>
-							),
-						},
-						{
-							id: "billing",
-							label: "Usage & Billing",
-							icon: DollarSignIcon,
-							content: (
-								<BillingTab form={form} customer={customer} />
-							),
-						},
-						{
-							id: "financial",
-							label: "Financial",
-							icon: FileTextIcon,
-							content: (
-								<FinancialTab
-									customerId={customerId}
-									organizationSlug={organizationSlug}
-								/>
-							),
-						},
-						{
 							id: "activity",
 							label: "Activity",
 							icon: ActivityIcon,
 							content: (
 								<ActivityTab
-									customer={customer}
 									customerId={customerId}
+									organizationSlug={organizationSlug}
 								/>
 							),
 						},
-						{
-							id: "sync",
-							label: "Sync Details",
-							icon: ServerIcon,
-							hidden: !customer.externalId,
-							content: <SyncTab customer={customer} />,
-						},
 					]}
 				/>
+
+				<CustomerSaveBar
+					dirtyCount={dirtyCount}
+					isSubmitting={isSubmitting}
+					canMirrorIRadius={isLinked}
+					syncToIRadius={syncToIRadius}
+					onToggleSync={setSyncToIRadius}
+					onDiscard={() => form.reset()}
+					onSave={() => form.handleSubmit()}
+				/>
 			</form>
-			<SyncPreviewDialog
-				open={showSyncPreview}
-				onOpenChange={setShowSyncPreview}
-				entityType="customer"
-				entityIds={[customerId]}
-			/>
+
+			{/* Plan change billing-impact preview */}
 			<Dialog
 				open={accountTypePreview !== null}
 				onOpenChange={(open) => {
@@ -592,7 +541,7 @@ export function CustomerDetail({
 			>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Confirm Plan Change</DialogTitle>
+						<DialogTitle>Confirm plan change</DialogTitle>
 						<DialogDescription>
 							Review the billing impact before changing the plan
 							in iRadius.
@@ -601,9 +550,9 @@ export function CustomerDetail({
 
 					{accountTypePreview && (
 						<div className="space-y-4">
-							<div className="rounded-lg border p-3">
-								<p className="mb-1 text-sm font-medium text-muted-foreground">
-									Current Plan
+							<div className="rounded-lg border border-border p-3">
+								<p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+									Current plan
 								</p>
 								<p className="font-medium">
 									{
@@ -630,8 +579,8 @@ export function CustomerDetail({
 							</div>
 
 							<div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-								<p className="mb-1 text-sm font-medium text-muted-foreground">
-									New Plan
+								<p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+									New plan
 								</p>
 								<p className="font-medium">
 									{
@@ -657,20 +606,20 @@ export function CustomerDetail({
 								</div>
 							</div>
 
-							<div className="rounded-lg border p-3">
+							<div className="rounded-lg border border-border p-3">
 								<p className="mb-2 text-sm font-medium">
-									Billing Impact
+									Billing impact
 								</p>
 								<div className="grid grid-cols-2 gap-2 text-sm">
 									<span className="text-muted-foreground">
-										Refund / Charge:
+										Refund / charge:
 									</span>
 									<span
 										className={
 											accountTypePreview.previewData
 												.billing.refund < 0
 												? "text-destructive"
-												: "text-green-600"
+												: "text-success"
 										}
 									>
 										{formatCurrency(
@@ -679,7 +628,7 @@ export function CustomerDetail({
 										)}
 									</span>
 									<span className="text-muted-foreground">
-										Dealer Credit Before:
+										Dealer credit before:
 									</span>
 									<span>
 										{formatCurrency(
@@ -688,7 +637,7 @@ export function CustomerDetail({
 										)}
 									</span>
 									<span className="text-muted-foreground">
-										Dealer Credit After:
+										Dealer credit after:
 									</span>
 									<span>
 										{formatCurrency(
@@ -697,7 +646,7 @@ export function CustomerDetail({
 										)}
 									</span>
 									<span className="text-muted-foreground">
-										Quota Reset:
+										Quota reset:
 									</span>
 									<span>
 										{accountTypePreview.previewData.billing
@@ -723,12 +672,14 @@ export function CustomerDetail({
 							disabled={executeAccountType.isPending}
 						>
 							{executeAccountType.isPending
-								? "Changing..."
-								: "Confirm Change"}
+								? "Changing…"
+								: "Confirm change"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* Plan change result */}
 			<Dialog
 				open={changeResult !== null}
 				onOpenChange={(open) => {
@@ -742,24 +693,22 @@ export function CustomerDetail({
 						<>
 							<DialogHeader>
 								<div className="flex items-center gap-2">
-									<CheckCircle2Icon className="size-5 text-green-600" />
-									<DialogTitle>
-										Plan Changed Successfully
-									</DialogTitle>
+									<CheckCircle2Icon className="size-5 text-success" />
+									<DialogTitle>Plan changed</DialogTitle>
 								</div>
 								<DialogDescription>
-									The plan has been updated in both iRadius
-									and the local database.
+									Updated in both iRadius and the local
+									database.
 								</DialogDescription>
 							</DialogHeader>
 							<div className="space-y-2 text-sm">
 								<div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
 									<span className="text-muted-foreground">
-										Previous Plan:
+										Previous plan:
 									</span>
 									<span>{changeResult.oldPlanName}</span>
 									<span className="text-muted-foreground">
-										New Plan:
+										New plan:
 									</span>
 									<span className="font-medium">
 										{changeResult.newPlanName}
@@ -769,7 +718,7 @@ export function CustomerDetail({
 									</span>
 									<span>
 										{changeResult.disconnected
-											? "User disconnected (will reconnect with new plan)"
+											? "User disconnected (will reconnect on the new plan)"
 											: "User was not online"}
 									</span>
 								</div>
@@ -781,13 +730,12 @@ export function CustomerDetail({
 								<div className="flex items-center gap-2">
 									<AlertCircleIcon className="size-5 text-destructive" />
 									<DialogTitle>
-										Plan Change Failed
+										Plan change failed
 									</DialogTitle>
 								</div>
 								<DialogDescription>
-									The iRadius plan change could not be
-									completed. The local database was not
-									updated.
+									iRadius did not accept the change. Local
+									data was not updated.
 								</DialogDescription>
 							</DialogHeader>
 							<div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
@@ -805,41 +753,36 @@ export function CustomerDetail({
 				</DialogContent>
 			</Dialog>
 
+			{/* Deactivate confirmation */}
 			<AlertDialog
-				open={pendingIRadiusSync !== null}
-				onOpenChange={(o) => {
-					if (!o) {
-						setPendingIRadiusSync(null);
-					}
-				}}
+				open={confirmDeactivate}
+				onOpenChange={setConfirmDeactivate}
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Save to iRadius?</AlertDialogTitle>
+						<AlertDialogTitle>
+							Deactivate customer?
+						</AlertDialogTitle>
 						<AlertDialogDescription>
-							These fields changed:{" "}
-							<span className="font-medium text-foreground">
-								{pendingIRadiusSync?.changedFieldLabels.join(
-									", ",
-								)}
-							</span>
-							. Do you also want to push them to iRadius, or keep
-							the change in this panel only?
+							This sets the customer status to inactive. You can
+							reactivate them later.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<Button
-							variant="outline"
-							onClick={() => void handleIRadiusSyncChoice(false)}
+						<AlertDialogAction
+							onClick={() => {
+								if (!organizationId) {
+									return;
+								}
+								deleteCustomer.mutate({
+									organizationId,
+									id: customerId,
+								});
+							}}
 						>
-							Only on our panel
-						</Button>
-						<Button
-							onClick={() => void handleIRadiusSyncChoice(true)}
-						>
-							Also update iRadius
-						</Button>
+							Deactivate
+						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
@@ -847,7 +790,7 @@ export function CustomerDetail({
 	);
 }
 
-// ─── Phone Field Group ────────────────────────────────────────────────
+// ─── Phone field group ─────────────────────────────────────────────────
 
 const MAX_PHONES = 5;
 
@@ -883,29 +826,26 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 	}
 
 	function setPrimary(index: number) {
-		const updated = phones.map((p, i) => ({
-			...p,
-			primary: i === index,
-		}));
+		const updated = phones.map((p, i) => ({ ...p, primary: i === index }));
 		form.setFieldValue("phones", updated);
 	}
 
 	return (
 		<div className="space-y-2">
-			<FieldLabel>Phone Numbers</FieldLabel>
+			<FieldLabel>Phone numbers</FieldLabel>
 			<div className="space-y-2">
 				{phones.map((phone, index) => (
 					<div key={index} className="flex items-center gap-1.5">
 						<PhoneInput
 							value={phone.number}
 							onChange={(val) => updatePhone(index, val)}
-							className="flex-1 min-w-0"
+							className="min-w-0 flex-1"
 						/>
 						<Button
 							type="button"
 							variant={phone.primary ? "primary" : "outline"}
 							size="sm"
-							className="shrink-0 h-9 text-xs px-2"
+							className="h-9 shrink-0 px-2 text-xs"
 							title={
 								phone.primary
 									? "Primary number"
@@ -920,7 +860,7 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 								type="button"
 								variant="outline"
 								size="icon"
-								className="shrink-0 size-9 text-destructive border-destructive/30 hover:bg-destructive/10"
+								className="size-9 shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10"
 								onClick={() => removePhone(index)}
 							>
 								<XIcon className="size-4" />
@@ -936,7 +876,7 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 						className="h-7 text-xs"
 						onClick={addPhone}
 					>
-						<PlusIcon className="size-3.5 mr-1" />
+						<PlusIcon className="mr-1 size-3.5" />
 						Add phone
 					</Button>
 				)}
@@ -945,9 +885,123 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 	);
 }
 
-// ─── Tab Content Components ────────────────────────────────────────────
+// ─── Tabs ──────────────────────────────────────────────────────────────
 
-function OverviewTab({
+function ProfileTab({
+	form,
+	customer,
+	customerId,
+}: {
+	form: CustomerForm;
+	customer: CustomerData;
+	customerId: string;
+}) {
+	const organizationId = useOrganizationId();
+
+	return (
+		<>
+			<DetailSection
+				title="Personal information"
+				description="Customer identity and contact details"
+			>
+				<FieldGroup columns={2}>
+					<form.Field name="firstName">
+						{(field) => (
+							<Field>
+								<FieldLabel htmlFor="firstName">
+									First name
+								</FieldLabel>
+								<Input
+									id="firstName"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="First name"
+								/>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="lastName">
+						{(field) => (
+							<Field>
+								<FieldLabel htmlFor="lastName">
+									Last name
+								</FieldLabel>
+								<Input
+									id="lastName"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="Last name"
+								/>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="email">
+						{(field) => (
+							<Field>
+								<FieldLabel htmlFor="email">Email</FieldLabel>
+								<Input
+									id="email"
+									type="email"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="customer@example.com"
+								/>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="address">
+						{(field) => (
+							<Field>
+								<FieldLabel htmlFor="address">
+									Address
+								</FieldLabel>
+								<Input
+									id="address"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder="Street address"
+								/>
+							</Field>
+						)}
+					</form.Field>
+				</FieldGroup>
+
+				<Separator />
+
+				<PhoneFieldGroup form={form} />
+			</DetailSection>
+
+			{/* Both sections are short single-row content — side-by-side at
+			    lg+ removes the wasted horizontal space on desktop. */}
+			<div className="grid gap-6 lg:grid-cols-2">
+				{organizationId && (
+					<CustomerLocationSection
+						organizationId={organizationId}
+						customerId={customerId}
+						latitude={customer.latitude}
+						longitude={customer.longitude}
+						locationRequestedAt={customer.locationRequestedAt}
+					/>
+				)}
+
+				<AccountPinSection
+					customer={customer}
+					customerId={customerId}
+				/>
+			</div>
+		</>
+	);
+}
+
+function ServiceTab({
 	form,
 	customer,
 	plans,
@@ -960,247 +1014,45 @@ function OverviewTab({
 	employees: EmployeeItem[];
 	iradiusGroups: Array<{ id: number; name: string }>;
 }) {
+	const hasIRadiusBillingExtras =
+		customer.discount > 0 ||
+		customer.iptvPrice > 0 ||
+		customer.realIpPrice > 0 ||
+		customer.deductMoney;
+
 	return (
-		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-			{/* Left column: Personal info — takes 2/3 on large screens */}
-			<div className="lg:col-span-2 space-y-6">
-				<DetailSection
-					title="Personal Information"
-					description="Customer identity and contact details"
-				>
-					<FieldGroup columns={2}>
-						<form.Field name="firstName">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="firstName">
-										First Name
-									</FieldLabel>
-									<Input
-										id="firstName"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="First name"
-									/>
-								</Field>
-							)}
-						</form.Field>
-						<form.Field name="lastName">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="lastName">
-										Last Name
-									</FieldLabel>
-									<Input
-										id="lastName"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Last name"
-									/>
-								</Field>
-							)}
-						</form.Field>
-						<form.Field name="email">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="email">
-										Email
-									</FieldLabel>
-									<Input
-										id="email"
-										type="email"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="customer@example.com"
-									/>
-								</Field>
-							)}
-						</form.Field>
-						<form.Field name="address">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="address">
-										Address
-									</FieldLabel>
-									<Input
-										id="address"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Street address"
-									/>
-								</Field>
-							)}
-						</form.Field>
-					</FieldGroup>
-
-					<Separator />
-
-					<PhoneFieldGroup form={form} />
-				</DetailSection>
-
-				<DetailSection
-					title="Service & Connection"
-					description="Plan, station, and network configuration"
-				>
-					<FieldGroup columns={3}>
-						<form.Field name="planId">
-							{(field) => (
-								<Field>
-									<FieldLabel>Plan</FieldLabel>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select plan" />
-										</SelectTrigger>
-										<SelectContent>
-											{plans.map((p) => (
-												<SelectItem
-													key={p.id}
-													value={p.id}
-												>
-													{p.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							)}
-						</form.Field>
-						<ReadOnlyField
-							label="Station"
-							value={customer.station?.name}
-						/>
-						<form.Field name="collectorId">
-							{(field) => (
-								<Field>
-									<FieldLabel>Collector</FieldLabel>
-									<Select
-										value={field.state.value || "none"}
-										onValueChange={(v) =>
-											field.handleChange(
-												v === "none" ? "" : v,
-											)
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select collector" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="none">
-												<span className="text-muted-foreground">
-													None
-												</span>
+		<>
+			<DetailSection
+				title="Service"
+				description="Plan, status, and assignment"
+			>
+				<FieldGroup columns={3}>
+					<form.Field name="planId">
+						{(field) => (
+							<Field>
+								<FieldLabel>Plan</FieldLabel>
+								<Select
+									value={field.state.value}
+									onValueChange={field.handleChange}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select plan" />
+									</SelectTrigger>
+									<SelectContent>
+										{plans.map((p) => (
+											<SelectItem key={p.id} value={p.id}>
+												{p.name}
 											</SelectItem>
-											{employees.map((e) => (
-												<SelectItem
-													key={e.id}
-													value={e.id}
-												>
-													{e.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							)}
-						</form.Field>
-						<form.Field name="connectionType">
-							{(field) => (
-								<Field>
-									<FieldLabel>Connection Type</FieldLabel>
-									<Select
-										value={field.state.value}
-										onValueChange={(value) =>
-											field.handleChange(
-												value as typeof field.state.value,
-											)
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select type" />
-										</SelectTrigger>
-										<SelectContent>
-											{CONNECTION_TYPE_OPTIONS.map(
-												(opt) => (
-													<SelectItem
-														key={opt.value}
-														value={opt.value}
-													>
-														{opt.label}
-													</SelectItem>
-												),
-											)}
-										</SelectContent>
-									</Select>
-								</Field>
-							)}
-						</form.Field>
-						<ReadOnlyField
-							label="PPPoE Username"
-							value={customer.username}
-							mono
-							copyable
-						/>
-						<form.Field name="groupExternalId">
-							{(field) => (
-								<Field>
-									<FieldLabel>Group</FieldLabel>
-									<Select
-										value={field.state.value || "none"}
-										onValueChange={(v) =>
-											field.handleChange(
-												v === "none" ? "" : v,
-											)
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select group" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="none">
-												<span className="text-muted-foreground">
-													None
-												</span>
-											</SelectItem>
-											{iradiusGroups.map((g) => (
-												<SelectItem
-													key={g.id}
-													value={String(g.id)}
-												>
-													{g.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</Field>
-							)}
-						</form.Field>
-						{customer.accessPoint && (
-							<ReadOnlyField
-								label="Access Point"
-								value={customer.accessPoint.name}
-							/>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
 						)}
-					</FieldGroup>
-				</DetailSection>
-			</div>
-
-			{/* Right column: Status & Notes — takes 1/3 on large screens */}
-			<div className="space-y-6">
-				<DetailSection title="Status">
+					</form.Field>
 					<form.Field name="status">
 						{(field) => (
 							<Field>
-								<FieldLabel>Account Status</FieldLabel>
+								<FieldLabel>Account status</FieldLabel>
 								<Select
 									value={field.state.value}
 									onValueChange={(value) =>
@@ -1226,6 +1078,226 @@ function OverviewTab({
 							</Field>
 						)}
 					</form.Field>
+					<form.Field name="connectionType">
+						{(field) => (
+							<Field>
+								<FieldLabel>Connection type</FieldLabel>
+								<Select
+									value={field.state.value}
+									onValueChange={(value) =>
+										field.handleChange(
+											value as typeof field.state.value,
+										)
+									}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select type" />
+									</SelectTrigger>
+									<SelectContent>
+										{CONNECTION_TYPE_OPTIONS.map((opt) => (
+											<SelectItem
+												key={opt.value}
+												value={opt.value}
+											>
+												{opt.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="collectorId">
+						{(field) => (
+							<Field>
+								<FieldLabel>Collector</FieldLabel>
+								<Select
+									value={field.state.value || "none"}
+									onValueChange={(v) =>
+										field.handleChange(
+											v === "none" ? "" : v,
+										)
+									}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select collector" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">
+											<span className="text-muted-foreground">
+												None
+											</span>
+										</SelectItem>
+										{employees.map((e) => (
+											<SelectItem key={e.id} value={e.id}>
+												{e.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						)}
+					</form.Field>
+					<form.Field name="groupExternalId">
+						{(field) => (
+							<Field>
+								<FieldLabel>Group</FieldLabel>
+								<Select
+									value={field.state.value || "none"}
+									onValueChange={(v) =>
+										field.handleChange(
+											v === "none" ? "" : v,
+										)
+									}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select group" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">
+											<span className="text-muted-foreground">
+												None
+											</span>
+										</SelectItem>
+										{iradiusGroups.map((g) => (
+											<SelectItem
+												key={g.id}
+												value={String(g.id)}
+											>
+												{g.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						)}
+					</form.Field>
+					<ReadOnlyField
+						label="PPPoE username"
+						value={customer.username}
+						mono
+						copyable
+					/>
+				</FieldGroup>
+
+				<Separator />
+
+				<FieldGroup columns={2}>
+					<ReadOnlyField
+						label="Station"
+						value={customer.station?.name}
+					/>
+					<ReadOnlyField
+						label="Access point"
+						value={customer.accessPoint?.name}
+					/>
+				</FieldGroup>
+			</DetailSection>
+
+			{/* Billing has only 2 inputs (+ optional read-only iRadius row);
+			    Notes is a constrained 5-row textarea. Pairing them at lg+
+			    closes a big stretch of whitespace under the Service block. */}
+			<div className="grid gap-6 lg:grid-cols-2">
+				<DetailSection
+					title="Billing"
+					description="Monthly rate and balance for this customer"
+				>
+					<FieldGroup columns={2}>
+						<form.Field name="monthlyRate">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="monthlyRate">
+										Monthly rate ($)
+									</FieldLabel>
+									<Input
+										id="monthlyRate"
+										type="number"
+										min={0}
+										step="0.01"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder="Use plan price"
+									/>
+									<FieldDescription>
+										Leave empty to use the plan default
+									</FieldDescription>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="balance">
+							{(field) => (
+								<Field>
+									<FieldLabel htmlFor="balance">
+										Balance ($)
+									</FieldLabel>
+									<Input
+										id="balance"
+										type="number"
+										step="0.01"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+									<FieldDescription>
+										Running credit/debit on the account
+									</FieldDescription>
+								</Field>
+							)}
+						</form.Field>
+					</FieldGroup>
+
+					{hasIRadiusBillingExtras && (
+						<>
+							<Separator />
+							<div>
+								<p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+									Synced from iRadius{" "}
+									<span className="ml-1 normal-case tracking-normal text-muted-foreground/70">
+										— change via the iRadius menu
+									</span>
+								</p>
+								<FieldGroup columns={4}>
+									<ReadOnlyField
+										label="Discount"
+										value={
+											customer.discount > 0
+												? formatCurrency(
+														customer.discount,
+													)
+												: null
+										}
+									/>
+									<ReadOnlyField
+										label="IPTV price"
+										value={
+											customer.iptvPrice > 0
+												? formatCurrency(
+														customer.iptvPrice,
+													)
+												: null
+										}
+									/>
+									<ReadOnlyField
+										label="Real IP price"
+										value={
+											customer.realIpPrice > 0
+												? formatCurrency(
+														customer.realIpPrice,
+													)
+												: null
+										}
+									/>
+									<ReadOnlyField
+										label="Deduct money"
+										value={customer.deductMoney}
+									/>
+								</FieldGroup>
+							</div>
+						</>
+					)}
 				</DetailSection>
 
 				<DetailSection title="Notes">
@@ -1237,382 +1309,367 @@ function OverviewTab({
 									field.handleChange(e.target.value)
 								}
 								rows={5}
-								placeholder="Add notes about this customer..."
+								placeholder="Add notes about this customer…"
 							/>
 						)}
 					</form.Field>
 				</DetailSection>
 			</div>
-		</div>
+		</>
 	);
 }
 
 function NetworkTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>
-			<DetailSection
-				title="Connection Details"
-				description="IP, MAC, and NAS configuration"
-			>
-				<PropertyList
-					columns={3}
-					items={[
-						{
-							label: "IP Address",
-							value: customer.ipAddress,
-							mono: true,
-							copyable: true,
-						},
-						{
-							label: "Static IP",
-							value: customer.staticIp,
-							mono: true,
-							copyable: true,
-						},
-						{
-							label: "MAC Address",
-							value: customer.macAddress,
-							mono: true,
-							copyable: true,
-						},
-						{
-							label: "NAS Host",
-							value: customer.nasHost,
-							mono: true,
-							copyable: true,
-						},
-						{
-							label: "MikroTik User",
-							value: customer.mikrotikUser,
-							mono: true,
-						},
-						{
-							label: "MikroTik Interface",
-							value: customer.mikrotikInterface,
-						},
-						{
-							label: "MikroTik Interface 2",
-							value: customer.mikrotikInterface1,
-						},
-						{
-							label: "MikroTik Queue",
-							value: customer.mikrotikQueue,
-						},
-						{
-							label: "Wireless Interface",
-							value: customer.wirelessInterface,
-						},
-						{
-							label: "Router Brand Prefix",
-							value: customer.routerBrandPrefix,
-							mono: true,
-						},
-					]}
-				/>
-			</DetailSection>
-
-			<DetailSection
-				title="Status Flags"
-				description="Current feature toggles and account flags"
-			>
-				<div className="flex flex-wrap gap-4 mb-3">
-					<StatusIndicator
-						status={customer.online ? "online" : "offline"}
-						variant="badge"
-					/>
-				</div>
-				<PropertyList
-					columns={4}
-					items={[
-						{ label: "FUP Mode", value: customer.fupMode },
-						{
-							label: "Auto Renew",
-							value: customer.automaticRenew,
-						},
-						{
-							label: "Simultaneous",
-							value: customer.simultaneous,
-						},
-						{
-							label: "AP Electrical",
-							value: customer.apElectrical,
-						},
-						{ label: "Temp User", value: customer.tempUser },
-						{ label: "Read Only", value: customer.readOnly },
-						{
-							label: "Reach Max Quota",
-							value: customer.reachMaxQuota,
-						},
-						{
-							label: "Show Traffic",
-							value: customer.canShowTrafficDetails,
-						},
-					]}
-				/>
-			</DetailSection>
-
-			<DetailSection
-				title="Override Settings"
-				description="Account-level overrides for recharge and expiry"
-			>
-				<PropertyList
-					columns={3}
-					items={[
-						{
-							label: "Force Override Recharge",
-							value: customer.forceOverrideImmediateRecharge,
-						},
-						{
-							label: "Override Recharge",
-							value: customer.overrideImmediateRecharge,
-						},
-						{
-							label: "Force Auto Bind MAC",
-							value: customer.forceAutoBindAccToMac,
-						},
-						{
-							label: "Override Auto Bind MAC",
-							value: customer.overrideAutoBindAccToMac,
-						},
-						{
-							label: "Force Expiry Days",
-							value: customer.forceExpiryAfterDays,
-						},
-						{
-							label: "Override Expiry",
-							value: customer.overrideExpiryAccount
-								? formatDate(customer.overrideExpiryAccount)
-								: null,
-						},
-						{
-							label: "Temp Expiry",
-							value: customer.tempExpiryAccount
-								? formatDate(customer.tempExpiryAccount)
-								: null,
-						},
-					]}
-				/>
-			</DetailSection>
-
-			<DetailSection title="Reference IDs">
-				<PropertyList
-					columns={4}
-					items={[
-						{
-							label: "NAS Account ID",
-							value: customer.nasAccountId,
-						},
-						{
-							label: "Old Account Type",
-							value: customer.oldAccountTypeId,
-						},
-						{
-							label: "Forward Account Type",
-							value: customer.forwardAccountTypeId,
-						},
-						{
-							label: "Condition Account Type",
-							value: customer.conditionAccountTypeId,
-						},
-						{ label: "Link ID", value: customer.linkId },
-						{
-							label: "Financial Category",
-							value: customer.financialCategoryId,
-						},
-					]}
-				/>
-			</DetailSection>
-		</>
-	);
-}
-
-function BillingTab({
-	form,
-	customer,
-}: {
-	form: CustomerForm;
-	customer: CustomerData;
-}) {
-	return (
-		<>
-			<DetailSection
-				title="Billing"
-				description="Monthly rate and balance"
-			>
-				<FieldGroup columns={2}>
-					<form.Field name="monthlyRate">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="monthlyRate">
-									Monthly Rate ($)
-								</FieldLabel>
-								<Input
-									id="monthlyRate"
-									type="number"
-									min={0}
-									step="0.01"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Use plan price"
-								/>
-								<FieldDescription>
-									Leave empty to use plan default
-								</FieldDescription>
-							</Field>
-						)}
-					</form.Field>
-					<form.Field name="balance">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="balance">
-									Balance ($)
-								</FieldLabel>
-								<Input
-									id="balance"
-									type="number"
-									step="0.01"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-								/>
-								<FieldDescription>
-									Running credit/debit carried on the account
-								</FieldDescription>
-							</Field>
-						)}
-					</form.Field>
-				</FieldGroup>
-
-				{(customer.discount > 0 ||
-					customer.iptvPrice > 0 ||
-					customer.realIpPrice > 0 ||
-					customer.deductMoney) && (
-					<>
-						<Separator />
-						<FieldGroup columns={4}>
-							<ReadOnlyField
-								label="Discount"
-								value={
-									customer.discount > 0
-										? formatCurrency(customer.discount)
-										: null
-								}
-							/>
-							<ReadOnlyField
-								label="IPTV Price"
-								value={
-									customer.iptvPrice > 0
-										? formatCurrency(customer.iptvPrice)
-										: null
-								}
-							/>
-							<ReadOnlyField
-								label="Real IP Price"
-								value={
-									customer.realIpPrice > 0
-										? formatCurrency(customer.realIpPrice)
-										: null
-								}
-							/>
-							<ReadOnlyField
-								label="Deduct Money"
-								value={customer.deductMoney}
-							/>
-						</FieldGroup>
-					</>
-				)}
-			</DetailSection>
-
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+			{/* Row 1 — Connection (wide reference) + Bandwidth (compact 2×2 hero).
+			    Connection holds the IP/MAC/NAS data operators glance at first; the
+			    bandwidth strip sits next to it so the whole transport picture is
+			    visible without scrolling. */}
+			<div className="grid gap-3 lg:grid-cols-3">
 				<DetailSection
-					title="Monthly Usage"
-					description="Current period bandwidth consumption"
+					title="Connection"
+					description="IP, MAC and NAS — iRadius-owned, read-only"
+					className="lg:col-span-2"
 				>
-					<FieldGroup columns={2}>
-						<MetricDisplay
-							label="Download"
-							value={customer.downloadBytes ?? 0}
-							format="bytes"
-						/>
-						<MetricDisplay
-							label="Upload"
-							value={customer.uploadBytes ?? 0}
-							format="bytes"
-						/>
-						<MetricDisplay
-							label="Daily Download"
-							value={customer.dailyDownloadBytes ?? 0}
-							format="bytes"
-						/>
-						<MetricDisplay
-							label="Daily Upload"
-							value={customer.dailyUploadBytes ?? 0}
-							format="bytes"
-						/>
-					</FieldGroup>
+					<PropertyList
+						columns={3}
+						items={[
+							{
+								label: "IP address",
+								value: customer.ipAddress,
+								mono: true,
+								copyable: true,
+							},
+							{
+								label: "Static IP",
+								value: customer.staticIp,
+								mono: true,
+								copyable: true,
+							},
+							{
+								label: "MAC address",
+								value: customer.macAddress,
+								mono: true,
+								copyable: true,
+							},
+							{
+								label: "NAS host",
+								value: customer.nasHost,
+								mono: true,
+								copyable: true,
+							},
+							{
+								label: "MikroTik user",
+								value: customer.mikrotikUser,
+								mono: true,
+							},
+							{
+								label: "MikroTik interface",
+								value: customer.mikrotikInterface,
+							},
+							{
+								label: "MikroTik interface 2",
+								value: customer.mikrotikInterface1,
+							},
+							{
+								label: "MikroTik queue",
+								value: customer.mikrotikQueue,
+							},
+							{
+								label: "Wireless interface",
+								value: customer.wirelessInterface,
+							},
+							{
+								label: "Router brand prefix",
+								value: customer.routerBrandPrefix,
+								mono: true,
+							},
+						]}
+					/>
 				</DetailSection>
 
-				<DetailSection
-					title="Free Usage Quotas"
-					description="Included allowances before metering"
-				>
-					<FieldGroup columns={2}>
-						<MetricDisplay
-							label="Free Download"
-							value={customer.freeDownloadBytes ?? 0}
-							format="bytes"
+				<DetailSection title="Bandwidth">
+					<MetricStrip columns={2}>
+						<MetricCard
+							label="Total ↓"
+							value={formatBytesNum(customer.downloadBytes)}
 						/>
-						<MetricDisplay
-							label="Free Upload"
-							value={customer.freeUploadBytes ?? 0}
-							format="bytes"
+						<MetricCard
+							label="Total ↑"
+							value={formatBytesNum(customer.uploadBytes)}
 						/>
-						<MetricDisplay
-							label="Free Daily DL"
-							value={customer.freeDailyDownloadBytes ?? 0}
-							format="bytes"
+						<MetricCard
+							label="Daily ↓"
+							value={formatBytesNum(customer.dailyDownloadBytes)}
 						/>
-						<MetricDisplay
-							label="Free Daily UL"
-							value={customer.freeDailyUploadBytes ?? 0}
-							format="bytes"
+						<MetricCard
+							label="Daily ↑"
+							value={formatBytesNum(customer.dailyUploadBytes)}
 						/>
-					</FieldGroup>
+					</MetricStrip>
 				</DetailSection>
 			</div>
 
-			<DetailSection title="Extra Quotas">
-				<PropertyList
-					columns={3}
-					items={[
-						{
-							label: "Extra Upload GB",
-							value: customer.extraUploadGb,
-						},
-						{
-							label: "Extra Download GB",
-							value: customer.extraDownloadGb,
-						},
-						{
-							label: "Extra Days on Refill",
-							value: customer.extraDaysToAddOnRefill,
-						},
-						{
-							label: "Deduct Days on Refill",
-							value: customer.extraDaysToDeductOnRefill,
-						},
-						{ label: "Added Hours", value: customer.addedHours },
-					]}
-				/>
-			</DetailSection>
+			{/* Row 2 — Three exception-data panels side-by-side. Status flags
+			    and Overrides used to share a row; Allowances is the merger of
+			    the old "Free quotas" + "Extras" sections. We zero-strip
+			    Allowances so customers with no special quotas don't render a
+			    wall of "0 B" cells. */}
+			<div className="grid gap-3 lg:grid-cols-3">
+				<DetailSection
+					title="Status flags"
+					description="Feature toggles"
+				>
+					<PropertyList
+						columns={2}
+						items={[
+							{ label: "FUP mode", value: customer.fupMode },
+							{
+								label: "Auto renew",
+								value: customer.automaticRenew,
+							},
+							{
+								label: "Simultaneous",
+								value: customer.simultaneous,
+							},
+							{
+								label: "AP electrical",
+								value: customer.apElectrical,
+							},
+							{ label: "Temp user", value: customer.tempUser },
+							{ label: "Read only", value: customer.readOnly },
+							{
+								label: "Reach max quota",
+								value: customer.reachMaxQuota,
+							},
+							{
+								label: "Show traffic",
+								value: customer.canShowTrafficDetails,
+							},
+						]}
+					/>
+				</DetailSection>
+
+				<DetailSection
+					title="Overrides"
+					description="Recharge and expiry overrides"
+				>
+					<PropertyList
+						columns={2}
+						items={[
+							{
+								label: "Force override recharge",
+								value: customer.forceOverrideImmediateRecharge,
+							},
+							{
+								label: "Override recharge",
+								value: customer.overrideImmediateRecharge,
+							},
+							{
+								label: "Force auto bind MAC",
+								value: customer.forceAutoBindAccToMac,
+							},
+							{
+								label: "Override auto bind MAC",
+								value: customer.overrideAutoBindAccToMac,
+							},
+							{
+								label: "Force expiry days",
+								value: customer.forceExpiryAfterDays,
+							},
+							{
+								label: "Override expiry",
+								value: customer.overrideExpiryAccount
+									? formatDate(customer.overrideExpiryAccount)
+									: null,
+							},
+							{
+								label: "Temp expiry",
+								value: customer.tempExpiryAccount
+									? formatDate(customer.tempExpiryAccount)
+									: null,
+							},
+						]}
+					/>
+				</DetailSection>
+
+				<DetailSection
+					title="Allowances"
+					description="Free quotas and extras"
+				>
+					<PropertyList
+						columns={2}
+						items={[
+							{
+								label: "Free DL",
+								value: nonZeroBytes(customer.freeDownloadBytes),
+							},
+							{
+								label: "Free UL",
+								value: nonZeroBytes(customer.freeUploadBytes),
+							},
+							{
+								label: "Daily free ↓",
+								value: nonZeroBytes(
+									customer.freeDailyDownloadBytes,
+								),
+							},
+							{
+								label: "Daily free ↑",
+								value: nonZeroBytes(
+									customer.freeDailyUploadBytes,
+								),
+							},
+							{
+								label: "Extra DL GB",
+								value: nonZero(customer.extraDownloadGb),
+							},
+							{
+								label: "Extra UL GB",
+								value: nonZero(customer.extraUploadGb),
+							},
+							{
+								label: "Days +",
+								value: nonZero(customer.extraDaysToAddOnRefill),
+							},
+							{
+								label: "Days −",
+								value: nonZero(
+									customer.extraDaysToDeductOnRefill,
+								),
+							},
+							{
+								label: "Added hours",
+								value: nonZero(customer.addedHours),
+							},
+						]}
+					/>
+				</DetailSection>
+			</div>
+
+			{/* Row 3 — iRadius metadata split into Lifecycle (when things
+			    happened) on the left and References (what links to what) on
+			    the right. Keeping them paired uses the wide screen instead of
+			    one full-width 21-item block that scrolls. */}
+			<div className="grid gap-3 lg:grid-cols-3">
+				<DetailSection
+					title="iRadius lifecycle"
+					description="Timestamps from the legacy system"
+				>
+					<PropertyList
+						columns={2}
+						items={[
+							{
+								label: "External ID",
+								value: customer.externalId,
+								mono: true,
+							},
+							{
+								label: "Original created",
+								value: customer.originalCreatedAt
+									? formatDate(customer.originalCreatedAt)
+									: null,
+							},
+							{
+								label: "Activated",
+								value: customer.activatedAt
+									? formatDate(customer.activatedAt)
+									: null,
+							},
+							{
+								label: "Service expiry",
+								value: customer.expiresAt
+									? formatDate(customer.expiresAt)
+									: null,
+							},
+							{
+								label: "Last login",
+								value: customer.lastLogin
+									? formatDateTime(customer.lastLogin)
+									: null,
+							},
+							{
+								label: "Last log out",
+								value: customer.lastLogOut
+									? formatDateTime(customer.lastLogOut)
+									: null,
+							},
+							{
+								label: "NAS last log out",
+								value: customer.nasLastLogOut
+									? formatDateTime(customer.nasLastLogOut)
+									: null,
+							},
+						]}
+					/>
+				</DetailSection>
+
+				<DetailSection
+					title="iRadius references"
+					description="Account, collector and category links"
+					className="lg:col-span-2"
+				>
+					<PropertyList
+						columns={3}
+						items={[
+							{ label: "MOF", value: customer.mof },
+							{ label: "Category", value: customer.categoryName },
+							{ label: "Group", value: customer.groupName },
+							{
+								label: "Collector",
+								value: customer.collectorName,
+							},
+							{
+								label: "Collector phone",
+								value: customer.collectorPhone,
+							},
+							{
+								label: "NAS account ID",
+								value: customer.nasAccountId,
+							},
+							{
+								label: "Old account type",
+								value: customer.oldAccountTypeId,
+							},
+							{
+								label: "Forward account type",
+								value: customer.forwardAccountTypeId,
+							},
+							{
+								label: "Condition account type",
+								value: customer.conditionAccountTypeId,
+							},
+							{ label: "Link ID", value: customer.linkId },
+							{
+								label: "Financial category",
+								value: customer.financialCategoryId,
+							},
+							{
+								label: "Can reset account",
+								value: customer.canResetAccount,
+							},
+							{
+								label: "Collector reset MAC",
+								value: customer.collectorResetMac,
+							},
+							{
+								label: "Collector show links",
+								value: customer.collectorCanShowLinks,
+							},
+							{
+								label: "Auto generate invoice",
+								value: customer.autoGenerateInvoice,
+							},
+						]}
+					/>
+				</DetailSection>
+			</div>
 		</>
 	);
 }
 
-function FinancialTab({
+function ActivityTab({
 	customerId,
 	organizationSlug,
 }: {
@@ -1621,6 +1678,26 @@ function FinancialTab({
 }) {
 	return (
 		<>
+			<DetailSection
+				title="Recent activity"
+				description="Unified timeline across payments, invoices, location, tasks and audit log"
+			>
+				<AsyncBoundary
+					fallback={
+						<div className="space-y-1.5">
+							{[0, 1, 2, 3, 4].map((i) => (
+								<Skeleton
+									key={i}
+									className="h-11 w-full rounded-md"
+								/>
+							))}
+						</div>
+					}
+					errorFallback="inline"
+				>
+					<CustomerActivityTimeline customerId={customerId} />
+				</AsyncBoundary>
+			</DetailSection>
 			<DetailSection title="Payments">
 				<CustomerPayments
 					customerId={customerId}
@@ -1637,7 +1714,9 @@ function FinancialTab({
 	);
 }
 
-function ActivityTab({
+// ─── Account PIN section (lives on Profile tab) ────────────────────────
+
+function AccountPinSection({
 	customer,
 	customerId,
 }: {
@@ -1659,11 +1738,11 @@ function ActivityTab({
 		toast.promise(
 			setPin.mutateAsync({ organizationId, customerId, pin: manualPin }),
 			{
-				loading: "Setting PIN...",
+				loading: "Setting PIN…",
 				success: () => {
 					setShowSetPin(false);
 					setManualPin("");
-					return "PIN set successfully";
+					return "PIN set";
 				},
 				error: (err: { message?: string }) =>
 					err?.message ?? "Failed to set PIN",
@@ -1672,127 +1751,94 @@ function ActivityTab({
 	}
 
 	return (
-		<>
-			<DetailSection
-				title="Recent activity"
-				description="Unified timeline across payments, invoices, location, tasks, and audit log"
-			>
-				<AsyncBoundary
-					fallback={
-						<div className="space-y-1.5">
-							{[0, 1, 2, 3, 4].map((i) => (
-								<Skeleton
-									key={i}
-									className="h-11 w-full rounded-md"
-								/>
-							))}
-						</div>
-					}
-					errorFallback="inline"
-				>
-					<CustomerActivityTimeline customerId={customerId} />
-				</AsyncBoundary>
-			</DetailSection>
-
-			{organizationId && (
-				<CustomerLocationSection
-					organizationId={organizationId}
-					customerId={customerId}
-					latitude={customer.latitude}
-					longitude={customer.longitude}
-					locationRequestedAt={customer.locationRequestedAt}
-				/>
-			)}
-
-			<DetailSection
-				title="Account PIN"
-				description="6-digit PIN for customer self-service access"
-			>
-				<div className="space-y-3">
-					<p className="text-sm text-muted-foreground">
-						{customer.pin
-							? `Current PIN: ${customer.pin}`
-							: "No PIN configured"}
+		<DetailSection
+			title="Account PIN"
+			description="6-digit PIN for customer self-service access"
+		>
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div className="text-sm">
+					<p className="text-muted-foreground">
+						{customer.pin ? "Current PIN" : "No PIN configured"}
 					</p>
-					<div className="flex flex-wrap gap-2">
+					{customer.pin && (
+						<p className="mt-0.5 font-mono text-base font-medium tabular-nums">
+							{customer.pin}
+						</p>
+					)}
+				</div>
+				<div className="flex flex-wrap gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => setShowSetPin(true)}
+					>
+						Set PIN
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => {
+							if (!organizationId) {
+								return;
+							}
+							toast.promise(
+								generatePin
+									.mutateAsync({ organizationId, customerId })
+									.then((res: { pin: string }) => {
+										setGeneratedPin(res.pin);
+										return res;
+									}),
+								{
+									loading: "Generating…",
+									success: "PIN generated",
+									error: "Failed to generate PIN",
+								},
+							);
+						}}
+					>
+						Generate random
+					</Button>
+					{customer.pin && (
 						<Button
 							type="button"
 							variant="outline"
 							size="sm"
-							onClick={() => setShowSetPin(true)}
-						>
-							Set PIN
-						</Button>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
+							className="text-destructive"
 							onClick={() => {
 								if (!organizationId) {
 									return;
 								}
 								toast.promise(
-									generatePin
-										.mutateAsync({
-											organizationId,
-											customerId,
-										})
-										.then((res: { pin: string }) => {
-											setGeneratedPin(res.pin);
-											return res;
-										}),
+									resetPin.mutateAsync({
+										organizationId,
+										customerId,
+									}),
 									{
-										loading: "Generating...",
-										success: "PIN generated",
-										error: "Failed to generate PIN",
+										loading: "Resetting…",
+										success: "PIN removed",
+										error: "Failed to reset PIN",
 									},
 								);
 							}}
 						>
-							Generate Random
+							Remove PIN
 						</Button>
-						{customer.pin && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => {
-									if (!organizationId) {
-										return;
-									}
-									toast.promise(
-										resetPin.mutateAsync({
-											organizationId,
-											customerId,
-										}),
-										{
-											loading: "Resetting...",
-											success: "PIN removed",
-											error: "Failed to reset PIN",
-										},
-									);
-								}}
-							>
-								Reset PIN
-							</Button>
-						)}
-					</div>
-					{generatedPin && (
-						<p className="text-sm">
-							Generated PIN:{" "}
-							<span className="font-mono font-bold">
-								{generatedPin}
-							</span>
-						</p>
 					)}
 				</div>
-			</DetailSection>
+			</div>
+			{generatedPin && (
+				<p className="text-sm">
+					Generated PIN:{" "}
+					<span className="font-mono font-bold">{generatedPin}</span>
+				</p>
+			)}
 
-			{/* Set PIN Dialog */}
 			<Dialog open={showSetPin} onOpenChange={setShowSetPin}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Set Account PIN</DialogTitle>
+						<DialogTitle>Set account PIN</DialogTitle>
 						<DialogDescription>
 							Enter a 6-digit PIN for this customer account.
 						</DialogDescription>
@@ -1821,100 +1867,37 @@ function ActivityTab({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</>
+		</DetailSection>
 	);
 }
 
-function SyncTab({ customer }: { customer: CustomerData }) {
-	return (
-		<>
-			<DetailSection
-				title="iRadius Metadata"
-				description="Synced data from the external iRadius system"
-			>
-				<PropertyList
-					columns={3}
-					items={[
-						{
-							label: "External ID",
-							value: customer.externalId,
-							mono: true,
-						},
-						{
-							label: "Original Created",
-							value: customer.originalCreatedAt
-								? formatDate(customer.originalCreatedAt)
-								: null,
-						},
-						{
-							label: "Activated",
-							value: customer.activatedAt
-								? formatDate(customer.activatedAt)
-								: null,
-						},
-						{
-							label: "Service Expiry",
-							value: customer.expiresAt
-								? formatDate(customer.expiresAt)
-								: null,
-						},
-						{
-							label: "Last Login",
-							value: customer.lastLogin
-								? formatDateTime(customer.lastLogin)
-								: null,
-						},
-						{
-							label: "Last Log Out",
-							value: customer.lastLogOut
-								? formatDateTime(customer.lastLogOut)
-								: null,
-						},
-						{
-							label: "NAS Last Log Out",
-							value: customer.nasLastLogOut
-								? formatDateTime(customer.nasLastLogOut)
-								: null,
-						},
-						{ label: "MOF", value: customer.mof },
-						{ label: "Category", value: customer.categoryName },
-						{ label: "Group", value: customer.groupName },
-						{ label: "Collector", value: customer.collectorName },
-						{
-							label: "Collector Phone",
-							value: customer.collectorPhone,
-						},
-					]}
-				/>
-			</DetailSection>
+// ─── Helpers ───────────────────────────────────────────────────────────
 
-			<DetailSection title="Collector Flags">
-				<PropertyList
-					columns={3}
-					items={[
-						{
-							label: "Can Reset Account",
-							value: customer.canResetAccount,
-						},
-						{
-							label: "Collector Reset MAC",
-							value: customer.collectorResetMac,
-						},
-						{
-							label: "Collector Show Links",
-							value: customer.collectorCanShowLinks,
-						},
-						{
-							label: "Show Traffic Details",
-							value: customer.canShowTrafficDetails,
-						},
-						{
-							label: "Auto Generate Invoice",
-							value: customer.autoGenerateInvoice,
-						},
-					]}
-				/>
-			</DetailSection>
-		</>
-	);
+function formatBytesNum(v: bigint | number | null | undefined): string {
+	const n = v == null ? 0 : typeof v === "bigint" ? Number(v) : v;
+	if (n === 0) {
+		return "0 B";
+	}
+	const units = ["B", "KB", "MB", "GB", "TB"];
+	let value = n;
+	let i = 0;
+	while (Math.abs(value) >= 1024 && i < units.length - 1) {
+		value /= 1024;
+		i++;
+	}
+	const decimals = value < 10 && i > 0 ? 2 : value < 100 && i > 0 ? 1 : 0;
+	return `${value.toFixed(decimals)} ${units[i]}`;
+}
+
+/** Returns null when the byte count is 0/null so PropertyList hides the row.
+ *  Used in the Allowances section — most customers have no extra quotas, and
+ *  rendering "0 B" four times is just visual noise. */
+function nonZeroBytes(v: bigint | number | null | undefined): string | null {
+	const n = v == null ? 0 : typeof v === "bigint" ? Number(v) : v;
+	return n === 0 ? null : formatBytesNum(n);
+}
+
+/** Returns null for 0/null/undefined so PropertyList drops the row. */
+function nonZero(v: number | null | undefined): number | null {
+	return v == null || v === 0 ? null : v;
 }

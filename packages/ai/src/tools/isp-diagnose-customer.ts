@@ -331,17 +331,25 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						| Record<string, unknown>[]
 						| null;
 
+					// Surface the actual identifier the API was hit with so the
+					// debug UI (and the agent itself) can see whether the lookup
+					// used the verified contact phone or the model's `query` arg.
+					let lookedUpBy: string;
+
 					if (phoneMatch) {
 						queryForApi = (phoneMatch["userName"] as string) ?? "";
 						data = phoneMatch;
+						lookedUpBy = `verified contact phone (${context.contactPhone ?? "unknown"})`;
 					} else {
 						if (!isSearchableQuery(args.query)) {
 							return {
 								found: false,
+								lookedUpBy: `query arg "${args.query}"`,
 								message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Ask the customer for the phone number their account is registered under, or for their exact PPPoE/Hotspot username (e.g. from a past invoice). Do NOT reuse usernames mentioned earlier in this conversation unless the customer has just confirmed them in this turn.`,
 							};
 						}
 						queryForApi = cleanPhoneNumber(args.query);
+						lookedUpBy = `query arg "${args.query}" (cleaned to "${queryForApi}")`;
 
 						// -------------------------------------------------------
 						// 1. SEARCH
@@ -354,6 +362,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					if (!data) {
 						return {
 							found: false,
+							lookedUpBy,
 							message: `No customer found for "${args.query}".`,
 						};
 					}
@@ -362,6 +371,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					if (customers.length === 0) {
 						return {
 							found: false,
+							lookedUpBy,
 							message: `No customer found for "${args.query}".`,
 						};
 					}
@@ -380,6 +390,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						return {
 							found: true,
 							multipleMatches: true,
+							lookedUpBy,
 							message: `Found ${filtered.length} accounts. You MUST list each option with its userName (e.g. "joseph1") and address. The customer needs to tell you which userName is theirs so you can diagnose the correct account.`,
 							customers: identifyOnly,
 						};
@@ -389,6 +400,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					if (!customer) {
 						return {
 							found: false,
+							lookedUpBy,
 							message: `No customer found for "${args.query}".`,
 						};
 					}
@@ -470,6 +482,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					if (!accountActive) {
 						return {
 							found: true,
+							lookedUpBy,
 							customerName,
 							userName,
 							connectionType,
@@ -555,6 +568,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 
 						return {
 							found: true,
+							lookedUpBy,
 							customerName,
 							userName,
 							connectionType,
@@ -684,6 +698,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 
 					return {
 						found: true,
+						lookedUpBy,
 						customerName,
 						userName,
 						connectionType,

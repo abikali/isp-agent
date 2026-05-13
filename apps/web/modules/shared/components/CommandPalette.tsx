@@ -37,7 +37,6 @@ import {
 	SunIcon,
 	UserPlusIcon,
 	UsersIcon,
-	WifiIcon,
 } from "lucide-react";
 import {
 	createContext,
@@ -191,14 +190,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 					icon: PackageIcon,
 				});
 				items.push({
-					label: "Stations",
-					to: `${basePath}/customers/stations`,
+					label: "Network",
+					to: `${basePath}/customers/network`,
 					icon: RadioTowerIcon,
-				});
-				items.push({
-					label: "Access Points",
-					to: `${basePath}/customers/access-points`,
-					icon: WifiIcon,
 				});
 			}
 		}

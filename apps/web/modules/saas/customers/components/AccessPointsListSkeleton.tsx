@@ -4,13 +4,13 @@ import { Skeleton } from "@ui/components/skeleton";
 
 export function AccessPointsListSkeleton() {
 	return (
-		<div>
-			<div className="mb-6">
-				<Skeleton className="h-8 w-48" />
-				<Skeleton className="mt-2 h-5 w-64" />
+		<div className="overflow-hidden rounded-lg border border-border bg-card shadow-xs">
+			<div className="flex items-center gap-2 border-b border-border p-3">
+				<Skeleton className="h-9 flex-1 max-w-sm" />
+				<Skeleton className="h-9 w-[170px]" />
+				<Skeleton className="h-9 w-[140px]" />
 			</div>
-			<Skeleton className="mb-4 h-10 w-80" />
-			<Skeleton className="h-96 rounded-lg" />
+			<Skeleton className="h-96 rounded-none" />
 		</div>
 	);
 }

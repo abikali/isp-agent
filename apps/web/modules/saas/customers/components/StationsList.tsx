@@ -6,7 +6,6 @@ import {
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { FilterBar } from "@shared/components/FilterBar";
-import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -199,63 +198,58 @@ export function StationsList() {
 	);
 
 	return (
-		<PageShell
-			title="Stations"
-			description="Network stations synced from iRadius"
-		>
-			<ContentCard>
-				<ContentCardToolbar>
-					<FilterBar
-						bare
-						searchPlaceholder="Search by name, address, or host..."
-						searchValue={search}
-						onSearchChange={setSearch}
-						activeFilterCount={activeFilterCount}
-						onReset={resetFilters}
+		<ContentCard>
+			<ContentCardToolbar>
+				<FilterBar
+					bare
+					searchPlaceholder="Search by name, address, or host..."
+					searchValue={search}
+					onSearchChange={setSearch}
+					activeFilterCount={activeFilterCount}
+					onReset={resetFilters}
+				>
+					<Select
+						value={onlineFilter || "all"}
+						onValueChange={(val) =>
+							setOnlineFilter(val === "all" ? "" : val)
+						}
 					>
-						<Select
-							value={onlineFilter || "all"}
-							onValueChange={(val) =>
-								setOnlineFilter(val === "all" ? "" : val)
-							}
-						>
-							<SelectTrigger className="w-full sm:w-[140px]">
-								<SelectValue placeholder="Connectivity" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All</SelectItem>
-								<SelectItem value="online">Online</SelectItem>
-								<SelectItem value="offline">Offline</SelectItem>
-							</SelectContent>
-						</Select>
-					</FilterBar>
-				</ContentCardToolbar>
+						<SelectTrigger className="w-full sm:w-[140px]">
+							<SelectValue placeholder="Connectivity" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All</SelectItem>
+							<SelectItem value="online">Online</SelectItem>
+							<SelectItem value="offline">Offline</SelectItem>
+						</SelectContent>
+					</Select>
+				</FilterBar>
+			</ContentCardToolbar>
 
-				<DataTable
-					columns={columns}
-					data={stations}
-					pageSize={15}
-					emptyState={
-						<EmptyState
-							icon={RadioTowerIcon}
-							title={
-								stations.length === 0 &&
-								!activeFilterCount &&
-								!debouncedSearch
-									? "No stations yet"
-									: "No results found"
-							}
-							description={
-								stations.length === 0 &&
-								!activeFilterCount &&
-								!debouncedSearch
-									? "Stations will appear here after syncing from iRadius."
-									: "Try adjusting your search or filters."
-							}
-						/>
-					}
-				/>
-			</ContentCard>
-		</PageShell>
+			<DataTable
+				columns={columns}
+				data={stations}
+				pageSize={15}
+				emptyState={
+					<EmptyState
+						icon={RadioTowerIcon}
+						title={
+							stations.length === 0 &&
+							!activeFilterCount &&
+							!debouncedSearch
+								? "No stations yet"
+								: "No results found"
+						}
+						description={
+							stations.length === 0 &&
+							!activeFilterCount &&
+							!debouncedSearch
+								? "Stations will appear here after syncing from iRadius."
+								: "Try adjusting your search or filters."
+						}
+					/>
+				}
+			/>
+		</ContentCard>
 	);
 }
