@@ -378,9 +378,9 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 > {
 	try {
 		return await withIRadiusConnection(async (conn) => {
-			// Online lives on UserNas, not User — Users without a NAS row are
-			// treated as offline (the LEFT JOIN yields NULL, and toBooleanFromBit
-			// maps that to false).
+			// Online + Active live on UserNas, not User — restrict to subscribers
+			// that actually have a NAS row (matches the dashboard's COUNT query
+			// at queryIRadiusLiveStats which uses unqualified `Active = 1`).
 			const [rows] = await conn.query<RowDataPacket[]>(
 				`SELECT u.Id, un.Online,
 					IFNULL(un.DownloadBytes, 0) AS DownloadBytes,
@@ -389,7 +389,7 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 					IFNULL(un.DailyUploadBytes, 0) AS DailyUploadBytes
 				FROM User u
 				LEFT JOIN UserNas un ON un.UserId = u.Id
-				WHERE u.ProfileId = 4 AND IFNULL(u.Archived,0) = 0 AND u.Active = 1`,
+				WHERE u.ProfileId = 4 AND IFNULL(u.Archived,0) = 0 AND un.Active = 1`,
 			);
 			return rows.map((r) => ({
 				externalId: String(r["Id"]),

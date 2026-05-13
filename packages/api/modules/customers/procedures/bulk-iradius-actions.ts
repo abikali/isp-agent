@@ -7,7 +7,7 @@ import {
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
-import { db, type Prisma } from "@repo/database";
+import { buildIRadiusMobile, db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -16,6 +16,12 @@ import {
 	iradiusSetExpiryAccount,
 	iradiusSetIptvPrice,
 	iradiusSetRecurringDiscount,
+	iradiusUpdateUserAddress,
+	iradiusUpdateUserComment,
+	iradiusUpdateUserEmail,
+	iradiusUpdateUserLocation,
+	iradiusUpdateUserName,
+	iradiusUpdateUserPhones,
 } from "../lib/iradius-api";
 
 /**
@@ -377,6 +383,128 @@ export const bulkChangeCollector = protectedProcedure
 			skipped: 0,
 			failed: 0,
 			failures: [] as Array<{ id: string; reason: string }>,
+			requested: input.customerIds.length,
+		};
+	});
+
+// ─── Bulk push to iRadius ──────────────────────────────────────────────
+
+/**
+ * Force-push every locally-authoritative field on N customers to iRadius.
+ * This is the selection-scoped variant of `pushCustomerToIRadius` — the
+ * org-wide push (`startIRadiusPush`) runs through a BullMQ worker because
+ * it can hit thousands of customers, but the UI selection cap (200) is
+ * small enough that an inline serial loop is preferable: it streams
+ * results back synchronously so the toast can summarise outcomes and
+ * the operator doesn't need to babysit a separate progress dialog.
+ *
+ * Per-customer payload matches `pushCustomerToIRadius` 1:1 (firstName,
+ * lastName, email, phones → User.Mobile, address, lat/lng, notes).
+ * `User.Phone` and `username` are intentionally not pushed.
+ */
+export const bulkPushToIRadius = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/bulk-push",
+		tags: ["Customers"],
+		summary: "Force-push N customers' local data to iRadius",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			customerIds: z.array(z.string()).min(1).max(200),
+		}),
+	)
+	.handler(async ({ context: { user, headers }, input }) => {
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"connections",
+			"sync",
+		);
+		if (iradiusDisabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "iRadius is disabled for this organization",
+			});
+		}
+
+		const customers = await db.customer.findMany({
+			where: {
+				id: { in: input.customerIds },
+				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
+			},
+			select: {
+				id: true,
+				externalId: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				phones: true,
+				address: true,
+				latitude: true,
+				longitude: true,
+				notes: true,
+			},
+		});
+		if (customers.length === 0) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "No accessible customers in this selection",
+			});
+		}
+
+		const auditContext = getAuditContextFromHeaders(headers);
+		let succeeded = 0;
+		let skipped = 0;
+		const failures: Array<{ id: string; reason: string }> = [];
+
+		for (const customer of customers) {
+			if (!customer.externalId) {
+				skipped++;
+				continue;
+			}
+			const stub = { externalId: customer.externalId };
+			try {
+				await iradiusUpdateUserName(
+					stub,
+					customer.firstName ?? "",
+					customer.lastName ?? "",
+				);
+				await iradiusUpdateUserEmail(stub, customer.email ?? null);
+				await iradiusUpdateUserPhones(
+					stub,
+					buildIRadiusMobile(customer.phones),
+				);
+				await iradiusUpdateUserAddress(stub, customer.address ?? null);
+				await iradiusUpdateUserLocation(
+					stub,
+					customer.latitude ?? null,
+					customer.longitude ?? null,
+				);
+				await iradiusUpdateUserComment(stub, customer.notes ?? null);
+				customerAudit.updated(
+					customer.id,
+					user.id,
+					input.organizationId,
+					auditContext,
+				);
+				succeeded++;
+			} catch (error) {
+				const reason =
+					error instanceof Error ? error.message : "Unknown error";
+				logger.error("[Customer bulk push] Failed", {
+					customerId: customer.id,
+					reason,
+				});
+				failures.push({ id: customer.id, reason });
+			}
+		}
+
+		return {
+			succeeded,
+			skipped,
+			failed: failures.length,
+			failures,
 			requested: input.customerIds.length,
 		};
 	});

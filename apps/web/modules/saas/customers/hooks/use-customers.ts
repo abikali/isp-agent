@@ -222,6 +222,11 @@ export const useBulkChangeCollector = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const useBulkPushToIRadius = createInvalidatingMutation(
+	() => orpc.customers.bulkPushToIRadius.mutationOptions(),
+	invalidateCustomers,
+);
+
 /**
  * Live online status for a customer's station + access point.
  * Refetches every 15s so the badge tracks the monitor sync cadence.

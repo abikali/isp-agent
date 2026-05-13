@@ -29,6 +29,7 @@ import {
 	ActivityIcon,
 	CalendarClockIcon,
 	CheckCircle2Icon,
+	CloudUploadIcon,
 	CreditCardIcon,
 	MapPinIcon,
 	MapPinOffIcon,
@@ -46,6 +47,7 @@ import { toast } from "sonner";
 import {
 	useBulkSetCustomerStatus,
 	useCreateLocationRequest,
+	usePushToIRadius,
 } from "../hooks/use-customers";
 import {
 	ChangeNameDialog,
@@ -105,6 +107,7 @@ export function CustomerRowActions({
 	const navigate = useNavigate();
 	const createLocationRequest = useCreateLocationRequest();
 	const bulkSetStatus = useBulkSetCustomerStatus();
+	const pushToIRadius = usePushToIRadius();
 	const [confirm, setConfirm] = useState<{
 		kind: "deactivate" | "reactivate";
 	} | null>(null);
@@ -269,6 +272,33 @@ export function CustomerRowActions({
 							<DropdownMenuLabel className="text-xs text-muted-foreground">
 								iRadius
 							</DropdownMenuLabel>
+							<DropdownMenuItem
+								disabled={
+									pushToIRadius.isPending || !organizationId
+								}
+								onClick={() => {
+									if (!organizationId) {
+										return;
+									}
+									pushToIRadius.mutate(
+										{
+											organizationId,
+											customerId,
+										},
+										{
+											onSuccess: () =>
+												toast.success(
+													`${customerName} pushed to iRadius`,
+												),
+											onError: (err) =>
+												toast.error(err.message),
+										},
+									);
+								}}
+							>
+								<CloudUploadIcon className="mr-2 size-4" />
+								Push to iRadius
+							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => setIradiusDialog("reset-mac")}
 							>

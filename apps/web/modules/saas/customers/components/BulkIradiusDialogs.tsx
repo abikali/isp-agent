@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
 	useBulkChangeCollector,
+	useBulkPushToIRadius,
 	useBulkResetMac,
 	useBulkSetDiscount,
 	useBulkSetExpiry,
@@ -491,6 +492,74 @@ export function BulkChangeCollectorDialog({
 						{bulkChangeCollector.isPending
 							? "Saving…"
 							: "Apply to all"}
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+// ─── Bulk push to iRadius ──────────────────────────────────────────────
+
+export function BulkPushToIRadiusDialog({
+	open,
+	onOpenChange,
+	organizationId,
+	customerIds,
+	onCompleted,
+}: BulkDialogShellProps) {
+	const bulkPush = useBulkPushToIRadius();
+	const count = customerIds.length;
+
+	function handleSubmit() {
+		bulkPush.mutate(
+			{ organizationId, customerIds },
+			{
+				onSuccess: (result) => {
+					const summary = summariseResult(result);
+					if (summary.level === "warning") {
+						toast.warning(summary.message);
+					} else {
+						toast.success(summary.message);
+					}
+					onCompleted?.();
+					onOpenChange(false);
+				},
+				onError: (err) => toast.error(err.message),
+			},
+		);
+	}
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>
+						Push {count} customer{count === 1 ? "" : "s"} to
+						iRadius?
+					</DialogTitle>
+					<DialogDescription>
+						Force-pushes each selected customer's local data (name,
+						email, phones, address, location, notes) to iRadius.
+						Useful when a previous mirror failed silently or local
+						edits weren't propagated. Customers without an iRadius
+						link are skipped.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<Button
+						variant="outline"
+						onClick={() => onOpenChange(false)}
+					>
+						Cancel
+					</Button>
+					<Button
+						disabled={bulkPush.isPending}
+						onClick={handleSubmit}
+					>
+						{bulkPush.isPending
+							? "Pushing…"
+							: `Push all (${count})`}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

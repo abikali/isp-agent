@@ -248,15 +248,16 @@ export function CreateBroadcastWizard({
 				field: "customer.fullName",
 			})),
 		);
-		// Pre-fill the media URL with the template's example handle so the
-		// operator only needs to type when they want to override it.
-		const header = getTemplateHeader(template);
-		setHeaderMediaUrl(
-			headerFormatToMediaKind(header.format)
-				? (header.exampleMediaUrl ?? "")
-				: "",
-		);
+		// Leave the media URL blank — Meta's `scontent.whatsapp.net` example
+		// handle is preview-only and won't actually deliver. The operator has
+		// to paste their own public URL.
+		setHeaderMediaUrl("");
 	};
+
+	// Meta's preview CDN — accepted by Salti (returns a wamid) but the message
+	// silently never delivers, so we treat it as an invalid URL.
+	const isPreviewMediaUrl = (url: string): boolean =>
+		/(^|\.)scontent\.whatsapp\.net\//i.test(url.trim());
 
 	const onSubmit = async () => {
 		if (!organizationId || !selectedTemplate) {
@@ -295,7 +296,8 @@ export function CreateBroadcastWizard({
 
 	const needsMediaUrl = !!headerMediaKind;
 	const hasMediaUrl = headerMediaUrl.trim().length > 0;
-	const mediaReady = !needsMediaUrl || hasMediaUrl;
+	const hasValidMediaUrl = hasMediaUrl && !isPreviewMediaUrl(headerMediaUrl);
+	const mediaReady = !needsMediaUrl || hasValidMediaUrl;
 
 	const canAdvance = () => {
 		if (step === "audience") {
@@ -409,7 +411,7 @@ export function CreateBroadcastWizard({
 							headerMediaKind={headerMediaKind}
 							headerMediaUrl={headerMediaUrl}
 							setHeaderMediaUrl={setHeaderMediaUrl}
-							exampleMediaUrl={headerInfo.exampleMediaUrl}
+							isPreviewMediaUrl={isPreviewMediaUrl}
 						/>
 					),
 					review: (
@@ -883,7 +885,7 @@ interface VariablesStepProps {
 	headerMediaKind: "image" | "video" | "document" | null;
 	headerMediaUrl: string;
 	setHeaderMediaUrl: (s: string) => void;
-	exampleMediaUrl: string | null;
+	isPreviewMediaUrl: (url: string) => boolean;
 }
 
 function VariablesStep({
@@ -899,7 +901,7 @@ function VariablesStep({
 	headerMediaKind,
 	headerMediaUrl,
 	setHeaderMediaUrl,
-	exampleMediaUrl,
+	isPreviewMediaUrl,
 }: VariablesStepProps) {
 	if (!template) {
 		return <p>Select a template first.</p>;
@@ -987,8 +989,7 @@ function VariablesStep({
 				: "Document URL"
 		: null;
 	const mediaUrlEmpty = headerMediaUrl.trim().length === 0;
-	const usingExampleUrl =
-		!!exampleMediaUrl && headerMediaUrl.trim() === exampleMediaUrl.trim();
+	const usingPreviewUrl = !mediaUrlEmpty && isPreviewMediaUrl(headerMediaUrl);
 
 	return (
 		<div className="space-y-4">
@@ -1037,14 +1038,15 @@ function VariablesStep({
 								no media URL is supplied.
 							</AlertDescription>
 						</Alert>
-					) : usingExampleUrl ? (
-						<Alert>
+					) : usingPreviewUrl ? (
+						<Alert variant="error">
 							<TriangleAlertIcon className="size-4" />
 							<AlertDescription>
-								This is Meta's example {headerMediaKind} from
-								the template builder. The URL expires shortly —
-								replace it with your own hosted asset before
-								launching.
+								This is a <code>scontent.whatsapp.net</code>{" "}
+								preview URL from Meta's template builder.
+								WhatsApp accepts the send but silently fails to
+								deliver — replace it with your own publicly
+								hosted {headerMediaKind} before launching.
 							</AlertDescription>
 						</Alert>
 					) : null}

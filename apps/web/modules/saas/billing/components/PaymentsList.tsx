@@ -76,6 +76,7 @@ import {
 	CheckCircle2Icon,
 	CheckIcon,
 	CircleDotIcon,
+	CloudUploadIcon,
 	ExternalLinkIcon,
 	FilterIcon,
 	GiftIcon,
@@ -104,7 +105,10 @@ import {
 	SetExpiryDialog,
 	SetIptvPriceDialog,
 } from "../../customers/components/CustomerIradiusDialogs";
-import { useSetDiscount } from "../../customers/hooks/use-customers";
+import {
+	usePushToIRadius,
+	useSetDiscount,
+} from "../../customers/hooks/use-customers";
 import {
 	useCollectors,
 	useCustomerGroups,
@@ -695,6 +699,7 @@ export function PaymentsList() {
 	const declineStoppedPayment = useDeclineStoppedPayment();
 	const markReceiptSent = useMarkReceiptSent();
 	const setDiscount = useSetDiscount();
+	const pushToIRadius = usePushToIRadius();
 	const [discountDialog, setDiscountDialog] = useState<{
 		paymentId: string;
 		customerId: string;
@@ -1310,6 +1315,40 @@ export function PaymentsList() {
 											<>
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
+													disabled={
+														pushToIRadius.isPending
+													}
+													onClick={() => {
+														if (!organizationId) {
+															return;
+														}
+														pushToIRadius.mutate(
+															{
+																organizationId,
+																customerId:
+																	payment
+																		.customer
+																		.id,
+															},
+															{
+																onSuccess: () =>
+																	toast.success(
+																		"Pushed to iRadius",
+																	),
+																onError: (
+																	err,
+																) =>
+																	toast.error(
+																		err.message,
+																	),
+															},
+														);
+													}}
+												>
+													<CloudUploadIcon className="mr-2 size-3.5" />
+													Push to iRadius
+												</DropdownMenuItem>
+												<DropdownMenuItem
 													onClick={() =>
 														setIradiusRowDialog({
 															kind: "reset-mac",
@@ -1452,6 +1491,7 @@ export function PaymentsList() {
 			declineStoppedPayment,
 			orgSlug,
 			markReceiptSent,
+			pushToIRadius,
 		],
 	);
 

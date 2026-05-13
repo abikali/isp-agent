@@ -22,6 +22,7 @@ import {
 import { Separator } from "@ui/components/separator";
 import {
 	CalendarClockIcon,
+	CloudUploadIcon,
 	MapPinIcon,
 	MonitorIcon,
 	MoreHorizontalIcon,
@@ -37,6 +38,7 @@ import { toast } from "sonner";
 import { useBulkSetCustomerStatus } from "../hooks/use-customers";
 import {
 	BulkChangeCollectorDialog,
+	BulkPushToIRadiusDialog,
 	BulkResetMacDialog,
 	BulkSetDiscountDialog,
 	BulkSetExpiryDialog,
@@ -111,6 +113,7 @@ export function CustomerBulkActionsBar({
 		| "set-iptv-price"
 		| "set-expiry"
 		| "change-collector"
+		| "push"
 		| null
 	>(null);
 
@@ -215,6 +218,12 @@ export function CustomerBulkActionsBar({
 							<DropdownMenuLabel className="text-xs text-muted-foreground">
 								iRadius
 							</DropdownMenuLabel>
+							<DropdownMenuItem
+								onClick={() => setBulkDialog("push")}
+							>
+								<CloudUploadIcon className="mr-2 size-4" />
+								Push to iRadius
+							</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => setBulkDialog("reset-mac")}
 							>
@@ -349,6 +358,13 @@ export function CustomerBulkActionsBar({
 				organizationId={organizationId}
 				customerIds={customerIds}
 				collectors={collectors}
+				onCompleted={onCleared}
+			/>
+			<BulkPushToIRadiusDialog
+				open={bulkDialog === "push"}
+				onOpenChange={(o) => setBulkDialog(o ? "push" : null)}
+				organizationId={organizationId}
+				customerIds={customerIds}
 				onCompleted={onCleared}
 			/>
 		</>

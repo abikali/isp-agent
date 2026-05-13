@@ -3,6 +3,7 @@ import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
 import {
 	bulkChangeCollector,
+	bulkPushToIRadius,
 	bulkResetMacAddress,
 	bulkSetDiscount,
 	bulkSetExpiryDate,
@@ -87,6 +88,7 @@ export const customersRouter = {
 	bulkSetIptvPrice,
 	bulkSetExpiry: bulkSetExpiryDate,
 	bulkChangeCollector,
+	bulkPushToIRadius,
 	setPin: setCustomerPin,
 	resetPin: resetCustomerPin,
 	generatePin: generateCustomerPin,
