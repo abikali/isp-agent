@@ -206,6 +206,7 @@ interface CustomerRow {
 	uploadBytes: bigint | number | null;
 	dailyDownloadBytes: bigint | number | null;
 	dailyUploadBytes: bigint | number | null;
+	lastUsageSyncAt: Date | string | null;
 	notes: string | null;
 }
 
@@ -690,6 +691,7 @@ export function CustomersList({
 								: (row.original.uploadBytes ?? 0)
 						}
 						fupMode={row.original.fupMode}
+						lastUsageSyncAt={row.original.lastUsageSyncAt}
 					/>
 				),
 			},

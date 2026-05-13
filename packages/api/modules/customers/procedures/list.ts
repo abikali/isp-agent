@@ -229,6 +229,7 @@ export const listCustomers = protectedProcedure
 					uploadBytes: true,
 					dailyDownloadBytes: true,
 					dailyUploadBytes: true,
+					lastUsageSyncAt: true,
 					notes: true,
 					externalId: true,
 					latitude: true,

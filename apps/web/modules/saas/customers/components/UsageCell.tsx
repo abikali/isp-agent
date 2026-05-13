@@ -17,6 +17,7 @@ interface UsageCellProps {
 	totalDown: number;
 	totalUp: number;
 	fupMode: string | null;
+	lastUsageSyncAt: Date | string | null;
 }
 
 function toNumber(v: bigint | number | null | undefined): number {
@@ -24,6 +25,28 @@ function toNumber(v: bigint | number | null | undefined): number {
 		return 0;
 	}
 	return typeof v === "bigint" ? Number(v) : v;
+}
+
+// iRadius's snapshot excludes customers where `un.Active != 1`, so an offline
+// or paused subscriber stops getting fresh stamps and the daily byte fields
+// freeze at their last-known value. Anything older than this is treated as
+// stale and rendered as a dash — comfortably wider than the worker's 15s tick
+// + the 1-minute idle refresh window, so the cell only goes blank when iRadius
+// has genuinely stopped reporting this externalId.
+const USAGE_STALE_THRESHOLD_MS = 5 * 60 * 1000;
+
+function isFresh(lastUsageSyncAt: Date | string | null): boolean {
+	if (!lastUsageSyncAt) {
+		return false;
+	}
+	const ts =
+		typeof lastUsageSyncAt === "string"
+			? new Date(lastUsageSyncAt).getTime()
+			: lastUsageSyncAt.getTime();
+	if (Number.isNaN(ts)) {
+		return false;
+	}
+	return Date.now() - ts < USAGE_STALE_THRESHOLD_MS;
 }
 
 /**
@@ -41,12 +64,14 @@ export function UsageCell({
 	totalDown,
 	totalUp,
 	fupMode,
+	lastUsageSyncAt,
 }: UsageCellProps) {
 	const dl = toNumber(dailyDown);
 	const ul = toNumber(dailyUp);
 	const total = dl + ul;
 	const dlPct = total > 0 ? (dl / total) * 100 : 0;
 	const ulPct = total > 0 ? (ul / total) * 100 : 0;
+	const fresh = isFresh(lastUsageSyncAt);
 
 	// Live cue: pulse the cell when the customers list query is mid-refetch.
 	// The backend's 15s online + usage sync writes fresh bytes; this signals
@@ -59,13 +84,21 @@ export function UsageCell({
 		fupMode.toLowerCase() !== "normal" &&
 		fupMode.toLowerCase() !== "off";
 
-	if (total === 0) {
+	// No fresh sample from iRadius → we can't claim this is "today's" usage.
+	// Covers the "frozen value because un.Active = 0" case where the local
+	// mirror is a stale snapshot from the last full sync, sometimes weeks old.
+	if (!fresh || total === 0) {
 		return (
 			<span
 				className={cn(
 					"text-muted-foreground",
 					isRefreshing && "animate-pulse",
 				)}
+				title={
+					lastUsageSyncAt
+						? `Last sample: ${new Date(lastUsageSyncAt).toLocaleString()}`
+						: "No recent sample from iRadius"
+				}
 			>
 				—
 			</span>
@@ -129,9 +162,13 @@ export function UsageCell({
 						<span>{formatBytes(dl)}</span>
 						<span className="text-muted-foreground">↑ Upload</span>
 						<span>{formatBytes(ul)}</span>
+						<span className="text-muted-foreground">Total</span>
+						<span className="font-medium">
+							{formatBytes(total)}
+						</span>
 					</div>
 					<div className="mt-1.5 border-t border-border pt-1 font-medium">
-						Total
+						Lifetime
 					</div>
 					<div className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 tabular-nums">
 						<span className="text-muted-foreground">↓</span>

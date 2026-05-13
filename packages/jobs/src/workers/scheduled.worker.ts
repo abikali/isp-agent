@@ -127,7 +127,9 @@ async function syncOnlineStatus(): Promise<number> {
 	}
 
 	// BigInt → string for JSON.stringify; cast back to ::bigint in SQL.
-	// Only rows whose telemetry actually differs are touched (IS DISTINCT FROM).
+	// A row is rewritten when telemetry differs OR the freshness stamp is
+	// stale enough to refresh — the latter so idle customers still get a
+	// recent "lastUsageSyncAt" without churning every tick.
 	const payload = snapshot.map((u) => ({
 		externalId: u.externalId,
 		online: u.online,
@@ -143,7 +145,8 @@ async function syncOnlineStatus(): Promise<number> {
 			"downloadBytes" = (v.value->>'downloadBytes')::bigint,
 			"uploadBytes" = (v.value->>'uploadBytes')::bigint,
 			"dailyDownloadBytes" = (v.value->>'dailyDownloadBytes')::bigint,
-			"dailyUploadBytes" = (v.value->>'dailyUploadBytes')::bigint
+			"dailyUploadBytes" = (v.value->>'dailyUploadBytes')::bigint,
+			"lastUsageSyncAt" = NOW()
 		FROM jsonb_array_elements(${JSON.stringify(payload)}::jsonb) AS v(value)
 		WHERE "customer"."externalId" = v.value->>'externalId'
 			AND (
@@ -152,6 +155,8 @@ async function syncOnlineStatus(): Promise<number> {
 				OR "customer"."uploadBytes" IS DISTINCT FROM (v.value->>'uploadBytes')::bigint
 				OR "customer"."dailyDownloadBytes" IS DISTINCT FROM (v.value->>'dailyDownloadBytes')::bigint
 				OR "customer"."dailyUploadBytes" IS DISTINCT FROM (v.value->>'dailyUploadBytes')::bigint
+				OR "customer"."lastUsageSyncAt" IS NULL
+				OR "customer"."lastUsageSyncAt" < NOW() - INTERVAL '1 minute'
 			)
 	`;
 

@@ -1104,6 +1104,11 @@ model Customer {
   uploadBytes        BigInt          @default(0)
   dailyDownloadBytes BigInt          @default(0)
   dailyUploadBytes   BigInt          @default(0)
+  // Stamp from the 15s online + usage sync. Bumped on every tick that includes
+  // this externalId in iRadius's snapshot, even when bytes don't change — so
+  // the UI can tell "fresh sample" from "frozen value because iRadius dropped
+  // this customer from un.Active = 1".
+  lastUsageSyncAt    DateTime?
   fupMode            String?
   automaticRenew     Boolean         @default(false)
   // Pricing
