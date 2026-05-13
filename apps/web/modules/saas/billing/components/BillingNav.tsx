@@ -5,7 +5,6 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@ui/lib";
 import {
 	BanknoteIcon,
-	BarChart3Icon,
 	FileTextIcon,
 	GaugeIcon,
 	HandCoinsIcon,
@@ -56,13 +55,6 @@ const TABS: BillingTab[] = [
 		to: "/stopped",
 		icon: OctagonXIcon,
 		resource: "view",
-	},
-	{
-		id: "reports",
-		label: "Reports",
-		to: "/reports",
-		icon: BarChart3Icon,
-		resource: "manage",
 	},
 ];
 

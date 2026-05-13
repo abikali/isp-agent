@@ -1,33 +1,12 @@
-import { config } from "@repo/config";
-import {
-	AccountingReports,
-	AccountingReportsSkeleton,
-	BillingWorkbench,
-} from "@saas/billing/client";
-import { AsyncBoundary } from "@shared/components/AsyncBoundary";
-import { PermissionGate } from "@shared/components/PermissionGate";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
 	"/_saas/app/_org/$organizationSlug/billing/reports",
 )({
-	head: () => ({
-		meta: [{ title: `Accounting Reports - ${config.appName}` }],
-	}),
-	component: ReportsPage,
+	beforeLoad: ({ params }) => {
+		throw redirect({
+			to: "/app/$organizationSlug/billing",
+			params: { organizationSlug: params.organizationSlug },
+		});
+	},
 });
-
-function ReportsPage() {
-	return (
-		<PermissionGate resource="billing" action="manage">
-			<BillingWorkbench
-				title="Reports"
-				description="P&L, tax summaries, and aged receivables for accounting"
-			>
-				<AsyncBoundary fallback={<AccountingReportsSkeleton />}>
-					<AccountingReports />
-				</AsyncBoundary>
-			</BillingWorkbench>
-		</PermissionGate>
-	);
-}
