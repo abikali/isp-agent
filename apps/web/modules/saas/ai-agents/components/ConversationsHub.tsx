@@ -164,8 +164,8 @@ export function ConversationsHub({
 
 	return (
 		<div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
-			<div className="w-full border-r border-border md:w-[340px] md:shrink-0 lg:w-[360px]">
-				<div className="hidden h-full md:block">
+			<div className="flex min-h-0 w-full flex-col overflow-hidden border-r border-border md:w-[340px] md:shrink-0 lg:w-[360px]">
+				<div className="hidden min-h-0 flex-1 md:block">
 					<ConversationsListPanel
 						conversations={orderedConversations}
 						isLoading={isLoading}
@@ -178,7 +178,7 @@ export function ConversationsHub({
 						onLoadMore={handleLoadMore}
 					/>
 				</div>
-				<div className="h-full md:hidden">
+				<div className="min-h-0 flex-1 md:hidden">
 					<ConversationsListPanel
 						conversations={orderedConversations}
 						isLoading={isLoading}
@@ -196,7 +196,7 @@ export function ConversationsHub({
 
 			<div
 				className={cn(
-					"relative hidden min-h-0 min-w-0 flex-1 md:flex md:flex-col",
+					"relative hidden min-h-0 min-w-0 flex-1 overflow-hidden md:flex md:flex-col",
 				)}
 			>
 				{selectedId ? (
@@ -248,7 +248,7 @@ export function ConversationsHub({
 			</div>
 
 			{showContext && (
-				<aside className="hidden w-[340px] shrink-0 border-l border-border lg:block">
+				<aside className="hidden min-h-0 w-[340px] shrink-0 overflow-hidden border-l border-border lg:block">
 					<ConversationContextPanel
 						conversation={selectedConversation}
 						organizationId={organizationId}

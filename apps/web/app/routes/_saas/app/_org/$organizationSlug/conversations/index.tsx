@@ -22,7 +22,7 @@ function ConversationsPage() {
 
 	return (
 		<PermissionGate resource="aiAgents" action="read">
-			<div className="flex min-h-0 flex-1 flex-col p-2 md:p-3">
+			<div className="flex h-svh flex-col p-2 md:p-3">
 				<ConversationsHub
 					organizationId={organizationId}
 					organizationSlug={organizationSlug}
