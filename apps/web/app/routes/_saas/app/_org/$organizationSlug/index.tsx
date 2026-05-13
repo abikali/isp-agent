@@ -6,6 +6,7 @@ import {
 	usePermissionScope,
 } from "@saas/organizations/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { PageShell } from "@shared/components/PageShell";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_saas/app/_org/$organizationSlug/")({
@@ -53,18 +54,25 @@ function DashboardPage() {
 
 	if (!canViewDashboard) {
 		return (
-			<div className="flex items-center justify-center min-h-[50vh] text-muted-foreground">
-				You don&apos;t have access to the dashboard.
-			</div>
+			<PageShell title="Dashboard">
+				<div className="flex min-h-[40vh] items-center justify-center text-muted-foreground">
+					You don&apos;t have access to the dashboard.
+				</div>
+			</PageShell>
 		);
 	}
 
 	return (
-		<AsyncBoundary fallback={<DashboardSkeleton />}>
-			<DashboardContent
-				organizationSlug={organizationSlug}
-				organizationId={loaderData.organizationId}
-			/>
-		</AsyncBoundary>
+		<PageShell
+			title="Dashboard"
+			description="At-a-glance view of revenue, customers, escalations, and watchers."
+		>
+			<AsyncBoundary fallback={<DashboardSkeleton />}>
+				<DashboardContent
+					organizationSlug={organizationSlug}
+					organizationId={loaderData.organizationId}
+				/>
+			</AsyncBoundary>
+		</PageShell>
 	);
 }

@@ -289,7 +289,8 @@ export function AppSidebar() {
 							className="mx-auto flex size-8 items-center justify-center"
 							aria-label="LibanCom home"
 						>
-							<Logo size="sm" />
+							{/* Icon-only mark; wordmark overflows the 48px rail */}
+							<Logo size="sm" withLabel={false} />
 						</Link>
 						<SidebarMenuButton
 							tooltip="Expand sidebar"
@@ -308,7 +309,8 @@ export function AppSidebar() {
 					</>
 				) : (
 					<>
-						<div className="flex items-center gap-2 px-1">
+						{/* Row 1: wordmark + collapse button */}
+						<div className="flex items-center justify-between gap-2 px-1">
 							<Link
 								to="/app"
 								className="shrink-0"
@@ -316,12 +318,6 @@ export function AppSidebar() {
 							>
 								<Logo size="sm" />
 							</Link>
-							<div className="min-w-0 flex-1">
-								{config.organizations.enable &&
-									!config.organizations.hideOrganization && (
-										<OrganizationSelect />
-									)}
-							</div>
 							<button
 								type="button"
 								onClick={toggleSidebar}
@@ -332,7 +328,15 @@ export function AppSidebar() {
 							</button>
 						</div>
 
-						{/* Search trigger (only in expanded mode — collapsed mode has the icon button above) */}
+						{/* Row 2: full-width org switcher */}
+						{config.organizations.enable &&
+							!config.organizations.hideOrganization && (
+								<div className="w-full">
+									<OrganizationSelect />
+								</div>
+							)}
+
+						{/* Row 3: search trigger */}
 						<button
 							type="button"
 							onClick={openPalette}
@@ -350,8 +354,10 @@ export function AppSidebar() {
 
 			<SidebarContent>
 				{sections.map((section) => (
-					<SidebarGroup key={section.id}>
-						<SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+					<SidebarGroup key={section.id} className="px-2 py-1">
+						<SidebarGroupLabel className="h-6 text-[11px] uppercase tracking-wider opacity-60">
+							{section.label}
+						</SidebarGroupLabel>
 						<SidebarGroupContent>
 							<SidebarMenu>
 								{section.items.map((item) => {
@@ -389,7 +395,7 @@ export function AppSidebar() {
 				))}
 
 				{bottomItems.length > 0 && (
-					<SidebarGroup className="mt-auto">
+					<SidebarGroup className="mt-auto px-2 py-1">
 						<SidebarGroupContent>
 							<SidebarMenu>
 								{bottomItems.map((item) => {
