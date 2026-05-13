@@ -20,7 +20,7 @@ import {
 } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -72,6 +72,7 @@ import {
 	ArrowDownIcon,
 	ArrowUpDownIcon,
 	ArrowUpIcon,
+	CalendarClockIcon,
 	CheckCircle2Icon,
 	CheckIcon,
 	CircleDotIcon,
@@ -81,16 +82,28 @@ import {
 	ListIcon,
 	Loader2Icon,
 	MessageCircleIcon,
+	MonitorIcon,
 	MoreHorizontalIcon,
 	PercentIcon,
 	ReceiptIcon,
 	RotateCcwIcon,
 	SendIcon,
 	TrashIcon,
+	UserCogIcon,
+	WifiOffIcon,
 	XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CustomerBulkActionsBar } from "../../customers/components/CustomerBulkActionsBar";
+import {
+	ChangeNameDialog,
+	type IradiusCustomerRef,
+	ResetMacDialog,
+	SetDiscountDialog,
+	SetExpiryDialog,
+	SetIptvPriceDialog,
+} from "../../customers/components/CustomerIradiusDialogs";
 import { useSetDiscount } from "../../customers/hooks/use-customers";
 import {
 	useCollectors,
@@ -701,6 +714,37 @@ export function PaymentsList() {
 		category: string | null;
 		notes: string | null;
 	} | null>(null);
+	// Per-row iRadius dialog state. Lifted out of the row cell so we can
+	// mount the five `CustomerIradiusDialogs` once at the component level
+	// rather than per-row; the customer snapshot we need for pre-seeding
+	// (name, discount, iptv, expiry) is carried along with the kind.
+	const [iradiusRowDialog, setIradiusRowDialog] = useState<{
+		kind:
+			| "reset-mac"
+			| "change-name"
+			| "set-discount"
+			| "set-iptv-price"
+			| "set-expiry";
+		customer: IradiusCustomerRef;
+	} | null>(null);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+	// Selected payments → unique customer ids. A single customer can own
+	// multiple payments in the table (overpaid + free, or one payment per
+	// month), and the bulk customer actions are de-duplicated by id at the
+	// server (`WHERE id IN (...)` collapses duplicates), but we shrink the
+	// payload here too so the toast counts match operator expectations.
+	const selectedCustomerIds = useMemo(() => {
+		const ids = new Set<string>();
+		const selectedPaymentIds = new Set(Object.keys(rowSelection));
+		for (const payment of payments) {
+			if (selectedPaymentIds.has(payment.id)) {
+				ids.add(payment.customer.id);
+			}
+		}
+		return Array.from(ids);
+	}, [rowSelection, payments]);
+	const selectedCount = selectedCustomerIds.length;
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -1120,31 +1164,6 @@ export function PaymentsList() {
 												</a>
 											</DropdownMenuItem>
 										)}
-										<DropdownMenuItem
-											onClick={() =>
-												setDiscountDialog({
-													paymentId: payment.id,
-													customerId:
-														payment.customer.id,
-													customerName: displayName(
-														payment.customer
-															.firstName,
-														payment.customer
-															.lastName,
-													),
-													currentDiscount:
-														payment.customer
-															.discount ?? 0,
-													discount: (
-														payment.customer
-															.discount ?? 0
-													).toString(),
-												})
-											}
-										>
-											<PercentIcon className="mr-2 size-3.5" />
-											Set discount
-										</DropdownMenuItem>
 										{payment.customer.externalId && (
 											<DropdownMenuItem
 												onClick={() =>
@@ -1258,6 +1277,99 @@ export function PaymentsList() {
 												<ListIcon className="mr-2 size-3.5" />
 												View Activity Log
 											</DropdownMenuItem>
+										)}
+										{needsReview && (
+											<DropdownMenuItem
+												onClick={() =>
+													setDiscountDialog({
+														paymentId: payment.id,
+														customerId:
+															payment.customer.id,
+														customerName:
+															displayName(
+																payment.customer
+																	.firstName,
+																payment.customer
+																	.lastName,
+															),
+														currentDiscount:
+															payment.customer
+																.discount ?? 0,
+														discount: (
+															payment.customer
+																.discount ?? 0
+														).toString(),
+													})
+												}
+											>
+												<PercentIcon className="mr-2 size-3.5" />
+												Set discount & review
+											</DropdownMenuItem>
+										)}
+										{payment.customer.externalId && (
+											<>
+												<DropdownMenuSeparator />
+												<DropdownMenuItem
+													onClick={() =>
+														setIradiusRowDialog({
+															kind: "reset-mac",
+															customer:
+																payment.customer,
+														})
+													}
+												>
+													<WifiOffIcon className="mr-2 size-3.5" />
+													Reset MAC address
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													onClick={() =>
+														setIradiusRowDialog({
+															kind: "change-name",
+															customer:
+																payment.customer,
+														})
+													}
+												>
+													<UserCogIcon className="mr-2 size-3.5" />
+													Change name
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													onClick={() =>
+														setIradiusRowDialog({
+															kind: "set-discount",
+															customer:
+																payment.customer,
+														})
+													}
+												>
+													<PercentIcon className="mr-2 size-3.5" />
+													Set recurring discount
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													onClick={() =>
+														setIradiusRowDialog({
+															kind: "set-iptv-price",
+															customer:
+																payment.customer,
+														})
+													}
+												>
+													<MonitorIcon className="mr-2 size-3.5" />
+													Set IPTV price
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													onClick={() =>
+														setIradiusRowDialog({
+															kind: "set-expiry",
+															customer:
+																payment.customer,
+														})
+													}
+												>
+													<CalendarClockIcon className="mr-2 size-3.5" />
+													Set billing expiry
+												</DropdownMenuItem>
+											</>
 										)}
 										{(!payment.stoppedAccount ||
 											log.length > 0) && (
@@ -1472,6 +1584,16 @@ export function PaymentsList() {
 					</div>
 				</div>
 
+				{organizationId && selectedCount > 0 && (
+					<CustomerBulkActionsBar
+						count={selectedCount}
+						customerIds={selectedCustomerIds}
+						organizationId={organizationId}
+						collectors={collectors}
+						onCleared={() => setRowSelection({})}
+					/>
+				)}
+
 				<TooltipProvider>
 					<DataTable
 						columns={columns}
@@ -1482,6 +1604,10 @@ export function PaymentsList() {
 						sorting={sorting}
 						onSortingChange={onSortingChange}
 						columnVisibilityKey="payments-list"
+						enableRowSelection
+						rowSelection={rowSelection}
+						onRowSelectionChange={setRowSelection}
+						getRowId={(row) => row.id}
 						pagination={{
 							totalItems: total,
 							currentPage: page,
@@ -1600,6 +1726,47 @@ export function PaymentsList() {
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
 				/>
+			)}
+
+			{/*
+			 * Per-row iRadius dialogs. One state owns the active kind +
+			 * the customer snapshot it operates on, so the dialogs can
+			 * pre-seed inputs (current discount / IPTV / expiry / name)
+			 * without each row mounting its own dialog instances.
+			 */}
+			{organizationId && iradiusRowDialog && (
+				<>
+					<ResetMacDialog
+						open={iradiusRowDialog.kind === "reset-mac"}
+						onOpenChange={(o) => !o && setIradiusRowDialog(null)}
+						organizationId={organizationId}
+						customer={iradiusRowDialog.customer}
+					/>
+					<ChangeNameDialog
+						open={iradiusRowDialog.kind === "change-name"}
+						onOpenChange={(o) => !o && setIradiusRowDialog(null)}
+						organizationId={organizationId}
+						customer={iradiusRowDialog.customer}
+					/>
+					<SetDiscountDialog
+						open={iradiusRowDialog.kind === "set-discount"}
+						onOpenChange={(o) => !o && setIradiusRowDialog(null)}
+						organizationId={organizationId}
+						customer={iradiusRowDialog.customer}
+					/>
+					<SetIptvPriceDialog
+						open={iradiusRowDialog.kind === "set-iptv-price"}
+						onOpenChange={(o) => !o && setIradiusRowDialog(null)}
+						organizationId={organizationId}
+						customer={iradiusRowDialog.customer}
+					/>
+					<SetExpiryDialog
+						open={iradiusRowDialog.kind === "set-expiry"}
+						onOpenChange={(o) => !o && setIradiusRowDialog(null)}
+						organizationId={organizationId}
+						customer={iradiusRowDialog.customer}
+					/>
+				</>
 			)}
 
 			{/* Set discount dialog (review-queue inline action) */}

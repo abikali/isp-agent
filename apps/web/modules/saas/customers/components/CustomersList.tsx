@@ -19,7 +19,7 @@ import { formatDate } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useQuery } from "@tanstack/react-query";
+import { useIsFetching, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import {
@@ -37,43 +37,24 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@ui/components/dropdown-menu";
-import { Separator } from "@ui/components/separator";
-import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import {
-	CalendarClockIcon,
 	DownloadIcon,
 	MapPinIcon,
-	MonitorIcon,
-	MoreHorizontalIcon,
-	PercentIcon,
 	PlusIcon,
-	RefreshCwIcon,
 	StickyNoteIcon,
 	UploadIcon,
-	UserCheckIcon,
-	UserCogIcon,
 	UsersIcon,
-	UserXIcon,
-	WifiOffIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useBulkRequestLocation,
-	useBulkSetCustomerStatus,
 	useCreateLocationRequest,
 	useCustomers,
 } from "../hooks/use-customers";
@@ -90,15 +71,9 @@ import {
 } from "../lib/location-utils";
 import { BulkExportButton } from "./BulkExportButton";
 import { BulkImportDialog } from "./BulkImportDialog";
-import {
-	BulkChangeCollectorDialog,
-	BulkResetMacDialog,
-	BulkSetDiscountDialog,
-	BulkSetExpiryDialog,
-	BulkSetIptvPriceDialog,
-} from "./BulkIradiusDialogs";
 import { ConnectivityCell } from "./ConnectivityCell";
 import { CreateCustomerDialog } from "./CreateCustomerDialog";
+import { CustomerBulkActionsBar } from "./CustomerBulkActionsBar";
 import { CustomerFilters, type CustomerFiltersValue } from "./CustomerFilters";
 import { CustomerRowActions } from "./CustomerRowActions";
 import { CustomerStats } from "./CustomerStats";
@@ -112,6 +87,27 @@ function getInitials(first: string | null, last: string | null): string {
 	const l = last?.trim()?.[0] ?? "";
 	const out = `${f}${l}`.toUpperCase();
 	return out || "?";
+}
+
+// Header for the "Usage today" column. Renders a tiny green dot that pulses
+// when the customers list query is refetching — signals that this column is
+// kept fresh from the 15s iRadius usage sync.
+function UsageHeader() {
+	const isRefreshing =
+		useIsFetching({ queryKey: orpc.customers.list.key() }) > 0;
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			<span
+				aria-hidden="true"
+				className={cn(
+					"size-1.5 rounded-full bg-success",
+					isRefreshing && "animate-pulse",
+				)}
+				title={isRefreshing ? "Refreshing…" : "Live"}
+			/>
+			Usage today
+		</span>
+	);
 }
 
 function formatRelativeFromNow(value: Date | string): {
@@ -264,27 +260,6 @@ export function CustomersList({
 
 	const createLocationRequest = useCreateLocationRequest();
 	const bulkRequestLocation = useBulkRequestLocation();
-	const bulkSetStatus = useBulkSetCustomerStatus();
-	// Mirrors the single-customer deactivate/reactivate confirmation flow on
-	// the detail page. Pre-warns the operator before flipping N customers in
-	// iRadius — the underlying procedure is idempotent (already-target rows
-	// are skipped) but a fan-out activate of 200 customers is still a real
-	// network operation, not a UI no-op.
-	const [confirmBulkStatus, setConfirmBulkStatus] = useState<
-		"ACTIVE" | "INACTIVE" | null
-	>(null);
-	// Open-state for the iRadius bulk dialogs surfaced via the toolbar's
-	// "More" dropdown. Each kind maps 1:1 to a `Bulk*Dialog` component;
-	// we keep them all in one piece of state so only one can be open
-	// at a time and `null` cleanly represents "nothing open".
-	const [bulkDialog, setBulkDialog] = useState<
-		| "reset-mac"
-		| "set-discount"
-		| "set-iptv-price"
-		| "set-expiry"
-		| "change-collector"
-		| null
-	>(null);
 
 	// Fetched solely to label active filter chips.
 	const { plans } = usePlansQuery();
@@ -361,41 +336,6 @@ export function CustomersList({
 					);
 					setRowSelection({});
 					setDialog(null);
-				},
-				onError: (err) => toast.error(err.message),
-			},
-		);
-	}
-
-	function doBulkSetStatus(target: "ACTIVE" | "INACTIVE") {
-		if (selectedIds.length === 0) {
-			return;
-		}
-		bulkSetStatus.mutate(
-			{
-				organizationId,
-				customerIds: selectedIds,
-				status: target,
-			},
-			{
-				onSuccess: (result) => {
-					const verb =
-						target === "ACTIVE" ? "Activated" : "Deactivated";
-					const parts: string[] = [`${verb} ${result.succeeded}`];
-					if (result.skipped > 0) {
-						parts.push(`${result.skipped} already in target state`);
-					}
-					if (result.failed > 0) {
-						parts.push(`${result.failed} failed`);
-					}
-					const summary = parts.join(" · ");
-					if (result.failed > 0) {
-						toast.warning(summary);
-					} else {
-						toast.success(summary);
-					}
-					setRowSelection({});
-					setConfirmBulkStatus(null);
 				},
 				onError: (err) => toast.error(err.message),
 			},
@@ -722,7 +662,7 @@ export function CustomersList({
 			},
 			{
 				id: "usage",
-				header: "Usage today",
+				header: () => <UsageHeader />,
 				enableSorting: false,
 				meta: {
 					className: "hidden xl:table-cell whitespace-nowrap",
@@ -930,125 +870,16 @@ export function CustomersList({
 			</AsyncBoundary>
 
 			{selectedCount > 0 && (
-				<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 shadow-card">
-					<div className="flex items-center gap-2 text-sm">
-						<span className="inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground tabular-nums">
-							{selectedCount}
-						</span>
-						<span className="font-medium">
-							{selectedCount === 1
-								? "customer selected"
-								: "customers selected"}
-						</span>
-					</div>
-					<div className="flex flex-wrap items-center gap-2">
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={bulkSetStatus.isPending}
-							onClick={() => setConfirmBulkStatus("ACTIVE")}
-						>
-							<UserCheckIcon className="mr-2 size-4" />
-							Activate
-						</Button>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={bulkSetStatus.isPending}
-							onClick={() => setConfirmBulkStatus("INACTIVE")}
-							className="text-destructive hover:text-destructive"
-						>
-							<UserXIcon className="mr-2 size-4" />
-							Deactivate
-						</Button>
-						<Separator
-							orientation="vertical"
-							className="h-6 bg-primary/20"
-						/>
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={() => setDialog("sync-preview")}
-						>
-							<RefreshCwIcon className="mr-2 size-4" />
-							Sync from iRadius
-						</Button>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={bulkRequestLocation.isPending}
-							onClick={() => setDialog("bulk-request")}
-						>
-							<MapPinIcon className="mr-2 size-4" />
-							Request location
-						</Button>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button size="sm" variant="outline">
-									<MoreHorizontalIcon className="mr-2 size-4" />
-									More
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end" className="w-56">
-								<DropdownMenuLabel className="text-xs text-muted-foreground">
-									iRadius
-								</DropdownMenuLabel>
-								<DropdownMenuItem
-									onClick={() => setBulkDialog("reset-mac")}
-								>
-									<WifiOffIcon className="mr-2 size-4" />
-									Reset MAC address
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() =>
-										setBulkDialog("set-discount")
-									}
-								>
-									<PercentIcon className="mr-2 size-4" />
-									Set recurring discount
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() =>
-										setBulkDialog("set-iptv-price")
-									}
-								>
-									<MonitorIcon className="mr-2 size-4" />
-									Set IPTV price
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() => setBulkDialog("set-expiry")}
-								>
-									<CalendarClockIcon className="mr-2 size-4" />
-									Set billing expiry date
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuLabel className="text-xs text-muted-foreground">
-									Assignment
-								</DropdownMenuLabel>
-								<DropdownMenuItem
-									onClick={() =>
-										setBulkDialog("change-collector")
-									}
-								>
-									<UserCogIcon className="mr-2 size-4" />
-									Change collector
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-						<Separator
-							orientation="vertical"
-							className="h-6 bg-primary/20"
-						/>
-						<Button
-							size="sm"
-							variant="ghost"
-							onClick={() => setRowSelection({})}
-							className="text-muted-foreground"
-						>
-							Clear
-						</Button>
-					</div>
-				</div>
+				<CustomerBulkActionsBar
+					count={selectedCount}
+					customerIds={selectedIds}
+					organizationId={organizationId}
+					collectors={collectors}
+					onCleared={() => setRowSelection({})}
+					onSyncFromIRadius={() => setDialog("sync-preview")}
+					onRequestLocation={() => setDialog("bulk-request")}
+					requestLocationDisabled={bulkRequestLocation.isPending}
+				/>
 			)}
 
 			<ContentCard>
@@ -1216,54 +1047,6 @@ export function CustomersList({
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/*
-			 * Bulk activate / deactivate confirmation. One dialog reused for
-			 * both directions — the body and primary button copy switch on
-			 * `confirmBulkStatus` so we avoid a forked-twice copy of the same
-			 * shell. Already-target customers are silently skipped server-side
-			 * so the warning copy stays accurate even on mixed selections.
-			 */}
-			<AlertDialog
-				open={confirmBulkStatus !== null}
-				onOpenChange={(o) => {
-					if (!o) {
-						setConfirmBulkStatus(null);
-					}
-				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{confirmBulkStatus === "ACTIVE"
-								? `Reactivate ${selectedCount} customer${selectedCount === 1 ? "" : "s"}?`
-								: `Deactivate ${selectedCount} customer${selectedCount === 1 ? "" : "s"}?`}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							{confirmBulkStatus === "ACTIVE"
-								? "Each selected customer will be set to ACTIVE in iRadius and locally. Customers already active are skipped."
-								: "Each selected customer will be set to INACTIVE in iRadius (disconnecting active sessions) and locally. Customers already inactive are skipped. You can reactivate any of them later."}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={() => {
-								if (confirmBulkStatus) {
-									doBulkSetStatus(confirmBulkStatus);
-								}
-							}}
-							disabled={bulkSetStatus.isPending}
-						>
-							{bulkSetStatus.isPending
-								? "Working…"
-								: confirmBulkStatus === "ACTIVE"
-									? "Activate all"
-									: "Deactivate all"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-
 			<AlertDialog
 				open={reRequestConfirm !== null}
 				onOpenChange={(o) => !o && setReRequestConfirm(null)}
@@ -1295,49 +1078,6 @@ export function CustomersList({
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-
-			{/*
-			 * Bulk iRadius dialogs. Each clears the selection on success so
-			 * an operator can chain actions without re-checking 200 boxes.
-			 */}
-			<BulkResetMacDialog
-				open={bulkDialog === "reset-mac"}
-				onOpenChange={(o) => setBulkDialog(o ? "reset-mac" : null)}
-				organizationId={organizationId}
-				customerIds={selectedIds}
-				onCompleted={() => setRowSelection({})}
-			/>
-			<BulkSetDiscountDialog
-				open={bulkDialog === "set-discount"}
-				onOpenChange={(o) => setBulkDialog(o ? "set-discount" : null)}
-				organizationId={organizationId}
-				customerIds={selectedIds}
-				onCompleted={() => setRowSelection({})}
-			/>
-			<BulkSetIptvPriceDialog
-				open={bulkDialog === "set-iptv-price"}
-				onOpenChange={(o) => setBulkDialog(o ? "set-iptv-price" : null)}
-				organizationId={organizationId}
-				customerIds={selectedIds}
-				onCompleted={() => setRowSelection({})}
-			/>
-			<BulkSetExpiryDialog
-				open={bulkDialog === "set-expiry"}
-				onOpenChange={(o) => setBulkDialog(o ? "set-expiry" : null)}
-				organizationId={organizationId}
-				customerIds={selectedIds}
-				onCompleted={() => setRowSelection({})}
-			/>
-			<BulkChangeCollectorDialog
-				open={bulkDialog === "change-collector"}
-				onOpenChange={(o) =>
-					setBulkDialog(o ? "change-collector" : null)
-				}
-				organizationId={organizationId}
-				customerIds={selectedIds}
-				collectors={collectors}
-				onCompleted={() => setRowSelection({})}
-			/>
 		</PageShell>
 	);
 }

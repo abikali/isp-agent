@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CustomerBulkActionsBar } from "../../customers/components/CustomerBulkActionsBar";
 import {
 	useCollectorStats,
 	useCollectors,
@@ -565,21 +566,26 @@ export function UnpaidCustomersList() {
 				isLoading={isLoading}
 			/>
 
-			{isOrganizationAdmin && selectedCount > 0 && (
-				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
-					<span className="text-sm text-muted-foreground">
-						{selectedCount} selected
-					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={voidUnpaidMutation.isPending}
-						onClick={handleVoidSelected}
-					>
-						<BanIcon className="mr-2 size-4" />
-						Void unpaid ({selectedCount})
-					</Button>
-				</div>
+			{isOrganizationAdmin && organizationId && selectedCount > 0 && (
+				<CustomerBulkActionsBar
+					count={selectedCount}
+					customerIds={selectedCustomerIds}
+					organizationId={organizationId}
+					collectors={collectors}
+					onCleared={() => setRowSelection({})}
+					extraActions={
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={voidUnpaidMutation.isPending}
+							onClick={handleVoidSelected}
+							className="text-destructive hover:text-destructive"
+						>
+							<BanIcon className="mr-2 size-4" />
+							Void unpaid
+						</Button>
+					}
+				/>
 			)}
 
 			<ContentCard>
