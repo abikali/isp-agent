@@ -1,19 +1,24 @@
 "use client";
 
-import { StatCard, StatCardGroup } from "@shared/components/StatCard";
+import {
+	ContentCard,
+	ContentCardSection,
+} from "@shared/components/ContentCard";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { StatusPieChart } from "@shared/components/StatusPieChart";
 import {
 	ActivityIcon,
 	AlertTriangleIcon,
 	CheckCircleIcon,
 	HelpCircleIcon,
+	PercentIcon,
 } from "lucide-react";
 import { useWatcherStats } from "../hooks/use-executions";
 
 const STATUS_COLORS: Record<string, string> = {
-	Up: "var(--color-chart-3)",
-	Down: "var(--color-destructive)",
-	Unknown: "var(--color-chart-1)",
+	Up: "var(--chart-2)",
+	Down: "var(--destructive)",
+	Unknown: "var(--chart-1)",
 };
 
 export function WatcherStatsCards() {
@@ -30,39 +35,66 @@ export function WatcherStatsCards() {
 
 	return (
 		<div className="space-y-4">
-			<StatCardGroup columns={4}>
-				<StatCard
-					title="Total Watchers"
+			<MetricStrip columns={5}>
+				<MetricCard
+					label="Total"
 					value={stats.total}
 					icon={ActivityIcon}
-					color="blue"
+					tone="info"
 				/>
-				<StatCard
-					title="Up"
+				<MetricCard
+					label="Up"
 					value={stats.up}
 					icon={CheckCircleIcon}
-					color="green"
+					tone="success"
 				/>
-				<StatCard
-					title="Down"
+				<MetricCard
+					label="Down"
 					value={stats.down}
 					icon={AlertTriangleIcon}
-					color={stats.down > 0 ? "red" : "default"}
+					tone={stats.down > 0 ? "danger" : "default"}
 				/>
-				<StatCard
-					title="Unknown"
+				<MetricCard
+					label="Unknown"
 					value={stats.unknown}
 					icon={HelpCircleIcon}
+					tone={stats.unknown > 0 ? "warning" : "default"}
 				/>
-			</StatCardGroup>
+				<MetricCard
+					label="Uptime"
+					value={`${uptimeRate}%`}
+					icon={PercentIcon}
+					tone={
+						uptimeRate >= 95
+							? "success"
+							: uptimeRate >= 80
+								? "warning"
+								: "danger"
+					}
+					hint="Currently healthy"
+				/>
+			</MetricStrip>
 
 			{stats.total > 0 && statusData.length > 1 && (
-				<StatusPieChart
-					title="Watcher Status"
-					data={statusData}
-					colorMap={STATUS_COLORS}
-					footer={`${uptimeRate}% healthy`}
-				/>
+				<ContentCard>
+					<ContentCardSection className="border-b border-border">
+						<div className="flex items-center gap-2">
+							<ActivityIcon className="size-3.5 text-muted-foreground" />
+							<div className="text-sm font-medium">
+								Status distribution
+							</div>
+						</div>
+					</ContentCardSection>
+					<ContentCardSection>
+						<StatusPieChart
+							title=""
+							data={statusData}
+							colorMap={STATUS_COLORS}
+							size="sm"
+							footer={`${uptimeRate}% healthy`}
+						/>
+					</ContentCardSection>
+				</ContentCard>
 			)}
 		</div>
 	);

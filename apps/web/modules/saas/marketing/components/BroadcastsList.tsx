@@ -2,6 +2,7 @@
 
 import { ContentCard } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { PageShell } from "@shared/components/PageShell";
 import { formatDateTime } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
@@ -15,7 +16,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
-import { MegaphoneIcon, PlusIcon } from "lucide-react";
+import {
+	CheckCircleIcon,
+	MegaphoneIcon,
+	PercentIcon,
+	PlayIcon,
+	PlusIcon,
+	UsersIcon,
+	XCircleIcon,
+} from "lucide-react";
 import { useBroadcasts } from "../hooks/use-marketing";
 import {
 	AUDIENCE_LABELS,
@@ -28,6 +37,23 @@ interface BroadcastsListProps {
 
 export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 	const { items, total } = useBroadcasts();
+
+	const totals = items.reduce(
+		(acc, b) => {
+			acc.recipients += b.totalRecipients ?? 0;
+			acc.sent += b.sentCount ?? 0;
+			acc.failed += b.failedCount ?? 0;
+			if (b.status === "running" || b.status === "pending") {
+				acc.active += 1;
+			}
+			return acc;
+		},
+		{ recipients: 0, sent: 0, failed: 0, active: 0 },
+	);
+	const deliveryRate =
+		totals.recipients > 0
+			? Math.round((totals.sent / totals.recipients) * 100)
+			: 0;
 
 	return (
 		<PageShell
@@ -45,6 +71,57 @@ export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 				</Button>
 			}
 		>
+			{items.length > 0 && (
+				<MetricStrip columns={5}>
+					<MetricCard
+						label="Broadcasts"
+						value={total}
+						icon={MegaphoneIcon}
+						tone="info"
+					/>
+					<MetricCard
+						label="Recipients"
+						value={totals.recipients}
+						icon={UsersIcon}
+						tone="default"
+					/>
+					<MetricCard
+						label="Delivered"
+						value={totals.sent}
+						icon={CheckCircleIcon}
+						tone="success"
+					/>
+					<MetricCard
+						label="Failed"
+						value={totals.failed}
+						icon={XCircleIcon}
+						tone={totals.failed > 0 ? "danger" : "default"}
+					/>
+					<MetricCard
+						label="Delivery rate"
+						value={`${deliveryRate}%`}
+						icon={PercentIcon}
+						tone={
+							deliveryRate >= 90
+								? "success"
+								: deliveryRate >= 70
+									? "warning"
+									: "danger"
+						}
+						hint={
+							totals.active > 0
+								? `${totals.active} active`
+								: undefined
+						}
+						trailing={
+							totals.active > 0 ? (
+								<PlayIcon className="size-3 animate-pulse text-info" />
+							) : undefined
+						}
+					/>
+				</MetricStrip>
+			)}
+
 			{items.length === 0 ? (
 				<EmptyState
 					icon={MegaphoneIcon}

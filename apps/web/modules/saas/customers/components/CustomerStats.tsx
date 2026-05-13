@@ -1,10 +1,13 @@
 "use client";
 
-import { StatCard, StatCardGroup } from "@shared/components/StatCard";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
+import { formatCurrency } from "@shared/lib/format";
 import {
+	BanknoteIcon,
 	CalendarXIcon,
+	OctagonXIcon,
 	StickyNoteIcon,
-	UserMinusIcon,
+	UserCheckIcon,
 	UsersIcon,
 	WifiIcon,
 	WifiOffIcon,
@@ -21,57 +24,79 @@ export function CustomerStats({
 	onStatusChange,
 }: CustomerStatsProps) {
 	const stats = useCustomerStats();
+	const activeRate =
+		stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
 
 	return (
-		<StatCardGroup columns={6}>
-			<StatCard
-				title="Total"
+		<MetricStrip columns={8}>
+			<MetricCard
+				label="Total"
 				value={stats.total}
 				icon={UsersIcon}
-				color="blue"
+				tone="info"
 				onClick={() => onStatusChange("all")}
 				active={activeStatus === "all"}
 			/>
-			<StatCard
-				title="Online"
+			<MetricCard
+				label="Online"
 				value={stats.online}
 				icon={WifiIcon}
-				color="green"
+				tone="success"
+				hint={
+					stats.online + stats.offline > 0
+						? `${Math.round((stats.online / (stats.online + stats.offline)) * 100)}%`
+						: undefined
+				}
 				onClick={() => onStatusChange("ONLINE")}
 				active={activeStatus === "ONLINE"}
 			/>
-			<StatCard
-				title="Offline"
+			<MetricCard
+				label="Offline"
 				value={stats.offline}
 				icon={WifiOffIcon}
-				color="default"
 				onClick={() => onStatusChange("OFFLINE")}
 				active={activeStatus === "OFFLINE"}
 			/>
-			<StatCard
-				title="Expired"
+			<MetricCard
+				label="Active"
+				value={stats.active}
+				icon={UserCheckIcon}
+				tone="success"
+				hint={`${activeRate}%`}
+				onClick={() => onStatusChange("ACTIVE")}
+				active={activeStatus === "ACTIVE"}
+			/>
+			<MetricCard
+				label="Expired"
 				value={stats.expired}
 				icon={CalendarXIcon}
-				color={stats.expired > 0 ? "red" : "default"}
+				tone={stats.expired > 0 ? "warning" : "default"}
 				onClick={() => onStatusChange("EXPIRED")}
 				active={activeStatus === "EXPIRED"}
 			/>
-			<StatCard
-				title="Inactive"
+			<MetricCard
+				label="Stopped"
 				value={stats.inactive}
-				icon={UserMinusIcon}
-				color={stats.inactive > 0 ? "amber" : "default"}
+				icon={OctagonXIcon}
+				tone={stats.inactive > 0 ? "danger" : "default"}
 				onClick={() => onStatusChange("INACTIVE")}
 				active={activeStatus === "INACTIVE"}
 			/>
-			<StatCard
-				title="Needs Review"
+			<MetricCard
+				label="Needs review"
 				value={stats.needsReview}
 				icon={StickyNoteIcon}
-				color={stats.needsReview > 0 ? "amber" : "default"}
+				tone={stats.needsReview > 0 ? "warning" : "default"}
 				onClick={() => onStatusChange("NEEDS_REVIEW")}
 				active={activeStatus === "NEEDS_REVIEW"}
 			/>
-		</StatCardGroup>
+			<MetricCard
+				label="Monthly revenue"
+				value={formatCurrency(stats.totalMonthlyRevenue)}
+				icon={BanknoteIcon}
+				tone="info"
+				hint="From active plans"
+			/>
+		</MetricStrip>
 	);
 }

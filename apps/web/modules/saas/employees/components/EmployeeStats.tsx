@@ -1,11 +1,17 @@
 "use client";
 
-import { ChartCard } from "@shared/components/ChartCard";
-import { StatCard, StatCardGroup } from "@shared/components/StatCard";
+import {
+	ContentCard,
+	ContentCardSection,
+} from "@shared/components/ContentCard";
+import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { Progress } from "@ui/components/progress";
 import {
+	BuildingIcon,
 	ClockIcon,
+	PercentIcon,
+	TrophyIcon,
 	UserCheckIcon,
 	UserMinusIcon,
 	UsersIcon,
@@ -13,9 +19,9 @@ import {
 import { useEmployeeStats } from "../hooks/use-employees";
 
 const STATUS_COLORS: Record<string, string> = {
-	Active: "var(--color-chart-3)",
-	"On Leave": "var(--color-chart-4)",
-	Inactive: "var(--color-chart-1)",
+	Active: "var(--chart-2)",
+	"On Leave": "var(--chart-3)",
+	Inactive: "var(--chart-1)",
 };
 
 const DEPARTMENT_LABELS: Record<string, string> = {
@@ -47,99 +53,140 @@ export function EmployeeStats() {
 
 	return (
 		<div className="space-y-4">
-			<StatCardGroup columns={4}>
-				<StatCard
-					title="Total Employees"
+			<MetricStrip columns={5}>
+				<MetricCard
+					label="Total"
 					value={stats.total}
 					icon={UsersIcon}
-					color="blue"
+					tone="info"
 				/>
-				<StatCard
-					title="Active"
+				<MetricCard
+					label="Active"
 					value={stats.active}
 					icon={UserCheckIcon}
-					color="green"
+					tone="success"
 				/>
-				<StatCard
-					title="On Leave"
+				<MetricCard
+					label="On leave"
 					value={stats.onLeave}
 					icon={ClockIcon}
-					color={stats.onLeave > 0 ? "amber" : "default"}
+					tone={stats.onLeave > 0 ? "warning" : "default"}
 				/>
-				<StatCard
-					title="Inactive"
+				<MetricCard
+					label="Inactive"
 					value={stats.inactive}
 					icon={UserMinusIcon}
+					tone={stats.inactive > 0 ? "default" : "default"}
 				/>
-			</StatCardGroup>
+				<MetricCard
+					label="Active rate"
+					value={`${activeRate}%`}
+					icon={PercentIcon}
+					tone={activeRate >= 80 ? "success" : "warning"}
+				/>
+			</MetricStrip>
 
 			{stats.total > 0 && (
 				<div className="grid gap-4 lg:grid-cols-3">
 					{statusData.length > 1 && (
-						<StatusPieChart
-							title="Employee Status"
-							data={statusData}
-							colorMap={STATUS_COLORS}
-							footer={`${activeRate}% active rate`}
-						/>
+						<ContentCard>
+							<ContentCardSection className="border-b border-border">
+								<div className="flex items-center gap-2">
+									<UsersIcon className="size-3.5 text-muted-foreground" />
+									<div className="text-sm font-medium">
+										Status
+									</div>
+								</div>
+							</ContentCardSection>
+							<ContentCardSection>
+								<StatusPieChart
+									title=""
+									data={statusData}
+									colorMap={STATUS_COLORS}
+									size="sm"
+									footer={`${activeRate}% active`}
+								/>
+							</ContentCardSection>
+						</ContentCard>
 					)}
 
 					{departmentData.length > 0 && (
-						<ChartCard title="By Department">
-							<div className="space-y-3">
-								{departmentData.map((d) => {
-									const pct =
-										stats.active > 0
-											? Math.round(
-													(d.value / stats.active) *
-														100,
-												)
-											: 0;
-									return (
-										<div key={d.name}>
-											<div className="flex items-center justify-between text-sm mb-1">
-												<span>{d.name}</span>
-												<span className="text-muted-foreground tabular-nums">
-													{d.value}
-												</span>
+						<ContentCard>
+							<ContentCardSection className="border-b border-border">
+								<div className="flex items-center gap-2">
+									<BuildingIcon className="size-3.5 text-muted-foreground" />
+									<div className="text-sm font-medium">
+										By department
+									</div>
+								</div>
+							</ContentCardSection>
+							<ContentCardSection>
+								<div className="space-y-2.5">
+									{departmentData.map((d) => {
+										const pct =
+											stats.active > 0
+												? Math.round(
+														(d.value /
+															stats.active) *
+															100,
+													)
+												: 0;
+										return (
+											<div key={d.name}>
+												<div className="mb-1 flex items-center justify-between text-xs">
+													<span>{d.name}</span>
+													<span className="text-muted-foreground tabular-nums">
+														{d.value}
+													</span>
+												</div>
+												<Progress
+													value={pct}
+													className="h-1.5"
+												/>
 											</div>
-											<Progress
-												value={pct}
-												className="h-1.5"
-											/>
-										</div>
-									);
-								})}
-							</div>
-						</ChartCard>
+										);
+									})}
+								</div>
+							</ContentCardSection>
+						</ContentCard>
 					)}
 
 					{topCollectors.length > 0 && (
-						<ChartCard title="Top Collectors">
-							<div className="space-y-3">
-								{topCollectors.map((c, i) => (
-									<div
-										key={c.name}
-										className="flex items-center gap-3"
-									>
-										<span className="text-xs font-medium text-muted-foreground w-4 tabular-nums">
-											{i + 1}
-										</span>
-										<div className="min-w-0 flex-1">
-											<p className="text-sm font-medium truncate">
-												{c.name}
-											</p>
-										</div>
-										<span className="text-sm font-semibold tabular-nums">
-											{c.customers}
-										</span>
-										<span className="text-xs text-muted-foreground">
-											customers
-										</span>
+						<ContentCard>
+							<ContentCardSection className="border-b border-border">
+								<div className="flex items-center gap-2">
+									<TrophyIcon className="size-3.5 text-muted-foreground" />
+									<div className="text-sm font-medium">
+										Top collectors
 									</div>
-								))}
-							</div>
-						</ChartCard>
+								</div>
+							</ContentCardSection>
+							<ContentCardSection>
+								<div className="space-y-2">
+									{topCollectors.map((c, i) => (
+										<div
+											key={c.name}
+											className="flex items-center gap-3 text-sm"
+										>
+											<span className="w-4 text-xs font-medium text-muted-foreground tabular-nums">
+												{i + 1}
+											</span>
+											<div className="min-w-0 flex-1">
+												<p className="truncate font-medium">
+													{c.name}
+												</p>
+											</div>
+											<span className="font-medium tabular-nums">
+												{c.customers}
+											</span>
+											<span className="text-xs text-muted-foreground">
+												customers
+											</span>
+										</div>
+									))}
+								</div>
+							</ContentCardSection>
+						</ContentCard>
 					)}
 				</div>
 			)}
