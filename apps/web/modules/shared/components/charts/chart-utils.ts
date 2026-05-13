@@ -54,6 +54,26 @@ export function formatPercent(value: number, fractionDigits = 0): string {
 	return `${value.toFixed(fractionDigits)}%`;
 }
 
+/**
+ * Percent formatter that never lies about progress:
+ *   0          → "0%"
+ *   (0, 1)     → "0.5%"   (1 decimal — never rounds down to "0%")
+ *   [1, 100)   → "47%"    (integer)
+ *   ≥ 100      → "100%"
+ */
+export function formatSmartPercent(value: number): string {
+	if (value <= 0) {
+		return "0%";
+	}
+	if (value >= 100) {
+		return "100%";
+	}
+	if (value < 1) {
+		return `${Math.max(0.1, Math.round(value * 10) / 10).toFixed(1)}%`;
+	}
+	return `${Math.round(value)}%`;
+}
+
 export function formatShortDate(date: Date | string): string {
 	const d = typeof date === "string" ? new Date(date) : date;
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });

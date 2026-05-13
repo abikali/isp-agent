@@ -5,7 +5,7 @@ import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
 import {
 	CHART_TOKENS,
 	formatCompactCurrency,
-	formatPercent,
+	formatSmartPercent,
 } from "./chart-utils";
 
 interface CollectedVsTargetProps {
@@ -31,8 +31,14 @@ export function CollectedVsTarget({
 	asCurrency = true,
 	caption,
 }: CollectedVsTargetProps) {
-	const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
-	const data = [{ name: "collected", value: pct, fill: CHART_TOKENS.c1 }];
+	const rawPct = target > 0 ? (collected / target) * 100 : 0;
+	const pct = Math.min(100, rawPct);
+	// Make a tiny but non-zero value visible on the arc so the dial doesn't
+	// look empty when progress is real but sub-1%.
+	const displayValue = rawPct > 0 ? Math.max(1.5, pct) : 0;
+	const data = [
+		{ name: "collected", value: displayValue, fill: CHART_TOKENS.c1 },
+	];
 
 	const captionText =
 		caption ??
@@ -66,7 +72,7 @@ export function CollectedVsTarget({
 			</ChartContainer>
 			<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
 				<div className="text-2xl font-medium tabular-nums">
-					{formatPercent(pct)}
+					{formatSmartPercent(rawPct)}
 				</div>
 				<div className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
 					{captionText}

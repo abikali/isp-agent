@@ -9,6 +9,7 @@ import {
 	CollectedVsTarget,
 	CollectorLeaderboard,
 } from "@shared/components/charts";
+import { formatSmartPercent } from "@shared/components/charts/chart-utils";
 import { DistributionCard } from "@shared/components/DistributionCard";
 import {
 	MetricCard,
@@ -132,6 +133,11 @@ export function BillingDashboard() {
 		},
 	];
 
+	const paidCount = stats.totalCustomers - stats.unpaidCustomers;
+	const collectionPct =
+		stats.totalCustomers > 0 ? (paidCount / stats.totalCustomers) * 100 : 0;
+	const collectionPctLabel = formatSmartPercent(collectionPct);
+
 	const collectorEntries = reports.collectorBreakdown
 		.map((c) => ({
 			collectorId: c.collectorId,
@@ -169,10 +175,10 @@ export function BillingDashboard() {
 				/>
 				<MetricCard
 					label="Collection rate"
-					value={`${stats.paidPercentage}%`}
+					value={collectionPctLabel}
 					icon={PercentIcon}
 					tone="info"
-					hint={`${stats.totalCustomers - stats.unpaidCustomers} of ${stats.totalCustomers}`}
+					hint={`${paidCount} of ${stats.totalCustomers}`}
 				/>
 				<MetricCard
 					label="Unpaid"
@@ -235,7 +241,7 @@ export function BillingDashboard() {
 							}
 							target={stats.totalCustomers}
 							asCurrency={false}
-							caption={`${stats.paidPercentage}% complete`}
+							caption="customers settled"
 							height={150}
 						/>
 						<div className="flex flex-col justify-center gap-2 pr-2">

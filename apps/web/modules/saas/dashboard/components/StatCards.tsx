@@ -1,5 +1,6 @@
 "use client";
 
+import { formatSmartPercent } from "@shared/components/charts/chart-utils";
 import { DistributionCard } from "@shared/components/DistributionCard";
 import {
 	MetricCard,
@@ -180,7 +181,16 @@ export function StatCards() {
 						/>
 						<MetricCard
 							label="Collection rate"
-							value={`${billing?.paidPercentage ?? 0}%`}
+							value={
+								billing && billing.totalCustomers > 0
+									? formatSmartPercent(
+											((billing.totalCustomers -
+												billing.unpaidCustomers) /
+												billing.totalCustomers) *
+												100,
+										)
+									: "0%"
+							}
 							icon={HandCoinsIcon}
 							tone="info"
 							hint={
