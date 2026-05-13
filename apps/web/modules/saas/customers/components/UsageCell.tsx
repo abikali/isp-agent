@@ -1,6 +1,8 @@
 "use client";
 
 import { formatBytes } from "@shared/components/charts/chart-utils";
+import { orpc } from "@shared/lib/orpc";
+import { useIsFetching } from "@tanstack/react-query";
 import {
 	Tooltip,
 	TooltipContent,
@@ -46,19 +48,39 @@ export function UsageCell({
 	const dlPct = total > 0 ? (dl / total) * 100 : 0;
 	const ulPct = total > 0 ? (ul / total) * 100 : 0;
 
+	// Live cue: pulse the cell when the customers list query is mid-refetch.
+	// The backend's 60s online + usage sync writes fresh bytes; this signals
+	// to the user that what they're looking at is being refreshed.
+	const isRefreshing =
+		useIsFetching({ queryKey: orpc.customers.list.key() }) > 0;
+
 	const isFup =
 		!!fupMode &&
 		fupMode.toLowerCase() !== "normal" &&
 		fupMode.toLowerCase() !== "off";
 
 	if (total === 0) {
-		return <span className="text-muted-foreground">—</span>;
+		return (
+			<span
+				className={cn(
+					"text-muted-foreground",
+					isRefreshing && "animate-pulse",
+				)}
+			>
+				—
+			</span>
+		);
 	}
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div className="flex w-[120px] flex-col gap-1">
+				<div
+					className={cn(
+						"flex w-[120px] flex-col gap-1 transition-opacity",
+						isRefreshing && "opacity-60",
+					)}
+				>
 					<div className="flex items-center justify-between gap-2 text-[11px] tabular-nums leading-none">
 						<span className="inline-flex items-center gap-0.5 text-info">
 							<ArrowDownIcon className="size-2.5" />
@@ -74,7 +96,12 @@ export function UsageCell({
 							</span>
 						)}
 					</div>
-					<div className="flex h-1 w-full overflow-hidden rounded-full bg-muted">
+					<div
+						className={cn(
+							"flex h-1 w-full overflow-hidden rounded-full bg-muted",
+							isRefreshing && "animate-pulse",
+						)}
+					>
 						<div
 							className="h-full bg-info transition-all"
 							style={{ width: `${dlPct}%` }}

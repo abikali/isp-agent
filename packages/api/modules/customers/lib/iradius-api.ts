@@ -66,11 +66,14 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
  * org-level `iradiusDisabled` flag).
  *
  * When deactivating: iRadius's own MikroTik disconnect inside
- * `/activate-user` is buggy (radclient command has a literal `+ userName +`
- * typo, and the API-fallback probes hotspot first and throws on PPP-only
- * routers — see investigation notes). If the response shows the live
- * session was NOT kicked, we invoke `iradiusForceDisconnect` to do it
- * ourselves via the MikroTik RouterOS API. Best-effort: the DB write is
+ * `/activate-user` is broken end-to-end and the response can't be trusted.
+ * Decompiling the running jar shows `UserActivationDao.disconnectFromMikrotik`
+ * swallows every internal failure (radclient has a literal `+ userName +`
+ * typo and uses port 1700; the MikroTik-API fallback uses `where name=X`
+ * syntax instead of `?name=X`), and the service wraps that void call in a
+ * try/catch — so `disconnected: true` comes back even when nothing was
+ * kicked. We always invoke `iradiusForceDisconnect` ourselves via the
+ * RouterOS API path on every deactivation. Best-effort: the DB write is
  * already correct either way.
  */
 export async function iradiusSetActive(
@@ -94,13 +97,12 @@ export async function iradiusSetActive(
 	const result = await ispPost<{
 		success?: boolean;
 		error?: string;
-		disconnected?: boolean;
 	}>(config, "/activate-user", body);
 	if (result && result.success === false) {
 		throw new Error(result.error ?? "iRadius activate-user failed");
 	}
 
-	if (!active && result?.disconnected !== true) {
+	if (!active) {
 		await iradiusForceDisconnect({ externalId: customer.externalId });
 	}
 }

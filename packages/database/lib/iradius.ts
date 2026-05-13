@@ -345,24 +345,62 @@ export async function testIRadiusConnection(): Promise<{
  * Query live dashboard stats from iRadius MySQL (real-time data).
  * This opens an SSH tunnel for each call — use sparingly.
  */
+
+/** Per-customer telemetry snapshot from iRadius (User + UserNas join). */
+export interface IRadiusCustomerUsage {
+	externalId: string;
+	online: boolean;
+	downloadBytes: bigint;
+	uploadBytes: bigint;
+	dailyDownloadBytes: bigint;
+	dailyUploadBytes: bigint;
+}
+
+function toBigIntSafe(val: unknown): bigint {
+	if (val == null) {
+		return BigInt(0);
+	}
+	try {
+		return BigInt(Math.floor(Number(val)));
+	} catch {
+		return BigInt(0);
+	}
+}
+
 /**
- * Fetch the list of currently online user IDs from iRadius.
- * Returns iRadius User.Id values (stored as Customer.externalId).
+ * Fetch the live online flag + bytes counters for every active customer.
+ * Joins User → UserNas so a single tunnel call returns everything needed
+ * by the 60s online + usage sync. Returns null on connection failure so
+ * the caller can skip gracefully.
  */
-export async function queryIRadiusOnlineUserIds(): Promise<string[] | null> {
+export async function queryIRadiusUsageSnapshot(): Promise<
+	IRadiusCustomerUsage[] | null
+> {
 	try {
 		return await withIRadiusConnection(async (conn) => {
 			const [rows] = await conn.query<RowDataPacket[]>(
-				`SELECT User.Id FROM User
-				LEFT JOIN UserNas ON User.Id = UserNas.UserId
-				WHERE ProfileId = 4 AND IFNULL(Archived,0) = 0 AND Online = 1 AND Active = 1`,
+				`SELECT u.Id, u.Online,
+					IFNULL(un.DownloadBytes, 0) AS DownloadBytes,
+					IFNULL(un.UploadBytes, 0) AS UploadBytes,
+					IFNULL(un.DailyDownloadBytes, 0) AS DailyDownloadBytes,
+					IFNULL(un.DailyUploadBytes, 0) AS DailyUploadBytes
+				FROM User u
+				LEFT JOIN UserNas un ON un.UserId = u.Id
+				WHERE u.ProfileId = 4 AND IFNULL(u.Archived,0) = 0 AND u.Active = 1`,
 			);
-			return rows.map((r) => String(r["Id"]));
+			return rows.map((r) => ({
+				externalId: String(r["Id"]),
+				online: toBooleanFromBit(r["Online"]),
+				downloadBytes: toBigIntSafe(r["DownloadBytes"]),
+				uploadBytes: toBigIntSafe(r["UploadBytes"]),
+				dailyDownloadBytes: toBigIntSafe(r["DailyDownloadBytes"]),
+				dailyUploadBytes: toBigIntSafe(r["DailyUploadBytes"]),
+			}));
 		});
 	} catch (error) {
 		// biome-ignore lint/suspicious/noConsole: database package cannot import @repo/logs
 		console.error(
-			"[iRadius Online Sync] Failed:",
+			"[iRadius Usage Sync] Failed:",
 			error instanceof Error ? error.message : error,
 		);
 		return null;

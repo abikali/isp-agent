@@ -192,7 +192,7 @@ export function BillingDashboard() {
 							</div>
 						</div>
 					</ContentCardSection>
-					<div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3">
+					<div className="flex flex-col gap-4 px-4 py-3 sm:grid sm:grid-cols-[1fr_auto]">
 						<CollectedVsTarget
 							collected={
 								stats.totalCustomers - stats.unpaidCustomers
@@ -202,7 +202,7 @@ export function BillingDashboard() {
 							caption="customers settled"
 							height={150}
 						/>
-						<div className="flex flex-col justify-center gap-2 pr-2">
+						<div className="grid grid-cols-2 gap-2 sm:flex sm:flex-col sm:justify-center sm:pr-2">
 							<a
 								href={`${basePath}/payments`}
 								className="block rounded-md border border-border px-3 py-2 transition-colors hover:border-success/40 hover:bg-success/5"

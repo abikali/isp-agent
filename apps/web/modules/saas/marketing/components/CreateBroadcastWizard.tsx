@@ -30,6 +30,8 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useIRadiusGroups } from "../../customers/hooks/use-customers";
+import { CONNECTION_TYPE_OPTIONS } from "../../customers/lib/constants";
 import {
 	useAudiencePreviewQuery,
 	useCreateBroadcast,
@@ -51,11 +53,17 @@ interface VariableMapping {
 	field?: string;
 }
 
+type ConnectionType = "FIBER" | "WIRELESS" | "DSL" | "CABLE" | "ETHERNET";
+
 interface CustomerFilters {
 	status?: (typeof CUSTOMER_LIST_STATUSES)[number];
 	planId?: string;
 	stationId?: string;
 	collectorId?: string;
+	groupName?: string;
+	connectionType?: ConnectionType;
+	expiresWithinDays?: number;
+	minBalance?: number;
 }
 
 interface CreateBroadcastWizardProps {
@@ -73,6 +81,9 @@ export function CreateBroadcastWizard({
 		error: templatesError,
 	} = useTemplatesQuery();
 	const { groups } = useGroupsQuery();
+	// iRadius UserGroup options for the ISP-customers filter. Auto-scoped to
+	// the caller's active dealer by the procedure — pass no dealerId here.
+	const { groups: iradiusGroups } = useIRadiusGroups();
 	const create = useCreateBroadcast();
 
 	const [step, setStep] = useState<Step>("audience");
@@ -132,6 +143,18 @@ export function CreateBroadcastWizard({
 				}),
 				...(customerFilters.collectorId && {
 					collectorId: customerFilters.collectorId,
+				}),
+				...(customerFilters.groupName && {
+					groupName: customerFilters.groupName,
+				}),
+				...(customerFilters.connectionType && {
+					connectionType: customerFilters.connectionType,
+				}),
+				...(customerFilters.expiresWithinDays !== undefined && {
+					expiresWithinDays: customerFilters.expiresWithinDays,
+				}),
+				...(customerFilters.minBalance !== undefined && {
+					minBalance: customerFilters.minBalance,
 				}),
 			};
 		}
@@ -314,6 +337,7 @@ export function CreateBroadcastWizard({
 							setAudienceTab={setAudienceTab}
 							customerFilters={customerFilters}
 							setCustomerFilters={setCustomerFilters}
+							iradiusGroups={iradiusGroups}
 							groups={groups}
 							groupId={groupId}
 							setGroupId={setGroupId}
@@ -404,6 +428,7 @@ interface AudienceStepProps {
 	setAudienceTab: (t: AudienceTab) => void;
 	customerFilters: CustomerFilters;
 	setCustomerFilters: (f: CustomerFilters) => void;
+	iradiusGroups: Array<{ id: number; name: string }>;
 	groups: Array<{ id: number | string; name: string }>;
 	groupId: string;
 	setGroupId: (s: string) => void;
@@ -458,6 +483,91 @@ function AudienceStep(props: AudienceStepProps) {
 							))}
 						</SelectContent>
 					</Select>
+				</Field>
+				<Field>
+					<FieldLabel>Group</FieldLabel>
+					<Select
+						value={props.customerFilters.groupName ?? "ALL"}
+						onValueChange={(v) =>
+							props.setCustomerFilters({
+								...props.customerFilters,
+								groupName: v === "ALL" ? undefined : v,
+							})
+						}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Any group" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">Any group</SelectItem>
+							{props.iradiusGroups.map((g) => (
+								<SelectItem key={g.id} value={g.name}>
+									{g.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+				<Field>
+					<FieldLabel>Connection type</FieldLabel>
+					<Select
+						value={props.customerFilters.connectionType ?? "ALL"}
+						onValueChange={(v) =>
+							props.setCustomerFilters({
+								...props.customerFilters,
+								connectionType:
+									v === "ALL"
+										? undefined
+										: (v as ConnectionType),
+							})
+						}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Any connection" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="ALL">Any connection</SelectItem>
+							{CONNECTION_TYPE_OPTIONS.map((opt) => (
+								<SelectItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+				<Field>
+					<FieldLabel>Expires within (days)</FieldLabel>
+					<Input
+						type="number"
+						min={0}
+						max={365}
+						placeholder="e.g. 7 for renewal nudges"
+						value={props.customerFilters.expiresWithinDays ?? ""}
+						onChange={(e) => {
+							const v = e.target.value;
+							props.setCustomerFilters({
+								...props.customerFilters,
+								expiresWithinDays:
+									v === "" ? undefined : Number(v),
+							});
+						}}
+					/>
+				</Field>
+				<Field>
+					<FieldLabel>Minimum balance</FieldLabel>
+					<Input
+						type="number"
+						step="0.01"
+						placeholder="e.g. 0.01 for any debt"
+						value={props.customerFilters.minBalance ?? ""}
+						onChange={(e) => {
+							const v = e.target.value;
+							props.setCustomerFilters({
+								...props.customerFilters,
+								minBalance: v === "" ? undefined : Number(v),
+							});
+						}}
+					/>
 				</Field>
 				<AudiencePreviewPanel preview={props.preview} />
 			</TabsContent>

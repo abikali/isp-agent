@@ -1,7 +1,7 @@
 import { db } from "@repo/database";
 import {
 	queryIRadiusNetworkMonitor,
-	queryIRadiusOnlineUserIds,
+	queryIRadiusUsageSnapshot,
 } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
@@ -116,37 +116,54 @@ async function dispatchDueWatchers(): Promise<number> {
 }
 
 async function syncOnlineStatus(): Promise<number> {
-	const onlineIds = await queryIRadiusOnlineUserIds();
-	if (!onlineIds) {
-		logger.warn("[Online Sync] Could not reach iRadius, skipping");
+	const snapshot = await queryIRadiusUsageSnapshot();
+	if (!snapshot) {
+		logger.warn("[Online + Usage Sync] Could not reach iRadius, skipping");
 		return 0;
 	}
 
-	const [setOnline, setOffline] = await Promise.all([
-		db.customer.updateMany({
-			where: {
-				externalId: { in: onlineIds },
-				online: false,
-			},
-			data: { online: true },
-		}),
-		db.customer.updateMany({
-			where: {
-				externalId: { not: null, notIn: onlineIds },
-				online: true,
-			},
-			data: { online: false },
-		}),
-	]);
+	if (snapshot.length === 0) {
+		return 0;
+	}
 
-	const updated = setOnline.count + setOffline.count;
-	if (updated > 0) {
+	// BigInt → string for JSON.stringify; cast back to ::bigint in SQL.
+	// Only rows whose telemetry actually differs are touched (IS DISTINCT FROM).
+	const payload = snapshot.map((u) => ({
+		externalId: u.externalId,
+		online: u.online,
+		downloadBytes: u.downloadBytes.toString(),
+		uploadBytes: u.uploadBytes.toString(),
+		dailyDownloadBytes: u.dailyDownloadBytes.toString(),
+		dailyUploadBytes: u.dailyUploadBytes.toString(),
+	}));
+
+	const updated = await db.$executeRaw`
+		UPDATE "customer" SET
+			"online" = (v.value->>'online')::boolean,
+			"downloadBytes" = (v.value->>'downloadBytes')::bigint,
+			"uploadBytes" = (v.value->>'uploadBytes')::bigint,
+			"dailyDownloadBytes" = (v.value->>'dailyDownloadBytes')::bigint,
+			"dailyUploadBytes" = (v.value->>'dailyUploadBytes')::bigint
+		FROM jsonb_array_elements(${JSON.stringify(payload)}::jsonb) AS v(value)
+		WHERE "customer"."externalId" = v.value->>'externalId'
+			AND (
+				"customer"."online" IS DISTINCT FROM (v.value->>'online')::boolean
+				OR "customer"."downloadBytes" IS DISTINCT FROM (v.value->>'downloadBytes')::bigint
+				OR "customer"."uploadBytes" IS DISTINCT FROM (v.value->>'uploadBytes')::bigint
+				OR "customer"."dailyDownloadBytes" IS DISTINCT FROM (v.value->>'dailyDownloadBytes')::bigint
+				OR "customer"."dailyUploadBytes" IS DISTINCT FROM (v.value->>'dailyUploadBytes')::bigint
+			)
+	`;
+
+	const count = Number(updated);
+	if (count > 0) {
+		const onlineCount = snapshot.filter((u) => u.online).length;
 		logger.info(
-			`[Online Sync] Updated ${updated} customers, ${onlineIds.length} online`,
+			`[Online + Usage Sync] Updated ${count} customers, ${onlineCount} online`,
 		);
 	}
 
-	return updated;
+	return count;
 }
 
 async function syncNetworkMonitor(): Promise<number> {

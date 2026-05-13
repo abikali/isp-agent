@@ -6,7 +6,7 @@ export async function queueMarketingSend(
 ): Promise<string> {
 	const queue = getMarketingSendQueue();
 	const job = await queue.add("send-broadcast", data, {
-		jobId: `broadcast:${data.broadcastId}`,
+		jobId: `broadcast-${data.broadcastId}`,
 	});
 	return job.id ?? "";
 }

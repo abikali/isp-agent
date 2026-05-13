@@ -16,6 +16,15 @@ export const ispCustomersAudienceSchema = z.object({
 	stationId: z.string().optional(),
 	collectorId: z.string().optional(),
 	groupName: z.string().optional(),
+	connectionType: z
+		.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
+		.optional(),
+	// Renewal-window filter — customers whose `expiresAt` falls between now and
+	// `now + expiresWithinDays`. Caps at 1 year of lookahead.
+	expiresWithinDays: z.number().int().min(0).max(365).optional(),
+	// Inclusive lower bound on `customer.balance`. Sign convention is left to
+	// the operator (set to 0.01 for "owes any amount" if positive=debit, etc.).
+	minBalance: z.number().optional(),
 });
 
 export const saltiGroupAudienceSchema = z.object({
@@ -173,6 +182,22 @@ async function buildIspCustomerWhere(opts: {
 	}
 	if (f.groupName) {
 		where["groupName"] = f.groupName;
+	}
+	if (f.connectionType) {
+		where["connectionType"] = f.connectionType;
+	}
+	// expiresWithinDays wins over status=EXPIRED if both set — they're
+	// contradictory ranges and the renewal-window read is the more specific
+	// intent. Operators picking both is treated as user error.
+	if (f.expiresWithinDays !== undefined) {
+		const now = new Date();
+		const until = new Date(
+			now.getTime() + f.expiresWithinDays * 86_400_000,
+		);
+		where["expiresAt"] = { gte: now, lte: until };
+	}
+	if (f.minBalance !== undefined) {
+		where["balance"] = { gte: f.minBalance };
 	}
 	return where;
 }
