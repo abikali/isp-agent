@@ -3,7 +3,7 @@
 import { useRouter } from "@shared/hooks/router";
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import {
@@ -62,6 +62,9 @@ function NotificationIcon({ type }: { type: string }) {
 export function NotificationBell() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
+	const { organizationSlug } = useParams({ strict: false }) as {
+		organizationSlug?: string;
+	};
 
 	const { data, isLoading } = useQuery({
 		...orpc.notifications.list.queryOptions({
@@ -233,28 +236,48 @@ export function NotificationBell() {
 				)}
 
 				<DropdownMenuSeparator />
-				<div className="flex items-center justify-between p-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						asChild
-						className="h-auto px-2 py-1 text-xs"
-					>
-						<Link to="/app/settings/notifications">
-							<SettingsIcon className="mr-1 size-3" />
-							Settings
-						</Link>
-					</Button>
-					{hasReadNotifications && (
+				<div className="flex items-center justify-between gap-1 p-2">
+					{organizationSlug ? (
 						<Button
 							variant="ghost"
 							size="sm"
-							className="h-auto px-2 py-1 text-xs"
-							onClick={handleClearRead}
+							asChild
+							className="h-7 px-2 text-xs"
 						>
-							Clear read
+							<Link
+								to="/app/$organizationSlug/notifications"
+								params={{ organizationSlug }}
+								preload="intent"
+							>
+								View all
+							</Link>
 						</Button>
+					) : (
+						<span />
 					)}
+					<div className="flex items-center gap-1">
+						{hasReadNotifications && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-7 px-2 text-xs"
+								onClick={handleClearRead}
+							>
+								Clear read
+							</Button>
+						)}
+						<Button
+							variant="ghost"
+							size="sm"
+							asChild
+							className="h-7 px-2 text-xs"
+						>
+							<Link to="/app/settings/notifications">
+								<SettingsIcon className="mr-1 size-3" />
+								Settings
+							</Link>
+						</Button>
+					</div>
 				</div>
 			</DropdownMenuContent>
 		</DropdownMenu>
