@@ -1,9 +1,9 @@
 /* ============================================================================
-   LIBANCOM APP THEME — Dev-tool minimal (Resend / Trigger.dev / Supabase)
-   - Near-black dark mode with saturated indigo accent
-   - Monochrome light mode
+   LIBANCOM APP THEME — Refined dev-tool minimal (Vercel / Resend)
+   - Layered surfaces via alpha borders, not solid color
+   - Geist Sans + Geist Mono for distinctive typography
    - Token-only theming: NEVER use `dark:` overrides in components
-   - Borders > shadows for surface hierarchy
+   - Borders (1px alpha) define hierarchy; subtle stacked shadows on popovers
    ============================================================================ */
 
 @theme {
@@ -36,6 +36,11 @@
 	--color-border-strong: var(--border-strong);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
+
+	/* Layered surfaces (subtle elevation tiers between background and card) */
+	--color-surface: var(--surface);
+	--color-surface-subtle: var(--surface-subtle);
+	--color-surface-strong: var(--surface-strong);
 
 	/* Connectivity status (replaces ad-hoc green/red literals) */
 	--color-online: var(--online);
@@ -74,16 +79,16 @@
 	--radius-lg: calc(var(--radius) + 2px);
 	--radius-xl: calc(var(--radius) + 6px);
 
-	/* ---- Shadows (simplified — borders define hierarchy) ---- */
-	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-	--shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
-	--shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.12);
-	--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-	/* Back-compat aliases (used in legacy components — remove in Class Hygiene pass) */
-	--shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
-	--shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
-	--shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+	/* ---- Shadows (Vercel-style: stacked tiny-alpha layers) ---- */
+	--shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.04);
+	--shadow-sm: 0 2px 2px rgba(0, 0, 0, 0.04);
+	--shadow-md: 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.06);
+	--shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.02), 0 8px 16px -4px rgba(0, 0, 0, 0.04), 0 24px 32px -8px rgba(0, 0, 0, 0.06);
+	--shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+	/* Back-compat aliases (legacy components — removed in Class Hygiene pass) */
+	--shadow-card: 0 1px 0 rgba(0, 0, 0, 0.04);
+	--shadow-card-hover: 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 8px -8px rgba(0, 0, 0, 0.06);
+	--shadow-elevated: 0 2px 2px rgba(0, 0, 0, 0.04), 0 8px 16px -4px rgba(0, 0, 0, 0.04);
 
 	/* ---- Motion tokens ---- */
 	--duration-fast: 120ms;
@@ -95,8 +100,8 @@
 	--ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
 	/* ---- Font families ---- */
-	--font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-	--font-mono: "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+	--font-sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	--font-mono: "Geist Mono", "JetBrains Mono", "SF Mono", Menlo, Monaco, Consolas, monospace;
 
 	/* ---- Animations (Radix) ---- */
 	--animation-accordion-down: accordion-down 0.2s ease-out;
@@ -157,70 +162,78 @@
 
 @layer base {
 	:root {
-		/* ---- LIGHT MODE — monochrome zinc ---- */
-		--background: #fafafa;
-		--foreground: #09090b;
+		/* ---- LIGHT MODE — Vercel/Resend refined neutrals ---- */
+		/* Page background sits on hsl(0 0% 98%) so cards (white) have a subtle
+		   recess to inset against. Card == background-100 in Vercel parlance. */
+		--background: hsl(0 0% 98%);
+		--foreground: hsl(0 0% 9%);
 		--card: #ffffff;
-		--card-foreground: #09090b;
+		--card-foreground: hsl(0 0% 9%);
 		--popover: #ffffff;
-		--popover-foreground: #09090b;
+		--popover-foreground: hsl(0 0% 9%);
 
-		--primary: #18181b;
-		--primary-foreground: #fafafa;
+		/* Layered surface tokens — each step is a deliberate elevation tier */
+		--surface: #ffffff;                /* same as card; for filled containers */
+		--surface-subtle: hsl(0 0% 96%);   /* slightly recessed (toolbar bg, table header) */
+		--surface-strong: hsl(0 0% 93%);   /* pressed / active row */
 
-		--secondary: #f4f4f5;
-		--secondary-foreground: #18181b;
+		--primary: hsl(0 0% 9%);
+		--primary-foreground: hsl(0 0% 98%);
 
-		--muted: #f4f4f5;
-		--muted-foreground: #52525b; /* WCAG AA ~5.0:1 on background */
+		--secondary: hsl(0 0% 95%);
+		--secondary-foreground: hsl(0 0% 9%);
 
-		--accent: #e4e4e7;
-		--accent-foreground: #18181b;
+		--muted: hsl(0 0% 95%);
+		--muted-foreground: hsl(0 0% 45%); /* gray-700 — WCAG AA on background */
 
-		--border: #e4e4e7;
-		--border-strong: #d4d4d8;
-		--input: #d4d4d8;
-		--ring: #18181b;
+		--accent: hsl(0 0% 92%);
+		--accent-foreground: hsl(0 0% 9%);
+
+		/* Borders use alpha overlays so they tint correctly on any surface */
+		--border: rgba(0, 0, 0, 0.08);
+		--border-strong: rgba(0, 0, 0, 0.14);
+		--input: rgba(0, 0, 0, 0.14);
+		--ring: hsl(212 100% 48%);
 
 		/* Semantic */
-		--destructive: #ef4444;
-		--destructive-foreground: #fafafa;
-		--success: #10b981;
-		--success-foreground: #fafafa;
-		--warning: #f59e0b;
-		--warning-foreground: #fafafa;
-		--info: #3b82f6;
-		--info-foreground: #fafafa;
-		--highlight: #f59e0b; /* alias for back-compat */
-		--highlight-foreground: #fafafa;
+		--destructive: hsl(358 75% 52%);
+		--destructive-foreground: hsl(0 0% 98%);
+		--success: hsl(160 60% 40%);
+		--success-foreground: hsl(0 0% 98%);
+		--warning: hsl(36 92% 50%);
+		--warning-foreground: hsl(0 0% 9%);
+		--info: hsl(212 100% 48%);
+		--info-foreground: hsl(0 0% 98%);
+		--highlight: hsl(36 92% 50%); /* alias for back-compat */
+		--highlight-foreground: hsl(0 0% 9%);
 
-		/* Connectivity */
-		--online: #10b981;
-		--offline: #ef4444;
-		--idle: #f59e0b;
+		/* Connectivity dots */
+		--online: hsl(160 60% 40%);
+		--offline: hsl(358 75% 52%);
+		--idle: hsl(36 92% 50%);
 
-		/* Sidebar — slightly recessed surface */
-		--sidebar: #ffffff;
-		--sidebar-foreground: #18181b;
-		--sidebar-primary: #18181b;
-		--sidebar-primary-foreground: #fafafa;
-		--sidebar-accent: #f4f4f5;
-		--sidebar-accent-foreground: #18181b;
-		--sidebar-border: #e4e4e7;
-		--sidebar-ring: #18181b;
+		/* Sidebar — same as bg so it visually unifies with the page surface */
+		--sidebar: hsl(0 0% 98%);
+		--sidebar-foreground: hsl(0 0% 9%);
+		--sidebar-primary: hsl(0 0% 9%);
+		--sidebar-primary-foreground: hsl(0 0% 98%);
+		--sidebar-accent: hsl(0 0% 95%);
+		--sidebar-accent-foreground: hsl(0 0% 9%);
+		--sidebar-border: rgba(0, 0, 0, 0.08);
+		--sidebar-ring: hsl(212 100% 48%);
 
 		/* Charts */
-		--chart-1: #6366f1; /* indigo (brand) */
-		--chart-2: #3b82f6; /* blue */
-		--chart-3: #10b981; /* green */
-		--chart-4: #f59e0b; /* amber */
-		--chart-5: #8b5cf6; /* purple */
-		--chart-6: #06b6d4; /* cyan */
-		--chart-grid: #e4e4e7;
-		--chart-axis: #a1a1aa;
-		--chart-tooltip-bg: rgba(255, 255, 255, 0.96);
+		--chart-1: hsl(212 100% 48%);   /* brand blue */
+		--chart-2: hsl(160 60% 40%);    /* green */
+		--chart-3: hsl(36 92% 50%);     /* amber */
+		--chart-4: hsl(265 60% 55%);    /* purple */
+		--chart-5: hsl(190 70% 45%);    /* cyan */
+		--chart-6: hsl(340 75% 55%);    /* pink */
+		--chart-grid: rgba(0, 0, 0, 0.06);
+		--chart-axis: hsl(0 0% 56%);
+		--chart-tooltip-bg: rgba(255, 255, 255, 0.98);
 
-		--radius: 0.5rem;
+		--radius: 0.5rem; /* 8px — matches Vercel; --radius-lg becomes 10px */
 
 		/* Glass */
 		--glass-bg: rgba(255, 255, 255, 0.8);
@@ -231,74 +244,78 @@
 	}
 
 	.dark {
-		/* ---- DARK MODE — near-black + saturated indigo (dev-tool minimal) ----
-		   Surface hierarchy by elevation:
-		   background < sidebar < card < secondary < muted < popover < accent */
-		--background: #08090b;
-		--foreground: #e8eaf0;
-		--card: #0d0f13;
-		--card-foreground: #e8eaf0;
-		--popover: #11141a;
-		--popover-foreground: #f2f4f9;
+		/* ---- DARK MODE — Vercel/Resend near-black with alpha overlays ----
+		   Surface hierarchy via alpha layers instead of solid color steps,
+		   so every surface tints correctly when stacked. */
+		--background: hsl(0 0% 4%);        /* page bg — #0a0a0a */
+		--foreground: hsl(0 0% 93%);
+		--card: hsl(0 0% 4%);              /* same as bg, differentiated by border */
+		--card-foreground: hsl(0 0% 93%);
+		--popover: hsl(0 0% 10%);
+		--popover-foreground: hsl(0 0% 93%);
 
-		--primary: #6366f1; /* saturated indigo */
-		--primary-foreground: #0b0d12;
+		--surface: hsl(0 0% 6%);           /* slightly elevated (sticky toolbar) */
+		--surface-subtle: hsl(0 0% 8%);    /* table header strip */
+		--surface-strong: hsl(0 0% 12%);   /* pressed row */
 
-		--secondary: #181b22;
-		--secondary-foreground: #e8eaf0;
+		--primary: hsl(0 0% 93%);          /* inverted: light bg, dark text */
+		--primary-foreground: hsl(0 0% 9%);
 
-		--muted: #1c1f27;
-		--muted-foreground: #a1a8b8; /* WCAG AA ~5.4:1 on background */
+		--secondary: hsl(0 0% 10%);
+		--secondary-foreground: hsl(0 0% 93%);
 
-		--accent: #232733;
-		--accent-foreground: #f2f4f9;
+		--muted: hsl(0 0% 10%);
+		--muted-foreground: hsl(0 0% 56%); /* gray-700 */
 
-		--border: #1f2330;
-		--border-strong: #2a2f3d;
-		--input: #2a2f3d;
-		--ring: #6366f1;
+		--accent: hsl(0 0% 12%);
+		--accent-foreground: hsl(0 0% 93%);
+
+		--border: rgba(255, 255, 255, 0.09);
+		--border-strong: rgba(255, 255, 255, 0.14);
+		--input: rgba(255, 255, 255, 0.14);
+		--ring: hsl(212 100% 48%);
 
 		/* Semantic */
-		--destructive: #f87171;
-		--destructive-foreground: #1a0707;
-		--success: #4ade80;
-		--success-foreground: #052e14;
-		--warning: #fbbf24;
-		--warning-foreground: #422006;
-		--info: #60a5fa;
-		--info-foreground: #0c1e3a;
-		--highlight: #fbbf24;
-		--highlight-foreground: #422006;
+		--destructive: hsl(358 75% 59%);
+		--destructive-foreground: hsl(0 0% 98%);
+		--success: hsl(160 60% 45%);
+		--success-foreground: hsl(0 0% 5%);
+		--warning: hsl(36 92% 55%);
+		--warning-foreground: hsl(0 0% 5%);
+		--info: hsl(212 100% 58%);
+		--info-foreground: hsl(0 0% 5%);
+		--highlight: hsl(36 92% 55%);
+		--highlight-foreground: hsl(0 0% 5%);
 
 		/* Connectivity */
-		--online: #4ade80;
-		--offline: #f87171;
-		--idle: #fbbf24;
+		--online: hsl(160 60% 45%);
+		--offline: hsl(358 75% 59%);
+		--idle: hsl(36 92% 55%);
 
-		/* Sidebar — even darker than background for the "negative space" feel */
-		--sidebar: #0a0c10;
-		--sidebar-foreground: #d4d8e1;
-		--sidebar-primary: #6366f1;
-		--sidebar-primary-foreground: #f2f4f9;
-		--sidebar-accent: #181b22;
-		--sidebar-accent-foreground: #f2f4f9;
-		--sidebar-border: #1f2330;
-		--sidebar-ring: #6366f1;
+		/* Sidebar — same near-black as page bg, unified surface */
+		--sidebar: hsl(0 0% 4%);
+		--sidebar-foreground: hsl(0 0% 63%);
+		--sidebar-primary: hsl(0 0% 93%);
+		--sidebar-primary-foreground: hsl(0 0% 9%);
+		--sidebar-accent: hsl(0 0% 10%);
+		--sidebar-accent-foreground: hsl(0 0% 93%);
+		--sidebar-border: rgba(255, 255, 255, 0.09);
+		--sidebar-ring: hsl(212 100% 48%);
 
 		/* Charts */
-		--chart-1: #818cf8;
-		--chart-2: #60a5fa;
-		--chart-3: #4ade80;
-		--chart-4: #fbbf24;
-		--chart-5: #c084fc;
-		--chart-6: #22d3ee;
-		--chart-grid: #1f2330;
-		--chart-axis: #6b7280;
-		--chart-tooltip-bg: rgba(13, 15, 19, 0.96);
+		--chart-1: hsl(212 100% 58%);
+		--chart-2: hsl(160 60% 50%);
+		--chart-3: hsl(36 92% 55%);
+		--chart-4: hsl(265 70% 65%);
+		--chart-5: hsl(190 70% 55%);
+		--chart-6: hsl(340 75% 65%);
+		--chart-grid: rgba(255, 255, 255, 0.06);
+		--chart-axis: hsl(0 0% 40%);
+		--chart-tooltip-bg: rgba(10, 10, 10, 0.98);
 
 		/* Glass */
-		--glass-bg: rgba(13, 15, 19, 0.75);
-		--glass-border: rgba(99, 102, 241, 0.14);
+		--glass-bg: rgba(10, 10, 10, 0.75);
+		--glass-border: rgba(255, 255, 255, 0.09);
 	}
 
 	*,

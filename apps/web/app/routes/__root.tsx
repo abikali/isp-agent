@@ -67,7 +67,7 @@ export const Route = createRootRoute({
 			// Preload CSS for faster initial render (prevents FOUC)
 			{ rel: "preload", href: appCss, as: "style" },
 			{ rel: "stylesheet", href: appCss },
-			// Fonts: Inter (sans) + JetBrains Mono (mono for IDs/amounts)
+			// Fonts: Geist Sans + Geist Mono (Vercel-grade typography)
 			{ rel: "preconnect", href: "https://fonts.googleapis.com" },
 			{
 				rel: "preconnect",
@@ -76,7 +76,7 @@ export const Route = createRootRoute({
 			},
 			{
 				rel: "stylesheet",
-				href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
+				href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap",
 			},
 			{ rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
 			{

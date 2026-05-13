@@ -17,7 +17,13 @@ const TableHeader = ({
 	className,
 	...props
 }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-	<thead className={cn("[&_tr]:border-b", className)} {...props} />
+	<thead
+		className={cn(
+			"bg-surface-subtle/50 [&_tr]:border-b [&_tr]:border-border",
+			className,
+		)}
+		{...props}
+	/>
 );
 
 const TableBody = ({
@@ -33,7 +39,7 @@ const TableRow = ({
 }: React.HTMLAttributes<HTMLTableRowElement>) => (
 	<tr
 		className={cn(
-			"border-b border-border/50 transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+			"border-b border-border transition-colors hover:bg-accent/40 data-[state=selected]:bg-accent",
 			className,
 		)}
 		{...props}
@@ -46,7 +52,7 @@ const TableHead = ({
 }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
 	<th
 		className={cn(
-			"h-10 px-4 text-left align-middle text-xs font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+			"h-9 px-3 text-left align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground md:px-4 [&:has([role=checkbox])]:pr-0",
 			className,
 		)}
 		{...props}
@@ -59,7 +65,7 @@ const TableCell = ({
 }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
 	<td
 		className={cn(
-			"px-4 py-2.5 align-middle [&:has([role=checkbox])]:pr-0",
+			"px-3 py-3 align-middle text-sm text-foreground md:px-4 [&:has([role=checkbox])]:pr-0",
 			className,
 		)}
 		{...props}

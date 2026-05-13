@@ -6,13 +6,16 @@ import { AppSidebar } from "./AppSidebar";
 import { CommandPaletteProvider } from "./CommandPalette";
 
 /**
- * The new dashboard shell.
+ * The dashboard shell — collapsible sidebar + main content area + ⌘K palette.
  *
- * Replaces the legacy AppWrapper (top-bar / left-rail with a card-in-card
- * content area) with a collapsible shadcn Sidebar + flat content surface +
- * global ⌘K command palette.
+ * Surface model (Vercel-style):
+ *   - SidebarProvider wraps everything (flex row).
+ *   - AppSidebar renders the navigation (collapsible to icon rail).
+ *   - SidebarInset is the main content surface; it's `bg-background` so the
+ *     sidebar and content share one continuous near-black/near-white plane.
+ *     Page-level chrome (PageShell header, content cards) defines the
+ *     hierarchy via 1px alpha borders inside that plane.
  *
- * Each page renders its own sticky PageHeader/PageShell inside this shell.
  * The sidebar's open/collapsed state is persisted via cookie automatically
  * by the shadcn primitive; ⌘B toggles it.
  */
@@ -21,8 +24,8 @@ export function AppShell({ children }: PropsWithChildren) {
 		<CommandPaletteProvider>
 			<SidebarProvider>
 				<AppSidebar />
-				<SidebarInset className="min-w-0">
-					<div className="flex flex-1 flex-col">{children}</div>
+				<SidebarInset className="min-w-0 bg-background">
+					{children}
 				</SidebarInset>
 			</SidebarProvider>
 		</CommandPaletteProvider>
