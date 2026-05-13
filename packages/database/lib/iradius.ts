@@ -370,7 +370,7 @@ function toBigIntSafe(val: unknown): bigint {
 /**
  * Fetch the live online flag + bytes counters for every active customer.
  * Joins User → UserNas so a single tunnel call returns everything needed
- * by the 60s online + usage sync. Returns null on connection failure so
+ * by the 15s online + usage sync. Returns null on connection failure so
  * the caller can skip gracefully.
  */
 export async function queryIRadiusUsageSnapshot(): Promise<
@@ -378,8 +378,11 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 > {
 	try {
 		return await withIRadiusConnection(async (conn) => {
+			// Online lives on UserNas, not User — Users without a NAS row are
+			// treated as offline (the LEFT JOIN yields NULL, and toBooleanFromBit
+			// maps that to false).
 			const [rows] = await conn.query<RowDataPacket[]>(
-				`SELECT u.Id, u.Online,
+				`SELECT u.Id, un.Online,
 					IFNULL(un.DownloadBytes, 0) AS DownloadBytes,
 					IFNULL(un.UploadBytes, 0) AS UploadBytes,
 					IFNULL(un.DailyDownloadBytes, 0) AS DailyDownloadBytes,

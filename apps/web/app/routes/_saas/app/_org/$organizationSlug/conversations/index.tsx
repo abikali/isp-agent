@@ -22,10 +22,12 @@ function ConversationsPage() {
 
 	return (
 		<PermissionGate resource="aiAgents" action="read">
-			<ConversationsHub
-				organizationId={organizationId}
-				organizationSlug={organizationSlug}
-			/>
+			<div className="flex min-h-0 flex-1 flex-col p-2 md:p-3">
+				<ConversationsHub
+					organizationId={organizationId}
+					organizationSlug={organizationSlug}
+				/>
+			</div>
 		</PermissionGate>
 	);
 }

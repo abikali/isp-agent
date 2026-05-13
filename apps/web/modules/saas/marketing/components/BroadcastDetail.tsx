@@ -14,6 +14,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "@ui/components/table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
 import { useBroadcast, useCancelBroadcast } from "../hooks/use-marketing";
 import {
 	BROADCAST_STATUS_VARIANTS,
@@ -158,8 +163,24 @@ export function BroadcastDetail({
 											? r.waMessageId.slice(0, 20)
 											: "—"}
 									</TableCell>
-									<TableCell className="max-w-xs truncate text-sm text-destructive">
-										{r.errorMessage ?? ""}
+									<TableCell className="max-w-xs text-sm text-destructive">
+										{r.errorMessage ? (
+											<Tooltip>
+												<TooltipTrigger
+													asChild
+													className="cursor-help"
+												>
+													<span className="block truncate">
+														{r.errorMessage}
+													</span>
+												</TooltipTrigger>
+												<TooltipContent className="max-w-md whitespace-pre-wrap break-words">
+													{r.errorMessage}
+												</TooltipContent>
+											</Tooltip>
+										) : (
+											""
+										)}
 									</TableCell>
 									<TableCell className="text-xs text-muted-foreground">
 										{r.sentAt

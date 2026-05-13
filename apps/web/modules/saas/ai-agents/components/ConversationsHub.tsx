@@ -2,10 +2,20 @@
 
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { cn } from "@ui/lib";
-import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
+import {
+	InfoIcon,
+	PanelRightCloseIcon,
+	PanelRightOpenIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAllConversations } from "../hooks/use-all-conversations";
 import { ConversationContextPanel } from "./ConversationContextPanel";
 import {
@@ -34,6 +44,7 @@ export function ConversationsHub({
 }) {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [showContext, setShowContext] = useState(true);
+	const [contextSheetOpen, setContextSheetOpen] = useState(false);
 	const [filters, setFilters] = useState<Filters>({
 		search: "",
 		agentId: "",
@@ -42,7 +53,13 @@ export function ConversationsHub({
 		sortBy: "lastMessageAt",
 	});
 
-	const { conversations, isLoading } = useAllConversations(organizationId, {
+	const {
+		conversations,
+		isLoading,
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
+	} = useAllConversations(organizationId, {
 		search: filters.search || undefined,
 		agentId: filters.agentId || undefined,
 		channelType:
@@ -56,22 +73,30 @@ export function ConversationsHub({
 				| "createdAt") || undefined,
 	});
 
-	const orderedConversations = [...conversations].sort((a, b) => {
-		if (a.status === "needs_human" && b.status !== "needs_human") {
-			return -1;
-		}
-		if (b.status === "needs_human" && a.status !== "needs_human") {
-			return 1;
-		}
-		if (a.pinned !== b.pinned) {
-			return a.pinned ? -1 : 1;
-		}
-		return 0;
-	});
+	const orderedConversations = useMemo(() => {
+		return [...conversations].sort((a, b) => {
+			if (a.status === "needs_human" && b.status !== "needs_human") {
+				return -1;
+			}
+			if (b.status === "needs_human" && a.status !== "needs_human") {
+				return 1;
+			}
+			if (a.pinned !== b.pinned) {
+				return a.pinned ? -1 : 1;
+			}
+			return 0;
+		});
+	}, [conversations]);
 
 	const selectedConversation = orderedConversations.find(
 		(c) => c.id === selectedId,
 	);
+
+	const handleLoadMore = useCallback(() => {
+		if (hasNextPage && !isFetchingNextPage) {
+			void fetchNextPage();
+		}
+	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	const handleSelect = useCallback((id: string) => {
 		setSelectedId(id);
@@ -138,8 +163,8 @@ export function ConversationsHub({
 	);
 
 	return (
-		<div className="flex h-[calc(100vh-130px)] overflow-hidden">
-			<div className="w-full border-r border-border md:w-[360px] md:shrink-0">
+		<div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card">
+			<div className="w-full border-r border-border md:w-[340px] md:shrink-0 lg:w-[360px]">
 				<div className="hidden h-full md:block">
 					<ConversationsListPanel
 						conversations={orderedConversations}
@@ -148,6 +173,9 @@ export function ConversationsHub({
 						onSelect={handleSelect}
 						filters={filters}
 						onFiltersChange={handleFiltersChange}
+						hasNextPage={hasNextPage}
+						isFetchingNextPage={isFetchingNextPage}
+						onLoadMore={handleLoadMore}
 					/>
 				</div>
 				<div className="h-full md:hidden">
@@ -159,28 +187,45 @@ export function ConversationsHub({
 						filters={filters}
 						onFiltersChange={handleFiltersChange}
 						renderWrapper={mobileWrapper}
+						hasNextPage={hasNextPage}
+						isFetchingNextPage={isFetchingNextPage}
+						onLoadMore={handleLoadMore}
 					/>
 				</div>
 			</div>
 
 			<div
 				className={cn(
-					"relative hidden flex-1 md:flex md:flex-col",
-					"min-w-0",
+					"relative hidden min-w-0 flex-1 md:flex md:flex-col",
 				)}
 			>
 				{selectedId ? (
 					<>
-						<div className="absolute right-3 top-3 z-10 hidden lg:block">
+						<div className="absolute right-3 top-3 z-10 flex gap-1.5">
 							<Button
 								variant="outline"
 								size="icon"
-								className="size-7"
+								className="size-7 lg:hidden"
+								onClick={() => setContextSheetOpen(true)}
+								title="Conversation context"
+								aria-label="Open conversation context"
+							>
+								<InfoIcon className="size-3.5" />
+							</Button>
+							<Button
+								variant="outline"
+								size="icon"
+								className="hidden size-7 lg:inline-flex"
 								onClick={() => setShowContext((s) => !s)}
 								title={
 									showContext
 										? "Hide context (⌘I)"
 										: "Show context (⌘I)"
+								}
+								aria-label={
+									showContext
+										? "Hide context"
+										: "Show context"
 								}
 							>
 								{showContext ? (
@@ -203,13 +248,34 @@ export function ConversationsHub({
 			</div>
 
 			{showContext && (
-				<aside className="hidden w-[320px] shrink-0 border-l border-border lg:block">
+				<aside className="hidden w-[340px] shrink-0 border-l border-border lg:block">
 					<ConversationContextPanel
 						conversation={selectedConversation}
+						organizationId={organizationId}
 						organizationSlug={organizationSlug}
 					/>
 				</aside>
 			)}
+
+			<Sheet open={contextSheetOpen} onOpenChange={setContextSheetOpen}>
+				<SheetContent
+					side="right"
+					className="flex w-full flex-col p-0 sm:max-w-sm"
+				>
+					<SheetHeader className="border-b px-4 py-3">
+						<SheetTitle className="text-sm">
+							Conversation details
+						</SheetTitle>
+					</SheetHeader>
+					<div className="min-h-0 flex-1 overflow-hidden">
+						<ConversationContextPanel
+							conversation={selectedConversation}
+							organizationId={organizationId}
+							organizationSlug={organizationSlug}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }

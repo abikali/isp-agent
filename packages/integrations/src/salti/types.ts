@@ -69,6 +69,13 @@ export interface SaltiSendResult {
 	message_id?: number | string;
 	message_wamid?: string;
 	message?: string;
+	// Fields Salti returns when WhatsApp itself rejects the send (HTTP is still
+	// 200; only `status: "error"` signals failure). `wa_error_code` mirrors the
+	// Meta error code (e.g. 132012 for "Parameter format does not match"), and
+	// `error_message` is the human-readable Meta reason.
+	error_message?: string;
+	wa_status?: string;
+	wa_error_code?: string;
 }
 
 export interface SaltiMakeContactInput {

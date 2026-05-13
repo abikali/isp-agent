@@ -68,11 +68,13 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
-	// Sync online/offline status from iRadius every 60 seconds
+	// Sync online/offline status + daily usage from iRadius every 15 seconds
+	// — same cadence as network-monitor-sync, mirroring iRadius's own monitor
+	// refresh rate so the customers table feels live.
 	await queue.upsertJobScheduler(
 		"online-status-sync",
 		{
-			every: 60000,
+			every: 15000,
 		},
 		{
 			name: "online-status-sync",

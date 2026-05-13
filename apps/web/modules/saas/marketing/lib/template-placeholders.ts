@@ -65,3 +65,49 @@ export function renderPlaceholderPreview(
 		return values[idx] ?? `{{${n}}}`;
 	});
 }
+
+export type TemplateHeaderFormat =
+	| "NONE"
+	| "TEXT"
+	| "IMAGE"
+	| "VIDEO"
+	| "DOCUMENT"
+	| "LOCATION";
+
+/**
+ * Pull the header descriptor out of a template. WhatsApp templates declare at
+ * most one HEADER component; we use its `format` to decide whether the wizard
+ * needs to collect text placeholders, a media URL, or nothing at all.
+ */
+export function getTemplateHeader(template: SaltiTemplate): {
+	format: TemplateHeaderFormat;
+	exampleMediaUrl: string | null;
+} {
+	const header = (template.components ?? []).find(
+		(c) => String(c.type ?? "").toUpperCase() === "HEADER",
+	);
+	if (!header) {
+		return { format: "NONE", exampleMediaUrl: null };
+	}
+	const format = (header.format ?? "TEXT") as TemplateHeaderFormat;
+	// Meta's example media handle (cdn URL) is short-lived and won't deliver
+	// reliably to real recipients, but it's good enough to pre-fill the URL
+	// box so operators can swap in their own asset. Treat it as a hint.
+	const exampleMediaUrl = header.example?.header_handle?.[0] ?? null;
+	return { format, exampleMediaUrl };
+}
+
+export function headerFormatToMediaKind(
+	format: TemplateHeaderFormat,
+): "image" | "video" | "document" | null {
+	if (format === "IMAGE") {
+		return "image";
+	}
+	if (format === "VIDEO") {
+		return "video";
+	}
+	if (format === "DOCUMENT") {
+		return "document";
+	}
+	return null;
+}

@@ -24,7 +24,7 @@ function ConversationDetailPage() {
 
 	return (
 		<PermissionGate resource="aiAgents" action="read">
-			<div className="h-[calc(100vh-130px)]">
+			<div className="flex min-h-0 flex-1 flex-col">
 				<AsyncBoundary
 					fallback={
 						<div className="space-y-4 p-4">

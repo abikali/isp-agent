@@ -85,7 +85,7 @@ export function useCustomers(filters: CustomerListInput = {}) {
 				typeof orpc.customers.list.queryOptions
 			>[0]["input"],
 		}),
-		refetchInterval: 30_000,
+		refetchInterval: 15_000,
 		refetchIntervalInBackground: false,
 	});
 

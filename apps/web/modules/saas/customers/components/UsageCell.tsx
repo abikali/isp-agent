@@ -49,7 +49,7 @@ export function UsageCell({
 	const ulPct = total > 0 ? (ul / total) * 100 : 0;
 
 	// Live cue: pulse the cell when the customers list query is mid-refetch.
-	// The backend's 60s online + usage sync writes fresh bytes; this signals
+	// The backend's 15s online + usage sync writes fresh bytes; this signals
 	// to the user that what they're looking at is being refreshed.
 	const isRefreshing =
 		useIsFetching({ queryKey: orpc.customers.list.key() }) > 0;

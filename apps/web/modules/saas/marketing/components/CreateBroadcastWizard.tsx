@@ -40,8 +40,11 @@ import {
 } from "../hooks/use-marketing";
 import {
 	CUSTOMER_VARIABLE_FIELDS,
+	getTemplateHeader,
 	getTemplatePlaceholderCounts,
+	headerFormatToMediaKind,
 	renderPlaceholderPreview,
+	type TemplateHeaderFormat,
 } from "../lib/template-placeholders";
 
 type AudienceTab = "isp_customers" | "salti_group" | "csv" | "manual";
@@ -104,6 +107,9 @@ export function CreateBroadcastWizard({
 	// mapping per placeholder slot
 	const [headerMappings, setHeaderMappings] = useState<VariableMapping[]>([]);
 	const [bodyMappings, setBodyMappings] = useState<VariableMapping[]>([]);
+	// media URL for templates whose HEADER format is IMAGE/VIDEO/DOCUMENT.
+	// Empty string = unset; we block the Launch button until a URL is supplied.
+	const [headerMediaUrl, setHeaderMediaUrl] = useState<string>("");
 
 	const selectedTemplate: SaltiTemplate | undefined = useMemo(
 		() =>
@@ -120,6 +126,18 @@ export function CreateBroadcastWizard({
 				: { header: 0, body: 0, button: 0 },
 		[selectedTemplate],
 	);
+
+	const headerInfo = useMemo(
+		() =>
+			selectedTemplate
+				? getTemplateHeader(selectedTemplate)
+				: ({
+						format: "NONE" as TemplateHeaderFormat,
+						exampleMediaUrl: null,
+					} as const),
+		[selectedTemplate],
+	);
+	const headerMediaKind = headerFormatToMediaKind(headerInfo.format);
 
 	// Debounce text-heavy inputs so the live preview doesn't fire on every
 	// keystroke. ISP filters + group/select changes are kept immediate.
@@ -230,6 +248,14 @@ export function CreateBroadcastWizard({
 				field: "customer.fullName",
 			})),
 		);
+		// Pre-fill the media URL with the template's example handle so the
+		// operator only needs to type when they want to override it.
+		const header = getTemplateHeader(template);
+		setHeaderMediaUrl(
+			headerFormatToMediaKind(header.format)
+				? (header.exampleMediaUrl ?? "")
+				: "",
+		);
 	};
 
 	const onSubmit = async () => {
@@ -240,6 +266,14 @@ export function CreateBroadcastWizard({
 			header: headerMappings,
 			body: bodyMappings,
 			button: [],
+			...(headerMediaKind && headerMediaUrl.trim()
+				? {
+						headerMedia: {
+							kind: headerMediaKind,
+							url: headerMediaUrl.trim(),
+						},
+					}
+				: {}),
 		} as Parameters<typeof create.mutateAsync>[0]["variables"];
 		const result = await create.mutateAsync({
 			organizationId,
@@ -259,6 +293,10 @@ export function CreateBroadcastWizard({
 		});
 	};
 
+	const needsMediaUrl = !!headerMediaKind;
+	const hasMediaUrl = headerMediaUrl.trim().length > 0;
+	const mediaReady = !needsMediaUrl || hasMediaUrl;
+
 	const canAdvance = () => {
 		if (step === "audience") {
 			if (audienceTab === "manual") {
@@ -276,7 +314,7 @@ export function CreateBroadcastWizard({
 			return !!selectedTemplate;
 		}
 		if (step === "variables") {
-			return true;
+			return mediaReady;
 		}
 		return true;
 	};
@@ -368,6 +406,10 @@ export function CreateBroadcastWizard({
 							bodyMappings={bodyMappings}
 							setBodyMappings={setBodyMappings}
 							audienceTab={audienceTab}
+							headerMediaKind={headerMediaKind}
+							headerMediaUrl={headerMediaUrl}
+							setHeaderMediaUrl={setHeaderMediaUrl}
+							exampleMediaUrl={headerInfo.exampleMediaUrl}
 						/>
 					),
 					review: (
@@ -377,6 +419,8 @@ export function CreateBroadcastWizard({
 							headerMappings={headerMappings}
 							bodyMappings={bodyMappings}
 							preview={preview}
+							headerMediaKind={headerMediaKind}
+							headerMediaUrl={headerMediaUrl}
 						/>
 					),
 				}[step]
@@ -399,7 +443,9 @@ export function CreateBroadcastWizard({
 				{step === "review" ? (
 					<Button
 						onClick={onSubmit}
-						disabled={create.isPending || !selectedTemplate}
+						disabled={
+							create.isPending || !selectedTemplate || !mediaReady
+						}
 					>
 						{create.isPending ? "Sending…" : "Launch broadcast"}
 						<CheckIcon className="size-4" />
@@ -834,6 +880,10 @@ interface VariablesStepProps {
 	bodyMappings: VariableMapping[];
 	setBodyMappings: (m: VariableMapping[]) => void;
 	audienceTab: AudienceTab;
+	headerMediaKind: "image" | "video" | "document" | null;
+	headerMediaUrl: string;
+	setHeaderMediaUrl: (s: string) => void;
+	exampleMediaUrl: string | null;
 }
 
 function VariablesStep({
@@ -846,6 +896,10 @@ function VariablesStep({
 	bodyMappings,
 	setBodyMappings,
 	audienceTab,
+	headerMediaKind,
+	headerMediaUrl,
+	setHeaderMediaUrl,
+	exampleMediaUrl,
 }: VariablesStepProps) {
 	if (!template) {
 		return <p>Select a template first.</p>;
@@ -925,6 +979,17 @@ function VariablesStep({
 		</div>
 	);
 
+	const mediaLabel = headerMediaKind
+		? headerMediaKind === "image"
+			? "Image URL"
+			: headerMediaKind === "video"
+				? "Video URL"
+				: "Document URL"
+		: null;
+	const mediaUrlEmpty = headerMediaUrl.trim().length === 0;
+	const usingExampleUrl =
+		!!exampleMediaUrl && headerMediaUrl.trim() === exampleMediaUrl.trim();
+
 	return (
 		<div className="space-y-4">
 			<Field>
@@ -935,6 +1000,56 @@ function VariablesStep({
 					placeholder={`${template.name} – ${new Date().toLocaleDateString()}`}
 				/>
 			</Field>
+
+			{headerMediaKind ? (
+				<div className="space-y-2 rounded-lg border p-4">
+					<div className="flex items-center justify-between gap-2">
+						<h3 className="font-medium">Header media</h3>
+						<Badge variant="outline" className="uppercase">
+							{headerMediaKind}
+						</Badge>
+					</div>
+					<p className="text-xs text-muted-foreground">
+						This template has a {headerMediaKind} header. Provide a
+						public URL — every recipient will see the same media.
+					</p>
+					<Field>
+						<FieldLabel>{mediaLabel}</FieldLabel>
+						<Input
+							type="url"
+							value={headerMediaUrl}
+							onChange={(e) => setHeaderMediaUrl(e.target.value)}
+							placeholder={`https://example.com/your-${headerMediaKind}.${
+								headerMediaKind === "image"
+									? "jpg"
+									: headerMediaKind === "video"
+										? "mp4"
+										: "pdf"
+							}`}
+							aria-invalid={mediaUrlEmpty || undefined}
+						/>
+					</Field>
+					{mediaUrlEmpty ? (
+						<Alert variant="error">
+							<TriangleAlertIcon className="size-4" />
+							<AlertDescription>
+								WhatsApp will reject the send (error 132012) if
+								no media URL is supplied.
+							</AlertDescription>
+						</Alert>
+					) : usingExampleUrl ? (
+						<Alert>
+							<TriangleAlertIcon className="size-4" />
+							<AlertDescription>
+								This is Meta's example {headerMediaKind} from
+								the template builder. The URL expires shortly —
+								replace it with your own hosted asset before
+								launching.
+							</AlertDescription>
+						</Alert>
+					) : null}
+				</div>
+			) : null}
 
 			{counts.header > 0 ? (
 				<div className="space-y-2">
@@ -966,7 +1081,7 @@ function VariablesStep({
 				</div>
 			) : null}
 
-			{counts.header === 0 && counts.body === 0 ? (
+			{counts.header === 0 && counts.body === 0 && !headerMediaKind ? (
 				<p className="text-sm text-muted-foreground">
 					This template has no dynamic parameters. You can proceed
 					straight to review.
@@ -982,6 +1097,8 @@ interface ReviewStepProps {
 	headerMappings: VariableMapping[];
 	bodyMappings: VariableMapping[];
 	preview: ReturnType<typeof useAudiencePreviewQuery>;
+	headerMediaKind: "image" | "video" | "document" | null;
+	headerMediaUrl: string;
 }
 
 function ReviewStep({
@@ -990,6 +1107,8 @@ function ReviewStep({
 	headerMappings,
 	bodyMappings,
 	preview,
+	headerMediaKind,
+	headerMediaUrl,
 }: ReviewStepProps) {
 	if (!template) {
 		return <p>Select a template first.</p>;
@@ -1027,6 +1146,27 @@ function ReviewStep({
 
 			<div className="rounded-lg border bg-muted/30 p-4">
 				<div className="text-sm font-medium">Message preview</div>
+				{headerMediaKind ? (
+					<div className="mt-2 flex items-center gap-2 text-xs">
+						<Badge variant="outline" className="uppercase">
+							{headerMediaKind} header
+						</Badge>
+						{headerMediaUrl ? (
+							<a
+								href={headerMediaUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="truncate text-muted-foreground underline"
+							>
+								{headerMediaUrl}
+							</a>
+						) : (
+							<span className="text-destructive">
+								No URL set — send will fail
+							</span>
+						)}
+					</div>
+				) : null}
 				<pre className="mt-2 whitespace-pre-wrap text-sm">
 					{rendered}
 				</pre>

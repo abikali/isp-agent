@@ -23,7 +23,7 @@ export const listAllConversations = protectedProcedure
 				.default("lastMessageAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			cursor: z.string().optional(),
-			limit: z.number().int().min(1).max(50).default(20),
+			limit: z.number().int().min(1).max(100).default(50),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {

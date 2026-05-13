@@ -1,7 +1,13 @@
 "use client";
 
 import { orpc } from "@shared/lib/orpc";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 interface AllConversationsFilters {
@@ -14,13 +20,15 @@ interface AllConversationsFilters {
 	sortOrder?: "asc" | "desc" | undefined;
 }
 
+const PAGE_SIZE = 50;
+
 export function useAllConversations(
 	organizationId: string,
 	filters?: AllConversationsFilters,
 ) {
-	const query = useQuery({
-		...orpc.aiAgents.listAllConversations.queryOptions({
-			input: {
+	const query = useInfiniteQuery({
+		...orpc.aiAgents.listAllConversations.infiniteOptions({
+			input: (cursor: string | undefined) => ({
 				organizationId,
 				agentId: filters?.agentId,
 				search: filters?.search,
@@ -29,15 +37,26 @@ export function useAllConversations(
 				pinned: filters?.pinned,
 				sortBy: filters?.sortBy,
 				sortOrder: filters?.sortOrder,
-			},
+				limit: PAGE_SIZE,
+				cursor,
+			}),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (lastPage) => lastPage.nextCursor,
 		}),
 		refetchInterval: 10000,
 	});
 
+	const conversations = useMemo(
+		() => query.data?.pages.flatMap((page) => page.conversations) ?? [],
+		[query.data],
+	);
+
 	return {
-		conversations: query.data?.conversations ?? [],
-		nextCursor: query.data?.nextCursor,
+		conversations,
 		isLoading: query.isLoading,
+		isFetchingNextPage: query.isFetchingNextPage,
+		hasNextPage: query.hasNextPage,
+		fetchNextPage: query.fetchNextPage,
 		refetch: query.refetch,
 	};
 }

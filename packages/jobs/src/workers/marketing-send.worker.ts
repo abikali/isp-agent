@@ -1,6 +1,10 @@
 import { decryptToken } from "@repo/ai";
 import { db } from "@repo/database";
-import { createSaltiClient, SaltiApiError } from "@repo/integrations";
+import {
+	createSaltiClient,
+	SaltiApiError,
+	type SaltiSendResult,
+} from "@repo/integrations";
 import { logger } from "@repo/logs";
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
@@ -23,10 +27,34 @@ interface VariableMapping {
 	field?: string;
 }
 
+interface HeaderMedia {
+	kind: "image" | "video" | "document";
+	url: string;
+	filename?: string;
+}
+
 interface StoredVariables {
 	header?: VariableMapping[];
 	body?: VariableMapping[];
 	button?: VariableMapping[];
+	headerMedia?: HeaderMedia;
+}
+
+/**
+ * Turn a non-success Salti response into a human-readable string. Prefers the
+ * WhatsApp-level reason (`error_message` + `wa_error_code`) over Salti's generic
+ * `message`, and falls back to a stringified payload so we never lose context.
+ */
+function formatSaltiFailure(result: SaltiSendResult): string {
+	if (result.error_message) {
+		return result.wa_error_code
+			? `WA ${result.wa_error_code}: ${result.error_message}`
+			: result.error_message;
+	}
+	if (result.message) {
+		return result.message;
+	}
+	return `Salti returned ${result.status ?? "unknown status"} (${JSON.stringify(result).slice(0, 400)})`;
 }
 
 function renderMapping(
@@ -42,6 +70,12 @@ function renderMapping(
 	return "";
 }
 
+type SaltiComponentParam =
+	| { type: "text"; text: string }
+	| { type: "image"; image: { link: string } }
+	| { type: "video"; video: { link: string } }
+	| { type: "document"; document: { link: string; filename?: string } };
+
 function buildComponents(
 	mapping: StoredVariables,
 	recipientVars: Record<string, string>,
@@ -49,10 +83,30 @@ function buildComponents(
 	type: "header" | "body" | "button";
 	sub_type?: "url" | "quick_reply";
 	index?: number;
-	parameters: Array<{ type: "text"; text: string }>;
+	parameters: SaltiComponentParam[];
 }> {
 	const out: ReturnType<typeof buildComponents> = [];
-	if (mapping.header && mapping.header.length > 0) {
+	// Media headers and text headers are mutually exclusive — WhatsApp templates
+	// declare exactly one header format. headerMedia wins when present so the
+	// caller can leave `header: []` untouched while still supplying media.
+	if (mapping.headerMedia?.url) {
+		const media = mapping.headerMedia;
+		const param: SaltiComponentParam =
+			media.kind === "image"
+				? { type: "image", image: { link: media.url } }
+				: media.kind === "video"
+					? { type: "video", video: { link: media.url } }
+					: {
+							type: "document",
+							document: {
+								link: media.url,
+								...(media.filename && {
+									filename: media.filename,
+								}),
+							},
+						};
+		out.push({ type: "header", parameters: [param] });
+	} else if (mapping.header && mapping.header.length > 0) {
 		out.push({
 			type: "header",
 			parameters: mapping.header.map((m) => ({
@@ -240,13 +294,15 @@ export function createMarketingSendWorker(): Worker<
 							});
 						} else {
 							failedCount += 1;
+							const errorMessage = formatSaltiFailure(result);
+							logger.warn(
+								`[Marketing] broadcast ${broadcast.id} recipient ${recipient.phone} failed: ${errorMessage}`,
+							);
 							await db.marketingBroadcastRecipient.update({
 								where: { id: recipient.id },
 								data: {
 									status: "failed",
-									errorMessage:
-										result.message?.slice(0, 1000) ??
-										"Salti returned non-success status",
+									errorMessage: errorMessage.slice(0, 1000),
 								},
 							});
 						}
