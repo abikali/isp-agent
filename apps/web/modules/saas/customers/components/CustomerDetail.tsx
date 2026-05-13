@@ -178,6 +178,7 @@ export function CustomerDetail({
 		error?: string;
 	} | null>(null);
 	const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+	const [confirmReactivate, setConfirmReactivate] = useState(false);
 
 	const { plans } = usePlansQuery();
 	const { employees } = useEmployeesQuery();
@@ -424,13 +425,22 @@ export function CustomerDetail({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onClick={() => setConfirmDeactivate(true)}
-								className="text-destructive focus:text-destructive"
-							>
-								<UserXIcon className="mr-2 size-4" />
-								Deactivate
-							</DropdownMenuItem>
+							{customer.status === "ACTIVE" ? (
+								<DropdownMenuItem
+									onClick={() => setConfirmDeactivate(true)}
+									className="text-destructive focus:text-destructive"
+								>
+									<UserXIcon className="mr-2 size-4" />
+									Deactivate
+								</DropdownMenuItem>
+							) : (
+								<DropdownMenuItem
+									onClick={() => setConfirmReactivate(true)}
+								>
+									<CheckCircle2Icon className="mr-2 size-4" />
+									Reactivate
+								</DropdownMenuItem>
+							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
 					<Button
@@ -782,6 +792,43 @@ export function CustomerDetail({
 							}}
 						>
 							Deactivate
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Reactivate confirmation. Mirrors the Deactivate flow: status
+			    change always mirrors to iRadius (see updateCustomer's remote
+			    block), so we don't need a separate `syncToIRadius` flag. */}
+			<AlertDialog
+				open={confirmReactivate}
+				onOpenChange={setConfirmReactivate}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Reactivate customer?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							This sets the customer status back to active and
+							re-enables their connection in iRadius.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (!organizationId) {
+									return;
+								}
+								updateCustomer.mutate({
+									organizationId,
+									id: customerId,
+									status: "ACTIVE",
+								});
+							}}
+						>
+							Reactivate
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

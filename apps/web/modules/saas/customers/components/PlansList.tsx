@@ -8,6 +8,7 @@ import { EmptyState } from "@shared/components/EmptyState";
 import { FilterBar } from "@shared/components/FilterBar";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
+import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
@@ -29,6 +30,7 @@ import { EditPlanDialog } from "./EditPlanDialog";
 type Plan = ReturnType<typeof usePlans>["plans"][number];
 
 export function PlansList() {
+	const organizationId = useOrganizationId();
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
 	const [showArchived, setShowArchived] = useState(false);
@@ -157,13 +159,16 @@ export function PlansList() {
 								size="icon"
 								className="size-8"
 								onClick={() => {
+									if (!organizationId) {
+										return;
+									}
 									if (
 										confirm(
 											"Archive this plan? It won't be available for new customers.",
 										)
 									) {
 										deletePlan.mutate({
-											organizationId: plan.id,
+											organizationId,
 											id: plan.id,
 										});
 									}
@@ -178,7 +183,7 @@ export function PlansList() {
 				},
 			},
 		],
-		[deletePlan],
+		[deletePlan, organizationId],
 	);
 
 	return (
