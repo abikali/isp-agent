@@ -1,3 +1,4 @@
+import { getCustomerActivity } from "./procedures/activity";
 import { bulkExportCustomers } from "./procedures/bulk-export";
 import { bulkImportCustomers } from "./procedures/bulk-import";
 import {
@@ -67,6 +68,7 @@ export const customersRouter = {
 	delete: deleteCustomer,
 	stats: getCustomerStats,
 	connectivityStatus: getConnectivityStatus,
+	activity: getCustomerActivity,
 	bulkImport: bulkImportCustomers,
 	bulkExport: bulkExportCustomers,
 	setPin: setCustomerPin,
