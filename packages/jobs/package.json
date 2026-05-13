@@ -22,7 +22,7 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
-		"@paralleldrive/cuid2": "3.0.6",
+		"@paralleldrive/cuid2": "3.3.0",
 		"@repo/ai": "workspace:*",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
@@ -30,8 +30,8 @@
 		"@repo/logs": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@repo/mail": "workspace:*",
-		"bullmq": "^5.65.1",
-		"ioredis": "^5.8.2"
+		"bullmq": "^5.76.8",
+		"ioredis": "^5.10.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
