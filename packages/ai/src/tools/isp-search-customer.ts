@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
-	cleanPhoneNumber,
+	cleanIspLookupQuery,
 	getIspApiConfigFields,
 	ispGet,
 	isSearchableQuery,
@@ -130,7 +130,7 @@ function createIspSearchCustomerTool(context: ToolContext) {
 								message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Ask the customer for the phone number their account is registered under, or for their exact PPPoE/Hotspot username (e.g. from a past invoice). Do NOT reuse usernames mentioned earlier in this conversation unless the customer has just confirmed them in this turn.`,
 							};
 						}
-						const query = cleanPhoneNumber(args.query);
+						const query = cleanIspLookupQuery(args.query);
 						data = await ispGet<
 							Record<string, unknown> | Record<string, unknown>[]
 						>(config, "/user-info", { mobile: query });

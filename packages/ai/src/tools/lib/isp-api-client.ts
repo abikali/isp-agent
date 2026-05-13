@@ -72,6 +72,28 @@ export function normalizeLebanesPhone(phone: string): string {
 }
 
 /**
+ * Prepare a customer-lookup query for iRadius endpoints whose SQL matches
+ * `u.Mobile LIKE %?% OR u.Phone LIKE %?% OR u.UserName = ?` (i.e. `/user-info`,
+ * `/user-ping`, `/user-stat`).
+ *
+ * If the input contains any non-phone character (letter, etc.), treat it as a
+ * PPPoE/Hotspot username and pass it through verbatim so the API's
+ * `UserName = ?` branch fires. Otherwise normalize via `cleanPhoneNumber` so
+ * it substring-matches across iRadius' three historical phone storage shapes.
+ *
+ * Without this branching, usernames like `col2023` get digit-stripped to
+ * `2023` and substring-match unrelated customers whose phones happen to
+ * contain "2023".
+ */
+export function cleanIspLookupQuery(query: string): string {
+	const trimmed = query.trim();
+	if (/[^\d+\-.()\s]/.test(trimmed)) {
+		return trimmed;
+	}
+	return cleanPhoneNumber(trimmed);
+}
+
+/**
  * Whether a query is something the iRadius `/user-info` endpoint can usefully match.
  *
  * The endpoint searches `u.Mobile`/`u.Phone` (substring LIKE) and `u.UserName`

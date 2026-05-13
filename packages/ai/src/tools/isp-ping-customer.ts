@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
-	cleanPhoneNumber,
+	cleanIspLookupQuery,
 	getIspApiConfigFields,
 	ispGet,
 	withIspErrorHandling,
@@ -94,7 +94,7 @@ function createIspPingCustomerTool(context: ToolContext) {
 				context,
 				"isp-ping-customer",
 				async (config) => {
-					const query = cleanPhoneNumber(args.query);
+					const query = cleanIspLookupQuery(args.query);
 					const data = await ispGet<unknown>(config, "/user-ping", {
 						mobile: query,
 					});

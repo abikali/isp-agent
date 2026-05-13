@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import {
-	cleanPhoneNumber,
+	cleanIspLookupQuery,
 	getIspApiConfigFields,
 	ispGet,
 	withIspErrorHandling,
@@ -29,7 +29,7 @@ function createIspBandwidthStatsTool(context: ToolContext) {
 				context,
 				"isp-bandwidth-stats",
 				async (config) => {
-					const query = cleanPhoneNumber(args.query);
+					const query = cleanIspLookupQuery(args.query);
 					const data = await ispGet<BandwidthDataPoint[]>(
 						config,
 						"/user-stat",

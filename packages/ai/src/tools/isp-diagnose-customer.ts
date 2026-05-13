@@ -9,7 +9,7 @@ import {
 	needsMikrotikPeers,
 } from "./isp-search-customer";
 import {
-	cleanPhoneNumber,
+	cleanIspLookupQuery,
 	getIspApiConfigFields,
 	ispGet,
 	isSearchableQuery,
@@ -348,8 +348,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 								message: `Cannot search by name "${args.query}" — the system only matches phone numbers or exact PPPoE/Hotspot usernames, never personal names. Ask the customer for the phone number their account is registered under, or for their exact PPPoE/Hotspot username (e.g. from a past invoice). Do NOT reuse usernames mentioned earlier in this conversation unless the customer has just confirmed them in this turn.`,
 							};
 						}
-						queryForApi = cleanPhoneNumber(args.query);
-						lookedUpBy = `query arg "${args.query}" (cleaned to "${queryForApi}")`;
+						queryForApi = cleanIspLookupQuery(args.query);
+						lookedUpBy = `query arg "${args.query}" (sent as "${queryForApi}")`;
 
 						// -------------------------------------------------------
 						// 1. SEARCH
