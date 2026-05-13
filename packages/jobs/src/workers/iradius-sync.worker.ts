@@ -218,6 +218,79 @@ async function ensureEmployeeMembership(
 }
 
 // ---------------------------------------------------------------------------
+// Cleanup helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Reusable cleanup for iRadius-managed entities. After a phase has finished
+ * processing rows from iRadius, this finds local records that have an
+ * `externalId` but were not present in the current iRadius set and marks them
+ * with `deletedAt = syncTimestamp`. Records already soft-deleted are left
+ * alone (no double-write).
+ *
+ * The caller passes:
+ *   - the Prisma delegate (typed loosely because each model has a different
+ *     `updateMany` shape and we don't need the strict types here),
+ *   - the pre-fetched local snapshot (taken before the loop so we never
+ *     delete rows we created in this same run),
+ *   - the set of external IDs we actually accepted for this phase.
+ *
+ * Cross-dealer-skipped customers are intentionally absent from the seen-set
+ * (the caller doesn't add them), so they get soft-deleted from this org's
+ * scope. That's the dotnet2 → eliedebel case: their iRadius `User` row still
+ * exists, but it belongs to another dealer's subtree, so it should no longer
+ * appear in this org.
+ */
+async function softDeleteStaleRecords(opts: {
+	// We accept any delegate that exposes the precise `updateMany` shape we
+	// need. This avoids `any` while letting all sync-managed Prisma models
+	// satisfy the type — each generated delegate's `updateMany` accepts a
+	// `where` and `data` field that fit this signature.
+	delegate: {
+		updateMany: (args: {
+			where: { id: { in: string[] }; deletedAt: null };
+			data: { deletedAt: Date };
+		}) => Promise<{ count: number }>;
+	};
+	existing: Array<{
+		id: string;
+		externalId: string | null;
+		deletedAt: Date | null;
+	}>;
+	seenExtIds: Set<string>;
+	timestamp: Date;
+}): Promise<number> {
+	const staleIds: string[] = [];
+	for (const row of opts.existing) {
+		if (!row.externalId) {
+			continue;
+		}
+		if (row.deletedAt !== null) {
+			continue;
+		}
+		if (opts.seenExtIds.has(row.externalId)) {
+			continue;
+		}
+		staleIds.push(row.id);
+	}
+	if (staleIds.length === 0) {
+		return 0;
+	}
+	// Chunk to keep the SQL parameter list reasonable on very large orgs.
+	let removed = 0;
+	const chunkSize = 500;
+	for (let i = 0; i < staleIds.length; i += chunkSize) {
+		const chunk = staleIds.slice(i, i + chunkSize);
+		const res = await opts.delegate.updateMany({
+			where: { id: { in: chunk }, deletedAt: null },
+			data: { deletedAt: opts.timestamp },
+		});
+		removed += res.count;
+	}
+	return removed;
+}
+
+// ---------------------------------------------------------------------------
 // Progress tracking
 // ---------------------------------------------------------------------------
 
@@ -284,16 +357,70 @@ async function processIRadiusSync(
 
 	try {
 		const finalResult = await withIRadiusConnection(async (conn) => {
+			// `removed` is the count soft-deleted in this run (DB record had an
+			// externalId but did not appear in the iRadius source set, or — for
+			// customers — was filtered out by the cross-dealer guard).
+			// `restored` counts previously soft-deleted records that reappeared
+			// in iRadius and had their `deletedAt` cleared.
 			const result = {
-				plans: { created: 0, updated: 0, errors: 0 },
-				stations: { created: 0, updated: 0, errors: 0 },
-				accessPoints: { created: 0, updated: 0, errors: 0 },
-				nas: { created: 0, updated: 0, errors: 0 },
-				routers: { created: 0, updated: 0, errors: 0 },
-				dealers: { created: 0, updated: 0, errors: 0 },
+				plans: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				stations: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				accessPoints: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				nas: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				routers: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				dealers: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
 				dealerAccounts: { created: 0, skipped: 0, errors: 0 },
-				employees: { created: 0, updated: 0, errors: 0 },
-				customers: { created: 0, updated: 0, conflicted: 0, errors: 0 },
+				employees: {
+					created: 0,
+					updated: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
+				customers: {
+					created: 0,
+					updated: 0,
+					conflicted: 0,
+					removed: 0,
+					restored: 0,
+					errors: 0,
+				},
 				errors: [] as Array<{ phase: string; detail: string }>,
 			};
 
@@ -334,16 +461,31 @@ async function processIRadiusSync(
 
 				const existingPlans = await db.servicePlan.findMany({
 					where: { organizationId },
-					select: { id: true, name: true, externalId: true },
+					select: {
+						id: true,
+						name: true,
+						externalId: true,
+						deletedAt: true,
+					},
 				});
 				const planByExtId = new Map(
 					existingPlans
 						.filter((p) => p.externalId)
 						.map((p) => [p.externalId, p.id]),
 				);
+				const planDeletedAtByExtId = new Map(
+					existingPlans
+						.filter((p) => p.externalId)
+						.map((p) => [p.externalId, p.deletedAt]),
+				);
 				const planByName = new Map(
 					existingPlans.map((p) => [p.name.toLowerCase(), p.id]),
 				);
+				// Track every iRadius `AccountType` row we accepted this run.
+				// Used at end-of-phase to soft-delete plans whose externalId is
+				// absent from this set, and to count restores (rows whose
+				// `deletedAt` we cleared because they reappeared).
+				const seenPlanExtIds = new Set<string>();
 
 				for (let i = 0; i < accountTypes.length; i++) {
 					const at = accountTypes[i];
@@ -355,6 +497,7 @@ async function processIRadiusSync(
 						continue;
 					}
 					const extId = String(at["Id"]);
+					seenPlanExtIds.add(extId);
 					const existing =
 						planByExtId.get(extId) ??
 						planByName.get(name.toLowerCase());
@@ -467,12 +610,25 @@ async function processIRadiusSync(
 
 					if (existing) {
 						planMap.set(at["Id"] as number, existing);
+						const wasDeleted =
+							planDeletedAtByExtId.get(extId) !== null &&
+							planDeletedAtByExtId.get(extId) !== undefined;
 						await db.servicePlan
 							.update({
 								where: { id: existing },
-								data: { ...planData, lastSyncedAt: new Date() },
+								data: {
+									...planData,
+									lastSyncedAt: new Date(),
+									// Clearing `deletedAt` on every update is
+									// idempotent (no-op when already null) and
+									// keeps the restore logic in one place.
+									deletedAt: null,
+								},
 							})
 							.catch(() => {});
+						if (wasDeleted) {
+							result.plans.restored++;
+						}
 						result.plans.updated++;
 					} else {
 						try {
@@ -507,6 +663,14 @@ async function processIRadiusSync(
 					processedPlans: accountTypes.length,
 				});
 
+				// Cleanup: soft-delete plans whose iRadius AccountType row is gone.
+				result.plans.removed = await softDeleteStaleRecords({
+					delegate: db.servicePlan,
+					existing: existingPlans,
+					seenExtIds: seenPlanExtIds,
+					timestamp: new Date(),
+				});
+
 				// Build plan name lookup for connection type inference
 				for (const at of accountTypes) {
 					if (at["AccountTypeName"]) {
@@ -536,16 +700,27 @@ async function processIRadiusSync(
 
 				const existingStations = await db.station.findMany({
 					where: { organizationId },
-					select: { id: true, name: true, externalId: true },
+					select: {
+						id: true,
+						name: true,
+						externalId: true,
+						deletedAt: true,
+					},
 				});
 				const stationByExtId = new Map(
 					existingStations
 						.filter((s) => s.externalId)
 						.map((s) => [s.externalId, s.id]),
 				);
+				const stationDeletedAtByExtId = new Map(
+					existingStations
+						.filter((s) => s.externalId)
+						.map((s) => [s.externalId, s.deletedAt]),
+				);
 				const stationByName = new Map(
 					existingStations.map((s) => [s.name.toLowerCase(), s.id]),
 				);
+				const seenStationExtIds = new Set<string>();
 
 				for (let i = 0; i < stations.length; i++) {
 					const st = stations[i];
@@ -557,6 +732,7 @@ async function processIRadiusSync(
 						continue;
 					}
 					const extId = String(st["Id"]);
+					seenStationExtIds.add(extId);
 					const existing =
 						stationByExtId.get(extId) ??
 						stationByName.get(name.toLowerCase());
@@ -589,15 +765,22 @@ async function processIRadiusSync(
 
 					if (existing) {
 						stationMap.set(st["Id"] as number, existing);
+						const wasDeleted =
+							stationDeletedAtByExtId.get(extId) !== null &&
+							stationDeletedAtByExtId.get(extId) !== undefined;
 						await db.station
 							.update({
 								where: { id: existing },
 								data: {
 									...stationData,
 									lastSyncedAt: new Date(),
+									deletedAt: null,
 								},
 							})
 							.catch(() => {});
+						if (wasDeleted) {
+							result.stations.restored++;
+						}
 						result.stations.updated++;
 					} else {
 						try {
@@ -632,6 +815,14 @@ async function processIRadiusSync(
 					processedStations: stations.length,
 				});
 
+				// Cleanup: soft-delete stations no longer in iRadius.
+				result.stations.removed = await softDeleteStaleRecords({
+					delegate: db.station,
+					existing: existingStations,
+					seenExtIds: seenStationExtIds,
+					timestamp: new Date(),
+				});
+
 				// ================================================================
 				// Phase 3: Access Points
 				// ================================================================
@@ -648,13 +839,19 @@ async function processIRadiusSync(
 
 				const existingAPs = await db.accessPoint.findMany({
 					where: { organizationId },
-					select: { id: true, externalId: true },
+					select: { id: true, externalId: true, deletedAt: true },
 				});
 				const apByExtId = new Map(
 					existingAPs
 						.filter((a) => a.externalId)
 						.map((a) => [a.externalId, a.id]),
 				);
+				const apDeletedAtByExtId = new Map(
+					existingAPs
+						.filter((a) => a.externalId)
+						.map((a) => [a.externalId, a.deletedAt]),
+				);
+				const seenApExtIds = new Set<string>();
 
 				for (let i = 0; i < accessPoints.length; i++) {
 					const ap = accessPoints[i];
@@ -666,6 +863,7 @@ async function processIRadiusSync(
 						continue;
 					}
 					const extId = String(ap["Id"]);
+					seenApExtIds.add(extId);
 					const existing = apByExtId.get(extId);
 
 					const stationId = ap["StationId"]
@@ -694,12 +892,22 @@ async function processIRadiusSync(
 
 					if (existing) {
 						apMap.set(ap["Id"] as number, existing);
+						const wasDeleted =
+							apDeletedAtByExtId.get(extId) !== null &&
+							apDeletedAtByExtId.get(extId) !== undefined;
 						await db.accessPoint
 							.update({
 								where: { id: existing },
-								data: { ...apData, lastSyncedAt: new Date() },
+								data: {
+									...apData,
+									lastSyncedAt: new Date(),
+									deletedAt: null,
+								},
 							})
 							.catch(() => {});
+						if (wasDeleted) {
+							result.accessPoints.restored++;
+						}
 						result.accessPoints.updated++;
 					} else {
 						try {
@@ -734,6 +942,14 @@ async function processIRadiusSync(
 					processedAccessPoints: accessPoints.length,
 				});
 
+				// Cleanup: soft-delete access points no longer in iRadius.
+				result.accessPoints.removed = await softDeleteStaleRecords({
+					delegate: db.accessPoint,
+					existing: existingAPs,
+					seenExtIds: seenApExtIds,
+					timestamp: new Date(),
+				});
+
 				// ================================================================
 				// Phase 4: NAS Servers
 				// ================================================================
@@ -754,13 +970,24 @@ async function processIRadiusSync(
 
 				const existingNas = await db.ispNas.findMany({
 					where: { organizationId },
-					select: { id: true, externalId: true, host: true },
+					select: {
+						id: true,
+						externalId: true,
+						host: true,
+						deletedAt: true,
+					},
 				});
 				const nasByExtId = new Map(
 					existingNas
 						.filter((n) => n.externalId)
 						.map((n) => [n.externalId, n.id]),
 				);
+				const nasDeletedAtByExtId = new Map(
+					existingNas
+						.filter((n) => n.externalId)
+						.map((n) => [n.externalId, n.deletedAt]),
+				);
+				const seenNasExtIds = new Set<string>();
 				// Pre-populate nasHostMap with existing NAS records
 				for (const n of existingNas) {
 					if (n.host) {
@@ -776,6 +1003,7 @@ async function processIRadiusSync(
 					const name =
 						(nas["ShortName"] as string) || `NAS-${nas["Id"]}`;
 					const extId = String(nas["Id"]);
+					seenNasExtIds.add(extId);
 					const existing = nasByExtId.get(extId);
 
 					const nasData = {
@@ -805,14 +1033,24 @@ async function processIRadiusSync(
 					};
 
 					if (existing) {
+						const wasDeleted =
+							nasDeletedAtByExtId.get(extId) !== null &&
+							nasDeletedAtByExtId.get(extId) !== undefined;
 						await db.ispNas
 							.update({
 								where: { id: existing },
-								data: { ...nasData, lastSyncedAt: new Date() },
+								data: {
+									...nasData,
+									lastSyncedAt: new Date(),
+									deletedAt: null,
+								},
 							})
 							.catch(() => {});
 						if (nasData.host) {
 							nasHostMap.set(nasData.host, existing);
+						}
+						if (wasDeleted) {
+							result.nas.restored++;
 						}
 						result.nas.updated++;
 					} else {
@@ -850,6 +1088,14 @@ async function processIRadiusSync(
 					processedNas: nasServers.length,
 				});
 
+				// Cleanup: soft-delete NAS records no longer in iRadius.
+				result.nas.removed = await softDeleteStaleRecords({
+					delegate: db.ispNas,
+					existing: existingNas,
+					seenExtIds: seenNasExtIds,
+					timestamp: new Date(),
+				});
+
 				// ================================================================
 				// Phase 5: Routers
 				// ================================================================
@@ -866,13 +1112,19 @@ async function processIRadiusSync(
 
 				const existingRouters = await db.ispRouter.findMany({
 					where: { organizationId },
-					select: { id: true, externalId: true },
+					select: { id: true, externalId: true, deletedAt: true },
 				});
 				const routerByExtId = new Map(
 					existingRouters
 						.filter((r) => r.externalId)
 						.map((r) => [r.externalId, r.id]),
 				);
+				const routerDeletedAtByExtId = new Map(
+					existingRouters
+						.filter((r) => r.externalId)
+						.map((r) => [r.externalId, r.deletedAt]),
+				);
+				const seenRouterExtIds = new Set<string>();
 
 				for (let i = 0; i < routers.length; i++) {
 					const rt = routers[i];
@@ -881,6 +1133,7 @@ async function processIRadiusSync(
 					}
 					const name = (rt["Name"] as string) || `Router-${rt["Id"]}`;
 					const extId = String(rt["Id"]);
+					seenRouterExtIds.add(extId);
 					const existing = routerByExtId.get(extId);
 
 					const stationId = rt["StationId"]
@@ -900,15 +1153,22 @@ async function processIRadiusSync(
 					};
 
 					if (existing) {
+						const wasDeleted =
+							routerDeletedAtByExtId.get(extId) !== null &&
+							routerDeletedAtByExtId.get(extId) !== undefined;
 						await db.ispRouter
 							.update({
 								where: { id: existing },
 								data: {
 									...routerData,
 									lastSyncedAt: new Date(),
+									deletedAt: null,
 								},
 							})
 							.catch(() => {});
+						if (wasDeleted) {
+							result.routers.restored++;
+						}
 						result.routers.updated++;
 					} else {
 						try {
@@ -940,6 +1200,14 @@ async function processIRadiusSync(
 
 				await updateProgress(operationId, {
 					processedRouters: routers.length,
+				});
+
+				// Cleanup: soft-delete routers no longer in iRadius.
+				result.routers.removed = await softDeleteStaleRecords({
+					delegate: db.ispRouter,
+					existing: existingRouters,
+					seenExtIds: seenRouterExtIds,
+					timestamp: new Date(),
 				});
 			} // end of phases 1-5 (skipped in dealers-only mode)
 
@@ -981,13 +1249,19 @@ async function processIRadiusSync(
 				// Look up ALL existing dealers globally (not scoped to any org)
 				const existingDealers = await db.ispDealer.findMany({
 					where: { externalId: { not: null } },
-					select: { id: true, externalId: true },
+					select: { id: true, externalId: true, deletedAt: true },
 				});
 				const dealerByExtId = new Map(
 					existingDealers
 						.filter((d) => d.externalId)
 						.map((d) => [d.externalId, d.id]),
 				);
+				const dealerDeletedAtByExtId = new Map(
+					existingDealers
+						.filter((d) => d.externalId)
+						.map((d) => [d.externalId, d.deletedAt]),
+				);
+				const seenDealerExtIds = new Set<string>();
 
 				// Pass 1: Create/update all dealers without parent resolution
 				for (let i = 0; i < dealerRows.length; i++) {
@@ -997,6 +1271,7 @@ async function processIRadiusSync(
 					}
 					const dealerUserId = dr["Id"] as number;
 					const extId = String(dealerUserId);
+					seenDealerExtIds.add(extId);
 					const existing = dealerByExtId.get(extId);
 
 					const dealerData = {
@@ -1070,13 +1345,20 @@ async function processIRadiusSync(
 					try {
 						if (existing) {
 							dealerMap.set(dealerUserId, existing);
+							const wasDeleted =
+								dealerDeletedAtByExtId.get(extId) !== null &&
+								dealerDeletedAtByExtId.get(extId) !== undefined;
 							await db.ispDealer.update({
 								where: { id: existing },
 								data: {
 									...dealerData,
 									lastSyncedAt: new Date(),
+									deletedAt: null,
 								},
 							});
+							if (wasDeleted) {
+								result.dealers.restored++;
+							}
 							result.dealers.updated++;
 						} else {
 							const created = await db.ispDealer.create({
@@ -1138,6 +1420,19 @@ async function processIRadiusSync(
 
 				await updateProgress(operationId, {
 					processedDealers: dealerRows.length,
+				});
+
+				// Cleanup: soft-delete dealers no longer in iRadius. Scope is
+				// GLOBAL because dealers are not org-scoped at the table level.
+				// Hard delete is unsafe — IspDealerAccount rows cascade-delete
+				// from a dealer (real financial history), and Customer /
+				// Employee / ServicePlan FKs SetNull but we want the dealer name
+				// preserved for historical reporting.
+				result.dealers.removed = await softDeleteStaleRecords({
+					delegate: db.ispDealer,
+					existing: existingDealers,
+					seenExtIds: seenDealerExtIds,
+					timestamp: new Date(),
 				});
 
 				// Sub-phase: Dealer Accounts
@@ -1295,11 +1590,15 @@ async function processIRadiusSync(
 					organizationId,
 					externalId: { not: null },
 				},
-				select: { id: true, externalId: true },
+				select: { id: true, externalId: true, deletedAt: true },
 			});
 			const employeeByExtId = new Map(
 				existingEmployees.map((e) => [e.externalId, e.id]),
 			);
+			const employeeDeletedAtByExtId = new Map(
+				existingEmployees.map((e) => [e.externalId, e.deletedAt]),
+			);
+			const seenEmployeeExtIds = new Set<string>();
 
 			// Unlinked-by-username map for employees, mirroring the customer
 			// loop above. Lets the sync claim a locally-created employee row
@@ -1335,6 +1634,7 @@ async function processIRadiusSync(
 				}
 				const empUserId = emp["Id"] as number;
 				const extId = String(empUserId);
+				seenEmployeeExtIds.add(extId);
 				let existingId = employeeByExtId.get(extId);
 
 				if (!existingId) {
@@ -1390,10 +1690,20 @@ async function processIRadiusSync(
 					let empRecordId: string;
 					if (existingId) {
 						employeeMap.set(empUserId, existingId);
+						const wasDeleted =
+							employeeDeletedAtByExtId.get(extId) !== null &&
+							employeeDeletedAtByExtId.get(extId) !== undefined;
 						await db.employee.update({
 							where: { id: existingId },
-							data: { ...employeeData, lastSyncedAt: new Date() },
+							data: {
+								...employeeData,
+								lastSyncedAt: new Date(),
+								deletedAt: null,
+							},
 						});
+						if (wasDeleted) {
+							result.employees.restored++;
+						}
 						empRecordId = existingId;
 						result.employees.updated++;
 					} else {
@@ -1439,6 +1749,16 @@ async function processIRadiusSync(
 
 			await updateProgress(operationId, {
 				processedEmployees: employeeRows.length,
+			});
+
+			// Cleanup: soft-delete employees whose iRadius User row is gone.
+			// Same soft-delete rationale as customers — Payment.collectorId /
+			// workerId references can still point at the row.
+			result.employees.removed = await softDeleteStaleRecords({
+				delegate: db.employee,
+				existing: existingEmployees,
+				seenExtIds: seenEmployeeExtIds,
+				timestamp: new Date(),
 			});
 
 			// ================================================================
@@ -1559,6 +1879,28 @@ async function processIRadiusSync(
 					.filter((c) => c.externalId != null)
 					.map((c) => [c.externalId, c.id]),
 			);
+			// Lightweight {id, externalId, deletedAt} projection used by the
+			// soft-delete cleanup helper at end-of-phase. Built once here so
+			// the helper doesn't re-query the table.
+			const existingCustomersForCleanup = existingCustomers
+				.filter(
+					(c): c is typeof c & { externalId: string } =>
+						c.externalId !== null,
+				)
+				.map((c) => ({
+					id: c.id,
+					externalId: c.externalId,
+					deletedAt: c.deletedAt,
+				}));
+			// `seenCustomerExtIds` is added to ONLY for customers we actually
+			// processed (created, updated, or claimed). Customers skipped by
+			// the cross-dealer guard below are intentionally NOT added — that
+			// way the end-of-phase cleanup soft-deletes them from this org.
+			// This is the fix for the dotnet2 / eliedebel case: customers
+			// whose iRadius `ParentId` now sits outside the org's allowed
+			// dealer subtree will be removed from the org's view on the next
+			// sync, instead of lingering with a stale `dealerId`.
+			const seenCustomerExtIds = new Set<string>();
 
 			// Unlinked-by-username map: locally-created rows (externalId IS NULL)
 			// that we'll try to claim by matching iRadius UserName. Only single-
@@ -1663,6 +2005,12 @@ async function processIRadiusSync(
 				// fallback like before. A null/0 ParentId, or one that maps
 				// to no IspDealer record (deleted dealer, etc.), also falls
 				// through to the legacy behaviour for backwards compat.
+				//
+				// NOTE: when this guard fires we deliberately do NOT add the
+				// extId to `seenCustomerExtIds`. End-of-phase cleanup will
+				// then soft-delete this row from our DB if it's currently
+				// here, which is what we want — the customer now belongs to a
+				// dealer outside this org's subtree.
 				if (
 					custParentId !== null &&
 					custParentId !== 0 &&
@@ -1673,6 +2021,10 @@ async function processIRadiusSync(
 				) {
 					continue;
 				}
+
+				// Past the guard — this customer belongs to us. Mark seen so
+				// it survives the end-of-phase cleanup.
+				seenCustomerExtIds.add(extId);
 
 				const dealerId =
 					(custParentId ? dealerMap.get(custParentId) : null) ??
@@ -1920,6 +2272,15 @@ async function processIRadiusSync(
 							}
 						}
 
+						// Restore: if this customer was previously soft-deleted by
+						// an earlier cleanup run but is back in iRadius (and
+						// inside the dealer subtree), clear `deletedAt`.
+						if (existing.deletedAt !== null) {
+							autoUpdateData["deletedAt"] = null;
+							hasAutoUpdates = true;
+							result.customers.restored++;
+						}
+
 						if (
 							hasAutoUpdates ||
 							Object.keys(conflictFields).length > 0
@@ -1994,6 +2355,10 @@ async function processIRadiusSync(
 			for (const orphan of orphanIds) {
 				const userId = orphan["Id"] as number;
 				const extId = String(userId);
+				// Orphans count as "seen" — they're real iRadius identities we
+				// keep around for financial reporting, so they must survive the
+				// end-of-phase cleanup.
+				seenCustomerExtIds.add(extId);
 				if (customerByExtId.has(extId)) {
 					continue;
 				}
@@ -2019,6 +2384,20 @@ async function processIRadiusSync(
 				}
 			}
 
+			// Cleanup: soft-delete customers in this org whose iRadius `User`
+			// row is either (a) gone entirely or (b) sits under a dealer
+			// outside this org's allowed subtree. Hard delete is unsafe:
+			// `Payment.customerId` and `Installation.customerId` cascade-delete
+			// from a customer, which would wipe historical financial and
+			// install records. Soft delete keeps the customer reachable by id
+			// for those back-references while removing them from list views.
+			result.customers.removed = await softDeleteStaleRecords({
+				delegate: db.customer,
+				existing: existingCustomersForCleanup,
+				seenExtIds: seenCustomerExtIds,
+				timestamp: syncTimestamp,
+			});
+
 			// Update conflict count on the operation
 			const conflictCount = await db.syncConflict.count({
 				where: { syncOperationId: operationId, status: "pending" },
@@ -2038,16 +2417,42 @@ async function processIRadiusSync(
 			return result;
 		});
 
+		// Aggregate cleanup counts across phases. Per-entity breakdowns live
+		// inside `finalResult` — these top-level columns make the totals
+		// queryable without parsing the JSON blob.
+		const sumRemoved =
+			finalResult.plans.removed +
+			finalResult.stations.removed +
+			finalResult.accessPoints.removed +
+			finalResult.nas.removed +
+			finalResult.routers.removed +
+			finalResult.dealers.removed +
+			finalResult.employees.removed +
+			finalResult.customers.removed;
+		const sumRestored =
+			finalResult.plans.restored +
+			finalResult.stations.restored +
+			finalResult.accessPoints.restored +
+			finalResult.nas.restored +
+			finalResult.routers.restored +
+			finalResult.dealers.restored +
+			finalResult.employees.restored +
+			finalResult.customers.restored;
+
 		// Mark completed
 		await updateProgress(operationId, {
 			status: "completed",
 			completedAt: new Date(),
 			result: finalResult,
+			removedRecords: sumRemoved,
+			restoredRecords: sumRestored,
 		});
 
 		logger.info(`[iRadius Sync] Operation ${operationId} completed`, {
 			operationId,
 			...finalResult,
+			removedRecords: sumRemoved,
+			restoredRecords: sumRestored,
 			errorCount: finalResult.errors.length,
 		});
 
