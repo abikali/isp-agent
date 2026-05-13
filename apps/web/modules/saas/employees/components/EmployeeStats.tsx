@@ -4,8 +4,8 @@ import {
 	ContentCard,
 	ContentCardSection,
 } from "@shared/components/ContentCard";
+import { DistributionCard } from "@shared/components/DistributionCard";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
-import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { Progress } from "@ui/components/progress";
 import {
 	BuildingIcon,
@@ -19,9 +19,9 @@ import {
 import { useEmployeeStats } from "../hooks/use-employees";
 
 const STATUS_COLORS: Record<string, string> = {
-	Active: "var(--chart-2)",
-	"On Leave": "var(--chart-3)",
-	Inactive: "var(--chart-1)",
+	Active: "var(--success)",
+	"On Leave": "var(--warning)",
+	Inactive: "var(--muted-foreground)",
 };
 
 const DEPARTMENT_LABELS: Record<string, string> = {
@@ -35,11 +35,23 @@ const DEPARTMENT_LABELS: Record<string, string> = {
 export function EmployeeStats() {
 	const stats = useEmployeeStats();
 
-	const statusData = [
-		{ name: "Active", value: stats.active },
-		{ name: "On Leave", value: stats.onLeave },
-		{ name: "Inactive", value: stats.inactive },
-	].filter((d) => d.value > 0);
+	const statusSlices = [
+		{
+			label: "Active",
+			value: stats.active,
+			color: STATUS_COLORS.Active ?? "var(--success)",
+		},
+		{
+			label: "On Leave",
+			value: stats.onLeave,
+			color: STATUS_COLORS["On Leave"] ?? "var(--warning)",
+		},
+		{
+			label: "Inactive",
+			value: stats.inactive,
+			color: STATUS_COLORS.Inactive ?? "var(--muted-foreground)",
+		},
+	];
 
 	const activeRate =
 		stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
@@ -87,28 +99,14 @@ export function EmployeeStats() {
 			</MetricStrip>
 
 			{stats.total > 0 && (
-				<div className="grid gap-4 lg:grid-cols-3">
-					{statusData.length > 1 && (
-						<ContentCard>
-							<ContentCardSection className="border-b border-border">
-								<div className="flex items-center gap-2">
-									<UsersIcon className="size-3.5 text-muted-foreground" />
-									<div className="text-sm font-medium">
-										Status
-									</div>
-								</div>
-							</ContentCardSection>
-							<ContentCardSection>
-								<StatusPieChart
-									title=""
-									data={statusData}
-									colorMap={STATUS_COLORS}
-									size="sm"
-									footer={`${activeRate}% active`}
-								/>
-							</ContentCardSection>
-						</ContentCard>
-					)}
+				<div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+					<DistributionCard
+						title="Status"
+						subtitle="employees"
+						icon={UsersIcon}
+						slices={statusSlices}
+						footer={`${activeRate}% active`}
+					/>
 
 					{departmentData.length > 0 && (
 						<ContentCard>

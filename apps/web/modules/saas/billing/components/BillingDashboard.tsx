@@ -9,12 +9,12 @@ import {
 	CollectedVsTarget,
 	CollectorLeaderboard,
 } from "@shared/components/charts";
+import { DistributionCard } from "@shared/components/DistributionCard";
 import {
 	MetricCard,
 	MetricCardSkeleton,
 	MetricStrip,
 } from "@shared/components/MetricCard";
-import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { formatCurrency } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@ui/components/data-table";
@@ -36,11 +36,6 @@ import {
 	usePaymentStats,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
-
-const PAYMENT_COLORS: Record<string, string> = {
-	Collected: "var(--chart-2)",
-	Stopped: "var(--destructive)",
-};
 
 interface CollectorRow {
 	collectorId: string;
@@ -123,10 +118,18 @@ export function BillingDashboard() {
 		? `/app/${activeOrganization.slug}/billing`
 		: "/app";
 
-	const paymentStatusData = [
-		{ name: "Collected", value: stats.collectedPayments },
-		{ name: "Stopped", value: stats.stoppedPayments },
-	].filter((d) => d.value > 0);
+	const paymentStatusSlices = [
+		{
+			label: "Collected",
+			value: stats.collectedPayments,
+			color: "var(--success)",
+		},
+		{
+			label: "Stopped",
+			value: stats.stoppedPayments,
+			color: "var(--destructive)",
+		},
+	];
 
 	const collectorEntries = reports.collectorBreakdown
 		.map((c) => ({
@@ -253,34 +256,12 @@ export function BillingDashboard() {
 					</ContentCardSection>
 				</ContentCard>
 
-				{paymentStatusData.length > 0 ? (
-					<ContentCard>
-						<ContentCardSection className="border-b border-border">
-							<div className="text-sm font-medium">
-								Payment status
-							</div>
-							<p className="mt-0.5 text-xs text-muted-foreground">
-								Collected vs stopped
-							</p>
-						</ContentCardSection>
-						<ContentCardSection>
-							<StatusPieChart
-								title=""
-								data={paymentStatusData}
-								colorMap={PAYMENT_COLORS}
-								size="sm"
-							/>
-						</ContentCardSection>
-					</ContentCard>
-				) : (
-					<ContentCard>
-						<ContentCardSection>
-							<p className="py-12 text-center text-sm text-muted-foreground">
-								No payments yet this cycle
-							</p>
-						</ContentCardSection>
-					</ContentCard>
-				)}
+				<DistributionCard
+					title="Payment status"
+					subtitle="payments"
+					icon={BanknoteIcon}
+					slices={paymentStatusSlices}
+				/>
 
 				<ContentCard>
 					<ContentCardSection className="border-b border-border">

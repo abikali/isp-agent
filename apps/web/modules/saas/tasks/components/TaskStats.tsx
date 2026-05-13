@@ -1,11 +1,7 @@
 "use client";
 
-import {
-	ContentCard,
-	ContentCardSection,
-} from "@shared/components/ContentCard";
+import { DistributionCard } from "@shared/components/DistributionCard";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
-import { StatusPieChart } from "@shared/components/StatusPieChart";
 import {
 	AlertTriangleIcon,
 	CheckCircleIcon,
@@ -18,11 +14,11 @@ import {
 import { useTaskStats } from "../hooks/use-tasks";
 
 const STATUS_COLORS: Record<string, string> = {
-	Open: "var(--chart-2)",
+	Open: "var(--info)",
 	"In Progress": "var(--chart-6)",
-	"On Hold": "var(--chart-5)",
-	Completed: "var(--chart-3)",
-	Cancelled: "var(--chart-1)",
+	"On Hold": "var(--warning)",
+	Completed: "var(--success)",
+	Cancelled: "var(--muted-foreground)",
 };
 
 export function TaskStats({
@@ -32,13 +28,33 @@ export function TaskStats({
 } = {}) {
 	const stats = useTaskStats({ sources });
 
-	const statusData = [
-		{ name: "Open", value: stats.open },
-		{ name: "In Progress", value: stats.inProgress },
-		{ name: "On Hold", value: stats.onHold },
-		{ name: "Completed", value: stats.completed },
-		{ name: "Cancelled", value: stats.cancelled },
-	].filter((d) => d.value > 0);
+	const statusSlices = [
+		{
+			label: "Open",
+			value: stats.open,
+			color: STATUS_COLORS.Open ?? "var(--info)",
+		},
+		{
+			label: "In Progress",
+			value: stats.inProgress,
+			color: STATUS_COLORS["In Progress"] ?? "var(--chart-6)",
+		},
+		{
+			label: "On Hold",
+			value: stats.onHold,
+			color: STATUS_COLORS["On Hold"] ?? "var(--warning)",
+		},
+		{
+			label: "Completed",
+			value: stats.completed,
+			color: STATUS_COLORS.Completed ?? "var(--success)",
+		},
+		{
+			label: "Cancelled",
+			value: stats.cancelled,
+			color: STATUS_COLORS.Cancelled ?? "var(--muted-foreground)",
+		},
+	];
 
 	const completionRate =
 		stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
@@ -87,25 +103,13 @@ export function TaskStats({
 				/>
 			</MetricStrip>
 
-			{stats.total > 0 && statusData.length > 0 && (
-				<ContentCard>
-					<ContentCardSection className="border-b border-border">
-						<div className="flex items-center gap-2">
-							<ClipboardListIcon className="size-3.5 text-muted-foreground" />
-							<div className="text-sm font-medium">
-								Status breakdown
-							</div>
-						</div>
-					</ContentCardSection>
-					<ContentCardSection>
-						<StatusPieChart
-							title=""
-							data={statusData}
-							colorMap={STATUS_COLORS}
-							size="sm"
-						/>
-					</ContentCardSection>
-				</ContentCard>
+			{stats.total > 0 && (
+				<DistributionCard
+					title="Status breakdown"
+					subtitle="tasks"
+					icon={ClipboardListIcon}
+					slices={statusSlices}
+				/>
 			)}
 		</div>
 	);

@@ -1,11 +1,7 @@
 "use client";
 
-import {
-	ContentCard,
-	ContentCardSection,
-} from "@shared/components/ContentCard";
+import { DistributionCard } from "@shared/components/DistributionCard";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
-import { StatusPieChart } from "@shared/components/StatusPieChart";
 import {
 	ActivityIcon,
 	AlertTriangleIcon,
@@ -16,19 +12,31 @@ import {
 import { useWatcherStats } from "../hooks/use-executions";
 
 const STATUS_COLORS: Record<string, string> = {
-	Up: "var(--chart-2)",
+	Up: "var(--success)",
 	Down: "var(--destructive)",
-	Unknown: "var(--chart-1)",
+	Unknown: "var(--muted-foreground)",
 };
 
 export function WatcherStatsCards() {
 	const stats = useWatcherStats();
 
-	const statusData = [
-		{ name: "Up", value: stats.up },
-		{ name: "Down", value: stats.down },
-		{ name: "Unknown", value: stats.unknown },
-	].filter((d) => d.value > 0);
+	const statusSlices = [
+		{
+			label: "Up",
+			value: stats.up,
+			color: STATUS_COLORS.Up ?? "var(--success)",
+		},
+		{
+			label: "Down",
+			value: stats.down,
+			color: STATUS_COLORS.Down ?? "var(--destructive)",
+		},
+		{
+			label: "Unknown",
+			value: stats.unknown,
+			color: STATUS_COLORS.Unknown ?? "var(--muted-foreground)",
+		},
+	];
 
 	const uptimeRate =
 		stats.total > 0 ? Math.round((stats.up / stats.total) * 100) : 0;
@@ -75,26 +83,14 @@ export function WatcherStatsCards() {
 				/>
 			</MetricStrip>
 
-			{stats.total > 0 && statusData.length > 1 && (
-				<ContentCard>
-					<ContentCardSection className="border-b border-border">
-						<div className="flex items-center gap-2">
-							<ActivityIcon className="size-3.5 text-muted-foreground" />
-							<div className="text-sm font-medium">
-								Status distribution
-							</div>
-						</div>
-					</ContentCardSection>
-					<ContentCardSection>
-						<StatusPieChart
-							title=""
-							data={statusData}
-							colorMap={STATUS_COLORS}
-							size="sm"
-							footer={`${uptimeRate}% healthy`}
-						/>
-					</ContentCardSection>
-				</ContentCard>
+			{stats.total > 0 && (
+				<DistributionCard
+					title="Watcher status"
+					subtitle="watchers"
+					icon={ActivityIcon}
+					slices={statusSlices}
+					footer={`${uptimeRate}% currently healthy`}
+				/>
 			)}
 		</div>
 	);

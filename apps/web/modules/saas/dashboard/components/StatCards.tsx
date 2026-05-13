@@ -1,15 +1,11 @@
 "use client";
 
-import {
-	ContentCard,
-	ContentCardSection,
-} from "@shared/components/ContentCard";
+import { DistributionCard } from "@shared/components/DistributionCard";
 import {
 	MetricCard,
 	MetricCardSkeleton,
 	MetricStrip,
 } from "@shared/components/MetricCard";
-import { StatusPieChart } from "@shared/components/StatusPieChart";
 import { formatCurrency } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -22,7 +18,6 @@ import {
 	ClipboardListIcon,
 	DollarSignIcon,
 	HandCoinsIcon,
-	type LucideIcon,
 	OctagonXIcon,
 	UserCheckIcon,
 	WifiIcon,
@@ -30,21 +25,21 @@ import {
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
-	Online: "var(--chart-2)",
-	Offline: "var(--chart-1)",
-	Active: "var(--chart-2)",
-	Expired: "var(--chart-3)",
+	Online: "var(--success)",
+	Offline: "var(--muted-foreground)",
+	Active: "var(--success)",
+	Expired: "var(--warning)",
 	Inactive: "var(--chart-1)",
 	Suspended: "var(--chart-5)",
 	Pending: "var(--chart-6)",
 };
 
 const TASK_COLORS: Record<string, string> = {
-	Open: "var(--chart-2)",
+	Open: "var(--info)",
 	"In Progress": "var(--chart-6)",
-	Completed: "var(--chart-3)",
+	Completed: "var(--success)",
 	Overdue: "var(--destructive)",
-	"On Hold": "var(--chart-5)",
+	"On Hold": "var(--warning)",
 };
 
 export function StatCards() {
@@ -60,33 +55,79 @@ export function StatCards() {
 	const { stats: billing, isLoading: isLoadingBilling } =
 		useBillingStatsQuery(organizationId);
 
-	const networkData =
-		customers && customers.online + customers.offline > 0
-			? [
-					{ name: "Online", value: customers.online },
-					{ name: "Offline", value: customers.offline },
-				]
-			: [];
-
-	const customerStatusData =
-		customers && customers.total > 0
-			? [
-					{ name: "Active", value: customers.active },
-					{ name: "Expired", value: customers.expired },
-					{ name: "Inactive", value: customers.inactive },
-					{ name: "Suspended", value: customers.suspended },
-					{ name: "Pending", value: customers.pending },
-				].filter((d) => d.value > 0)
-			: [];
-
-	const taskStatusData = taskStats
+	const networkSlices = customers
 		? [
-				{ name: "Open", value: taskStats.open },
-				{ name: "In Progress", value: taskStats.inProgress },
-				{ name: "Completed", value: taskStats.completed },
-				{ name: "Overdue", value: taskStats.overdue },
-				{ name: "On Hold", value: taskStats.onHold },
-			].filter((d) => d.value > 0)
+				{
+					label: "Online",
+					value: customers.online,
+					color: STATUS_COLORS.Online ?? "var(--success)",
+				},
+				{
+					label: "Offline",
+					value: customers.offline,
+					color: STATUS_COLORS.Offline ?? "var(--muted-foreground)",
+				},
+			]
+		: [];
+
+	const customerStatusSlices = customers
+		? [
+				{
+					label: "Active",
+					value: customers.active,
+					color: STATUS_COLORS.Active ?? "var(--success)",
+				},
+				{
+					label: "Expired",
+					value: customers.expired,
+					color: STATUS_COLORS.Expired ?? "var(--warning)",
+				},
+				{
+					label: "Pending",
+					value: customers.pending,
+					color: STATUS_COLORS.Pending ?? "var(--chart-6)",
+				},
+				{
+					label: "Suspended",
+					value: customers.suspended,
+					color: STATUS_COLORS.Suspended ?? "var(--chart-5)",
+				},
+				{
+					label: "Inactive",
+					value: customers.inactive,
+					color: STATUS_COLORS.Inactive ?? "var(--chart-1)",
+				},
+			]
+		: [];
+
+	const taskSlices = taskStats
+		? [
+				{
+					label: "Open",
+					value: taskStats.open,
+					color: TASK_COLORS.Open ?? "var(--info)",
+				},
+				{
+					label: "In Progress",
+					value: taskStats.inProgress,
+					color: TASK_COLORS["In Progress"] ?? "var(--chart-6)",
+				},
+				{
+					label: "Overdue",
+					value: taskStats.overdue,
+					color: TASK_COLORS.Overdue ?? "var(--destructive)",
+				},
+				{
+					label: "On Hold",
+					value: taskStats.onHold,
+					color: TASK_COLORS["On Hold"] ?? "var(--warning)",
+				},
+				{
+					label: "Completed",
+					value: taskStats.completed,
+					color: TASK_COLORS.Completed ?? "var(--success)",
+				},
+			]
 		: [];
 
 	const base = `/app/${organizationSlug ?? ""}`;
@@ -221,96 +262,42 @@ export function StatCards() {
 				)}
 			</MetricStrip>
 
-			{/* Charts row — connectivity, customer status, tasks */}
-			<div className="grid gap-4 lg:grid-cols-3">
+			{/* Distribution row — dense stacked bar + ranked legend */}
+			<div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
 				<DistributionCard
 					title="Connectivity"
-					subtitle="Online vs offline subscribers"
-					data={networkData}
-					colorMap={STATUS_COLORS}
+					subtitle="subscribers"
+					icon={WifiIcon}
+					slices={networkSlices}
 					footer={
 						customers && customers.online + customers.offline > 0
-							? `${Math.round((customers.online / (customers.online + customers.offline)) * 100)}% online`
+							? `${Math.round((customers.online / (customers.online + customers.offline)) * 100)}% online · refreshed every 30s`
 							: undefined
 					}
-					isLoading={isLoadingCustomers}
-					icon={WifiIcon}
 				/>
 				<DistributionCard
 					title="Customer status"
-					subtitle="Active vs other states"
-					data={customerStatusData}
-					colorMap={STATUS_COLORS}
-					isLoading={isLoadingCustomers}
+					subtitle="active / expired / other"
 					icon={UserCheckIcon}
+					slices={customerStatusSlices}
 				/>
 				<DistributionCard
 					title="Tasks overview"
 					subtitle={
 						taskStats?.unassigned
 							? `${taskStats.unassigned} unassigned`
-							: "By status"
+							: "by status"
 					}
-					data={taskStatusData}
-					colorMap={TASK_COLORS}
-					isLoading={isLoadingTasks}
 					icon={ClipboardListIcon}
+					slices={taskSlices}
+					footer={
+						taskStats?.overdue
+							? `${taskStats.overdue} overdue need attention`
+							: undefined
+					}
 				/>
 			</div>
 		</div>
-	);
-}
-
-function DistributionCard({
-	title,
-	subtitle,
-	data,
-	colorMap,
-	footer,
-	isLoading,
-	icon: Icon,
-}: {
-	title: string;
-	subtitle?: string;
-	data: { name: string; value: number }[];
-	colorMap: Record<string, string>;
-	footer?: string;
-	isLoading?: boolean;
-	icon?: LucideIcon;
-}) {
-	return (
-		<ContentCard>
-			<ContentCardSection className="border-b border-border">
-				<div className="flex items-center gap-2">
-					{Icon && (
-						<Icon className="size-3.5 text-muted-foreground" />
-					)}
-					<div className="text-sm font-medium">{title}</div>
-				</div>
-				{subtitle && (
-					<p className="mt-0.5 text-xs text-muted-foreground">
-						{subtitle}
-					</p>
-				)}
-			</ContentCardSection>
-			<ContentCardSection>
-				{isLoading ? (
-					<div className="h-44 animate-pulse rounded bg-muted/40" />
-				) : data.length === 0 ? (
-					<p className="py-12 text-center text-sm text-muted-foreground">
-						No data
-					</p>
-				) : (
-					<StatusPieChart
-						title=""
-						data={data}
-						colorMap={colorMap}
-						size="sm"
-						footer={footer}
-					/>
-				)}
-			</ContentCardSection>
-		</ContentCard>
 	);
 }
 

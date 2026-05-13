@@ -28,14 +28,27 @@ const TONE_VALUE: Record<MetricTone, string> = {
 	cyan: "text-chart-5",
 };
 
-const TONE_ICON_BG: Record<MetricTone, string> = {
-	default: "bg-muted text-muted-foreground",
-	info: "bg-info/10 text-info",
-	success: "bg-success/10 text-success",
-	warning: "bg-warning/10 text-warning",
-	danger: "bg-destructive/10 text-destructive",
-	purple: "bg-chart-4/10 text-chart-4",
-	cyan: "bg-chart-5/10 text-chart-5",
+const TONE_ACCENT: Record<MetricTone, string> = {
+	default:
+		"bg-[radial-gradient(ellipse_at_top_right,var(--muted)/0.5,transparent_60%)]",
+	info: "bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--info)_18%,transparent),transparent_60%)]",
+	success:
+		"bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--success)_18%,transparent),transparent_60%)]",
+	warning:
+		"bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--warning)_18%,transparent),transparent_60%)]",
+	danger: "bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--destructive)_18%,transparent),transparent_60%)]",
+	purple: "bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--chart-4)_18%,transparent),transparent_60%)]",
+	cyan: "bg-[radial-gradient(ellipse_at_top_right,color-mix(in_oklch,var(--chart-5)_18%,transparent),transparent_60%)]",
+};
+
+const TONE_ICON: Record<MetricTone, string> = {
+	default: "text-muted-foreground",
+	info: "text-info",
+	success: "text-success",
+	warning: "text-warning",
+	danger: "text-destructive",
+	purple: "text-chart-4",
+	cyan: "text-chart-5",
 };
 
 interface MetricCardProps {
@@ -53,6 +66,8 @@ interface MetricCardProps {
 	onClick?: () => void;
 	active?: boolean;
 	trailing?: ReactNode;
+	/** Pass a small sparkline / inline chart at the bottom of the card. */
+	footer?: ReactNode;
 }
 
 function formatValue(v: string | number): string {
@@ -80,19 +95,19 @@ function Delta({
 	const Icon = isFlat ? MinusIcon : isUp ? ArrowUpIcon : ArrowDownIcon;
 	const tone =
 		positive === true
-			? "text-success"
+			? "text-success bg-success/10"
 			: positive === false
-				? "text-destructive"
-				: "text-muted-foreground";
+				? "text-destructive bg-destructive/10"
+				: "text-muted-foreground bg-muted";
 
 	return (
 		<span
 			className={cn(
-				"inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums",
+				"inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium tabular-nums",
 				tone,
 			)}
 		>
-			<Icon className="size-3" />
+			<Icon className="size-2.5" />
 			{Math.abs(value)}
 			{label ? <span className="ml-0.5 opacity-70">{label}</span> : null}
 		</span>
@@ -110,39 +125,50 @@ export function MetricCard({
 	onClick,
 	active,
 	trailing,
+	footer,
 }: MetricCardProps) {
 	const interactive = !!href || !!onClick;
 	const content = (
 		<div
 			className={cn(
-				"group relative flex h-full flex-col gap-1.5 rounded-md border border-border bg-card px-3 py-2.5 shadow-xs transition-colors",
+				"group relative isolate flex h-full flex-col justify-between overflow-hidden rounded-lg border border-border bg-card px-3.5 py-3 shadow-xs transition-all",
 				interactive &&
-					"cursor-pointer hover:border-border-strong hover:bg-surface-subtle/60",
-				active && "border-primary/60 bg-primary/5",
+					"cursor-pointer hover:-translate-y-px hover:border-border-strong hover:shadow-sm",
+				active && "border-primary/50 ring-1 ring-primary/20 ring-inset",
 			)}
 		>
-			<div className="flex items-center justify-between gap-2">
-				<div className="flex min-w-0 items-center gap-1.5">
-					{Icon && (
-						<div
-							className={cn(
-								"flex size-5 shrink-0 items-center justify-center rounded",
-								TONE_ICON_BG[tone],
-							)}
-						>
-							<Icon className="size-3" />
-						</div>
+			{/* Tone wash — subtle radial accent that gives each card visual character */}
+			{tone !== "default" && (
+				<div
+					className={cn(
+						"pointer-events-none absolute inset-0 -z-10 transition-opacity group-hover:opacity-100",
+						TONE_ACCENT[tone],
+						"opacity-70",
 					)}
-					<span className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-						{label}
-					</span>
-				</div>
-				{trailing}
+					aria-hidden
+				/>
+			)}
+
+			{/* Top row: label + icon */}
+			<div className="flex items-start justify-between gap-2">
+				<span className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+					{label}
+				</span>
+				{Icon ? (
+					<Icon
+						className={cn("size-3.5 shrink-0", TONE_ICON[tone])}
+						aria-hidden
+					/>
+				) : (
+					trailing
+				)}
 			</div>
-			<div className="flex items-baseline justify-between gap-2">
+
+			{/* Middle: value + delta */}
+			<div className="mt-1.5 flex items-baseline gap-2">
 				<span
 					className={cn(
-						"truncate text-xl font-medium tabular-nums tracking-tight",
+						"truncate text-2xl font-semibold tabular-nums leading-none tracking-tight",
 						TONE_VALUE[tone],
 					)}
 				>
@@ -150,9 +176,16 @@ export function MetricCard({
 				</span>
 				{delta && <Delta {...delta} />}
 			</div>
-			{hint && (
-				<div className="truncate text-[11px] text-muted-foreground">
-					{hint}
+
+			{/* Bottom: hint + footer */}
+			{(hint || footer) && (
+				<div className="mt-2 space-y-1">
+					{footer}
+					{hint && (
+						<div className="truncate text-[11px] text-muted-foreground/80">
+							{hint}
+						</div>
+					)}
 				</div>
 			)}
 		</div>
@@ -210,9 +243,10 @@ export function MetricStrip({
 
 export function MetricCardSkeleton() {
 	return (
-		<div className="flex h-full flex-col gap-1.5 rounded-md border border-border bg-card px-3 py-2.5 shadow-xs">
+		<div className="flex h-full flex-col justify-between gap-3 rounded-lg border border-border bg-card px-3.5 py-3 shadow-xs">
 			<div className="h-3 w-20 animate-pulse rounded bg-muted" />
-			<div className="h-6 w-16 animate-pulse rounded bg-muted" />
+			<div className="h-7 w-16 animate-pulse rounded bg-muted" />
+			<div className="h-2.5 w-24 animate-pulse rounded bg-muted/60" />
 		</div>
 	);
 }
