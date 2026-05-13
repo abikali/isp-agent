@@ -62,17 +62,13 @@ function DashboardPage() {
 		);
 	}
 
+	// DashboardContent provides its own PageShell internally.
 	return (
-		<PageShell
-			title="Dashboard"
-			description="At-a-glance view of revenue, customers, escalations, and watchers."
-		>
-			<AsyncBoundary fallback={<DashboardSkeleton />}>
-				<DashboardContent
-					organizationSlug={organizationSlug}
-					organizationId={loaderData.organizationId}
-				/>
-			</AsyncBoundary>
-		</PageShell>
+		<AsyncBoundary fallback={<DashboardSkeleton />}>
+			<DashboardContent
+				organizationSlug={organizationSlug}
+				organizationId={loaderData.organizationId}
+			/>
+		</AsyncBoundary>
 	);
 }

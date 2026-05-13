@@ -1,6 +1,10 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate } from "@shared/lib/format";
@@ -342,72 +346,74 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 				</AsyncBoundary>
 			</div>
 
-			<div className="mb-4">
-				<TaskFilters
-					search={search}
-					onSearchChange={(v) => {
-						setSearch(v);
-						resetPage();
-					}}
-					status={status}
-					onStatusChange={(v) => {
-						setStatus(v);
-						resetPage();
-					}}
-					priority={priority}
-					onPriorityChange={(v) => {
-						setPriority(v);
-						resetPage();
-					}}
-					category={category}
-					onCategoryChange={(v) => {
-						setCategory(v);
-						resetPage();
-					}}
-					employeeId={employeeId}
-					onEmployeeIdChange={(v) => {
-						setEmployeeId(v);
-						resetPage();
-					}}
-				/>
-			</div>
+			<ContentCard>
+				<ContentCardToolbar>
+					<TaskFilters
+						search={search}
+						onSearchChange={(v) => {
+							setSearch(v);
+							resetPage();
+						}}
+						status={status}
+						onStatusChange={(v) => {
+							setStatus(v);
+							resetPage();
+						}}
+						priority={priority}
+						onPriorityChange={(v) => {
+							setPriority(v);
+							resetPage();
+						}}
+						category={category}
+						onCategoryChange={(v) => {
+							setCategory(v);
+							resetPage();
+						}}
+						employeeId={employeeId}
+						onEmployeeIdChange={(v) => {
+							setEmployeeId(v);
+							resetPage();
+						}}
+					/>
+				</ContentCardToolbar>
 
-			<TooltipProvider>
-				<DataTable
-					columns={columns}
-					data={tasks}
-					isLoading={isLoading}
-					isFetching={isFetching}
-					sorting={sorting}
-					onSortingChange={onSortingChange}
-					pagination={{
-						totalItems: total,
-						currentPage: page,
-						itemsPerPage: 25,
-						onPageChange: setPage,
-					}}
-					emptyState={
-						<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-							<h3 className="mb-1 text-lg font-medium">
-								{total === 0
-									? "No tasks yet"
-									: "No results found"}
-							</h3>
-							<p className="mb-4 text-sm text-muted-foreground">
-								{total === 0
-									? "Create your first task to get started."
-									: "Try adjusting your filters or search term."}
-							</p>
-							{total === 0 && (
-								<Button onClick={() => setShowCreate(true)}>
-									<PlusIcon className="mr-2 size-4" />
-									Create Task
-								</Button>
-							)}
-						</div>
-					}
-				/>
-			</TooltipProvider>
+				<TooltipProvider>
+					<DataTable
+						columns={columns}
+						data={tasks}
+						isLoading={isLoading}
+						isFetching={isFetching}
+						sorting={sorting}
+						onSortingChange={onSortingChange}
+						pagination={{
+							totalItems: total,
+							currentPage: page,
+							itemsPerPage: 25,
+							onPageChange: setPage,
+						}}
+						emptyState={
+							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
+								<h3 className="mb-1 text-lg font-medium">
+									{total === 0
+										? "No tasks yet"
+										: "No results found"}
+								</h3>
+								<p className="mb-4 text-sm text-muted-foreground">
+									{total === 0
+										? "Create your first task to get started."
+										: "Try adjusting your filters or search term."}
+								</p>
+								{total === 0 && (
+									<Button onClick={() => setShowCreate(true)}>
+										<PlusIcon className="mr-2 size-4" />
+										Create Task
+									</Button>
+								)}
+							</div>
+						}
+					/>
+				</TooltipProvider>
+			</ContentCard>
 
 			<CreateTaskDialog open={showCreate} onOpenChange={setShowCreate} />
 		</div>

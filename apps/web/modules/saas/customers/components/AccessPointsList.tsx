@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { FilterBar } from "@shared/components/FilterBar";
 import { PageShell } from "@shared/components/PageShell";
@@ -163,71 +167,78 @@ export function AccessPointsList() {
 			title="Access Points"
 			description={`${accessPoints.length} access points (${onlineCount} online)`}
 		>
-			<FilterBar
-				searchPlaceholder="Search by name, IP, or MAC..."
-				searchValue={search}
-				onSearchChange={setSearch}
-				activeFilterCount={activeFilterCount}
-				onReset={resetFilters}
-			>
-				{stations.length > 0 && (
-					<Select
-						value={stationFilter || "all"}
-						onValueChange={(val) =>
-							setStationFilter(val === "all" ? "" : val)
-						}
+			<ContentCard>
+				<ContentCardToolbar>
+					<FilterBar
+						bare
+						searchPlaceholder="Search by name, IP, or MAC..."
+						searchValue={search}
+						onSearchChange={setSearch}
+						activeFilterCount={activeFilterCount}
+						onReset={resetFilters}
 					>
-						<SelectTrigger className="w-full sm:w-[170px]">
-							<SelectValue placeholder="All stations" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All stations</SelectItem>
-							{stations.map((s) => (
-								<SelectItem key={s.id} value={s.id}>
-									{s.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				)}
-				<Select
-					value={onlineFilter || "all"}
-					onValueChange={(val) =>
-						setOnlineFilter(val === "all" ? "" : val)
-					}
-				>
-					<SelectTrigger className="w-full sm:w-[140px]">
-						<SelectValue placeholder="Connectivity" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All</SelectItem>
-						<SelectItem value="online">Online</SelectItem>
-						<SelectItem value="offline">Offline</SelectItem>
-					</SelectContent>
-				</Select>
-			</FilterBar>
+						{stations.length > 0 && (
+							<Select
+								value={stationFilter || "all"}
+								onValueChange={(val) =>
+									setStationFilter(val === "all" ? "" : val)
+								}
+							>
+								<SelectTrigger className="w-full sm:w-[170px]">
+									<SelectValue placeholder="All stations" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">
+										All stations
+									</SelectItem>
+									{stations.map((s) => (
+										<SelectItem key={s.id} value={s.id}>
+											{s.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+						<Select
+							value={onlineFilter || "all"}
+							onValueChange={(val) =>
+								setOnlineFilter(val === "all" ? "" : val)
+							}
+						>
+							<SelectTrigger className="w-full sm:w-[140px]">
+								<SelectValue placeholder="Connectivity" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All</SelectItem>
+								<SelectItem value="online">Online</SelectItem>
+								<SelectItem value="offline">Offline</SelectItem>
+							</SelectContent>
+						</Select>
+					</FilterBar>
+				</ContentCardToolbar>
 
-			<DataTable
-				columns={columns}
-				data={accessPoints}
-				emptyState={
-					accessPoints.length === 0 &&
-					!activeFilterCount &&
-					!debouncedSearch ? (
-						<EmptyState
-							icon={WifiIcon}
-							title="No access points yet"
-							description="Access points will appear here after syncing from iRadius."
-						/>
-					) : (
-						<EmptyState
-							icon={WifiIcon}
-							title="No results found"
-							description="Try adjusting your search or filters."
-						/>
-					)
-				}
-			/>
+				<DataTable
+					columns={columns}
+					data={accessPoints}
+					emptyState={
+						accessPoints.length === 0 &&
+						!activeFilterCount &&
+						!debouncedSearch ? (
+							<EmptyState
+								icon={WifiIcon}
+								title="No access points yet"
+								description="Access points will appear here after syncing from iRadius."
+							/>
+						) : (
+							<EmptyState
+								icon={WifiIcon}
+								title="No results found"
+								description="Try adjusting your search or filters."
+							/>
+						)
+					}
+				/>
+			</ContentCard>
 		</PageShell>
 	);
 }

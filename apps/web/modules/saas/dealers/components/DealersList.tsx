@@ -1,6 +1,10 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
@@ -329,54 +333,61 @@ export function DealersList() {
 
 			<DealerSyncPanel />
 
-			<DealerFilters
-				search={search}
-				onSearchChange={(v) => {
-					setSearch(v);
-					setPage(1);
-				}}
-				status={status}
-				onStatusChange={(v) => {
-					setStatus(v);
-					setPage(1);
-				}}
-			/>
-
-			<DataTable
-				columns={columns}
-				data={dealers}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				pagination={{
-					totalItems: total,
-					currentPage: page,
-					itemsPerPage: pageSize,
-					onPageChange: setPage,
-				}}
-				isLoading={isLoading}
-				isFetching={isFetching}
-				emptyState={
-					<EmptyState
-						icon={HandshakeIcon}
-						title={
-							total === 0 ? "No dealers yet" : "No results found"
-						}
-						description={
-							total === 0
-								? "Add your first dealer to get started."
-								: "Try adjusting your filters or search term."
-						}
-						action={
-							total === 0 ? (
-								<Button onClick={() => setShowCreate(true)}>
-									<PlusIcon className="mr-2 size-4" />
-									Add Dealer
-								</Button>
-							) : undefined
-						}
+			<ContentCard>
+				<ContentCardToolbar>
+					<DealerFilters
+						bare
+						search={search}
+						onSearchChange={(v) => {
+							setSearch(v);
+							setPage(1);
+						}}
+						status={status}
+						onStatusChange={(v) => {
+							setStatus(v);
+							setPage(1);
+						}}
 					/>
-				}
-			/>
+				</ContentCardToolbar>
+
+				<DataTable
+					columns={columns}
+					data={dealers}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: pageSize,
+						onPageChange: setPage,
+					}}
+					isLoading={isLoading}
+					isFetching={isFetching}
+					emptyState={
+						<EmptyState
+							icon={HandshakeIcon}
+							title={
+								total === 0
+									? "No dealers yet"
+									: "No results found"
+							}
+							description={
+								total === 0
+									? "Add your first dealer to get started."
+									: "Try adjusting your filters or search term."
+							}
+							action={
+								total === 0 ? (
+									<Button onClick={() => setShowCreate(true)}>
+										<PlusIcon className="mr-2 size-4" />
+										Add Dealer
+									</Button>
+								) : undefined
+							}
+						/>
+					}
+				/>
+			</ContentCard>
 
 			<CreateDealerDialog
 				open={showCreate}

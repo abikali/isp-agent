@@ -15,6 +15,7 @@ interface DealerFiltersProps {
 	onSearchChange: (value: string) => void;
 	status: string;
 	onStatusChange: (value: string) => void;
+	bare?: boolean;
 }
 
 export function DealerFilters({
@@ -22,11 +23,13 @@ export function DealerFilters({
 	onSearchChange,
 	status,
 	onStatusChange,
+	bare,
 }: DealerFiltersProps) {
 	const activeCount = status !== "all" ? 1 : 0;
 
 	return (
 		<FilterBar
+			bare={bare}
 			searchPlaceholder="Search dealers..."
 			searchValue={search}
 			onSearchChange={onSearchChange}

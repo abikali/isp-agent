@@ -1,6 +1,10 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
@@ -494,29 +498,6 @@ export function EmployeesList({
 				<EmployeeStats />
 			</AsyncBoundary>
 
-			<EmployeeFilters
-				search={search}
-				onSearchChange={(v) => {
-					setSearch(v);
-					setPage(1);
-				}}
-				status={status}
-				onStatusChange={(v) => {
-					setStatus(v);
-					setPage(1);
-				}}
-				department={department}
-				onDepartmentChange={(v) => {
-					setDepartment(v);
-					setPage(1);
-				}}
-				stationId={stationId}
-				onStationIdChange={(v) => {
-					setStationId(v);
-					setPage(1);
-				}}
-			/>
-
 			{selectedCount > 0 && (
 				<div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
 					<span className="text-sm text-muted-foreground">
@@ -533,60 +514,88 @@ export function EmployeesList({
 				</div>
 			)}
 
-			<DataTable
-				columns={columns}
-				data={employees}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				getRowClassName={(row) => {
-					const s = row.original.status;
-					if (s === "INACTIVE") {
-						return "opacity-50";
-					}
-					if (s === "ON_LEAVE") {
-						return "opacity-70 bg-amber-50/50 dark:bg-amber-950/10";
-					}
-					return undefined;
-				}}
-				pagination={{
-					totalItems: total,
-					currentPage: page,
-					itemsPerPage: PAGE_SIZE,
-					onPageChange: (p) => {
-						setPage(p);
-						setRowSelection({});
-					},
-				}}
-				isLoading={isLoading}
-				isFetching={isFetching}
-				enableRowSelection={(row) => !!row.original.externalId}
-				rowSelection={rowSelection}
-				onRowSelectionChange={setRowSelection}
-				getRowId={(row) => row.id}
-				emptyState={
-					<EmptyState
-						icon={UsersIcon}
-						title={
-							total === 0
-								? "No employees yet"
-								: "No results found"
-						}
-						description={
-							total === 0
-								? "Add your first employee to get started."
-								: "Try adjusting your filters or search term."
-						}
-						action={
-							total === 0 ? (
-								<Button onClick={() => setShowCreate(true)}>
-									<PlusIcon className="mr-2 size-4" />
-									Add Employee
-								</Button>
-							) : undefined
-						}
+			<ContentCard>
+				<ContentCardToolbar>
+					<EmployeeFilters
+						bare
+						search={search}
+						onSearchChange={(v) => {
+							setSearch(v);
+							setPage(1);
+						}}
+						status={status}
+						onStatusChange={(v) => {
+							setStatus(v);
+							setPage(1);
+						}}
+						department={department}
+						onDepartmentChange={(v) => {
+							setDepartment(v);
+							setPage(1);
+						}}
+						stationId={stationId}
+						onStationIdChange={(v) => {
+							setStationId(v);
+							setPage(1);
+						}}
 					/>
-				}
-			/>
+				</ContentCardToolbar>
+
+				<DataTable
+					columns={columns}
+					data={employees}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					getRowClassName={(row) => {
+						const s = row.original.status;
+						if (s === "INACTIVE") {
+							return "opacity-50";
+						}
+						if (s === "ON_LEAVE") {
+							return "opacity-70 bg-amber-50/50 dark:bg-amber-950/10";
+						}
+						return undefined;
+					}}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: (p) => {
+							setPage(p);
+							setRowSelection({});
+						},
+					}}
+					isLoading={isLoading}
+					isFetching={isFetching}
+					enableRowSelection={(row) => !!row.original.externalId}
+					rowSelection={rowSelection}
+					onRowSelectionChange={setRowSelection}
+					getRowId={(row) => row.id}
+					emptyState={
+						<EmptyState
+							icon={UsersIcon}
+							title={
+								total === 0
+									? "No employees yet"
+									: "No results found"
+							}
+							description={
+								total === 0
+									? "Add your first employee to get started."
+									: "Try adjusting your filters or search term."
+							}
+							action={
+								total === 0 ? (
+									<Button onClick={() => setShowCreate(true)}>
+										<PlusIcon className="mr-2 size-4" />
+										Add Employee
+									</Button>
+								) : undefined
+							}
+						/>
+					}
+				/>
+			</ContentCard>
 
 			<CreateEmployeeDialog
 				open={showCreate}

@@ -2,11 +2,8 @@ import { isOrganizationAdmin } from "@repo/auth/lib/helper";
 import { config } from "@repo/config";
 import { OrganizationLogo } from "@saas/organizations/client";
 import { SettingsMenu } from "@saas/settings/client";
-import {
-	AppNotFound,
-	PageHeader,
-	SidebarContentLayout,
-} from "@saas/shared/client";
+import { AppNotFound, SidebarContentLayout } from "@saas/shared/client";
+import { PageShell } from "@shared/components/PageShell";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
 	ClipboardListIcon,
@@ -166,16 +163,15 @@ function OrganizationSettingsLayout() {
 	];
 
 	return (
-		<>
-			<PageHeader
-				title="Organization Settings"
-				subtitle="Manage your organization settings and preferences"
-			/>
+		<PageShell
+			title="Organization Settings"
+			description="Manage your organization settings and preferences."
+		>
 			<SidebarContentLayout
 				sidebar={<SettingsMenu menuItems={menuItems} />}
 			>
 				<Outlet />
 			</SidebarContentLayout>
-		</>
+		</PageShell>
 	);
 }

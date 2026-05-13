@@ -1,6 +1,10 @@
 "use client";
 
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDateTime } from "@shared/lib/format";
@@ -301,62 +305,64 @@ export function EscalationsList({
 				</AsyncBoundary>
 			</div>
 
-			<div className="mb-4">
-				<EscalationFilters
-					search={search}
-					onSearchChange={(v) => {
-						setSearch(v);
-						resetPage();
-					}}
-					status={status}
-					onStatusChange={(v) => {
-						setStatus(v);
-						resetPage();
-					}}
-					priority={priority}
-					onPriorityChange={(v) => {
-						setPriority(v);
-						resetPage();
-					}}
-					followUp={followUp}
-					onFollowUpChange={(v) => {
-						setFollowUp(v);
-						resetPage();
-					}}
-				/>
-			</div>
+			<ContentCard>
+				<ContentCardToolbar>
+					<EscalationFilters
+						search={search}
+						onSearchChange={(v) => {
+							setSearch(v);
+							resetPage();
+						}}
+						status={status}
+						onStatusChange={(v) => {
+							setStatus(v);
+							resetPage();
+						}}
+						priority={priority}
+						onPriorityChange={(v) => {
+							setPriority(v);
+							resetPage();
+						}}
+						followUp={followUp}
+						onFollowUpChange={(v) => {
+							setFollowUp(v);
+							resetPage();
+						}}
+					/>
+				</ContentCardToolbar>
 
-			<TooltipProvider>
-				<DataTable
-					columns={columns}
-					data={tasks}
-					isLoading={isLoading}
-					isFetching={isFetching}
-					sorting={sorting}
-					onSortingChange={onSortingChange}
-					pagination={{
-						totalItems: total,
-						currentPage: page,
-						itemsPerPage: 25,
-						onPageChange: setPage,
-					}}
-					emptyState={
-						<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-							<BotIcon className="mb-3 size-10 text-muted-foreground/50" />
-							<h3 className="mb-1 text-lg font-medium">
-								{total === 0
-									? "No AI escalations yet"
-									: "No results found"}
-							</h3>
-							<p className="text-sm text-muted-foreground">
-								{total === 0
-									? "Escalations will appear here when AI agents need human help."
-									: "Try adjusting your filters or search term."}
-							</p>
-						</div>
-					}
-				/>
-			</TooltipProvider>
+				<TooltipProvider>
+					<DataTable
+						columns={columns}
+						data={tasks}
+						isLoading={isLoading}
+						isFetching={isFetching}
+						sorting={sorting}
+						onSortingChange={onSortingChange}
+						pagination={{
+							totalItems: total,
+							currentPage: page,
+							itemsPerPage: 25,
+							onPageChange: setPage,
+						}}
+						emptyState={
+							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
+								<BotIcon className="mb-3 size-10 text-muted-foreground/50" />
+								<h3 className="mb-1 text-lg font-medium">
+									{total === 0
+										? "No AI escalations yet"
+										: "No results found"}
+								</h3>
+								<p className="text-sm text-muted-foreground">
+									{total === 0
+										? "Escalations will appear here when AI agents need human help."
+										: "Try adjusting your filters or search term."}
+								</p>
+							</div>
+						}
+					/>
+				</TooltipProvider>
+			</ContentCard>
 		</div>
 	);
 }

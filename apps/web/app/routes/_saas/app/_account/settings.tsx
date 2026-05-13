@@ -1,10 +1,7 @@
 import { config } from "@repo/config";
 import { SettingsMenu } from "@saas/settings/client";
-import {
-	AppNotFound,
-	PageHeader,
-	SidebarContentLayout,
-} from "@saas/shared/client";
+import { AppNotFound, SidebarContentLayout } from "@saas/shared/client";
+import { PageShell } from "@shared/components/PageShell";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
@@ -79,16 +76,15 @@ function SettingsLayout() {
 	];
 
 	return (
-		<>
-			<PageHeader
-				title="Account Settings"
-				subtitle="Manage your account settings and preferences."
-			/>
+		<PageShell
+			title="Account Settings"
+			description="Manage your account settings and preferences."
+		>
 			<SidebarContentLayout
 				sidebar={<SettingsMenu menuItems={menuItems} />}
 			>
 				<Outlet />
 			</SidebarContentLayout>
-		</>
+		</PageShell>
 	);
 }

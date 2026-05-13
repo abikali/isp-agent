@@ -23,6 +23,7 @@ interface EmployeeFiltersProps {
 	onDepartmentChange: (value: string) => void;
 	stationId: string;
 	onStationIdChange: (value: string) => void;
+	bare?: boolean;
 }
 
 export function EmployeeFilters({
@@ -34,6 +35,7 @@ export function EmployeeFilters({
 	onDepartmentChange,
 	stationId,
 	onStationIdChange,
+	bare,
 }: EmployeeFiltersProps) {
 	const { stations } = useStationsQuery();
 
@@ -51,6 +53,7 @@ export function EmployeeFilters({
 
 	return (
 		<FilterBar
+			bare={bare}
 			searchPlaceholder="Search employees..."
 			searchValue={search}
 			onSearchChange={onSearchChange}

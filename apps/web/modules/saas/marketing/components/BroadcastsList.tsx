@@ -1,5 +1,6 @@
 "use client";
 
+import { ContentCard } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { formatDateTime } from "@shared/lib/format";
@@ -61,7 +62,7 @@ export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 					}
 				/>
 			) : (
-				<div className="rounded-lg border">
+				<ContentCard>
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -136,7 +137,7 @@ export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 							))}
 						</TableBody>
 					</Table>
-				</div>
+				</ContentCard>
 			)}
 			{total > items.length ? (
 				<p className="mt-4 text-sm text-muted-foreground">
