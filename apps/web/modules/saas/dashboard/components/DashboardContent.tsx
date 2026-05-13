@@ -2,10 +2,13 @@
 
 import { useSession } from "@saas/auth/client";
 import { useActiveOrganization } from "@saas/organizations/client";
+import { AsyncBoundary } from "@shared/components/AsyncBoundary";
+import { ChartSkeleton } from "@shared/components/ChartSkeleton";
 import { PageShell } from "@shared/components/PageShell";
 import { BEIRUT_TIMEZONE } from "@shared/lib/format";
 import { QuickActions } from "./QuickActions";
 import { StatCards } from "./StatCards";
+import { TrendsRow } from "./TrendsRow";
 
 const BEIRUT_HOUR_FORMAT = new Intl.DateTimeFormat("en-GB", {
 	timeZone: BEIRUT_TIMEZONE,
@@ -51,6 +54,9 @@ export function DashboardContent({
 		>
 			<StatCards />
 			<QuickActions organizationSlug={organizationSlug} />
+			<AsyncBoundary fallback={<ChartSkeleton variant="line" />}>
+				<TrendsRow />
+			</AsyncBoundary>
 		</PageShell>
 	);
 }

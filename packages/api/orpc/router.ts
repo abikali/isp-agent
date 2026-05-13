@@ -7,6 +7,7 @@ import { auditRouter } from "../modules/audit/router";
 import { authRouter } from "../modules/auth/router";
 import { billingRouter } from "../modules/billing/router";
 import { customersRouter } from "../modules/customers/router";
+import { dashboardRouter } from "../modules/dashboard/router";
 import { employeesRouter } from "../modules/employees/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
 import { integrationsRouter } from "../modules/integrations/router";
@@ -37,6 +38,7 @@ export const router = publicProcedure.router({
 	billing: billingRouter,
 	auth: authRouter,
 	customers: customersRouter,
+	dashboard: dashboardRouter,
 	employees: employeesRouter,
 	newsletter: newsletterRouter,
 	integrations: integrationsRouter,
