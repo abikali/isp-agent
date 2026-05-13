@@ -3,10 +3,10 @@ import {
 	BillingCycleManager,
 	BillingDashboard,
 	BillingDashboardSkeleton,
+	BillingWorkbench,
 	RegenerateInvoicesCard,
 } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
-import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -22,16 +22,16 @@ export const Route = createFileRoute(
 function BillingPage() {
 	return (
 		<PermissionGate resource="billing" action="manage">
-			<PageShell
-				title="Billing"
-				description="Monthly billing cycle, collected revenue, and invoice regeneration."
+			<BillingWorkbench
+				title="Billing overview"
+				description="Monthly cycle, collected revenue, aging buckets, and collector leaderboard"
 			>
 				<BillingCycleManager />
 				<AsyncBoundary fallback={<BillingDashboardSkeleton />}>
 					<BillingDashboard />
 				</AsyncBoundary>
 				<RegenerateInvoicesCard />
-			</PageShell>
+			</BillingWorkbench>
 		</PermissionGate>
 	);
 }

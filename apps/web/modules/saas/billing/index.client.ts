@@ -13,6 +13,8 @@ export {
 	BillingDashboard,
 	BillingDashboardSkeleton,
 } from "./components/BillingDashboard";
+export { BillingNav } from "./components/BillingNav";
+export { BillingWorkbench } from "./components/BillingWorkbench";
 export {
 	CashCollectionPage,
 	CashCollectionPageSkeleton,

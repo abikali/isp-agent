@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import {
+	BillingWorkbench,
 	UnpaidCustomersList,
 	UnpaidCustomersListSkeleton,
 } from "@saas/billing/client";
@@ -19,9 +20,14 @@ export const Route = createFileRoute(
 function CollectPage() {
 	return (
 		<PermissionGate resource="billing" action="collect">
-			<AsyncBoundary fallback={<UnpaidCustomersListSkeleton />}>
-				<UnpaidCustomersList />
-			</AsyncBoundary>
+			<BillingWorkbench
+				title="Unpaid"
+				description="Customers due this billing cycle"
+			>
+				<AsyncBoundary fallback={<UnpaidCustomersListSkeleton />}>
+					<UnpaidCustomersList />
+				</AsyncBoundary>
+			</BillingWorkbench>
 		</PermissionGate>
 	);
 }

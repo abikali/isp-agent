@@ -1,5 +1,5 @@
 import { config } from "@repo/config";
-import { InvoicesList } from "@saas/billing/client";
+import { BillingWorkbench, InvoicesList } from "@saas/billing/client";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -15,7 +15,12 @@ export const Route = createFileRoute(
 function InvoicesPage() {
 	return (
 		<PermissionGate resource="billing" action="manage">
-			<InvoicesList />
+			<BillingWorkbench
+				title="Invoices"
+				description="All issued invoices across customers"
+			>
+				<InvoicesList />
+			</BillingWorkbench>
 		</PermissionGate>
 	);
 }

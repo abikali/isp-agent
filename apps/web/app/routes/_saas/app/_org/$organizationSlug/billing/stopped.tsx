@@ -1,5 +1,6 @@
 import { config } from "@repo/config";
 import {
+	BillingWorkbench,
 	StoppedAccountsList,
 	StoppedAccountsListSkeleton,
 } from "@saas/billing/client";
@@ -19,9 +20,14 @@ export const Route = createFileRoute(
 function StoppedPage() {
 	return (
 		<PermissionGate resource="billing" action="manage">
-			<AsyncBoundary fallback={<StoppedAccountsListSkeleton />}>
-				<StoppedAccountsList />
-			</AsyncBoundary>
+			<BillingWorkbench
+				title="Stopped"
+				description="Accounts paused, awaiting reactivation"
+			>
+				<AsyncBoundary fallback={<StoppedAccountsListSkeleton />}>
+					<StoppedAccountsList />
+				</AsyncBoundary>
+			</BillingWorkbench>
 		</PermissionGate>
 	);
 }
