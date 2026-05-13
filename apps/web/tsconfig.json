@@ -58,6 +58,9 @@
 			"@saas/dashboard/client": [
 				"./modules/saas/dashboard/index.client.ts"
 			],
+			"@saas/notifications/client": [
+				"./modules/saas/notifications/index.client.ts"
+			],
 			"@saas/*": ["./modules/saas/*"],
 			"@ui/*": ["./modules/ui/*"],
 			"@shared/*": ["./modules/shared/*"],

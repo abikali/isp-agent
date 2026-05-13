@@ -2,6 +2,10 @@
 
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -563,17 +567,33 @@ export function UnpaidCustomersList() {
 			title="Collect Payments"
 			description={`${total} unpaid customer${total !== 1 ? "s" : ""}`}
 		>
-			<div className="space-y-4">
-				{isCollector && <CollectorStatsHeader />}
-				<CollectionOverview
-					total={total}
-					totalAmountDue={totalAmountDue}
-					expiredCount={expiredCount}
-					isLoading={isLoading}
-				/>
+			{isCollector && <CollectorStatsHeader />}
+			<CollectionOverview
+				total={total}
+				totalAmountDue={totalAmountDue}
+				expiredCount={expiredCount}
+				isLoading={isLoading}
+			/>
 
-				{/* Filters */}
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+			{isOrganizationAdmin && selectedCount > 0 && (
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedCount} selected
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={voidUnpaidMutation.isPending}
+						onClick={handleVoidSelected}
+					>
+						<BanIcon className="mr-2 size-4" />
+						Void unpaid ({selectedCount})
+					</Button>
+				</div>
+			)}
+
+			<ContentCard>
+				<ContentCardToolbar>
 					<SearchInput
 						value={search}
 						onChange={(val) => {
@@ -583,71 +603,52 @@ export function UnpaidCustomersList() {
 						placeholder="Search by name, username, or phone..."
 						className="sm:max-w-xs"
 					/>
-					<div className="flex flex-1 flex-wrap items-center gap-2">
-						<GroupSelect
-							value={groupFilter}
+					<GroupSelect
+						value={groupFilter}
+						onChange={(val) => {
+							setGroupFilter(val);
+							setPage(1);
+						}}
+						groups={groups}
+						excludeFree
+					/>
+
+					{isOrganizationAdmin && (
+						<CollectorSelect
+							value={collectorFilter}
 							onChange={(val) => {
-								setGroupFilter(val);
+								setCollectorFilter(val);
 								setPage(1);
 							}}
-							groups={groups}
-							excludeFree
+							collectors={collectors}
+							className="w-full sm:w-[180px]"
 						/>
+					)}
 
-						{isOrganizationAdmin && (
-							<CollectorSelect
-								value={collectorFilter}
-								onChange={(val) => {
-									setCollectorFilter(val);
-									setPage(1);
-								}}
-								collectors={collectors}
-								className="w-full sm:w-[180px]"
-							/>
-						)}
+					<Button
+						variant={expiredOnly ? "primary" : "outline"}
+						size="md"
+						className="shrink-0"
+						onClick={() => {
+							setExpiredOnly(!expiredOnly);
+							setPage(1);
+						}}
+					>
+						<CalendarXIcon className="mr-1.5 size-3.5" />
+						Billing Expired
+					</Button>
 
+					{hasActiveFilters && (
 						<Button
-							variant={expiredOnly ? "primary" : "outline"}
-							size="md"
-							className="shrink-0"
-							onClick={() => {
-								setExpiredOnly(!expiredOnly);
-								setPage(1);
-							}}
-						>
-							<CalendarXIcon className="mr-1.5 size-3.5" />
-							Billing Expired
-						</Button>
-
-						{hasActiveFilters && (
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={resetFilters}
-								className="text-muted-foreground"
-							>
-								Clear filters
-							</Button>
-						)}
-					</div>
-				</div>
-
-				{isOrganizationAdmin && selectedCount > 0 && (
-					<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
-						<span className="text-sm text-muted-foreground">
-							{selectedCount} selected
-						</span>
-						<Button
+							variant="ghost"
 							size="sm"
-							variant="outline"
-							disabled={voidUnpaidMutation.isPending}
-							onClick={handleVoidSelected}
+							onClick={resetFilters}
+							className="text-muted-foreground"
 						>
-							<BanIcon className="mr-2 size-4" />
-							Void unpaid ({selectedCount})
+							Clear filters
 						</Button>
-					</div>
-				)}
+					)}
+				</ContentCardToolbar>
 
 				<TooltipProvider>
 					<DataTable
@@ -685,19 +686,19 @@ export function UnpaidCustomersList() {
 							/>
 						}
 					/>
-
-					{customers.length > 0 && (
-						<div className="flex flex-col gap-1 px-1 pt-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-							<span>
-								Showing {customers.length} of {total} unpaid
-							</span>
-							<span className="font-medium text-foreground">
-								Page total: {formatCurrency(pageAmountDue)}
-							</span>
-						</div>
-					)}
 				</TooltipProvider>
-			</div>
+			</ContentCard>
+
+			{customers.length > 0 && (
+				<div className="flex flex-col gap-1 px-1 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+					<span>
+						Showing {customers.length} of {total} unpaid
+					</span>
+					<span className="font-medium text-foreground">
+						Page total: {formatCurrency(pageAmountDue)}
+					</span>
+				</div>
+			)}
 
 			{selectedCustomer && (
 				<PaymentDialog

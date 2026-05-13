@@ -1,6 +1,10 @@
 "use client";
 
 import { useConfirmationAlert } from "@saas/shared/client";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -402,8 +406,25 @@ export function InvoicesList() {
 				</Button>
 			}
 		>
-			<div className="space-y-4">
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+			{selectedCount > 0 && (
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedCount} selected
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={voidManyMutation.isPending}
+						onClick={handleVoidSelected}
+					>
+						<BanIcon className="mr-2 size-4" />
+						Void selected ({selectedCount})
+					</Button>
+				</div>
+			)}
+
+			<ContentCard>
+				<ContentCardToolbar>
 					<SearchInput
 						value={search}
 						onChange={setSearch}
@@ -432,24 +453,7 @@ export function InvoicesList() {
 							<SelectItem value="paid">Paid</SelectItem>
 						</SelectContent>
 					</Select>
-				</div>
-
-				{selectedCount > 0 && (
-					<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
-						<span className="text-sm text-muted-foreground">
-							{selectedCount} selected
-						</span>
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={voidManyMutation.isPending}
-							onClick={handleVoidSelected}
-						>
-							<BanIcon className="mr-2 size-4" />
-							Void selected ({selectedCount})
-						</Button>
-					</div>
-				)}
+				</ContentCardToolbar>
 
 				<DataTable
 					columns={columns}
@@ -480,7 +484,7 @@ export function InvoicesList() {
 						/>
 					}
 				/>
-			</div>
+			</ContentCard>
 
 			<InvoiceFormDialog
 				open={createOpen}

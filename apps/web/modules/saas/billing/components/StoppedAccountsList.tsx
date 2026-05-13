@@ -1,6 +1,10 @@
 "use client";
 
 import { useActiveOrganization } from "@saas/organizations/client";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -241,8 +245,8 @@ export function StoppedAccountsList() {
 			title="Stopped Accounts"
 			description={`${total} stopped accounts`}
 		>
-			<div className="space-y-4">
-				<div className="flex flex-wrap items-center gap-2 sm:gap-3">
+			<ContentCard>
+				<ContentCardToolbar>
 					<SearchInput
 						value={search}
 						onChange={(v) => {
@@ -277,7 +281,7 @@ export function StoppedAccountsList() {
 							Reset
 						</Button>
 					)}
-				</div>
+				</ContentCardToolbar>
 
 				<DataTable
 					columns={columns}
@@ -298,7 +302,7 @@ export function StoppedAccountsList() {
 						/>
 					}
 				/>
-			</div>
+			</ContentCard>
 
 			{reactivatePayment && (
 				<ReactivateDialog

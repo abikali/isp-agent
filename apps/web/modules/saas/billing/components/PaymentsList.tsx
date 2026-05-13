@@ -2,6 +2,10 @@
 
 import { parsePhones } from "@repo/database/phones";
 import { useActiveOrganization } from "@saas/organizations/client";
+import {
+	ContentCard,
+	ContentCardToolbar,
+} from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
@@ -1338,12 +1342,11 @@ export function PaymentsList() {
 			title="Payments"
 			description={isLoading ? "Loading..." : `${total} payment records`}
 		>
-			<div className="space-y-4">
-				{/* Stats Summary */}
-				<StatsBar billingMonthId={activeMonthId} />
+			{/* Stats Summary */}
+			<StatsBar billingMonthId={activeMonthId} />
 
-				{/* Search + Dropdown Filters */}
-				<div className="flex flex-wrap items-center gap-2 sm:gap-3">
+			<ContentCard>
+				<ContentCardToolbar>
 					<SearchInput
 						value={search}
 						onChange={(v) => {
@@ -1400,10 +1403,10 @@ export function PaymentsList() {
 							Reset
 						</Button>
 					)}
-				</div>
+				</ContentCardToolbar>
 
 				{/* Type Filter Buttons */}
-				<div className="space-y-2">
+				<div className="flex flex-col gap-2 border-b border-border bg-surface-subtle/40 px-3 py-2.5 md:px-4">
 					<div className="flex flex-wrap gap-1">
 						{TYPE_FILTERS.map((f) => {
 							const active = typeFilter === f.key;
@@ -1464,7 +1467,7 @@ export function PaymentsList() {
 						}
 					/>
 				</TooltipProvider>
-			</div>
+			</ContentCard>
 
 			{/* Resend Receipt Dialog */}
 			<ResendReceiptDialog
