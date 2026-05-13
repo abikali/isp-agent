@@ -28,6 +28,7 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
+	useSidebar,
 } from "@ui/components/sidebar";
 import {
 	AlertTriangleIcon,
@@ -40,6 +41,8 @@ import {
 	MegaphoneIcon,
 	MessageSquareIcon,
 	PackageIcon,
+	PanelLeftCloseIcon,
+	PanelLeftIcon,
 	RadioTowerIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -74,6 +77,8 @@ export function AppSidebar() {
 	const getScope = usePermissionScope();
 	const organizationId = useOrganizationId();
 	const { open: openPalette } = useCommandPalette();
+	const { state, toggleSidebar } = useSidebar();
+	const collapsed = state === "collapsed";
 
 	// Live badges
 	const { data: paymentStats } = useQuery(
@@ -277,37 +282,70 @@ export function AppSidebar() {
 	return (
 		<Sidebar collapsible="icon">
 			<SidebarHeader className="gap-2">
-				<div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-					<Link to="/app" className="shrink-0">
-						<Logo size="sm" />
-					</Link>
-					<div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-						{config.organizations.enable &&
-							!config.organizations.hideOrganization && (
-								<OrganizationSelect />
-							)}
-					</div>
-				</div>
+				{collapsed ? (
+					<>
+						<Link
+							to="/app"
+							className="mx-auto flex size-8 items-center justify-center"
+							aria-label="LibanCom home"
+						>
+							<Logo size="sm" />
+						</Link>
+						<SidebarMenuButton
+							tooltip="Expand sidebar"
+							onClick={toggleSidebar}
+							aria-label="Expand sidebar"
+						>
+							<PanelLeftIcon />
+						</SidebarMenuButton>
+						<SidebarMenuButton
+							tooltip="Search (⌘K)"
+							onClick={openPalette}
+							aria-label="Open command palette"
+						>
+							<SearchIcon />
+						</SidebarMenuButton>
+					</>
+				) : (
+					<>
+						<div className="flex items-center gap-2 px-1">
+							<Link
+								to="/app"
+								className="shrink-0"
+								aria-label="LibanCom home"
+							>
+								<Logo size="sm" />
+							</Link>
+							<div className="min-w-0 flex-1">
+								{config.organizations.enable &&
+									!config.organizations.hideOrganization && (
+										<OrganizationSelect />
+									)}
+							</div>
+							<button
+								type="button"
+								onClick={toggleSidebar}
+								aria-label="Collapse sidebar"
+								className="-mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+							>
+								<PanelLeftCloseIcon className="size-4" />
+							</button>
+						</div>
 
-				{/* Search trigger */}
-				<button
-					type="button"
-					onClick={openPalette}
-					className="flex h-9 w-full items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:hidden"
-				>
-					<SearchIcon className="size-4 shrink-0" />
-					<span className="flex-1 text-left">Search…</span>
-					<kbd className="font-mono text-[10px] text-muted-foreground/70">
-						⌘K
-					</kbd>
-				</button>
-				<SidebarMenuButton
-					tooltip="Search"
-					onClick={openPalette}
-					className="hidden group-data-[collapsible=icon]:flex"
-				>
-					<SearchIcon />
-				</SidebarMenuButton>
+						{/* Search trigger (only in expanded mode — collapsed mode has the icon button above) */}
+						<button
+							type="button"
+							onClick={openPalette}
+							className="flex h-9 w-full items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent"
+						>
+							<SearchIcon className="size-4 shrink-0" />
+							<span className="flex-1 text-left">Search…</span>
+							<kbd className="font-mono text-[10px] text-muted-foreground/70">
+								⌘K
+							</kbd>
+						</button>
+					</>
+				)}
 			</SidebarHeader>
 
 			<SidebarContent>
@@ -381,12 +419,19 @@ export function AppSidebar() {
 			</SidebarContent>
 
 			<SidebarFooter>
-				<div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
-					<div className="min-w-0 flex-1 group-data-[collapsible=icon]:w-full">
-						<UserMenu showUserName />
+				{collapsed ? (
+					<div className="flex flex-col items-center gap-1">
+						<NotificationBell />
+						<UserMenu />
 					</div>
-					<NotificationBell />
-				</div>
+				) : (
+					<div className="flex items-center gap-1">
+						<div className="min-w-0 flex-1">
+							<UserMenu showUserName />
+						</div>
+						<NotificationBell />
+					</div>
+				)}
 			</SidebarFooter>
 			<SidebarRail />
 		</Sidebar>

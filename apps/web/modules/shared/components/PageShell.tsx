@@ -30,8 +30,8 @@ export interface PageShellProps {
 	subtitle?: ReactNode;
 	breadcrumbs?: BreadcrumbDescriptor[];
 	/**
-	 * Set to `false` to opt out of the sticky page header (rare — full-bleed pages
-	 * like the conversation thread that manage their own scroll).
+	 * Set to `true` to make the page header sticky (rare — most pages keep it
+	 * inline so it scrolls away with the content).
 	 */
 	sticky?: boolean;
 	/**
@@ -51,7 +51,7 @@ export function PageShell({
 	badges,
 	subtitle,
 	breadcrumbs,
-	sticky = true,
+	sticky = false,
 	contentPadding = true,
 	children,
 }: PageShellProps) {
