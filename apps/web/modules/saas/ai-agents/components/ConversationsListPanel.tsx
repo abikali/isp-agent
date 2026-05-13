@@ -521,7 +521,7 @@ export function ConversationsListPanel({
 			</div>
 
 			{/* Conversation list */}
-			<div className="flex-1 overflow-y-auto">
+			<div className="min-h-0 flex-1 overflow-y-auto">
 				{showInitialSkeletons && (
 					<div>
 						{Array.from({ length: 6 }).map((_, i) => (

@@ -27,9 +27,9 @@ function ConversationDetailPage() {
 			<div className="flex min-h-0 flex-1 flex-col">
 				<AsyncBoundary
 					fallback={
-						<div className="space-y-4 p-4">
+						<div className="flex flex-1 flex-col gap-4 p-4">
 							<Skeleton className="h-8 w-48" />
-							<Skeleton className="h-64 w-full" />
+							<Skeleton className="flex-1 w-full" />
 						</div>
 					}
 				>

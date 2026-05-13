@@ -325,7 +325,7 @@ export function ConversationDetailPanel({
 			{/* Messages area with subtle wallpaper pattern */}
 			<div
 				ref={scrollRef}
-				className="flex-1 overflow-y-auto bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_21px)] p-4"
+				className="min-h-0 flex-1 overflow-y-auto bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_21px)] p-4"
 			>
 				<div className="space-y-2">
 					{messageGroups.map((group) => (

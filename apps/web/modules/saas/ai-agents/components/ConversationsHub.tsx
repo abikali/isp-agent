@@ -196,7 +196,7 @@ export function ConversationsHub({
 
 			<div
 				className={cn(
-					"relative hidden min-w-0 flex-1 md:flex md:flex-col",
+					"relative hidden min-h-0 min-w-0 flex-1 md:flex md:flex-col",
 				)}
 			>
 				{selectedId ? (

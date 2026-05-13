@@ -20,7 +20,7 @@ interface AllConversationsFilters {
 	sortOrder?: "asc" | "desc" | undefined;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 export function useAllConversations(
 	organizationId: string,
