@@ -1,60 +1,85 @@
 "use client";
 
 import { Link } from "@tanstack/react-router";
-import { Activity, Bot, MessageSquare, Settings, Users } from "lucide-react";
+import { cn } from "@ui/lib";
+import {
+	ActivityIcon,
+	ArrowUpRightIcon,
+	BotIcon,
+	type LucideIcon,
+	MegaphoneIcon,
+	MessageSquareIcon,
+	UsersIcon,
+} from "lucide-react";
 
 interface QuickActionsProps {
 	organizationSlug: string;
 }
 
+interface Action {
+	to:
+		| "/app/$organizationSlug/customers"
+		| "/app/$organizationSlug/watchers"
+		| "/app/$organizationSlug/ai-agents"
+		| "/app/$organizationSlug/conversations"
+		| "/app/$organizationSlug/marketing";
+	icon: LucideIcon;
+	tone: "info" | "success" | "purple" | "cyan" | "warning";
+	title: string;
+	description: string;
+}
+
+const TONE_CLASSES: Record<Action["tone"], string> = {
+	info: "text-info",
+	success: "text-success",
+	purple: "text-chart-4",
+	cyan: "text-chart-5",
+	warning: "text-warning",
+};
+
 export function QuickActions({ organizationSlug }: QuickActionsProps) {
-	const actions = [
+	const actions: Action[] = [
 		{
-			to: "/app/$organizationSlug/customers" as const,
-			icon: Users,
-			iconBg: "bg-blue-500/10",
-			iconColor: "text-blue-500",
+			to: "/app/$organizationSlug/customers",
+			icon: UsersIcon,
+			tone: "info",
 			title: "Customers",
-			description: "Manage customer accounts",
+			description: "Manage subscribers",
 		},
 		{
-			to: "/app/$organizationSlug/watchers" as const,
-			icon: Activity,
-			iconBg: "bg-green-500/10",
-			iconColor: "text-green-500",
+			to: "/app/$organizationSlug/watchers",
+			icon: ActivityIcon,
+			tone: "success",
 			title: "Watchers",
-			description: "Monitor network devices",
+			description: "Monitor infrastructure",
 		},
 		{
-			to: "/app/$organizationSlug/ai-agents" as const,
-			icon: Bot,
-			iconBg: "bg-purple-500/10",
-			iconColor: "text-purple-500",
+			to: "/app/$organizationSlug/ai-agents",
+			icon: BotIcon,
+			tone: "purple",
 			title: "AI Agents",
-			description: "Configure AI assistants",
+			description: "Configure assistants",
 		},
 		{
-			to: "/app/$organizationSlug/conversations" as const,
-			icon: MessageSquare,
-			iconBg: "bg-cyan-500/10",
-			iconColor: "text-cyan-500",
+			to: "/app/$organizationSlug/conversations",
+			icon: MessageSquareIcon,
+			tone: "cyan",
 			title: "Conversations",
-			description: "View customer conversations",
+			description: "Open inbox",
 		},
 		{
-			to: "/app/$organizationSlug/settings" as const,
-			icon: Settings,
-			iconBg: "bg-orange-500/10",
-			iconColor: "text-orange-500",
-			title: "Settings",
-			description: "Configure organization settings",
+			to: "/app/$organizationSlug/marketing",
+			icon: MegaphoneIcon,
+			tone: "warning",
+			title: "Marketing",
+			description: "Send a broadcast",
 		},
 	];
 
 	return (
-		<div className="space-y-3">
-			<h3 className="text-sm font-medium text-muted-foreground">
-				Quick Actions
+		<section className="space-y-3">
+			<h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+				Quick actions
 			</h3>
 			<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
 				{actions.map((action) => (
@@ -63,22 +88,36 @@ export function QuickActions({ organizationSlug }: QuickActionsProps) {
 						to={action.to}
 						params={{ organizationSlug }}
 						preload="intent"
-						className="group rounded-xl border bg-card text-card-foreground p-4 transition-colors hover:bg-accent"
+						className={cn(
+							"group relative flex flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card p-4 shadow-xs transition-colors",
+							"hover:bg-surface-subtle/60 hover:border-border-strong",
+						)}
 					>
-						<div
-							className={`mb-3 flex size-10 items-center justify-center rounded-lg ${action.iconBg}`}
-						>
-							<action.icon
-								className={`size-5 ${action.iconColor}`}
+						<div className="flex items-center justify-between">
+							<div
+								className={cn(
+									"flex size-8 items-center justify-center rounded-md bg-surface-subtle",
+									TONE_CLASSES[action.tone],
+								)}
+							>
+								<action.icon className="size-4" />
+							</div>
+							<ArrowUpRightIcon
+								className="size-4 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100"
+								aria-hidden
 							/>
 						</div>
-						<h4 className="font-medium">{action.title}</h4>
-						<p className="text-sm text-muted-foreground">
-							{action.description}
-						</p>
+						<div className="mt-1">
+							<div className="text-sm font-medium leading-tight text-foreground">
+								{action.title}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								{action.description}
+							</p>
+						</div>
 					</Link>
 				))}
 			</div>
-		</div>
+		</section>
 	);
 }
