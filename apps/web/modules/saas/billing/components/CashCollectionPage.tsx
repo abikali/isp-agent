@@ -416,34 +416,71 @@ export function CashCollectionPage({
 					<StatCardSkeleton />
 				</StatCardGroup>
 			) : (
-				<StatCardGroup columns={4}>
-					<StatCard
-						title="In Hand"
-						value={formatCurrency(balance)}
-						icon={WalletIcon}
-						color="amber"
-					/>
-					<StatCard
-						title="Bills"
-						value={`${balanceData?.monthPaidCount ?? 0}/${balanceData?.monthBillCount ?? 0}`}
-						icon={ReceiptTextIcon}
-						color="blue"
-					/>
-					<StatCard
-						title="Collected"
-						value={formatCurrency(
-							balanceData?.monthAmountCollected ?? 0,
-						)}
-						icon={BanknoteIcon}
-						color="emerald"
-					/>
-					<StatCard
-						title="Amount Due"
-						value={formatCurrency(balanceData?.monthAmountDue ?? 0)}
-						icon={HandCoinsIcon}
-						color="red"
-					/>
-				</StatCardGroup>
+				(() => {
+					const monthBillCount = balanceData?.monthBillCount ?? 0;
+					const monthPaidCount = balanceData?.monthPaidCount ?? 0;
+					const monthAmountCollected =
+						balanceData?.monthAmountCollected ?? 0;
+					const monthAmountDue = balanceData?.monthAmountDue ?? 0;
+					const unpaidCount = Math.max(
+						0,
+						monthBillCount - monthPaidCount,
+					);
+					const remaining = Math.max(
+						0,
+						monthAmountDue - monthAmountCollected,
+					);
+					const settledPct =
+						monthBillCount > 0
+							? Math.round(
+									(monthPaidCount / monthBillCount) * 100,
+								)
+							: 0;
+					const billsHelper =
+						monthBillCount === 0
+							? "No bills this cycle"
+							: unpaidCount === 0
+								? "All collected this cycle"
+								: `${settledPct}% settled • ${unpaidCount} to go`;
+					const remainingHelper =
+						monthBillCount === 0
+							? "Nothing billed yet"
+							: unpaidCount === 0
+								? "All bills collected"
+								: `${unpaidCount} bills still to collect`;
+					return (
+						<StatCardGroup columns={4}>
+							<StatCard
+								title="In Hand"
+								value={formatCurrency(balance)}
+								icon={WalletIcon}
+								color="amber"
+								description="Cash on you to hand off"
+							/>
+							<StatCard
+								title="Bills"
+								value={`${monthPaidCount}/${monthBillCount}`}
+								icon={ReceiptTextIcon}
+								color="blue"
+								description={billsHelper}
+							/>
+							<StatCard
+								title="Collected"
+								value={formatCurrency(monthAmountCollected)}
+								icon={BanknoteIcon}
+								color="emerald"
+								description="This cycle"
+							/>
+							<StatCard
+								title="Remaining"
+								value={formatCurrency(remaining)}
+								icon={HandCoinsIcon}
+								color="red"
+								description={remainingHelper}
+							/>
+						</StatCardGroup>
+					);
+				})()
 			)}
 
 			{/* Handoff form */}
