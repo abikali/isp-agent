@@ -1109,6 +1109,13 @@ model Customer {
   // the UI can tell "fresh sample" from "frozen value because iRadius dropped
   // this customer from un.Active = 1".
   lastUsageSyncAt    DateTime?
+  // Baseline snapshot of downloadBytes/uploadBytes at the start of the current
+  // billing cycle (set on activation, re-stamped on renewal when iRadius's
+  // ActivatedAccount bumps forward). Monthly usage = downloadBytes - this
+  // baseline. Nullable until first activation event is observed.
+  cycleStartedAt          DateTime?
+  cycleStartDownloadBytes BigInt    @default(0)
+  cycleStartUploadBytes   BigInt    @default(0)
   fupMode            String?
   automaticRenew     Boolean         @default(false)
   // Pricing

@@ -185,7 +185,14 @@ interface CustomerRow {
 	email: string | null;
 	groupName: string | null;
 	externalId: string | null;
-	plan: { name: string; monthlyPrice: number } | null;
+	plan: {
+		name: string;
+		monthlyPrice: number;
+		monthlyQuota: number | null;
+		dailyQuotaDown: number | null;
+		dailyQuotaUp: number | null;
+		combinedMaxUpAndDown: number | null;
+	} | null;
 	station: { name: string } | null;
 	collector: { id: string; name: string } | null;
 	connectionType: string | null;
@@ -207,6 +214,10 @@ interface CustomerRow {
 	dailyDownloadBytes: bigint | number | null;
 	dailyUploadBytes: bigint | number | null;
 	lastUsageSyncAt: Date | string | null;
+	cycleStartedAt: Date | string | null;
+	cycleStartDownloadBytes: bigint | number | null;
+	cycleStartUploadBytes: bigint | number | null;
+	reachMaxQuota: boolean;
 	notes: string | null;
 }
 
@@ -690,6 +701,28 @@ export function CustomersList({
 								? Number(row.original.uploadBytes)
 								: (row.original.uploadBytes ?? 0)
 						}
+						cycleStartDown={
+							typeof row.original.cycleStartDownloadBytes ===
+							"bigint"
+								? Number(row.original.cycleStartDownloadBytes)
+								: (row.original.cycleStartDownloadBytes ?? 0)
+						}
+						cycleStartUp={
+							typeof row.original.cycleStartUploadBytes ===
+							"bigint"
+								? Number(row.original.cycleStartUploadBytes)
+								: (row.original.cycleStartUploadBytes ?? 0)
+						}
+						cycleStartedAt={row.original.cycleStartedAt}
+						monthlyQuotaGb={row.original.plan?.monthlyQuota ?? null}
+						dailyQuotaDownGb={
+							row.original.plan?.dailyQuotaDown ?? null
+						}
+						dailyQuotaUpGb={row.original.plan?.dailyQuotaUp ?? null}
+						combinedDailyQuotaGb={
+							row.original.plan?.combinedMaxUpAndDown ?? null
+						}
+						reachMaxQuota={row.original.reachMaxQuota}
 						fupMode={row.original.fupMode}
 						lastUsageSyncAt={row.original.lastUsageSyncAt}
 					/>

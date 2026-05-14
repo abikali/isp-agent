@@ -2281,6 +2281,37 @@ async function processIRadiusSync(
 							result.customers.restored++;
 						}
 
+						// Cycle baseline: iRadius doesn't expose a "this-cycle
+						// usage" counter, only lifetime + daily, so we snapshot
+						// the lifetime byte counters whenever a renewal lands
+						// (ExpiryAccount bumps forward by ≥20 days — anything
+						// smaller is an admin tweak, not a billing renewal) and
+						// once at first sight to seed the baseline. Monthly
+						// usage in the UI then = currentBytes − cycleStartBytes.
+						const newExpiresAt = customerData.expiresAt;
+						const existingExpiresAt = existingRecord[
+							"expiresAt"
+						] as Date | null;
+						const existingCycleStartedAt = existingRecord[
+							"cycleStartedAt"
+						] as Date | null;
+						const RENEWAL_MIN_MS = 20 * 24 * 60 * 60 * 1000;
+						const renewed =
+							newExpiresAt != null &&
+							existingExpiresAt != null &&
+							newExpiresAt.getTime() -
+								existingExpiresAt.getTime() >=
+								RENEWAL_MIN_MS;
+						const needsSeed = existingCycleStartedAt == null;
+						if (renewed || needsSeed) {
+							autoUpdateData["cycleStartedAt"] = syncTimestamp;
+							autoUpdateData["cycleStartDownloadBytes"] =
+								customerData.downloadBytes;
+							autoUpdateData["cycleStartUploadBytes"] =
+								customerData.uploadBytes;
+							hasAutoUpdates = true;
+						}
+
 						if (
 							hasAutoUpdates ||
 							Object.keys(conflictFields).length > 0
@@ -2329,6 +2360,15 @@ async function processIRadiusSync(
 								accountNumber,
 								lastSyncedAt: syncTimestamp,
 								...customerData,
+								// Seed cycle at first sight. Their cycle
+								// actually started earlier (somewhere between
+								// activatedAt and now), so the first cycle's
+								// monthly bar will under-report — next renewal
+								// rights it.
+								cycleStartedAt: syncTimestamp,
+								cycleStartDownloadBytes:
+									customerData.downloadBytes,
+								cycleStartUploadBytes: customerData.uploadBytes,
 							},
 						});
 						customerByExtId.set(extId, created.id);
