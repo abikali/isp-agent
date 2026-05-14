@@ -176,10 +176,10 @@ export function UsageCell({
 		}
 	}
 
-	// Short-circuit only when there's genuinely nothing to render: stale
-	// sample, or no quota AND zero usage. With a quota we always have *some*
-	// signal worth showing (the bar at 0% or wherever the cycle stands).
-	if (!fresh || (quotaScope === null && todayTotal === 0)) {
+	// Only fall back to a dash when iRadius isn't currently reporting on this
+	// customer. A fresh sample at 0 B is still meaningful — "online, no usage
+	// yet today" — and worth rendering as 0 B / 0 B rather than swallowing.
+	if (!fresh) {
 		return (
 			<span
 				className={cn(
