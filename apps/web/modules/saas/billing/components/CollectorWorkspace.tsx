@@ -133,6 +133,24 @@ export function CollectorWorkspace({
 						100,
 				)
 			: 0;
+	const monthBillCount = balanceData?.monthBillCount ?? 0;
+	const monthPaidCount = balanceData?.monthPaidCount ?? 0;
+	const monthAmountCollected = balanceData?.monthAmountCollected ?? 0;
+	const monthAmountDue = balanceData?.monthAmountDue ?? 0;
+	const unpaidCount = Math.max(0, monthBillCount - monthPaidCount);
+	const remaining = Math.max(0, monthAmountDue - monthAmountCollected);
+	const billsHint =
+		monthBillCount === 0
+			? "No bills this cycle"
+			: unpaidCount === 0
+				? "All collected this cycle"
+				: `${collectionRate}% settled • ${unpaidCount} to go`;
+	const remainingHint =
+		monthBillCount === 0
+			? "Nothing billed yet"
+			: unpaidCount === 0
+				? "All bills collected"
+				: `${unpaidCount} bills still to collect`;
 
 	return (
 		<PageShell
@@ -195,20 +213,18 @@ export function CollectorWorkspace({
 							value={formatCurrency(balance)}
 							icon={WalletIcon}
 							tone={balance > 0 ? "warning" : "default"}
-							hint="Net (collected − handed off)"
+							hint="Cash on you to hand off"
 						/>
 						<MetricCard
 							label="Collected"
-							value={formatCurrency(
-								balanceData?.monthAmountCollected ?? 0,
-							)}
+							value={formatCurrency(monthAmountCollected)}
 							icon={BanknoteIcon}
 							tone="success"
-							hint={`${balanceData?.monthPaidCount ?? 0} payments this cycle`}
+							hint="This cycle"
 						/>
 						<MetricCard
 							label="Bills"
-							value={`${balanceData?.monthPaidCount ?? 0} / ${balanceData?.monthBillCount ?? 0}`}
+							value={`${monthPaidCount} / ${monthBillCount}`}
 							icon={HashIcon}
 							tone={
 								collectionRate >= 80
@@ -217,20 +233,14 @@ export function CollectorWorkspace({
 										? "warning"
 										: "info"
 							}
-							hint={`${collectionRate}% of cycle settled`}
+							hint={billsHint}
 						/>
 						<MetricCard
-							label="Amount due"
-							value={formatCurrency(
-								balanceData?.monthAmountDue ?? 0,
-							)}
+							label="Remaining"
+							value={formatCurrency(remaining)}
 							icon={HandCoinsIcon}
-							tone={
-								(balanceData?.monthAmountDue ?? 0) > 0
-									? "danger"
-									: "default"
-							}
-							hint="Outstanding this cycle"
+							tone={remaining > 0 ? "danger" : "default"}
+							hint={remainingHint}
 						/>
 					</>
 				)}
