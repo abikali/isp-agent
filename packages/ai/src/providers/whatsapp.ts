@@ -55,6 +55,39 @@ interface WaSenderMessageContent {
 				degreesLongitude?: number | undefined;
 		  }
 		| undefined;
+	// Wrapper containers — WhatsApp nests real message content under these for
+	// disappearing messages, view-once media, etc. They MUST be unwrapped before
+	// inspecting media fields, otherwise voice notes from chats with these modes
+	// enabled are silently dropped.
+	ephemeralMessage?: { message?: WaSenderMessageContent } | undefined;
+	viewOnceMessage?: { message?: WaSenderMessageContent } | undefined;
+	viewOnceMessageV2?: { message?: WaSenderMessageContent } | undefined;
+	viewOnceMessageV2Extension?:
+		| { message?: WaSenderMessageContent }
+		| undefined;
+	documentWithCaptionMessage?:
+		| { message?: WaSenderMessageContent }
+		| undefined;
+	editedMessage?: { message?: WaSenderMessageContent } | undefined;
+}
+
+function unwrapContainer(
+	content: WaSenderMessageContent | undefined,
+): WaSenderMessageContent | undefined {
+	if (!content) {
+		return content;
+	}
+	const inner =
+		content.ephemeralMessage?.message ??
+		content.viewOnceMessage?.message ??
+		content.viewOnceMessageV2?.message ??
+		content.viewOnceMessageV2Extension?.message ??
+		content.documentWithCaptionMessage?.message ??
+		content.editedMessage?.message;
+	if (inner) {
+		return unwrapContainer(inner);
+	}
+	return content;
 }
 
 interface WaSenderMessage {
@@ -85,7 +118,7 @@ interface ExtractedMessage {
 }
 
 function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
-	const content = msg.message;
+	const content = unwrapContainer(msg.message);
 
 	// Text message (conversation field)
 	if (msg.messageBody || content?.conversation) {
@@ -225,6 +258,19 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 		// Include outgoing messages with fromMe flag — handler decides what to do
 		if (msg.key.fromMe) {
 			const extracted = extractMessage(msg);
+			if (!extracted) {
+				// Diagnostic: an outgoing message arrived but no known content
+				// shape matched. Log the available top-level message keys so we
+				// can spot new wrapper types we need to handle.
+				logger.warn("WhatsApp fromMe extraction returned null", {
+					event: payload.event,
+					messageId: msg.key.id,
+					chatId: msg.key.remoteJid,
+					messageKeys: msg.message
+						? Object.keys(msg.message)
+						: ["<no-message-body>"],
+				});
+			}
 			results.push({
 				chatId: msg.key.remoteJid,
 				messageId: msg.key.id,

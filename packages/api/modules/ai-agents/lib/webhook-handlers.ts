@@ -161,6 +161,14 @@ async function handleMessages(
 			// linked phone. We persist these as role="admin" messages so they
 			// appear in /conversations, and (if enabled) activate human takeover.
 			if (msg.fromMe) {
+				logger.info("Webhook fromMe message received", {
+					channelId: channel.id,
+					chatId: msg.chatId,
+					messageId: msg.messageId,
+					mediaType: msg.mediaType ?? null,
+					hasMediaId: Boolean(msg.mediaId),
+					textPreview: msg.text.slice(0, 60),
+				});
 				// If the message has text, check if it's a bot echo via fingerprint
 				if (msg.text) {
 					const redis = getRedisConnection();
@@ -203,6 +211,15 @@ async function handleMessages(
 				}
 
 				if (!takeoverConversation) {
+					logger.warn(
+						"fromMe message dropped: no active conversation",
+						{
+							channelId: channel.id,
+							chatId: msg.chatId,
+							messageId: msg.messageId,
+							mediaType: msg.mediaType ?? null,
+						},
+					);
 					continue;
 				}
 
