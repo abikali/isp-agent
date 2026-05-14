@@ -46,6 +46,13 @@ const MB = 1024 ** 2;
 // stale and rendered as a dash.
 const USAGE_STALE_THRESHOLD_MS = 5 * 60 * 1000;
 
+// Fallback daily allocation shown for plans that don't carry any iRadius
+// quota fields (the "UP TO 20M" speed-only plans). Mirrors iRadius's own
+// QDAY column which displays `X / 5000 MB` for these subscribers, so the
+// cell always shows an "out-of-how-much" denominator. Promote to an org-
+// level setting if collectors ever need different defaults per tenant.
+const DEFAULT_DAILY_ALLOCATION_MB = 5000;
+
 function toNumber(v: bigint | number | null | undefined): number {
 	if (v == null) {
 		return 0;
@@ -153,16 +160,19 @@ export function UsageCell({
 		fupMode.toLowerCase() !== "normal" &&
 		fupMode.toLowerCase() !== "off";
 
-	// Resolve the active quota view first — if the plan has a quota, the
-	// progress bar is worth showing even on days the customer hasn't moved
-	// bytes (a 700 GB plan at 24% mid-cycle is meaningful at 6 a.m.).
-	let quotaScope: "monthly" | "daily" | null = null;
-	let quotaUsed = 0;
-	let quotaLimit = 0;
+	// Resolve the active quota view. Preference: plan.monthlyQuota →
+	// plan daily quota fields → default daily allocation. The fallback
+	// keeps the cell visually consistent across plans by always showing
+	// an "out-of-X" denominator, matching iRadius's QDAY column.
+	let quotaScope: "monthly" | "daily" = "daily";
+	let quotaUsed = todayTotal;
+	let quotaLimit = DEFAULT_DAILY_ALLOCATION_MB * MB;
+	let quotaIsDefault = true;
 	if (monthlyQuotaMb && monthlyQuotaMb > 0) {
 		quotaScope = "monthly";
 		quotaUsed = cycleTotal;
 		quotaLimit = monthlyQuotaMb * MB;
+		quotaIsDefault = false;
 	} else {
 		const dailyLimitMb =
 			combinedDailyQuotaMb ??
@@ -170,9 +180,8 @@ export function UsageCell({
 				? (dailyQuotaDownMb ?? 0) + (dailyQuotaUpMb ?? 0)
 				: null);
 		if (dailyLimitMb && dailyLimitMb > 0) {
-			quotaScope = "daily";
-			quotaUsed = todayTotal;
 			quotaLimit = dailyLimitMb * MB;
+			quotaIsDefault = false;
 		}
 	}
 
@@ -198,12 +207,8 @@ export function UsageCell({
 	}
 
 	const quotaPct =
-		quotaScope && quotaLimit > 0
-			? Math.min(100, (quotaUsed / quotaLimit) * 100)
-			: 0;
+		quotaLimit > 0 ? Math.min(100, (quotaUsed / quotaLimit) * 100) : 0;
 	const tier = tierFor(quotaPct, reachMaxQuota || isFup);
-	const splitDlPct = todayTotal > 0 ? (dl / todayTotal) * 100 : 0;
-	const splitUlPct = todayTotal > 0 ? (ul / todayTotal) * 100 : 0;
 
 	return (
 		<Tooltip>
@@ -247,53 +252,40 @@ export function UsageCell({
 							)}
 						</span>
 					</div>
-					{quotaScope ? (
-						<div
-							role="progressbar"
-							aria-valuenow={Math.round(quotaPct)}
-							aria-valuemin={0}
-							aria-valuemax={100}
-							aria-label={`${quotaScope === "monthly" ? "Monthly" : "Daily"} quota: ${formatBytes(quotaUsed)} of ${formatBytes(quotaLimit)}`}
-							className={cn(
-								"relative h-[18px] w-full overflow-hidden rounded-sm border border-border/40",
-								TIER_TRACK_CLASS[tier],
-								isRefreshing && "animate-pulse",
-							)}
-						>
-							<div
-								className={cn(
-									"absolute inset-y-0 left-0 transition-all",
-									TIER_BAR_CLASS[tier],
-								)}
-								style={{ width: `${quotaPct}%` }}
-							/>
-							<div className="absolute inset-0 flex items-center justify-center gap-1 px-1 text-[10px] font-medium tabular-nums leading-none text-foreground">
-								<span>{formatBytes(quotaUsed)}</span>
-								<span className="opacity-50">/</span>
-								<span>{formatBytes(quotaLimit)}</span>
-								<span className="ml-0.5 text-[9px] uppercase opacity-50">
-									{quotaScope === "monthly" ? "mo" : "d"}
-								</span>
-							</div>
-						</div>
-					) : (
+					<div
+						role="progressbar"
+						aria-valuenow={Math.round(quotaPct)}
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-label={`${quotaScope === "monthly" ? "Monthly" : "Daily"} quota: ${formatBytes(quotaUsed)} of ${formatBytes(quotaLimit)}${quotaIsDefault ? " (default allocation)" : ""}`}
+						className={cn(
+							"relative h-[18px] w-full overflow-hidden rounded-sm border border-border/40",
+							TIER_TRACK_CLASS[tier],
+							quotaIsDefault && "border-dashed",
+							isRefreshing && "animate-pulse",
+						)}
+						title={
+							quotaIsDefault
+								? `Plan has no quota in iRadius — falling back to default daily allocation of ${DEFAULT_DAILY_ALLOCATION_MB} MB.`
+								: undefined
+						}
+					>
 						<div
 							className={cn(
-								"flex h-1.5 w-full overflow-hidden rounded-full bg-muted",
-								isRefreshing && "animate-pulse",
+								"absolute inset-y-0 left-0 transition-all",
+								TIER_BAR_CLASS[tier],
 							)}
-							title="No quota configured on plan — showing today's download/upload split"
-						>
-							<div
-								className="h-full bg-info transition-all"
-								style={{ width: `${splitDlPct}%` }}
-							/>
-							<div
-								className="h-full bg-chart-4 transition-all"
-								style={{ width: `${splitUlPct}%` }}
-							/>
+							style={{ width: `${quotaPct}%` }}
+						/>
+						<div className="absolute inset-0 flex items-center justify-center gap-1 px-1 text-[10px] font-medium tabular-nums leading-none text-foreground">
+							<span>{formatBytes(quotaUsed)}</span>
+							<span className="opacity-50">/</span>
+							<span>{formatBytes(quotaLimit)}</span>
+							<span className="ml-0.5 text-[9px] uppercase opacity-50">
+								{quotaScope === "monthly" ? "mo" : "d"}
+							</span>
 						</div>
-					)}
+					</div>
 				</div>
 			</TooltipTrigger>
 			<TooltipContent side="left" className="text-xs">
@@ -313,7 +305,7 @@ export function UsageCell({
 						{quotaScope === "daily" && (
 							<>
 								<span className="text-muted-foreground">
-									Quota
+									{quotaIsDefault ? "Allocation" : "Quota"}
 								</span>
 								<span className="font-medium">
 									{formatBytes(quotaLimit)}{" "}
@@ -325,6 +317,11 @@ export function UsageCell({
 									>
 										({Math.round(quotaPct)}%)
 									</span>
+									{quotaIsDefault && (
+										<span className="ml-1 text-[10px] font-normal text-muted-foreground">
+											· default
+										</span>
+									)}
 								</span>
 							</>
 						)}
