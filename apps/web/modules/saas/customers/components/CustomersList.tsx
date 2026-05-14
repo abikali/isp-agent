@@ -723,7 +723,6 @@ export function CustomersList({
 							row.original.plan?.combinedMaxUpAndDown ?? null
 						}
 						reachMaxQuota={row.original.reachMaxQuota}
-						fupMode={row.original.fupMode}
 						lastUsageSyncAt={row.original.lastUsageSyncAt}
 					/>
 				),

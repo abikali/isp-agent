@@ -9,12 +9,7 @@ import {
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	ShieldAlertIcon,
-	ZapIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ZapIcon } from "lucide-react";
 
 interface UsageCellProps {
 	dailyDown: number;
@@ -34,7 +29,6 @@ interface UsageCellProps {
 	dailyQuotaUpMb: number | null;
 	combinedDailyQuotaMb: number | null;
 	reachMaxQuota: boolean;
-	fupMode: string | null;
 	lastUsageSyncAt: Date | string | null;
 }
 
@@ -139,7 +133,6 @@ export function UsageCell({
 	dailyQuotaUpMb,
 	combinedDailyQuotaMb,
 	reachMaxQuota,
-	fupMode,
 	lastUsageSyncAt,
 }: UsageCellProps) {
 	const dl = toNumber(dailyDown);
@@ -155,10 +148,13 @@ export function UsageCell({
 	const isRefreshing =
 		useIsFetching({ queryKey: orpc.customers.list.key() }) > 0;
 
-	const isFup =
-		!!fupMode &&
-		fupMode.toLowerCase() !== "normal" &&
-		fupMode.toLowerCase() !== "off";
+	// iRadius's `FupMode` is a static config flag attached to plans that
+	// have a FUP policy — ~600 rows in prod carry it, and none of them
+	// have reachMaxQuota=true. It does NOT indicate the customer is
+	// currently being throttled, so don't drive a "FUP active" badge from
+	// it. `reachMaxQuota` is the runtime signal iRadius bumps when a
+	// subscriber actually crosses their quota — that's the only honest
+	// source for an "in FUP" warning.
 
 	// Resolve the active quota view. Preference: plan.monthlyQuota →
 	// plan daily quota fields → default daily allocation. The fallback
@@ -208,7 +204,7 @@ export function UsageCell({
 
 	const quotaPct =
 		quotaLimit > 0 ? Math.min(100, (quotaUsed / quotaLimit) * 100) : 0;
-	const tier = tierFor(quotaPct, reachMaxQuota || isFup);
+	const tier = tierFor(quotaPct, reachMaxQuota);
 
 	return (
 		<Tooltip>
@@ -235,16 +231,7 @@ export function UsageCell({
 							{reachMaxQuota && (
 								<span
 									className="inline-flex items-center gap-0.5 rounded bg-destructive/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-destructive"
-									title="iRadius flag: reachMaxQuota"
-								>
-									<ShieldAlertIcon className="size-2.5" />
-									MAX
-								</span>
-							)}
-							{isFup && (
-								<span
-									className="inline-flex items-center gap-0.5 rounded bg-warning/12 px-1 py-px text-[9px] font-semibold uppercase tracking-wider text-warning"
-									title={`FUP active · ${fupMode}`}
+									title="In FUP · iRadius reachMaxQuota flag"
 								>
 									<ZapIcon className="size-2.5" />
 									FUP
@@ -376,25 +363,12 @@ export function UsageCell({
 						<span className="text-muted-foreground">↑</span>
 						<span>{formatBytes(lifetimeUl)}</span>
 					</div>
-					{(isFup || reachMaxQuota) && (
+					{reachMaxQuota && (
 						<div className="border-t border-border pt-1">
-							{reachMaxQuota && (
-								<div className="inline-flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-									<ShieldAlertIcon className="size-3" />
-									Reached max quota
-								</div>
-							)}
-							{isFup && (
-								<div
-									className={cn(
-										"mt-1 inline-flex items-center gap-1 rounded bg-warning/12 px-1.5 py-0.5",
-										"text-[10px] font-medium text-warning",
-									)}
-								>
-									<ZapIcon className="size-3" />
-									FUP active · {fupMode}
-								</div>
-							)}
+							<div className="inline-flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+								<ZapIcon className="size-3" />
+								In FUP · reached max quota
+							</div>
 						</div>
 					)}
 				</div>
