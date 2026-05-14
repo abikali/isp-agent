@@ -220,6 +220,75 @@ async function handleMessages(
 						select: { id: true },
 					});
 					if (!existing) {
+						// Mirror the customer-incoming flow: download media to
+						// R2 so voice/image/video/document attachments render
+						// as players in the dashboard instead of plain text.
+						let attachmentData: Record<string, unknown> = {};
+						if (
+							msg.mediaType === "location" &&
+							msg.latitude != null &&
+							msg.longitude != null
+						) {
+							attachmentData = {
+								attachmentType: "location",
+								attachmentMeta: {
+									lat: msg.latitude,
+									lng: msg.longitude,
+								},
+							};
+						} else if (msg.mediaId && msg.mediaType) {
+							try {
+								const media =
+									provider === "telegram"
+										? await telegram.downloadMedia(
+												apiToken,
+												msg.mediaId,
+											)
+										: await whatsapp.downloadMedia(
+												apiToken,
+												msg.mediaId,
+												msg.mediaLink,
+											);
+								if (media) {
+									const { createId } = await import(
+										"@paralleldrive/cuid2"
+									);
+									const ext = getExtFromMime(
+										media.contentType,
+									);
+									const storagePath = `chat-attachments/${channel.agent.organizationId}/${takeoverConversation.id}/${createId()}.${ext}`;
+									const bucket =
+										process.env["AVATARS_BUCKET_NAME"] ??
+										"libancom-dev";
+									await uploadBuffer(
+										storagePath,
+										media.buffer,
+										{
+											bucket,
+											contentType: media.contentType,
+										},
+									);
+									attachmentData = {
+										attachmentType: msg.mediaType,
+										attachmentUrl: storagePath,
+										attachmentFilename:
+											msg.mediaFileName ?? null,
+										attachmentMimeType: media.contentType,
+										attachmentSize: media.buffer.length,
+									};
+								}
+							} catch (error) {
+								logger.error(
+									"Failed to upload admin-incoming media to R2",
+									{
+										error,
+										mediaType: msg.mediaType,
+										conversationId: takeoverConversation.id,
+									},
+								);
+							}
+						}
+
 						const adminContent =
 							(await transcribeMessageMedia(apiToken, msg)) ??
 							msg.text;
@@ -229,7 +298,8 @@ async function handleMessages(
 								role: "admin",
 								content: adminContent,
 								externalMsgId: msg.messageId,
-							},
+								...attachmentData,
+							} as never,
 						});
 					}
 				}
