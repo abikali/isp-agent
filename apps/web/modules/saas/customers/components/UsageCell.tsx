@@ -24,16 +24,21 @@ interface UsageCellProps {
 	cycleStartDown: number;
 	cycleStartUp: number;
 	cycleStartedAt: Date | string | null;
-	monthlyQuotaGb: number | null;
-	dailyQuotaDownGb: number | null;
-	dailyQuotaUpGb: number | null;
-	combinedDailyQuotaGb: number | null;
+	// Plan quotas as iRadius stores them — values are MB (not GB, despite the
+	// historical comment on `ServicePlan.monthlyQuota`). iRadius's
+	// `AccountType.CombinedMaxMonthlyUpAndDown` and the daily counterparts are
+	// all in MB; the value 700000 on a plan named "CEH2-7M-700G" reads as
+	// 700,000 MB ≈ 684 GB.
+	monthlyQuotaMb: number | null;
+	dailyQuotaDownMb: number | null;
+	dailyQuotaUpMb: number | null;
+	combinedDailyQuotaMb: number | null;
 	reachMaxQuota: boolean;
 	fupMode: string | null;
 	lastUsageSyncAt: Date | string | null;
 }
 
-const GB = 1024 ** 3;
+const MB = 1024 ** 2;
 
 // iRadius's snapshot excludes customers where `un.Active != 1`, so an offline
 // or paused subscriber stops getting fresh stamps and the daily byte fields
@@ -111,10 +116,10 @@ export function UsageCell({
 	cycleStartDown,
 	cycleStartUp,
 	cycleStartedAt,
-	monthlyQuotaGb,
-	dailyQuotaDownGb,
-	dailyQuotaUpGb,
-	combinedDailyQuotaGb,
+	monthlyQuotaMb,
+	dailyQuotaDownMb,
+	dailyQuotaUpMb,
+	combinedDailyQuotaMb,
 	reachMaxQuota,
 	fupMode,
 	lastUsageSyncAt,
@@ -137,7 +142,33 @@ export function UsageCell({
 		fupMode.toLowerCase() !== "normal" &&
 		fupMode.toLowerCase() !== "off";
 
-	if (!fresh || todayTotal === 0) {
+	// Resolve the active quota view first — if the plan has a quota, the
+	// progress bar is worth showing even on days the customer hasn't moved
+	// bytes (a 700 GB plan at 24% mid-cycle is meaningful at 6 a.m.).
+	let quotaScope: "monthly" | "daily" | null = null;
+	let quotaUsed = 0;
+	let quotaLimit = 0;
+	if (monthlyQuotaMb && monthlyQuotaMb > 0) {
+		quotaScope = "monthly";
+		quotaUsed = cycleTotal;
+		quotaLimit = monthlyQuotaMb * MB;
+	} else {
+		const dailyLimitMb =
+			combinedDailyQuotaMb ??
+			(dailyQuotaDownMb != null || dailyQuotaUpMb != null
+				? (dailyQuotaDownMb ?? 0) + (dailyQuotaUpMb ?? 0)
+				: null);
+		if (dailyLimitMb && dailyLimitMb > 0) {
+			quotaScope = "daily";
+			quotaUsed = todayTotal;
+			quotaLimit = dailyLimitMb * MB;
+		}
+	}
+
+	// Short-circuit only when there's genuinely nothing to render: stale
+	// sample, or no quota AND zero usage. With a quota we always have *some*
+	// signal worth showing (the bar at 0% or wherever the cycle stands).
+	if (!fresh || (quotaScope === null && todayTotal === 0)) {
 		return (
 			<span
 				className={cn(
@@ -153,28 +184,6 @@ export function UsageCell({
 				—
 			</span>
 		);
-	}
-
-	// Resolve the active quota view. The helper above returns scope; we
-	// compute used/limit/pct here so totals aren't duplicated across files.
-	let quotaScope: "monthly" | "daily" | null = null;
-	let quotaUsed = 0;
-	let quotaLimit = 0;
-	if (monthlyQuotaGb && monthlyQuotaGb > 0) {
-		quotaScope = "monthly";
-		quotaUsed = cycleTotal;
-		quotaLimit = monthlyQuotaGb * GB;
-	} else {
-		const dailyLimitGb =
-			combinedDailyQuotaGb ??
-			(dailyQuotaDownGb != null || dailyQuotaUpGb != null
-				? (dailyQuotaDownGb ?? 0) + (dailyQuotaUpGb ?? 0)
-				: null);
-		if (dailyLimitGb && dailyLimitGb > 0) {
-			quotaScope = "daily";
-			quotaUsed = todayTotal;
-			quotaLimit = dailyLimitGb * GB;
-		}
 	}
 
 	const quotaPct =
@@ -308,7 +317,7 @@ export function UsageCell({
 							</>
 						)}
 					</div>
-					{monthlyQuotaGb && monthlyQuotaGb > 0 && (
+					{monthlyQuotaMb && monthlyQuotaMb > 0 && (
 						<>
 							<div className="border-t border-border pt-1 font-medium">
 								This cycle

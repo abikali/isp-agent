@@ -714,12 +714,12 @@ export function CustomersList({
 								: (row.original.cycleStartUploadBytes ?? 0)
 						}
 						cycleStartedAt={row.original.cycleStartedAt}
-						monthlyQuotaGb={row.original.plan?.monthlyQuota ?? null}
-						dailyQuotaDownGb={
+						monthlyQuotaMb={row.original.plan?.monthlyQuota ?? null}
+						dailyQuotaDownMb={
 							row.original.plan?.dailyQuotaDown ?? null
 						}
-						dailyQuotaUpGb={row.original.plan?.dailyQuotaUp ?? null}
-						combinedDailyQuotaGb={
+						dailyQuotaUpMb={row.original.plan?.dailyQuotaUp ?? null}
+						combinedDailyQuotaMb={
 							row.original.plan?.combinedMaxUpAndDown ?? null
 						}
 						reachMaxQuota={row.original.reachMaxQuota}
