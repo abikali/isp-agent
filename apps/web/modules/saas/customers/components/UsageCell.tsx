@@ -79,10 +79,21 @@ function tierFor(pct: number, hardCap: boolean): QuotaTier {
 	return "ok";
 }
 
+// Bar fill (the "used" portion) — saturated colour that grows across a
+// muted same-hue track. Matches iRadius's QDAY column visually: a green
+// rail filling up red as quota is consumed.
 const TIER_BAR_CLASS: Record<QuotaTier, string> = {
-	ok: "bg-success",
-	warn: "bg-warning",
-	danger: "bg-destructive",
+	ok: "bg-success/80",
+	warn: "bg-warning/80",
+	danger: "bg-destructive/80",
+};
+
+// Bar track ("remaining" tint) — softer of the same hue family so the
+// fill stays readable when the bar is mostly empty.
+const TIER_TRACK_CLASS: Record<QuotaTier, string> = {
+	ok: "bg-success/15",
+	warn: "bg-warning/15",
+	danger: "bg-destructive/15",
 };
 
 const TIER_LABEL_CLASS: Record<QuotaTier, string> = {
@@ -199,17 +210,17 @@ export function UsageCell({
 			<TooltipTrigger asChild>
 				<div
 					className={cn(
-						"flex w-[140px] flex-col gap-1 transition-opacity",
+						"flex w-[170px] flex-col gap-1 transition-opacity",
 						isRefreshing && "opacity-60",
 					)}
 				>
-					<div className="flex items-center justify-between gap-1 text-[11px] tabular-nums leading-none">
-						<span className="inline-flex items-center gap-1 truncate">
+					<div className="flex items-center justify-between gap-1 text-[10px] tabular-nums leading-none">
+						<span className="inline-flex items-center gap-1 truncate text-muted-foreground">
 							<span className="inline-flex items-center gap-0.5 text-info">
 								<ArrowDownIcon className="size-2.5" />
 								{formatBytes(dl)}
 							</span>
-							<span className="text-muted-foreground">·</span>
+							<span>·</span>
 							<span className="inline-flex items-center gap-0.5 text-chart-4">
 								<ArrowUpIcon className="size-2.5" />
 								{formatBytes(ul)}
@@ -237,32 +248,33 @@ export function UsageCell({
 						</span>
 					</div>
 					{quotaScope ? (
-						<div className="flex items-center gap-1.5">
+						<div
+							role="progressbar"
+							aria-valuenow={Math.round(quotaPct)}
+							aria-valuemin={0}
+							aria-valuemax={100}
+							aria-label={`${quotaScope === "monthly" ? "Monthly" : "Daily"} quota: ${formatBytes(quotaUsed)} of ${formatBytes(quotaLimit)}`}
+							className={cn(
+								"relative h-[18px] w-full overflow-hidden rounded-sm border border-border/40",
+								TIER_TRACK_CLASS[tier],
+								isRefreshing && "animate-pulse",
+							)}
+						>
 							<div
 								className={cn(
-									"h-1.5 flex-1 overflow-hidden rounded-full bg-muted",
-									isRefreshing && "animate-pulse",
+									"absolute inset-y-0 left-0 transition-all",
+									TIER_BAR_CLASS[tier],
 								)}
-							>
-								<div
-									className={cn(
-										"h-full transition-all",
-										TIER_BAR_CLASS[tier],
-									)}
-									style={{ width: `${quotaPct}%` }}
-								/>
-							</div>
-							<span
-								className={cn(
-									"text-[9px] font-medium tabular-nums leading-none",
-									TIER_LABEL_CLASS[tier],
-								)}
-							>
-								{Math.round(quotaPct)}%
-								<span className="ml-0.5 uppercase opacity-60">
+								style={{ width: `${quotaPct}%` }}
+							/>
+							<div className="absolute inset-0 flex items-center justify-center gap-1 px-1 text-[10px] font-medium tabular-nums leading-none text-foreground">
+								<span>{formatBytes(quotaUsed)}</span>
+								<span className="opacity-50">/</span>
+								<span>{formatBytes(quotaLimit)}</span>
+								<span className="ml-0.5 text-[9px] uppercase opacity-50">
 									{quotaScope === "monthly" ? "mo" : "d"}
 								</span>
-							</span>
+							</div>
 						</div>
 					) : (
 						<div
