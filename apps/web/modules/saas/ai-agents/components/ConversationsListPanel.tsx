@@ -50,11 +50,11 @@ export interface ConversationItem {
 	createdAt: Date | string;
 	agent: { id: string; name: string };
 	channel: { id: string; provider: string; name: string } | null;
-	customer: {
+	customers: Array<{
 		id: string;
 		username: string | null;
 		accountNumber: string;
-	} | null;
+	}>;
 	lastMessage: {
 		content: string;
 		role: string;
@@ -303,26 +303,44 @@ export function ConversationsListPanel({
 						)}
 					</div>
 
-					{(showPhoneNumber ||
-						conv.customer?.username ||
-						conv.customer?.accountNumber) && (
-						<div className="mt-0.5 flex flex-wrap items-center gap-1">
-							{showPhoneNumber && (
-								<ContactPhone contactId={conv.contactId} />
-							)}
-							<ContactUsername
-								username={conv.customer?.username}
-							/>
-							{conv.customer?.accountNumber && (
-								<Badge
-									variant="secondary"
-									className="h-4 px-1.5 font-mono text-[10px]"
-								>
-									#{conv.customer.accountNumber}
-								</Badge>
-							)}
-						</div>
-					)}
+					{(() => {
+						const primaryCustomer = conv.customers[0];
+						const extraCustomers = conv.customers.length - 1;
+						if (
+							!showPhoneNumber &&
+							!primaryCustomer?.username &&
+							!primaryCustomer?.accountNumber
+						) {
+							return null;
+						}
+						return (
+							<div className="mt-0.5 flex flex-wrap items-center gap-1">
+								{showPhoneNumber && (
+									<ContactPhone contactId={conv.contactId} />
+								)}
+								<ContactUsername
+									username={primaryCustomer?.username}
+								/>
+								{primaryCustomer?.accountNumber && (
+									<Badge
+										variant="secondary"
+										className="h-4 px-1.5 font-mono text-[10px]"
+									>
+										#{primaryCustomer.accountNumber}
+									</Badge>
+								)}
+								{extraCustomers > 0 && (
+									<Badge
+										variant="outline"
+										className="h-4 px-1.5 text-[10px]"
+										title={`${extraCustomers + 1} customers share this number`}
+									>
+										+{extraCustomers}
+									</Badge>
+								)}
+							</div>
+						);
+					})()}
 
 					<div className="mt-1 flex items-center justify-between gap-2">
 						<p className="min-w-0 truncate text-xs text-muted-foreground">

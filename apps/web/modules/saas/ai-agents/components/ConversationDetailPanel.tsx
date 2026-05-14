@@ -231,7 +231,7 @@ export function ConversationDetailPanel({
 							className="shrink-0"
 						/>
 						<ContactUsername
-							username={conversation?.customer?.username}
+							username={conversation?.customers[0]?.username}
 							className="shrink-0"
 						/>
 					</div>

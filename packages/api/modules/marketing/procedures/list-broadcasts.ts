@@ -24,6 +24,10 @@ export const listBroadcasts = protectedProcedure
 					"cancelled",
 				])
 				.optional(),
+			audienceType: z
+				.enum(["isp_customers", "salti_group", "csv", "manual"])
+				.optional(),
+			search: z.string().trim().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -39,6 +43,20 @@ export const listBroadcasts = protectedProcedure
 		};
 		if (input.status) {
 			where["status"] = input.status;
+		}
+		if (input.audienceType) {
+			where["audienceType"] = input.audienceType;
+		}
+		if (input.search && input.search.length > 0) {
+			where["OR"] = [
+				{ name: { contains: input.search, mode: "insensitive" } },
+				{
+					templateName: {
+						contains: input.search,
+						mode: "insensitive",
+					},
+				},
+			];
 		}
 
 		const [total, items] = await Promise.all([

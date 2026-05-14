@@ -147,27 +147,34 @@ export const listAllConversations = protectedProcedure
 					},
 				})
 			: [];
-		const customerByPhone = new Map(
-			customers
-				.filter((c) => c.mobile)
-				.map((c) => [c.mobile as string, c]),
-		);
+		const customersByPhone = new Map<
+			string,
+			Array<(typeof customers)[number]>
+		>();
+		for (const c of customers) {
+			if (!c.mobile) {
+				continue;
+			}
+			const existing = customersByPhone.get(c.mobile) ?? [];
+			existing.push(c);
+			customersByPhone.set(c.mobile, existing);
+		}
 
 		return {
 			conversations: items.map((c) => {
 				const phone = phoneByConversation.get(c.id);
-				const matched = phone ? customerByPhone.get(phone) : null;
+				const matched = phone
+					? (customersByPhone.get(phone) ?? [])
+					: [];
 				return {
 					...c,
 					lastMessage: c.messages[0] ?? null,
 					messages: undefined,
-					customer: matched
-						? {
-								id: matched.id,
-								username: matched.username,
-								accountNumber: matched.accountNumber,
-							}
-						: null,
+					customers: matched.map((m) => ({
+						id: m.id,
+						username: m.username,
+						accountNumber: m.accountNumber,
+					})),
 				};
 			}),
 			nextCursor,

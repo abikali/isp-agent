@@ -138,20 +138,20 @@ export const getConversationMessages = protectedProcedure
 			}
 		}
 
-		// Resolve linked customer (for username display) via phone match.
+		// Resolve linked customers (for username display) via phone match.
 		// Customer.mobile is stored normalized (+961...) so we normalize contactId
-		// the same way before the lookup.
-		let customer: {
+		// the same way before the lookup. Multiple customers may share one phone.
+		let customers: Array<{
 			id: string;
 			username: string | null;
 			accountNumber: string;
-		} | null = null;
+		}> = [];
 		if (conversation.contactId) {
 			const normalized = normalizeLebanesePhone(conversation.contactId);
 			// Conversations are org-shared (no dealer column on the AI agent),
 			// but the customer enrichment has to honour dealer scope so the
 			// resolved customer never crosses the active-dealer boundary.
-			const match = await db.customer.findFirst({
+			customers = await db.customer.findMany({
 				where: {
 					organizationId: input.organizationId,
 					mobile: normalized,
@@ -159,9 +159,6 @@ export const getConversationMessages = protectedProcedure
 				},
 				select: { id: true, username: true, accountNumber: true },
 			});
-			if (match) {
-				customer = match;
-			}
 		}
 
 		return {
@@ -173,7 +170,7 @@ export const getConversationMessages = protectedProcedure
 				humanTakeoverAt: conversation.humanTakeoverAt,
 				humanTakeoverExpiresAt,
 				channel: conversation.channel,
-				customer,
+				customers,
 			},
 			messages: itemsWithParts,
 			nextCursor,

@@ -1,5 +1,5 @@
 import { config } from "@repo/config";
-import { CreateBroadcastWizard } from "@saas/marketing/client";
+import { BroadcastWizard } from "@saas/marketing/client";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -16,7 +16,7 @@ function NewBroadcastPage() {
 	const { organizationSlug } = Route.useParams();
 	return (
 		<PermissionGate resource="marketing" action="send">
-			<CreateBroadcastWizard organizationSlug={organizationSlug} />
+			<BroadcastWizard organizationSlug={organizationSlug} />
 		</PermissionGate>
 	);
 }

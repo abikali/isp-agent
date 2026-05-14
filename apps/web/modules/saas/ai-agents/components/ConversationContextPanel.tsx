@@ -3,7 +3,6 @@
 import { useCustomerNetworkStatus } from "@saas/customers/client";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { formatCurrency } from "@shared/lib/format";
-import { disabledQuery } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -211,6 +210,63 @@ function liveTooltip(
 	return lines.join(" · ");
 }
 
+function CustomerCardContainer({
+	customerId,
+	organizationId,
+	organizationSlug,
+}: {
+	customerId: string;
+	organizationId: string;
+	organizationSlug: string;
+}) {
+	const query = useQuery(
+		orpc.customers.get.queryOptions({
+			input: { organizationId, id: customerId },
+		}),
+	);
+	const customer = query.data?.customer;
+	const customerSummary: CustomerSummary | null = customer
+		? {
+				id: customer.id,
+				accountNumber: customer.accountNumber,
+				username: customer.username ?? null,
+				firstName: customer.firstName ?? null,
+				lastName: customer.lastName ?? null,
+				mobile: customer.mobile ?? null,
+				address: customer.address ?? null,
+				status: customer.status ?? null,
+				online: customer.online ?? false,
+				monthlyRate: customer.monthlyRate ?? null,
+				discount: customer.discount ?? null,
+				balance: customer.balance ?? null,
+				expiresAt: customer.expiresAt ?? null,
+				connectionType: customer.connectionType ?? null,
+				plan: customer.plan
+					? {
+							name: customer.plan.name,
+							monthlyPrice: customer.plan.monthlyPrice ?? null,
+							downloadSpeed: customer.plan.downloadSpeed ?? null,
+							uploadSpeed: customer.plan.uploadSpeed ?? null,
+						}
+					: null,
+				station: customer.station
+					? { name: customer.station.name }
+					: null,
+				accessPoint: customer.accessPoint
+					? { name: customer.accessPoint.name }
+					: null,
+			}
+		: null;
+	return (
+		<CustomerCard
+			loading={query.isLoading}
+			customer={customerSummary}
+			customerId={customerId}
+			organizationSlug={organizationSlug}
+		/>
+	);
+}
+
 function CustomerCard({
 	loading,
 	customer,
@@ -406,16 +462,6 @@ export function ConversationContextPanel({
 	organizationId,
 	organizationSlug,
 }: ConversationContextPanelProps) {
-	const customerId = conversation?.customer?.id;
-
-	const customerQuery = useQuery(
-		customerId
-			? orpc.customers.get.queryOptions({
-					input: { organizationId, id: customerId },
-				})
-			: disabledQuery(["customers", "get", "context"]),
-	);
-
 	if (!conversation) {
 		return (
 			<div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
@@ -427,47 +473,7 @@ export function ConversationContextPanel({
 	const isAiFlagged = conversation.status === "needs_human";
 	const contactInitials = getContactInitials(conversation.contactName);
 	const contactAvatarColor = getAvatarColor(conversation.contactName);
-	const customerSummary = customerQuery.data?.customer
-		? ({
-				id: customerQuery.data.customer.id,
-				accountNumber: customerQuery.data.customer.accountNumber,
-				username: customerQuery.data.customer.username ?? null,
-				firstName: customerQuery.data.customer.firstName ?? null,
-				lastName: customerQuery.data.customer.lastName ?? null,
-				mobile: customerQuery.data.customer.mobile ?? null,
-				address: customerQuery.data.customer.address ?? null,
-				status: customerQuery.data.customer.status ?? null,
-				online: customerQuery.data.customer.online ?? false,
-				monthlyRate: customerQuery.data.customer.monthlyRate ?? null,
-				discount: customerQuery.data.customer.discount ?? null,
-				balance: customerQuery.data.customer.balance ?? null,
-				expiresAt: customerQuery.data.customer.expiresAt ?? null,
-				connectionType:
-					customerQuery.data.customer.connectionType ?? null,
-				plan: customerQuery.data.customer.plan
-					? {
-							name: customerQuery.data.customer.plan.name,
-							monthlyPrice:
-								customerQuery.data.customer.plan.monthlyPrice ??
-								null,
-							downloadSpeed:
-								customerQuery.data.customer.plan
-									.downloadSpeed ?? null,
-							uploadSpeed:
-								customerQuery.data.customer.plan.uploadSpeed ??
-								null,
-						}
-					: null,
-				station: customerQuery.data.customer.station
-					? { name: customerQuery.data.customer.station.name }
-					: null,
-				accessPoint: customerQuery.data.customer.accessPoint
-					? {
-							name: customerQuery.data.customer.accessPoint.name,
-						}
-					: null,
-			} satisfies CustomerSummary)
-		: null;
+	const linkedCustomers = conversation.customers;
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -499,23 +505,24 @@ export function ConversationContextPanel({
 				</div>
 			</Section>
 
-			{conversation.customer && (
+			{linkedCustomers.length > 0 && (
 				<Section
-					title="Linked customer"
-					action={
-						customerQuery.isFetching ? (
-							<span className="text-[10px] text-muted-foreground/60">
-								refreshing…
-							</span>
-						) : null
+					title={
+						linkedCustomers.length > 1
+							? `Linked customers · ${linkedCustomers.length}`
+							: "Linked customer"
 					}
 				>
-					<CustomerCard
-						loading={customerQuery.isLoading}
-						customer={customerSummary}
-						customerId={conversation.customer.id}
-						organizationSlug={organizationSlug}
-					/>
+					<div className="space-y-3">
+						{linkedCustomers.map((c) => (
+							<CustomerCardContainer
+								key={c.id}
+								customerId={c.id}
+								organizationId={organizationId}
+								organizationSlug={organizationSlug}
+							/>
+						))}
+					</div>
 				</Section>
 			)}
 

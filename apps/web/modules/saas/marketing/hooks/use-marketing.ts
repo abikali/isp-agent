@@ -66,13 +66,15 @@ export function useGroupsQuery() {
 	};
 }
 
-export function useBroadcasts(
-	filters: {
-		page?: number;
-		pageSize?: number;
-		status?: "pending" | "running" | "completed" | "failed" | "cancelled";
-	} = {},
-) {
+export interface BroadcastsFilters {
+	page?: number;
+	pageSize?: number;
+	status?: "pending" | "running" | "completed" | "failed" | "cancelled";
+	audienceType?: "isp_customers" | "salti_group" | "csv" | "manual";
+	search?: string;
+}
+
+export function useBroadcasts(filters: BroadcastsFilters = {}) {
 	const organizationId = useOrganizationId();
 	const input: Record<string, unknown> = {
 		organizationId: organizationId ?? "",
@@ -85,6 +87,12 @@ export function useBroadcasts(
 	}
 	if (filters.status) {
 		input["status"] = filters.status;
+	}
+	if (filters.audienceType) {
+		input["audienceType"] = filters.audienceType;
+	}
+	if (filters.search?.trim()) {
+		input["search"] = filters.search.trim();
 	}
 	const query = useSuspenseQuery({
 		...orpc.marketing.listBroadcasts.queryOptions({
@@ -116,6 +124,7 @@ export function useBroadcast(
 	opts: {
 		recipientStatus?: "queued" | "sent" | "failed";
 		recipientPage?: number;
+		recipientSearch?: string;
 	} = {},
 ) {
 	const organizationId = useOrganizationId();
@@ -128,6 +137,9 @@ export function useBroadcast(
 	}
 	if (opts.recipientPage) {
 		input["recipientPage"] = opts.recipientPage;
+	}
+	if (opts.recipientSearch?.trim()) {
+		input["recipientSearch"] = opts.recipientSearch.trim();
 	}
 	const query = useSuspenseQuery({
 		...orpc.marketing.getBroadcast.queryOptions({
@@ -145,8 +157,14 @@ export function useBroadcast(
 	});
 	return {
 		broadcast: query.data?.broadcast,
+		creator: query.data?.creator ?? null,
 		recipients: query.data?.recipients ?? [],
 		recipientTotal: query.data?.recipientTotal ?? 0,
+		recipientCounts: query.data?.recipientCounts ?? {
+			queued: 0,
+			sent: 0,
+			failed: 0,
+		},
 		refetch: query.refetch,
 	};
 }
@@ -206,7 +224,25 @@ export const useCreateBroadcast = createInvalidatingMutation(
 	() => orpc.marketing.key(),
 );
 
+export const useUpdateBroadcast = createInvalidatingMutation(
+	() => orpc.marketing.updateBroadcast.mutationOptions(),
+	() => orpc.marketing.key(),
+);
+
+export const useDeleteBroadcast = createInvalidatingMutation(
+	() => orpc.marketing.deleteBroadcast.mutationOptions(),
+	() => orpc.marketing.key(),
+);
+
+export const useResendBroadcast = createInvalidatingMutation(
+	() => orpc.marketing.resendBroadcast.mutationOptions(),
+	() => orpc.marketing.key(),
+);
+
 export const useCancelBroadcast = createInvalidatingMutation(
 	() => orpc.marketing.cancelBroadcast.mutationOptions(),
 	() => orpc.marketing.key(),
 );
+
+export const useCreateAssetUploadUrl = () =>
+	useMutation(orpc.marketing.createAssetUploadUrl.mutationOptions());

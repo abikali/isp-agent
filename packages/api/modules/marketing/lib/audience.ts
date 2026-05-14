@@ -9,16 +9,24 @@ import z from "zod";
 import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../../customers/lib/needs-review";
 import { CUSTOMER_LIST_STATUSES } from "../../customers/lib/statuses";
 
+const CONNECTION_TYPES = [
+	"FIBER",
+	"WIRELESS",
+	"DSL",
+	"CABLE",
+	"ETHERNET",
+] as const;
+
 export const ispCustomersAudienceSchema = z.object({
 	type: z.literal("isp_customers"),
-	status: z.enum(CUSTOMER_LIST_STATUSES).optional(),
-	planId: z.string().optional(),
-	stationId: z.string().optional(),
-	collectorId: z.string().optional(),
-	groupName: z.string().optional(),
-	connectionType: z
-		.enum(["FIBER", "WIRELESS", "DSL", "CABLE", "ETHERNET"])
-		.optional(),
+	// Multi-select arrays. Empty array means "any". When multiple values are
+	// supplied for the same dimension, they're OR'd together.
+	statuses: z.array(z.enum(CUSTOMER_LIST_STATUSES)).default([]),
+	planIds: z.array(z.string()).default([]),
+	stationIds: z.array(z.string()).default([]),
+	collectorIds: z.array(z.string()).default([]),
+	groupNames: z.array(z.string()).default([]),
+	connectionTypes: z.array(z.enum(CONNECTION_TYPES)).default([]),
 	// Renewal-window filter — customers whose `expiresAt` falls between now and
 	// `now + expiresWithinDays`. Caps at 1 year of lookahead.
 	expiresWithinDays: z.number().int().min(0).max(365).optional(),
@@ -27,10 +35,13 @@ export const ispCustomersAudienceSchema = z.object({
 	minBalance: z.number().optional(),
 });
 
-export const saltiGroupAudienceSchema = z.object({
+export const saltiGroupsAudienceSchema = z.object({
 	type: z.literal("salti_group"),
-	groupId: z.string(),
-	groupName: z.string().optional(),
+	// One or more Salti group IDs. Old "groupId" singular field is migrated to
+	// a 1-item array on read for back-compat with broadcasts stored before the
+	// multi-group switch.
+	groupIds: z.array(z.string()).min(1),
+	groupNames: z.array(z.string()).default([]),
 });
 
 // Per-phone min-length is intentionally lax — the normalizer drops anything
@@ -56,12 +67,13 @@ export const manualAudienceSchema = z.object({
 
 export const audienceSchema = z.discriminatedUnion("type", [
 	ispCustomersAudienceSchema,
-	saltiGroupAudienceSchema,
+	saltiGroupsAudienceSchema,
 	csvAudienceSchema,
 	manualAudienceSchema,
 ]);
 
 export type AudienceInput = z.infer<typeof audienceSchema>;
+export type IspCustomersAudience = z.infer<typeof ispCustomersAudienceSchema>;
 
 export interface MaterializedRecipient {
 	customerId: string | null;
@@ -136,12 +148,18 @@ interface MaterializeOpts {
  * Build the Prisma `where` clause shared by the customer audience preview
  * (count + sample) and the full-materialization send path. One place for
  * the filter rules so preview and send can never diverge.
+ *
+ * For multi-select dimensions we OR within the dimension (Prisma `in`),
+ * AND across dimensions (default behavior). NEEDS_REVIEW status uses the
+ * shared `CUSTOMER_NEEDS_REVIEW_WHERE` clause; we don't try to mix
+ * NEEDS_REVIEW with other statuses in the same broadcast because the
+ * underlying conditions overlap in subtle ways.
  */
 async function buildIspCustomerWhere(opts: {
 	organizationId: string;
 	permCtx: PermissionContext;
 	activeDealerId: string | null;
-	filters: z.infer<typeof ispCustomersAudienceSchema>;
+	filters: IspCustomersAudience;
 }): Promise<Record<string, unknown>> {
 	const ownerFilter = await getOwnershipFilterAsync(
 		opts.permCtx,
@@ -155,40 +173,68 @@ async function buildIspCustomerWhere(opts: {
 	};
 
 	const f = opts.filters;
-	if (f.status === "EXPIRED") {
-		where["status"] = "ACTIVE";
-		where["expiresAt"] = { lt: new Date() };
-	} else if (f.status === "ONLINE") {
-		where["status"] = "ACTIVE";
-		where["online"] = true;
-	} else if (f.status === "OFFLINE") {
-		where["status"] = "ACTIVE";
-		where["online"] = false;
-	} else if (f.status === "NEEDS_REVIEW") {
-		Object.assign(where, CUSTOMER_NEEDS_REVIEW_WHERE);
-	} else if (f.status) {
-		where["status"] = f.status;
+
+	if (f.statuses.length > 0) {
+		const realStatuses: string[] = [];
+		const orBuckets: Array<Record<string, unknown>> = [];
+		for (const s of f.statuses) {
+			if (s === "EXPIRED") {
+				orBuckets.push({
+					status: "ACTIVE",
+					expiresAt: { lt: new Date() },
+				});
+			} else if (s === "ONLINE") {
+				orBuckets.push({ status: "ACTIVE", online: true });
+			} else if (s === "OFFLINE") {
+				orBuckets.push({ status: "ACTIVE", online: false });
+			} else if (s === "NEEDS_REVIEW") {
+				orBuckets.push(CUSTOMER_NEEDS_REVIEW_WHERE as never);
+			} else {
+				realStatuses.push(s);
+			}
+		}
+		if (realStatuses.length > 0) {
+			orBuckets.push({ status: { in: realStatuses } });
+		}
+		if (orBuckets.length === 1) {
+			Object.assign(where, orBuckets[0]);
+		} else if (orBuckets.length > 1) {
+			where["AND"] = [
+				...((where["AND"] as Array<Record<string, unknown>>) ?? []),
+				{ OR: orBuckets },
+			];
+		}
 	}
-	if (f.planId) {
-		where["planId"] = f.planId;
+
+	if (f.planIds.length > 0) {
+		where["planId"] = { in: f.planIds };
 	}
-	if (f.stationId) {
-		where["stationId"] = f.stationId;
+	if (f.stationIds.length > 0) {
+		where["stationId"] = { in: f.stationIds };
 	}
-	if (f.collectorId === "none") {
-		where["collectorId"] = null;
-	} else if (f.collectorId) {
-		where["collectorId"] = f.collectorId;
+	if (f.collectorIds.length > 0) {
+		const includesNone = f.collectorIds.includes("none");
+		const real = f.collectorIds.filter((id) => id !== "none");
+		if (includesNone && real.length > 0) {
+			where["AND"] = [
+				...((where["AND"] as Array<Record<string, unknown>>) ?? []),
+				{ OR: [{ collectorId: null }, { collectorId: { in: real } }] },
+			];
+		} else if (includesNone) {
+			where["collectorId"] = null;
+		} else {
+			where["collectorId"] = { in: real };
+		}
 	}
-	if (f.groupName) {
-		where["groupName"] = f.groupName;
+	if (f.groupNames.length > 0) {
+		where["groupName"] = { in: f.groupNames };
 	}
-	if (f.connectionType) {
-		where["connectionType"] = f.connectionType;
+	if (f.connectionTypes.length > 0) {
+		where["connectionType"] = { in: f.connectionTypes };
 	}
-	// expiresWithinDays wins over status=EXPIRED if both set — they're
-	// contradictory ranges and the renewal-window read is the more specific
-	// intent. Operators picking both is treated as user error.
+	// expiresWithinDays overrides any expiry filter coming from status (set
+	// by the EXPIRED expansion above) — they're contradictory ranges and the
+	// renewal-window read is the more specific intent.
 	if (f.expiresWithinDays !== undefined) {
 		const now = new Date();
 		const until = new Date(
@@ -219,14 +265,14 @@ const CUSTOMER_RECIPIENT_SELECT = {
  * never from the live preview hot path.
  *
  * For "salti_group" audiences the recipients are fetched lazily by the
- * worker (we just record the groupId) because the membership list can be
+ * worker (we just record the groupIds) because the membership list can be
  * large.
  */
 export async function materializeIspCustomerRecipients(opts: {
 	organizationId: string;
 	permCtx: PermissionContext;
 	activeDealerId: string | null;
-	filters: z.infer<typeof ispCustomersAudienceSchema>;
+	filters: IspCustomersAudience;
 }): Promise<MaterializedRecipient[]> {
 	const where = await buildIspCustomerWhere(opts);
 
@@ -257,23 +303,16 @@ export async function materializeIspCustomerRecipients(opts: {
  * count + first `sampleSize` recipients without loading the full set into
  * memory. The count uses a phone-availability filter so it matches what
  * actually gets queued.
- *
- * For 50k-customer orgs this trims the per-keystroke load from "fetch
- * everything" to a `count()` + small `findMany`.
  */
 export async function previewIspCustomerRecipients(opts: {
 	organizationId: string;
 	permCtx: PermissionContext;
 	activeDealerId: string | null;
-	filters: z.infer<typeof ispCustomersAudienceSchema>;
+	filters: IspCustomersAudience;
 	sampleSize?: number;
 }): Promise<{ total: number; sample: MaterializedRecipient[] }> {
 	const sampleSize = opts.sampleSize ?? 10;
 	const baseWhere = await buildIspCustomerWhere(opts);
-	// Only count rows that have at least one phone column populated. We
-	// don't try to read into the JSON `phones` array — see comment in
-	// pickCustomerPhone. The under-count is bounded by customers who have
-	// `phones[0]` but neither `mobile` nor `phone`, which is rare.
 	const phoneAvailability = {
 		OR: [{ mobile: { not: null } }, { phone: { not: null } }],
 	};
