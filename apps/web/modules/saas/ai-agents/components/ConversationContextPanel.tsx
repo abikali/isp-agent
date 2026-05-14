@@ -173,12 +173,14 @@ function NetworkStatusValue({
 	kind: "station" | "accessPoint";
 }) {
 	return (
-		<span className="inline-flex items-center justify-end gap-1.5">
-			<span className="min-w-0 truncate">{name}</span>
+		<span className="flex min-w-0 items-center justify-end gap-1.5">
+			<span className="min-w-0 truncate" title={name}>
+				{name}
+			</span>
 			{live ? (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<span>
+						<span className="shrink-0">
 							<StatusIndicator
 								status={live.online ? "online" : "offline"}
 								variant="dot"
