@@ -98,6 +98,7 @@ export async function handleWebChatMessage(
 			content: true,
 			toolCalls: true,
 			parts: true,
+			attachmentType: true,
 		},
 	});
 

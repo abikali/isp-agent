@@ -128,6 +128,7 @@ export async function handleWebChatStream(
 			content: true,
 			toolCalls: true,
 			parts: true,
+			attachmentType: true,
 		},
 	});
 

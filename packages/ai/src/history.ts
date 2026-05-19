@@ -49,6 +49,7 @@ export interface DbMessageRow {
 	content: string;
 	toolCalls?: unknown; // Array<{ toolCallId?, toolName, args, result }>
 	parts?: unknown; // UIMessage parts array (forward-compat column)
+	attachmentType?: string | null; // "audio" | "image" | "video" | "document" | null
 }
 
 interface PersistedToolCall {
@@ -297,6 +298,21 @@ function legacyToolCallsToAssistantMessages(
 	return assistantWithToolsToModelMessages(content, callsWithIds);
 }
 
+function describeAdminMedia(attachmentType: string): string {
+	switch (attachmentType) {
+		case "audio":
+			return "voice note sent by the human team";
+		case "image":
+			return "image sent by the human team";
+		case "video":
+			return "video sent by the human team";
+		case "document":
+			return "document sent by the human team";
+		default:
+			return `${attachmentType} sent by the human team`;
+	}
+}
+
 function rowToModelMessages(row: DbMessageRow, index: number): ModelMessage[] {
 	const role = row.role;
 
@@ -308,6 +324,20 @@ function rowToModelMessages(row: DbMessageRow, index: number): ModelMessage[] {
 	// them as assistant messages but prefix so the model knows it's not its own
 	// past output.
 	if (role === "admin") {
+		// Media attachments (audio/image/video) carry a placeholder string like
+		// "Voice note" or "[Voice message received]" in `content` and the real
+		// payload in `attachmentUrl`. The model has no access to that payload —
+		// emitting the placeholder as a normal assistant turn leaves it with no
+		// anchor and it confabulates the customer's next line.
+		if (row.attachmentType) {
+			const mediaLabel = describeAdminMedia(row.attachmentType);
+			return [
+				{
+					role: "assistant",
+					content: `[Human teammate reply — ${mediaLabel}. Content is not visible to you. Do not impersonate the customer or guess what was said; wait for the customer's next message.]`,
+				},
+			];
+		}
 		const prefixed = `[Human teammate reply]\n${row.content}`;
 		return [{ role: "assistant", content: prefixed }];
 	}

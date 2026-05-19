@@ -870,6 +870,7 @@ async function handleMessages(
 							content: true,
 							toolCalls: true,
 							parts: true,
+							attachmentType: true,
 						},
 					});
 					const historyRows = history.reverse();
