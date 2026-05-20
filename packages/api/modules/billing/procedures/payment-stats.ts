@@ -8,7 +8,11 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
-import { EXCLUDE_STOPPED, PENDING_STOPPED_PAYMENT } from "../lib/filters";
+import {
+	EXCLUDE_FREE_GROUP,
+	EXCLUDE_STOPPED,
+	PENDING_STOPPED_PAYMENT,
+} from "../lib/filters";
 import {
 	countDistinctCustomersWithPayments,
 	countPaidCustomers,
@@ -67,23 +71,29 @@ export const getPaymentStats = protectedProcedure
 		const { scope, employeeId } = await resolveCollectorScope(permCtx);
 		const ownCollectorId = scope === "own" ? employeeId : null;
 
+		// FREE-group customers don't show up in unpaid lists; mirror the same
+		// exclusion on every "paid / stopped / collected" count so the totals
+		// stay aligned with the unpaid list.
+		const customerFilter: Record<string, unknown> = {
+			dealerId: activeDealerId ?? null,
+			...EXCLUDE_FREE_GROUP,
+		};
+		if (ownCollectorId) {
+			customerFilter["collectorId"] = ownCollectorId;
+		}
+
 		const baseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			...(monthId ? { billingMonthId: monthId } : {}),
-			...dealerViaCustomer,
+			customer: customerFilter,
 		};
 		if (ownCollectorId) {
 			baseWhere["collectorId"] = ownCollectorId;
 		}
 
-		const customerScopeViaCustomer: Record<string, unknown> = ownCollectorId
-			? {
-					customer: {
-						dealerId: activeDealerId ?? null,
-						collectorId: ownCollectorId,
-					},
-				}
-			: dealerViaCustomer;
+		const customerScopeViaCustomer: Record<string, unknown> = {
+			customer: customerFilter,
+		};
 
 		const collectedWhere = { ...baseWhere, ...EXCLUDE_STOPPED };
 

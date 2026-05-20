@@ -6,7 +6,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue, sumOrZero } from "../lib/calculations";
-import { SETTLED_PAYMENT } from "../lib/filters";
+import { EXCLUDE_FREE_GROUP, SETTLED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalance,
@@ -88,6 +88,7 @@ export const getCollectorBalance = protectedProcedure
 						customer: {
 							collectorId: input.collectorId,
 							dealerId: activeDealerId ?? null,
+							...EXCLUDE_FREE_GROUP,
 						},
 						billingMonthId: activeMonth.id,
 						status: "COLLECTED",
