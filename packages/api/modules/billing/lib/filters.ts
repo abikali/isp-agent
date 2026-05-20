@@ -25,9 +25,6 @@ export function excludeGroupFilter(groupName: string) {
 	};
 }
 
-/** Hardcoded filter for the most common case: exclude "free" group. */
-export const EXCLUDE_FREE_GROUP = excludeGroupFilter("free");
-
 /** Exclude stopped payment records from billing aggregations. */
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 

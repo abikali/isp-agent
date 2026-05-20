@@ -11,7 +11,6 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import {
 	APPROVED_STOPPED_PAYMENT,
-	EXCLUDE_FREE_GROUP,
 	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
 import {
@@ -87,11 +86,7 @@ export const getCollectorStats = protectedProcedure
 		// daily collected) keep `Payment.collectorId` — they answer "who
 		// physically held this money," which doesn't change on reassignment.
 		const customerScopeViaCustomer = {
-			customer: {
-				collectorId,
-				dealerId: activeDealerId ?? null,
-				...EXCLUDE_FREE_GROUP,
-			},
+			customer: { collectorId, dealerId: activeDealerId ?? null },
 		};
 
 		const [

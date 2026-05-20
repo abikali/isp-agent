@@ -12,7 +12,6 @@ import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
-	EXCLUDE_FREE_GROUP,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
 	SETTLED_PAYMENT,
@@ -153,10 +152,6 @@ export function customersDueThisMonthWhere(
 ) {
 	const where: Record<string, unknown> = {
 		organizationId,
-		// `EXCLUDE_FREE_GROUP` contributes an `OR` clause; nest it under `AND`
-		// so it doesn't collide with the billing `OR` below (a second `OR` key
-		// on the same object would silently overwrite the first).
-		AND: [EXCLUDE_FREE_GROUP],
 		// Pending-stop customers are in admin-review limbo — not "due" to
 		// anyone until admin resolves the review.
 		NOT: {
@@ -224,9 +219,6 @@ export function unpaidCustomersWhere(
 	const where: Record<string, unknown> = {
 		organizationId,
 		status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
-		// `EXCLUDE_FREE_GROUP` contributes an `OR` clause; nest it under `AND`
-		// so it doesn't collide with the per-month unpaid `OR` below.
-		AND: [EXCLUDE_FREE_GROUP],
 		// Hide customers with a pending-stop payment in any relevant month —
 		// they're in admin review, not truly "unpaid".
 		NOT: {

@@ -8,7 +8,6 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
-	EXCLUDE_FREE_GROUP,
 	excludeGroupFilter,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
@@ -103,7 +102,6 @@ export const listUnpaidCustomers = protectedProcedure
 		// until admin approves or declines.
 		const customerWhere: Record<string, unknown> = {
 			status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
-			...EXCLUDE_FREE_GROUP,
 			...getDealerScopeFilter(activeDealerId),
 			NOT: {
 				payments: {

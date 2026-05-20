@@ -6,11 +6,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
-import {
-	EXCLUDE_FREE_GROUP,
-	PENDING_STOPPED_PAYMENT,
-	SETTLED_PAYMENT,
-} from "../lib/filters";
+import { PENDING_STOPPED_PAYMENT, SETTLED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalanceBatch,
@@ -108,7 +104,6 @@ export const listCollectors = protectedProcedure
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
 					...dealerFilter,
-					...EXCLUDE_FREE_GROUP,
 					payments: {
 						some: {
 							billingMonthId: activeMonth.id,
@@ -148,7 +143,6 @@ export const listCollectors = protectedProcedure
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
 					...dealerFilter,
-					...EXCLUDE_FREE_GROUP,
 					payments: {
 						some: {
 							billingMonthId: activeMonth.id,
@@ -165,7 +159,6 @@ export const listCollectors = protectedProcedure
 					organizationId: input.organizationId,
 					collectorId: { in: collectorIds },
 					...dealerFilter,
-					...EXCLUDE_FREE_GROUP,
 					payments: {
 						some: {
 							billingMonthId: activeMonth.id,
