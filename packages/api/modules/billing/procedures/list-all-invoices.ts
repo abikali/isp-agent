@@ -23,6 +23,7 @@ export const listAllInvoices = protectedProcedure
 			year: z.number().int().optional(),
 			month: z.number().int().min(1).max(12).optional(),
 			search: z.string().optional(),
+			groupName: z.string().optional(),
 			status: z.enum(["all", "paid", "unpaid", "voided"]).default("all"),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
@@ -59,6 +60,9 @@ export const listAllInvoices = protectedProcedure
 		const customerFilter: Record<string, unknown> = {
 			...getDealerScopeFilter(activeDealerId),
 		};
+		if (input.groupName) {
+			customerFilter["groupName"] = input.groupName;
+		}
 		if (input.search) {
 			customerFilter["OR"] = [
 				{

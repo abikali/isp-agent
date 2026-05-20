@@ -588,6 +588,7 @@ export function useInvoices(filters: {
 	year?: number;
 	month?: number;
 	search?: string;
+	groupName?: string;
 	status?: "all" | "paid" | "unpaid";
 	page?: number;
 	pageSize?: number;

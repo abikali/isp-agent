@@ -42,6 +42,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+	useCustomerGroups,
 	useDeleteInvoice,
 	useInvoices,
 	useMonthFilter,
@@ -50,6 +51,7 @@ import {
 	useVoidInvoices,
 } from "../hooks/use-billing";
 import { BillingCycleSelect } from "./BillingCycleSelect";
+import { GroupSelect } from "./BillingFilters";
 import { InvoiceFormDialog } from "./InvoiceFormDialog";
 
 const PAGE_SIZE = 25;
@@ -109,7 +111,9 @@ export function InvoicesList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [status, setStatus] = useState<"all" | "paid" | "unpaid">("all");
+	const [groupFilter, setGroupFilter] = useState<string>("");
 	const [page, setPage] = useState(1);
+	const { groups } = useCustomerGroups();
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		SORT_BY_MAP,
 		() => setPage(1),
@@ -126,6 +130,7 @@ export function InvoicesList() {
 		search: debouncedSearch || undefined,
 		year: selected?.year,
 		month: selected?.month,
+		groupName: groupFilter || undefined,
 		status,
 		page,
 		pageSize: PAGE_SIZE,
@@ -433,6 +438,14 @@ export function InvoicesList() {
 						value={monthFilter}
 						onValueChange={setMonthFilter}
 						allLabel="All months"
+					/>
+					<GroupSelect
+						value={groupFilter}
+						onChange={(v) => {
+							setGroupFilter(v);
+							setPage(1);
+						}}
+						groups={groups}
 					/>
 					<Select
 						value={status}
