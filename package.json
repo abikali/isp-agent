@@ -20,16 +20,16 @@
 	},
 	"packageManager": "pnpm@10.14.0",
 	"devDependencies": {
-		"@biomejs/biome": "2.3.11",
+		"@biomejs/biome": "2.4.15",
 		"@repo/tsconfig": "workspace:*",
 		"@types/fluent-ffmpeg": "^2.1.28",
-		"@types/node": "^25.0.9",
-		"@vitest/coverage-v8": "^4.0.15",
+		"@types/node": "^25.9.1",
+		"@vitest/coverage-v8": "^4.1.7",
 		"dotenv-cli": "^11.0.0",
 		"husky": "^9.1.7",
-		"knip": "^5.82.1",
-		"turbo": "^2.7.5",
-		"typescript": "5.9.3"
+		"knip": "^6.14.1",
+		"turbo": "^2.9.14",
+		"typescript": "6.0.3"
 	},
 	"pnpm": {
 		"overrides": {

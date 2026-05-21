@@ -48,14 +48,14 @@
 		"ssh2": "^1.17.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.3.11",
+		"@biomejs/biome": "2.4.15",
 		"@repo/tsconfig": "workspace:*",
-		"@types/node": "25.0.9",
+		"@types/node": "25.9.1",
 		"@types/ssh2": "^1.15.5",
-		"dotenv": "^17.2.3",
+		"dotenv": "^17.4.2",
 		"dotenv-cli": "^11.0.0",
-		"prisma": "7.2.0",
-		"redis": "^5.10.0",
+		"prisma": "7.8.0",
+		"redis": "^5.12.1",
 		"xlsx": "^0.18.5"
 	}
 }
