@@ -22,14 +22,14 @@
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
 		"@repo/utils": "workspace:*",
-		"@ai-sdk/openai-compatible": "^2.0.35",
+		"@ai-sdk/openai-compatible": "^2.0.48",
 		"@openrouter/ai-sdk-provider": "^2.9.0",
-		"ai": "^6.0.116",
-		"grammy": "^1.39.2",
+		"ai": "^6.0.191",
+		"grammy": "^1.43.0",
 		"nodejs-traceroute": "^2.0.1",
 		"speedtest-net": "^2.2.0",
 		"wasenderapi": "^0.4.0",
-		"zod": "^4.3.0"
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.11",
