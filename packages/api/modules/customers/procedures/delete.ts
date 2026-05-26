@@ -56,7 +56,10 @@ export const deleteCustomer = protectedProcedure
 			iradiusDisabled,
 			logTag: "iRadius deactivate",
 			failureMessage: "Failed to deactivate customer in iRadius",
-			remote: () => iradiusSetActive(existing, false),
+			// Already deleted in iRadius? Nothing to deactivate remotely —
+			// let the local delete proceed instead of 500-ing.
+			remote: () =>
+				iradiusSetActive(existing, false, { tolerateMissing: true }),
 			local: () =>
 				db.customer.update({
 					where: { id: input.id },

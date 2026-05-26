@@ -610,6 +610,18 @@ function getReceiptBadge(payment: PaymentRow) {
 	);
 }
 
+// oRPC surfaces the server's custom error code on the thrown error. This
+// one is raised when "Approve & Deactivate" can't reach the customer in
+// iRadius because it was already deleted there.
+function isIradiusUserMissing(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "IRADIUS_USER_MISSING"
+	);
+}
+
 // ─── Main Component ─────────────────────────────────────────────
 
 export function PaymentsList() {
@@ -733,6 +745,11 @@ export function PaymentsList() {
 		customer: IradiusCustomerRef;
 	} | null>(null);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	// Opened when "Approve & Deactivate" fails because the customer was
+	// already deleted in iRadius. Carries the row so we can name the customer
+	// and retry the review with `force` (local-only deactivation).
+	const [iradiusMissingPayment, setIradiusMissingPayment] =
+		useState<PaymentRow | null>(null);
 
 	// Selected payments → unique customer ids. A single customer can own
 	// multiple payments in the table (overpaid + free, or one payment per
@@ -1035,10 +1052,21 @@ export function PaymentsList() {
 															toast.success(
 																"Marked as reviewed",
 															),
-														onError: (error) =>
+														onError: (error) => {
+															if (
+																isIradiusUserMissing(
+																	error,
+																)
+															) {
+																setIradiusMissingPayment(
+																	payment,
+																);
+																return;
+															}
 															toast.error(
 																error.message,
-															),
+															);
+														},
 													},
 												)
 											}
@@ -1766,6 +1794,86 @@ export function PaymentsList() {
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
 				/>
+			)}
+
+			{/*
+			 * Shown when "Approve & Deactivate" couldn't reach the customer in
+			 * iRadius because it was already deleted there. Rather than a raw
+			 * error, we explain what happened and let the operator finish the
+			 * deactivation locally (force) — marking the payment reviewed,
+			 * voiding the month's invoice, and closing the review task.
+			 */}
+			{organizationId && (
+				<AlertDialog
+					open={!!iradiusMissingPayment}
+					onOpenChange={(o) => !o && setIradiusMissingPayment(null)}
+				>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>
+								Customer no longer in iRadius
+							</AlertDialogTitle>
+							<AlertDialogDescription>
+								{iradiusMissingPayment && (
+									<>
+										<span className="font-medium">
+											{displayName(
+												iradiusMissingPayment.customer
+													.firstName,
+												iradiusMissingPayment.customer
+													.lastName,
+											)}
+										</span>{" "}
+										couldn't be deactivated in iRadius
+										because the account no longer exists
+										there — it was most likely deleted
+										directly in iRadius.
+										<br />
+										<br />
+										You can deactivate it here anyway: the
+										payment will be marked reviewed, this
+										month's invoice voided, and the review
+										task closed. Nothing further is sent to
+										iRadius.
+									</>
+								)}
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction
+								disabled={reviewPayment.isPending}
+								onClick={() => {
+									if (
+										!organizationId ||
+										!iradiusMissingPayment
+									) {
+										return;
+									}
+									reviewPayment.mutate(
+										{
+											organizationId,
+											paymentId: iradiusMissingPayment.id,
+											force: true,
+										},
+										{
+											onSuccess: () => {
+												toast.success(
+													"Deactivated locally",
+												);
+												setIradiusMissingPayment(null);
+											},
+											onError: (error) =>
+												toast.error(error.message),
+										},
+									);
+								}}
+							>
+								Deactivate locally
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 			)}
 
 			{/*

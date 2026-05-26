@@ -2,6 +2,19 @@ import { type IspApiConfig, ispPost } from "@repo/ai/isp-api-client";
 import { executeIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { iradiusForceDisconnect } from "./iradius-disconnect";
 
+/**
+ * Thrown by `iradiusSetActive` when iRadius reports the user no longer
+ * exists — typically because an admin deleted it directly in iRadius.
+ * Callers catch this to offer a local-only fallback instead of failing
+ * outright (a missing remote user can't drift from a local INACTIVE state).
+ */
+export class IRadiusUserNotFoundError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "IRadiusUserNotFoundError";
+	}
+}
+
 export interface AccountTypeChangePreview {
 	success: boolean;
 	preview: boolean;
@@ -79,6 +92,7 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
 export async function iradiusSetActive(
 	customer: { externalId?: string | null },
 	active: boolean,
+	options?: { tolerateMissing?: boolean },
 ): Promise<void> {
 	if (!customer.externalId) {
 		return;
@@ -99,6 +113,20 @@ export async function iradiusSetActive(
 		error?: string;
 	}>(config, "/activate-user", body);
 	if (result && result.success === false) {
+		// iRadius signals a deleted/unknown user with a "not found" message.
+		// When the caller can tolerate that (deactivations/deletes — a missing
+		// remote user can't drift from a local INACTIVE state) treat it as a
+		// no-op success. Otherwise surface a typed error so the caller can
+		// decide — the billing review flow prompts the operator to deactivate
+		// locally anyway rather than dead-ending on a 500.
+		if (/not found/i.test(result.error ?? "")) {
+			if (options?.tolerateMissing) {
+				return;
+			}
+			throw new IRadiusUserNotFoundError(
+				result.error ?? "iRadius user not found",
+			);
+		}
 		throw new Error(result.error ?? "iRadius activate-user failed");
 	}
 

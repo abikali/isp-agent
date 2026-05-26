@@ -27,6 +27,13 @@ export async function mirrorToIRadius<T>(opts: {
 	try {
 		await opts.remote();
 	} catch (error) {
+		// A caller's remote step may throw a deliberate, typed ORPCError to
+		// drive specific client handling (e.g. a "user missing in iRadius"
+		// prompt). Pass those through untouched; only unexpected remote
+		// failures get masked as a generic 500.
+		if (error instanceof ORPCError) {
+			throw error;
+		}
 		logger.error(`${opts.logTag} failed`, {
 			error: error instanceof Error ? error.message : error,
 		});

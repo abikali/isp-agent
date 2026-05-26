@@ -90,9 +90,13 @@ export const bulkSetCustomerStatus = protectedProcedure
 
 			try {
 				if (!iradiusDisabled && customer.externalId) {
+					// On deactivation, a customer already deleted in iRadius
+					// should count as done (proceed to local INACTIVE), not as
+					// a failure row. Activation still errors as usual.
 					await iradiusSetActive(
 						{ externalId: customer.externalId },
 						targetActive,
+						{ tolerateMissing: !targetActive },
 					);
 				}
 				await db.customer.update({

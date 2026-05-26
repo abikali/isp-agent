@@ -197,7 +197,17 @@ export const updateCustomer = protectedProcedure
 			failureMessage: "Failed to sync customer changes to iRadius",
 			remote: async () => {
 				if (statusChanged) {
-					await iradiusSetActive(existing, input.status === "ACTIVE");
+					// Deactivating a customer already removed from iRadius is a
+					// no-op, not a failure — don't fail the whole update over a
+					// missing remote user. Activation still errors (can't
+					// activate a user that no longer exists).
+					await iradiusSetActive(
+						existing,
+						input.status === "ACTIVE",
+						{
+							tolerateMissing: input.status !== "ACTIVE",
+						},
+					);
 				}
 				if (!diff) {
 					return;

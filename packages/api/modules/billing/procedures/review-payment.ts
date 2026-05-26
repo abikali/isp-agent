@@ -7,7 +7,10 @@ import { db } from "@repo/database";
 import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { iradiusSetActive } from "../../customers/lib/iradius-api";
+import {
+	IRadiusUserNotFoundError,
+	iradiusSetActive,
+} from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { VOID_REASON, voidInvoice } from "../lib/invoice-void";
 import { closeReviewTasksForCustomer } from "../lib/review-tasks";
@@ -23,6 +26,10 @@ export const reviewPayment = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			paymentId: z.string(),
+			// Set after the operator confirms (via the client prompt) that the
+			// iRadius user is already gone: forgives the "user not found"
+			// remote error and still records the local deactivation.
+			force: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -89,7 +96,28 @@ export const reviewPayment = protectedProcedure
 				iradiusDisabled,
 				logTag: "iRadius deactivate on review-payment",
 				failureMessage: "Failed to deactivate customer in iRadius",
-				remote: () => iradiusSetActive(payment.customer, false),
+				remote: async () => {
+					try {
+						// `force` is set once the operator confirms via the
+						// client prompt that the iRadius user is already gone;
+						// it forgives the "user not found" error and lets the
+						// local deactivation proceed.
+						await iradiusSetActive(payment.customer, false, {
+							tolerateMissing: input.force === true,
+						});
+					} catch (error) {
+						// Not forced yet: surface a distinct code so the client
+						// can prompt the operator instead of showing a raw 500.
+						if (error instanceof IRadiusUserNotFoundError) {
+							throw new ORPCError("IRADIUS_USER_MISSING", {
+								status: 409,
+								message:
+									"This customer no longer exists in iRadius — it may have been deleted there directly.",
+							});
+						}
+						throw error;
+					}
+				},
 				local: runLocal,
 			});
 			await closeReviewTasksForCustomer(
