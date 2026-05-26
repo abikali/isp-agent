@@ -722,6 +722,12 @@ export function CustomersList({
 						combinedDailyQuotaMb={
 							row.original.plan?.combinedMaxUpAndDown ?? null
 						}
+						dailyFallbackMb={
+							row.original.plan?.dailyFallbackMb ?? null
+						}
+						monthlyFallbackMb={
+							row.original.plan?.monthlyFallbackMb ?? null
+						}
 						reachMaxQuota={row.original.reachMaxQuota}
 						lastUsageSyncAt={row.original.lastUsageSyncAt}
 					/>

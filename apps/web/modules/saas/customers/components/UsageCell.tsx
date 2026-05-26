@@ -28,6 +28,11 @@ interface UsageCellProps {
 	dailyQuotaDownMb: number | null;
 	dailyQuotaUpMb: number | null;
 	combinedDailyQuotaMb: number | null;
+	// iRadius auto-fallback caps (MB) for "UP TO X" plans that carry no explicit
+	// quota column — the data volume after which the subscriber is throttled.
+	// Lowest step, mirrored from AccountType{Daily,Monthly}AutoFallBack.AboveMB.
+	dailyFallbackMb: number | null;
+	monthlyFallbackMb: number | null;
 	reachMaxQuota: boolean;
 	lastUsageSyncAt: Date | string | null;
 }
@@ -114,8 +119,10 @@ const TIER_LABEL_CLASS: Record<QuotaTier, string> = {
  *   1. Monthly cycle (downloadBytes − cycleStartDownloadBytes) / plan.monthlyQuota
  *   2. Daily combined (dailyDown + dailyUp) / plan.combinedMaxUpAndDown
  *      (or dailyQuotaDown + dailyQuotaUp)
- *   3. Down/up split — no quota on the plan, fall back to showing the daily
- *      composition like the legacy cell.
+ *   3. Daily auto-fallback cap (plan.dailyFallbackMb) — "UP TO X" plans store
+ *      their quota as a throttle step, not a quota column.
+ *   4. Monthly auto-fallback cap (plan.monthlyFallbackMb) — rare monthly variant.
+ *   5. Default daily allocation — no quota anywhere on the plan.
  *
  * Stale samples (no recent iRadius snapshot) render as "—" so frozen values
  * from old syncs aren't mislabelled "today".
@@ -132,6 +139,8 @@ export function UsageCell({
 	dailyQuotaDownMb,
 	dailyQuotaUpMb,
 	combinedDailyQuotaMb,
+	dailyFallbackMb,
+	monthlyFallbackMb,
 	reachMaxQuota,
 	lastUsageSyncAt,
 }: UsageCellProps) {
@@ -156,10 +165,11 @@ export function UsageCell({
 	// subscriber actually crosses their quota — that's the only honest
 	// source for an "in FUP" warning.
 
-	// Resolve the active quota view. Preference: plan.monthlyQuota →
-	// plan daily quota fields → default daily allocation. The fallback
-	// keeps the cell visually consistent across plans by always showing
-	// an "out-of-X" denominator, matching iRadius's QDAY column.
+	// Resolve the active quota view. Preference: plan.monthlyQuota → plan daily
+	// quota fields → daily auto-fallback cap → monthly auto-fallback cap →
+	// default daily allocation. The fallback caps cover "UP TO X" plans whose
+	// quota is a throttle step rather than a quota column; the default keeps the
+	// cell visually consistent for plans with no quota at all.
 	let quotaScope: "monthly" | "daily" = "daily";
 	let quotaUsed = todayTotal;
 	let quotaLimit = DEFAULT_DAILY_ALLOCATION_MB * MB;
@@ -177,6 +187,14 @@ export function UsageCell({
 				: null);
 		if (dailyLimitMb && dailyLimitMb > 0) {
 			quotaLimit = dailyLimitMb * MB;
+			quotaIsDefault = false;
+		} else if (dailyFallbackMb && dailyFallbackMb > 0) {
+			quotaLimit = dailyFallbackMb * MB;
+			quotaIsDefault = false;
+		} else if (monthlyFallbackMb && monthlyFallbackMb > 0) {
+			quotaScope = "monthly";
+			quotaUsed = cycleTotal;
+			quotaLimit = monthlyFallbackMb * MB;
 			quotaIsDefault = false;
 		}
 	}

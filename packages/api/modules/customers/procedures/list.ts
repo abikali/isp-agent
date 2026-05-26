@@ -249,6 +249,8 @@ export const listCustomers = protectedProcedure
 							dailyQuotaDown: true,
 							dailyQuotaUp: true,
 							combinedMaxUpAndDown: true,
+							dailyFallbackMb: true,
+							monthlyFallbackMb: true,
 						},
 					},
 					station: {

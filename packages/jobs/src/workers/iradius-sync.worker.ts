@@ -459,6 +459,42 @@ async function processIRadiusSync(
 					totalPlans: accountTypes.length,
 				});
 
+				// "UP TO X" plans don't set AccountType quota columns — their cap
+				// is encoded as an auto-fallback step (AboveMB = MB consumed before
+				// throttling). Pull the lowest step per plan so the usage cell can
+				// show the real cap instead of the default daily allocation.
+				const buildFallbackMap = (
+					rows: Record<string, unknown>[],
+				): Map<number, number> => {
+					const map = new Map<number, number>();
+					for (const row of rows) {
+						const id = row["AccountTypeId"];
+						const mb = row["AboveMB"];
+						if (id != null && mb != null) {
+							map.set(Number(id), Number(mb));
+						}
+					}
+					return map;
+				};
+				const dailyFallbackByAcct = buildFallbackMap(
+					await queryIRadius(
+						conn,
+						`SELECT AccountTypeId, MIN(AboveMB) AS AboveMB
+						FROM AccountTypeDailyAutoFallBack
+						WHERE AboveMB IS NOT NULL
+						GROUP BY AccountTypeId`,
+					),
+				);
+				const monthlyFallbackByAcct = buildFallbackMap(
+					await queryIRadius(
+						conn,
+						`SELECT AccountTypeId, MIN(AboveMB) AS AboveMB
+						FROM AccountTypeMonthlyAutoFallBack
+						WHERE AboveMB IS NOT NULL
+						GROUP BY AccountTypeId`,
+					),
+				);
+
 				const existingPlans = await db.servicePlan.findMany({
 					where: { organizationId },
 					select: {
@@ -577,6 +613,11 @@ async function processIRadiusSync(
 							(at["NewIpPoolAfterMax"] as string | null) ?? null,
 						combinedMaxUpAndDown:
 							(at["CombinedMaxUpAndDown"] as number | null) ??
+							null,
+						dailyFallbackMb:
+							dailyFallbackByAcct.get(at["Id"] as number) ?? null,
+						monthlyFallbackMb:
+							monthlyFallbackByAcct.get(at["Id"] as number) ??
 							null,
 						resetCounterTime:
 							(at["ResetCounterTime"] as string | null) ?? null,

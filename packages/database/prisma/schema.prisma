@@ -949,6 +949,13 @@ model ServicePlan {
   unlimitedTimeFrom          String?
   newIpPoolAfterMax          String?
   combinedMaxUpAndDown       Int?
+  // iRadius "UP TO X" plans carry no explicit quota column; their cap lives in
+  // the auto-fallback step tables (AccountType{Daily,Monthly}AutoFallBack.AboveMB
+  // — the data volume in MB after which the subscriber is throttled). We mirror
+  // the lowest step here so the usage cell can show the real cap instead of a
+  // default. See AboveMB note in iradius-sync.worker.ts.
+  dailyFallbackMb            Int?
+  monthlyFallbackMb          Int?
   resetCounterTime           String?
   expiryAccountPool          String?
   ulDlMonthlyForAutoFallBack Boolean  @default(false)
