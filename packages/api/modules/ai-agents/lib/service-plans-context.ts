@@ -44,7 +44,7 @@ export async function fetchServicePlansSection(
 		const lines = [
 			`${i + 1}. ${plan.name}`,
 			`   Download: ${plan.downloadSpeed} Mbps | Upload: ${plan.uploadSpeed} Mbps`,
-			`   Price: ${plan.monthlyPrice}/month`,
+			`   Price: $${plan.monthlyPrice} USD/month`,
 		];
 		if (plan.description) {
 			lines.push(`   ${plan.description}`);
@@ -54,6 +54,7 @@ export async function fetchServicePlansSection(
 
 	return [
 		"SERVICE PLANS (use this to answer customer questions about plans, pricing, and speeds):",
+		"All prices are in US Dollars (USD), not Lebanese Pounds (LBP). Always quote prices in USD.",
 		"",
 		...planLines,
 		"",

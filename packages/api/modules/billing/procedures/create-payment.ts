@@ -325,8 +325,10 @@ export const createPayment = protectedProcedure
 					freeAccount: input.freeAccount,
 					stoppedAccount: input.stoppedAccount,
 					workerId: input.workerId ?? null,
-					noteCategory: input.noteCategory ?? null,
-					notes: input.notes ?? null,
+					// Normalize to null when blank/whitespace so a non-note never
+					// trips the `notes IS NOT NULL` needs-review predicate.
+					noteCategory: input.noteCategory?.trim() || null,
+					notes: input.notes?.trim() || null,
 					referredCustomerId:
 						input.freeAccount && input.referredCustomerId
 							? input.referredCustomerId

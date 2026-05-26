@@ -59,11 +59,13 @@ export const updatePayment = protectedProcedure
 		if (input.discount !== undefined) {
 			data["discount"] = input.discount;
 		}
+		// Normalize blank/whitespace to null so an empty edit never trips the
+		// `notes IS NOT NULL` needs-review predicate (see review-status.ts).
 		if (input.noteCategory !== undefined) {
-			data["noteCategory"] = input.noteCategory;
+			data["noteCategory"] = input.noteCategory?.trim() || null;
 		}
 		if (input.notes !== undefined) {
-			data["notes"] = input.notes;
+			data["notes"] = input.notes?.trim() || null;
 		}
 
 		const payment = await db.payment.update({

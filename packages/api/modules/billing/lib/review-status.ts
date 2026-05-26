@@ -12,14 +12,21 @@ const AMOUNT_EPSILON = 0.01;
  *   1. freeAccount = true   (admin marked it free of charge)
  *   2. stoppedAccount = true (collected from a stopped/suspended account)
  *   3. paidAmount != accountPrice + iptv + realIp - discount (amount mismatch)
+ *   4. the collector attached a note (`notes` or `noteCategory` is set)
  *
  * It is "unreviewed" when it is flagged AND `reviewedAt IS NULL`.
  *
- * Free/stopped flags are simple column predicates and can be expressed in
+ * Free/stopped/has-note are simple column predicates and can be expressed in
  * Prisma directly. The amount-mismatch case involves customer-joined
  * columns inside an arithmetic expression, which Prisma cannot express
  * without raw SQL — so we fetch the matching IDs first and feed them back
  * into a normal `where` clause.
+ *
+ * NOTE: cases 1–3 already require a note (see create-payment.ts), so those
+ * rows always satisfy case 4 too. Case 4 alone adds the new path: a normal
+ * collection (correct amount, not free/stopped) that the collector chose to
+ * annotate. Keep this list in sync with the client-side `getPaymentFlagType`
+ * in apps/web/modules/saas/billing/lib/billing-utils.ts.
  *
  * IMPORTANT: this is the *payment-side* "needs review" concept and is
  * distinct from the customer-side `CUSTOMER_NEEDS_REVIEW_WHERE` (which
@@ -64,7 +71,9 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 
 /**
  * Prisma `where` fragment for "this payment needs admin review":
- *   reviewedAt IS NULL AND (freeAccount OR stoppedAccount OR id IN mismatchIds)
+ *   reviewedAt IS NULL AND (freeAccount OR stoppedAccount
+ *                           OR notes set OR noteCategory set
+ *                           OR id IN mismatchIds)
  *
  * Compose with caller-specific `baseWhere` (org/dealer/month/collector
  * scope). Pass the mismatch IDs returned by
@@ -77,6 +86,8 @@ export function unreviewedPaymentsWhereFragment(
 	OR: Array<
 		| { freeAccount: true }
 		| { stoppedAccount: true }
+		| { notes: { not: null } }
+		| { noteCategory: { not: null } }
 		| { id: { in: string[] } }
 	>;
 } {
@@ -85,6 +96,8 @@ export function unreviewedPaymentsWhereFragment(
 		OR: [
 			{ freeAccount: true },
 			{ stoppedAccount: true },
+			{ notes: { not: null } },
+			{ noteCategory: { not: null } },
 			...(mismatchIds.length > 0
 				? [{ id: { in: [...mismatchIds] } }]
 				: []),

@@ -123,6 +123,7 @@ import {
 } from "../hooks/use-billing";
 import {
 	FLAG_LEGEND,
+	getPaymentFlagBadgeClassName,
 	getPaymentFlagLabel,
 	getPaymentFlagVariant,
 	getPaymentRowClassName,
@@ -905,12 +906,19 @@ export function PaymentsList() {
 					const payment = row.original;
 					const variant = getPaymentFlagVariant(payment);
 					const label = getPaymentFlagLabel(payment);
+					const badgeClassName =
+						getPaymentFlagBadgeClassName(payment);
 					const needsReview = isUnreviewed(payment);
 					const referred = payment.referredCustomer;
 					return (
 						<div className="flex flex-col gap-0.5">
 							<div className="flex items-center gap-1.5">
-								<Badge variant={variant}>{label}</Badge>
+								<Badge
+									variant={variant}
+									className={badgeClassName}
+								>
+									{label}
+								</Badge>
 								{needsReview && (
 									<Tooltip>
 										<TooltipTrigger asChild>

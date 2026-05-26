@@ -194,7 +194,7 @@ export const NOTE_CATEGORY_LABELS: Record<string, string> = {
 /** Returns the badge variant for the payment flag type. */
 export function getPaymentFlagVariant(
 	payment: FlaggablePayment,
-): "default" | "destructive" | "warning" | "info" | "success" {
+): "default" | "destructive" | "warning" | "info" | "success" | "outline" {
 	const flag = getPaymentFlagType(payment);
 	if (flag === "stopped") {
 		return "destructive";
@@ -207,6 +207,12 @@ export function getPaymentFlagVariant(
 	}
 	if (flag === "underpaid") {
 		return "warning";
+	}
+	if (flag === "noted") {
+		// No violet Badge variant exists; "outline" stays neutral and the
+		// violet look is layered on via getPaymentFlagBadgeClassName so the
+		// badge matches the violet row + legend.
+		return "outline";
 	}
 	return "default";
 }
@@ -226,7 +232,25 @@ export function getPaymentFlagLabel(payment: FlaggablePayment): string {
 	if (flag === "underpaid") {
 		return "Underpaid";
 	}
+	if (flag === "noted") {
+		return "Noted";
+	}
 	return "Collected";
+}
+
+/**
+ * Extra classes for the status badge when no Badge variant captures the flag
+ * color. Currently only "noted" (violet) — keeps the badge in step with the
+ * violet row border + legend. Returns undefined when the variant alone is
+ * enough.
+ */
+export function getPaymentFlagBadgeClassName(
+	payment: FlaggablePayment,
+): string | undefined {
+	if (getPaymentFlagType(payment) === "noted") {
+		return "border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-400";
+	}
+	return undefined;
 }
 
 /** Returns the badge variant based on whether the account was stopped. */
@@ -243,7 +267,12 @@ export function getPaymentStatusLabel(stoppedAccount: boolean): string {
 
 // ─── Payment Flag Detection ──────────────────────────────────
 
-export type PaymentFlagType = "stopped" | "free" | "overpaid" | "underpaid";
+export type PaymentFlagType =
+	| "stopped"
+	| "free"
+	| "overpaid"
+	| "underpaid"
+	| "noted";
 
 interface FlaggablePayment {
 	freeAccount: boolean;
@@ -252,6 +281,7 @@ interface FlaggablePayment {
 	accountPrice: number;
 	discount: number;
 	noteCategory: string | null;
+	notes: string | null;
 	reviewedAt: string | Date | null;
 	customer?: { iptvPrice?: number; realIpPrice?: number };
 }
@@ -298,6 +328,11 @@ export function getPaymentFlagType(
 			? "overpaid"
 			: "underpaid";
 	}
+	// A collector-attached note on an otherwise-normal collection still needs
+	// an admin look. Lowest priority so the flags above keep their own color.
+	if (payment.notes || payment.noteCategory) {
+		return "noted";
+	}
 	return null;
 }
 
@@ -312,6 +347,7 @@ const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
 	overpaid:
 		"border-l-4 border-l-emerald-600 bg-emerald-100 dark:bg-emerald-950",
 	underpaid: "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-950",
+	noted: "border-l-4 border-l-violet-600 bg-violet-100 dark:bg-violet-950",
 };
 
 /** Row className for a flagged payment (unreviewed gets color, reviewed gets faint). */
@@ -337,6 +373,7 @@ export const FLAG_LEGEND: {
 	{ type: "free", label: "Free", className: "bg-blue-600" },
 	{ type: "overpaid", label: "Overpaid", className: "bg-emerald-600" },
 	{ type: "underpaid", label: "Underpaid", className: "bg-amber-500" },
+	{ type: "noted", label: "Noted", className: "bg-violet-600" },
 ];
 
 /** Expiry status information for a customer account. */
