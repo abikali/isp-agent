@@ -133,6 +133,7 @@ async function syncOnlineStatus(): Promise<number> {
 	const payload = snapshot.map((u) => ({
 		externalId: u.externalId,
 		online: u.online,
+		ipAddress: u.ipAddress,
 		downloadBytes: u.downloadBytes.toString(),
 		uploadBytes: u.uploadBytes.toString(),
 		dailyDownloadBytes: u.dailyDownloadBytes.toString(),
@@ -142,6 +143,7 @@ async function syncOnlineStatus(): Promise<number> {
 	const updated = await db.$executeRaw`
 		UPDATE "customer" SET
 			"online" = (v.value->>'online')::boolean,
+			"ipAddress" = v.value->>'ipAddress',
 			"downloadBytes" = (v.value->>'downloadBytes')::bigint,
 			"uploadBytes" = (v.value->>'uploadBytes')::bigint,
 			"dailyDownloadBytes" = (v.value->>'dailyDownloadBytes')::bigint,
@@ -151,6 +153,7 @@ async function syncOnlineStatus(): Promise<number> {
 		WHERE "customer"."externalId" = v.value->>'externalId'
 			AND (
 				"customer"."online" IS DISTINCT FROM (v.value->>'online')::boolean
+				OR "customer"."ipAddress" IS DISTINCT FROM v.value->>'ipAddress'
 				OR "customer"."downloadBytes" IS DISTINCT FROM (v.value->>'downloadBytes')::bigint
 				OR "customer"."uploadBytes" IS DISTINCT FROM (v.value->>'uploadBytes')::bigint
 				OR "customer"."dailyDownloadBytes" IS DISTINCT FROM (v.value->>'dailyDownloadBytes')::bigint

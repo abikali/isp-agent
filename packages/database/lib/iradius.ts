@@ -350,6 +350,7 @@ export async function testIRadiusConnection(): Promise<{
 export interface IRadiusCustomerUsage {
 	externalId: string;
 	online: boolean;
+	ipAddress: string | null;
 	downloadBytes: bigint;
 	uploadBytes: bigint;
 	dailyDownloadBytes: bigint;
@@ -382,7 +383,7 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 			// that actually have a NAS row (matches the dashboard's COUNT query
 			// at queryIRadiusLiveStats which uses unqualified `Active = 1`).
 			const [rows] = await conn.query<RowDataPacket[]>(
-				`SELECT u.Id, un.Online,
+				`SELECT u.Id, un.Online, un.IpAddress, un.StaticIP,
 					IFNULL(un.DownloadBytes, 0) AS DownloadBytes,
 					IFNULL(un.UploadBytes, 0) AS UploadBytes,
 					IFNULL(un.DailyDownloadBytes, 0) AS DailyDownloadBytes,
@@ -394,6 +395,13 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 			return rows.map((r) => ({
 				externalId: String(r["Id"]),
 				online: toBooleanFromBit(r["Online"]),
+				// iRadius nulls IpAddress on disconnect; fall back to the static
+				// assignment (same precedence as the full sync) so static-IP
+				// subscribers keep their address while dynamic ones go blank.
+				ipAddress:
+					(r["IpAddress"] as string) ||
+					(r["StaticIP"] as string) ||
+					null,
 				downloadBytes: toBigIntSafe(r["DownloadBytes"]),
 				uploadBytes: toBigIntSafe(r["UploadBytes"]),
 				dailyDownloadBytes: toBigIntSafe(r["DailyDownloadBytes"]),
