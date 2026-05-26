@@ -405,6 +405,9 @@ importers:
       '@repo/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@repo/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@repo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

@@ -11,19 +11,12 @@ import {
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import {
-	iradiusChangeCollector,
-	iradiusSetActive,
-	iradiusUpdateUserAddress,
-	iradiusUpdateUserComment,
-	iradiusUpdateUserEmail,
-	iradiusUpdateUserGroup,
-	iradiusUpdateUserLocation,
-	iradiusUpdateUserName,
-	iradiusUpdateUserPhones,
-} from "../lib/iradius-api";
+import { iradiusSetActive } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
-import { diffMirrorFields } from "../lib/mirror-fields";
+import {
+	diffMirrorFields,
+	pushMirrorDiffToIRadius,
+} from "../lib/mirror-fields";
 
 export const updateCustomer = protectedProcedure
 	.route({
@@ -67,7 +60,10 @@ export const updateCustomer = protectedProcedure
 			groupExternalId: z.number().int().nullable().optional(),
 			notes: z.string().max(5000).optional(),
 			collectorId: z.string().nullable().optional(),
-			syncToIRadius: z.boolean().optional(),
+			discount: z.number().finite().min(0).optional(),
+			iptvPrice: z.number().finite().min(0).optional(),
+			realIpPrice: z.number().finite().min(0).optional(),
+			deductMoney: z.number().finite().nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -147,6 +143,18 @@ export const updateCustomer = protectedProcedure
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
 		}
+		if (input.discount !== undefined) {
+			updateData["discount"] = input.discount;
+		}
+		if (input.iptvPrice !== undefined) {
+			updateData["iptvPrice"] = input.iptvPrice;
+		}
+		if (input.realIpPrice !== undefined) {
+			updateData["realIpPrice"] = input.realIpPrice;
+		}
+		if (input.deductMoney !== undefined) {
+			updateData["deductMoney"] = input.deductMoney ?? null;
+		}
 		let collectorEmployee: {
 			name: string;
 			phone: string | null;
@@ -178,13 +186,16 @@ export const updateCustomer = protectedProcedure
 			}
 		}
 
-		const syncEnabled =
-			!iradiusDisabled &&
-			input.syncToIRadius === true &&
-			!!existing.externalId;
+		// Mirroring is unconditional: any change to a linked customer's
+		// personal info is always pushed to iRadius (no opt-in flag). Gated
+		// only by the org-level `iradiusDisabled` and whether the customer is
+		// linked at all (`externalId`). `mirrorToIRadius` skips the remote step
+		// entirely when `iradiusDisabled`, so we still gate `diff` on it to
+		// avoid pointless work.
+		const canMirror = !iradiusDisabled && !!existing.externalId;
 		const statusChanged =
 			input.status !== undefined && input.status !== existing.status;
-		const diff = syncEnabled ? diffMirrorFields(existing, input) : null;
+		const diff = canMirror ? diffMirrorFields(existing, input) : null;
 
 		const collectorIRadiusUserId =
 			diff?.collectorChanged && collectorEmployee?.externalId
@@ -209,65 +220,16 @@ export const updateCustomer = protectedProcedure
 						},
 					);
 				}
-				if (!diff) {
+				if (!diff || !existing.externalId) {
 					return;
 				}
-				if (diff.collectorChanged) {
-					await iradiusChangeCollector(
-						{ externalId: existing.externalId },
-						collectorIRadiusUserId,
-					);
-				}
-				if (diff.nameChanged) {
-					const firstName =
-						input.firstName ?? existing.firstName ?? "";
-					const lastName =
-						input.lastName !== undefined
-							? (input.lastName ?? "")
-							: (existing.lastName ?? "");
-					await iradiusUpdateUserName(
-						{ externalId: existing.externalId },
-						firstName,
-						lastName,
-					);
-				}
-				if (diff.emailChanged) {
-					await iradiusUpdateUserEmail(
-						{ externalId: existing.externalId },
-						input.email || null,
-					);
-				}
-				if (diff.addressChanged) {
-					await iradiusUpdateUserAddress(
-						{ externalId: existing.externalId },
-						input.address || null,
-					);
-				}
-				if (diff.phonesChanged) {
-					await iradiusUpdateUserPhones(
-						{ externalId: existing.externalId },
-						diff.submittedMobile,
-					);
-				}
-				if (diff.groupChanged) {
-					await iradiusUpdateUserGroup(
-						{ externalId: existing.externalId },
-						input.groupExternalId ?? null,
-					);
-				}
-				if (diff.locationChanged) {
-					await iradiusUpdateUserLocation(
-						{ externalId: existing.externalId },
-						input.latitude ?? null,
-						input.longitude ?? null,
-					);
-				}
-				if (diff.notesChanged) {
-					await iradiusUpdateUserComment(
-						{ externalId: existing.externalId },
-						input.notes || null,
-					);
-				}
+				await pushMirrorDiffToIRadius({
+					externalId: existing.externalId,
+					diff,
+					next: input,
+					existing,
+					collectorIRadiusUserId,
+				});
 			},
 			local: () =>
 				db.customer.update({

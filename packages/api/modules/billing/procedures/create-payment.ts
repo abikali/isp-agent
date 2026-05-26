@@ -15,6 +15,11 @@ import {
 } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	diffMirrorFields,
+	type MirrorNextFields,
+	pushMirrorDiffToIRadius,
+} from "../../customers/lib/mirror-fields";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
 import { REVIEW_STOPPED_TASK_TITLE_PREFIX } from "../lib/review-tasks";
 
@@ -81,7 +86,7 @@ export const createPayment = protectedProcedure
 		const activeDealerId = member.activeDealerId ?? null;
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
-		const [customer, collector, worker] = await Promise.all([
+		const [customer, collector, worker, org] = await Promise.all([
 			db.customer.findFirst({
 				where: {
 					id: input.customerId,
@@ -107,7 +112,12 @@ export const createPayment = protectedProcedure
 						},
 					})
 				: Promise.resolve(null),
+			db.organization.findUnique({
+				where: { id: input.organizationId },
+				select: { iradiusDisabled: true },
+			}),
 		]);
+		const iradiusDisabled = org?.iradiusDisabled ?? false;
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Customer not found",
@@ -186,6 +196,60 @@ export const createPayment = protectedProcedure
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"A note category or note is required when the paid amount differs from the amount due",
+			});
+		}
+
+		// Mirror the opportunistic customer enrichment (phones / location) the
+		// collector entered on the payment sheet to iRadius *before* persisting
+		// it locally — same remote-first, no-drift guarantee as the customer
+		// edit form. Only touches iRadius when a field actually changed AND the
+		// customer is linked, so a plain collection never depends on iRadius.
+		const mirrorNext: MirrorNextFields = {};
+		if (input.customerPhones && input.customerPhones.length > 0) {
+			mirrorNext.phones = input.customerPhones;
+		}
+		if (
+			input.customerLatitude !== undefined &&
+			input.customerLongitude !== undefined
+		) {
+			mirrorNext.latitude = input.customerLatitude;
+			mirrorNext.longitude = input.customerLongitude;
+		}
+		const mirrorDiff =
+			!iradiusDisabled && customer.externalId
+				? diffMirrorFields(customer, mirrorNext)
+				: null;
+		if (
+			mirrorDiff &&
+			customer.externalId &&
+			(mirrorDiff.phonesChanged || mirrorDiff.locationChanged)
+		) {
+			// Pre-check the same dedupe the transaction enforces so a double
+			// submit doesn't push a phone/location change to iRadius and then
+			// abort on the duplicate. The transaction re-checks for races.
+			const duplicate = await db.payment.findFirst({
+				where: {
+					customerId: input.customerId,
+					billingMonthId: billingMonth.id,
+					OR: [
+						{ paidAmount: { gt: 0 } },
+						{ freeAccount: true },
+						{ stoppedAccount: true },
+					],
+				},
+				select: { id: true },
+			});
+			if (duplicate) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This customer already has a payment recorded for this billing month",
+				});
+			}
+			await pushMirrorDiffToIRadius({
+				externalId: customer.externalId,
+				diff: mirrorDiff,
+				next: mirrorNext,
+				existing: customer,
 			});
 		}
 

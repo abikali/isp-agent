@@ -1,16 +1,11 @@
 "use client";
 
 import { Button } from "@ui/components/button";
-import { Checkbox } from "@ui/components/checkbox";
-import { Label } from "@ui/components/label";
 import { cn } from "@ui/lib";
 
 interface CustomerSaveBarProps {
 	dirtyCount: number;
 	isSubmitting: boolean;
-	canMirrorIRadius: boolean;
-	syncToIRadius: boolean;
-	onToggleSync: (next: boolean) => void;
 	onDiscard: () => void;
 	onSave: () => void;
 }
@@ -19,16 +14,12 @@ interface CustomerSaveBarProps {
  * Sticky bottom bar that surfaces dirty-state for the customer edit form.
  * Only renders when there are unsaved changes — silent at rest.
  *
- * Replaces the old "Save to iRadius?" confirmation dialog: the choice is
- * presented up-front as a pre-checked checkbox so save = save everywhere by
- * default, and the rare "panel only" case is one click away.
+ * Saving a linked customer always mirrors personal-info changes to iRadius
+ * (handled server-side in `updateCustomer`), so there is no opt-out toggle here.
  */
 export function CustomerSaveBar({
 	dirtyCount,
 	isSubmitting,
-	canMirrorIRadius,
-	syncToIRadius,
-	onToggleSync,
 	onDiscard,
 	onSave,
 }: CustomerSaveBarProps) {
@@ -53,23 +44,6 @@ export function CustomerSaveBar({
 				</div>
 
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-					{canMirrorIRadius && (
-						<div className="flex items-center gap-2">
-							<Checkbox
-								id="sync-to-iradius"
-								checked={syncToIRadius}
-								onCheckedChange={(v) =>
-									onToggleSync(v === true)
-								}
-							/>
-							<Label
-								htmlFor="sync-to-iradius"
-								className="cursor-pointer text-sm font-normal text-muted-foreground"
-							>
-								Also update iRadius
-							</Label>
-						</div>
-					)}
 					<div className="flex items-center gap-2">
 						<Button
 							type="button"

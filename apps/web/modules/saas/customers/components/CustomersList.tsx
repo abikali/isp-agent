@@ -192,6 +192,8 @@ interface CustomerRow {
 		dailyQuotaDown: number | null;
 		dailyQuotaUp: number | null;
 		combinedMaxUpAndDown: number | null;
+		dailyFallbackMb: number | null;
+		monthlyFallbackMb: number | null;
 	} | null;
 	station: { name: string } | null;
 	collector: { id: string; name: string } | null;

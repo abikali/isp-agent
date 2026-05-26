@@ -393,6 +393,43 @@ export async function iradiusSetIptvPrice(
 }
 
 /**
+ * Set a customer's real-IP price in iRadius (UserNas.REALIPPRICE). Added on
+ * top of the plan's price on the next invoice, like IPTVPRICE. Column is a
+ * nullable float; pass 0 to clear.
+ */
+export async function iradiusSetRealIpPrice(
+	customer: { externalId?: string | null },
+	realIpPrice: number,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET REALIPPRICE = ? WHERE UserId = ?",
+			[realIpPrice, userId],
+		);
+	});
+}
+
+/**
+ * Set a customer's deduct-money amount in iRadius (UserNas.DeductMoney).
+ * Nullable float column; pass null to clear.
+ */
+export async function iradiusSetDeductMoney(
+	customer: { externalId?: string | null },
+	deductMoney: number | null,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET DeductMoney = ? WHERE UserId = ?",
+			[deductMoney, userId],
+		);
+	});
+}
+
+/**
  * Set a customer's billing expiry in iRadius (UserNas.ExpiryAccount).
  * Caller passes a MySQL DATETIME literal ("YYYY-MM-DD HH:MM:SS") or null to
  * clear — the same literal is also written to local Postgres so both sides

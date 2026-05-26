@@ -45,7 +45,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
-import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
+import { Field, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { PhoneInput } from "@ui/components/phone-input";
 import { Separator } from "@ui/components/separator";
@@ -124,6 +124,11 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		groupExternalId: customer.groupExternalId?.toString() ?? "",
 		notes: customer.notes ?? "",
 		collectorId: customer.collectorId ?? "",
+		discount: String(customer.discount ?? 0),
+		iptvPrice: String(customer.iptvPrice ?? 0),
+		realIpPrice: String(customer.realIpPrice ?? 0),
+		deductMoney:
+			customer.deductMoney != null ? String(customer.deductMoney) : "",
 	};
 }
 
@@ -158,7 +163,6 @@ export function CustomerDetail({
 	const deleteCustomer = useDeleteCustomer();
 	const previewAccountType = usePreviewAccountTypeChange();
 	const executeAccountType = useExecuteAccountTypeChange();
-	const [syncToIRadius, setSyncToIRadius] = useState(true);
 	const [accountTypePreview, setAccountTypePreview] = useState<{
 		previewData: Awaited<ReturnType<typeof previewAccountType.mutateAsync>>;
 		newPlanId: string;
@@ -186,7 +190,6 @@ export function CustomerDetail({
 	);
 
 	const customer = data.customer;
-	const isLinked = !!customer.externalId;
 	const { employees } = useEmployeesQuery({ dealerId: customer.dealerId });
 	const { groups: iradiusGroups } = useIRadiusGroups(customer.dealerId);
 
@@ -225,6 +228,12 @@ export function CustomerDetail({
 			groupExternalId: parsedGroupId,
 			notes: values.notes || undefined,
 			collectorId: values.collectorId || null,
+			discount: values.discount === "" ? 0 : Number(values.discount),
+			iptvPrice: values.iptvPrice === "" ? 0 : Number(values.iptvPrice),
+			realIpPrice:
+				values.realIpPrice === "" ? 0 : Number(values.realIpPrice),
+			deductMoney:
+				values.deductMoney === "" ? null : Number(values.deductMoney),
 		};
 	}
 
@@ -264,7 +273,6 @@ export function CustomerDetail({
 				updateCustomer.mutateAsync({
 					...buildUpdatePayload(value),
 					planId: value.planId || null,
-					syncToIRadius: isLinked ? syncToIRadius : undefined,
 				}),
 				{
 					loading: "Saving changes…",
@@ -325,7 +333,6 @@ export function CustomerDetail({
 		try {
 			await updateCustomer.mutateAsync({
 				...buildUpdatePayload(pendingFormValues),
-				syncToIRadius: isLinked ? syncToIRadius : undefined,
 			});
 			form.reset(pendingFormValues);
 		} catch (err) {
@@ -483,17 +490,17 @@ export function CustomerDetail({
 							icon: UserIcon,
 							content: (
 								<>
-									<ProfileTab
-										form={form}
-										customer={customer}
-										customerId={customerId}
-									/>
+									<ProfileTab form={form} />
 									<ServiceTab
 										form={form}
 										customer={customer}
 										plans={plans}
 										employees={employees}
 										iradiusGroups={iradiusGroups}
+									/>
+									<LocationPinSection
+										customer={customer}
+										customerId={customerId}
 									/>
 								</>
 							),
@@ -521,9 +528,6 @@ export function CustomerDetail({
 				<CustomerSaveBar
 					dirtyCount={dirtyCount}
 					isSubmitting={isSubmitting}
-					canMirrorIRadius={isLinked}
-					syncToIRadius={syncToIRadius}
-					onToggleSync={setSyncToIRadius}
 					onDiscard={() => form.reset()}
 					onSave={() => form.handleSubmit()}
 				/>
@@ -786,9 +790,9 @@ export function CustomerDetail({
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Reactivate confirmation. Mirrors the Deactivate flow: status
-			    change always mirrors to iRadius (see updateCustomer's remote
-			    block), so we don't need a separate `syncToIRadius` flag. */}
+			{/* Reactivate confirmation. Mirrors the Deactivate flow: the status
+			    change is pushed to iRadius server-side (see updateCustomer's
+			    remote block) just like every other field edit. */}
 			<AlertDialog
 				open={confirmReactivate}
 				onOpenChange={setConfirmReactivate}
@@ -923,117 +927,113 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 
 // ─── Tabs ──────────────────────────────────────────────────────────────
 
-function ProfileTab({
-	form,
+function ProfileTab({ form }: { form: CustomerForm }) {
+	return (
+		<DetailSection
+			title="Personal information"
+			description="Customer identity and contact details"
+		>
+			<FieldGroup columns={2}>
+				<form.Field name="firstName">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor="firstName">
+								First name
+							</FieldLabel>
+							<Input
+								id="firstName"
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								placeholder="First name"
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="lastName">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor="lastName">
+								Last name
+							</FieldLabel>
+							<Input
+								id="lastName"
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								placeholder="Last name"
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="email">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor="email">Email</FieldLabel>
+							<Input
+								id="email"
+								type="email"
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								placeholder="customer@example.com"
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="address">
+					{(field) => (
+						<Field>
+							<FieldLabel htmlFor="address">Address</FieldLabel>
+							<Input
+								id="address"
+								value={field.state.value}
+								onChange={(e) =>
+									field.handleChange(e.target.value)
+								}
+								placeholder="Street address"
+							/>
+						</Field>
+					)}
+				</form.Field>
+			</FieldGroup>
+
+			<Separator />
+
+			<PhoneFieldGroup form={form} />
+		</DetailSection>
+	);
+}
+
+/** Location request + account PIN, paired side-by-side at lg+. Rendered last
+ *  on the Profile & service tab — these are secondary, action-style sections
+ *  that sit below the editable customer/service fields. */
+function LocationPinSection({
 	customer,
 	customerId,
 }: {
-	form: CustomerForm;
 	customer: CustomerData;
 	customerId: string;
 }) {
 	const organizationId = useOrganizationId();
 
 	return (
-		<>
-			<DetailSection
-				title="Personal information"
-				description="Customer identity and contact details"
-			>
-				<FieldGroup columns={2}>
-					<form.Field name="firstName">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="firstName">
-									First name
-								</FieldLabel>
-								<Input
-									id="firstName"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="First name"
-								/>
-							</Field>
-						)}
-					</form.Field>
-					<form.Field name="lastName">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="lastName">
-									Last name
-								</FieldLabel>
-								<Input
-									id="lastName"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Last name"
-								/>
-							</Field>
-						)}
-					</form.Field>
-					<form.Field name="email">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="email">Email</FieldLabel>
-								<Input
-									id="email"
-									type="email"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="customer@example.com"
-								/>
-							</Field>
-						)}
-					</form.Field>
-					<form.Field name="address">
-						{(field) => (
-							<Field>
-								<FieldLabel htmlFor="address">
-									Address
-								</FieldLabel>
-								<Input
-									id="address"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder="Street address"
-								/>
-							</Field>
-						)}
-					</form.Field>
-				</FieldGroup>
-
-				<Separator />
-
-				<PhoneFieldGroup form={form} />
-			</DetailSection>
-
-			{/* Both sections are short single-row content — side-by-side at
-			    lg+ removes the wasted horizontal space on desktop. */}
-			<div className="grid gap-6 lg:grid-cols-2">
-				{organizationId && (
-					<CustomerLocationSection
-						organizationId={organizationId}
-						customerId={customerId}
-						latitude={customer.latitude}
-						longitude={customer.longitude}
-						locationRequestedAt={customer.locationRequestedAt}
-					/>
-				)}
-
-				<AccountPinSection
-					customer={customer}
+		<div className="grid gap-6 lg:grid-cols-2">
+			{organizationId && (
+				<CustomerLocationSection
+					organizationId={organizationId}
 					customerId={customerId}
+					latitude={customer.latitude}
+					longitude={customer.longitude}
+					locationRequestedAt={customer.locationRequestedAt}
 				/>
-			</div>
-		</>
+			)}
+
+			<AccountPinSection customer={customer} customerId={customerId} />
+		</div>
 	);
 }
 
@@ -1050,12 +1050,6 @@ function ServiceTab({
 	employees: EmployeeItem[];
 	iradiusGroups: Array<{ id: number; name: string }>;
 }) {
-	const hasIRadiusBillingExtras =
-		customer.discount > 0 ||
-		customer.iptvPrice > 0 ||
-		customer.realIpPrice > 0 ||
-		customer.deductMoney;
-
 	return (
 		<>
 			<DetailSection
@@ -1211,101 +1205,122 @@ function ServiceTab({
 					description="Monthly rate and balance for this customer"
 				>
 					<FieldGroup columns={2}>
-						<form.Field name="monthlyRate">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="monthlyRate">
-										Monthly rate ($)
-									</FieldLabel>
-									<Input
-										id="monthlyRate"
-										type="number"
-										min={0}
-										step="0.01"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Use plan price"
-									/>
-									<FieldDescription>
-										Leave empty to use the plan default
-									</FieldDescription>
-								</Field>
-							)}
-						</form.Field>
-						<form.Field name="balance">
-							{(field) => (
-								<Field>
-									<FieldLabel htmlFor="balance">
-										Balance ($)
-									</FieldLabel>
-									<Input
-										id="balance"
-										type="number"
-										step="0.01"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-									<FieldDescription>
-										Running credit/debit on the account
-									</FieldDescription>
-								</Field>
-							)}
-						</form.Field>
+						<ReadOnlyField
+							label="Monthly rate"
+							value={
+								customer.monthlyRate != null
+									? formatCurrency(customer.monthlyRate)
+									: customer.plan
+										? `${formatCurrency(customer.plan.monthlyPrice)} (plan default)`
+										: null
+							}
+						/>
+						<ReadOnlyField
+							label="Balance"
+							value={formatCurrency(customer.balance)}
+						/>
 					</FieldGroup>
 
-					{hasIRadiusBillingExtras && (
-						<>
-							<Separator />
-							<div>
-								<p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-									Synced from iRadius{" "}
-									<span className="ml-1 normal-case tracking-normal text-muted-foreground/70">
-										— change via the iRadius menu
-									</span>
-								</p>
-								<FieldGroup columns={4}>
-									<ReadOnlyField
-										label="Discount"
-										value={
-											customer.discount > 0
-												? formatCurrency(
-														customer.discount,
-													)
-												: null
-										}
-									/>
-									<ReadOnlyField
-										label="IPTV price"
-										value={
-											customer.iptvPrice > 0
-												? formatCurrency(
-														customer.iptvPrice,
-													)
-												: null
-										}
-									/>
-									<ReadOnlyField
-										label="Real IP price"
-										value={
-											customer.realIpPrice > 0
-												? formatCurrency(
-														customer.realIpPrice,
-													)
-												: null
-										}
-									/>
-									<ReadOnlyField
-										label="Deduct money"
-										value={customer.deductMoney}
-									/>
-								</FieldGroup>
-							</div>
-						</>
-					)}
+					<Separator />
+
+					<div>
+						<p className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+							iRadius billing extras{" "}
+							<span className="ml-1 normal-case tracking-normal text-muted-foreground/70">
+								— saved here also sync to iRadius
+							</span>
+						</p>
+						<FieldGroup columns={2}>
+							<form.Field name="discount">
+								{(field) => (
+									<Field>
+										<FieldLabel htmlFor="discount">
+											Discount ($)
+										</FieldLabel>
+										<Input
+											id="discount"
+											type="number"
+											min={0}
+											step="0.01"
+											inputMode="decimal"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="iptvPrice">
+								{(field) => (
+									<Field>
+										<FieldLabel htmlFor="iptvPrice">
+											IPTV price ($)
+										</FieldLabel>
+										<Input
+											id="iptvPrice"
+											type="number"
+											min={0}
+											step="0.01"
+											inputMode="decimal"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="realIpPrice">
+								{(field) => (
+									<Field>
+										<FieldLabel htmlFor="realIpPrice">
+											Real IP price ($)
+										</FieldLabel>
+										<Input
+											id="realIpPrice"
+											type="number"
+											min={0}
+											step="0.01"
+											inputMode="decimal"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="deductMoney">
+								{(field) => (
+									<Field>
+										<FieldLabel htmlFor="deductMoney">
+											Deduct money ($)
+										</FieldLabel>
+										<Input
+											id="deductMoney"
+											type="number"
+											step="0.01"
+											inputMode="decimal"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+											placeholder="None"
+										/>
+									</Field>
+								)}
+							</form.Field>
+						</FieldGroup>
+					</div>
 				</DetailSection>
 
 				<DetailSection title="Notes">

@@ -19,13 +19,18 @@ import {
 } from "@repo/ai";
 import { db } from "@repo/database";
 
-const [, , conversationId, ...flags] = process.argv;
+const [, , conversationIdArg, ...flags] = process.argv;
 const shouldCall = flags.includes("--call");
 
-if (!conversationId) {
+if (!conversationIdArg) {
 	console.error("usage: debug-prompt.ts <conversationId> [--call]");
 	process.exit(1);
 }
+// Narrow to `string` at module scope. TS doesn't carry the guard's narrowing
+// into `main()`, and a `string | undefined` id makes the Prisma `where` invalid
+// — which in turn collapses the query's return type to the base model and hides
+// the included `agent`/`channel`/`verifiedCustomer` relations.
+const conversationId: string = conversationIdArg;
 
 async function main() {
 	const conversation = await db.aiConversation.findUnique({
@@ -195,9 +200,13 @@ async function main() {
 	console.log("\n", "=".repeat(80));
 	console.log("INVOKING MODEL — first-turn 'Hello' @ temp 0.2 (10 samples)");
 	console.log("=".repeat(80));
-	const firstTurnMessages = messages
-		.filter((m) => m.role === "system")
-		.concat([{ role: "user", content: "Hello" }]);
+	// Annotate as the full ModelMessage[] so the system-only filter (which TS
+	// narrows to SystemModelMessage[] via its inferred type predicate) can still
+	// be combined with a user message.
+	const firstTurnMessages: typeof messages = [
+		...messages.filter((m) => m.role === "system"),
+		{ role: "user", content: "Hello" },
+	];
 
 	let brokenCount = 0;
 	for (let i = 1; i <= 10; i++) {
@@ -253,12 +262,11 @@ async function main() {
 	console.log("\n", "=".repeat(80));
 	console.log("DIRECT OPENROUTER CALL (bypass AI SDK)");
 	console.log("=".repeat(80));
-	const openRouterId = (
-		{
-			"claude-haiku": "anthropic/claude-haiku-4.5",
-			"claude-sonnet": "anthropic/claude-sonnet-4.5",
-		} as const
-	)[conversation.agent.model];
+	const openRouterModelMap: Record<string, string> = {
+		"claude-haiku": "anthropic/claude-haiku-4.5",
+		"claude-sonnet": "anthropic/claude-sonnet-4.5",
+	};
+	const openRouterId = openRouterModelMap[conversation.agent.model];
 	if (openRouterId) {
 		const systemContent = messages
 			.filter((m) => m.role === "system")
@@ -282,7 +290,7 @@ async function main() {
 			{
 				method: "POST",
 				headers: {
-					Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+					Authorization: `Bearer ${process.env["OPENROUTER_API_KEY"]}`,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
