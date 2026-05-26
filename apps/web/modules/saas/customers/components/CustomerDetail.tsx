@@ -30,6 +30,7 @@ import {
 } from "@ui/components/alert-dialog";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -47,13 +48,6 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { PhoneInput } from "@ui/components/phone-input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Separator } from "@ui/components/separator";
 import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
@@ -66,7 +60,6 @@ import {
 	PlusIcon,
 	UserIcon,
 	UserXIcon,
-	WalletIcon,
 	XIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -486,28 +479,23 @@ export function CustomerDetail({
 					tabs={[
 						{
 							id: "profile",
-							label: "Profile",
+							label: "Profile & service",
 							icon: UserIcon,
 							content: (
-								<ProfileTab
-									form={form}
-									customer={customer}
-									customerId={customerId}
-								/>
-							),
-						},
-						{
-							id: "service",
-							label: "Service",
-							icon: WalletIcon,
-							content: (
-								<ServiceTab
-									form={form}
-									customer={customer}
-									plans={plans}
-									employees={employees}
-									iradiusGroups={iradiusGroups}
-								/>
+								<>
+									<ProfileTab
+										form={form}
+										customer={customer}
+										customerId={customerId}
+									/>
+									<ServiceTab
+										form={form}
+										customer={customer}
+										plans={plans}
+										employees={employees}
+										iradiusGroups={iradiusGroups}
+									/>
+								</>
 							),
 						},
 						{
@@ -1079,21 +1067,17 @@ function ServiceTab({
 						{(field) => (
 							<Field>
 								<FieldLabel>Plan</FieldLabel>
-								<Select
+								<Combobox
+									options={plans.map((p) => ({
+										value: p.id,
+										label: p.name,
+									}))}
 									value={field.state.value}
-									onValueChange={field.handleChange}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select plan" />
-									</SelectTrigger>
-									<SelectContent>
-										{plans.map((p) => (
-											<SelectItem key={p.id} value={p.id}>
-												{p.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									onChange={field.handleChange}
+									placeholder="Select plan"
+									searchPlaceholder="Search plans…"
+									emptyText="No plans found"
+								/>
 							</Field>
 						)}
 					</form.Field>
@@ -1101,28 +1085,21 @@ function ServiceTab({
 						{(field) => (
 							<Field>
 								<FieldLabel>Account status</FieldLabel>
-								<Select
+								<Combobox
+									options={CUSTOMER_STATUS_OPTIONS.map(
+										(opt) => ({
+											value: opt.value,
+											label: opt.label,
+										}),
+									)}
 									value={field.state.value}
-									onValueChange={(value) =>
+									onChange={(value) =>
 										field.handleChange(
 											value as typeof field.state.value,
 										)
 									}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{CUSTOMER_STATUS_OPTIONS.map((opt) => (
-											<SelectItem
-												key={opt.value}
-												value={opt.value}
-											>
-												{opt.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									searchPlaceholder="Search status…"
+								/>
 							</Field>
 						)}
 					</form.Field>
@@ -1130,28 +1107,22 @@ function ServiceTab({
 						{(field) => (
 							<Field>
 								<FieldLabel>Connection type</FieldLabel>
-								<Select
+								<Combobox
+									options={CONNECTION_TYPE_OPTIONS.map(
+										(opt) => ({
+											value: opt.value,
+											label: opt.label,
+										}),
+									)}
 									value={field.state.value}
-									onValueChange={(value) =>
+									onChange={(value) =>
 										field.handleChange(
 											value as typeof field.state.value,
 										)
 									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select type" />
-									</SelectTrigger>
-									<SelectContent>
-										{CONNECTION_TYPE_OPTIONS.map((opt) => (
-											<SelectItem
-												key={opt.value}
-												value={opt.value}
-											>
-												{opt.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									placeholder="Select type"
+									searchPlaceholder="Search types…"
+								/>
 							</Field>
 						)}
 					</form.Field>
@@ -1159,30 +1130,24 @@ function ServiceTab({
 						{(field) => (
 							<Field>
 								<FieldLabel>Collector</FieldLabel>
-								<Select
+								<Combobox
+									options={[
+										{ value: "none", label: "None" },
+										...employees.map((e) => ({
+											value: e.id,
+											label: e.name,
+										})),
+									]}
 									value={field.state.value || "none"}
-									onValueChange={(v) =>
+									onChange={(v) =>
 										field.handleChange(
 											v === "none" ? "" : v,
 										)
 									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select collector" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">
-											<span className="text-muted-foreground">
-												None
-											</span>
-										</SelectItem>
-										{employees.map((e) => (
-											<SelectItem key={e.id} value={e.id}>
-												{e.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									placeholder="Select collector"
+									searchPlaceholder="Search collectors…"
+									emptyText="No collectors found"
+								/>
 							</Field>
 						)}
 					</form.Field>
@@ -1190,33 +1155,24 @@ function ServiceTab({
 						{(field) => (
 							<Field>
 								<FieldLabel>Group</FieldLabel>
-								<Select
+								<Combobox
+									options={[
+										{ value: "none", label: "None" },
+										...iradiusGroups.map((g) => ({
+											value: String(g.id),
+											label: g.name,
+										})),
+									]}
 									value={field.state.value || "none"}
-									onValueChange={(v) =>
+									onChange={(v) =>
 										field.handleChange(
 											v === "none" ? "" : v,
 										)
 									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select group" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">
-											<span className="text-muted-foreground">
-												None
-											</span>
-										</SelectItem>
-										{iradiusGroups.map((g) => (
-											<SelectItem
-												key={g.id}
-												value={String(g.id)}
-											>
-												{g.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									placeholder="Select group"
+									searchPlaceholder="Search groups…"
+									emptyText="No groups found"
+								/>
 							</Field>
 						)}
 					</form.Field>
