@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1
+# libancom worker (@repo/worker) — runs apps/worker/index.ts via tsx at runtime,
+# so the runner needs full source + node_modules (incl. tsx + native deps).
+
+FROM node:24-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
+RUN apk add --no-cache libc6-compat openssl
+
+FROM base AS deps
+WORKDIR /app
+
+COPY pnpm-lock.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
+
+COPY package.json pnpm-workspace.yaml turbo.json .npmrc ./
+COPY packages/ai/package.json packages/ai/
+COPY packages/api/package.json packages/api/
+COPY packages/audit/package.json packages/audit/
+COPY packages/auth/package.json packages/auth/
+COPY packages/database/package.json packages/database/
+COPY packages/feature-flags/package.json packages/feature-flags/
+COPY packages/i18n/package.json packages/i18n/
+COPY packages/integrations/package.json packages/integrations/
+COPY packages/jobs/package.json packages/jobs/
+COPY packages/logs/package.json packages/logs/
+COPY packages/mail/package.json packages/mail/
+COPY packages/notifications/package.json packages/notifications/
+COPY packages/payments/package.json packages/payments/
+COPY packages/quotas/package.json packages/quotas/
+COPY packages/rate-limit/package.json packages/rate-limit/
+COPY packages/security/package.json packages/security/
+COPY packages/storage/package.json packages/storage/
+COPY packages/utils/package.json packages/utils/
+COPY packages/webhooks/package.json packages/webhooks/
+COPY tooling/scripts/package.json tooling/scripts/
+COPY tooling/tailwind/package.json tooling/tailwind/
+COPY tooling/typescript/package.json tooling/typescript/
+COPY config/package.json config/
+COPY apps/worker/package.json apps/worker/
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prefer-offline
+
+FROM base AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/tooling ./tooling
+COPY --from=deps /app/config ./config
+COPY --from=deps /app/apps/worker/node_modules ./apps/worker/node_modules
+
+COPY . .
+
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+RUN pnpm --filter @repo/database generate
+
+FROM node:24-alpine AS runner
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
+RUN apk add --no-cache openssl
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 worker
+COPY --from=builder /app ./
+RUN chown -R worker:nodejs /app
+USER worker
+
+CMD ["pnpm", "--filter", "@repo/worker", "worker:prod"]
