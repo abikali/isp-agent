@@ -35,8 +35,11 @@ export default defineConfig(({ mode }) => {
 		// Ensure consistent CSS between SSR and client builds
 		build: {
 			cssCodeSplit: false,
-			// Use fixed asset filenames to prevent SSR/client hash mismatch
+			// Throttle rollup's parallel file emit (default 20) — holding many
+			// output buffers at once was part of the build OOM peak on the
+			// memory-constrained worker node. Build-only; no runtime effect.
 			rollupOptions: {
+				maxParallelFileOps: 2,
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
 					assetFileNames: (assetInfo) => {
@@ -106,10 +109,12 @@ export default defineConfig(({ mode }) => {
 				// Exclude ffmpeg-static binary from nf3 file tracing —
 				// we use system ffmpeg, not the bundled binary
 				externals: ["ffmpeg-static", "ssh2", "cpu-features"],
-				// Enable pre-compression for faster asset delivery
+				// Pre-compression: gzip only. brotli (quality 11) over hundreds of
+				// chunks held large buffers and was the build's OOM peak on the
+				// memory-constrained worker; CF/Traefik compress at the edge anyway.
 				compressPublicAssets: {
 					gzip: true,
-					brotli: true,
+					brotli: false,
 				},
 				// Route rules for caching and headers
 				routeRules: {

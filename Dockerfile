@@ -91,7 +91,10 @@ ENV AVATARS_BUCKET_NAME=${AVATARS_BUCKET_NAME}
 # cap -> overcommits RAM -> swap-thrash (build crawled 13min+). Serialize turbo
 # and cap the heap so one bounded build runs at a time and fits in available RAM.
 ENV TURBO_CONCURRENCY=1
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+# Cap heap at 3072 so it fits in worker-1's free RAM (no swap-thrash) and any
+# overrun fails CLEANLY (bounded RSS) instead of taking the box unreachable.
+# Paired with brotli-off + maxParallelFileOps=2 (vite config) to cut the peak.
+ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 RUN rm -rf apps/web/.output
 RUN pnpm build
