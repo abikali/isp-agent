@@ -57,8 +57,13 @@ RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 worker
-COPY --from=builder /app ./
-RUN chown -R worker:nodejs /app
+# Set ownership DURING the copy. A separate `chown -R /app` over the full pnpm
+# node_modules (100k+ inodes) on overlayfs hung the build for 9min+.
+COPY --from=builder --chown=worker:nodejs /app ./
+# @repo/auth uses tsyringe -> needs reflect-metadata preloaded (it's already in
+# the full node_modules copied above). Set NODE_OPTIONS AFTER the COPY, else the
+# corepack/node RUN steps above would crash preloading a not-yet-present module.
+ENV NODE_OPTIONS="--require reflect-metadata"
 USER worker
 
 CMD ["pnpm", "--filter", "@repo/worker", "worker:prod"]
