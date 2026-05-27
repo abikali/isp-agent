@@ -55,17 +55,10 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM base AS builder
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages ./packages
-COPY --from=deps /app/tooling ./tooling
-COPY --from=deps /app/config ./config
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-
-COPY package.json pnpm-workspace.yaml turbo.json .npmrc ./
-COPY config/ ./config/
-COPY tooling/ ./tooling/
-COPY packages/ ./packages/
-COPY apps/ ./apps/
+# Carry the entire installed workspace from deps (root + per-package node_modules,
+# whatever layout pnpm chose), then overlay source on top (source has no node_modules).
+COPY --from=deps /app ./
+COPY . .
 
 # Prisma client (no real DB needed for generate)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
