@@ -20,7 +20,10 @@ WORKDIR /app
 COPY pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
 
-COPY package.json pnpm-workspace.yaml turbo.json .npmrc ./
+# NB: do NOT copy the repo .npmrc (public-hoist-pattern=*prisma*) — it perturbs
+# pnpm hoisting so build scripts (prisma/sharp) get ignored -> `prisma: not found`
+# at generate. Matching tamr (no .npmrc) lets onlyBuiltDependencies run normally.
+COPY package.json pnpm-workspace.yaml turbo.json ./
 COPY packages/ai/package.json packages/ai/
 COPY packages/api/package.json packages/api/
 COPY packages/audit/package.json packages/audit/

@@ -12,7 +12,7 @@ WORKDIR /app
 COPY pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch
 
-COPY package.json pnpm-workspace.yaml turbo.json .npmrc ./
+COPY package.json pnpm-workspace.yaml turbo.json ./
 COPY packages/ai/package.json packages/ai/
 COPY packages/api/package.json packages/api/
 COPY packages/audit/package.json packages/audit/
