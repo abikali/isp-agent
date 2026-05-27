@@ -117,6 +117,26 @@ export const AUTO_UPDATE_FIELDS = new Set([
 	"routerBrandPrefix",
 ]);
 
+/**
+ * Synthetic conflict-field key for the "customer deleted on iRadius but still
+ * present locally" case. It is NOT a real Customer column — it lives only inside
+ * `SyncConflict.fields` so the existing per-field conflict pipeline (list,
+ * resolve, bulk-resolve, UI) can carry it. Resolution semantics:
+ *   - keep_local  → keep the customer as-is (admin asserts it's still real)
+ *   - keep_remote → soft-delete the customer (iRadius is right, it's gone)
+ * The leading double underscore keeps it from ever colliding with a camelCase
+ * Customer field name.
+ */
+export const IRADIUS_DELETED_FIELD = "__iradiusDeleted";
+
+/**
+ * Notes marker stamped on the minimal stub records the sync creates for iRadius
+ * users that exist only as financial back-references (deleted from `User` but
+ * still in `UserBalance`/`Invoice`). Shared so the orphan loop can recognise its
+ * own stubs and avoid raising a deletion conflict for them.
+ */
+export const ORPHAN_STUB_NOTES = "Deleted user — financial records only";
+
 export function isConflictTrackedField(key: string): boolean {
 	return CONFLICT_TRACKED_FIELDS.has(key);
 }

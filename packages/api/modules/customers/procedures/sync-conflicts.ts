@@ -1,7 +1,12 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db, dbRaw, Prisma } from "@repo/database";
-import { type ConflictFields, deserializeValue } from "@repo/jobs/sync-fields";
+import {
+	type ConflictField,
+	type ConflictFields,
+	deserializeValue,
+	IRADIUS_DELETED_FIELD,
+} from "@repo/jobs/sync-fields";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -14,6 +19,22 @@ function buildDealerScopeWhere(activeDealerId: string | null) {
 		return { customer: { dealerId: activeDealerId } };
 	}
 	return {};
+}
+
+/**
+ * Translate a "keep_remote" resolution into the Customer column write it
+ * implies. Normal fields write iRadius's value back into their own column. The
+ * synthetic IRADIUS_DELETED_FIELD has no matching column — keeping iRadius's
+ * truth there means the customer no longer exists upstream, so we soft-delete.
+ */
+function remoteValueUpdate(
+	fieldName: string,
+	field: ConflictField,
+): [key: string, value: unknown] {
+	if (fieldName === IRADIUS_DELETED_FIELD) {
+		return ["deletedAt", new Date()];
+	}
+	return [fieldName, deserializeValue(field.remote, fieldName)];
 }
 
 /**
@@ -56,14 +77,10 @@ async function resolveByField(
 				);
 
 				if (resolution === "keep_remote") {
+					const [key, value] = remoteValueUpdate(targetField, field);
 					await tx.customer.update({
 						where: { id: conflict.customerId },
-						data: {
-							[targetField]: deserializeValue(
-								field.remote,
-								targetField,
-							),
-						},
+						data: { [key]: value },
 					});
 				}
 
@@ -225,10 +242,8 @@ export const resolveSyncConflict = protectedProcedure
 			field.resolution = resolution;
 
 			if (resolution === "keep_remote") {
-				customerUpdate[fieldName] = deserializeValue(
-					field.remote,
-					fieldName,
-				);
+				const [key, value] = remoteValueUpdate(fieldName, field);
+				customerUpdate[key] = value;
 			}
 		}
 
@@ -361,10 +376,11 @@ export const bulkResolveSyncConflicts = protectedProcedure
 							continue;
 						}
 						field.resolution = "keep_remote";
-						customerUpdate[fieldName] = deserializeValue(
-							field.remote,
+						const [key, value] = remoteValueUpdate(
 							fieldName,
+							field,
 						);
+						customerUpdate[key] = value;
 					}
 
 					await tx.syncConflict.update({

@@ -13,9 +13,11 @@ import { IRADIUS_SYNC_QUEUE_NAME } from "../queues/iradius-sync.queue";
 import type { IRadiusSyncJobData, IRadiusSyncJobResult } from "../types";
 import {
 	type ConflictField,
+	IRADIUS_DELETED_FIELD,
 	isAutoUpdateField,
 	isConflictTrackedField,
 	LOCAL_AUTHORITATIVE_FIELDS,
+	ORPHAN_STUB_NOTES,
 	serializeValue,
 	valuesEqual,
 } from "./iradius-sync-fields";
@@ -2432,7 +2434,8 @@ async function processIRadiusSync(
 				}
 			}
 
-			// Process orphaned users (create minimal records for financial data)
+			// Process orphaned users (iRadius IDs deleted from `User` but still
+			// referenced by `UserBalance`/`Invoice` financial records).
 			for (const orphan of orphanIds) {
 				const userId = orphan["Id"] as number;
 				const extId = String(userId);
@@ -2440,10 +2443,75 @@ async function processIRadiusSync(
 				// keep around for financial reporting, so they must survive the
 				// end-of-phase cleanup.
 				seenCustomerExtIds.add(extId);
-				if (customerByExtId.has(extId)) {
+
+				const existing = customerRecordByExtId.get(extId);
+				if (existing) {
+					// Our own minimal stub, or already soft-deleted → nothing to
+					// do; it stays as-is.
+					if (
+						existing.notes === ORPHAN_STUB_NOTES ||
+						existing.deletedAt !== null
+					) {
+						continue;
+					}
+					// A real customer that was deleted on iRadius but still has
+					// financial records. We keep it "seen" (above) so cleanup
+					// doesn't silently soft-delete it; instead we surface an
+					// admin-resolvable conflict (keep vs remove). If the admin
+					// already chose to keep it in a prior run, don't re-ask.
+					try {
+						const acknowledged = await db.syncConflict.findFirst({
+							where: {
+								customerId: existing.id,
+								status: "resolved",
+								fields: {
+									path: [IRADIUS_DELETED_FIELD, "resolution"],
+									equals: "keep_local",
+								},
+							},
+							select: { id: true },
+						});
+						if (acknowledged) {
+							continue;
+						}
+						const deletedConflictFields = {
+							[IRADIUS_DELETED_FIELD]: {
+								local: "Active customer",
+								remote: "Deleted on iRadius (financial records remain)",
+								resolution: null,
+							},
+						} as unknown as Prisma.InputJsonValue;
+						await db.syncConflict.upsert({
+							where: {
+								syncOperationId_customerId: {
+									syncOperationId: operationId,
+									customerId: existing.id,
+								},
+							},
+							create: {
+								organizationId,
+								syncOperationId: operationId,
+								customerId: existing.id,
+								externalId: extId,
+								fields: deletedConflictFields,
+								status: "pending",
+							},
+							update: {
+								fields: deletedConflictFields,
+								status: "pending",
+								resolvedAt: null,
+								resolvedById: null,
+							},
+						});
+						result.customers.conflicted++;
+					} catch {
+						result.customers.errors++;
+					}
 					continue;
 				}
 
+				// No local row yet → create the minimal stub that anchors the
+				// financial back-references.
 				try {
 					const accountNumber = nextAccountNumber();
 					const created = await db.customer.create({
@@ -2454,7 +2522,7 @@ async function processIRadiusSync(
 							lastName: `User #${userId}`,
 							externalId: extId,
 							status: "INACTIVE",
-							notes: "Deleted user — financial records only",
+							notes: ORPHAN_STUB_NOTES,
 							lastSyncedAt: syncTimestamp,
 						},
 					});

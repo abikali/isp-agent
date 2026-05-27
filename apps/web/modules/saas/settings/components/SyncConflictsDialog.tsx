@@ -35,7 +35,9 @@ import {
 	DatabaseIcon,
 	LoaderIcon,
 	MonitorIcon,
+	Trash2Icon,
 	TriangleAlertIcon,
+	UserCheckIcon,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -49,7 +51,14 @@ import {
 // Field labels
 // ---------------------------------------------------------------------------
 
+// Synthetic conflict field for "customer deleted on iRadius but still present
+// locally" — mirrors IRADIUS_DELETED_FIELD in @repo/jobs/sync-fields. Kept as a
+// local literal so this client file doesn't pull the jobs package into the
+// browser bundle (consistent with the hardcoded field keys below).
+const IRADIUS_DELETED_FIELD = "__iradiusDeleted";
+
 const FIELD_LABELS: Record<string, string> = {
+	[IRADIUS_DELETED_FIELD]: "Deleted on iRadius",
 	firstName: "First Name",
 	lastName: "Last Name",
 	email: "Email",
@@ -575,6 +584,8 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 							{rows.map((row) => {
 								const key = rowKey(row);
 								const isSelected = selected.has(key);
+								const isDeleted =
+									row.fieldName === IRADIUS_DELETED_FIELD;
 								return (
 									<TableRow
 										key={key}
@@ -645,11 +656,17 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 																isResolving
 															}
 														>
-															<MonitorIcon className="size-3.5" />
+															{isDeleted ? (
+																<UserCheckIcon className="size-3.5" />
+															) : (
+																<MonitorIcon className="size-3.5" />
+															)}
 														</Button>
 													</TooltipTrigger>
 													<TooltipContent>
-														Keep local value
+														{isDeleted
+															? "Keep customer"
+															: "Keep local value"}
 													</TooltipContent>
 												</Tooltip>
 												<Tooltip>
@@ -657,7 +674,11 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 														<Button
 															size="sm"
 															variant="ghost"
-															className="h-7 px-2 text-xs"
+															className={
+																isDeleted
+																	? "h-7 px-2 text-xs text-destructive hover:text-destructive"
+																	: "h-7 px-2 text-xs"
+															}
 															onClick={() =>
 																resolveRow(
 																	row,
@@ -668,11 +689,17 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 																isResolving
 															}
 														>
-															<DatabaseIcon className="size-3.5" />
+															{isDeleted ? (
+																<Trash2Icon className="size-3.5" />
+															) : (
+																<DatabaseIcon className="size-3.5" />
+															)}
 														</Button>
 													</TooltipTrigger>
 													<TooltipContent>
-														Keep iRadius value
+														{isDeleted
+															? "Remove customer (soft-delete)"
+															: "Keep iRadius value"}
 													</TooltipContent>
 												</Tooltip>
 											</div>
