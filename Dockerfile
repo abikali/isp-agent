@@ -110,11 +110,6 @@ RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST="0.0.0.0"
-# @repo/auth uses tsyringe (DI) which needs the reflect-metadata polyfill preloaded.
-# The slim .output runner has no node_modules and doesn't load it -> SSR 500s
-# ("tsyringe requires a reflect polyfill"). Preload it at RUNTIME only. NB: keep
-# NODE_OPTIONS OUT of Coolify build env (it poisons the dockerfile build).
-ENV NODE_OPTIONS="--require reflect-metadata"
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 appuser
@@ -122,11 +117,17 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder --chown=appuser:nodejs /app/apps/web/.output ./.output
 
 # sharp (native, pulled into the SSR bundle via @repo/jobs/storage) and
-# reflect-metadata (tsyringe polyfill) aren't in the slim .output runner — install
-# them here. On alpine sharp pulls the linuxmusl-x64 prebuilt; resolved from
-# /app/node_modules at runtime (cwd=/app).
+# reflect-metadata (tsyringe polyfill for @repo/auth) aren't in the slim .output
+# runner — install them here. On alpine sharp pulls the linuxmusl-x64 prebuilt;
+# resolved from /app/node_modules at runtime (cwd=/app).
 RUN cd /app && npm install --no-save --no-package-lock sharp@0.34.5 reflect-metadata \
     && chown -R appuser:nodejs /app/node_modules
+
+# Preload reflect-metadata at RUNTIME (set AFTER the npm install above — otherwise
+# npm itself crashes trying to --require a not-yet-installed module). @repo/auth
+# uses tsyringe DI which 500s without it. NB: keep NODE_OPTIONS OUT of Coolify
+# build env (it poisons the dockerfile build).
+ENV NODE_OPTIONS="--require reflect-metadata"
 
 USER appuser
 EXPOSE 3000
