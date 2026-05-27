@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import contentCollections from "@content-collections/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -35,11 +36,7 @@ export default defineConfig(({ mode }) => {
 		// Ensure consistent CSS between SSR and client builds
 		build: {
 			cssCodeSplit: false,
-			// Throttle rollup's parallel file emit (default 20) — holding many
-			// output buffers at once was part of the build OOM peak on the
-			// memory-constrained worker node. Build-only; no runtime effect.
 			rollupOptions: {
-				maxParallelFileOps: 2,
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
 					assetFileNames: (assetInfo) => {
@@ -80,6 +77,11 @@ export default defineConfig(({ mode }) => {
 			],
 		},
 		plugins: [
+			// Tailwind v4 via the official Vite plugin (replaces @tailwindcss/postcss).
+			// Resolves `@import "tailwindcss"` inside Vite's module graph — consistent
+			// across client + SSR + the rolldown bundler (the postcss path mis-resolved
+			// it as a file during the SSR pass under rolldown-vite).
+			tailwindcss(),
 			// Stub native .node binaries (e.g. cpu-features used by ssh2)
 			// that Rollup cannot bundle — they're optional and fail gracefully
 			{
