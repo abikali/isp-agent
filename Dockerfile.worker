@@ -60,10 +60,9 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 worker
 # Set ownership DURING the copy. A separate `chown -R /app` over the full pnpm
 # node_modules (100k+ inodes) on overlayfs hung the build for 9min+.
 COPY --from=builder --chown=worker:nodejs /app ./
-# @repo/auth uses tsyringe -> needs reflect-metadata preloaded (it's already in
-# the full node_modules copied above). Set NODE_OPTIONS AFTER the COPY, else the
-# corepack/node RUN steps above would crash preloading a not-yet-present module.
-ENV NODE_OPTIONS="--require reflect-metadata"
+# NB: the worker does NOT use tsyringe (it runs job workers via tsx), and
+# reflect-metadata is not a dependency — do NOT preload it here (a --require of a
+# missing module crash-loops the container). The web runner needs it; the worker does not.
 USER worker
 
 CMD ["pnpm", "--filter", "@repo/worker", "worker:prod"]
