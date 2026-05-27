@@ -49,8 +49,10 @@ COPY tooling/typescript/package.json tooling/typescript/
 COPY config/package.json config/
 COPY apps/web/package.json apps/web/
 
+# --no-frozen-lockfile: the pnpm.overrides vite->rolldown-vite alias isn't in the
+# committed lockfile yet, so let pnpm resolve it (network available at build).
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prefer-offline
+    pnpm install --no-frozen-lockfile --prefer-offline
 
 # ===============================================
 # Builder

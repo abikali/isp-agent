@@ -39,7 +39,7 @@ COPY config/package.json config/
 COPY apps/worker/package.json apps/worker/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prefer-offline
+    pnpm install --no-frozen-lockfile --prefer-offline
 
 FROM base AS builder
 WORKDIR /app
