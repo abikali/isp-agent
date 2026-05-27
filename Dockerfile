@@ -83,7 +83,12 @@ ENV VITE_NANGO_PUBLIC_KEY=${VITE_NANGO_PUBLIC_KEY}
 ENV VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 ENV SITE_URL=${SITE_URL}
 ENV AVATARS_BUCKET_NAME=${AVATARS_BUCKET_NAME}
-ENV NODE_OPTIONS="--max-old-space-size=8192"
+# worker-1 is an 8GB box already running ~29 containers (~4GB used). The default
+# `turbo build` runs packages in PARALLEL, each node able to grab up to the heap
+# cap -> overcommits RAM -> swap-thrash (build crawled 13min+). Serialize turbo
+# and cap the heap so one bounded build runs at a time and fits in available RAM.
+ENV TURBO_CONCURRENCY=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 RUN rm -rf apps/web/.output
 RUN pnpm build
