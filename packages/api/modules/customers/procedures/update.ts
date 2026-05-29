@@ -60,6 +60,11 @@ export const updateCustomer = protectedProcedure
 			groupExternalId: z.number().int().nullable().optional(),
 			notes: z.string().max(5000).optional(),
 			collectorId: z.string().nullable().optional(),
+			// Collector is the one mirror exception: the admin decides per-edit
+			// whether a collector change is also pushed to iRadius. Omitted or
+			// `true` → push (default, preserves prior behavior); `false` → write
+			// locally only. Only consulted when the collector actually changed.
+			syncCollectorToIradius: z.boolean().optional(),
 			discount: z.number().finite().min(0).optional(),
 			iptvPrice: z.number().finite().min(0).optional(),
 			realIpPrice: z.number().finite().min(0).optional(),
@@ -196,6 +201,16 @@ export const updateCustomer = protectedProcedure
 		const statusChanged =
 			input.status !== undefined && input.status !== existing.status;
 		const diff = canMirror ? diffMirrorFields(existing, input) : null;
+
+		// Collector opt-out: when the admin declined to push the collector
+		// change, drop just the collector from the diff. Every other field still
+		// mirrors, and the local write below still updates collectorId — so local
+		// and iRadius intentionally diverge. The next sync surfaces that as a
+		// `sync_conflict` for the admin to resolve (collector stays
+		// conflict-tracked, by design).
+		if (diff?.collectorChanged && input.syncCollectorToIradius === false) {
+			diff.collectorChanged = false;
+		}
 
 		const collectorIRadiusUserId =
 			diff?.collectorChanged && collectorEmployee?.externalId

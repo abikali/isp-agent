@@ -167,6 +167,11 @@ export function CustomerDetail({
 		previewData: Awaited<ReturnType<typeof previewAccountType.mutateAsync>>;
 		newPlanId: string;
 		pendingFormValues: CustomerFormValues;
+		syncCollector?: boolean;
+	} | null>(null);
+	const [collectorSyncPrompt, setCollectorSyncPrompt] = useState<{
+		pendingFormValues: CustomerFormValues;
+		newCollectorName: string;
 	} | null>(null);
 	const [changeResult, setChangeResult] = useState<{
 		success: boolean;
@@ -193,7 +198,10 @@ export function CustomerDetail({
 	const { employees } = useEmployeesQuery({ dealerId: customer.dealerId });
 	const { groups: iradiusGroups } = useIRadiusGroups(customer.dealerId);
 
-	function buildUpdatePayload(values: CustomerFormValues) {
+	function buildUpdatePayload(
+		values: CustomerFormValues,
+		syncCollectorToIradius?: boolean,
+	) {
 		const parsedGroupId = values.groupExternalId
 			? Number.parseInt(values.groupExternalId, 10)
 			: null;
@@ -234,7 +242,64 @@ export function CustomerDetail({
 				values.realIpPrice === "" ? 0 : Number(values.realIpPrice),
 			deductMoney:
 				values.deductMoney === "" ? null : Number(values.deductMoney),
+			...(syncCollectorToIradius !== undefined
+				? { syncCollectorToIradius }
+				: {}),
 		};
+	}
+
+	// Runs the actual save: plan-change preview when the plan changed, otherwise
+	// the update mutation. `syncCollector` is forwarded so the collector opt-out
+	// choice survives the plan-preview detour too.
+	async function proceedSave(
+		value: CustomerFormValues,
+		syncCollector?: boolean,
+	) {
+		if (!organizationId) {
+			return;
+		}
+
+		const planChanged = value.planId !== (customer.planId ?? "");
+		const newPlan = plans.find((p) => p.id === value.planId);
+		const shouldPreview =
+			planChanged && customer.externalId && newPlan?.externalId;
+
+		if (shouldPreview) {
+			try {
+				const preview = await previewAccountType.mutateAsync({
+					organizationId,
+					customerId,
+					newPlanId: value.planId,
+				});
+				setAccountTypePreview({
+					previewData: preview,
+					newPlanId: value.planId,
+					pendingFormValues: { ...value },
+					syncCollector,
+				});
+			} catch (err) {
+				toast.error(
+					`Failed to preview plan change: ${err instanceof Error ? err.message : "Unknown error"}`,
+				);
+			}
+			return;
+		}
+
+		toast.promise(
+			updateCustomer.mutateAsync({
+				...buildUpdatePayload(value, syncCollector),
+				planId: value.planId || null,
+			}),
+			{
+				loading: "Saving changes…",
+				success: () => {
+					form.reset(value);
+					return "Customer updated";
+				},
+				error: (err: { message?: string }) =>
+					err?.message ?? "Failed to save changes",
+			},
+		);
 	}
 
 	const form = useForm({
@@ -244,48 +309,34 @@ export function CustomerDetail({
 				return;
 			}
 
-			const planChanged = value.planId !== (customer.planId ?? "");
-			const newPlan = plans.find((p) => p.id === value.planId);
-			const shouldPreview =
-				planChanged && customer.externalId && newPlan?.externalId;
-
-			if (shouldPreview) {
-				try {
-					const preview = await previewAccountType.mutateAsync({
-						organizationId,
-						customerId,
-						newPlanId: value.planId,
-					});
-					setAccountTypePreview({
-						previewData: preview,
-						newPlanId: value.planId,
-						pendingFormValues: { ...value },
-					});
-				} catch (err) {
-					toast.error(
-						`Failed to preview plan change: ${err instanceof Error ? err.message : "Unknown error"}`,
-					);
-				}
+			// Collector is the one mirror exception: ask the admin whether to
+			// also push it to iRadius before saving. Only when the collector
+			// actually changed and the customer is linked to iRadius.
+			const collectorChanged =
+				value.collectorId !== (customer.collectorId ?? "");
+			if (collectorChanged && customer.externalId) {
+				const newCollector = employees.find(
+					(e) => e.id === value.collectorId,
+				);
+				setCollectorSyncPrompt({
+					pendingFormValues: { ...value },
+					newCollectorName: newCollector?.name ?? "no collector",
+				});
 				return;
 			}
 
-			toast.promise(
-				updateCustomer.mutateAsync({
-					...buildUpdatePayload(value),
-					planId: value.planId || null,
-				}),
-				{
-					loading: "Saving changes…",
-					success: () => {
-						form.reset(value);
-						return "Customer updated";
-					},
-					error: (err: { message?: string }) =>
-						err?.message ?? "Failed to save changes",
-				},
-			);
+			await proceedSave(value);
 		},
 	});
+
+	async function handleCollectorSyncChoice(syncCollector: boolean) {
+		if (!collectorSyncPrompt) {
+			return;
+		}
+		const { pendingFormValues } = collectorSyncPrompt;
+		setCollectorSyncPrompt(null);
+		await proceedSave(pendingFormValues, syncCollector);
+	}
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 	const dirtyCount = useStore(
@@ -299,7 +350,7 @@ export function CustomerDetail({
 			return;
 		}
 
-		const { pendingFormValues, newPlanId, previewData } =
+		const { pendingFormValues, newPlanId, previewData, syncCollector } =
 			accountTypePreview;
 
 		let iRadiusResult: Awaited<
@@ -332,7 +383,7 @@ export function CustomerDetail({
 
 		try {
 			await updateCustomer.mutateAsync({
-				...buildUpdatePayload(pendingFormValues),
+				...buildUpdatePayload(pendingFormValues, syncCollector),
 			});
 			form.reset(pendingFormValues);
 		} catch (err) {
@@ -681,6 +732,48 @@ export function CustomerDetail({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* Collector change — opt in/out of pushing to iRadius */}
+			<AlertDialog
+				open={collectorSyncPrompt !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setCollectorSyncPrompt(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Update collector on iRadius?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							You changed the collector to{" "}
+							<span className="font-medium">
+								{collectorSyncPrompt?.newCollectorName}
+							</span>
+							. Do you also want to change it on iRadius? Choosing
+							“Local only” leaves iRadius unchanged — the next
+							sync will flag the difference as a conflict to
+							resolve.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<Button
+							variant="outline"
+							onClick={() => handleCollectorSyncChoice(false)}
+						>
+							Local only
+						</Button>
+						<AlertDialogAction
+							onClick={() => handleCollectorSyncChoice(true)}
+						>
+							Update iRadius
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* Plan change result */}
 			<Dialog
