@@ -525,6 +525,22 @@ export function useReviewPayment() {
 	});
 }
 
+export function useReviewPayments() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.reviewMany.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 // ─── Resend Receipt ────────────────────────────────────────────
 
 export function useResendReceipt() {

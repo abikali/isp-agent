@@ -120,6 +120,7 @@ import {
 	usePaymentsQuery,
 	useResendReceipt,
 	useReviewPayment,
+	useReviewPayments,
 } from "../hooks/use-billing";
 import {
 	FLAG_LEGEND,
@@ -709,6 +710,7 @@ export function PaymentsList() {
 	const orgSlug = activeOrganization?.slug ?? "";
 	const deletePayment = useDeletePayment();
 	const reviewPayment = useReviewPayment();
+	const reviewPayments = useReviewPayments();
 	const declineStoppedPayment = useDeclineStoppedPayment();
 	const markReceiptSent = useMarkReceiptSent();
 	const setDiscount = useSetDiscount();
@@ -768,6 +770,54 @@ export function PaymentsList() {
 		return Array.from(ids);
 	}, [rowSelection, payments]);
 	const selectedCount = selectedCustomerIds.length;
+
+	// Bulk "Mark reviewed" operates per-payment (a customer can own several
+	// flagged payments), so it keys off the selected payment ids — distinct
+	// from the customer-id-based bulk actions. Only the unreviewed ones in the
+	// selection are worth acting on; already-reviewed rows are skipped server
+	// side too, but filtering here keeps the button hidden when nothing in the
+	// selection needs review.
+	const reviewablePaymentIds = useMemo(() => {
+		const selectedPaymentIds = new Set(Object.keys(rowSelection));
+		return payments
+			.filter((p) => selectedPaymentIds.has(p.id) && isUnreviewed(p))
+			.map((p) => p.id);
+	}, [rowSelection, payments]);
+	// Any stopped accounts in the selection? Their approval also deactivates
+	// the customer in iRadius + voids the invoice, so the confirm copy warns.
+	const selectedStoppedCount = useMemo(() => {
+		const reviewable = new Set(reviewablePaymentIds);
+		return payments.filter((p) => reviewable.has(p.id) && p.stoppedAccount)
+			.length;
+	}, [reviewablePaymentIds, payments]);
+
+	function handleBulkReview() {
+		if (!organizationId || reviewablePaymentIds.length === 0) {
+			return;
+		}
+		reviewPayments.mutate(
+			{ organizationId, paymentIds: reviewablePaymentIds },
+			{
+				onSuccess: (result) => {
+					const parts: string[] = [`Reviewed ${result.succeeded}`];
+					if (result.skipped > 0) {
+						parts.push(`${result.skipped} already reviewed`);
+					}
+					if (result.failed > 0) {
+						parts.push(`${result.failed} failed`);
+					}
+					const summary = parts.join(" · ");
+					if (result.failed > 0) {
+						toast.warning(summary);
+					} else {
+						toast.success(summary);
+					}
+					setRowSelection({});
+				},
+				onError: (error) => toast.error(error.message),
+			},
+		);
+	}
 
 	const rowClassName = (row: { original: PaymentRow }) =>
 		getPaymentRowClassName(row.original);
@@ -1667,6 +1717,64 @@ export function PaymentsList() {
 						organizationId={organizationId}
 						collectors={collectors}
 						onCleared={() => setRowSelection({})}
+						rowLabelSingular="payment selected"
+						rowLabelPlural="payments selected"
+						extraActions={
+							reviewablePaymentIds.length > 0 ? (
+								<AlertDialog>
+									<AlertDialogTrigger asChild>
+										<Button
+											size="sm"
+											variant="outline"
+											disabled={reviewPayments.isPending}
+											className="text-emerald-600 hover:text-emerald-600"
+										>
+											{reviewPayments.isPending ? (
+												<Loader2Icon className="mr-2 size-4 animate-spin" />
+											) : (
+												<CheckIcon className="mr-2 size-4" />
+											)}
+											Mark reviewed (
+											{reviewablePaymentIds.length})
+										</Button>
+									</AlertDialogTrigger>
+									<AlertDialogContent>
+										<AlertDialogHeader>
+											<AlertDialogTitle>
+												Mark{" "}
+												{reviewablePaymentIds.length}{" "}
+												payment
+												{reviewablePaymentIds.length ===
+												1
+													? ""
+													: "s"}{" "}
+												as reviewed?
+											</AlertDialogTitle>
+											<AlertDialogDescription>
+												{selectedStoppedCount > 0
+													? `${selectedStoppedCount} of these ${selectedStoppedCount === 1 ? "is a stopped account" : "are stopped accounts"} — approving will deactivate ${selectedStoppedCount === 1 ? "that customer" : "those customers"} in iRadius and void the matching invoice. Already-reviewed payments are skipped.`
+													: "The selected flagged payments will be marked as reviewed and leave the Needs Review queue. Already-reviewed payments are skipped."}
+											</AlertDialogDescription>
+										</AlertDialogHeader>
+										<AlertDialogFooter>
+											<AlertDialogCancel>
+												Cancel
+											</AlertDialogCancel>
+											<AlertDialogAction
+												disabled={
+													reviewPayments.isPending
+												}
+												onClick={handleBulkReview}
+											>
+												{reviewPayments.isPending
+													? "Working…"
+													: "Mark reviewed"}
+											</AlertDialogAction>
+										</AlertDialogFooter>
+									</AlertDialogContent>
+								</AlertDialog>
+							) : undefined
+						}
 					/>
 				)}
 

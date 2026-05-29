@@ -32,6 +32,7 @@ import { getAccountingReports } from "./procedures/reports";
 import { requestLocation } from "./procedures/request-location";
 import { resendReceipt } from "./procedures/resend-receipt";
 import { reviewPayment } from "./procedures/review-payment";
+import { reviewPayments } from "./procedures/review-payments";
 import {
 	declineStoppedPayment,
 	listPendingStoppedPayments,
@@ -67,6 +68,7 @@ export const billingRouter = {
 		update: updatePayment,
 		delete: deletePayment,
 		review: reviewPayment,
+		reviewMany: reviewPayments,
 		resendReceipt: resendReceipt,
 		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,

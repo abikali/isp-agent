@@ -132,6 +132,12 @@ Deploys are driven by **Coolify**, not a deploy script on the box. Options:
 
 Build runs on the node; web + worker build from the same repo and run different start commands.
 
+**CI deploy (GitHub Actions):** `.github/workflows/deploy-staging.yml` (`Deploy Staging`) runs on every push to `main` and just triggers a Coolify deploy of both apps — no CI build (Coolify builds on the node). It POSTs `…/api/v1/deploy?uuid=<web>,<worker>` with a bearer token. Config lives in the repo's **`staging` GitHub environment**:
+- vars: `COOLIFY_URL=https://coolify.abiroot.dev`, `COOLIFY_WEB_UUID=m11yfcihaaew3m23mi504ppp`, `COOLIFY_WORKER_UUID=n79kaggxprq28o8x8t5vthtk` (the `coolify.name` label / container-name prefix = the app's deploy UUID)
+- secret: `COOLIFY_TOKEN` — a Coolify API token (Keys & Tokens → API tokens). Set with `gh secret set COOLIFY_TOKEN --env staging`. Without it the step 401s.
+- The old Vito/STAGING_* secrets in that environment are obsolete (build+scp+VitoDeploy model is gone).
+- Note: build-time `VITE_*` vars must live in the Coolify `libancom-web` resource env, not CI, since Coolify now does the build.
+
 ### 5. Run Prisma migrations
 
 Migrations are expected to run as part of the build/release (check the resource's build/post-deploy commands in Coolify). To run manually:
