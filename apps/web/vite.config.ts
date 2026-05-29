@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import contentCollections from "@content-collections/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
@@ -35,7 +36,6 @@ export default defineConfig(({ mode }) => {
 		// Ensure consistent CSS between SSR and client builds
 		build: {
 			cssCodeSplit: false,
-			// Use fixed asset filenames to prevent SSR/client hash mismatch
 			rollupOptions: {
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
@@ -77,6 +77,11 @@ export default defineConfig(({ mode }) => {
 			],
 		},
 		plugins: [
+			// Tailwind v4 via the official Vite plugin (replaces @tailwindcss/postcss).
+			// Resolves `@import "tailwindcss"` inside Vite's module graph — consistent
+			// across client + SSR + the rolldown bundler (the postcss path mis-resolved
+			// it as a file during the SSR pass under rolldown-vite).
+			tailwindcss(),
 			// Stub native .node binaries (e.g. cpu-features used by ssh2)
 			// that Rollup cannot bundle — they're optional and fail gracefully
 			{
@@ -106,10 +111,12 @@ export default defineConfig(({ mode }) => {
 				// Exclude ffmpeg-static binary from nf3 file tracing —
 				// we use system ffmpeg, not the bundled binary
 				externals: ["ffmpeg-static", "ssh2", "cpu-features"],
-				// Enable pre-compression for faster asset delivery
+				// Pre-compression: gzip only. brotli (quality 11) over hundreds of
+				// chunks held large buffers and was the build's OOM peak on the
+				// memory-constrained worker; CF/Traefik compress at the edge anyway.
 				compressPublicAssets: {
 					gzip: true,
-					brotli: true,
+					brotli: false,
 				},
 				// Route rules for caching and headers
 				routeRules: {

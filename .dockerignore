@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+.npmrc
+.git
+.env
+.env.*
+**/.output
+**/.turbo
+.turbo
+**/dist
+.playwright-mcp
