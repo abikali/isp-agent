@@ -1,0 +1,80 @@
+name: Build & deploy (Coolify image)
+
+# Build web + worker images in GitHub Actions, push to GHCR, then have Coolify
+# pull & roll them (no build on the shared node). See the coolify-deploy skill.
+# Supersedes the old deploy-staging.yml (which triggered an on-node Coolify build).
+# Both apps are build_pack=dockerimage, tag=latest, auto-deploy OFF. No PATCH;
+# the deploy step force-pulls :latest. Web build-args are all PUBLIC (VITE_* ship
+# to the browser; VAPID public key, SITE_URL, AVATARS_BUCKET_NAME are public).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: libancom-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: abikali
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:latest
+          cache-from: type=gha,scope=libancom-web
+          cache-to: type=gha,mode=max,scope=libancom-web
+          build-args: |
+            VITE_SITE_URL=https://cp.libancomlb.com
+            SITE_URL=https://cp.libancomlb.com
+            AVATARS_BUCKET_NAME=libancom
+            VITE_VAPID_PUBLIC_KEY=BDH1q7TRk-dVcd8cEV1It9-YpOwkHtm9wVZAUz_hGTFpGja-g6cMhZrBCOisLpC6qOhmB37KtxvGzY1wkLCq19U
+      - name: Build & push worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.worker
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:latest
+          cache-from: type=gha,scope=libancom-worker
+          cache-to: type=gha,mode=max,scope=libancom-worker
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      COOLIFY: https://coolify.abiroot.dev
+      TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      WEB: m11yfcihaaew3m23mi504ppp
+      WORKER: n79kaggxprq28o8x8t5vthtk
+    steps:
+      - name: Deploy web + worker (Coolify pulls :latest & rolls)
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+            "$COOLIFY/api/v1/deploy?uuid=$WEB,$WORKER&force=true"
