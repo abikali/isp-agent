@@ -161,6 +161,15 @@ export function createSshTunnel(config: SshTunnelConfig): SshTunnel {
 			connectTimeout: 15000,
 		});
 
+		// Keep the tunnel warm: a trivial query on an interval prevents the
+		// remote SSH/MySQL from idle-dropping the connection, so the first call
+		// after a quiet period doesn't pay a full ~2s reconnect. unref() so the
+		// timer never holds the process open.
+		const keepalive = setInterval(() => {
+			pool.query("SELECT 1").catch(() => {});
+		}, 30000);
+		keepalive.unref();
+
 		let torn = false;
 		const built: BuiltTunnel = {
 			ssh,
@@ -171,6 +180,7 @@ export function createSshTunnel(config: SshTunnelConfig): SshTunnel {
 					return;
 				}
 				torn = true;
+				clearInterval(keepalive);
 				if (current === built) {
 					current = null;
 					state = null;
