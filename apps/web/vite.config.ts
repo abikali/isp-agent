@@ -57,6 +57,13 @@ export default defineConfig(({ mode }) => {
 			"process.env.AVATARS_BUCKET_NAME": JSON.stringify(
 				env.AVATARS_BUCKET_NAME || "avatars",
 			),
+			// Force-inline the Sentry DSN into the client bundle. Auto-inlining
+			// import.meta.env.VITE_SENTRY_DSN from app/router.tsx (the router
+			// entry graph) proved unreliable, so define it explicitly like the
+			// other build-time-baked vars above.
+			"import.meta.env.VITE_SENTRY_DSN": JSON.stringify(
+				env.VITE_SENTRY_DSN || "",
+			),
 		},
 		optimizeDeps: {
 			// Note: @repo/config is intentionally NOT included here
