@@ -1,7 +1,5 @@
-import type net from "node:net";
 import type { Connection, RowDataPacket } from "mysql2/promise";
-import mysql from "mysql2/promise";
-import { Client } from "ssh2";
+import { createSshTunnel } from "./ssh-tunnel";
 
 export type IRadiusConnection = Connection;
 
@@ -56,109 +54,41 @@ function getConfig(): IRadiusConfig {
 	};
 }
 
-async function connectSsh(config: IRadiusConfig): Promise<Client> {
-	const sshClient = new Client();
-	await new Promise<void>((resolve, reject) => {
-		sshClient.on("ready", () => {
-			resolve();
-		});
-		sshClient.on("error", (err) => {
-			reject(new Error(`SSH connection failed: ${err.message}`));
-		});
-		sshClient.connect({
-			host: config.ssh.host,
-			port: config.ssh.port,
-			username: config.ssh.username,
-			password: config.ssh.password,
-			readyTimeout: 10000,
-		});
-	});
-	return sshClient;
-}
-
-async function openMysqlOverSsh(
-	sshClient: Client,
-	config: IRadiusConfig,
-): Promise<Connection> {
-	return new Promise((resolve, reject) => {
-		sshClient.forwardOut(
-			"127.0.0.1",
-			0,
-			"127.0.0.1",
-			3306,
-			async (err, stream) => {
-				if (err) {
-					reject(new Error(`SSH tunnel failed: ${err.message}`));
-					return;
-				}
-				try {
-					const connection = await mysql.createConnection({
-						user: config.db.user,
-						password: config.db.password,
-						database: config.db.database,
-						stream: stream as unknown as net.Socket,
-						charset: "utf8mb4",
-						// iRadius stores naive Beirut-local datetimes. Opt out of
-						// the driver's UTC interpretation; safeDate() parses the
-						// raw string under the worker's TZ=Asia/Beirut.
-						dateStrings: true,
-					});
-					resolve(connection);
-				} catch (dbErr) {
-					reject(dbErr);
-				}
-			},
-		);
-	});
-}
+// One persistent SSH client + MySQL pool over it, reused across all calls.
+// Lazily established on first use; rebuilt automatically if the tunnel drops.
+// connectionLimit is sized to comfortably cover the bulk push worker's
+// POOL_SIZE (10) plus concurrent interactive reads.
+const tunnel = createSshTunnel({
+	ssh: () => getConfig().ssh,
+	db: () => getConfig().db,
+	connectionLimit: 12,
+});
 
 /**
- * Execute a callback with an iRadius MySQL connection.
- * Handles SSH tunnel setup and cleanup automatically.
+ * Execute a callback with an iRadius MySQL connection leased from the
+ * persistent tunnelled pool. The connection is reused across calls (no
+ * per-call SSH + MySQL handshake) and returned to the pool when `fn` resolves.
  */
 export async function withIRadiusConnection<T>(
 	fn: (connection: Connection) => Promise<T>,
 ): Promise<T> {
-	const config = getConfig();
-	const sshClient = await connectSsh(config);
-	let connection: Connection | null = null;
-	try {
-		connection = await openMysqlOverSsh(sshClient, config);
-		return await fn(connection);
-	} finally {
-		await connection?.end().catch(() => {});
-		sshClient.end();
-	}
+	return tunnel.withConnection(fn);
 }
 
 /**
- * Execute a callback with N parallel iRadius MySQL connections sharing one
- * SSH client. Each connection is an independent mysql2 `Connection` (separate
- * SSH-forwarded stream), so queries on different connections run concurrently
- * on the iRadius server.
+ * Execute a callback with N parallel iRadius MySQL connections leased from the
+ * persistent pool, all sharing the one warm SSH client. Each is an independent
+ * connection (separate SSH-forwarded channel) so queries run concurrently on
+ * the iRadius server.
  *
  * Use this for bulk writes where round-trip latency dominates: a single
- * connection serialises queries, so fan-out is the only way to amortise the
- * SSH + MySQL round-trip cost.
+ * connection serialises queries, so fan-out amortises the per-query RTT.
  */
 export async function withIRadiusConnectionPool<T>(
 	size: number,
 	fn: (connections: Connection[]) => Promise<T>,
 ): Promise<T> {
-	const config = getConfig();
-	const sshClient = await connectSsh(config);
-	let connections: Connection[] = [];
-	try {
-		connections = await Promise.all(
-			Array.from({ length: size }, () =>
-				openMysqlOverSsh(sshClient, config),
-			),
-		);
-		return await fn(connections);
-	} finally {
-		await Promise.allSettled(connections.map((c) => c.end()));
-		sshClient.end();
-	}
+	return tunnel.withConnections(size, fn);
 }
 
 /** Row type returned by iRadius queries. */
@@ -234,57 +164,54 @@ export async function execIRadiusShell(
 	command: string,
 	options?: { stdin?: string; timeoutMs?: number },
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-	const config = getConfig();
-	const sshClient = await connectSsh(config);
-	try {
-		return await new Promise<{
-			stdout: string;
-			stderr: string;
-			exitCode: number;
-		}>((resolve, reject) => {
-			let timer: NodeJS.Timeout | null = null;
-			sshClient.exec(command, (err, stream) => {
-				if (err) {
-					reject(err);
-					return;
-				}
-				let stdout = "";
-				let stderr = "";
-				let exitCode = -1;
-				stream.on("data", (chunk: Buffer) => {
-					stdout += chunk.toString("utf8");
-				});
-				stream.stderr.on("data", (chunk: Buffer) => {
-					stderr += chunk.toString("utf8");
-				});
-				stream.on("close", (code: number | null) => {
-					if (timer) {
-						clearTimeout(timer);
-					}
-					exitCode = typeof code === "number" ? code : -1;
-					resolve({ stdout, stderr, exitCode });
-				});
-				if (options?.stdin !== undefined) {
-					stream.stdin.end(options.stdin);
-				} else {
-					stream.stdin.end();
-				}
-				if (options?.timeoutMs && options.timeoutMs > 0) {
-					timer = setTimeout(() => {
-						stream.signal?.("KILL");
-						stream.destroy();
-						reject(
-							new Error(
-								`SSH exec timed out after ${options.timeoutMs}ms`,
-							),
-						);
-					}, options.timeoutMs);
-				}
+	// Reuse the persistent warm SSH client (exec, not a DB query). Do NOT end it
+	// here — it is shared with the connection pool and other exec calls.
+	const sshClient = await tunnel.getSshClient();
+	return await new Promise<{
+		stdout: string;
+		stderr: string;
+		exitCode: number;
+	}>((resolve, reject) => {
+		let timer: NodeJS.Timeout | null = null;
+		sshClient.exec(command, (err, stream) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+			let stdout = "";
+			let stderr = "";
+			let exitCode = -1;
+			stream.on("data", (chunk: Buffer) => {
+				stdout += chunk.toString("utf8");
 			});
+			stream.stderr.on("data", (chunk: Buffer) => {
+				stderr += chunk.toString("utf8");
+			});
+			stream.on("close", (code: number | null) => {
+				if (timer) {
+					clearTimeout(timer);
+				}
+				exitCode = typeof code === "number" ? code : -1;
+				resolve({ stdout, stderr, exitCode });
+			});
+			if (options?.stdin !== undefined) {
+				stream.stdin.end(options.stdin);
+			} else {
+				stream.stdin.end();
+			}
+			if (options?.timeoutMs && options.timeoutMs > 0) {
+				timer = setTimeout(() => {
+					stream.signal?.("KILL");
+					stream.destroy();
+					reject(
+						new Error(
+							`SSH exec timed out after ${options.timeoutMs}ms`,
+						),
+					);
+				}, options.timeoutMs);
+			}
 		});
-	} finally {
-		sshClient.end();
-	}
+	});
 }
 
 /**
