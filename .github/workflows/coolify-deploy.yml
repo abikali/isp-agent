@@ -52,6 +52,7 @@ jobs:
             SITE_URL=https://cp.libancomlb.com
             AVATARS_BUCKET_NAME=libancom
             VITE_VAPID_PUBLIC_KEY=BDH1q7TRk-dVcd8cEV1It9-YpOwkHtm9wVZAUz_hGTFpGja-g6cMhZrBCOisLpC6qOhmB37KtxvGzY1wkLCq19U
+            VITE_SENTRY_DSN=https://5b2d3364dd85debeed84c3c5a7f73586@o4508246755573760.ingest.de.sentry.io/4511485060579408
       - name: Build & push worker image
         uses: docker/build-push-action@v6
         with:
