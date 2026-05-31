@@ -434,6 +434,11 @@ export function CustomerDetail({
 					<span className="font-mono text-xs">
 						{customer.accountNumber}
 					</span>
+					{customer.username && (
+						<span className="font-mono text-xs text-muted-foreground">
+							@{customer.username}
+						</span>
+					)}
 					<StatusIndicator
 						status={statusType}
 						variant="badge"
