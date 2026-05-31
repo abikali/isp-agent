@@ -20,7 +20,7 @@ import { getRedisConnection } from "@repo/jobs";
  * All Redis access is best-effort: any error degrades cleanly to computing the
  * value (the endpoint must never break because the cache is unavailable).
  */
-const DEFAULT_TTL_MS = 20_000;
+const DEFAULT_TTL_MS = 30_000;
 const PREFIX = "statcache:";
 
 export async function cachedStat<T>(
