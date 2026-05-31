@@ -1,7 +1,5 @@
-import type net from "node:net";
 import type { Connection, RowDataPacket } from "mysql2/promise";
-import mysql from "mysql2/promise";
-import { Client } from "ssh2";
+import { createSshTunnel } from "./ssh-tunnel";
 
 interface BillingConfig {
 	ssh: {
@@ -45,83 +43,24 @@ function getConfig(): BillingConfig {
 	};
 }
 
-async function createTunnel(config: BillingConfig): Promise<{
-	connection: Connection;
-	close: () => Promise<void>;
-}> {
-	return new Promise((resolve, reject) => {
-		const sshClient = new Client();
-
-		sshClient.on("ready", () => {
-			sshClient.forwardOut(
-				"127.0.0.1",
-				0,
-				"127.0.0.1",
-				3306,
-				async (err, stream) => {
-					if (err) {
-						sshClient.end();
-						reject(new Error(`SSH tunnel failed: ${err.message}`));
-						return;
-					}
-
-					try {
-						const connection = await mysql.createConnection({
-							user: config.db.user,
-							password: config.db.password,
-							database: config.db.database,
-							stream: stream as unknown as net.Socket,
-							charset: "utf8mb4",
-							// Legacy PHP billing stores naive Beirut-local datetimes.
-							// Receive them as raw strings and parse under the worker's
-							// TZ=Asia/Beirut instead of mysql2's default UTC coercion.
-							dateStrings: true,
-						});
-
-						resolve({
-							connection,
-							close: async () => {
-								await connection.end().catch(() => {});
-								sshClient.end();
-							},
-						});
-					} catch (dbErr) {
-						sshClient.end();
-						reject(dbErr);
-					}
-				},
-			);
-		});
-
-		sshClient.on("error", (err) => {
-			reject(new Error(`SSH connection failed: ${err.message}`));
-		});
-
-		sshClient.connect({
-			host: config.ssh.host,
-			port: config.ssh.port,
-			username: config.ssh.username,
-			password: config.ssh.password,
-			readyTimeout: 10000,
-		});
-	});
-}
+// One persistent SSH client + MySQL pool over it, reused across all calls
+// (the billing-sync worker runs a long batch of queries inside a single
+// withBillingConnection block, and the connection now stays warm between syncs).
+const tunnel = createSshTunnel({
+	ssh: () => getConfig().ssh,
+	db: () => getConfig().db,
+	connectionLimit: 4,
+});
 
 /**
- * Execute a callback with a billing system MySQL connection.
- * Handles SSH tunnel setup and cleanup automatically.
+ * Execute a callback with a billing MySQL connection leased from the persistent
+ * tunnelled pool. The connection is reused across calls (no per-call SSH +
+ * MySQL handshake) and returned to the pool when `fn` resolves.
  */
 export async function withBillingConnection<T>(
 	fn: (connection: Connection) => Promise<T>,
 ): Promise<T> {
-	const config = getConfig();
-	const { connection, close } = await createTunnel(config);
-
-	try {
-		return await fn(connection);
-	} finally {
-		await close();
-	}
+	return tunnel.withConnection(fn);
 }
 
 /** Row type returned by billing queries. */
