@@ -102,6 +102,10 @@ export const listUnpaidCustomers = protectedProcedure
 		// until admin approves or declines.
 		const customerWhere: Record<string, unknown> = {
 			status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
+			// Exclude soft-deleted customers (e.g. removed from iRadius or moved
+			// to another dealer's subtree) — they keep their invoice rows but
+			// must not surface in the collector unpaid list.
+			deletedAt: null,
 			...getDealerScopeFilter(activeDealerId),
 			NOT: {
 				payments: {

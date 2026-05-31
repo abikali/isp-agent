@@ -152,6 +152,10 @@ export function customersDueThisMonthWhere(
 ) {
 	const where: Record<string, unknown> = {
 		organizationId,
+		// Exclude soft-deleted customers (e.g. removed from iRadius or moved to
+		// another dealer's subtree) — they keep their invoice rows but must not
+		// surface in any collector-facing list.
+		deletedAt: null,
 		// Pending-stop customers are in admin-review limbo — not "due" to
 		// anyone until admin resolves the review.
 		NOT: {
@@ -219,6 +223,10 @@ export function unpaidCustomersWhere(
 	const where: Record<string, unknown> = {
 		organizationId,
 		status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
+		// Exclude soft-deleted customers (e.g. removed from iRadius or moved to
+		// another dealer's subtree) — they keep their invoice rows but must not
+		// surface in any collector-facing list.
+		deletedAt: null,
 		// Hide customers with a pending-stop payment in any relevant month —
 		// they're in admin review, not truly "unpaid".
 		NOT: {
