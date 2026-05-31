@@ -262,8 +262,16 @@ export const listUnpaidCustomers = protectedProcedure
 			set.add(p.billingMonthId);
 		}
 
-		// Aggregate unpaid invoices per customer.
+		// Aggregate invoices per customer. We record every billed month (paid
+		// and unpaid) so the UI can show the admin exactly which months are
+		// settled vs still owed; only unpaid months count toward the dues.
 		type Customer = (typeof invoices)[number]["customer"];
+		interface MonthBreakdown {
+			year: number;
+			month: number;
+			amount: number;
+			paid: boolean;
+		}
 		interface UnpaidRow {
 			customer: Customer;
 			monthlyDue: number;
@@ -272,6 +280,7 @@ export const listUnpaidCustomers = protectedProcedure
 			pastDueMonths: number;
 			pastDueAmount: number;
 			oldestUnpaidExpiry: Date | null;
+			months: MonthBreakdown[];
 		}
 		const byCustomer = new Map<string, UnpaidRow>();
 		for (const inv of invoices) {
@@ -281,9 +290,8 @@ export const listUnpaidCustomers = protectedProcedure
 			if (!billingMonthId) {
 				continue;
 			}
-			if (paidSet.get(inv.customerId)?.has(billingMonthId)) {
-				continue;
-			}
+			const paid =
+				paidSet.get(inv.customerId)?.has(billingMonthId) ?? false;
 			const amount = inv.totalWithTax > 0 ? inv.totalWithTax : inv.total;
 			let row = byCustomer.get(inv.customerId);
 			if (!row) {
@@ -295,8 +303,18 @@ export const listUnpaidCustomers = protectedProcedure
 					pastDueMonths: 0,
 					pastDueAmount: 0,
 					oldestUnpaidExpiry: null,
+					months: [],
 				};
 				byCustomer.set(inv.customerId, row);
+			}
+			row.months.push({
+				year: inv.year,
+				month: inv.month,
+				amount,
+				paid,
+			});
+			if (paid) {
+				continue;
 			}
 			row.unpaidMonths++;
 			row.accumulatedDue += amount;
@@ -314,7 +332,11 @@ export const listUnpaidCustomers = protectedProcedure
 			}
 		}
 
-		let rows = Array.from(byCustomer.values());
+		// Keep only customers with at least one unpaid month (a fully-paid
+		// customer can land in the map now that we also record paid months).
+		let rows = Array.from(byCustomer.values()).filter(
+			(r) => r.unpaidMonths > 0,
+		);
 
 		// Expiry-range filter now matches against the oldest unpaid invoice.
 		if (input.expiryFrom || input.expiryTo) {
@@ -379,6 +401,11 @@ export const listUnpaidCustomers = protectedProcedure
 			pastDueMonths: r.pastDueMonths,
 			pastDueAmount: r.pastDueAmount,
 			oldestUnpaidExpiry: r.oldestUnpaidExpiry,
+			months: [...r.months].sort(
+				(a, b) =>
+					yearMonthToNum(a.year, a.month) -
+					yearMonthToNum(b.year, b.month),
+			),
 		}));
 
 		return {

@@ -32,10 +32,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@ui/components/tooltip";
+import { cn } from "@ui/lib";
 import {
 	BanIcon,
 	BanknoteIcon,
 	CalendarXIcon,
+	CheckIcon,
 	DollarSignIcon,
 	MessageCircleIcon,
 	PhoneIcon,
@@ -53,7 +55,11 @@ import {
 	useUnpaidCustomers,
 	useVoidUnpaidForCustomers,
 } from "../hooks/use-billing";
-import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
+import {
+	customerMonthlyDue,
+	formatCycleShort,
+	getExpiryInfo,
+} from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 import { BillingStatsCards } from "./BillingStatsCards";
@@ -146,6 +152,89 @@ function ExpiryBadge({ expiresAt }: { expiresAt: string | Date | null }) {
 type UnpaidCustomer = ReturnType<
 	typeof useUnpaidCustomers
 >["customers"][number];
+
+/**
+ * Amount due for the collect list. Shows the full accumulated balance (what
+ * the collector actually collects) and, when more than one month is involved,
+ * a compact "N months unpaid" badge plus a per-month paid/unpaid breakdown on
+ * hover — so admins can see at a glance which cycles are settled and which
+ * are still owed.
+ */
+function AmountDueCell({ customer }: { customer: UnpaidCustomer }) {
+	const monthlyDue = customer.monthlyDue ?? customerMonthlyDue(customer);
+	const total = customer.accumulatedDue ?? monthlyDue;
+	const unpaidMonths = customer.unpaidMonths ?? 1;
+	const months = customer.months ?? [];
+	// Only surface the breakdown when there's something to explain — a single
+	// unpaid month with no history stays a clean one-line number.
+	const hasBreakdown = months.length > 1 || unpaidMonths > 1;
+
+	const amount = (
+		<span className="font-semibold tabular-nums cursor-default">
+			{formatCurrency(total)}
+		</span>
+	);
+
+	if (!hasBreakdown) {
+		return <div className="text-right">{amount}</div>;
+	}
+
+	return (
+		<div className="flex flex-col items-end gap-1">
+			<Tooltip>
+				<TooltipTrigger asChild>{amount}</TooltipTrigger>
+				<TooltipContent side="left" className="p-2">
+					<div className="min-w-[180px]">
+						<div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+							Months billed
+						</div>
+						<div className="space-y-0.5">
+							{months.map((m) => (
+								<div
+									key={`${m.year}-${m.month}`}
+									className={cn(
+										"flex items-center justify-between gap-3 text-xs",
+										m.paid && "text-muted-foreground",
+									)}
+								>
+									<span className="flex items-center gap-1.5">
+										{m.paid ? (
+											<CheckIcon className="size-3 text-emerald-500" />
+										) : (
+											<span className="size-1.5 rounded-full bg-amber-500" />
+										)}
+										{formatCycleShort(m.year, m.month)}
+									</span>
+									<span className="tabular-nums">
+										{m.paid ? (
+											<span className="text-emerald-500">
+												Paid
+											</span>
+										) : (
+											formatCurrency(m.amount)
+										)}
+									</span>
+								</div>
+							))}
+						</div>
+						<div className="mt-1 flex justify-between gap-3 border-t pt-1 text-xs font-semibold">
+							<span>Total due</span>
+							<span className="tabular-nums">
+								{formatCurrency(total)}
+							</span>
+						</div>
+					</div>
+				</TooltipContent>
+			</Tooltip>
+			<Badge
+				variant="warning"
+				className="px-1.5 py-0 text-[10px] font-medium"
+			>
+				{unpaidMonths} {unpaidMonths === 1 ? "month" : "months"} unpaid
+			</Badge>
+		</div>
+	);
+}
 
 function useUnpaidColumns({
 	isOrganizationAdmin,
@@ -298,71 +387,7 @@ function useUnpaidColumns({
 				accessorFn: (row) => row.monthlyRate,
 				enableSorting: true,
 				meta: { className: "text-right" },
-				cell: ({ row }) => {
-					const customer = row.original;
-					const accountPrice =
-						customer.monthlyRate ??
-						customer.plan?.monthlyPrice ??
-						0;
-					const discount = customer.discount ?? 0;
-					const totalDue = customerMonthlyDue(customer);
-
-					return (
-						<div className="text-right">
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="font-semibold tabular-nums cursor-default">
-										{formatCurrency(totalDue)}
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side="left">
-									<div className="text-xs space-y-0.5">
-										<div className="flex justify-between gap-4">
-											<span>Base</span>
-											<span>
-												{formatCurrency(accountPrice)}
-											</span>
-										</div>
-										{customer.iptvPrice ? (
-											<div className="flex justify-between gap-4">
-												<span>IPTV</span>
-												<span>
-													{formatCurrency(
-														customer.iptvPrice,
-													)}
-												</span>
-											</div>
-										) : null}
-										{customer.realIpPrice ? (
-											<div className="flex justify-between gap-4">
-												<span>Real IP</span>
-												<span>
-													{formatCurrency(
-														customer.realIpPrice,
-													)}
-												</span>
-											</div>
-										) : null}
-										{discount > 0 ? (
-											<div className="flex justify-between gap-4 text-green-500">
-												<span>Discount</span>
-												<span>
-													-{formatCurrency(discount)}
-												</span>
-											</div>
-										) : null}
-										<div className="border-t pt-0.5 font-semibold flex justify-between gap-4">
-											<span>Total</span>
-											<span>
-												{formatCurrency(totalDue)}
-											</span>
-										</div>
-									</div>
-								</TooltipContent>
-							</Tooltip>
-						</div>
-					);
-				},
+				cell: ({ row }) => <AmountDueCell customer={row.original} />,
 			},
 			{
 				id: "actions",
@@ -489,9 +514,10 @@ export function UnpaidCustomersList() {
 			sortOrder,
 		});
 
-	// Calculate total amount due across visible page (for the footer)
+	// Calculate total amount due across visible page (for the footer).
+	// Uses the full accumulated balance so it matches the per-row amounts.
 	const pageAmountDue = customers.reduce(
-		(sum, c) => sum + customerMonthlyDue(c),
+		(sum, c) => sum + (c.accumulatedDue ?? customerMonthlyDue(c)),
 		0,
 	);
 
