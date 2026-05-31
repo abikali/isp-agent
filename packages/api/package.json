@@ -19,6 +19,10 @@
 			"types": "./lib/permission.ts",
 			"default": "./lib/permission.ts"
 		},
+		"./lib/stat-cache": {
+			"types": "./lib/stat-cache.ts",
+			"default": "./lib/stat-cache.ts"
+		},
 		"./lib/validation": {
 			"types": "./lib/validation.ts",
 			"default": "./lib/validation.ts"

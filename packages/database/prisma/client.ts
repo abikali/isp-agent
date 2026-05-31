@@ -8,12 +8,6 @@ const createPrismaClient = () => {
 
 	const adapter = new PrismaPg({
 		connectionString: process.env["DATABASE_URL"],
-		// The dashboard fires ~12 RPC calls (each running several queries) in
-		// parallel; the default pg pool of 10 saturates and queries queue
-		// (~600ms of pool-wait — each query is only ~25ms in PG). PG allows 100
-		// connections and uses only a handful, so raise the ceiling. Tunable via
-		// DB_POOL_MAX if the node's memory ever needs it lowered.
-		max: Number(process.env["DB_POOL_MAX"] ?? 20),
 	});
 
 	return new PrismaClient({ adapter });

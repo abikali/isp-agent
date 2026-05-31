@@ -3,6 +3,7 @@ import {
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
+import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -34,100 +35,117 @@ export const getCustomerStats = protectedProcedure
 			"customers",
 			"read",
 		);
-		const baseWhere = {
-			organizationId,
-			// Exclude rows soft-deleted by the iRadius sync cleanup so stats
-			// match what the list view shows. See `list.ts` for context.
-			deletedAt: null,
-			...ownerFilter,
-			...getDealerScopeFilter(activeDealerId),
-		};
 
-		const [
-			statusCounts,
-			online,
-			offline,
-			expired,
-			needsReview,
-			employeeCount,
-			planDistribution,
-		] = await Promise.all([
-			db.customer.groupBy({
-				by: ["status"],
-				where: baseWhere,
-				_count: true,
-			}),
-			db.customer.count({
-				where: { ...baseWhere, online: true },
-			}),
-			db.customer.count({
-				where: { ...baseWhere, online: false, status: "ACTIVE" },
-			}),
-			db.customer.count({
-				where: {
-					...baseWhere,
-					expiresAt: { lt: new Date() },
-					status: "ACTIVE",
-				},
-			}),
-			db.customer.count({
-				where: { ...baseWhere, ...CUSTOMER_NEEDS_REVIEW_WHERE },
-			}),
-			db.employee.count({
-				where: {
+		return cachedStat(
+			statCacheKey("customers/stats", [
+				organizationId,
+				activeDealerId,
+				ownerFilter,
+			]),
+			async () => {
+				const baseWhere = {
 					organizationId,
-					// Match the employees list/stats — skip soft-deleted rows.
+					// Exclude rows soft-deleted by the iRadius sync cleanup so stats
+					// match what the list view shows. See `list.ts` for context.
 					deletedAt: null,
+					...ownerFilter,
 					...getDealerScopeFilter(activeDealerId),
-				},
-			}),
-			db.customer.groupBy({
-				by: ["planId"],
-				where: {
-					...baseWhere,
-					status: "ACTIVE",
-					planId: { not: null },
-				},
-				_count: true,
-				orderBy: { _count: { planId: "desc" } },
-				take: 20,
-			}),
-		]);
+				};
 
-		const countByStatus = new Map(
-			statusCounts.map((s) => [s.status, s._count]),
-		);
-		const total = statusCounts.reduce((sum, s) => sum + s._count, 0);
-		const active = countByStatus.get("ACTIVE") ?? 0;
-		const inactive = countByStatus.get("INACTIVE") ?? 0;
-		const suspended = countByStatus.get("SUSPENDED") ?? 0;
-		const pending = countByStatus.get("PENDING") ?? 0;
+				const [
+					statusCounts,
+					online,
+					offline,
+					expired,
+					needsReview,
+					employeeCount,
+					planDistribution,
+				] = await Promise.all([
+					db.customer.groupBy({
+						by: ["status"],
+						where: baseWhere,
+						_count: true,
+					}),
+					db.customer.count({
+						where: { ...baseWhere, online: true },
+					}),
+					db.customer.count({
+						where: {
+							...baseWhere,
+							online: false,
+							status: "ACTIVE",
+						},
+					}),
+					db.customer.count({
+						where: {
+							...baseWhere,
+							expiresAt: { lt: new Date() },
+							status: "ACTIVE",
+						},
+					}),
+					db.customer.count({
+						where: { ...baseWhere, ...CUSTOMER_NEEDS_REVIEW_WHERE },
+					}),
+					db.employee.count({
+						where: {
+							organizationId,
+							// Match the employees list/stats — skip soft-deleted rows.
+							deletedAt: null,
+							...getDealerScopeFilter(activeDealerId),
+						},
+					}),
+					db.customer.groupBy({
+						by: ["planId"],
+						where: {
+							...baseWhere,
+							status: "ACTIVE",
+							planId: { not: null },
+						},
+						_count: true,
+						orderBy: { _count: { planId: "desc" } },
+						take: 20,
+					}),
+				]);
 
-		// Resolve plan names + calculate revenue in parallel
-		const planIds = planDistribution
-			.map((p) => p.planId)
-			.filter((id): id is string => id !== null);
+				const countByStatus = new Map(
+					statusCounts.map((s) => [s.status, s._count]),
+				);
+				const total = statusCounts.reduce(
+					(sum, s) => sum + s._count,
+					0,
+				);
+				const active = countByStatus.get("ACTIVE") ?? 0;
+				const inactive = countByStatus.get("INACTIVE") ?? 0;
+				const suspended = countByStatus.get("SUSPENDED") ?? 0;
+				const pending = countByStatus.get("PENDING") ?? 0;
 
-		const [plans, rateRevenue, planRevenue] = await Promise.all([
-			planIds.length > 0
-				? db.servicePlan.findMany({
-						where: { id: { in: planIds } },
-						select: { id: true, name: true },
-					})
-				: [],
-			db.customer.aggregate({
-				where: {
-					...baseWhere,
-					status: "ACTIVE",
-					monthlyRate: { not: null },
-				},
-				_sum: { monthlyRate: true },
-			}),
-			// Scoped users have dynamic ownership filters that can't be safely embedded in raw SQL
-			ownerFilter
-				? Promise.resolve([{ total: 0 }] as [{ total: number | null }])
-				: activeDealerId
-					? db.$queryRaw<[{ total: number | null }]>`
+				// Resolve plan names + calculate revenue in parallel
+				const planIds = planDistribution
+					.map((p) => p.planId)
+					.filter((id): id is string => id !== null);
+
+				const [plans, rateRevenue, planRevenue] = await Promise.all([
+					planIds.length > 0
+						? db.servicePlan.findMany({
+								where: { id: { in: planIds } },
+								select: { id: true, name: true },
+							})
+						: [],
+					db.customer.aggregate({
+						where: {
+							...baseWhere,
+							status: "ACTIVE",
+							monthlyRate: { not: null },
+						},
+						_sum: { monthlyRate: true },
+					}),
+					// Scoped users have dynamic ownership filters that can't be safely embedded in raw SQL
+					ownerFilter
+						? Promise.resolve([{ total: 0 }] as [
+								{ total: number | null },
+							])
+						: activeDealerId
+							? db.$queryRaw<[{ total: number | null }]>`
 						SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
 						FROM "customer" c
 						INNER JOIN "service_plan" sp ON sp."id" = c."planId"
@@ -137,7 +155,7 @@ export const getCustomerStats = protectedProcedure
 						AND c."dealerId" = ${activeDealerId}
 						AND c."deletedAt" IS NULL
 					`
-					: db.$queryRaw<[{ total: number | null }]>`
+							: db.$queryRaw<[{ total: number | null }]>`
 						SELECT COALESCE(SUM(sp."monthlyPrice"), 0) as total
 						FROM "customer" c
 						INNER JOIN "service_plan" sp ON sp."id" = c."planId"
@@ -147,30 +165,32 @@ export const getCustomerStats = protectedProcedure
 						AND c."dealerId" IS NULL
 						AND c."deletedAt" IS NULL
 					`,
-		]);
+				]);
 
-		const planNameMap = new Map(plans.map((p) => [p.id, p.name]));
-		const totalMonthlyRevenue =
-			(rateRevenue._sum.monthlyRate ?? 0) +
-			Number(planRevenue[0]?.total ?? 0);
+				const planNameMap = new Map(plans.map((p) => [p.id, p.name]));
+				const totalMonthlyRevenue =
+					(rateRevenue._sum.monthlyRate ?? 0) +
+					Number(planRevenue[0]?.total ?? 0);
 
-		return {
-			total,
-			active,
-			inactive,
-			suspended,
-			pending,
-			online,
-			offline,
-			expired,
-			needsReview,
-			employeeCount,
-			totalMonthlyRevenue,
-			planDistribution: planDistribution.map((p) => ({
-				planName: p.planId
-					? (planNameMap.get(p.planId) ?? "Unknown")
-					: "No Plan",
-				count: p._count,
-			})),
-		};
+				return {
+					total,
+					active,
+					inactive,
+					suspended,
+					pending,
+					online,
+					offline,
+					expired,
+					needsReview,
+					employeeCount,
+					totalMonthlyRevenue,
+					planDistribution: planDistribution.map((p) => ({
+						planName: p.planId
+							? (planNameMap.get(p.planId) ?? "Unknown")
+							: "No Plan",
+						count: p._count,
+					})),
+				};
+			},
+		);
 	});
