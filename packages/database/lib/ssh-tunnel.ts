@@ -62,7 +62,9 @@ function isTransientConnError(err: unknown): boolean {
 
 export interface SshTunnel {
 	/** Lease one connection for the duration of `fn`, then release it. */
-	withConnection: <T>(fn: (connection: Connection) => Promise<T>) => Promise<T>;
+	withConnection: <T>(
+		fn: (connection: Connection) => Promise<T>,
+	) => Promise<T>;
 	/**
 	 * Lease `size` independent connections (for fan-out parallel queries) for
 	 * the duration of `fn`, then release them all.
@@ -119,21 +121,15 @@ export function createSshTunnel(config: SshTunnelConfig): SshTunnel {
 			// if it does not resolve quickly, drop the socket so the waiting
 			// mysql2 connection fails fast instead of hanging forever.
 			const guard = setTimeout(() => socket.destroy(), 12000);
-			ssh.forwardOut(
-				"127.0.0.1",
-				0,
-				"127.0.0.1",
-				3306,
-				(err, stream) => {
-					clearTimeout(guard);
-					if (err) {
-						socket.destroy();
-						return;
-					}
-					stream.on("error", () => socket.destroy());
-					socket.pipe(stream).pipe(socket);
-				},
-			);
+			ssh.forwardOut("127.0.0.1", 0, "127.0.0.1", 3306, (err, stream) => {
+				clearTimeout(guard);
+				if (err) {
+					socket.destroy();
+					return;
+				}
+				stream.on("error", () => socket.destroy());
+				socket.pipe(stream).pipe(socket);
+			});
 		});
 		server.on("error", () => {});
 		await new Promise<void>((resolve, reject) => {

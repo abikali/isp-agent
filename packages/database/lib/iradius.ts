@@ -172,46 +172,46 @@ export async function execIRadiusShell(
 		stderr: string;
 		exitCode: number;
 	}>((resolve, reject) => {
-			let timer: NodeJS.Timeout | null = null;
-			sshClient.exec(command, (err, stream) => {
-				if (err) {
-					reject(err);
-					return;
-				}
-				let stdout = "";
-				let stderr = "";
-				let exitCode = -1;
-				stream.on("data", (chunk: Buffer) => {
-					stdout += chunk.toString("utf8");
-				});
-				stream.stderr.on("data", (chunk: Buffer) => {
-					stderr += chunk.toString("utf8");
-				});
-				stream.on("close", (code: number | null) => {
-					if (timer) {
-						clearTimeout(timer);
-					}
-					exitCode = typeof code === "number" ? code : -1;
-					resolve({ stdout, stderr, exitCode });
-				});
-				if (options?.stdin !== undefined) {
-					stream.stdin.end(options.stdin);
-				} else {
-					stream.stdin.end();
-				}
-				if (options?.timeoutMs && options.timeoutMs > 0) {
-					timer = setTimeout(() => {
-						stream.signal?.("KILL");
-						stream.destroy();
-						reject(
-							new Error(
-								`SSH exec timed out after ${options.timeoutMs}ms`,
-							),
-						);
-					}, options.timeoutMs);
-				}
+		let timer: NodeJS.Timeout | null = null;
+		sshClient.exec(command, (err, stream) => {
+			if (err) {
+				reject(err);
+				return;
+			}
+			let stdout = "";
+			let stderr = "";
+			let exitCode = -1;
+			stream.on("data", (chunk: Buffer) => {
+				stdout += chunk.toString("utf8");
 			});
+			stream.stderr.on("data", (chunk: Buffer) => {
+				stderr += chunk.toString("utf8");
+			});
+			stream.on("close", (code: number | null) => {
+				if (timer) {
+					clearTimeout(timer);
+				}
+				exitCode = typeof code === "number" ? code : -1;
+				resolve({ stdout, stderr, exitCode });
+			});
+			if (options?.stdin !== undefined) {
+				stream.stdin.end(options.stdin);
+			} else {
+				stream.stdin.end();
+			}
+			if (options?.timeoutMs && options.timeoutMs > 0) {
+				timer = setTimeout(() => {
+					stream.signal?.("KILL");
+					stream.destroy();
+					reject(
+						new Error(
+							`SSH exec timed out after ${options.timeoutMs}ms`,
+						),
+					);
+				}, options.timeoutMs);
+			}
 		});
+	});
 }
 
 /**
