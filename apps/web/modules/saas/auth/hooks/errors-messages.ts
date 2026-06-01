@@ -17,6 +17,7 @@ export const AUTH_ERROR_MESSAGES: Partial<
 	Record<keyof AuthClientErrorCodes | OAuthErrorCodes, string>
 > = {
 	INVALID_EMAIL_OR_PASSWORD: "Invalid email or password",
+	INVALID_USERNAME_OR_PASSWORD: "Invalid username or password",
 	USER_NOT_FOUND: "User not found",
 	FAILED_TO_CREATE_USER: "Failed to create user",
 	FAILED_TO_CREATE_SESSION: "Failed to create session",
