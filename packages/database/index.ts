@@ -3,6 +3,7 @@ export {
 	buildIRadiusMobile,
 	buildPhonesFromSync,
 	type CustomerPhone,
+	extractPhoneNumbers,
 	getPrimaryPhone,
 	MAX_PHONES,
 	normalizeLebanesePhone,
