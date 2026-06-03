@@ -86,6 +86,7 @@ import { CustomerIradiusMenu } from "./CustomerIradiusMenu";
 import { CustomerLiveStrip } from "./CustomerLiveStrip";
 import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerPayments } from "./CustomerPayments";
+import { CustomerReferrals } from "./CustomerReferrals";
 import { CustomerSaveBar } from "./CustomerSaveBar";
 import { CustomerTransactions } from "./CustomerTransactions";
 import { NetworkStatusField } from "./NetworkStatusField";
@@ -1821,6 +1822,15 @@ function ActivityTab({
 			</DetailSection>
 			<DetailSection title="Payments">
 				<CustomerPayments
+					customerId={customerId}
+					organizationSlug={organizationSlug}
+				/>
+			</DetailSection>
+			<DetailSection
+				title="Referrals"
+				description="Customers who received a free plan referred by this customer"
+			>
+				<CustomerReferrals
 					customerId={customerId}
 					organizationSlug={organizationSlug}
 				/>

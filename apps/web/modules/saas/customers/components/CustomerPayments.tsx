@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCycleShort } from "@saas/billing/client";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
@@ -28,6 +29,14 @@ interface PaymentRow {
 	freeAccount: boolean;
 	stoppedAccount: boolean;
 	notes: string | null;
+	collector: {
+		id: string;
+		name: string;
+	} | null;
+	billingMonth: {
+		year: number;
+		month: number;
+	} | null;
 	referredCustomer: {
 		id: string;
 		firstName: string | null;
@@ -71,6 +80,18 @@ export function CustomerPayments({
 				cell: ({ row }) => formatDate(row.original.paidAt),
 			},
 			{
+				id: "period",
+				header: "Period",
+				meta: {
+					className:
+						"hidden text-xs whitespace-nowrap text-muted-foreground sm:table-cell",
+				},
+				cell: ({ row }) => {
+					const bm = row.original.billingMonth;
+					return bm ? formatCycleShort(bm.year, bm.month) : "—";
+				},
+			},
+			{
 				id: "amount",
 				header: "Amount",
 				meta: { className: "text-right text-xs font-medium" },
@@ -83,7 +104,27 @@ export function CustomerPayments({
 							</Badge>
 						);
 					}
+					if (p.stoppedAccount) {
+						return (
+							<Badge variant="destructive" className="text-xs">
+								Stopped
+							</Badge>
+						);
+					}
 					return `$${p.paidAmount.toFixed(2)}`;
+				},
+			},
+			{
+				id: "collector",
+				header: "Collector",
+				meta: { className: "text-xs whitespace-nowrap" },
+				cell: ({ row }) => {
+					const collector = row.original.collector;
+					return collector ? (
+						collector.name
+					) : (
+						<span className="text-muted-foreground">—</span>
+					);
 				},
 			},
 			{

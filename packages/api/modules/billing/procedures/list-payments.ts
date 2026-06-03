@@ -25,6 +25,7 @@ export const listPayments = protectedProcedure
 			.object({
 				organizationId: z.string(),
 				customerId: z.string().optional(),
+				referredCustomerId: z.string().optional(),
 				billingMonthId: z.string().optional(),
 				collectorId: z.string().optional(),
 				stoppedAccount: z.boolean().optional(),
@@ -72,6 +73,9 @@ export const listPayments = protectedProcedure
 
 		if (input.customerId) {
 			where["customerId"] = input.customerId;
+		}
+		if (input.referredCustomerId) {
+			where["referredCustomerId"] = input.referredCustomerId;
 		}
 		if (input.billingMonthId) {
 			where["billingMonthId"] = input.billingMonthId;
