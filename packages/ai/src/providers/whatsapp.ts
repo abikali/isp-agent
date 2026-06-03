@@ -648,12 +648,16 @@ export async function transcribeAudio(
 	try {
 		const base64Audio = media.buffer.toString("base64");
 
-		// Use Gemini Flash Lite via OpenRouter — supports OGG natively, very cheap.
-		// NOTE: keep this on a model with LIVE OpenRouter endpoints. The previous
+		// Use Gemini 3 Flash via OpenRouter — supports OGG natively.
+		// NOTE: keep this on a model with LIVE OpenRouter endpoints. The earlier
 		// pin `google/gemini-2.0-flash-lite-001` was retired (OpenRouter returned
 		// 404 "No endpoints found") on ~2026-06-01, which silently broke all voice
-		// transcription. Verified 2026-06-03 that gemini-3.1-flash-lite serves and
-		// transcribes Lebanese-Arabic OGG/Opus correctly.
+		// transcription. We then ran on `gemini-3.1-flash-lite`, but the lite tier
+		// was unreliable on short, noisy Lebanese-dialect clips: it hallucinated a
+		// different opening greeting on every run (verified 2026-06-03 over 8 runs
+		// of the same audio), which fed the agent garbled context. `gemini-3-flash-
+		// preview` produced clean, stable transcriptions that preserve the Lebanese
+		// dialect verbatim, for ~2x the (negligible) lite cost per clip.
 		const response = await fetch(
 			"https://openrouter.ai/api/v1/chat/completions",
 			{
@@ -663,7 +667,7 @@ export async function transcribeAudio(
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "google/gemini-3.1-flash-lite",
+					model: "google/gemini-3-flash-preview",
 					messages: [
 						{
 							role: "user",
