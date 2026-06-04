@@ -12,6 +12,7 @@ import { db } from "@repo/database";
 import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
+	excludeGroupFilter,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
 	SETTLED_PAYMENT,
@@ -156,6 +157,11 @@ export function customersDueThisMonthWhere(
 		// another dealer's subtree) — they keep their invoice rows but must not
 		// surface in any collector-facing list.
 		deletedAt: null,
+		// Exclude the "free" group. They are never billed (`generate-invoices`
+		// skips them) and the collect list hides them, so they must not inflate
+		// "due this month" counts. Migration-imported invoices can otherwise
+		// leave free-group customers with stray invoice rows.
+		AND: [excludeGroupFilter("free")],
 		// Pending-stop customers are in admin-review limbo — not "due" to
 		// anyone until admin resolves the review.
 		NOT: {
@@ -227,6 +233,10 @@ export function unpaidCustomersWhere(
 		// another dealer's subtree) — they keep their invoice rows but must not
 		// surface in any collector-facing list.
 		deletedAt: null,
+		// Exclude the "free" group to match the collect list (which hides them
+		// via `excludeGroupName: "free"`) and `generate-invoices` (which never
+		// bills them). Stray migration-imported invoices must not surface them.
+		AND: [excludeGroupFilter("free")],
 		// Hide customers with a pending-stop payment in any relevant month —
 		// they're in admin review, not truly "unpaid".
 		NOT: {
