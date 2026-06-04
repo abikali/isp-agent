@@ -670,6 +670,7 @@ model AiAgent {
   conversations  AiConversation[]
   toolConfigs    AiAgentToolConfig[]
   capturedLeads  AiCapturedLead[]
+  maintenanceWindows AiMaintenanceWindow[]
 
   @@index([organizationId])
   @@map("ai_agent")
@@ -797,6 +798,21 @@ model AiAgentToolConfig {
   @@unique([agentId, toolId])
   @@index([agentId])
   @@map("ai_agent_tool_config")
+}
+
+model AiMaintenanceWindow {
+  id        String   @id @default(cuid())
+  agentId   String
+  startsAt  DateTime
+  endsAt    DateTime
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, startsAt, endsAt])
+  @@map("ai_maintenance_window")
 }
 
 model AiCapturedLead {

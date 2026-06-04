@@ -9,6 +9,7 @@ import {
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
+	resolveMaintenanceState,
 	type ToolResult,
 	type UIMessage,
 } from "@repo/ai";
@@ -58,11 +59,19 @@ export async function handleWebChatStream(
 		return new Response("Empty message", { status: 400 });
 	}
 
+	const now = new Date();
 	const agent = await db.aiAgent.findFirst({
 		where: {
 			webChatToken: token,
 			webChatEnabled: true,
 			enabled: true,
+		},
+		include: {
+			maintenanceWindows: {
+				where: { startsAt: { lte: now }, endsAt: { gt: now } },
+				orderBy: { endsAt: "asc" },
+				select: { message: true },
+			},
 		},
 	});
 
@@ -134,8 +143,14 @@ export async function handleWebChatStream(
 
 	const historyRows = history.reverse();
 
+	const maintenance = resolveMaintenanceState(
+		agent,
+		agent.maintenanceWindows,
+	);
+
 	const { tools, agentToolConfigs } = await resolveAgentTools({
 		agent,
+		maintenanceActive: maintenance.active,
 		conversationId: conversation.id,
 		externalChatId: sessionId,
 	});
@@ -150,8 +165,8 @@ export async function handleWebChatStream(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
-			maintenanceMode: agent.maintenanceMode,
-			maintenanceMessage: agent.maintenanceMessage ?? undefined,
+			maintenanceMode: maintenance.active,
+			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: true,
 			servicePlans,
 			promptSections: agent.promptSections as unknown as PromptSection[],

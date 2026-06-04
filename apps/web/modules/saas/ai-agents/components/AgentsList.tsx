@@ -28,7 +28,7 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 		(a, ag) => a + ag._count.conversations,
 		0,
 	);
-	const maintenanceCount = agents.filter((a) => a.maintenanceMode).length;
+	const maintenanceCount = agents.filter((a) => a.maintenanceActive).length;
 
 	return (
 		<PageShell
@@ -113,7 +113,7 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 											</CardTitle>
 										</div>
 										<div className="flex shrink-0 items-center gap-1">
-											{agent.maintenanceMode && (
+											{agent.maintenanceActive && (
 												<Badge
 													variant="outline"
 													className="border-warning/40 text-warning"

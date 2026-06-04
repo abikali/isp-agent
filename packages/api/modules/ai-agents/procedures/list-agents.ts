@@ -32,6 +32,8 @@ export const listAgents = protectedProcedure
 			"read",
 		);
 
+		// Capture now once so the active-window filter and the badge agree.
+		const now = new Date();
 		const agents = await db.aiAgent.findMany({
 			where: { organizationId, ...ownerFilter },
 			select: {
@@ -43,6 +45,11 @@ export const listAgents = protectedProcedure
 				maintenanceMode: true,
 				servicePlansEnabled: true,
 				createdAt: true,
+				maintenanceWindows: {
+					where: { startsAt: { lte: now }, endsAt: { gt: now } },
+					select: { id: true },
+					take: 1,
+				},
 				_count: {
 					select: {
 						channels: true,
@@ -53,5 +60,15 @@ export const listAgents = protectedProcedure
 			orderBy: { createdAt: "desc" },
 		});
 
-		return { agents };
+		// Surface effective maintenance (manual OR an active window) for the
+		// list badge; drop the raw windows from the payload.
+		const agentsWithStatus = agents.map(
+			({ maintenanceWindows, ...agent }) => ({
+				...agent,
+				maintenanceActive:
+					agent.maintenanceMode || maintenanceWindows.length > 0,
+			}),
+		);
+
+		return { agents: agentsWithStatus };
 	});

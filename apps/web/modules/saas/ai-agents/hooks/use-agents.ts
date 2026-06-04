@@ -80,3 +80,36 @@ export function useDeleteAgent() {
 export function useGenerateSystemPrompt() {
 	return useMutation(orpc.aiAgents.generateSystemPrompt.mutationOptions());
 }
+
+export function useCreateMaintenanceWindow() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.aiAgents.createMaintenanceWindow.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.aiAgents.key() });
+		},
+	});
+}
+
+export function useUpdateMaintenanceWindow() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.aiAgents.updateMaintenanceWindow.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.aiAgents.key() });
+		},
+	});
+}
+
+export function useDeleteMaintenanceWindow() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.aiAgents.deleteMaintenanceWindow.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.aiAgents.key() });
+		},
+	});
+}

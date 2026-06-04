@@ -6,6 +6,7 @@ import {
 	extractToolPromptOverrides,
 	type PromptSection,
 	resolveAgentTools,
+	resolveMaintenanceState,
 	type UIMessage,
 } from "@repo/ai";
 import { requirePermission } from "@repo/api/lib/permission";
@@ -68,13 +69,26 @@ export async function handleDebugChatStream(
 			? body.contactName.trim()
 			: undefined;
 
+	const now = new Date();
 	const agent = await db.aiAgent.findFirst({
 		where: { id: agentId },
+		include: {
+			maintenanceWindows: {
+				where: { startsAt: { lte: now }, endsAt: { gt: now } },
+				orderBy: { endsAt: "asc" },
+				select: { message: true },
+			},
+		},
 	});
 
 	if (!agent) {
 		return new Response("Agent not found", { status: 404 });
 	}
+
+	const maintenance = resolveMaintenanceState(
+		agent,
+		agent.maintenanceWindows,
+	);
 
 	try {
 		await requirePermission(
@@ -96,6 +110,7 @@ export async function handleDebugChatStream(
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
 		agent,
+		maintenanceActive: maintenance.active,
 		conversationId: `debug-${agent.id}-${session.user.id}`,
 		externalChatId: `debug-${session.user.id}`,
 		contactName,
@@ -116,8 +131,8 @@ export async function handleDebugChatStream(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
-			maintenanceMode: agent.maintenanceMode,
-			maintenanceMessage: agent.maintenanceMessage ?? undefined,
+			maintenanceMode: maintenance.active,
+			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: false,
 			provider: "whatsapp",
 			contactName,

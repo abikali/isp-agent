@@ -9,6 +9,7 @@ import {
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
+	resolveMaintenanceState,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
@@ -24,12 +25,20 @@ export async function handleWebChatMessage(
 	sessionId: string,
 	message: string,
 ): Promise<{ response: string }> {
-	// Look up agent by webChatToken
+	// Look up agent by webChatToken, including any maintenance window active now.
+	const now = new Date();
 	const agent = await db.aiAgent.findFirst({
 		where: {
 			webChatToken: token,
 			webChatEnabled: true,
 			enabled: true,
+		},
+		include: {
+			maintenanceWindows: {
+				where: { startsAt: { lte: now }, endsAt: { gt: now } },
+				orderBy: { endsAt: "asc" },
+				select: { message: true },
+			},
 		},
 	});
 
@@ -38,6 +47,11 @@ export async function handleWebChatMessage(
 			message: "Agent not found or not available",
 		});
 	}
+
+	const maintenance = resolveMaintenanceState(
+		agent,
+		agent.maintenanceWindows,
+	);
 
 	const truncatedText = message.slice(0, config.ai.maxMessageLength);
 
@@ -106,6 +120,7 @@ export async function handleWebChatMessage(
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
 		agent,
+		maintenanceActive: maintenance.active,
 		conversationId: conversation.id,
 		externalChatId: sessionId,
 	});
@@ -120,8 +135,8 @@ export async function handleWebChatMessage(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
-			maintenanceMode: agent.maintenanceMode,
-			maintenanceMessage: agent.maintenanceMessage ?? undefined,
+			maintenanceMode: maintenance.active,
+			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: true,
 			servicePlans,
 			promptSections: agent.promptSections as unknown as PromptSection[],

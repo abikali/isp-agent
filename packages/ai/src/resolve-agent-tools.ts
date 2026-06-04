@@ -4,7 +4,18 @@ import type { ToolContext } from "./tools/types";
 import type { ToolRecord } from "./types";
 
 export interface ResolveAgentToolsInput {
-	agent: { id: string; organizationId: string; enabledTools: string[] };
+	agent: {
+		id: string;
+		organizationId: string;
+		enabledTools: string[];
+		maintenanceMode?: boolean | undefined;
+	};
+	/**
+	 * Effective maintenance state computed by the caller (manual toggle OR an
+	 * active scheduled window). When provided it overrides `agent.maintenanceMode`
+	 * for the lockdown decision; falls back to the raw flag when omitted.
+	 */
+	maintenanceActive?: boolean | undefined;
 	conversationId: string;
 	externalChatId: string;
 	contactName?: string | undefined;
@@ -30,6 +41,16 @@ export interface ResolveAgentToolsResult {
 export async function resolveAgentTools(
 	input: ResolveAgentToolsInput,
 ): Promise<ResolveAgentToolsResult> {
+	// Maintenance mode = full lockdown. The agent gets NO tools while a known
+	// outage is being handled, so it physically cannot run diagnostics, look up
+	// accounts, or escalate — instead of merely being *told* not to. The prompt
+	// side (buildSystemPromptParts) drops the matching tool instructions. This is
+	// enforced in code so even a weak model can't bypass it back into
+	// troubleshooting. Bypass the config query entirely — no tools, no configs.
+	if (input.maintenanceActive ?? input.agent.maintenanceMode) {
+		return { tools: undefined, agentToolConfigs: [] };
+	}
+
 	if (input.agent.enabledTools.length === 0) {
 		return { tools: undefined, agentToolConfigs: [] };
 	}

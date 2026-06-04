@@ -12,6 +12,7 @@ import {
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
+	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
 } from "@repo/ai";
@@ -34,10 +35,22 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				channelId,
 			});
 
+			const now = new Date();
 			const conversation = await db.aiConversation.findUnique({
 				where: { id: conversationId },
 				include: {
-					agent: true,
+					agent: {
+						include: {
+							maintenanceWindows: {
+								where: {
+									startsAt: { lte: now },
+									endsAt: { gt: now },
+								},
+								orderBy: { endsAt: "asc" },
+								select: { message: true },
+							},
+						},
+					},
 					channel: true,
 					verifiedCustomer: {
 						select: {
@@ -84,8 +97,14 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 
 			const historyRows = history.reverse();
 
+			const maintenance = resolveMaintenanceState(
+				conversation.agent,
+				conversation.agent.maintenanceWindows,
+			);
+
 			const { tools, agentToolConfigs } = await resolveAgentTools({
 				agent: conversation.agent,
+				maintenanceActive: maintenance.active,
 				conversationId: conversation.id,
 				externalChatId: conversation.externalChatId,
 				contactName: conversation.contactName ?? undefined,
@@ -163,9 +182,8 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					contactName: conversation.contactName ?? undefined,
 					contactPhone: conversation.contactId ?? undefined,
 					verifiedCustomer,
-					maintenanceMode: conversation.agent.maintenanceMode,
-					maintenanceMessage:
-						conversation.agent.maintenanceMessage ?? undefined,
+					maintenanceMode: maintenance.active,
+					maintenanceMessage: maintenance.message ?? undefined,
 					provider: conversation.channel?.provider ?? "messaging",
 					servicePlans,
 					promptSections: conversation.agent

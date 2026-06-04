@@ -60,6 +60,7 @@ import {
 	DEFAULT_PROMPT_SECTIONS,
 	type PromptSection,
 } from "../lib/constants";
+import { MaintenanceWindows } from "./MaintenanceWindows";
 import { ToolConfigDialog } from "./ToolConfigDialog";
 
 function FieldHint({ text }: { text: string }) {
@@ -528,6 +529,12 @@ export function AgentSettings({
 						</ToggleCard>
 					)}
 				</form.Field>
+
+				<MaintenanceWindows
+					agentId={agentId}
+					organizationId={organizationId}
+					windows={agent.maintenanceWindows}
+				/>
 
 				{/* Human Takeover — same toggle bar shape, blue tone when active. */}
 				<form.Field name="humanTakeoverEnabled">

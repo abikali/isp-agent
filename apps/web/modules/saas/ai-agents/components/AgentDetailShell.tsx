@@ -51,12 +51,12 @@ export function AgentDetailShell({
 	);
 	const agent = data.agent;
 
-	const statusType = agent.maintenanceMode
+	const statusType = agent.maintenanceActive
 		? "suspended"
 		: agent.enabled
 			? "active"
 			: "inactive";
-	const statusLabel = agent.maintenanceMode
+	const statusLabel = agent.maintenanceActive
 		? "Maintenance"
 		: agent.enabled
 			? "Active"

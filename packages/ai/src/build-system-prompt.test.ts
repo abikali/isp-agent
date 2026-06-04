@@ -190,8 +190,11 @@ describe("buildSystemPrompt", () => {
 			maintenanceMessage: undefined,
 		});
 		expect(result).toContain("MAINTENANCE MODE IS ACTIVE");
-		// No admin context line when message is undefined
-		expect(result).not.toContain("Admin context");
+		// No briefing line when message is undefined (the static wrapper references
+		// the briefing, but the dynamic briefing block is omitted)
+		expect(result).not.toContain(
+			"from the operations team — authoritative)",
+		);
 	});
 
 	// -----------------------------------------------------------------------
@@ -474,7 +477,7 @@ describe("buildSystemPrompt", () => {
 	// Full integration — realistic scenario
 	// -----------------------------------------------------------------------
 
-	it("produces correct prompt for full webhook scenario", () => {
+	it("locks down tools when maintenance mode is active", () => {
 		const result = buildSystemPrompt({
 			basePrompt: "You are LibanBot, an ISP customer support agent.",
 			enabledTools: [
@@ -492,34 +495,35 @@ describe("buildSystemPrompt", () => {
 			maintenanceMessage: "Fiber cut in Jounieh, ETA 4 hours",
 		});
 
-		// All sections should be present
+		// Identity, maintenance behaviour, briefing, contact + language remain.
 		expect(result).toContain("LibanBot");
 		expect(result).toContain("MAINTENANCE MODE IS ACTIVE");
 		expect(result).toContain("Jounieh");
 		expect(result).toContain("Ahmad Khoury");
 		expect(result).toContain("+96171234567");
-		expect(result).toContain("telegram");
-		expect(result).toContain("## Tool Usage Rules"); // verbose
-		expect(result).toContain("Diagnostic Report Guide");
-		expect(result).toContain("## Customer Not Found");
-		expect(result).toContain("## Multiple Account Matches");
-		expect(result).toContain("## Escalation via Telegram");
 		expect(result).toContain("## Language");
 
-		// New section ordering (optimised for Anthropic prompt caching):
-		//   maintenance-wrapper → tools (incl. escalation, diagnostics)
-		//   → agent sections (incl. language) → [cache boundary]
-		//   → dynamic block (maintenance message, contact info)
+		// Full lockdown: NO tool prompt sections and NO tool-conditioned guidance
+		// (the tools themselves are removed in resolveAgentTools). There must be
+		// nothing left telling the model to diagnose, troubleshoot, or escalate.
+		expect(result).not.toContain("Diagnostic Report Guide");
+		expect(result).not.toContain("## Customer Not Found");
+		expect(result).not.toContain("## Multiple Account Matches");
+		expect(result).not.toContain("## Escalation via Telegram");
+		expect(result).not.toContain("## Tool Usage Rules");
+		expect(result).not.toContain("## Power Cycles & Antenna Recovery");
+		expect(result).not.toContain(
+			"## Don't Run Tools On Off-Topic Messages",
+		);
+
+		// Ordering: maintenance-wrapper → language → [cache boundary]
+		//   → dynamic block (briefing, contact info)
 		const maintenanceWrapperIdx = result.indexOf("MAINTENANCE MODE");
-		const diagnosticsIdx = result.indexOf("Diagnostic Report Guide");
-		const escalationIdx = result.indexOf("## Escalation via Telegram");
 		const languageIdx = result.indexOf("## Language");
 		const maintenanceMsgIdx = result.indexOf("Jounieh");
 		const contactIdx = result.indexOf("CUSTOMER CONTACT INFO");
 
-		expect(maintenanceWrapperIdx).toBeLessThan(diagnosticsIdx);
-		expect(diagnosticsIdx).toBeLessThan(escalationIdx);
-		expect(escalationIdx).toBeLessThan(languageIdx);
+		expect(maintenanceWrapperIdx).toBeLessThan(languageIdx);
 		expect(languageIdx).toBeLessThan(maintenanceMsgIdx);
 		expect(maintenanceMsgIdx).toBeLessThan(contactIdx);
 	});

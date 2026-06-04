@@ -35,6 +35,8 @@ export {
 	legacyRowToParts,
 	modelMessagesToRoleContent,
 } from "./src/history";
+export type { MaintenanceState } from "./src/maintenance";
+export { resolveMaintenanceState } from "./src/maintenance";
 export {
 	CACHE_BREAKPOINT,
 	CACHE_BREAKPOINT_1H,

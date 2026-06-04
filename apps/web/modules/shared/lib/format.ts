@@ -86,6 +86,97 @@ export function formatDateInput(value: DateInput = new Date()): string {
 	return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+const BEIRUT_DATE_TIME_PARTS = new Intl.DateTimeFormat("en-CA", {
+	timeZone: BEIRUT_TIMEZONE,
+	year: "numeric",
+	month: "2-digit",
+	day: "2-digit",
+	hour: "2-digit",
+	minute: "2-digit",
+	hour12: false,
+});
+
+function beirutParts(value: DateInput): {
+	year: number;
+	month: number;
+	day: number;
+	hour: number;
+	minute: number;
+} {
+	let year = 0;
+	let month = 1;
+	let day = 1;
+	let hour = 0;
+	let minute = 0;
+	for (const p of BEIRUT_DATE_TIME_PARTS.formatToParts(toDate(value))) {
+		if (p.type === "year") {
+			year = Number(p.value);
+		} else if (p.type === "month") {
+			month = Number(p.value);
+		} else if (p.type === "day") {
+			day = Number(p.value);
+		} else if (p.type === "hour") {
+			// Intl can render midnight as "24"; normalize to 0.
+			hour = p.value === "24" ? 0 : Number(p.value);
+		} else if (p.type === "minute") {
+			minute = Number(p.value);
+		}
+	}
+	return { year, month, day, hour, minute };
+}
+
+/**
+ * Format a UTC instant as `YYYY-MM-DDTHH:mm` Beirut wall-clock — the value
+ * shape `<input type="datetime-local">` expects. Inverse of
+ * {@link beirutWallClockToUtc}.
+ */
+export function formatDateTimeLocalInput(
+	value: DateInput = new Date(),
+): string {
+	const { year, month, day, hour, minute } = beirutParts(value);
+	const p2 = (n: number) => String(n).padStart(2, "0");
+	return `${year}-${p2(month)}-${p2(day)}T${p2(hour)}:${p2(minute)}`;
+}
+
+/** Beirut's UTC offset (ms east of UTC) at a given instant — handles DST. */
+function beirutOffsetMs(instant: Date): number {
+	const { year, month, day, hour, minute } = beirutParts(instant);
+	const wallClockAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+	// Compare at minute granularity (Beirut offsets are whole minutes).
+	const instantMinutes = Math.floor(instant.getTime() / 60000) * 60000;
+	return wallClockAsUtc - instantMinutes;
+}
+
+/**
+ * Interpret a `YYYY-MM-DDTHH:mm` string as Asia/Beirut wall-clock time and
+ * return the corresponding UTC instant. DST-safe: the offset is resolved at
+ * the target instant (with a one-pass refinement across DST transitions).
+ * Inverse of {@link formatDateTimeLocalInput}. Returns an invalid Date for
+ * unparseable input.
+ */
+export function beirutWallClockToUtc(local: string): Date {
+	const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local);
+	if (!m) {
+		return new Date(Number.NaN);
+	}
+	const wallClockAsUtcMs = Date.UTC(
+		Number(m[1]),
+		Number(m[2]) - 1,
+		Number(m[3]),
+		Number(m[4]),
+		Number(m[5]),
+	);
+	const offset = beirutOffsetMs(new Date(wallClockAsUtcMs));
+	let utcMs = wallClockAsUtcMs - offset;
+	// Re-resolve once: near a DST boundary the offset at the corrected instant
+	// can differ from the first guess.
+	const refined = beirutOffsetMs(new Date(utcMs));
+	if (refined !== offset) {
+		utcMs = wallClockAsUtcMs - refined;
+	}
+	return new Date(utcMs);
+}
+
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
 export function formatBytes(bytes: number | bigint): string {

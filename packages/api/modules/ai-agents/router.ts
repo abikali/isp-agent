@@ -1,7 +1,9 @@
 import { createAgent } from "./procedures/create-agent";
 import { createChannel } from "./procedures/create-channel";
+import { createMaintenanceWindow } from "./procedures/create-maintenance-window";
 import { deleteAgent } from "./procedures/delete-agent";
 import { deleteChannel } from "./procedures/delete-channel";
+import { deleteMaintenanceWindow } from "./procedures/delete-maintenance-window";
 import { deleteMessage } from "./procedures/delete-message";
 import { editMessage } from "./procedures/edit-message";
 import { generateSystemPrompt } from "./procedures/generate-system-prompt";
@@ -25,6 +27,7 @@ import { togglePinConversation } from "./procedures/toggle-pin-conversation";
 import { toggleWebChat } from "./procedures/toggle-web-chat";
 import { updateAgent } from "./procedures/update-agent";
 import { updateChannel } from "./procedures/update-channel";
+import { updateMaintenanceWindow } from "./procedures/update-maintenance-window";
 import { updateToolConfig } from "./procedures/update-tool-config";
 import { uploadChatAttachment } from "./procedures/upload-chat-attachment";
 import { webChatInfo } from "./procedures/web-chat-info";
@@ -40,6 +43,9 @@ export const aiAgentsRouter = {
 	updateChannel,
 	deleteChannel,
 	listChannels,
+	createMaintenanceWindow,
+	updateMaintenanceWindow,
+	deleteMaintenanceWindow,
 	listConversations,
 	listAllConversations,
 	openConversationByPhone,

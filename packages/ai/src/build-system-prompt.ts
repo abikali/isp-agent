@@ -77,19 +77,30 @@ export function buildSystemPromptParts(
 		staticSections.push(opts.servicePlans);
 	}
 
-	const registry = getToolRegistry();
-	for (const toolId of opts.enabledTools) {
-		const registered = registry[toolId];
-		if (!registered) {
-			continue;
-		}
-		if (opts.toolPromptOverrides && toolId in opts.toolPromptOverrides) {
-			const override = opts.toolPromptOverrides[toolId];
-			if (override) {
-				staticSections.push(override);
+	// In maintenance mode the agent has NO tools (enforced in resolveAgentTools),
+	// so we drop every tool prompt section AND every tool-conditioned default
+	// section (diagnostics guide, power-cycle/clarify guidance, tool-usage rules).
+	// What's left is the maintenance rules + base identity + service plans +
+	// always-on sections (language) + the dynamic briefing/identity block — there
+	// is nothing pulling the model back toward troubleshooting.
+	if (!opts.maintenanceMode) {
+		const registry = getToolRegistry();
+		for (const toolId of opts.enabledTools) {
+			const registered = registry[toolId];
+			if (!registered) {
+				continue;
 			}
-		} else if (registered.defaultPromptSection) {
-			staticSections.push(registered.defaultPromptSection);
+			if (
+				opts.toolPromptOverrides &&
+				toolId in opts.toolPromptOverrides
+			) {
+				const override = opts.toolPromptOverrides[toolId];
+				if (override) {
+					staticSections.push(override);
+				}
+			} else if (registered.defaultPromptSection) {
+				staticSections.push(registered.defaultPromptSection);
+			}
 		}
 	}
 
@@ -98,7 +109,7 @@ export function buildSystemPromptParts(
 			? opts.promptSections
 			: DEFAULT_PROMPT_SECTIONS;
 
-	const hasTools = opts.enabledTools.length > 0;
+	const hasTools = !opts.maintenanceMode && opts.enabledTools.length > 0;
 
 	for (const section of agentSections) {
 		if (!section.enabled) {
@@ -112,7 +123,11 @@ export function buildSystemPromptParts(
 
 	if (opts.maintenanceMode && opts.maintenanceMessage) {
 		dynamicSections.push(
-			`Admin context about the current issue (internal — do NOT repeat verbatim to customers): "${opts.maintenanceMessage}"`,
+			"MAINTENANCE BRIEFING (from the operations team — authoritative). " +
+				"Read and understand it: it describes the current known issue and may contain " +
+				"direct instructions on how to handle customers during this outage. Follow any " +
+				"instructions in it. Explain the issue to customers in your own words and language — " +
+				`do NOT quote it verbatim:\n"${opts.maintenanceMessage}"`,
 		);
 	}
 
@@ -181,16 +196,27 @@ function evaluateCondition(
 function maintenanceSystemPrompt(basePrompt: string): string {
 	return (
 		"MAINTENANCE MODE IS ACTIVE — THIS OVERRIDES YOUR NORMAL BEHAVIOR.\n\n" +
+		"The operations team has posted a MAINTENANCE BRIEFING (shown later in this prompt). " +
+		"It is authoritative: it describes the current known issue AND may contain direct " +
+		"instructions for handling customers. You MUST read it, understand it, and act on it.\n\n" +
+		"While maintenance mode is on you have NO tools available — you cannot run diagnostics, " +
+		"speed tests, pings, account lookups, or escalations. Do not offer or promise to do any of " +
+		"those; they are disabled until the issue is resolved.\n\n" +
 		"MAINTENANCE MODE RULES (follow strictly in order):\n" +
 		"1. When a customer reports ANY connectivity issue (slow internet, disconnection, no signal, etc.), " +
-		"your FIRST response MUST acknowledge the known service issue. Explain it empathetically in your own words. " +
-		"Do NOT run diagnostics or tools first — lead with the known issue.\n" +
-		"2. Do NOT repeat the admin context message word-for-word. Rephrase it naturally.\n" +
-		"3. If the admin context includes an estimated resolution time, share it. Otherwise, do not speculate on timing.\n" +
-		"4. ONLY run diagnostic tools if the customer explicitly asks for deeper investigation after you've informed them, " +
-		"or if you need to verify their account for a specific request.\n" +
-		"5. If a customer asks about something clearly unrelated to the known issue (e.g. billing, new subscription), help them normally.\n" +
-		"6. Stay calm, professional, and reassuring.\n\n" +
+		"acknowledge the known service issue from the briefing and explain it empathetically in your own words. " +
+		"Do NOT troubleshoot — lead with the known issue.\n" +
+		"2. OBEY every instruction in the briefing. If it tells you NOT to do something — e.g. not to ask " +
+		"customers to restart, reset, or reconfigure their router — you MUST NOT do it. This OVERRIDES your " +
+		"normal troubleshooting playbook.\n" +
+		"3. Do NOT repeat the briefing word-for-word. Rephrase it naturally in the customer's language.\n" +
+		"4. If the briefing includes an estimated resolution time, share it. Otherwise, do not speculate on timing.\n" +
+		"5. Do NOT walk customers through any troubleshooting steps (rebooting, cables, settings, factory reset). " +
+		"The issue is on our side and known — steps on their end will not help.\n" +
+		"6. If a customer asks about something unrelated to the outage (e.g. billing, a new subscription), answer " +
+		"what you can from your own knowledge. If it needs an account lookup or a human, tell them the team will " +
+		"follow up once service is restored — do not pretend to look it up.\n" +
+		"7. Stay calm, professional, and reassuring.\n\n" +
 		`Your base personality and identity:\n${basePrompt}`
 	);
 }

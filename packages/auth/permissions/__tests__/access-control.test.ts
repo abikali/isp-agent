@@ -77,7 +77,12 @@ describe("permissionStatement", () => {
 	});
 
 	it("defines billing permissions", () => {
-		expect(permissionStatement.billing).toEqual(["view", "manage"]);
+		expect(permissionStatement.billing).toEqual([
+			"view",
+			"manage",
+			"collect",
+			"collect:own",
+		]);
 	});
 
 	it("contains all expected resources", () => {
@@ -94,10 +99,14 @@ describe("permissionStatement", () => {
 			"customers",
 			"servicePlans",
 			"stations",
+			"accessPoints",
 			"employees",
 			"tasks",
 			"audit",
 			"billing",
+			"inventory",
+			"installations",
+			"marketing",
 		];
 
 		expect(Object.keys(permissionStatement).sort()).toEqual(
@@ -153,6 +162,7 @@ describe("PERMISSION_GROUPS", () => {
 			...PERMISSION_GROUPS.ispManagement.resources,
 			...PERMISSION_GROUPS.aiMonitoring.resources,
 			...PERMISSION_GROUPS.integrations.resources,
+			...PERMISSION_GROUPS.marketing.resources,
 			...PERMISSION_GROUPS.insights.resources,
 			...PERMISSION_GROUPS.billing.resources,
 		];
@@ -294,7 +304,12 @@ describe("Owner role permissions", () => {
 	});
 
 	it("has full billing permissions", () => {
-		expect(owner.statements.billing).toEqual(["view", "manage"]);
+		expect(owner.statements.billing).toEqual([
+			"view",
+			"manage",
+			"collect",
+			"collect:own",
+		]);
 	});
 });
 
@@ -355,7 +370,12 @@ describe("Admin role permissions", () => {
 	});
 
 	it("has full billing permissions", () => {
-		expect(admin.statements.billing).toEqual(["view", "manage"]);
+		expect(admin.statements.billing).toEqual([
+			"view",
+			"manage",
+			"collect",
+			"collect:own",
+		]);
 	});
 });
 
@@ -382,8 +402,8 @@ describe("Member role permissions", () => {
 		expect(memberStatements["webhooks"]).toBeUndefined();
 	});
 
-	it("has limited apiKeys permissions (read only)", () => {
-		expect(member.statements.apiKeys).toEqual(["read"]);
+	it("has limited apiKeys permissions (read only, all + own scope)", () => {
+		expect(member.statements.apiKeys).toEqual(["read", "read:own"]);
 	});
 
 	it("has limited connections permissions (read only)", () => {

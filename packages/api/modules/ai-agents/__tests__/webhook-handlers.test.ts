@@ -127,6 +127,9 @@ vi.mock("@repo/ai", () => ({
 	resolveAgentTools: vi
 		.fn()
 		.mockResolvedValue({ tools: {}, agentToolConfigs: [] }),
+	resolveMaintenanceState: vi
+		.fn()
+		.mockReturnValue({ active: false, message: null }),
 	assistantMessageToParts: vi.fn().mockReturnValue([]),
 	modelMessagesToRoleContent: vi.fn().mockReturnValue([]),
 	transcribeMessageMedia: vi.fn().mockResolvedValue(null),

@@ -80,6 +80,16 @@ export const getAgent = protectedProcedure
 					},
 					orderBy: { createdAt: "desc" },
 				},
+				maintenanceWindows: {
+					select: {
+						id: true,
+						startsAt: true,
+						endsAt: true,
+						message: true,
+					},
+					orderBy: { startsAt: "desc" },
+					take: 50,
+				},
 				_count: {
 					select: {
 						conversations: true,
@@ -98,5 +108,13 @@ export const getAgent = protectedProcedure
 			resourceCreatedById: agent.createdBy?.id ?? null,
 		});
 
-		return { agent };
+		// Effective maintenance: manual toggle OR a window active right now.
+		const now = new Date();
+		const maintenanceActive =
+			agent.maintenanceMode ||
+			agent.maintenanceWindows.some(
+				(w) => w.startsAt <= now && now < w.endsAt,
+			);
+
+		return { agent: { ...agent, maintenanceActive } };
 	});

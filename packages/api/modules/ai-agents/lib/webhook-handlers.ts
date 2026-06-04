@@ -17,6 +17,7 @@ import {
 	modelMessagesToRoleContent,
 	parseWebhookPayload,
 	resolveAgentTools,
+	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
 	sendWhishPaymentEscalation,
@@ -104,11 +105,21 @@ async function handleMessages(
 	body: unknown,
 	secretHeader?: string | null,
 ): Promise<Response> {
-	// Look up channel by webhookToken
+	// Look up channel by webhookToken, including any maintenance window active
+	// now so the agent's effective maintenance state can be computed below.
+	const now = new Date();
 	const channel = await db.aiAgentChannel.findUnique({
 		where: { webhookToken },
 		include: {
-			agent: true,
+			agent: {
+				include: {
+					maintenanceWindows: {
+						where: { startsAt: { lte: now }, endsAt: { gt: now } },
+						orderBy: { endsAt: "asc" },
+						select: { message: true },
+					},
+				},
+			},
 		},
 	});
 
@@ -673,9 +684,16 @@ async function handleMessages(
 				continue;
 			}
 
+			// Effective maintenance: manual toggle OR an active scheduled window.
+			const maintenance = resolveMaintenanceState(
+				channel.agent,
+				channel.agent.maintenanceWindows,
+			);
+
 			// Resolve tools once (same for all messages in this chat)
 			const { tools, agentToolConfigs } = await resolveAgentTools({
 				agent: channel.agent,
+				maintenanceActive: maintenance.active,
 				conversationId: conversation.id,
 				externalChatId: msg.chatId,
 				contactName: msg.contactName,
@@ -697,9 +715,8 @@ async function handleMessages(
 				enabledTools: channel.agent.enabledTools,
 				contactName: msg.contactName ?? undefined,
 				contactPhone: msg.contactId ?? undefined,
-				maintenanceMode: channel.agent.maintenanceMode,
-				maintenanceMessage:
-					channel.agent.maintenanceMessage ?? undefined,
+				maintenanceMode: maintenance.active,
+				maintenanceMessage: maintenance.message ?? undefined,
 				provider,
 				servicePlans,
 				promptSections: channel.agent
