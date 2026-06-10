@@ -7,7 +7,10 @@ import { Button } from "@ui/components/button";
 import { cn } from "@ui/lib";
 import { ArrowLeftIcon, LoaderIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { useConversationMessages } from "../hooks/use-conversations";
+import {
+	useConversationMessages,
+	useLoadOlderMessagesOnScroll,
+} from "../hooks/use-conversations";
 import { ChatMarkdown } from "./ChatMarkdown";
 
 export function ConversationThread({
@@ -21,11 +24,21 @@ export function ConversationThread({
 	organizationSlug: string;
 	agentId: string;
 }) {
-	const { conversation, messages } = useConversationMessages(
-		conversationId,
-		organizationId,
-	);
+	const {
+		conversation,
+		messages,
+		hasOlderMessages,
+		isFetchingOlderMessages,
+		fetchOlderMessages,
+	} = useConversationMessages(conversationId, organizationId);
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const handleScroll = useLoadOlderMessagesOnScroll({
+		scrollRef,
+		firstMessageId: messages[0]?.id,
+		hasOlderMessages,
+		isFetchingOlderMessages,
+		fetchOlderMessages,
+	});
 
 	// Auto-scroll to bottom only when new messages actually arrive
 	const lastMessageId = messages[messages.length - 1]?.id;
@@ -73,8 +86,17 @@ export function ConversationThread({
 			</div>
 
 			{/* Messages */}
-			<div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+			<div
+				ref={scrollRef}
+				onScroll={handleScroll}
+				className="flex-1 overflow-y-auto p-4"
+			>
 				<div className="space-y-3">
+					{isFetchingOlderMessages && (
+						<div className="flex justify-center py-2">
+							<LoaderIcon className="size-4 animate-spin text-muted-foreground" />
+						</div>
+					)}
 					{messages.map((msg) => (
 						<div
 							key={msg.id}

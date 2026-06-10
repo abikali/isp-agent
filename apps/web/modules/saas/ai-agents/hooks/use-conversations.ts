@@ -1,7 +1,19 @@
 "use client";
 
 import { orpc } from "@shared/lib/orpc";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
+import {
+	type RefObject,
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+} from "react";
 
 export function useConversations(
 	agentId: string,
@@ -28,13 +40,22 @@ export function useConversations(
 	};
 }
 
+const MESSAGES_PAGE_SIZE = 50;
+
 export function useConversationMessages(
 	conversationId: string,
 	organizationId: string,
 ) {
-	const query = useQuery({
-		...orpc.aiAgents.getConversationMessages.queryOptions({
-			input: { conversationId, organizationId },
+	const query = useInfiniteQuery({
+		...orpc.aiAgents.getConversationMessages.infiniteOptions({
+			input: (cursor: string | undefined) => ({
+				conversationId,
+				organizationId,
+				limit: MESSAGES_PAGE_SIZE,
+				cursor,
+			}),
+			initialPageParam: undefined as string | undefined,
+			getNextPageParam: (lastPage) => lastPage.nextCursor,
 		}),
 		refetchInterval: (query) => {
 			// Stop polling if conversation was deleted (e.g. via /clear command)
@@ -45,12 +66,77 @@ export function useConversationMessages(
 		},
 	});
 
+	// Pages come newest-first from the API; flatten and reverse so
+	// components render oldest -> newest.
+	const messages = useMemo(
+		() =>
+			(
+				query.data?.pages.flatMap((page) => page.messages) ?? []
+			).reverse(),
+		[query.data],
+	);
+
 	return {
-		conversation: query.data?.conversation,
-		messages: query.data?.messages ?? [],
-		nextCursor: query.data?.nextCursor,
+		conversation: query.data?.pages[0]?.conversation,
+		messages,
 		isLoading: query.isLoading,
+		hasOlderMessages: query.hasNextPage,
+		isFetchingOlderMessages: query.isFetchingNextPage,
+		fetchOlderMessages: query.fetchNextPage,
 	};
+}
+
+/**
+ * Lazy-loads older messages when the user scrolls near the top of the
+ * thread, preserving the visual scroll position when the older page is
+ * prepended. Returns the onScroll handler for the scroll container.
+ */
+export function useLoadOlderMessagesOnScroll({
+	scrollRef,
+	firstMessageId,
+	hasOlderMessages,
+	isFetchingOlderMessages,
+	fetchOlderMessages,
+}: {
+	scrollRef: RefObject<HTMLDivElement | null>;
+	firstMessageId: string | undefined;
+	hasOlderMessages: boolean;
+	isFetchingOlderMessages: boolean;
+	fetchOlderMessages: () => void;
+}) {
+	const prevScrollHeightRef = useRef<number | null>(null);
+
+	const handleScroll = useCallback(() => {
+		const el = scrollRef.current;
+		if (
+			el &&
+			el.scrollTop < 100 &&
+			hasOlderMessages &&
+			!isFetchingOlderMessages &&
+			prevScrollHeightRef.current === null
+		) {
+			prevScrollHeightRef.current = el.scrollHeight;
+			fetchOlderMessages();
+		}
+	}, [
+		scrollRef,
+		hasOlderMessages,
+		isFetchingOlderMessages,
+		fetchOlderMessages,
+	]);
+
+	// After the older page renders, restore the user's position so the
+	// content doesn't jump (anchor to the previously visible message).
+	// biome-ignore lint/correctness/useExhaustiveDependencies: firstMessageId is the prepend signal
+	useLayoutEffect(() => {
+		const el = scrollRef.current;
+		if (el && prevScrollHeightRef.current !== null) {
+			el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+			prevScrollHeightRef.current = null;
+		}
+	}, [firstMessageId, scrollRef]);
+
+	return handleScroll;
 }
 
 export function useResumeConversation() {

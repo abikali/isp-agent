@@ -56,6 +56,10 @@ export const getConversationMessages = protectedProcedure
 			});
 		}
 
+		// Newest-first pagination: the first page is the latest messages and
+		// the cursor walks backwards through history (for lazy loading older
+		// messages on scroll-up). Pages are returned newest-first; the client
+		// reverses for display.
 		const messages = await db.aiMessage.findMany({
 			where: { conversationId: input.conversationId },
 			take: input.limit + 1,
@@ -97,7 +101,7 @@ export const getConversationMessages = protectedProcedure
 					},
 				},
 			},
-			orderBy: { createdAt: "asc" },
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 		});
 
 		// Replace deleted message content

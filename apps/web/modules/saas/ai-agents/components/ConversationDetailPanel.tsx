@@ -15,6 +15,7 @@ import type { UIMessage } from "ai";
 import {
 	ArrowLeftIcon,
 	HandIcon,
+	LoaderIcon,
 	LockIcon,
 	MoreVerticalIcon,
 	PinIcon,
@@ -30,6 +31,7 @@ import {
 } from "../hooks/use-all-conversations";
 import {
 	useConversationMessages,
+	useLoadOlderMessagesOnScroll,
 	useResumeConversation,
 } from "../hooks/use-conversations";
 import {
@@ -66,11 +68,21 @@ export function ConversationDetailPanel({
 	fullPage?: boolean | undefined;
 	pinned?: boolean | undefined;
 }) {
-	const { conversation, messages } = useConversationMessages(
-		conversationId,
-		organizationId,
-	);
+	const {
+		conversation,
+		messages,
+		hasOlderMessages,
+		isFetchingOlderMessages,
+		fetchOlderMessages,
+	} = useConversationMessages(conversationId, organizationId);
 	const scrollRef = useRef<HTMLDivElement>(null);
+	const handleScroll = useLoadOlderMessagesOnScroll({
+		scrollRef,
+		firstMessageId: messages[0]?.id,
+		hasOlderMessages,
+		isFetchingOlderMessages,
+		fetchOlderMessages,
+	});
 	const [showSearch, setShowSearch] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
@@ -325,9 +337,15 @@ export function ConversationDetailPanel({
 			{/* Messages area with subtle wallpaper pattern */}
 			<div
 				ref={scrollRef}
+				onScroll={handleScroll}
 				className="min-h-0 flex-1 overflow-y-auto bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_20px,color-mix(in_srgb,var(--muted)_15%,transparent)_21px)] p-4"
 			>
 				<div className="space-y-2">
+					{isFetchingOlderMessages && (
+						<div className="flex justify-center py-2">
+							<LoaderIcon className="size-4 animate-spin text-muted-foreground" />
+						</div>
+					)}
 					{messageGroups.map((group) => (
 						<div key={group.date}>
 							<DateSeparator date={group.date} />
