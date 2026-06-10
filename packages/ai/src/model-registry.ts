@@ -69,6 +69,12 @@ const modelMap: Record<string, string> = {
 export interface GetModelOptions {
 	/** Forward extra usage tracking; defaults to true (returns cost in providerMetadata). */
 	usage?: boolean;
+	/**
+	 * OpenRouter session ID (≤256 chars — use the conversation ID). Makes
+	 * provider routing sticky across the turns of a conversation so prompt
+	 * caches stay warm instead of bouncing between upstreams.
+	 */
+	sessionId?: string | undefined;
 }
 
 export function getModel(
@@ -81,11 +87,23 @@ export function getModel(
 	}
 	return openrouter.chat(openRouterId, {
 		usage: { include: options.usage !== false },
+		...(options.sessionId
+			? { extraBody: { session_id: options.sessionId.slice(0, 256) } }
+			: {}),
 	});
 }
 
 export function isValidModel(modelId: string): boolean {
 	return modelId in modelMap;
+}
+
+/**
+ * Models whose sampling parameters should be left at provider defaults.
+ * Google's Gemini 3 guidance is explicit: changing temperature/top_p on
+ * 3.x causes looping and degraded reasoning — keep the defaults.
+ */
+export function usesProviderDefaultSampling(modelId: string): boolean {
+	return modelId.startsWith("gemini-3");
 }
 
 export function listAvailableModels(): string[] {

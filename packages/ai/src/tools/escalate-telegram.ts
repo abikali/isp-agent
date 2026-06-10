@@ -425,7 +425,11 @@ async function createOrUpdateEscalationTask(
 function createEscalateTelegramTool(context: ToolContext) {
 	return tool({
 		description:
-			"Send a real Telegram message to the support/sales team. Returns success/failure status.",
+			"Send a real Telegram message to the support/sales team. Returns success/failure status. " +
+			"Call this ONCE per issue: if you already escalated this issue in this conversation, do NOT " +
+			"call again for follow-up messages, thanks, acknowledgments, or repeated complaints about the " +
+			"same problem — tell the customer the team is already notified. Only call again when the " +
+			"customer raises a genuinely NEW issue or provides materially new information the team needs.",
 		inputSchema: z.object({
 			reason: z
 				.string()
@@ -435,7 +439,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 			priority: z
 				.enum(["low", "medium", "high"])
 				.describe(
-					"low = general inquiries, medium = sales leads and unresolved technical issues, high = outages or critical problems",
+					"low = general inquiries and routine requests, medium = sales leads, follow-ups, and unresolved technical issues (the default for most escalations), high = RESERVED for total outages, safety issues, or many customers affected — most escalations are NOT high",
 				),
 			summary: z
 				.string()

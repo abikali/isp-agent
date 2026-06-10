@@ -1,3 +1,4 @@
+import { toChatFormatting } from "../chat-formatting";
 import type {
 	ChannelProvider,
 	ParsedMessage,
@@ -32,11 +33,17 @@ export async function sendTextMessage(
 	if (!text.trim()) {
 		return { success: true };
 	}
+	const formatted = toChatFormatting(text);
 	switch (provider) {
 		case "whatsapp":
-			return whatsapp.sendTextMessage(apiToken, chatId, text, options);
+			return whatsapp.sendTextMessage(
+				apiToken,
+				chatId,
+				formatted,
+				options,
+			);
 		case "telegram":
-			return telegram.sendTextMessage(apiToken, chatId, text);
+			return telegram.sendTextMessage(apiToken, chatId, formatted);
 		default:
 			return { success: false };
 	}

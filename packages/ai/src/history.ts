@@ -218,23 +218,82 @@ function assistantWithToolsToModelMessages(
 
 	const toolMessage: ModelMessage = {
 		role: "tool",
-		content: calls.map((c) => ({
-			type: "tool-result",
-			toolCallId: c.toolCallId,
-			toolName: c.toolName,
-			output:
-				c.output === undefined
-					? { type: "text", value: "" }
-					: typeof c.output === "string"
-						? { type: "text", value: c.output }
-						: { type: "json", value: c.output as never },
-		})),
+		content: calls.map((c) => {
+			const output = compactReplayedToolOutput(c.output);
+			return {
+				type: "tool-result",
+				toolCallId: c.toolCallId,
+				toolName: c.toolName,
+				output:
+					output === undefined
+						? { type: "text", value: "" }
+						: typeof output === "string"
+							? { type: "text", value: output }
+							: { type: "json", value: output as never },
+			};
+		}),
 	};
 
 	return [
 		{ role: "assistant", content: assistantParts } as ModelMessage,
 		toolMessage,
 	];
+}
+
+/**
+ * Replayed tool outputs dominate input-token cost: ISP diagnose/search
+ * results are several KB of JSON, and with row-based history a 20-row window
+ * replays them verbatim on EVERY turn (~10k input tokens measured in prod).
+ * The model only needs the verdict from past turns — its own visible reply
+ * already summarized the data — so large outputs are compacted to their
+ * headline fields. The live generation loop is unaffected (this runs only on
+ * history replay); the model can always re-run a tool for fresh details.
+ */
+const HISTORY_TOOL_OUTPUT_MAX_CHARS = 1200;
+const COMPACT_KEEP_KEYS = [
+	"success",
+	"found",
+	"message",
+	"summary",
+	"verdict",
+	"connectionType",
+	"peerSummary",
+	"error",
+] as const;
+
+function compactReplayedToolOutput(output: unknown): unknown {
+	if (typeof output === "string") {
+		return output.length > HISTORY_TOOL_OUTPUT_MAX_CHARS
+			? `${output.slice(0, HISTORY_TOOL_OUTPUT_MAX_CHARS)}… [truncated]`
+			: output;
+	}
+	if (output === null || typeof output !== "object") {
+		return output;
+	}
+	let json: string;
+	try {
+		json = JSON.stringify(output);
+	} catch {
+		return output;
+	}
+	if (json.length <= HISTORY_TOOL_OUTPUT_MAX_CHARS) {
+		return output;
+	}
+	const obj = output as Record<string, unknown>;
+	const kept: Record<string, unknown> = {};
+	for (const key of COMPACT_KEEP_KEYS) {
+		const value = obj[key];
+		if (
+			typeof value === "string" ||
+			typeof value === "boolean" ||
+			typeof value === "number"
+		) {
+			kept[key] = value;
+		}
+	}
+	kept["note"] =
+		"Full tool output elided from history to save context. Re-run the tool if you need current details.";
+	return kept;
 }
 
 function partsToAssistantMessages(
@@ -404,11 +463,29 @@ export function assistantMessageToParts(
 			type: `tool-${tr.toolName}`,
 			toolCallId: tr.toolCallId ?? `gen_${crypto.randomUUID()}`,
 			state: "output-available",
-			input: tr.args ?? {},
-			output: tr.result,
+			input: toJsonSafe(tr.args ?? {}),
+			output: toJsonSafe(tr.result),
 		} as UIMessage["parts"][number]);
 	}
 	return parts;
+}
+
+/**
+ * Make a tool input/output safe for Prisma JSON columns. Tool inputs can
+ * carry explicit `undefined` object values (e.g. the escalation guard passes
+ * `customerName: undefined`), which Prisma's strictUndefinedChecks rejects at
+ * persist time — losing the whole assistant message. JSON round-trip drops
+ * undefined values and anything else non-serializable.
+ */
+function toJsonSafe(value: unknown): unknown {
+	if (value === undefined) {
+		return null;
+	}
+	try {
+		return JSON.parse(JSON.stringify(value));
+	} catch {
+		return null;
+	}
 }
 
 /**

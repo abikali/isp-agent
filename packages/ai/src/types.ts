@@ -57,6 +57,11 @@ export interface GenerateResponseInput {
 	 */
 	messages: ModelMessage[];
 	temperature?: number | undefined;
+	/**
+	 * OpenRouter session ID for cache-sticky provider routing — pass the
+	 * conversation ID so all turns of a conversation hit the same upstream.
+	 */
+	sessionId?: string | undefined;
 	abortSignal?: AbortSignal | undefined;
 	tools?: ToolRecord | undefined;
 	/** Stop conditions. Defaults to stepCountIs(20). */
@@ -91,6 +96,8 @@ export interface GenerateResponseResult {
 	outputTokens: number;
 	cacheReadTokens: number;
 	cacheWriteTokens: number;
+	/** Authoritative billed USD for this generation (OpenRouter usage accounting). */
+	costUsd?: number | undefined;
 	latencyMs: number;
 	toolResults?: ToolResult[] | undefined;
 }

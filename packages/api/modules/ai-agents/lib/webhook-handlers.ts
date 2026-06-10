@@ -12,6 +12,7 @@ import {
 	executeEscalationGuard,
 	extractToolPromptOverrides,
 	generateAgentResponse,
+	initRateLimiter,
 	isWhishMoneyMessage,
 	markAsRead,
 	modelMessagesToRoleContent,
@@ -48,6 +49,17 @@ const RETRY_MESSAGE = "Give me a moment, I'm still working on this...";
 // Concurrency limiter for AI generations in the web server process
 let activeGenerations = 0;
 const MAX_CONCURRENT_GENERATIONS = 20;
+
+// The WhatsApp send throttle needs a Redis client. The worker initializes it
+// at boot, but the primary send path is THIS module (web process) — without
+// this the throttle silently fails open and WaSender 429s under load.
+let rateLimiterReady = false;
+function ensureRateLimiter(): void {
+	if (!rateLimiterReady) {
+		initRateLimiter(getRedisConnection());
+		rateLimiterReady = true;
+	}
+}
 
 const MIME_TO_EXT: Record<string, string> = {
 	"image/jpeg": "jpg",
@@ -105,6 +117,8 @@ async function handleMessages(
 	body: unknown,
 	secretHeader?: string | null,
 ): Promise<Response> {
+	ensureRateLimiter();
+
 	// Look up channel by webhookToken, including any maintenance window active
 	// now so the agent's effective maintenance state can be computed below.
 	const now = new Date();
@@ -187,8 +201,12 @@ async function handleMessages(
 					const isBotMessage = await redis.get(`ai:bot-fp:${fp}`);
 
 					if (isBotMessage) {
-						// Bot echo — clean up and skip
-						redis.del(`ai:bot-fp:${fp}`).catch(() => {});
+						// Bot echo — skip. Do NOT delete the key: canned texts
+						// (greeting, quota, retry, Whish reply) go to multiple
+						// chats under ONE content fingerprint, and deleting on
+						// the first echo made the second chat's echo look like
+						// a human admin message → wrongful human takeover.
+						// The 600s TTL cleans up on its own.
 						continue;
 					}
 				}
@@ -478,7 +496,11 @@ async function handleMessages(
 				conversation = await db.aiConversation.update({
 					where: { id: conversation.id },
 					data: {
-						contactName: msg.contactName ?? null,
+						// Only overwrite the stored name when the payload has
+						// one — payloads without pushName used to erase it.
+						...(msg.contactName
+							? { contactName: msg.contactName }
+							: {}),
 						lastMessageAt: new Date(),
 					},
 				});
@@ -708,13 +730,48 @@ async function handleMessages(
 				channel.agent.servicePlanIds,
 			);
 
+			// Load the linked customer so the prompt gets the VERIFIED
+			// CUSTOMER section (concrete username for ISP tools, "don't
+			// re-ask" guidance). Without this the section only ever rendered
+			// on the retry-worker path.
+			let verifiedCustomer:
+				| BuildSystemPromptOptions["verifiedCustomer"]
+				| undefined;
+			if (conversation.verifiedCustomerId) {
+				const customer = await db.customer.findUnique({
+					where: { id: conversation.verifiedCustomerId },
+					select: {
+						firstName: true,
+						lastName: true,
+						username: true,
+						accountNumber: true,
+						status: true,
+						plan: { select: { name: true } },
+					},
+				});
+				if (customer) {
+					verifiedCustomer = {
+						fullName:
+							[customer.firstName, customer.lastName]
+								.filter(Boolean)
+								.join(" ") || undefined,
+						username: customer.username ?? undefined,
+						accountNumber: customer.accountNumber ?? undefined,
+						status: customer.status,
+						planName: customer.plan?.name ?? undefined,
+					};
+				}
+			}
+
 			// Reusable system prompt options — `buildAgentMessages` rebuilds
 			// the prompt and stamps cache breakpoints on each iteration.
 			const systemOptions: BuildSystemPromptOptions = {
 				basePrompt: channel.agent.systemPrompt,
 				enabledTools: channel.agent.enabledTools,
+				knowledgeBase: channel.agent.knowledgeBase ?? undefined,
 				contactName: msg.contactName ?? undefined,
 				contactPhone: msg.contactId ?? undefined,
+				verifiedCustomer,
 				maintenanceMode: maintenance.active,
 				maintenanceMessage: maintenance.message ?? undefined,
 				provider,
@@ -935,6 +992,7 @@ async function handleMessages(
 							model: channel.agent.model,
 							messages: historyMessages,
 							temperature: channel.agent.temperature,
+							sessionId: conversation.id,
 							abortSignal: controller.signal,
 							tools,
 							telemetry: buildAgentTelemetry({
@@ -1039,6 +1097,16 @@ async function handleMessages(
 							msg.chatId,
 							result.text,
 						);
+						if (!sendResult.success) {
+							logger.error(
+								"AI reply send failed — persisting as failed delivery",
+								{
+									conversationId: conversation.id,
+									chatId: msg.chatId,
+									provider,
+								},
+							);
+						}
 
 						// Track bot-sent message by content fingerprint so we don't mistake the echo for human activity
 						trackBotMessage(redis, result.text);
@@ -1067,6 +1135,9 @@ async function handleMessages(
 									cacheReadTokens: result.cacheReadTokens,
 									cacheWriteTokens: result.cacheWriteTokens,
 									latencyMs: result.latencyMs,
+									...(sendResult.success
+										? {}
+										: { deliveryStatus: "failed" }),
 									...(assistantParts.length > 0
 										? {
 												parts: assistantParts as Prisma.InputJsonValue,
@@ -1088,6 +1159,18 @@ async function handleMessages(
 								},
 							});
 						}
+
+						// Greppable usage line — OpenRouter's `cost` is the
+						// authoritative billed USD for this generation.
+						logger.info("ai-generation-usage", {
+							conversationId: conversation.id,
+							model: channel.agent.model,
+							inputTokens: result.inputTokens,
+							outputTokens: result.outputTokens,
+							cacheReadTokens: result.cacheReadTokens,
+							costUsd: result.costUsd ?? null,
+							latencyMs: result.latencyMs,
+						});
 
 						// Track for triage on subsequent iterations
 						lastAssistantText = result.text;

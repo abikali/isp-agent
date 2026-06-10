@@ -16,6 +16,7 @@ import {
 	createWebhookWorker,
 	createWhatsAppReceiptWorker,
 	getRedisConnection,
+	reconcileOrphanedAiChats,
 	setupScheduledJobs,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -48,6 +49,12 @@ async function main() {
 
 	// Setup scheduled job definitions (cron jobs)
 	await setupScheduledJobs();
+
+	// Recover conversations whose generation died mid-flight (e.g. a deploy
+	// killed the web process after the user message was stored).
+	reconcileOrphanedAiChats().catch((error) => {
+		logger.error("Orphaned AI chat reconciliation failed", { error });
+	});
 
 	logger.info("All workers started successfully", {
 		workers: [

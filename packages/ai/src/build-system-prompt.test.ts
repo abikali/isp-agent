@@ -37,7 +37,7 @@ describe("buildSystemPrompt", () => {
 		});
 		// Language section is the last major section — ends with the translate line
 		expect(result).toMatch(
-			/always translate when presenting to customer\.\s*$/,
+			/translate to Lebanese Arabic when presenting to the customer\.\s*$/,
 		);
 	});
 

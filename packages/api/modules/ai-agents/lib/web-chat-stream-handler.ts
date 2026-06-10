@@ -165,6 +165,7 @@ export async function handleWebChatStream(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
+			knowledgeBase: agent.knowledgeBase ?? undefined,
 			maintenanceMode: maintenance.active,
 			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: true,
@@ -188,6 +189,7 @@ export async function handleWebChatStream(
 		model: agent.model,
 		messages,
 		temperature: agent.temperature,
+		sessionId: conversation.id,
 		abortSignal: abortController.signal,
 		tools,
 		telemetry: buildAgentTelemetry({

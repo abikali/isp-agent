@@ -135,6 +135,7 @@ export async function handleWebChatMessage(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
+			knowledgeBase: agent.knowledgeBase ?? undefined,
 			maintenanceMode: maintenance.active,
 			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: true,
@@ -157,6 +158,7 @@ export async function handleWebChatMessage(
 		const result = await generateAgentResponse({
 			model: agent.model,
 			messages,
+			sessionId: conversation.id,
 			temperature: agent.temperature,
 			abortSignal: controller.signal,
 			tools,

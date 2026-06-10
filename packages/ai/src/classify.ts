@@ -43,6 +43,16 @@ export async function classifyText<T extends z.ZodType>(
 			abortSignal: abortController.signal,
 		});
 
+		// Helper LLM calls (triage, escalation guard, summaries) are invisible
+		// in per-message token columns — emit a greppable usage line instead.
+		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
+		console.info("helper-llm-usage", {
+			fn: "classifyText",
+			model,
+			inputTokens: result.usage?.inputTokens ?? 0,
+			outputTokens: result.usage?.outputTokens ?? 0,
+		});
+
 		return (result.output ?? null) as z.infer<T> | null;
 	} catch (error) {
 		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)

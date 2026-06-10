@@ -1,5 +1,5 @@
 import { type StopCondition, stepCountIs, streamText, type ToolSet } from "ai";
-import { getModel } from "./model-registry";
+import { getModel, usesProviderDefaultSampling } from "./model-registry";
 import type {
 	GenerateResponseInput,
 	GenerateResponseResult,
@@ -29,7 +29,7 @@ function resolveStopWhen(
 export function createAgentStream(
 	input: GenerateResponseInput,
 ): AgentStreamResult {
-	const model = getModel(input.model);
+	const model = getModel(input.model, { sessionId: input.sessionId });
 
 	return streamText({
 		model,
@@ -43,7 +43,11 @@ export function createAgentStream(
 		...(input.providerOptions
 			? { providerOptions: input.providerOptions }
 			: {}),
-		temperature: input.temperature ?? 0,
+		// Gemini 3.x degrades with non-default sampling params — let the
+		// provider default apply instead of the agent's configured value.
+		...(usesProviderDefaultSampling(input.model)
+			? {}
+			: { temperature: input.temperature ?? 0 }),
 	});
 }
 
@@ -84,22 +88,33 @@ export async function generateAgentResponse(
 		} else if (chunk.type === "finish") {
 			inputTokens = chunk.totalUsage?.inputTokens ?? 0;
 			outputTokens = chunk.totalUsage?.outputTokens ?? 0;
-			// AI SDK v6 surfaces cache token details under inputTokenDetails / providerMetadata
-			const details = (
-				chunk.totalUsage as unknown as {
-					cachedInputTokens?: number;
-				}
-			)?.cachedInputTokens;
-			if (typeof details === "number") {
-				cacheReadTokens = details;
+			// AI SDK v6 surfaces cache details under inputTokenDetails
+			// (cachedInputTokens is the deprecated v5 name, kept as fallback).
+			const usage = chunk.totalUsage as unknown as {
+				cachedInputTokens?: number;
+				inputTokenDetails?: {
+					cacheReadTokens?: number;
+					cacheWriteTokens?: number;
+				};
+			};
+			const read =
+				usage?.inputTokenDetails?.cacheReadTokens ??
+				usage?.cachedInputTokens;
+			if (typeof read === "number") {
+				cacheReadTokens = read;
+			}
+			const write = usage?.inputTokenDetails?.cacheWriteTokens;
+			if (typeof write === "number") {
+				cacheWriteTokens = write;
 			}
 		}
 	}
 
-	// Best-effort: pull cache metadata from finalised providerMetadata.
+	// Best-effort: pull cache + cost metadata from finalised providerMetadata.
+	let costUsd: number | undefined;
 	try {
 		const meta = (await result.providerMetadata) as
-			| Record<string, Record<string, number | undefined> | undefined>
+			| Record<string, Record<string, unknown> | undefined>
 			| undefined;
 		const anthropic = meta?.["anthropic"];
 		if (anthropic) {
@@ -112,17 +127,29 @@ export async function generateAgentResponse(
 				cacheWriteTokens = w;
 			}
 		}
+		// @openrouter/ai-sdk-provider usage shape: { promptTokens,
+		// promptTokensDetails: { cachedTokens }, completionTokens, cost, ... }
 		const openrouter = meta?.["openrouter"] as
-			| { usage?: Record<string, number> }
+			| {
+					usage?: {
+						cost?: number;
+						promptTokensDetails?: {
+							cachedTokens?: number;
+							cacheWriteTokens?: number;
+						};
+					};
+			  }
 			| undefined;
 		if (openrouter?.usage) {
-			const r = openrouter.usage["cacheReadTokens"];
-			const w = openrouter.usage["cacheWriteTokens"];
-			if (typeof r === "number") {
-				cacheReadTokens = r;
+			const details = openrouter.usage.promptTokensDetails;
+			if (typeof details?.cachedTokens === "number") {
+				cacheReadTokens = details.cachedTokens;
 			}
-			if (typeof w === "number") {
-				cacheWriteTokens = w;
+			if (typeof details?.cacheWriteTokens === "number") {
+				cacheWriteTokens = details.cacheWriteTokens;
+			}
+			if (typeof openrouter.usage.cost === "number") {
+				costUsd = openrouter.usage.cost;
 			}
 		}
 	} catch {
@@ -136,6 +163,7 @@ export async function generateAgentResponse(
 		outputTokens,
 		cacheReadTokens,
 		cacheWriteTokens,
+		costUsd,
 		latencyMs: Date.now() - start,
 		toolResults: toolResults.length > 0 ? toolResults : undefined,
 	};

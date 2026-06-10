@@ -112,6 +112,14 @@ export function isSearchableQuery(query: string): boolean {
 			return false;
 		}
 	}
+	// Multi-word queries containing letters are personal names in Latin
+	// script ("Wadih El Haddad"): usernames never contain spaces and phones
+	// never contain letters. Passing them through used to run an exact
+	// UserName match, guaranteed to miss — and the model then told the
+	// customer "no account exists" as fact.
+	if (/\s/.test(trimmed) && /[a-zA-Z]/.test(trimmed)) {
+		return false;
+	}
 	return true;
 }
 

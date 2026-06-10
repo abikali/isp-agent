@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { toChatFormatting } from "./chat-formatting";
 
 /**
  * Compute a content fingerprint for a bot-sent message.
@@ -6,10 +7,16 @@ import { createHash } from "node:crypto";
  *
  * IMPORTANT: No chatId in the fingerprint — JID format mismatch between
  * bot sends (@lid) and webhook echoes (@s.whatsapp.net) would break matching.
+ *
+ * Text is normalized through `toChatFormatting` first: senders convert
+ * markdown to chat formatting on the wire, so the webhook echo carries the
+ * converted text while track-time callers pass the raw LLM output. The
+ * conversion is idempotent, so hashing the normalized form makes both sides
+ * agree.
  */
 export function computeBotFingerprint(text: string): string {
 	return createHash("sha256")
-		.update(text.slice(0, 200))
+		.update(toChatFormatting(text).slice(0, 200))
 		.digest("hex")
 		.slice(0, 16);
 }

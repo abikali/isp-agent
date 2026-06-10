@@ -77,6 +77,14 @@ export function buildSystemPromptParts(
 		staticSections.push(opts.servicePlans);
 	}
 
+	if (opts.knowledgeBase?.trim()) {
+		staticSections.push(
+			"KNOWLEDGE BASE (authoritative company information — use it to answer " +
+				"questions and prefer it over assumptions):\n" +
+				opts.knowledgeBase.trim(),
+		);
+	}
+
 	// In maintenance mode the agent has NO tools (enforced in resolveAgentTools),
 	// so we drop every tool prompt section AND every tool-conditioned default
 	// section (diagnostics guide, power-cycle/clarify guidance, tool-usage rules).

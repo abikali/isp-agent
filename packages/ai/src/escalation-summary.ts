@@ -106,6 +106,14 @@ export async function summarizeForEscalation(
 			abortSignal: abortController.signal,
 		});
 
+		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
+		console.info("helper-llm-usage", {
+			fn: "summarizeForEscalation",
+			model,
+			inputTokens: result.usage?.inputTokens ?? 0,
+			outputTokens: result.usage?.outputTokens ?? 0,
+		});
+
 		return (result.output ?? null) as EscalationSummary | null;
 	} catch {
 		return null;

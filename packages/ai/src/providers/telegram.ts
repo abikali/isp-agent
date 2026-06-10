@@ -303,15 +303,26 @@ export async function sendTextMessage(
 	chatId: string,
 	text: string,
 ): Promise<SendMessageResult> {
+	const api = new Api(apiToken);
 	try {
-		const api = new Api(apiToken);
 		const result = await api.sendMessage(Number(chatId), text, {
 			parse_mode: "Markdown",
 		});
 		return { success: true, messageId: String(result.message_id) };
 	} catch (error) {
-		logger.error("Telegram send error", { error });
-		return { success: false };
+		// LLM output with unbalanced */_/[ makes Telegram reject the whole
+		// message ("can't parse entities"). The reply must still reach the
+		// customer — resend as plain text.
+		try {
+			const result = await api.sendMessage(Number(chatId), text);
+			logger.warn("Telegram Markdown parse failed, sent as plain text", {
+				error,
+			});
+			return { success: true, messageId: String(result.message_id) };
+		} catch (plainError) {
+			logger.error("Telegram send error", { error: plainError });
+			return { success: false };
+		}
 	}
 }
 

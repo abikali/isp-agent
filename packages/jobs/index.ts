@@ -2,6 +2,7 @@
 export { closeConnection, getRedisConnection } from "./src/connection";
 // Jobs
 export { queueAiChatRetry } from "./src/jobs/ai-chat.jobs";
+export { reconcileOrphanedAiChats } from "./src/lib/reconcile-orphaned-chats";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,

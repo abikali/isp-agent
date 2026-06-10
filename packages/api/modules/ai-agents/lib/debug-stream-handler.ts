@@ -131,6 +131,7 @@ export async function handleDebugChatStream(
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,
+			knowledgeBase: agent.knowledgeBase ?? undefined,
 			maintenanceMode: maintenance.active,
 			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: false,
