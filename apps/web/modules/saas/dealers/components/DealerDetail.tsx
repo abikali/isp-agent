@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { useDeleteDealer, useUpdateDealer } from "../hooks/use-dealers";
 import { DEALER_STATUS_LABELS, DEALER_STATUS_OPTIONS } from "../lib/constants";
+import { DealerLedger } from "./DealerLedger";
 
 const PERMISSION_LABELS: Record<string, string> = {
 	canShowRate: "Show Rate",
@@ -544,6 +545,10 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 											/>
 										</DetailSection>
 									)}
+
+									<div className="mt-4">
+										<DealerLedger dealerId={dealerId} />
+									</div>
 								</>
 							),
 						},

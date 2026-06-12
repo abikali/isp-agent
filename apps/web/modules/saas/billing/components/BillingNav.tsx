@@ -12,6 +12,7 @@ import {
 	HandCoinsIcon,
 	type LucideIcon,
 	OctagonXIcon,
+	PhoneCallIcon,
 	WalletIcon,
 } from "lucide-react";
 
@@ -64,6 +65,13 @@ const TABS: BillingTab[] = [
 		label: "Stopped",
 		to: "/stopped",
 		icon: OctagonXIcon,
+		resource: "view",
+	},
+	{
+		id: "followups",
+		label: "Follow-ups",
+		to: "/followups",
+		icon: PhoneCallIcon,
 		resource: "view",
 	},
 ];

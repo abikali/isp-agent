@@ -32,6 +32,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
+		expenses: ["create", "read", "approve"],
+		followups: ["create", "read", "update", "delete"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -70,6 +72,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
+		expenses: ["create", "read", "approve"],
+		followups: ["create", "read", "update", "delete"],
 		// Integrations - full access
 		webhooks: ["create", "read", "update", "delete"],
 		apiKeys: ["create", "read", "delete"],
@@ -163,7 +167,9 @@ export const owner = ac.newRole({
 		"assign",
 	],
 	inventory: ["create", "read", "update", "delete"],
-	installations: ["create", "read", "update", "approve"],
+	installations: ["create", "read", "read:own", "update", "approve"],
+	expenses: ["create", "read", "read:own", "approve"],
+	followups: ["create", "read", "update", "delete"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -240,7 +246,9 @@ export const admin = ac.newRole({
 		"assign",
 	],
 	inventory: ["create", "read", "update", "delete"],
-	installations: ["create", "read", "update", "approve"],
+	installations: ["create", "read", "read:own", "update", "approve"],
+	expenses: ["create", "read", "read:own", "approve"],
+	followups: ["create", "read", "update", "delete"],
 	// Integrations - full access
 	webhooks: ["create", "read", "update", "delete"],
 	apiKeys: ["create", "read", "read:own", "delete", "delete:own"],
@@ -368,16 +376,18 @@ export const ISP_ROLE_TEMPLATES = {
 			customers: ["read:own"],
 			billing: ["view", "collect:own"],
 			tasks: ["read:own"],
+			followups: ["read", "update"],
 		},
 	},
 	field_tech: {
 		label: "Field Technician",
 		description: "Field worker — manages installations, stock, and tasks",
 		permissions: {
-			customers: ["read"],
+			customers: ["read", "create"],
 			tasks: ["create", "read:own", "update:own"],
 			inventory: ["read", "update"],
-			installations: ["create", "read", "update"],
+			installations: ["create", "read:own", "update"],
+			expenses: ["create", "read:own"],
 			stations: ["read"],
 		},
 	},
@@ -412,6 +422,8 @@ export const ISP_ROLE_TEMPLATES = {
 			billing: ["view", "manage", "collect"],
 			inventory: ["create", "read", "update", "delete"],
 			installations: ["create", "read", "update", "approve"],
+			expenses: ["create", "read", "approve"],
+			followups: ["create", "read", "update", "delete"],
 			audit: ["view"],
 		},
 	},

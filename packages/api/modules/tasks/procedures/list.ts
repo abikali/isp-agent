@@ -37,6 +37,7 @@ export const listTasks = protectedProcedure
 					"SUPPORT",
 					"BILLING",
 					"GENERAL",
+					"UNINSTALL",
 				])
 				.optional(),
 			source: z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]).optional(),
@@ -167,6 +168,8 @@ export const listTasks = protectedProcedure
 							id: true,
 							firstName: true,
 							lastName: true,
+							mobile: true,
+							address: true,
 						},
 					},
 					station: {

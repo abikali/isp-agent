@@ -99,6 +99,12 @@ export const Route = createFileRoute("/_saas/app/_org/$organizationSlug")({
 					params: { organizationSlug: params.organizationSlug },
 				});
 			}
+			if (layout === "worker") {
+				throw redirect({
+					to: "/work/$organizationSlug",
+					params: { organizationSlug: params.organizationSlug },
+				});
+			}
 		}
 
 		// This context is available to all child route loaders

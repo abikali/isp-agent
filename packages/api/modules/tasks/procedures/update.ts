@@ -40,6 +40,7 @@ export const updateTask = protectedProcedure
 					"SUPPORT",
 					"BILLING",
 					"GENERAL",
+					"UNINSTALL",
 				])
 				.optional(),
 			dueDate: z.coerce.date().nullable().optional(),

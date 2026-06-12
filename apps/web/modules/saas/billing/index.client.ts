@@ -42,6 +42,7 @@ export {
 	CollectorWorkspaceSkeleton,
 } from "./components/CollectorWorkspace";
 export { CustomerCard, type UnpaidCustomer } from "./components/CustomerCard";
+export { FollowupsList } from "./components/FollowupsList";
 export { InvoiceFormDialog } from "./components/InvoiceFormDialog";
 export { InvoicesList } from "./components/InvoicesList";
 export { PaymentDialog } from "./components/PaymentDialog";
@@ -97,6 +98,12 @@ export {
 	useUpdatePayment,
 	useVoidInvoice,
 } from "./hooks/use-billing";
+export {
+	useCreateFollowup,
+	useDeleteFollowup,
+	useFollowups,
+	useUpdateFollowup,
+} from "./hooks/use-followups";
 export {
 	buildCycleOptions,
 	type CustomerForBilling,

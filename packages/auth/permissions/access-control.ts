@@ -84,7 +84,13 @@ export const permissionStatement = {
 
 	// Inventory & Installations
 	inventory: ["create", "read", "update", "delete"],
-	installations: ["create", "read", "update", "approve"],
+	installations: ["create", "read", "read:own", "update", "approve"],
+
+	// Field-worker expenses
+	expenses: ["create", "read", "read:own", "approve"],
+
+	// Manual customer follow-ups
+	followups: ["create", "read", "update", "delete"],
 
 	// Marketing (WhatsApp broadcasts via Salti)
 	marketing: ["read", "send", "manage"],
@@ -102,6 +108,8 @@ export const OWNERSHIP_RESOURCES = [
 	"tasks",
 	"watchers",
 	"aiAgents",
+	"expenses",
+	"installations",
 ] as const;
 export type OwnershipResource = (typeof OWNERSHIP_RESOURCES)[number];
 
@@ -116,6 +124,8 @@ export const SCOPED_ACTIONS: Record<OwnershipResource, readonly string[]> = {
 	tasks: ["read", "update", "delete"],
 	watchers: ["read", "update", "delete"],
 	aiAgents: ["read", "update", "delete"],
+	expenses: ["read"],
+	installations: ["read"],
 } as const;
 
 /**
@@ -182,6 +192,7 @@ export const PERMISSION_GROUPS = {
 			"tasks",
 			"inventory",
 			"installations",
+			"followups",
 		] as const,
 		label: "ISP Management",
 	},
@@ -202,7 +213,7 @@ export const PERMISSION_GROUPS = {
 		label: "Insights",
 	},
 	billing: {
-		resources: ["billing"] as const,
+		resources: ["billing", "expenses"] as const,
 		label: "Billing",
 	},
 } as const;

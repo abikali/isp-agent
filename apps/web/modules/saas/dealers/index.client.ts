@@ -4,6 +4,7 @@
 export { CreateDealerDialog } from "./components/CreateDealerDialog";
 export { DealerDetail } from "./components/DealerDetail";
 export { DealerFilters } from "./components/DealerFilters";
+export { DealerLedger } from "./components/DealerLedger";
 export { DealerStats } from "./components/DealerStats";
 export { DealerStatsSkeleton } from "./components/DealerStatsSkeleton";
 export { DealersList } from "./components/DealersList";

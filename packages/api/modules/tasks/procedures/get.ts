@@ -111,6 +111,20 @@ export const getTask = protectedProcedure
 						},
 					},
 				},
+				completedByEmployee: {
+					select: { id: true, name: true },
+				},
+				uninstalledItems: {
+					select: {
+						id: true,
+						itemName: true,
+						quantity: true,
+						pictureUrl: true,
+						status: true,
+						uninstalledAt: true,
+					},
+					orderBy: { uninstalledAt: "desc" },
+				},
 			},
 		});
 

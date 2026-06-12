@@ -54,6 +54,7 @@ import {
 	voidManyInvoicesProcedure,
 	voidUnpaidForCustomersProcedure,
 } from "./procedures/void-invoice";
+import { getMyWallet } from "./procedures/worker-wallet";
 
 export const billingRouter = {
 	months: {
@@ -119,6 +120,7 @@ export const billingRouter = {
 		delete: deleteNoteCategory,
 	},
 	invoice: getInvoice,
+	myWallet: getMyWallet,
 	reports: getAccountingReports,
 	// @deprecated — Remove after final PHP billing migration
 	sync: {

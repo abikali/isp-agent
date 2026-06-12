@@ -15,6 +15,10 @@
 			"types": "./lib/membership.ts",
 			"default": "./lib/membership.ts"
 		},
+		"./lib/notify-employee": {
+			"types": "./lib/notify-employee.ts",
+			"default": "./lib/notify-employee.ts"
+		},
 		"./lib/permission": {
 			"types": "./lib/permission.ts",
 			"default": "./lib/permission.ts"

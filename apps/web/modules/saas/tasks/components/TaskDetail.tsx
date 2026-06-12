@@ -27,6 +27,7 @@ import {
 	TASK_PRIORITY_OPTIONS,
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
+import { TaskEvidenceCard } from "./TaskEvidenceCard";
 
 export function TaskDetail({
 	taskId,
@@ -345,6 +346,8 @@ export function TaskDetail({
 							</form.Field>
 						</CardContent>
 					</Card>
+
+					<TaskEvidenceCard task={task} />
 				</div>
 
 				<div className="mt-6 flex items-center justify-end gap-3">

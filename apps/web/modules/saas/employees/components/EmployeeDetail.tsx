@@ -16,7 +16,7 @@ import {
 	formatDate,
 	formatDateInput,
 } from "@shared/lib/format";
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc, type orpcClient } from "@shared/lib/orpc";
 import type {
 	FormAsyncValidateOrFn,
@@ -24,7 +24,7 @@ import type {
 	ReactFormExtendedApi,
 } from "@tanstack/react-form";
 import { useForm, useStore } from "@tanstack/react-form";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -197,7 +197,8 @@ export function EmployeeDetail({
 					status: value.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE",
 					preferredLayout: value.preferredLayout as
 						| "standard"
-						| "collector",
+						| "collector"
+						| "worker",
 					telegramChatId: value.telegramChatId || null,
 					notes: value.notes || null,
 				}),
@@ -582,6 +583,15 @@ function OverviewTab({
 	form: EmployeeForm;
 	employee: EmployeeData;
 }) {
+	const organizationId = useOrganizationId();
+	const { data: balanceData } = useQuery(
+		organizationId
+			? orpc.billing.collectors.balance.queryOptions({
+					input: { organizationId, collectorId: employee.id },
+				})
+			: disabledQuery(["billing", "collectorBalance"]),
+	);
+
 	return (
 		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 			{/* Left column: Personal + Employment — 2/3 width */}
@@ -795,12 +805,15 @@ function OverviewTab({
 											<SelectItem value="collector">
 												Collector Portal
 											</SelectItem>
+											<SelectItem value="worker">
+												Worker Portal
+											</SelectItem>
 										</SelectContent>
 									</Select>
 									<FieldDescription>
-										Collector portal shows a simplified
-										mobile-friendly interface for payment
-										collection.
+										Collector and worker portals show a
+										simplified mobile-friendly interface for
+										field staff.
 									</FieldDescription>
 								</Field>
 							)}
@@ -903,6 +916,12 @@ function OverviewTab({
 							label="Tasks"
 							value={employee.taskAssignments.length}
 							format="number"
+						/>
+						<MetricDisplay
+							label="Cash Balance"
+							value={balanceData?.balance ?? 0}
+							format="currency"
+							secondary="Owed to office"
 						/>
 					</div>
 				</DetailSection>
@@ -1498,11 +1517,18 @@ function useInstallationColumns(organizationSlug: string) {
 	return useMemo<ColumnDef<Installation, unknown>[]>(
 		() => [
 			{
-				accessorFn: (row) => row.customer.firstName,
+				accessorFn: (row) => row.customer?.firstName,
 				id: "customer",
 				header: "Customer",
 				cell: ({ row }) => {
 					const inst = row.original;
+					if (!inst.customer) {
+						return (
+							<span className="text-sm text-muted-foreground">
+								Station
+							</span>
+						);
+					}
 					return (
 						<div>
 							<Link

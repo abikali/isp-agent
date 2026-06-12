@@ -5,6 +5,8 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -40,6 +42,7 @@ export const createTask = protectedProcedure
 					"SUPPORT",
 					"BILLING",
 					"GENERAL",
+					"UNINSTALL",
 				])
 				.default("GENERAL"),
 			dueDate: z.coerce.date().optional(),
@@ -47,6 +50,8 @@ export const createTask = protectedProcedure
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
 			employeeIds: z.array(z.string()).optional(),
+			// Maintenance-visit WhatsApp to the customer (legacy parity)
+			notifyCustomerWhatsApp: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -133,6 +138,36 @@ export const createTask = protectedProcedure
 			auditContext,
 			{ title: input.title },
 		);
+
+		// Fire-and-forget: tell the customer a maintenance visit is coming
+		if (input.notifyCustomerWhatsApp && input.customerId) {
+			(async () => {
+				const [customer, worker] = await Promise.all([
+					db.customer.findFirst({
+						where: { id: input.customerId as string },
+						select: { firstName: true, mobile: true },
+					}),
+					input.employeeIds?.[0]
+						? db.employee.findFirst({
+								where: { id: input.employeeIds[0] },
+								select: { name: true, phone: true },
+							})
+						: Promise.resolve(null),
+				]);
+				if (customer?.mobile) {
+					await sendWhatsAppMaintenanceVisit({
+						phone: customer.mobile,
+						customerName: customer.firstName,
+						workerName: worker?.name ?? null,
+						workerPhone: worker?.phone ?? null,
+					});
+				}
+			})().catch((err: unknown) =>
+				logger.warn("[Task Create] customer WhatsApp failed", {
+					error: String(err),
+				}),
+			);
+		}
 
 		return { task };
 	});

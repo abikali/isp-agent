@@ -293,6 +293,8 @@ export const OWNERSHIP_FIELDS: Partial<
 	watchers: { field: "createdById", resolver: "userId" },
 	aiAgents: { field: "createdById", resolver: "userId" },
 	customers: { field: "collectorId", resolver: "employeeId" },
+	expenses: { field: "submittedById", resolver: "employeeId" },
+	installations: { field: "employeeId", resolver: "employeeId" },
 };
 
 /**

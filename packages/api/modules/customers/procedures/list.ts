@@ -28,6 +28,7 @@ export const listCustomers = protectedProcedure
 				.optional(),
 			groupName: z.string().optional(),
 			collectorId: z.string().optional(),
+			workerId: z.string().optional(),
 			hasLocation: z.enum(["yes", "no"]).optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
@@ -103,6 +104,9 @@ export const listCustomers = protectedProcedure
 			where["collectorId"] = null;
 		} else if (input.collectorId) {
 			where["collectorId"] = input.collectorId;
+		}
+		if (input.workerId) {
+			where["workerId"] = input.workerId;
 		}
 		if (input.hasLocation === "yes") {
 			where["AND"] = [

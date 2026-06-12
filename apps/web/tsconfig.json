@@ -62,6 +62,14 @@
 				"./modules/saas/notifications/index.client.ts"
 			],
 			"@saas/iradius/client": ["./modules/saas/iradius/index.client.ts"],
+			"@saas/stock/client": ["./modules/saas/stock/index.client.ts"],
+			"@saas/installations/client": [
+				"./modules/saas/installations/index.client.ts"
+			],
+			"@saas/expenses/client": [
+				"./modules/saas/expenses/index.client.ts"
+			],
+			"@saas/worker/client": ["./modules/saas/worker/index.client.ts"],
 			"@saas/*": ["./modules/saas/*"],
 			"@ui/*": ["./modules/ui/*"],
 			"@shared/*": ["./modules/shared/*"],

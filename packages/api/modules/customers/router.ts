@@ -48,6 +48,13 @@ import {
 import { resetCustomerPin } from "./procedures/reset-pin";
 import { searchCustomersForPicker } from "./procedures/search-for-picker";
 import { setCustomerPin } from "./procedures/set-pin";
+import {
+	approveSetupRequest,
+	listSetupRequests,
+	rejectSetupRequest,
+	updateSetupRequest,
+	workerCreateCustomer,
+} from "./procedures/setup-requests";
 import { getCustomerStats } from "./procedures/stats";
 import {
 	bulkResolveSyncConflicts,
@@ -122,4 +129,11 @@ export const customersRouter = {
 	clearCustomerLocation,
 	submitLocationByToken,
 	getLocationRequestByToken,
+	workerCreate: workerCreateCustomer,
+	setupRequests: {
+		list: listSetupRequests,
+		update: updateSetupRequest,
+		approve: approveSetupRequest,
+		reject: rejectSetupRequest,
+	},
 };

@@ -658,6 +658,21 @@ async function processBillingSync(
 
 			await updateProgress(operationId, { phase: "stockItems" });
 
+			// Cutover guard: once native stock operations exist (StockLog
+			// rows created by the app, not the import), local quantities are
+			// the source of truth — never overwrite them from the legacy DB.
+			// New items are still created and prices/alerts still refresh.
+			const hasNativeStockOps =
+				(await db.stockLog.count({
+					where: { organizationId, externalBillingId: null },
+				})) > 0;
+			if (hasNativeStockOps) {
+				logger.info(
+					"[Billing Sync] Native stock activity detected — skipping quantity overwrites",
+					{ organizationId },
+				);
+			}
+
 			const stockRows = await queryBilling(
 				conn,
 				"SELECT id, item_name, quantity, price, sellPrice, alert_on, alert_enabled FROM admin_stock",
@@ -684,7 +699,9 @@ async function processBillingSync(
 							organizationId_name: { organizationId, name },
 						},
 						update: {
-							quantity: toFloat(row["quantity"]),
+							...(hasNativeStockOps
+								? {}
+								: { quantity: toFloat(row["quantity"]) }),
 							costPrice: toFloat(row["price"]),
 							sellPrice: toFloat(row["sellPrice"]),
 							alertThreshold: toFloat(row["alert_on"]) || null,
@@ -756,7 +773,9 @@ async function processBillingSync(
 							stockItemId_employeeId: { stockItemId, employeeId },
 						},
 						update: {
-							quantity: toFloat(row["quantity"]),
+							...(hasNativeStockOps
+								? {}
+								: { quantity: toFloat(row["quantity"]) }),
 							unitPrice: toFloat(row["unitprice"]),
 						},
 						create: {

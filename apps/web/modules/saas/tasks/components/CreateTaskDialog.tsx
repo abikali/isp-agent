@@ -1,6 +1,8 @@
 "use client";
 
 import { useStationsQuery } from "@saas/customers/client";
+import { useEmployeesQuery } from "@saas/employees/client";
+import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
@@ -21,6 +23,7 @@ import {
 	SheetTitle,
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useCreateTask } from "../hooks/use-tasks";
 import { TASK_CATEGORY_OPTIONS, TASK_PRIORITY_OPTIONS } from "../lib/constants";
@@ -35,6 +38,16 @@ export function CreateTaskDialog({
 	const organizationId = useOrganizationId();
 	const createTask = useCreateTask();
 	const { stations } = useStationsQuery();
+	const { employees } = useEmployeesQuery();
+	const [customer, setCustomer] = useState<{
+		id: string;
+		name: string;
+		username: string | null;
+	} | null>(null);
+	const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>(
+		[],
+	);
+	const [notifyCustomerWhatsApp, setNotifyCustomerWhatsApp] = useState(false);
 
 	const form = useForm({
 		defaultValues: {
@@ -66,7 +79,16 @@ export function CreateTaskDialog({
 						| "REPAIR"
 						| "SUPPORT"
 						| "BILLING"
-						| "GENERAL",
+						| "GENERAL"
+						| "UNINSTALL",
+					customerId: customer?.id ?? undefined,
+					employeeIds: assignedEmployeeIds.length
+						? assignedEmployeeIds
+						: undefined,
+					notifyCustomerWhatsApp:
+						notifyCustomerWhatsApp && customer !== null
+							? true
+							: undefined,
 					dueDate: value.dueDate
 						? new Date(value.dueDate)
 						: undefined,
@@ -76,6 +98,9 @@ export function CreateTaskDialog({
 				toast.success("Task created");
 				onOpenChange(false);
 				form.reset();
+				setCustomer(null);
+				setAssignedEmployeeIds([]);
+				setNotifyCustomerWhatsApp(false);
 			} catch (error) {
 				toast.error(
 					error instanceof Error
@@ -139,6 +164,15 @@ export function CreateTaskDialog({
 								</div>
 							)}
 						</form.Field>
+
+						<div className="space-y-2">
+							<Label>Customer</Label>
+							<CustomerCombobox
+								value={customer}
+								onChange={setCustomer}
+								placeholder="Link a customer (optional)"
+							/>
+						</div>
 
 						<div className="grid gap-4 sm:grid-cols-2">
 							<form.Field name="priority">
@@ -243,6 +277,77 @@ export function CreateTaskDialog({
 								)}
 							</form.Field>
 						</div>
+
+						<div className="space-y-2">
+							<Label>Assign workers</Label>
+							<div className="max-h-44 space-y-1.5 overflow-y-auto rounded-md border p-2">
+								{employees.length === 0 ? (
+									<p className="px-1 py-2 text-sm text-muted-foreground">
+										No active employees.
+									</p>
+								) : (
+									employees.map((emp) => (
+										<label
+											key={emp.id}
+											className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
+										>
+											<input
+												type="checkbox"
+												className="size-4"
+												checked={assignedEmployeeIds.includes(
+													emp.id,
+												)}
+												onChange={() =>
+													setAssignedEmployeeIds(
+														(prev) =>
+															prev.includes(
+																emp.id,
+															)
+																? prev.filter(
+																		(id) =>
+																			id !==
+																			emp.id,
+																	)
+																: [
+																		...prev,
+																		emp.id,
+																	],
+													)
+												}
+											/>
+											<span className="text-sm">
+												{emp.name}
+											</span>
+										</label>
+									))
+								)}
+							</div>
+						</div>
+
+						<form.Subscribe selector={(s) => s.values.category}>
+							{(category) =>
+								customer &&
+								(category === "MAINTENANCE" ||
+									category === "REPAIR") ? (
+									<label className="flex cursor-pointer items-center gap-3 rounded-md border p-3">
+										<input
+											type="checkbox"
+											className="size-4"
+											checked={notifyCustomerWhatsApp}
+											onChange={(e) =>
+												setNotifyCustomerWhatsApp(
+													e.target.checked,
+												)
+											}
+										/>
+										<span className="text-sm">
+											Send WhatsApp to the customer about
+											the maintenance visit
+										</span>
+									</label>
+								) : null
+							}
+						</form.Subscribe>
 
 						<form.Field name="notes">
 							{(field) => (

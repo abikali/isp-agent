@@ -9,7 +9,10 @@ import { billingRouter } from "../modules/billing/router";
 import { customersRouter } from "../modules/customers/router";
 import { dashboardRouter } from "../modules/dashboard/router";
 import { employeesRouter } from "../modules/employees/router";
+import { expensesRouter } from "../modules/expenses/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
+import { followupsRouter } from "../modules/followups/router";
+import { installationsRouter } from "../modules/installations/router";
 import { integrationsRouter } from "../modules/integrations/router";
 import { iradiusRouter } from "../modules/iradius/router";
 import { marketingRouter } from "../modules/marketing/router";
@@ -24,6 +27,7 @@ import { servicePlansRouter } from "../modules/service-plans/router";
 import { sessionsRouter } from "../modules/sessions/router";
 import { sharedRouter } from "../modules/shared/router";
 import { stationsRouter } from "../modules/stations/router";
+import { stockRouter } from "../modules/stock/router";
 import { tasksRouter } from "../modules/tasks/router";
 import { userPrefsRouter } from "../modules/user-prefs/router";
 import { usersRouter } from "../modules/users/router";
@@ -40,7 +44,9 @@ export const router = publicProcedure.router({
 	customers: customersRouter,
 	dashboard: dashboardRouter,
 	employees: employeesRouter,
+	expenses: expensesRouter,
 	newsletter: newsletterRouter,
+	installations: installationsRouter,
 	integrations: integrationsRouter,
 	iradius: iradiusRouter,
 	marketing: marketingRouter,
@@ -52,12 +58,14 @@ export const router = publicProcedure.router({
 	apiKeys: apiKeysRouter,
 	webhooks: webhooksRouter,
 	featureFlags: featureFlagsRouter,
+	followups: followupsRouter,
 	notifications: notificationsRouter,
 	sessions: sessionsRouter,
 	security: securityRouter,
 	servicePlans: servicePlansRouter,
 	shared: sharedRouter,
 	stations: stationsRouter,
+	stock: stockRouter,
 	tasks: tasksRouter,
 	userPrefs: userPrefsRouter,
 	savedViews: savedViewsRouter,

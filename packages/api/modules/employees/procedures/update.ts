@@ -39,7 +39,9 @@ export const updateEmployee = protectedProcedure
 			hireDate: z.coerce.date().nullable().optional(),
 			status: z.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"]).optional(),
 			notes: z.string().max(5000).nullable().optional(),
-			preferredLayout: z.enum(["standard", "collector"]).optional(),
+			preferredLayout: z
+				.enum(["standard", "collector", "worker"])
+				.optional(),
 			telegramChatId: z.string().max(100).nullable().optional(),
 		}),
 	)

@@ -1,0 +1,40 @@
+/**
+ * CashCollection.amount sign convention.
+ *
+ * The legacy billing import (`billing-sync.worker.ts` phase 3) preserves
+ * `john_collection.collect_amount` verbatim, and the legacy system encoded
+ * direction in the SIGN of the amount:
+ *
+ *  - POSITIVE — cash leaving the collector/worker pocket toward the org:
+ *    handoff deposits ("wasil"), approved expenses, dealer payments,
+ *    admin transfers.
+ *  - NEGATIVE — cash entering the collector/worker pocket from customers:
+ *    installation charges, new-customer setup money.
+ *
+ * Collector balance everywhere is `Σ payments − Σ cashCollection.amount`
+ * (see `fetchCollectorBalance` in billing/lib/queries.ts), so a negative
+ * amount INCREASES the balance the employee owes.
+ *
+ * Every native write of a CashCollection row MUST go through these helpers
+ * so new rows stay consistent with the imported ledger.
+ */
+
+/** Hardware/installation money a worker collected from a customer. */
+export function installationCostAmount(total: number): number {
+	return -Math.abs(total);
+}
+
+/** Items + add-on money collected during a worker-created customer setup. */
+export function newUserSetupAmount(total: number): number {
+	return -Math.abs(total);
+}
+
+/** Approved worker expense — offsets cash the worker must hand in. */
+export function expenseDeductionAmount(total: number): number {
+	return Math.abs(total);
+}
+
+/** Cash physically handed off to the office. */
+export function handoffAmount(total: number): number {
+	return Math.abs(total);
+}

@@ -61,6 +61,8 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
 	billing: "Billing",
 	inventory: "Inventory",
 	installations: "Installations",
+	expenses: "Expenses",
+	followups: "Follow-ups",
 	connections: "Integrations",
 	marketing: "Marketing",
 };

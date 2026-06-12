@@ -2,7 +2,6 @@
 export { closeConnection, getRedisConnection } from "./src/connection";
 // Jobs
 export { queueAiChatRetry } from "./src/jobs/ai-chat.jobs";
-export { reconcileOrphanedAiChats } from "./src/lib/reconcile-orphaned-chats";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,
@@ -19,6 +18,7 @@ export {
 export { queueMarketingSend } from "./src/jobs/marketing-send.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
+export { queueTelegramNotify } from "./src/jobs/telegram-notify.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
 export {
 	queueWebhooks,
@@ -31,9 +31,11 @@ export {
 	type CreateLocationRequestResult,
 	runCreateLocationRequest,
 } from "./src/lib/location-request-helper";
+export { reconcileOrphanedAiChats } from "./src/lib/reconcile-orphaned-chats";
 // WPBox template senders (shared; API layer imports via @repo/jobs)
 export {
 	sendWhatsAppLocationRequest,
+	sendWhatsAppMaintenanceVisit,
 	sendWhatsAppReceipt,
 } from "./src/lib/wpbox";
 // Queues
@@ -94,6 +96,11 @@ export {
 	TELEGRAM_LOCATION_QUEUE_NAME,
 } from "./src/queues/telegram-location.queue";
 export {
+	closeTelegramNotifyQueue,
+	getTelegramNotifyQueue,
+	TELEGRAM_NOTIFY_QUEUE_NAME,
+} from "./src/queues/telegram-notify.queue";
+export {
 	closeWatcherCheckQueue,
 	getWatcherCheckQueue,
 	WATCHER_CHECK_QUEUE_NAME,
@@ -134,6 +141,8 @@ export type {
 	ScheduledJobResult,
 	TelegramLocationJobData,
 	TelegramLocationJobResult,
+	TelegramNotifyJobData,
+	TelegramNotifyJobResult,
 	WatcherCheckJobData,
 	WatcherCheckJobResult,
 	WebhookJobData,
@@ -170,6 +179,7 @@ export { createMarketingSendWorker } from "./src/workers/marketing-send.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
+export { createTelegramNotifyWorker } from "./src/workers/telegram-notify.worker";
 export {
 	createWatcherCheckWorker,
 	type WatcherCheckWorkerDeps,
@@ -191,6 +201,7 @@ import { closeMarketingSendQueue } from "./src/queues/marketing-send.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
 import { closeTelegramLocationQueue } from "./src/queues/telegram-location.queue";
+import { closeTelegramNotifyQueue } from "./src/queues/telegram-notify.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
 import { closeWebhookQueue } from "./src/queues/webhook.queue";
 import { closeWhatsAppReceiptQueue } from "./src/queues/whatsapp-receipt.queue";
@@ -213,6 +224,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeScheduledQueue(),
 		closeWatcherCheckQueue(),
 		closeTelegramLocationQueue(),
+		closeTelegramNotifyQueue(),
 		closeWhatsAppReceiptQueue(),
 		closeWebhookQueue(),
 	]);

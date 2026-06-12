@@ -169,6 +169,17 @@ export interface TelegramLocationJobResult {
 	success: boolean;
 }
 
+// Generic Telegram employee notification job types
+export interface TelegramNotifyJobData {
+	organizationId: string;
+	employeeId: string;
+	text: string;
+}
+
+export interface TelegramNotifyJobResult {
+	success: boolean;
+}
+
 // Location request (customer self-serve) job types
 export interface LocationRequestJobData {
 	organizationId: string;

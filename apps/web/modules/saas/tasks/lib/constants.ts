@@ -77,6 +77,7 @@ export const TASK_CATEGORY_LABELS: Record<string, string> = {
 	SUPPORT: "Support",
 	BILLING: "Billing",
 	GENERAL: "General",
+	UNINSTALL: "Uninstall",
 };
 
 export const TASK_CATEGORY_OPTIONS = [
@@ -86,6 +87,7 @@ export const TASK_CATEGORY_OPTIONS = [
 	{ value: "SUPPORT", label: "Support" },
 	{ value: "BILLING", label: "Billing" },
 	{ value: "GENERAL", label: "General" },
+	{ value: "UNINSTALL", label: "Uninstall" },
 ] as const;
 
 export const TASK_CATEGORY_ICONS: Record<string, string> = {
@@ -95,6 +97,7 @@ export const TASK_CATEGORY_ICONS: Record<string, string> = {
 	SUPPORT: "Headphones",
 	BILLING: "Receipt",
 	GENERAL: "FileText",
+	UNINSTALL: "PackageMinus",
 };
 
 export const TASK_SOURCE_LABELS: Record<string, string> = {

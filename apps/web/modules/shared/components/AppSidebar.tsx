@@ -34,6 +34,7 @@ import {
 	AlertTriangleIcon,
 	BanknoteIcon,
 	BotIcon,
+	BoxesIcon,
 	EyeIcon,
 	HardHatIcon,
 	HomeIcon,
@@ -44,10 +45,13 @@ import {
 	PanelLeftCloseIcon,
 	PanelLeftIcon,
 	RadioTowerIcon,
+	ReceiptIcon,
 	SearchIcon,
 	SettingsIcon,
 	ShieldIcon,
+	UserPlusIcon,
 	UsersIcon,
+	WrenchIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useCommandPalette } from "./CommandPalette";
@@ -89,6 +93,31 @@ export function AppSidebar() {
 	);
 	const unreviewedCount = paymentStats?.unreviewedCount ?? 0;
 
+	const { data: installationStats } = useQuery(
+		organizationId
+			? orpc.installations.stats.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["installations", "stats"]),
+	);
+	const pendingInstallations = installationStats?.pendingCount ?? 0;
+
+	const { data: expenseStats } = useQuery(
+		organizationId
+			? orpc.expenses.stats.queryOptions({ input: { organizationId } })
+			: disabledQuery(["expenses", "stats"]),
+	);
+	const pendingExpenses = expenseStats?.pendingCount ?? 0;
+
+	const { data: setupRequests } = useQuery(
+		organizationId
+			? orpc.customers.setupRequests.list.queryOptions({
+					input: { organizationId, status: "PENDING" },
+				})
+			: disabledQuery(["customers", "setupRequests"]),
+	);
+	const pendingNewCustomers = setupRequests?.total ?? 0;
+
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
 		: "/app";
@@ -111,6 +140,9 @@ export function AppSidebar() {
 		const canReadMarketing = hasPermission("marketing", "read");
 		const canViewBilling = hasPermission("billing", "view");
 		const canCollectBilling = hasPermission("billing", "collect");
+		const canReadInventory = hasPermission("inventory", "read");
+		const canReadInstallations = hasPermission("installations", "read");
+		const canReadExpenses = hasPermission("expenses", "read");
 		const hasFullCustomerAccess =
 			isOrganizationAdmin || customersScope === "all";
 
@@ -144,6 +176,12 @@ export function AppSidebar() {
 					...(hasFullCustomerAccess
 						? [
 								{
+									label: "New Customers",
+									to: `${basePath}/customers/approvals`,
+									icon: UserPlusIcon,
+									badge: pendingNewCustomers,
+								},
+								{
 									label: "Plans",
 									to: `${basePath}/customers/plans`,
 									icon: PackageIcon,
@@ -174,7 +212,13 @@ export function AppSidebar() {
 			});
 		}
 
-		if (canReadEmployees || canReadTasks) {
+		if (
+			canReadEmployees ||
+			canReadTasks ||
+			canReadInventory ||
+			canReadInstallations ||
+			canReadExpenses
+		) {
 			const items: NavItem[] = [];
 			if (canReadEmployees) {
 				items.push({
@@ -189,20 +233,37 @@ export function AppSidebar() {
 					to: `${basePath}/tasks`,
 					icon: UsersIcon,
 				});
+			}
+			if (canReadInventory) {
 				items.push({
-					label: "Escalations",
-					to: `${basePath}/escalations`,
-					icon: AlertTriangleIcon,
+					label: "Stock",
+					to: `${basePath}/stock`,
+					icon: BoxesIcon,
+				});
+			}
+			if (canReadInstallations) {
+				items.push({
+					label: "Installations",
+					to: `${basePath}/installations`,
+					icon: WrenchIcon,
+					badge: pendingInstallations,
+				});
+			}
+			if (canReadExpenses) {
+				items.push({
+					label: "Expenses",
+					to: `${basePath}/expenses`,
+					icon: ReceiptIcon,
+					badge: pendingExpenses,
 				});
 			}
 			groups.push({ id: "operations", label: "Operations", items });
 		}
 
-		if (canReadAiAgents) {
-			groups.push({
-				id: "ai",
-				label: "AI",
-				items: [
+		if (canReadAiAgents || canReadTasks) {
+			const items: NavItem[] = [];
+			if (canReadAiAgents) {
+				items.push(
 					{
 						label: "Agents",
 						to: `${basePath}/ai-agents`,
@@ -213,8 +274,16 @@ export function AppSidebar() {
 						to: `${basePath}/conversations`,
 						icon: MessageSquareIcon,
 					},
-				],
-			});
+				);
+			}
+			if (canReadTasks) {
+				items.push({
+					label: "Escalations",
+					to: `${basePath}/escalations`,
+					icon: AlertTriangleIcon,
+				});
+			}
+			groups.push({ id: "ai", label: "AI", items });
 		}
 
 		if (canReadMarketing || canReadWatchers) {
@@ -259,6 +328,9 @@ export function AppSidebar() {
 		hasPermission,
 		getScope,
 		unreviewedCount,
+		pendingInstallations,
+		pendingExpenses,
+		pendingNewCustomers,
 	]);
 
 	const bottomItems = useMemo<NavItem[]>(() => {

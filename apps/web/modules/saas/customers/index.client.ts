@@ -15,6 +15,7 @@ export { CustomersList } from "./components/CustomersList";
 export { CustomersListSkeleton } from "./components/CustomersListSkeleton";
 export { EditPlanDialog } from "./components/EditPlanDialog";
 export { LocationRequestPage } from "./components/LocationRequestPage";
+export { PendingCustomersList } from "./components/PendingCustomersList";
 export { PlansList } from "./components/PlansList";
 export { PlansListSkeleton } from "./components/PlansListSkeleton";
 export { StationsList } from "./components/StationsList";
@@ -23,7 +24,6 @@ export {
 	useAccessPoints,
 	useAccessPointsQuery,
 } from "./hooks/use-access-points";
-// Hooks
 export {
 	useApplyIRadiusEntitySync,
 	useBulkExport,
@@ -50,4 +50,12 @@ export {
 	usePlansQuery,
 	useUpdatePlan,
 } from "./hooks/use-plans";
+// Hooks
+export {
+	useApproveSetupRequest,
+	usePendingSetupRequestsCount,
+	useRejectSetupRequest,
+	useSetupRequests,
+	useUpdateSetupRequest,
+} from "./hooks/use-setup-requests";
 export { useStations, useStationsQuery } from "./hooks/use-stations";

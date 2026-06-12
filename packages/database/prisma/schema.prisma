@@ -329,6 +329,7 @@ model Organization {
   installations        Installation[]
   followups            Followup[]
   uninstalledItems     UninstalledItem[]
+  customerSetupRequests CustomerSetupRequest[]
   billingSyncOps           BillingSyncOperation[]
   noteCategories           NoteCategory[]
   syncConflicts            SyncConflict[]
@@ -496,6 +497,8 @@ model User {
   expensesApproved    Expense[]          @relation("ExpenseApprover")
   stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
   installationsApproved Installation[]   @relation("InstallationApprover")
+  uninstalledItemsReviewed UninstalledItem[] @relation("UninstalledItemReviewer")
+  setupRequestsReviewed CustomerSetupRequest[] @relation("SetupRequestReviewer")
   resolvedConflicts     SyncConflict[]   @relation("ConflictResolver")
   pushSubscriptions     PushSubscription[]
   userPrefs             UserPref[]
@@ -1045,6 +1048,7 @@ model Station {
   tasks         Task[]
   accessPoints  AccessPoint[]
   routers       IspRouter[]
+  installations Installation[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId])
@@ -1240,6 +1244,7 @@ model Customer {
   referredPayments Payment[] @relation("PaymentReferrer")
   installations  Installation[]
   followups      Followup[]
+  setupRequest   CustomerSetupRequest?
   syncConflicts  SyncConflict[]
   locationRequests LocationRequest[]
   marketingMessages MarketingBroadcastRecipient[]
@@ -1614,6 +1619,7 @@ enum TaskCategory {
   BILLING
   GENERAL
   FOLLOW_UP
+  UNINSTALL
 }
 
 enum TaskSource {
@@ -1666,6 +1672,8 @@ model Employee {
   workerStock           WorkerStock[]
   stockLogs             StockLog[]
   installationsDone     Installation[]        @relation("Installer")
+  tasksCompleted        Task[]                @relation("TaskCompleter")
+  setupRequests         CustomerSetupRequest[] @relation("SetupRequester")
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -1711,6 +1719,11 @@ model Task {
   conversationId String?
   followUpStatus String?        // pending | contacted | promised | resolved | escalated
   externalBillingId Int?        @map("external_billing_id")
+  // Field-work completion evidence (worker portal)
+  resolutionCode        String?   // canned-reply key, see packages/api/modules/tasks/lib/resolutions.ts
+  resolutionNote        String?   @db.Text
+  completionPhotoUrl    String?
+  completedByEmployeeId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1719,6 +1732,7 @@ model Task {
   customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
   conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  completedByEmployee Employee? @relation("TaskCompleter", fields: [completedByEmployeeId], references: [id], onDelete: SetNull)
   assignments  TaskAssignment[]
   uninstalledItems UninstalledItem[]
 
@@ -1793,6 +1807,13 @@ enum InstallationStatus {
   PENDING
   APPROVED
   COMPLETED
+  DENIED
+}
+
+enum SetupRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum StockAction {
@@ -1914,6 +1935,7 @@ model Expense {
   submittedById     String
   amount            Float
   description       String        @db.Text
+  category          String?       // toolkit | electricity | roof | other (free text allowed)
   receiptUrl        String?
   status            ExpenseStatus @default(PENDING)
   approvedById      String?
@@ -1952,6 +1974,7 @@ model StockItem {
   workerAllocations WorkerStock[]
   logs              StockLog[]
   installations     Installation[]
+  uninstalledItems  UninstalledItem[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -2007,7 +2030,9 @@ model StockLog {
 model Installation {
   id                String    @id @default(cuid())
   organizationId    String
-  customerId        String
+  // Target is exactly one of customerId / stationId (enforced at the API layer)
+  customerId        String?
+  stationId         String?
   employeeId        String
   stockItemId       String?
   quantity          Int       @default(1)
@@ -2017,23 +2042,60 @@ model Installation {
   approvedById      String?
   approvedAt        DateTime?
   notes             String?            @db.Text
+  // Set when created by the worker new-customer wizard; the setup-request
+  // approval approves the whole bundle atomically.
+  setupRequestId    String?
   externalBillingId Int?               @map("external_billing_id")
   installedAt       DateTime           @default(now())
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
   employee     Employee     @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
   stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
   approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
   uninstalledItems UninstalledItem[]
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
+  @@index([organizationId, status])
   @@index([customerId])
+  @@index([stationId])
   @@index([employeeId])
+  @@index([setupRequestId])
   @@map("installation")
+}
+
+// ─── Customer Setup Requests (worker-created new customers) ───────
+
+model CustomerSetupRequest {
+  id                String             @id @default(cuid())
+  organizationId    String
+  customerId        String             @unique
+  requestedById     String             // Employee (worker) who created the customer
+  durationType      String             // "month" | "days"
+  durationDays      Int?
+  firstChargeAmount Float              // prorated first subscription charge (server-computed)
+  status            SetupRequestStatus @default(PENDING)
+  reviewedById      String?
+  reviewedAt        DateTime?
+  rejectedReason    String?
+  notes             String?            @db.Text
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer      Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requestedBy   Employee     @relation("SetupRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  reviewedBy    User?        @relation("SetupRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  installations Installation[]
+
+  @@index([organizationId, status])
+  @@index([requestedById])
+  @@map("customer_setup_request")
 }
 
 // ─── Followup ─────────────────────────────────────────────────────
@@ -2072,11 +2134,15 @@ model UninstalledItem {
   organizationId    String
   installationId    String?
   taskId            String?
+  // Native submissions reference a known stock item; legacy synced rows are name-only.
+  stockItemId       String?
   itemName          String
   quantity          Int                @default(1)
   pictureUrl        String?
   employeeId        String?
   status            InstallationStatus @default(PENDING)
+  reviewedById      String?
+  reviewedAt        DateTime?
   externalBillingId Int?               @map("external_billing_id")
   uninstalledAt     DateTime           @default(now())
   createdAt         DateTime           @default(now())
@@ -2084,9 +2150,12 @@ model UninstalledItem {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   installation Installation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
   task         Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  stockItem    StockItem?     @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  reviewedBy   User?          @relation("UninstalledItemReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
+  @@index([organizationId, status])
   @@index([taskId])
   @@map("uninstalled_item")
 }

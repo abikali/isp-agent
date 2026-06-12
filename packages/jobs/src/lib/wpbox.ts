@@ -185,3 +185,36 @@ export async function sendWhatsAppLocationRequest(params: {
 	});
 	return result.ok;
 }
+
+/**
+ * Notify a customer that a maintenance visit is scheduled — uses the
+ * `maintenance_visit` template with three body parameters: customer first
+ * name, worker name, and worker phone. The template must exist in WPBox.
+ */
+export async function sendWhatsAppMaintenanceVisit(params: {
+	phone: string;
+	customerName?: string | null;
+	workerName?: string | null;
+	workerPhone?: string | null;
+}): Promise<boolean> {
+	const result = await sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "maintenance_visit",
+		components: [
+			{
+				type: "body",
+				parameters: [
+					{ type: "text", text: params.customerName ?? "there" },
+					{
+						type: "text",
+						text: params.workerName ?? "our technician",
+					},
+					{ type: "text", text: params.workerPhone ?? "-" },
+				],
+			},
+		],
+		logContext: { workerName: params.workerName },
+		logTag: "[WhatsApp Maintenance Visit]",
+	});
+	return result.ok;
+}

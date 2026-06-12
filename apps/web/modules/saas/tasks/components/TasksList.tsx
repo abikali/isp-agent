@@ -56,6 +56,8 @@ import { CreateTaskDialog } from "./CreateTaskDialog";
 import { TaskFilters } from "./TaskFilters";
 import { TaskStats } from "./TaskStats";
 import { TaskStatsSkeleton } from "./TaskStatsSkeleton";
+import { UninstalledItemsReview } from "./UninstalledItemsReview";
+import { WorkerWorkloadCards } from "./WorkerWorkloadCards";
 
 function formatRelativeDate(date: string | Date): string {
 	const d = new Date(date);
@@ -345,6 +347,12 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 			<AsyncBoundary fallback={<TaskStatsSkeleton />}>
 				<TaskStats sources={["MANUAL", "LEGACY"]} />
 			</AsyncBoundary>
+
+			<AsyncBoundary fallback={null}>
+				<WorkerWorkloadCards />
+			</AsyncBoundary>
+
+			<UninstalledItemsReview />
 
 			<ContentCard>
 				<ContentCardToolbar>
