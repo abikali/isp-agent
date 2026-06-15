@@ -115,6 +115,7 @@ vi.mock("@repo/storage", () => ({
 
 vi.mock("@repo/ai", () => ({
 	parseWebhookPayload: vi.fn(),
+	initRateLimiter: vi.fn(),
 	sendTextMessage: mockSendTextMessage,
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),

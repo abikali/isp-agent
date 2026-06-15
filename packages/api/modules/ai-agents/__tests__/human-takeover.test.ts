@@ -140,6 +140,7 @@ const { computeBotFingerprint, isHumanTakeoverActive } = vi.hoisted(() => {
 
 vi.mock("@repo/ai", () => ({
 	parseWebhookPayload: vi.fn(),
+	initRateLimiter: vi.fn(),
 	sendTextMessage: mockSendTextMessage,
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),
@@ -321,8 +322,15 @@ describe("Human Takeover - Bot Echo Detection", () => {
 		whatsappWebhookHandler(request, "token-1");
 		await flushBackground(2000);
 
-		// Should delete the fingerprint key (consumed)
-		expect(mockRedis.del).toHaveBeenCalledWith(`ai:bot-fp:${fp}`);
+		// Should detect the echo via the fingerprint lookup
+		expect(mockRedis.get).toHaveBeenCalledWith(`ai:bot-fp:${fp}`);
+
+		// Should NOT delete the fingerprint key: canned texts (greeting,
+		// quota, retry, Whish reply) reach multiple chats under ONE content
+		// fingerprint, so deleting on the first echo would make the next
+		// chat's echo look like a human admin → wrongful takeover. The 600s
+		// TTL cleans it up instead.
+		expect(mockRedis.del).not.toHaveBeenCalledWith(`ai:bot-fp:${fp}`);
 
 		// Should NOT update any conversation with humanTakeoverAt
 		const updateCalls = mockDb.aiConversation.update.mock.calls;

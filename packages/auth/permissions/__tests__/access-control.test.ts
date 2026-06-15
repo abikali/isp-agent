@@ -106,6 +106,8 @@ describe("permissionStatement", () => {
 			"billing",
 			"inventory",
 			"installations",
+			"expenses",
+			"followups",
 			"marketing",
 		];
 
@@ -152,7 +154,10 @@ describe("PERMISSION_GROUPS", () => {
 	});
 
 	it("groups billing-related resources", () => {
-		expect(PERMISSION_GROUPS.billing.resources).toEqual(["billing"]);
+		expect(PERMISSION_GROUPS.billing.resources).toEqual([
+			"billing",
+			"expenses",
+		]);
 		expect(PERMISSION_GROUPS.billing.label).toBe("Billing");
 	});
 
