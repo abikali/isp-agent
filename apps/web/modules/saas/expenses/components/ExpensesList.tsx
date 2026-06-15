@@ -10,7 +10,7 @@ import { EmptyState } from "@shared/components/EmptyState";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
-import { formatCurrency, formatDate } from "@shared/lib/format";
+import { formatCurrency, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -109,7 +109,7 @@ export function ExpensesList() {
 				header: "Date",
 				cell: ({ row }) => (
 					<span className="whitespace-nowrap text-sm tabular-nums">
-						{formatDate(row.original.createdAt, {
+						{formatDateTime(row.original.createdAt, {
 							dateStyle: "medium",
 							timeStyle: "short",
 						})}

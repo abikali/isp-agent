@@ -8,7 +8,7 @@ import {
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
-import { formatDate } from "@shared/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { DataTable } from "@ui/components/data-table";
@@ -67,7 +67,7 @@ export function StockLogList() {
 				header: "Date",
 				cell: ({ row }) => (
 					<span className="whitespace-nowrap text-sm tabular-nums">
-						{formatDate(row.original.createdAt, {
+						{formatDateTime(row.original.createdAt, {
 							dateStyle: "medium",
 							timeStyle: "short",
 						})}

@@ -1,7 +1,7 @@
 "use client";
 
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
-import { formatDate } from "@shared/lib/format";
+import { formatDateTime } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
@@ -67,7 +67,7 @@ export function TaskEvidenceCard({ task }: { task: EvidenceTask }) {
 							{task.completedByEmployee.name}
 						</span>
 						{task.completedAt &&
-							` on ${formatDate(task.completedAt, { dateStyle: "medium", timeStyle: "short" })}`}
+							` on ${formatDateTime(task.completedAt, { dateStyle: "medium", timeStyle: "short" })}`}
 					</p>
 				)}
 				{task.resolutionCode && (
