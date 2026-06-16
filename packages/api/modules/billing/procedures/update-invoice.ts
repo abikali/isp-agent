@@ -31,7 +31,6 @@ export const updateInvoice = protectedProcedure
 			totalWithTax: z.number().finite().min(0).optional(),
 			expiryDate: z.string().optional(),
 			note: z.string().nullable().optional(),
-			paid: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -81,9 +80,6 @@ export const updateInvoice = protectedProcedure
 		}
 		if (input.note !== undefined) {
 			data["note"] = input.note;
-		}
-		if (input.paid !== undefined) {
-			data["paid"] = input.paid;
 		}
 
 		const invoice = await db.customerInvoice.update({

@@ -48,17 +48,35 @@ export const listCustomerInvoices = protectedProcedure
 		}
 		await verifyCustomerOwnership(permCtx, "read", customer.collectorId);
 
+		const sortOrder = input.sortOrder ?? "desc";
+		// "paid" is a derived status (no column) — sort by the linked payment's
+		// timestamp so paid vs unpaid invoices group together.
+		const orderBy =
+			input.sortBy === "paid"
+				? { payment: { paidAt: sortOrder } }
+				: { [input.sortBy ?? "invoiceDate"]: sortOrder };
+
 		const [invoices, total] = await Promise.all([
 			db.customerInvoice.findMany({
 				where: {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
 				},
-				orderBy: {
-					[input.sortBy ?? "invoiceDate"]: input.sortOrder ?? "desc",
-				},
+				orderBy,
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
+				select: {
+					id: true,
+					year: true,
+					month: true,
+					invoiceDate: true,
+					expiryDate: true,
+					total: true,
+					tax: true,
+					totalWithTax: true,
+					voidedAt: true,
+					payment: { select: { id: true } },
+				},
 			}),
 			db.customerInvoice.count({
 				where: {
@@ -69,7 +87,11 @@ export const listCustomerInvoices = protectedProcedure
 		]);
 
 		return {
-			invoices,
+			invoices: invoices.map(({ payment, ...invoice }) => ({
+				...invoice,
+				// Paid ⟺ a non-voided payment exists (single source of truth).
+				paid: payment !== null && invoice.voidedAt === null,
+			})),
 			total,
 			page: input.page,
 			pageSize: input.pageSize,

@@ -77,7 +77,6 @@ interface InvoiceRow {
 	discount: number;
 	tax: number;
 	totalWithTax: number;
-	paid: boolean;
 	voidedAt: string | Date | null;
 	voidReason: string | null;
 	createdAt: string | Date;
@@ -328,13 +327,13 @@ export function InvoicesList() {
 		{
 			id: "status",
 			header: "Status",
-			accessorFn: (row) => row.paid,
+			accessorFn: (row) => !!row.payment,
 			enableSorting: true,
 			cell: ({ row }) => {
 				if (row.original.voidedAt) {
 					return <Badge variant="secondary">Voided</Badge>;
 				}
-				const paid = !!row.original.payment || row.original.paid;
+				const paid = !!row.original.payment;
 				return (
 					<Badge variant={paid ? "success" : "destructive"}>
 						{paid ? "Paid" : "Unpaid"}

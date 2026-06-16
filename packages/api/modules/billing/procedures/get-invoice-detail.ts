@@ -52,7 +52,6 @@ export const getInvoiceDetail = protectedProcedure
 				tax: true,
 				totalWithTax: true,
 				note: true,
-				paid: true,
 				voidedAt: true,
 				voidReason: true,
 				createdAt: true,
@@ -91,5 +90,11 @@ export const getInvoiceDetail = protectedProcedure
 			throw new ORPCError("NOT_FOUND", { message: "Invoice not found" });
 		}
 
-		return { invoice };
+		return {
+			invoice: {
+				...invoice,
+				// Paid ⟺ a non-voided payment exists (single source of truth).
+				paid: invoice.payment !== null && invoice.voidedAt === null,
+			},
+		};
 	});

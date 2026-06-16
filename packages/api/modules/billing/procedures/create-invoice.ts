@@ -111,7 +111,6 @@ export const createInvoice = protectedProcedure
 				tax: input.tax,
 				totalWithTax,
 				note: input.note ?? null,
-				paid: false,
 			},
 		});
 

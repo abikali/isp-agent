@@ -95,7 +95,6 @@ export async function generateInvoicesForMonth(
 			discount: customer.discount ?? 0,
 			tax: 0,
 			totalWithTax: total,
-			paid: false,
 		});
 	}
 

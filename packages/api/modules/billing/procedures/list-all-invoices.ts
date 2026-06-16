@@ -128,7 +128,6 @@ export const listAllInvoices = protectedProcedure
 					tax: true,
 					totalWithTax: true,
 					note: true,
-					paid: true,
 					voidedAt: true,
 					voidReason: true,
 					createdAt: true,
@@ -152,7 +151,10 @@ export const listAllInvoices = protectedProcedure
 						},
 					},
 				},
-				orderBy: { [input.sortBy]: input.sortOrder },
+				orderBy:
+					input.sortBy === "paid"
+						? { payment: { paidAt: input.sortOrder } }
+						: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

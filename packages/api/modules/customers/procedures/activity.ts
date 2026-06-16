@@ -100,8 +100,8 @@ export const getCustomerActivity = protectedProcedure
 								year: true,
 								month: true,
 								total: true,
-								paid: true,
 								voidedAt: true,
+								payment: { select: { id: true } },
 							},
 						})
 					: Promise.resolve([]),
@@ -189,16 +189,18 @@ export const getCustomerActivity = protectedProcedure
 		}
 
 		for (const inv of invoices) {
+			// Paid ⟺ a non-voided payment exists (single source of truth).
+			const isPaid = inv.payment !== null && inv.voidedAt === null;
 			items.push({
 				type: "invoice",
 				id: inv.id,
 				occurredAt: inv.invoiceDate,
 				title: `Invoice for ${inv.year}-${String(inv.month).padStart(2, "0")}`,
-				detail: inv.voidedAt ? "Voided" : inv.paid ? "Paid" : "Unpaid",
+				detail: inv.voidedAt ? "Voided" : isPaid ? "Paid" : "Unpaid",
 				actor: null,
 				meta: {
 					total: inv.total,
-					paid: inv.paid,
+					paid: isPaid,
 					voided: !!inv.voidedAt,
 				},
 			});

@@ -1291,7 +1291,10 @@ model CustomerInvoice {
   tax            Float     @default(0)
   totalWithTax   Float     @default(0)
   note           String?   @db.Text
-  paid           Boolean   @default(false)
+  // Paid status is NOT stored — it is derived from the linked `payment`
+  // relation (paid ⟺ a non-voided Payment exists). Keeping a denormalized
+  // boolean drifted (it was never set on payment collection); the Payment
+  // row is the single source of truth.
   voidedAt       DateTime?
   voidedById     String?
   voidReason     String?

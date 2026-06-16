@@ -23,7 +23,6 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Separator } from "@ui/components/separator";
-import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { LockIcon, UnlockIcon, UserIcon } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -105,7 +104,6 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 	>(null);
 	const [expiryDate, setExpiryDate] = useState("");
 	const [note, setNote] = useState("");
-	const [paid, setPaid] = useState(false);
 
 	useEffect(() => {
 		if (!open) {
@@ -120,7 +118,6 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 			setTotalWithTaxOverride(null);
 			setExpiryDate("");
 			setNote("");
-			setPaid(false);
 		}
 	}, [open]);
 
@@ -166,7 +163,6 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 			invoice.expiryDate ? formatDateInput(invoice.expiryDate) : "",
 		);
 		setNote(invoice.note ?? "");
-		setPaid(invoice.paid);
 	}, [invoice]);
 
 	const ap = parseOrEmpty(accountPrice);
@@ -226,7 +222,6 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 					organizationId,
 					invoiceId: invoice.id,
 					...payload,
-					paid,
 				},
 				{
 					onSuccess: () => {
@@ -588,28 +583,6 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 							Visible on the customer receipt.
 						</p>
 					</div>
-
-					{isEdit && (
-						<div className="flex items-center justify-between rounded-lg border p-3">
-							<div>
-								<Label
-									htmlFor="paid"
-									className="cursor-pointer"
-								>
-									Marked paid
-								</Label>
-								<p className="text-xs text-muted-foreground">
-									Toggle off to re-open the invoice without
-									deleting its payment.
-								</p>
-							</div>
-							<Switch
-								id="paid"
-								checked={paid}
-								onCheckedChange={setPaid}
-							/>
-						</div>
-					)}
 				</div>
 
 				<DialogFooter>
