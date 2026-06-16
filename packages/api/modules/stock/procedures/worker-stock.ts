@@ -1,5 +1,9 @@
 import { ORPCError } from "@orpc/server";
-import { getUserEmployeeId, requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	getUserEmployeeId,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -18,7 +22,7 @@ export const getWorkerStockByEmployee = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"inventory",
@@ -30,6 +34,7 @@ export const getWorkerStockByEmployee = protectedProcedure
 				employeeId: input.employeeId,
 				quantity: { gt: 0 },
 				stockItem: { organizationId: input.organizationId },
+				employee: getDealerScopeFilter(activeDealerId),
 			},
 			include: {
 				stockItem: {

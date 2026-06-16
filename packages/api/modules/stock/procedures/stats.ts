@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -12,7 +15,7 @@ export const getStockStats = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"inventory",
@@ -35,6 +38,7 @@ export const getStockStats = protectedProcedure
 			where: {
 				quantity: { gt: 0 },
 				stockItem: { organizationId: input.organizationId },
+				employee: getDealerScopeFilter(activeDealerId),
 			},
 			_sum: { quantity: true },
 		});

@@ -1,6 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
@@ -21,7 +24,7 @@ export const approveExpense = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"expenses",
@@ -29,7 +32,11 @@ export const approveExpense = protectedProcedure
 		);
 
 		const expense = await db.expense.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				submittedBy: getDealerScopeFilter(activeDealerId),
+			},
 			select: {
 				id: true,
 				status: true,
@@ -101,7 +108,7 @@ export const rejectExpense = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"expenses",
@@ -109,7 +116,11 @@ export const rejectExpense = protectedProcedure
 		);
 
 		const expense = await db.expense.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				submittedBy: getDealerScopeFilter(activeDealerId),
+			},
 			select: {
 				id: true,
 				status: true,

@@ -1,8 +1,24 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+
+/**
+ * Follow-up dealer scope: customer-linked follow-ups must belong to the
+ * active dealer; manual (customer-less) follow-ups are org-level.
+ */
+function followupDealerScope(activeDealerId: string | null) {
+	return {
+		OR: [
+			{ customerId: null },
+			{ customer: getDealerScopeFilter(activeDealerId) },
+		],
+	};
+}
 
 export const createFollowup = protectedProcedure
 	.route({
@@ -23,7 +39,7 @@ export const createFollowup = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"followups",
@@ -40,6 +56,7 @@ export const createFollowup = protectedProcedure
 				where: {
 					id: input.customerId,
 					organizationId: input.organizationId,
+					...getDealerScopeFilter(activeDealerId),
 				},
 				select: {
 					firstName: true,
@@ -97,7 +114,7 @@ export const updateFollowup = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"followups",
@@ -105,7 +122,11 @@ export const updateFollowup = protectedProcedure
 		);
 
 		const followup = await db.followup.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...followupDealerScope(activeDealerId),
+			},
 			select: { id: true },
 		});
 		if (!followup) {
@@ -151,7 +172,7 @@ export const deleteFollowup = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"followups",
@@ -159,7 +180,11 @@ export const deleteFollowup = protectedProcedure
 		);
 
 		const followup = await db.followup.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				...followupDealerScope(activeDealerId),
+			},
 			select: { id: true },
 		});
 		if (!followup) {

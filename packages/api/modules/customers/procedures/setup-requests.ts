@@ -3,7 +3,11 @@ import {
 	notifyFieldEmployee,
 	notifyOrgForReview,
 } from "@repo/api/lib/notify-employee";
-import { getUserEmployeeId, requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	getUserEmployeeId,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db, getPrimaryPhone } from "@repo/database";
 import { createAccountNumberGenerator } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -229,7 +233,7 @@ export const listSetupRequests = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -240,6 +244,7 @@ export const listSetupRequests = protectedProcedure
 			where: {
 				organizationId: input.organizationId,
 				status: input.status,
+				customer: getDealerScopeFilter(activeDealerId),
 			},
 			include: {
 				customer: {
@@ -303,7 +308,7 @@ export const updateSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -315,6 +320,7 @@ export const updateSetupRequest = protectedProcedure
 				id: input.id,
 				organizationId: input.organizationId,
 				status: "PENDING",
+				customer: getDealerScopeFilter(activeDealerId),
 			},
 			select: { id: true, customerId: true },
 		});
@@ -427,7 +433,7 @@ export const approveSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -445,6 +451,7 @@ export const approveSetupRequest = protectedProcedure
 				id: input.id,
 				organizationId: input.organizationId,
 				status: "PENDING",
+				customer: getDealerScopeFilter(activeDealerId),
 			},
 			include: {
 				installations: true,
@@ -565,7 +572,7 @@ export const rejectSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -577,6 +584,7 @@ export const rejectSetupRequest = protectedProcedure
 				id: input.id,
 				organizationId: input.organizationId,
 				status: "PENDING",
+				customer: getDealerScopeFilter(activeDealerId),
 			},
 			include: {
 				customer: {

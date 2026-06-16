@@ -1,6 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
@@ -25,7 +28,7 @@ export const updatePendingInstallation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -33,7 +36,11 @@ export const updatePendingInstallation = protectedProcedure
 		);
 
 		const installation = await db.installation.findFirst({
-			where: { id: input.id, organizationId: input.organizationId },
+			where: {
+				id: input.id,
+				organizationId: input.organizationId,
+				employee: getDealerScopeFilter(activeDealerId),
+			},
 			select: { id: true, status: true, isAddOn: true },
 		});
 		if (!installation) {
@@ -184,7 +191,7 @@ export const approveInstallations = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -206,6 +213,7 @@ export const approveInstallations = protectedProcedure
 							id,
 							organizationId: input.organizationId,
 							status: "PENDING",
+							employee: getDealerScopeFilter(activeDealerId),
 						},
 					});
 					if (!installation) {
@@ -263,7 +271,7 @@ export const denyInstallation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -275,6 +283,7 @@ export const denyInstallation = protectedProcedure
 				id: input.id,
 				organizationId: input.organizationId,
 				status: "PENDING",
+				employee: getDealerScopeFilter(activeDealerId),
 			},
 			select: { id: true, employeeId: true, notes: true },
 		});

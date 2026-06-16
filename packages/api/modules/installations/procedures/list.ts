@@ -1,4 +1,5 @@
 import {
+	getDealerScopeFilter,
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
@@ -39,7 +40,7 @@ export const listInstallations = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -54,6 +55,7 @@ export const listInstallations = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			employee: getDealerScopeFilter(activeDealerId),
 			...ownershipFilter,
 		};
 		if (input.status) {

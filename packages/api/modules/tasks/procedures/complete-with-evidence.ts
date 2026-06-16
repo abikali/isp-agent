@@ -9,6 +9,7 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { taskDealerScopeWhere } from "../lib/dealer-scope";
 import { TASK_RESOLUTION_CODES } from "../lib/resolutions";
 
 const uninstalledItemSchema = z
@@ -58,7 +59,7 @@ export const completeTaskWithEvidence = protectedProcedure
 			),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"tasks",
@@ -66,7 +67,11 @@ export const completeTaskWithEvidence = protectedProcedure
 		);
 
 		const task = await db.task.findFirst({
-			where: { id: input.taskId, organizationId: input.organizationId },
+			where: {
+				id: input.taskId,
+				organizationId: input.organizationId,
+				...taskDealerScopeWhere(activeDealerId),
+			},
 			include: {
 				assignments: { select: { employeeId: true } },
 				customer: {

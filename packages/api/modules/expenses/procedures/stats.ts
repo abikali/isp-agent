@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -12,18 +15,20 @@ export const getExpenseStats = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"expenses",
 			"read",
 		);
 
+		const dealerScope = getDealerScopeFilter(activeDealerId);
 		const [pending, approved] = await Promise.all([
 			db.expense.aggregate({
 				where: {
 					organizationId: input.organizationId,
 					status: "PENDING",
+					submittedBy: dealerScope,
 				},
 				_count: true,
 				_sum: { amount: true },
@@ -32,6 +37,7 @@ export const getExpenseStats = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					status: "APPROVED",
+					submittedBy: dealerScope,
 				},
 				_count: true,
 				_sum: { amount: true },

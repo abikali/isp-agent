@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -22,15 +25,52 @@ export const listFollowups = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"followups",
 			"read",
 		);
 
+		// Customer-linked follow-ups scope to the active dealer; manual
+		// (customer-less) follow-ups are org-level and always visible.
+		const dealerScope = {
+			OR: [
+				{ customerId: null },
+				{ customer: getDealerScopeFilter(activeDealerId) },
+			],
+		};
+
+		const andClauses: Record<string, unknown>[] = [dealerScope];
+		if (input.search) {
+			andClauses.push({
+				OR: [
+					{
+						customerName: {
+							contains: input.search,
+							mode: "insensitive",
+						},
+					},
+					{
+						customerUsername: {
+							contains: input.search,
+							mode: "insensitive",
+						},
+					},
+					{ mobile: { contains: input.search, mode: "insensitive" } },
+					{
+						groupName: {
+							contains: input.search,
+							mode: "insensitive",
+						},
+					},
+				],
+			});
+		}
+
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			AND: andClauses,
 		};
 		if (input.isDone !== undefined) {
 			where["isDone"] = input.isDone;
@@ -40,24 +80,6 @@ export const listFollowups = protectedProcedure
 		}
 		if (input.customerId) {
 			where["customerId"] = input.customerId;
-		}
-		if (input.search) {
-			where["OR"] = [
-				{
-					customerName: {
-						contains: input.search,
-						mode: "insensitive",
-					},
-				},
-				{
-					customerUsername: {
-						contains: input.search,
-						mode: "insensitive",
-					},
-				},
-				{ mobile: { contains: input.search, mode: "insensitive" } },
-				{ groupName: { contains: input.search, mode: "insensitive" } },
-			];
 		}
 
 		const [followups, total, statusGroups] = await Promise.all([
@@ -83,6 +105,7 @@ export const listFollowups = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					isDone: false,
+					AND: [dealerScope],
 				},
 				_count: true,
 			}),

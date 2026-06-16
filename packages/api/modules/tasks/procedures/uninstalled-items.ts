@@ -1,10 +1,27 @@
 import { ORPCError } from "@orpc/server";
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+
+/**
+ * Recovered items anchor to a task (→ customer) for dealer scope. Items with
+ * no task or a customer-less task are org-level and stay visible everywhere.
+ */
+function uninstalledItemDealerScope(activeDealerId: string | null) {
+	return {
+		OR: [
+			{ taskId: null },
+			{ task: { customerId: null } },
+			{ task: { customer: getDealerScopeFilter(activeDealerId) } },
+		],
+	};
+}
 
 export const listUninstalledItems = protectedProcedure
 	.route({
@@ -25,10 +42,16 @@ export const listUninstalledItems = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(input.organizationId, user.id, "tasks", "read");
+		const { activeDealerId } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"tasks",
+			"read",
+		);
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			AND: [uninstalledItemDealerScope(activeDealerId)],
 		};
 		if (input.status) {
 			where["status"] = input.status;
@@ -96,7 +119,7 @@ export const reviewUninstalledItem = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -108,6 +131,7 @@ export const reviewUninstalledItem = protectedProcedure
 				id: input.id,
 				organizationId: input.organizationId,
 				status: "PENDING",
+				...uninstalledItemDealerScope(activeDealerId),
 			},
 		});
 		if (!item) {

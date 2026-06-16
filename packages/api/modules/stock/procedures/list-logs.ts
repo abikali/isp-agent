@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -32,7 +35,7 @@ export const listStockLogs = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"inventory",
@@ -41,6 +44,16 @@ export const listStockLogs = protectedProcedure
 
 		const where: Record<string, unknown> = {
 			organizationId: input.organizationId,
+			// Org-level logs (no worker) stay visible; worker logs are scoped
+			// to the active dealer's employees.
+			AND: [
+				{
+					OR: [
+						{ employeeId: null },
+						{ employee: getDealerScopeFilter(activeDealerId) },
+					],
+				},
+			],
 		};
 		if (input.stockItemId) {
 			where["stockItemId"] = input.stockItemId;

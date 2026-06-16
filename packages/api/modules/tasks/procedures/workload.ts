@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -12,10 +15,17 @@ export const getWorkloadByEmployee = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(input.organizationId, user.id, "tasks", "read");
+		const { activeDealerId } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"tasks",
+			"read",
+		);
 
+		const dealerScope = getDealerScopeFilter(activeDealerId);
 		const assignments = await db.taskAssignment.findMany({
 			where: {
+				employee: dealerScope,
 				task: {
 					organizationId: input.organizationId,
 					status: { in: ["OPEN", "IN_PROGRESS", "ON_HOLD"] },
@@ -40,6 +50,7 @@ export const getWorkloadByEmployee = protectedProcedure
 				status: "COMPLETED",
 				completedAt: { gte: startOfMonth },
 				completedByEmployeeId: { not: null },
+				completedByEmployee: dealerScope,
 			},
 			_count: true,
 		});
@@ -93,7 +104,11 @@ export const getWorkloadByEmployee = protectedProcedure
 		for (const [employeeId, count] of completedMap) {
 			if (employeeId && !byEmployee.has(employeeId)) {
 				const emp = await db.employee.findFirst({
-					where: { id: employeeId },
+					where: {
+						id: employeeId,
+						organizationId: input.organizationId,
+						...dealerScope,
+					},
 					select: { name: true },
 				});
 				if (emp) {

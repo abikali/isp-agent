@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { notifyOrgForReview } from "@repo/api/lib/notify-employee";
 import {
 	getDealerScopeFilter,
+	getDealerScopeViaCustomers,
 	getUserEmployeeId,
 	hasPermission,
 	requirePermission,
@@ -98,6 +99,7 @@ export const createInstallation = protectedProcedure
 				where: {
 					id: input.stationId,
 					organizationId: input.organizationId,
+					...getDealerScopeViaCustomers(activeDealerId),
 				},
 				select: { id: true },
 			});

@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -21,7 +24,7 @@ export const returnStockFromWorker = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"inventory",
@@ -36,6 +39,22 @@ export const returnStockFromWorker = protectedProcedure
 			if (!stockItem) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Stock item not found",
+				});
+			}
+
+			// Scope the worker to the active dealer so stock can't be returned
+			// from another dealer's employee by id.
+			const employee = await tx.employee.findFirst({
+				where: {
+					id: input.employeeId,
+					organizationId: input.organizationId,
+					...getDealerScopeFilter(activeDealerId),
+				},
+				select: { id: true },
+			});
+			if (!employee) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Employee not found",
 				});
 			}
 
