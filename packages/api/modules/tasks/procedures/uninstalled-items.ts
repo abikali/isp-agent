@@ -106,7 +106,7 @@ export const reviewUninstalledItem = protectedProcedure
 		path: "/tasks/uninstalled-items/{id}/review",
 		tags: ["Tasks"],
 		summary:
-			"Approve (auto-returns to admin stock) or deny a recovered item",
+			"Approve (credits the recovering worker's stock) or deny a recovered item",
 	})
 	.input(
 		z.object({
@@ -177,7 +177,7 @@ export const reviewUninstalledItem = protectedProcedure
 							id: item.stockItemId,
 							organizationId: input.organizationId,
 						},
-						select: { id: true, name: true },
+						select: { id: true, name: true, sellPrice: true },
 					})
 				: null;
 		if (!stockItem) {
@@ -186,7 +186,7 @@ export const reviewUninstalledItem = protectedProcedure
 					organizationId: input.organizationId,
 					name: { equals: itemName, mode: "insensitive" },
 				},
-				select: { id: true, name: true },
+				select: { id: true, name: true, sellPrice: true },
 			});
 		}
 		if (!stockItem) {
@@ -196,25 +196,72 @@ export const reviewUninstalledItem = protectedProcedure
 		}
 		const matchedStockItem = stockItem;
 
+		// The recovering worker physically holds the gear, so approval credits
+		// THEIR stock. Legacy synced rows carry no employee — fall back to the
+		// central admin warehouse so those still resolve.
+		const recoveringEmployeeId = item.employeeId;
+
 		const updated = await db.$transaction(async (tx) => {
-			const stockUpdated = await tx.stockItem.update({
-				where: { id: matchedStockItem.id },
-				data: { quantity: { increment: quantity } },
-			});
-			await tx.stockLog.create({
-				data: {
-					organizationId: input.organizationId,
-					stockItemId: matchedStockItem.id,
-					employeeId: item.employeeId,
-					performedById: user.id,
-					action: "TRANSFER_FROM_WORKER",
-					itemName: matchedStockItem.name,
-					quantity,
-					adminQtyBefore: stockUpdated.quantity - quantity,
-					adminQtyAfter: stockUpdated.quantity,
-					notes: `Recovered equipment approved (item ${item.id})`,
-				},
-			});
+			if (recoveringEmployeeId) {
+				const existing = await tx.workerStock.findUnique({
+					where: {
+						stockItemId_employeeId: {
+							stockItemId: matchedStockItem.id,
+							employeeId: recoveringEmployeeId,
+						},
+					},
+					select: { quantity: true },
+				});
+				const workerBefore = existing?.quantity ?? 0;
+				await tx.workerStock.upsert({
+					where: {
+						stockItemId_employeeId: {
+							stockItemId: matchedStockItem.id,
+							employeeId: recoveringEmployeeId,
+						},
+					},
+					create: {
+						stockItemId: matchedStockItem.id,
+						employeeId: recoveringEmployeeId,
+						quantity,
+						unitPrice: matchedStockItem.sellPrice,
+					},
+					update: { quantity: { increment: quantity } },
+				});
+				await tx.stockLog.create({
+					data: {
+						organizationId: input.organizationId,
+						stockItemId: matchedStockItem.id,
+						employeeId: recoveringEmployeeId,
+						performedById: user.id,
+						action: "TRANSFER_TO_WORKER",
+						itemName: matchedStockItem.name,
+						quantity,
+						workerQtyBefore: workerBefore,
+						workerQtyAfter: workerBefore + quantity,
+						notes: `Recovered equipment approved (item ${item.id})`,
+					},
+				});
+			} else {
+				const stockUpdated = await tx.stockItem.update({
+					where: { id: matchedStockItem.id },
+					data: { quantity: { increment: quantity } },
+				});
+				await tx.stockLog.create({
+					data: {
+						organizationId: input.organizationId,
+						stockItemId: matchedStockItem.id,
+						employeeId: null,
+						performedById: user.id,
+						action: "TRANSFER_FROM_WORKER",
+						itemName: matchedStockItem.name,
+						quantity,
+						adminQtyBefore: stockUpdated.quantity - quantity,
+						adminQtyAfter: stockUpdated.quantity,
+						notes: `Recovered equipment approved (item ${item.id})`,
+					},
+				});
+			}
 			return tx.uninstalledItem.update({
 				where: { id: item.id },
 				data: {
@@ -233,7 +280,7 @@ export const reviewUninstalledItem = protectedProcedure
 				organizationId: input.organizationId,
 				employeeId: item.employeeId,
 				title: "Recovered item approved",
-				message: `${matchedStockItem.name} ×${quantity} returned to stock`,
+				message: `${matchedStockItem.name} ×${quantity} added to your stock`,
 				type: "success",
 			}).catch((err: unknown) =>
 				logger.warn("[Uninstalled Review] notify failed", {
