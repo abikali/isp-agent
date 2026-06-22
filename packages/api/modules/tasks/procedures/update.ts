@@ -36,6 +36,7 @@ export const updateTask = protectedProcedure
 				.enum([
 					"INSTALLATION",
 					"MAINTENANCE",
+					"REPLACEMENT",
 					"REPAIR",
 					"SUPPORT",
 					"BILLING",

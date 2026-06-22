@@ -73,6 +73,7 @@ export const TASK_PRIORITY_BG_COLORS: Record<string, string> = {
 export const TASK_CATEGORY_LABELS: Record<string, string> = {
 	INSTALLATION: "Installation",
 	MAINTENANCE: "Maintenance",
+	REPLACEMENT: "Replacement",
 	REPAIR: "Repair",
 	SUPPORT: "Support",
 	BILLING: "Billing",
@@ -83,6 +84,7 @@ export const TASK_CATEGORY_LABELS: Record<string, string> = {
 export const TASK_CATEGORY_OPTIONS = [
 	{ value: "INSTALLATION", label: "Installation" },
 	{ value: "MAINTENANCE", label: "Maintenance" },
+	{ value: "REPLACEMENT", label: "Replacement" },
 	{ value: "REPAIR", label: "Repair" },
 	{ value: "SUPPORT", label: "Support" },
 	{ value: "BILLING", label: "Billing" },
@@ -93,6 +95,7 @@ export const TASK_CATEGORY_OPTIONS = [
 export const TASK_CATEGORY_ICONS: Record<string, string> = {
 	INSTALLATION: "Cable",
 	MAINTENANCE: "Wrench",
+	REPLACEMENT: "Repeat",
 	REPAIR: "Hammer",
 	SUPPORT: "Headphones",
 	BILLING: "Receipt",

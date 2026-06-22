@@ -1617,6 +1617,7 @@ enum TaskStatus {
 enum TaskCategory {
   INSTALLATION
   MAINTENANCE
+  REPLACEMENT
   REPAIR
   SUPPORT
   BILLING
@@ -1738,6 +1739,7 @@ model Task {
   completedByEmployee Employee? @relation("TaskCompleter", fields: [completedByEmployeeId], references: [id], onDelete: SetNull)
   assignments  TaskAssignment[]
   uninstalledItems UninstalledItem[]
+  installations    Installation[]
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
@@ -2038,6 +2040,9 @@ model Installation {
   stationId         String?
   employeeId        String
   stockItemId       String?
+  // Set when the install was recorded by closing a field Task (INSTALLATION /
+  // REPLACEMENT category). Null for direct worker-portal / prepared installs.
+  taskId            String?
   quantity          Int       @default(1)
   price             Float     @default(0)
   isAddOn           Boolean   @default(false)
@@ -2060,6 +2065,7 @@ model Installation {
   stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
   approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
+  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
   uninstalledItems UninstalledItem[]
 
   @@unique([organizationId, externalBillingId])
@@ -2069,6 +2075,7 @@ model Installation {
   @@index([stationId])
   @@index([employeeId])
   @@index([setupRequestId])
+  @@index([taskId])
   @@map("installation")
 }
 

@@ -36,9 +36,14 @@ import {
 	PlusIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useMyStockQuery, useMyTasksQuery } from "../hooks/use-worker";
+import {
+	InstallItemRows,
+	type InstallLine,
+	linesToPayload,
+} from "./InstallItemRows";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
 
 type WorkerTask = ReturnType<typeof useMyTasksQuery>["tasks"][number];
@@ -49,6 +54,28 @@ interface RecoveredItem {
 	itemName: string;
 	quantity: number;
 	pictureUrl: string | null;
+}
+
+/** Injectable signed-URL getter shared by every photo field in this module. */
+function useUploadUrlGetter(organizationId: string | null) {
+	const createUploadUrl = useCreateEvidenceUploadUrl();
+	return useCallback(
+		async (file: File) => {
+			if (!organizationId) {
+				throw new Error("No organization");
+			}
+			const result = await createUploadUrl.mutateAsync({
+				organizationId,
+				filename: file.name,
+				contentType: file.type,
+			});
+			return {
+				uploadUrl: result.uploadUrl,
+				publicUrl: result.publicUrl,
+			};
+		},
+		[organizationId, createUploadUrl],
+	);
 }
 
 export function WorkerTasks() {
@@ -89,6 +116,7 @@ export function WorkerTasks() {
 						)
 					: null;
 				const isUninstall = task.category === "UNINSTALL";
+				const isReplacement = task.category === "REPLACEMENT";
 				return (
 					<Card key={task.id}>
 						<CardContent className="space-y-2 p-4">
@@ -104,7 +132,11 @@ export function WorkerTasks() {
 									)}
 								</div>
 								<Badge
-									variant={isUninstall ? "warning" : "info"}
+									variant={
+										isUninstall || isReplacement
+											? "warning"
+											: "info"
+									}
 								>
 									{task.category.toLowerCase()}
 								</Badge>
@@ -150,20 +182,34 @@ export function WorkerTasks() {
 				);
 			})}
 
-			{activeTask &&
-				(activeTask.category === "UNINSTALL" ? (
-					<UninstallSubmitSheet
-						task={activeTask}
-						onClose={() => setActiveTask(null)}
-					/>
-				) : (
-					<MaintenanceSubmitSheet
-						task={activeTask}
-						onClose={() => setActiveTask(null)}
-					/>
-				))}
+			{activeTask && (
+				<TaskSubmitSheet
+					task={activeTask}
+					onClose={() => setActiveTask(null)}
+				/>
+			)}
 		</div>
 	);
+}
+
+/** Routes a task to the right completion sheet based on its category. */
+function TaskSubmitSheet({
+	task,
+	onClose,
+}: {
+	task: WorkerTask;
+	onClose: () => void;
+}) {
+	switch (task.category) {
+		case "INSTALLATION":
+			return <InstallSubmitSheet task={task} onClose={onClose} />;
+		case "REPLACEMENT":
+			return <ReplacementSubmitSheet task={task} onClose={onClose} />;
+		case "UNINSTALL":
+			return <UninstallSubmitSheet task={task} onClose={onClose} />;
+		default:
+			return <MaintenanceSubmitSheet task={task} onClose={onClose} />;
+	}
 }
 
 function MaintenanceSubmitSheet({
@@ -175,10 +221,17 @@ function MaintenanceSubmitSheet({
 }) {
 	const organizationId = useOrganizationId();
 	const complete = useCompleteTaskWithEvidence();
-	const createUploadUrl = useCreateEvidenceUploadUrl();
+	const getUploadUrl = useUploadUrlGetter(organizationId);
 	const [resolutionCode, setResolutionCode] = useState("no_problem");
 	const [note, setNote] = useState("");
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+	// Items used during the visit are recorded but never required (PM spec)
+	const [lines, setLines] = useState<InstallLine[]>([]);
+
+	const installedItems = linesToPayload(lines).filter(
+		(l): l is { stockItemId: string; quantity: number; price: number } =>
+			"stockItemId" in l,
+	);
 
 	async function handleSubmit() {
 		if (!organizationId) {
@@ -195,6 +248,7 @@ function MaintenanceSubmitSheet({
 				resolutionCode: resolutionCode as never,
 				resolutionNote: note.trim() || undefined,
 				photoUrl: photoUrl ?? undefined,
+				...(installedItems.length > 0 ? { installedItems } : {}),
 			});
 			toast.success("Task completed");
 			onClose();
@@ -206,82 +260,211 @@ function MaintenanceSubmitSheet({
 	}
 
 	return (
-		<Sheet open onOpenChange={(open) => !open && onClose()}>
-			<SheetContent
-				side="bottom"
-				className="flex max-h-[90dvh] flex-col gap-0 overflow-y-auto p-0"
-			>
-				<SheetHeader className="border-b px-4 py-3">
-					<SheetTitle>Complete — {task.title}</SheetTitle>
-				</SheetHeader>
-				<div className="flex-1 space-y-4 px-4 py-4">
-					<div className="space-y-1.5">
-						<Label>What did you find?</Label>
-						<Select
-							value={resolutionCode}
-							onValueChange={setResolutionCode}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{TASK_RESOLUTION_OPTIONS.map((opt) => (
-									<SelectItem
-										key={opt.value}
-										value={opt.value}
-									>
-										{opt.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="maint-note">
-							Note{resolutionCode === "custom" ? " *" : ""}
-						</Label>
-						<Textarea
-							id="maint-note"
-							value={note}
-							onChange={(e) => setNote(e.target.value)}
-							rows={2}
-							placeholder="Anything worth noting?"
-						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label>Photo (optional)</Label>
-						<PhotoCaptureInput
-							value={photoUrl}
-							onChange={setPhotoUrl}
-							getUploadUrl={async (file) => {
-								if (!organizationId) {
-									throw new Error("No organization");
-								}
-								const result =
-									await createUploadUrl.mutateAsync({
-										organizationId,
-										filename: file.name,
-										contentType: file.type,
-									});
-								return {
-									uploadUrl: result.uploadUrl,
-									publicUrl: result.publicUrl,
-								};
-							}}
-						/>
-					</div>
-				</div>
-				<SheetFooter className="border-t px-4 py-3">
-					<Button
-						className="w-full"
-						onClick={handleSubmit}
-						disabled={complete.isPending}
-					>
-						{complete.isPending ? "Submitting…" : "Complete task"}
-					</Button>
-				</SheetFooter>
-			</SheetContent>
-		</Sheet>
+		<SubmitSheet
+			title={`Complete — ${task.title}`}
+			submitLabel="Complete task"
+			pending={complete.isPending}
+			onClose={onClose}
+			onSubmit={handleSubmit}
+		>
+			<div className="space-y-1.5">
+				<Label>What did you find?</Label>
+				<Select
+					value={resolutionCode}
+					onValueChange={setResolutionCode}
+				>
+					<SelectTrigger>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{TASK_RESOLUTION_OPTIONS.map((opt) => (
+							<SelectItem key={opt.value} value={opt.value}>
+								{opt.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<div className="space-y-1.5">
+				<Label htmlFor="maint-note">
+					Note{resolutionCode === "custom" ? " *" : ""}
+				</Label>
+				<Textarea
+					id="maint-note"
+					value={note}
+					onChange={(e) => setNote(e.target.value)}
+					rows={2}
+					placeholder="Anything worth noting?"
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label>Items used (optional)</Label>
+				<InstallItemRows
+					lines={lines}
+					onChange={setLines}
+					allowAddons={false}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label>Photo (optional)</Label>
+				<PhotoCaptureInput
+					value={photoUrl}
+					onChange={setPhotoUrl}
+					getUploadUrl={getUploadUrl}
+				/>
+			</div>
+		</SubmitSheet>
+	);
+}
+
+function InstallSubmitSheet({
+	task,
+	onClose,
+}: {
+	task: WorkerTask;
+	onClose: () => void;
+}) {
+	const organizationId = useOrganizationId();
+	const complete = useCompleteTaskWithEvidence();
+	const getUploadUrl = useUploadUrlGetter(organizationId);
+	const [lines, setLines] = useState<InstallLine[]>([]);
+	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
+	const installedItems = linesToPayload(lines).filter(
+		(l): l is { stockItemId: string; quantity: number; price: number } =>
+			"stockItemId" in l,
+	);
+	const valid = installedItems.length > 0 && photoUrl !== null;
+
+	async function handleSubmit() {
+		if (!organizationId || !valid) {
+			return;
+		}
+		try {
+			await complete.mutateAsync({
+				organizationId,
+				taskId: task.id,
+				installedItems,
+				photoUrl: photoUrl as string,
+			});
+			toast.success("Installation submitted for approval");
+			onClose();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to submit",
+			);
+		}
+	}
+
+	return (
+		<SubmitSheet
+			title={`Install — ${task.title}`}
+			submitLabel="Submit installation"
+			pending={complete.isPending}
+			disabled={!valid}
+			onClose={onClose}
+			onSubmit={handleSubmit}
+		>
+			<div className="space-y-1.5">
+				<Label>Installed items *</Label>
+				<InstallItemRows
+					lines={lines}
+					onChange={setLines}
+					allowAddons={false}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label>Photo *</Label>
+				<PhotoCaptureInput
+					value={photoUrl}
+					onChange={setPhotoUrl}
+					getUploadUrl={getUploadUrl}
+				/>
+			</div>
+		</SubmitSheet>
+	);
+}
+
+function ReplacementSubmitSheet({
+	task,
+	onClose,
+}: {
+	task: WorkerTask;
+	onClose: () => void;
+}) {
+	const organizationId = useOrganizationId();
+	const complete = useCompleteTaskWithEvidence();
+	const getUploadUrl = useUploadUrlGetter(organizationId);
+	const [lines, setLines] = useState<InstallLine[]>([]);
+	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+	const [recovered, setRecovered] = useState<RecoveredItem[]>([
+		newRecoveredItem(1),
+	]);
+
+	const installedItems = linesToPayload(lines).filter(
+		(l): l is { stockItemId: string; quantity: number; price: number } =>
+			"stockItemId" in l,
+	);
+	const valid =
+		installedItems.length > 0 &&
+		photoUrl !== null &&
+		recoveredItemsValid(recovered);
+
+	async function handleSubmit() {
+		if (!organizationId || !valid) {
+			return;
+		}
+		try {
+			await complete.mutateAsync({
+				organizationId,
+				taskId: task.id,
+				installedItems,
+				recoveredItems: recoveredItemsPayload(recovered),
+				photoUrl: photoUrl as string,
+			});
+			toast.success("Replacement submitted for approval");
+			onClose();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to submit",
+			);
+		}
+	}
+
+	return (
+		<SubmitSheet
+			title={`Replacement — ${task.title}`}
+			submitLabel="Submit replacement"
+			pending={complete.isPending}
+			disabled={!valid}
+			onClose={onClose}
+			onSubmit={handleSubmit}
+		>
+			<div className="space-y-1.5">
+				<Label>New installed items *</Label>
+				<InstallItemRows
+					lines={lines}
+					onChange={setLines}
+					allowAddons={false}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label>Install photo *</Label>
+				<PhotoCaptureInput
+					value={photoUrl}
+					onChange={setPhotoUrl}
+					getUploadUrl={getUploadUrl}
+				/>
+			</div>
+			<div className="space-y-2 border-t pt-4">
+				<Label>Recovered (old) equipment *</Label>
+				<RecoveredItemsEditor
+					items={recovered}
+					onChange={setRecovered}
+					getUploadUrl={getUploadUrl}
+				/>
+			</div>
+		</SubmitSheet>
 	);
 }
 
@@ -294,32 +477,10 @@ function UninstallSubmitSheet({
 }) {
 	const organizationId = useOrganizationId();
 	const complete = useCompleteTaskWithEvidence();
-	const createUploadUrl = useCreateEvidenceUploadUrl();
-	const { allocations } = useMyStockQuery();
-	const [items, setItems] = useState<RecoveredItem[]>([
-		{
-			key: 1,
-			stockItemId: null,
-			itemName: "",
-			quantity: 1,
-			pictureUrl: null,
-		},
-	]);
+	const getUploadUrl = useUploadUrlGetter(organizationId);
+	const [items, setItems] = useState<RecoveredItem[]>([newRecoveredItem(1)]);
 
-	function updateItem(key: number, patch: Partial<RecoveredItem>) {
-		setItems((prev) =>
-			prev.map((item) =>
-				item.key === key ? { ...item, ...patch } : item,
-			),
-		);
-	}
-
-	const valid = items.every(
-		(item) =>
-			(item.stockItemId || item.itemName.trim()) &&
-			item.quantity >= 1 &&
-			item.pictureUrl !== null,
-	);
+	const valid = recoveredItemsValid(items);
 
 	async function handleSubmit() {
 		if (!organizationId || !valid) {
@@ -329,12 +490,7 @@ function UninstallSubmitSheet({
 			await complete.mutateAsync({
 				organizationId,
 				taskId: task.id,
-				items: items.map((item) => ({
-					stockItemId: item.stockItemId ?? undefined,
-					itemName: item.itemName.trim() || undefined,
-					quantity: item.quantity,
-					pictureUrl: item.pictureUrl as string,
-				})),
+				recoveredItems: recoveredItemsPayload(items),
 			});
 			toast.success("Recovered items submitted for review");
 			onClose();
@@ -346,158 +502,222 @@ function UninstallSubmitSheet({
 	}
 
 	return (
+		<SubmitSheet
+			title={`Recovered equipment — ${task.title}`}
+			submitLabel="Submit for review"
+			pending={complete.isPending}
+			disabled={!valid}
+			onClose={onClose}
+			onSubmit={handleSubmit}
+		>
+			<RecoveredItemsEditor
+				items={items}
+				onChange={setItems}
+				getUploadUrl={getUploadUrl}
+			/>
+		</SubmitSheet>
+	);
+}
+
+// ── Shared building blocks ──────────────────────────────────────────────
+
+function SubmitSheet({
+	title,
+	submitLabel,
+	pending,
+	disabled = false,
+	onClose,
+	onSubmit,
+	children,
+}: {
+	title: string;
+	submitLabel: string;
+	pending: boolean;
+	disabled?: boolean;
+	onClose: () => void;
+	onSubmit: () => void;
+	children: React.ReactNode;
+}) {
+	return (
 		<Sheet open onOpenChange={(open) => !open && onClose()}>
 			<SheetContent
 				side="bottom"
 				className="flex max-h-[90dvh] flex-col gap-0 overflow-y-auto p-0"
 			>
 				<SheetHeader className="border-b px-4 py-3">
-					<SheetTitle>Recovered equipment — {task.title}</SheetTitle>
+					<SheetTitle>{title}</SheetTitle>
 				</SheetHeader>
-				<div className="flex-1 space-y-4 px-4 py-4">
-					{items.map((item, index) => (
-						<div
-							key={item.key}
-							className="space-y-3 rounded-md border p-3"
-						>
-							<div className="flex items-center justify-between">
-								<p className="text-sm font-medium">
-									Item {index + 1}
-								</p>
-								{items.length > 1 && (
-									<Button
-										variant="ghost"
-										size="icon"
-										className="size-7"
-										onClick={() =>
-											setItems((prev) =>
-												prev.filter(
-													(i) => i.key !== item.key,
-												),
-											)
-										}
-										aria-label="Remove item"
-									>
-										<Trash2Icon className="size-4" />
-									</Button>
-								)}
-							</div>
-							<div className="space-y-1.5">
-								<Label>Item</Label>
-								<Select
-									value={item.stockItemId ?? "custom"}
-									onValueChange={(v) =>
-										updateItem(item.key, {
-											stockItemId:
-												v === "custom" ? null : v,
-										})
-									}
-								>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="custom">
-											Other / type a name
-										</SelectItem>
-										{allocations.map((alloc) => (
-											<SelectItem
-												key={alloc.stockItem.id}
-												value={alloc.stockItem.id}
-											>
-												{alloc.stockItem.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-								{!item.stockItemId && (
-									<Input
-										value={item.itemName}
-										onChange={(e) =>
-											updateItem(item.key, {
-												itemName: e.target.value,
-											})
-										}
-										placeholder="Item name"
-									/>
-								)}
-							</div>
-							<div className="space-y-1.5">
-								<Label>Quantity</Label>
-								<Input
-									type="number"
-									inputMode="numeric"
-									min={1}
-									value={item.quantity}
-									onChange={(e) =>
-										updateItem(item.key, {
-											quantity: Number(e.target.value),
-										})
-									}
-								/>
-							</div>
-							<div className="space-y-1.5">
-								<Label>Photo evidence *</Label>
-								<PhotoCaptureInput
-									value={item.pictureUrl}
-									onChange={(url) =>
-										updateItem(item.key, {
-											pictureUrl: url,
-										})
-									}
-									getUploadUrl={async (file) => {
-										if (!organizationId) {
-											throw new Error("No organization");
-										}
-										const result =
-											await createUploadUrl.mutateAsync({
-												organizationId,
-												filename: file.name,
-												contentType: file.type,
-											});
-										return {
-											uploadUrl: result.uploadUrl,
-											publicUrl: result.publicUrl,
-										};
-									}}
-								/>
-							</div>
-						</div>
-					))}
-					<Button
-						variant="outline"
-						className="w-full"
-						onClick={() =>
-							setItems((prev) => [
-								...prev,
-								{
-									key:
-										Math.max(...prev.map((i) => i.key), 0) +
-										1,
-									stockItemId: null,
-									itemName: "",
-									quantity: 1,
-									pictureUrl: null,
-								},
-							])
-						}
-					>
-						<PlusIcon className="mr-2 size-4" />
-						Add another item
-					</Button>
-				</div>
+				<div className="flex-1 space-y-4 px-4 py-4">{children}</div>
 				<SheetFooter className="border-t px-4 py-3">
 					<Button
 						className="w-full"
-						onClick={handleSubmit}
-						disabled={complete.isPending || !valid}
+						onClick={onSubmit}
+						disabled={pending || disabled}
 					>
-						{complete.isPending
-							? "Submitting…"
-							: "Submit for review"}
+						{pending ? "Submitting…" : submitLabel}
 					</Button>
 				</SheetFooter>
 			</SheetContent>
 		</Sheet>
+	);
+}
+
+function newRecoveredItem(key: number): RecoveredItem {
+	return {
+		key,
+		stockItemId: null,
+		itemName: "",
+		quantity: 1,
+		pictureUrl: null,
+	};
+}
+
+function recoveredItemsValid(items: RecoveredItem[]): boolean {
+	return (
+		items.length > 0 &&
+		items.every(
+			(item) =>
+				(item.stockItemId || item.itemName.trim()) &&
+				item.quantity >= 1 &&
+				item.pictureUrl !== null,
+		)
+	);
+}
+
+function recoveredItemsPayload(items: RecoveredItem[]) {
+	return items.map((item) => ({
+		stockItemId: item.stockItemId ?? undefined,
+		itemName: item.itemName.trim() || undefined,
+		quantity: item.quantity,
+		pictureUrl: item.pictureUrl as string,
+	}));
+}
+
+/** Controlled multi-row editor for recovered equipment (per-item photo). */
+function RecoveredItemsEditor({
+	items,
+	onChange,
+	getUploadUrl,
+}: {
+	items: RecoveredItem[];
+	onChange: (items: RecoveredItem[]) => void;
+	getUploadUrl: (file: File) => Promise<{
+		uploadUrl: string;
+		publicUrl: string;
+	}>;
+}) {
+	const { allocations } = useMyStockQuery();
+
+	function updateItem(key: number, patch: Partial<RecoveredItem>) {
+		onChange(
+			items.map((item) =>
+				item.key === key ? { ...item, ...patch } : item,
+			),
+		);
+	}
+
+	return (
+		<div className="space-y-4">
+			{items.map((item, index) => (
+				<div key={item.key} className="space-y-3 rounded-md border p-3">
+					<div className="flex items-center justify-between">
+						<p className="text-sm font-medium">Item {index + 1}</p>
+						{items.length > 1 && (
+							<Button
+								variant="ghost"
+								size="icon"
+								className="size-7"
+								onClick={() =>
+									onChange(
+										items.filter((i) => i.key !== item.key),
+									)
+								}
+								aria-label="Remove item"
+							>
+								<Trash2Icon className="size-4" />
+							</Button>
+						)}
+					</div>
+					<div className="space-y-1.5">
+						<Label>Item</Label>
+						<Select
+							value={item.stockItemId ?? "custom"}
+							onValueChange={(v) =>
+								updateItem(item.key, {
+									stockItemId: v === "custom" ? null : v,
+								})
+							}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="custom">
+									Other / type a name
+								</SelectItem>
+								{allocations.map((alloc) => (
+									<SelectItem
+										key={alloc.stockItem.id}
+										value={alloc.stockItem.id}
+									>
+										{alloc.stockItem.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{!item.stockItemId && (
+							<Input
+								value={item.itemName}
+								onChange={(e) =>
+									updateItem(item.key, {
+										itemName: e.target.value,
+									})
+								}
+								placeholder="Item name"
+							/>
+						)}
+					</div>
+					<div className="space-y-1.5">
+						<Label>Quantity</Label>
+						<Input
+							type="number"
+							inputMode="numeric"
+							min={1}
+							value={item.quantity}
+							onChange={(e) =>
+								updateItem(item.key, {
+									quantity: Number(e.target.value),
+								})
+							}
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<Label>Photo evidence *</Label>
+						<PhotoCaptureInput
+							value={item.pictureUrl}
+							onChange={(url) =>
+								updateItem(item.key, { pictureUrl: url })
+							}
+							getUploadUrl={getUploadUrl}
+						/>
+					</div>
+				</div>
+			))}
+			<Button
+				variant="outline"
+				className="w-full"
+				onClick={() =>
+					onChange([
+						...items,
+						newRecoveredItem(
+							Math.max(...items.map((i) => i.key), 0) + 1,
+						),
+					])
+				}
+			>
+				<PlusIcon className="mr-2 size-4" />
+				Add another item
+			</Button>
+		</div>
 	);
 }

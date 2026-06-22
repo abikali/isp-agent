@@ -38,6 +38,7 @@ export const createTask = protectedProcedure
 				.enum([
 					"INSTALLATION",
 					"MAINTENANCE",
+					"REPLACEMENT",
 					"REPAIR",
 					"SUPPORT",
 					"BILLING",
