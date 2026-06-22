@@ -12,11 +12,9 @@ import {
 	ReceiptIcon,
 	UserPlusIcon,
 	WalletIcon,
-	WrenchIcon,
 } from "lucide-react";
 import {
 	useMyCustomersQuery,
-	useMyInstallationsQuery,
 	useMyStockQuery,
 	useMyTasksQuery,
 	useMyWalletQuery,
@@ -27,13 +25,9 @@ export function WorkerHome() {
 	const { wallet, isLoading: walletLoading } = useMyWalletQuery();
 	const { tasks } = useMyTasksQuery();
 	const { allocations, totalValue } = useMyStockQuery();
-	const { installations } = useMyInstallationsQuery();
 	const { customers } = useMyCustomersQuery();
 
 	const orgSlug = activeOrganization?.slug ?? "";
-	const pendingInstalls = installations.filter(
-		(i) => i.status === "PENDING",
-	).length;
 
 	return (
 		<div className="space-y-4">
@@ -77,7 +71,7 @@ export function WorkerHome() {
 			</Card>
 
 			{/* Quick stats */}
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid grid-cols-2 gap-3">
 				<Link
 					to="/work/$organizationSlug/tasks"
 					params={{ organizationSlug: orgSlug }}
@@ -109,22 +103,6 @@ export function WorkerHome() {
 							</p>
 							<p className="text-xs text-muted-foreground">
 								Stock ({formatCurrency(totalValue)})
-							</p>
-						</CardContent>
-					</Card>
-				</Link>
-				<Link
-					to="/work/$organizationSlug/install"
-					params={{ organizationSlug: orgSlug }}
-				>
-					<Card>
-						<CardContent className="p-4 text-center">
-							<WrenchIcon className="mx-auto size-5 text-muted-foreground" />
-							<p className="mt-1 text-xl font-semibold tabular-nums">
-								{pendingInstalls}
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Pending installs
 							</p>
 						</CardContent>
 					</Card>

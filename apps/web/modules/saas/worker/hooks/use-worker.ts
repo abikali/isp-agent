@@ -5,6 +5,26 @@ import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 
+/** Plans, collectors, and groups for the field new-customer form. */
+export function useWorkerCreateOptions() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.customers.workerCreateOptions.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["customers", "workerCreateOptions"]),
+	);
+
+	return {
+		plans: query.data?.plans ?? [],
+		collectors: query.data?.collectors ?? [],
+		groups: query.data?.groups ?? [],
+		isLoading: query.isLoading,
+	};
+}
+
 /** Wallet balance + expense totals for the logged-in field employee. */
 export function useMyWalletQuery() {
 	const organizationId = useOrganizationId();
@@ -81,24 +101,6 @@ export function useMyExpensesQuery() {
 
 	return {
 		expenses: query.data?.expenses ?? [],
-		isLoading: query.isLoading,
-	};
-}
-
-/** My pending installations (scoped by installations read:own). */
-export function useMyInstallationsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.installations.list.queryOptions({
-					input: { organizationId, pageSize: 50 },
-				})
-			: disabledQuery(["installations", "my"]),
-	);
-
-	return {
-		installations: query.data?.installations ?? [],
 		isLoading: query.isLoading,
 	};
 }

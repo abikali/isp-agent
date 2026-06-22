@@ -13,7 +13,6 @@ import {
 	LogOutIcon,
 	ReceiptIcon,
 	UserPlusIcon,
-	WrenchIcon,
 } from "lucide-react";
 import { type PropsWithChildren, useEffect, useRef } from "react";
 
@@ -31,11 +30,6 @@ const TABS = [
 	},
 	{ to: "/work/$organizationSlug/stock", label: "Stock", icon: BoxesIcon },
 	{
-		to: "/work/$organizationSlug/install",
-		label: "Install",
-		icon: WrenchIcon,
-	},
-	{
 		to: "/work/$organizationSlug/new-customer",
 		label: "New",
 		icon: UserPlusIcon,
@@ -46,6 +40,11 @@ const TABS = [
 		icon: ReceiptIcon,
 	},
 ] as const;
+
+async function handleLogout() {
+	await authClient.signOut();
+	window.location.href = new URL("/login", window.location.origin).toString();
+}
 
 export function WorkerShell({ children }: PropsWithChildren) {
 	const { activeOrganization, employee } = useActiveOrganization();
@@ -62,14 +61,6 @@ export function WorkerShell({ children }: PropsWithChildren) {
 			setTheme(previousTheme.current);
 		};
 	}, []);
-
-	async function handleLogout() {
-		await authClient.signOut();
-		window.location.href = new URL(
-			"/login",
-			window.location.origin,
-		).toString();
-	}
 
 	const matchRoute = useMatchRoute();
 	const orgSlug = activeOrganization?.slug ?? "";

@@ -54,6 +54,7 @@ import {
 	rejectSetupRequest,
 	updateSetupRequest,
 	workerCreateCustomer,
+	workerCreateOptions,
 } from "./procedures/setup-requests";
 import { getCustomerStats } from "./procedures/stats";
 import {
@@ -130,6 +131,7 @@ export const customersRouter = {
 	submitLocationByToken,
 	getLocationRequestByToken,
 	workerCreate: workerCreateCustomer,
+	workerCreateOptions,
 	setupRequests: {
 		list: listSetupRequests,
 		update: updateSetupRequest,

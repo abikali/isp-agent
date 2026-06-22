@@ -1,14 +1,12 @@
 "use client";
 
-import { useCustomerGroups } from "@saas/billing/client";
-import { usePlansQuery } from "@saas/customers/client";
-import { useEmployeesQuery } from "@saas/employees/client";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
+import { PhoneInput } from "@ui/components/phone-input";
 import {
 	Select,
 	SelectContent,
@@ -17,10 +15,13 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
-import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useWorkerCreateCustomer } from "../hooks/use-worker";
+import {
+	useWorkerCreateCustomer,
+	useWorkerCreateOptions,
+} from "../hooks/use-worker";
 import {
 	InstallItemRows,
 	type InstallLine,
@@ -28,14 +29,19 @@ import {
 	linesToPayload,
 } from "./InstallItemRows";
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+	return (
+		<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+			{children}
+		</p>
+	);
+}
+
 export function WorkerNewCustomer() {
 	const organizationId = useOrganizationId();
-	const { plans } = usePlansQuery();
-	const { employees } = useEmployeesQuery();
-	const { groups } = useCustomerGroups();
+	const { plans, collectors, groups } = useWorkerCreateOptions();
 	const createCustomer = useWorkerCreateCustomer();
 
-	const [step, setStep] = useState(1);
 	const [firstName, setFirstName] = useState("");
 	const [lastName, setLastName] = useState("");
 	const [mobile, setMobile] = useState("");
@@ -47,8 +53,7 @@ export function WorkerNewCustomer() {
 	const [durationDays, setDurationDays] = useState("15");
 	const [lines, setLines] = useState<InstallLine[]>([]);
 
-	const activePlans = plans.filter((p) => !p.archived);
-	const plan = activePlans.find((p) => p.id === planId);
+	const plan = plans.find((p) => p.id === planId);
 	const firstCharge = plan
 		? durationType === "month"
 			? plan.monthlyPrice
@@ -66,15 +71,29 @@ export function WorkerNewCustomer() {
 		return d;
 	})();
 
-	const step1Valid =
+	const mobileDigits = mobile.replace(/\D/g, "").length;
+	const valid =
 		firstName.trim() &&
-		mobile.trim() &&
+		mobileDigits >= 7 &&
 		address.trim() &&
 		planId &&
 		(durationType === "month" || Number(durationDays) >= 1);
 
+	function reset() {
+		setFirstName("");
+		setLastName("");
+		setMobile("");
+		setAddress("");
+		setGroupName("");
+		setCollectorId("");
+		setPlanId("");
+		setDurationType("month");
+		setDurationDays("15");
+		setLines([]);
+	}
+
 	async function handleSubmit() {
-		if (!organizationId || !step1Valid) {
+		if (!organizationId || !valid) {
 			return;
 		}
 		try {
@@ -93,16 +112,7 @@ export function WorkerNewCustomer() {
 				items: linesToPayload(lines),
 			});
 			toast.success("Customer submitted for approval");
-			setStep(1);
-			setFirstName("");
-			setLastName("");
-			setMobile("");
-			setAddress("");
-			setGroupName("");
-			setCollectorId("");
-			setPlanId("");
-			setDurationType("month");
-			setLines([]);
+			reset();
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to submit",
@@ -111,64 +121,47 @@ export function WorkerNewCustomer() {
 	}
 
 	return (
-		<div className="space-y-4">
-			{/* Step indicator */}
-			<div className="flex items-center gap-2">
-				{[1, 2, 3].map((s) => (
-					<div
-						key={s}
-						className={`h-1.5 flex-1 rounded-full ${
-							s <= step ? "bg-primary" : "bg-muted"
-						}`}
+		<div className="space-y-6 pb-4">
+			{/* Customer */}
+			<div className="space-y-3">
+				<SectionTitle>Customer</SectionTitle>
+				<div className="grid grid-cols-2 gap-2">
+					<div className="space-y-1.5">
+						<Label htmlFor="nc-first">First name *</Label>
+						<Input
+							id="nc-first"
+							value={firstName}
+							onChange={(e) => setFirstName(e.target.value)}
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor="nc-last">Last name</Label>
+						<Input
+							id="nc-last"
+							value={lastName}
+							onChange={(e) => setLastName(e.target.value)}
+						/>
+					</div>
+				</div>
+				<div className="space-y-1.5">
+					<Label htmlFor="nc-mobile">Mobile *</Label>
+					<PhoneInput
+						value={mobile}
+						onChange={setMobile}
+						placeholder="Mobile number"
 					/>
-				))}
-			</div>
-			<p className="text-sm font-medium">
-				{step === 1 && "Step 1 — Customer details"}
-				{step === 2 && "Step 2 — Items & add-ons"}
-				{step === 3 && "Step 3 — Confirm"}
-			</p>
-
-			{step === 1 && (
-				<div className="space-y-4">
-					<div className="grid grid-cols-2 gap-2">
-						<div className="space-y-1.5">
-							<Label htmlFor="nc-first">First name *</Label>
-							<Input
-								id="nc-first"
-								value={firstName}
-								onChange={(e) => setFirstName(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="nc-last">Last name</Label>
-							<Input
-								id="nc-last"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-						</div>
-					</div>
+				</div>
+				<div className="space-y-1.5">
+					<Label htmlFor="nc-address">Address *</Label>
+					<Input
+						id="nc-address"
+						value={address}
+						onChange={(e) => setAddress(e.target.value)}
+					/>
+				</div>
+				<div className="grid grid-cols-2 gap-2">
 					<div className="space-y-1.5">
-						<Label htmlFor="nc-mobile">Mobile *</Label>
-						<Input
-							id="nc-mobile"
-							type="tel"
-							inputMode="tel"
-							value={mobile}
-							onChange={(e) => setMobile(e.target.value)}
-						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="nc-address">Address *</Label>
-						<Input
-							id="nc-address"
-							value={address}
-							onChange={(e) => setAddress(e.target.value)}
-						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label>Group / area</Label>
+						<Label>Area</Label>
 						<Select
 							value={groupName || "none"}
 							onValueChange={(v) =>
@@ -198,7 +191,7 @@ export function WorkerNewCustomer() {
 								<SelectValue placeholder="Optional" />
 							</SelectTrigger>
 							<SelectContent>
-								{employees.map((emp) => (
+								{collectors.map((emp) => (
 									<SelectItem key={emp.id} value={emp.id}>
 										{emp.name}
 									</SelectItem>
@@ -206,206 +199,122 @@ export function WorkerNewCustomer() {
 							</SelectContent>
 						</Select>
 					</div>
-					<div className="space-y-1.5">
-						<Label>Plan *</Label>
-						<Select value={planId} onValueChange={setPlanId}>
-							<SelectTrigger>
-								<SelectValue placeholder="Pick a plan" />
-							</SelectTrigger>
-							<SelectContent>
-								{activePlans.map((p) => (
-									<SelectItem key={p.id} value={p.id}>
-										{p.name} —{" "}
-										{formatCurrency(p.monthlyPrice)}/mo
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="space-y-1.5">
-						<Label>Duration</Label>
-						<Tabs
-							value={durationType}
-							onValueChange={(v) =>
-								setDurationType(v as "month" | "days")
-							}
-						>
-							<TabsList className="w-full">
-								<TabsTrigger value="month" className="flex-1">
-									Full month
-								</TabsTrigger>
-								<TabsTrigger value="days" className="flex-1">
-									Custom days
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-						{durationType === "days" && (
-							<Input
-								type="number"
-								inputMode="numeric"
-								min={1}
-								max={120}
-								value={durationDays}
-								onChange={(e) =>
-									setDurationDays(e.target.value)
-								}
-								placeholder="Number of days"
-							/>
-						)}
-					</div>
-					{plan && (
-						<Card>
-							<CardContent className="space-y-1.5 p-3 text-sm">
-								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">
-										First charge
-									</span>
-									<span className="font-mono font-medium tabular-nums">
-										{formatCurrency(firstCharge)}
-									</span>
-								</div>
-								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">
-										Next billing
-									</span>
-									<span className="font-medium tabular-nums">
-										{formatDate(nextBilling, {
-											dateStyle: "medium",
-										})}
-									</span>
-								</div>
-							</CardContent>
-						</Card>
-					)}
-					<Button
-						className="w-full"
-						disabled={!step1Valid}
-						onClick={() => setStep(2)}
+				</div>
+			</div>
+
+			{/* Plan & duration */}
+			<div className="space-y-3">
+				<SectionTitle>Plan &amp; duration</SectionTitle>
+				<div className="space-y-1.5">
+					<Label>Plan *</Label>
+					<Select value={planId} onValueChange={setPlanId}>
+						<SelectTrigger>
+							<SelectValue placeholder="Pick a plan" />
+						</SelectTrigger>
+						<SelectContent>
+							{plans.map((p) => (
+								<SelectItem key={p.id} value={p.id}>
+									{p.name} — {formatCurrency(p.monthlyPrice)}
+									/mo
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<div className="space-y-1.5">
+					<Label>Duration</Label>
+					<Tabs
+						value={durationType}
+						onValueChange={(v) =>
+							setDurationType(v as "month" | "days")
+						}
 					>
-						Next
-						<ArrowRightIcon className="ml-2 size-4" />
-					</Button>
+						<TabsList className="w-full">
+							<TabsTrigger value="month" className="flex-1">
+								Full month
+							</TabsTrigger>
+							<TabsTrigger value="days" className="flex-1">
+								Custom days
+							</TabsTrigger>
+						</TabsList>
+					</Tabs>
+					{durationType === "days" && (
+						<Input
+							type="number"
+							inputMode="numeric"
+							min={1}
+							max={120}
+							value={durationDays}
+							onChange={(e) => setDurationDays(e.target.value)}
+							placeholder="Number of days"
+						/>
+					)}
 				</div>
-			)}
+			</div>
 
-			{step === 2 && (
-				<div className="space-y-4">
-					<InstallItemRows lines={lines} onChange={setLines} />
-					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							className="flex-1"
-							onClick={() => setStep(1)}
-						>
-							<ArrowLeftIcon className="mr-2 size-4" />
-							Back
-						</Button>
-						<Button className="flex-1" onClick={() => setStep(3)}>
-							Next
-							<ArrowRightIcon className="ml-2 size-4" />
-						</Button>
-					</div>
-				</div>
-			)}
+			{/* Items */}
+			<div className="space-y-3">
+				<SectionTitle>Items &amp; add-ons (optional)</SectionTitle>
+				<InstallItemRows lines={lines} onChange={setLines} />
+			</div>
 
-			{step === 3 && (
-				<div className="space-y-4">
-					<Card>
-						<CardContent className="space-y-2 p-4 text-sm">
+			{/* Summary */}
+			{plan && (
+				<Card>
+					<CardContent className="space-y-2 p-4 text-sm">
+						<div className="flex justify-between">
+							<span className="text-muted-foreground">
+								First charge
+							</span>
+							<span className="font-mono font-medium tabular-nums">
+								{formatCurrency(firstCharge)}
+							</span>
+						</div>
+						{lines.length > 0 && (
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">
-									Customer
-								</span>
-								<span className="font-medium">
-									{firstName} {lastName}
-								</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-muted-foreground">
-									Mobile
-								</span>
-								<span>{mobile}</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-muted-foreground">
-									Address
-								</span>
-								<span className="text-right">{address}</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-muted-foreground">
-									Plan
-								</span>
-								<span>
-									{plan?.name} (
-									{durationType === "month"
-										? "1 month"
-										: `${durationDays} days`}
-									)
-								</span>
-							</div>
-							<div className="flex justify-between">
-								<span className="text-muted-foreground">
-									Next billing
-								</span>
-								<span className="tabular-nums">
-									{formatDate(nextBilling, {
-										dateStyle: "medium",
-									})}
-								</span>
-							</div>
-							<div className="flex justify-between border-t pt-2">
-								<span className="text-muted-foreground">
-									First charge
+									Items &amp; add-ons
 								</span>
 								<span className="font-mono tabular-nums">
-									{formatCurrency(firstCharge)}
+									{formatCurrency(itemsTotal)}
 								</span>
 							</div>
-							{lines.length > 0 && (
-								<div className="flex justify-between">
-									<span className="text-muted-foreground">
-										Items & add-ons
-									</span>
-									<span className="font-mono tabular-nums">
-										{formatCurrency(itemsTotal)}
-									</span>
-								</div>
-							)}
-							<div className="flex justify-between border-t pt-2 font-medium">
-								<span>Total to collect</span>
-								<span className="font-mono tabular-nums">
-									{formatCurrency(firstCharge + itemsTotal)}
-								</span>
-							</div>
-						</CardContent>
-					</Card>
-					<div className="flex gap-2">
-						<Button
-							variant="outline"
-							className="flex-1"
-							onClick={() => setStep(2)}
-						>
-							<ArrowLeftIcon className="mr-2 size-4" />
-							Back
-						</Button>
-						<Button
-							className="flex-1"
-							onClick={handleSubmit}
-							disabled={createCustomer.isPending}
-						>
-							{createCustomer.isPending ? (
-								"Submitting…"
-							) : (
-								<>
-									<CheckIcon className="mr-2 size-4" />
-									Submit
-								</>
-							)}
-						</Button>
-					</div>
-				</div>
+						)}
+						<div className="flex justify-between">
+							<span className="text-muted-foreground">
+								Next billing
+							</span>
+							<span className="tabular-nums">
+								{formatDate(nextBilling, {
+									dateStyle: "medium",
+								})}
+							</span>
+						</div>
+						<div className="flex justify-between border-t pt-2 font-medium">
+							<span>Total to collect</span>
+							<span className="font-mono tabular-nums">
+								{formatCurrency(firstCharge + itemsTotal)}
+							</span>
+						</div>
+					</CardContent>
+				</Card>
 			)}
+
+			<Button
+				className="w-full"
+				size="lg"
+				onClick={handleSubmit}
+				disabled={!valid || createCustomer.isPending}
+			>
+				{createCustomer.isPending ? (
+					"Submitting…"
+				) : (
+					<>
+						<CheckIcon className="mr-2 size-4" />
+						Submit customer
+					</>
+				)}
+			</Button>
 		</div>
 	);
 }

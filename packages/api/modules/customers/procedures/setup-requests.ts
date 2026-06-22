@@ -30,6 +30,72 @@ const setupItemSchema = z
 	});
 
 /**
+ * Form options for the field new-customer screen: active plans, collectors,
+ * and customer groups. Gated on `customers:create` (which field techs have)
+ * so the worker portal dropdowns populate without granting the broader
+ * `servicePlans:read` / `employees:read` / `billing:view` admin permissions.
+ */
+export const workerCreateOptions = protectedProcedure
+	.route({
+		method: "GET",
+		path: "/customers/worker-create-options",
+		tags: ["Customers"],
+		summary:
+			"Plans, collectors, and groups for the field new-customer form",
+	})
+	.input(z.object({ organizationId: z.string() }))
+	.handler(async ({ context: { user }, input }) => {
+		const { activeDealerId } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"customers",
+			"create",
+		);
+		const dealerScope = getDealerScopeFilter(activeDealerId);
+
+		const [plans, collectors, groupRows] = await Promise.all([
+			db.servicePlan.findMany({
+				where: {
+					organizationId: input.organizationId,
+					deletedAt: null,
+					archived: false,
+					...dealerScope,
+				},
+				select: { id: true, name: true, monthlyPrice: true },
+				orderBy: { name: "asc" },
+			}),
+			db.employee.findMany({
+				where: {
+					organizationId: input.organizationId,
+					status: "ACTIVE",
+					deletedAt: null,
+					...dealerScope,
+				},
+				select: { id: true, name: true },
+				orderBy: { name: "asc" },
+			}),
+			db.customer.findMany({
+				where: {
+					organizationId: input.organizationId,
+					groupName: { not: null },
+					...dealerScope,
+				},
+				select: { groupName: true },
+				distinct: ["groupName"],
+				orderBy: { groupName: "asc" },
+			}),
+		]);
+
+		return {
+			plans,
+			collectors,
+			groups: groupRows
+				.map((r) => r.groupName)
+				.filter((g): g is string => g !== null),
+		};
+	});
+
+/**
  * Worker-created new customer (legacy `is_new=1` flow): creates a PENDING
  * customer + setup request + PENDING installations. Local-only — no iRadius
  * link until an admin links it later, same as `customers.create`.

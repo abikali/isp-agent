@@ -1,6 +1,7 @@
 "use client";
 
 import { useStationsQuery } from "@saas/customers/client";
+import { PageShell } from "@shared/components/PageShell";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -19,7 +20,6 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
-import { ArrowLeftIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateTask } from "../hooks/use-tasks";
 import {
@@ -108,25 +108,12 @@ export function TaskDetail({
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 
-	return (
-		<div>
-			<div className="mb-6 flex flex-wrap items-center gap-3">
-				<Link
-					to={backPath}
-					params={{
-						organizationSlug: organizationSlug ?? "",
-						taskId,
-					}}
-					preload="intent"
-				>
-					<Button variant="ghost" size="sm">
-						<ArrowLeftIcon className="mr-1 size-4" />
-						Back
-					</Button>
-				</Link>
-				<h1 className="text-2xl font-bold">Edit Task</h1>
-			</div>
+	const resolvedBackPath = backPath
+		.replace("$organizationSlug", organizationSlug ?? "")
+		.replace("$taskId", taskId);
 
+	return (
+		<PageShell title="Edit task" backTo={resolvedBackPath} backLabel="Task">
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -368,6 +355,6 @@ export function TaskDetail({
 					</Button>
 				</div>
 			</form>
-		</div>
+		</PageShell>
 	);
 }

@@ -46,7 +46,6 @@ import { Route as ApiWhatsappFlowOrganizationSlugDealerRouteImport } from "./rou
 import { Route as WorkerWorkOrganizationSlugTasksRouteImport } from "./routes/_worker/work/$organizationSlug/tasks"
 import { Route as WorkerWorkOrganizationSlugStockRouteImport } from "./routes/_worker/work/$organizationSlug/stock"
 import { Route as WorkerWorkOrganizationSlugNewCustomerRouteImport } from "./routes/_worker/work/$organizationSlug/new-customer"
-import { Route as WorkerWorkOrganizationSlugInstallRouteImport } from "./routes/_worker/work/$organizationSlug/install"
 import { Route as WorkerWorkOrganizationSlugExpensesRouteImport } from "./routes/_worker/work/$organizationSlug/expenses"
 import { Route as SaasAppOrgOrganizationSlugRouteImport } from "./routes/_saas/app/_org/$organizationSlug"
 import { Route as SaasAppFullbleedOrganizationSlugRouteImport } from "./routes/_saas/app/_fullbleed/$organizationSlug"
@@ -322,12 +321,6 @@ const WorkerWorkOrganizationSlugNewCustomerRoute =
   WorkerWorkOrganizationSlugNewCustomerRouteImport.update({
     id: "/new-customer",
     path: "/new-customer",
-    getParentRoute: () => WorkerWorkOrganizationSlugRoute,
-  } as any)
-const WorkerWorkOrganizationSlugInstallRoute =
-  WorkerWorkOrganizationSlugInstallRouteImport.update({
-    id: "/install",
-    path: "/install",
     getParentRoute: () => WorkerWorkOrganizationSlugRoute,
   } as any)
 const WorkerWorkOrganizationSlugExpensesRoute =
@@ -835,7 +828,6 @@ export interface FileRoutesByFullPath {
   "/app/settings": typeof SaasAppAccountSettingsRouteWithChildren
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
   "/work/$organizationSlug/expenses": typeof WorkerWorkOrganizationSlugExpensesRoute
-  "/work/$organizationSlug/install": typeof WorkerWorkOrganizationSlugInstallRoute
   "/work/$organizationSlug/new-customer": typeof WorkerWorkOrganizationSlugNewCustomerRoute
   "/work/$organizationSlug/stock": typeof WorkerWorkOrganizationSlugStockRoute
   "/work/$organizationSlug/tasks": typeof WorkerWorkOrganizationSlugTasksRoute
@@ -944,7 +936,6 @@ export interface FileRoutesByTo {
   "/collect/$organizationSlug/payments": typeof CollectorCollectOrganizationSlugPaymentsRoute
   "/app/$organizationSlug": typeof SaasAppOrgOrganizationSlugIndexRoute
   "/work/$organizationSlug/expenses": typeof WorkerWorkOrganizationSlugExpensesRoute
-  "/work/$organizationSlug/install": typeof WorkerWorkOrganizationSlugInstallRoute
   "/work/$organizationSlug/new-customer": typeof WorkerWorkOrganizationSlugNewCustomerRoute
   "/work/$organizationSlug/stock": typeof WorkerWorkOrganizationSlugStockRoute
   "/work/$organizationSlug/tasks": typeof WorkerWorkOrganizationSlugTasksRoute
@@ -1062,7 +1053,6 @@ export interface FileRoutesById {
   "/_saas/app/_fullbleed/$organizationSlug": typeof SaasAppFullbleedOrganizationSlugRoute
   "/_saas/app/_org/$organizationSlug": typeof SaasAppOrgOrganizationSlugRouteWithChildren
   "/_worker/work/$organizationSlug/expenses": typeof WorkerWorkOrganizationSlugExpensesRoute
-  "/_worker/work/$organizationSlug/install": typeof WorkerWorkOrganizationSlugInstallRoute
   "/_worker/work/$organizationSlug/new-customer": typeof WorkerWorkOrganizationSlugNewCustomerRoute
   "/_worker/work/$organizationSlug/stock": typeof WorkerWorkOrganizationSlugStockRoute
   "/_worker/work/$organizationSlug/tasks": typeof WorkerWorkOrganizationSlugTasksRoute
@@ -1177,7 +1167,6 @@ export interface FileRouteTypes {
     | "/app/settings"
     | "/app/$organizationSlug"
     | "/work/$organizationSlug/expenses"
-    | "/work/$organizationSlug/install"
     | "/work/$organizationSlug/new-customer"
     | "/work/$organizationSlug/stock"
     | "/work/$organizationSlug/tasks"
@@ -1286,7 +1275,6 @@ export interface FileRouteTypes {
     | "/collect/$organizationSlug/payments"
     | "/app/$organizationSlug"
     | "/work/$organizationSlug/expenses"
-    | "/work/$organizationSlug/install"
     | "/work/$organizationSlug/new-customer"
     | "/work/$organizationSlug/stock"
     | "/work/$organizationSlug/tasks"
@@ -1403,7 +1391,6 @@ export interface FileRouteTypes {
     | "/_saas/app/_fullbleed/$organizationSlug"
     | "/_saas/app/_org/$organizationSlug"
     | "/_worker/work/$organizationSlug/expenses"
-    | "/_worker/work/$organizationSlug/install"
     | "/_worker/work/$organizationSlug/new-customer"
     | "/_worker/work/$organizationSlug/stock"
     | "/_worker/work/$organizationSlug/tasks"
@@ -1774,13 +1761,6 @@ declare module "@tanstack/react-router" {
       path: "/new-customer"
       fullPath: "/work/$organizationSlug/new-customer"
       preLoaderRoute: typeof WorkerWorkOrganizationSlugNewCustomerRouteImport
-      parentRoute: typeof WorkerWorkOrganizationSlugRoute
-    }
-    "/_worker/work/$organizationSlug/install": {
-      id: "/_worker/work/$organizationSlug/install"
-      path: "/install"
-      fullPath: "/work/$organizationSlug/install"
-      preLoaderRoute: typeof WorkerWorkOrganizationSlugInstallRouteImport
       parentRoute: typeof WorkerWorkOrganizationSlugRoute
     }
     "/_worker/work/$organizationSlug/expenses": {
@@ -2709,7 +2689,6 @@ const SaasRouteWithChildren = SaasRoute._addFileChildren(SaasRouteChildren)
 
 interface WorkerWorkOrganizationSlugRouteChildren {
   WorkerWorkOrganizationSlugExpensesRoute: typeof WorkerWorkOrganizationSlugExpensesRoute
-  WorkerWorkOrganizationSlugInstallRoute: typeof WorkerWorkOrganizationSlugInstallRoute
   WorkerWorkOrganizationSlugNewCustomerRoute: typeof WorkerWorkOrganizationSlugNewCustomerRoute
   WorkerWorkOrganizationSlugStockRoute: typeof WorkerWorkOrganizationSlugStockRoute
   WorkerWorkOrganizationSlugTasksRoute: typeof WorkerWorkOrganizationSlugTasksRoute
@@ -2720,8 +2699,6 @@ const WorkerWorkOrganizationSlugRouteChildren: WorkerWorkOrganizationSlugRouteCh
   {
     WorkerWorkOrganizationSlugExpensesRoute:
       WorkerWorkOrganizationSlugExpensesRoute,
-    WorkerWorkOrganizationSlugInstallRoute:
-      WorkerWorkOrganizationSlugInstallRoute,
     WorkerWorkOrganizationSlugNewCustomerRoute:
       WorkerWorkOrganizationSlugNewCustomerRoute,
     WorkerWorkOrganizationSlugStockRoute: WorkerWorkOrganizationSlugStockRoute,
