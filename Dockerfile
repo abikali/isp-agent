@@ -102,10 +102,17 @@ ENV TURBO_CONCURRENCY=1
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 RUN rm -rf apps/web/.output
-# Mount Turbo's local cache so unchanged packages are restored from cache instead
-# of rebuilt within a build. (On the ephemeral CI runner this mount is cold each
-# run; it pays off automatically if a persistent build host is ever added.)
+# Turbo remote cache (R2-backed Worker): task outputs are restored from / stored to
+# the remote cache by content hash, so unchanged packages (and identical re-runs /
+# rollbacks) skip rebuilding across ephemeral CI runners. TURBO_TOKEN is passed as a
+# BuildKit secret so it never lands in an image layer; when it's absent (local
+# builds) turbo just runs without the remote cache. The local .turbo mount still
+# de-dupes work within a single build.
+ENV TURBO_API="https://turbo-cache.webteam-581.workers.dev"
+ENV TURBO_TEAM="libancom"
 RUN --mount=type=cache,id=turbo,target=/app/.turbo \
+    --mount=type=secret,id=turbo_token \
+    TURBO_TOKEN="$(cat /run/secrets/turbo_token 2>/dev/null || true)" \
     pnpm build
 
 # ===============================================

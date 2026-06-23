@@ -53,6 +53,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:latest
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache
+          # Turbo remote-cache bearer token — BuildKit secret, never baked into a layer.
+          secrets: |
+            turbo_token=${{ secrets.TURBO_TOKEN }}
           build-args: |
             VITE_SITE_URL=https://cp.libancomlb.com
             SITE_URL=https://cp.libancomlb.com
@@ -70,7 +73,11 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:latest
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache,mode=max
+          # zstd imports ~60% faster than gzip and exports smaller, cutting warm-cache
+          # restore time; image-manifest/oci-mediatypes keep the cache GHCR-compatible.
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,compression=zstd,compression-level=3
+          secrets: |
+            turbo_token=${{ secrets.TURBO_TOKEN }}
 
   deploy:
     needs: build
