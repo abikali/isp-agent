@@ -10,6 +10,11 @@ name: Build & deploy (Coolify image)
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.vscode/**'
+      - '.cursor/**'
   workflow_dispatch:
 
 concurrency:
@@ -49,6 +54,8 @@ jobs:
           file: ./Dockerfile
           target: web
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:latest
@@ -69,6 +76,8 @@ jobs:
           file: ./Dockerfile
           target: worker
           push: true
+          provenance: false
+          sbom: false
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:latest
