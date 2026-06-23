@@ -36,6 +36,9 @@ export default defineConfig(({ mode }) => {
 		// Ensure consistent CSS between SSR and client builds
 		build: {
 			cssCodeSplit: false,
+			// Skip the gzip-size pass over every emitted chunk — pure build-time
+			// cost with no effect on output (we don't read the size column in CI).
+			reportCompressedSize: false,
 			rollupOptions: {
 				output: {
 					// Use fixed name for CSS to avoid hash mismatch between SSR and client
@@ -118,13 +121,11 @@ export default defineConfig(({ mode }) => {
 				// Exclude ffmpeg-static binary from nf3 file tracing —
 				// we use system ffmpeg, not the bundled binary
 				externals: ["ffmpeg-static", "ssh2", "cpu-features"],
-				// Pre-compression: gzip only. brotli (quality 11) over hundreds of
-				// chunks held large buffers and was the build's OOM peak on the
-				// memory-constrained worker; CF/Traefik compress at the edge anyway.
-				compressPublicAssets: {
-					gzip: true,
-					brotli: false,
-				},
+				// Build-time asset precompression is disabled: it's redundant here —
+				// CF/Traefik compress at the edge anyway — and brotli (quality 11) over
+				// hundreds of chunks held large buffers and was the build's OOM peak on
+				// the memory-constrained worker. Keeping it off shaves time off every build.
+				compressPublicAssets: false,
 				// Route rules for caching and headers
 				routeRules: {
 					// Enable Sentry Browser Profiling via Document-Policy header
