@@ -48,6 +48,9 @@ COPY tooling/tailwind/package.json tooling/tailwind/
 COPY tooling/typescript/package.json tooling/typescript/
 COPY config/package.json config/
 COPY apps/web/package.json apps/web/
+# apps/worker manifest too: the unified `worker` stage (FROM builder) runs it via
+# tsx, so its workspace deps must be installed in this shared deps/install layer.
+COPY apps/worker/package.json apps/worker/
 
 # --no-frozen-lockfile: the pnpm.overrides vite->rolldown-vite alias isn't in the
 # committed lockfile yet, so let pnpm resolve it (network available at build).
@@ -99,12 +102,16 @@ ENV TURBO_CONCURRENCY=1
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 
 RUN rm -rf apps/web/.output
-RUN pnpm build
+# Mount Turbo's local cache so unchanged packages are restored from cache instead
+# of rebuilt within a build. (On the ephemeral CI runner this mount is cold each
+# run; it pays off automatically if a persistent build host is ever added.)
+RUN --mount=type=cache,id=turbo,target=/app/.turbo \
+    pnpm build
 
 # ===============================================
-# Runner
+# Production Runner Stage (web)
 # ===============================================
-FROM node:24-alpine AS runner
+FROM node:24-alpine AS web
 WORKDIR /app
 RUN apk add --no-cache openssl
 ENV NODE_ENV=production
@@ -132,3 +139,24 @@ ENV NODE_OPTIONS="--require reflect-metadata"
 USER appuser
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
+
+# ===============================================
+# Worker Runner Stage (background jobs)
+# ===============================================
+# Reuses the fully-built `builder` stage (full source + node_modules + generated
+# Prisma client) so deps + install are NEVER rebuilt for the worker — only this
+# thin user/CMD layer differs. The worker runs apps/worker/index.ts via tsx at
+# runtime (mirrors the old Dockerfile.worker behaviour); it does NOT use tsyringe,
+# so reflect-metadata is deliberately NOT preloaded here.
+FROM builder AS worker
+
+ENV NODE_ENV=production
+
+# Ownership is already set across /app by the builder's COPY layers; create the
+# worker user with the same uid/gid the old Dockerfile.worker used.
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 worker && \
+    chown -R worker:nodejs /app
+USER worker
+
+CMD ["pnpm", "--filter", "@repo/worker", "worker:prod"]

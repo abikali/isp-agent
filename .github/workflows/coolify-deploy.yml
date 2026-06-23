@@ -36,17 +36,23 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Both images come from ONE Dockerfile via --target, sharing the
+      # base/deps/builder stages so the pnpm install runs once and the worker is
+      # a thin layer on top. Registry cache on GHCR replaces the old type=gha
+      # cache (no 10 GB eviction limit), so the deps/install layer is a cache hit
+      # on every run as long as the lockfile is unchanged. cache-to runs only on
+      # the final (worker) build to export the shared stages once.
       - name: Build & push web image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          target: web
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-web:latest
-          cache-from: type=gha,scope=libancom-web
-          cache-to: type=gha,mode=max,scope=libancom-web
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache
           build-args: |
             VITE_SITE_URL=https://cp.libancomlb.com
             SITE_URL=https://cp.libancomlb.com
@@ -57,13 +63,14 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.worker
+          file: ./Dockerfile
+          target: worker
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.OWNER }}/libancom-worker:latest
-          cache-from: type=gha,scope=libancom-worker
-          cache-to: type=gha,mode=max,scope=libancom-worker
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.OWNER }}/libancom:buildcache,mode=max
 
   deploy:
     needs: build
