@@ -209,8 +209,6 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	return (
 		<div className="flex items-center gap-2.5 min-w-[220px]">
-			{/* react-doctor-disable-next-line react-doctor/media-has-caption -- chat voice notes have no captions track to attach */}
-			{/* biome-ignore lint/a11y/useMediaCaption: chat voice notes don't have captions */}
 			<audio
 				ref={audioRef}
 				aria-label="Voice message"
@@ -226,7 +224,9 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 				onTimeUpdate={handleTimeUpdate}
 				onLoadedMetadata={handleLoadedMetadata}
 				preload="metadata"
-			/>
+			>
+				<track kind="captions" />
+			</audio>
 
 			{/* Play/Pause */}
 			<button

@@ -143,3 +143,16 @@ input[cmdk-input] {
 		break-inside: avoid;
 	}
 }
+
+/* Honor the OS "reduce motion" accessibility preference (WCAG 2.3.3): neutralize
+   non-essential animation/transition for users who opt out of motion. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

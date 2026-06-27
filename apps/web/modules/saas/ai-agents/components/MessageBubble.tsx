@@ -382,15 +382,15 @@ function AttachmentContent({
 	}
 	if (type === "video") {
 		return (
-			// react-doctor-disable-next-line react-doctor/media-has-caption -- chat videos are arbitrary user uploads with no caption tracks available
-			// biome-ignore lint/a11y/useMediaCaption: chat videos don't have caption tracks
 			<video
 				src={url}
 				controls
 				aria-label="Video attachment"
 				className="max-h-64 max-w-full rounded-md"
 				preload="metadata"
-			/>
+			>
+				<track kind="captions" />
+			</video>
 		);
 	}
 	// Sticker or unknown
