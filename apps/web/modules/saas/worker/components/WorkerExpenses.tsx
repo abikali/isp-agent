@@ -77,7 +77,43 @@ export function WorkerExpenses() {
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [statusFilter, setStatusFilter] = useState("all");
 	const [sort, setSort] = useState("newest");
+	// Default to the current month so the list isn't flooded with old expenses;
+	// older months stay reachable through this filter. Value format: "YYYY-M".
+	const [monthFilter, setMonthFilter] = useState(() => {
+		const now = new Date();
+		return `${now.getFullYear()}-${now.getMonth() + 1}`;
+	});
 	const [page, setPage] = useState(1);
+
+	const monthOptions = (() => {
+		const options = [{ value: "all", label: "All time" }];
+		const now = new Date();
+		for (let i = 0; i < 24; i++) {
+			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+			options.push({
+				value: `${d.getFullYear()}-${d.getMonth() + 1}`,
+				label:
+					i === 0
+						? "This month"
+						: d.toLocaleDateString("en-US", {
+								month: "long",
+								year: "numeric",
+							}),
+			});
+		}
+		return options;
+	})();
+
+	const monthRange = (() => {
+		if (monthFilter === "all") {
+			return {};
+		}
+		const [year, month] = monthFilter.split("-").map(Number);
+		return {
+			from: new Date(year as number, (month as number) - 1, 1),
+			to: new Date(year as number, month as number, 1),
+		};
+	})();
 
 	const [showSubmit, setShowSubmit] = useState(false);
 	const [amount, setAmount] = useState("");
@@ -95,6 +131,7 @@ export function WorkerExpenses() {
 				: (statusFilter as "PENDING" | "APPROVED" | "REJECTED"),
 		sortBy: sortCfg.sortBy,
 		sortOrder: sortCfg.sortOrder,
+		...monthRange,
 		page,
 	});
 
@@ -189,6 +226,12 @@ export function WorkerExpenses() {
 					value={statusFilter}
 					onChange={onFilter(setStatusFilter)}
 					options={STATUS_OPTIONS}
+				/>
+				<SelectControl
+					ariaLabel="Filter by month"
+					value={monthFilter}
+					onChange={onFilter(setMonthFilter)}
+					options={monthOptions}
 				/>
 				<SelectControl
 					ariaLabel="Sort expenses"

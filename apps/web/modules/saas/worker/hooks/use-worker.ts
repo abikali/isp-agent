@@ -182,6 +182,8 @@ export function useMyTasksList(params: MyTasksParams = {}) {
 export interface MyExpensesParams {
 	search?: string;
 	status?: "PENDING" | "APPROVED" | "REJECTED";
+	from?: Date;
+	to?: Date;
 	sortBy?: "createdAt" | "amount" | "status";
 	sortOrder?: "asc" | "desc";
 	page?: number;
@@ -206,6 +208,8 @@ export function useMyExpensesList(params: MyExpensesParams = {}) {
 						sortOrder: params.sortOrder ?? "desc",
 						...(params.search ? { search: params.search } : {}),
 						...(params.status ? { status: params.status } : {}),
+						...(params.from ? { from: params.from } : {}),
+						...(params.to ? { to: params.to } : {}),
 					},
 				})
 			: disabledQuery(["expenses", "my"]),
