@@ -29,11 +29,13 @@ export function getRouter() {
 			// Adds request headers and IP for users
 			sendDefaultPii: true,
 
-			// Browser tracing for Web Vitals (LCP, CLS, FCP, TTFB, INP) and navigation
-			// Web Vitals are automatically captured by tanstackRouterBrowserTracingIntegration
-			integrations: [
-				Sentry.tanstackRouterBrowserTracingIntegration(router),
-			],
+			// Browser tracing (Web Vitals + navigation) is added via the lazy
+			// dynamic import below, not here. Referencing
+			// `Sentry.tanstackRouterBrowserTracingIntegration` statically makes
+			// the SSR bundle resolve it against the Node entry (@sentry/node),
+			// where it doesn't exist — so it's loaded client-side instead, the
+			// same way replay/profiling are. This is Sentry's documented
+			// `addIntegration` pattern for TanStack Start.
 
 			// Performance monitoring - 20% of transactions
 			tracesSampleRate: 0.2,
@@ -53,6 +55,14 @@ export function getRouter() {
 		// These add significant bundle size, so we load them asynchronously
 		if (import.meta.env.VITE_SENTRY_DSN && isDeployedEnv) {
 			import("@sentry/tanstackstart-react").then((lazySentry) => {
+				// Browser tracing for Web Vitals (LCP, CLS, FCP, TTFB, INP)
+				// and route navigation, captured by the TanStack Router
+				// integration. Added here (not in init) so the symbol is only
+				// resolved in the client bundle, never the SSR/Node one.
+				Sentry.addIntegration(
+					lazySentry.tanstackRouterBrowserTracingIntegration(router),
+				);
+
 				// Session Replay for visual debugging of user sessions and errors
 				Sentry.addIntegration(lazySentry.replayIntegration());
 
