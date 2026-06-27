@@ -1017,7 +1017,7 @@ async function processBillingSync(
 					const category =
 						taskType === "maintenance"
 							? "MAINTENANCE"
-							: "INSTALLATION";
+							: "UNINSTALL";
 
 					const task = await db.task.upsert({
 						where: {
