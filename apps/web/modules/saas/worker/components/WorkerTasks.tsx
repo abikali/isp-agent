@@ -35,13 +35,17 @@ import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
 import {
 	BarChart3Icon,
+	CalendarClockIcon,
 	ChevronDownIcon,
 	ChevronUpIcon,
 	ClipboardListIcon,
 	MapPinIcon,
 	PhoneIcon,
 	PlusIcon,
+	RadioTowerIcon,
+	StickyNoteIcon,
 	Trash2Icon,
+	WarehouseIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 // react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts is the shared chart lib statically imported across the codebase (single shared chunk)
@@ -105,6 +109,15 @@ const SORT_MAP: Record<
 	priority: { sortBy: "priority", sortOrder: "desc" },
 };
 const OPEN_STATUSES = new Set(["OPEN", "IN_PROGRESS", "ON_HOLD"]);
+
+// Only the attention-grabbing priorities get a badge; low/medium stay quiet.
+const PRIORITY_BADGE: Record<
+	string,
+	{ label: string; variant: "warning" | "error" } | undefined
+> = {
+	HIGH: { label: "High", variant: "warning" },
+	URGENT: { label: "Urgent", variant: "error" },
+};
 
 interface RecoveredItem {
 	key: number;
@@ -376,26 +389,61 @@ function TaskCard({
 	const isUninstall = task.category === "UNINSTALL";
 	const isReplacement = task.category === "REPLACEMENT";
 	const isOpen = OPEN_STATUSES.has(task.status);
+	const priorityBadge = PRIORITY_BADGE[task.priority];
+	const isOverdue =
+		isOpen && task.dueDate !== null && new Date(task.dueDate) < new Date();
+
 	return (
 		<Card>
-			<CardContent className="space-y-2 p-4">
+			<CardContent className="space-y-3 p-4">
+				{/* Header — title, description, category & priority */}
 				<div className="flex items-start justify-between gap-2">
-					<div className="min-w-0">
-						<p className="font-medium text-sm">{task.title}</p>
+					<div className="min-w-0 space-y-1">
+						<p className="font-semibold text-sm leading-snug">
+							{task.title}
+						</p>
 						{task.description ? (
 							<p className="line-clamp-2 text-muted-foreground text-xs">
 								{task.description}
 							</p>
 						) : null}
 					</div>
-					<Badge
-						variant={
-							isUninstall || isReplacement ? "warning" : "info"
-						}
-					>
-						{task.category.toLowerCase()}
-					</Badge>
+					<div className="flex shrink-0 flex-col items-end gap-1">
+						<Badge
+							variant={
+								isUninstall || isReplacement
+									? "warning"
+									: "info"
+							}
+						>
+							{task.category.toLowerCase()}
+						</Badge>
+						{priorityBadge ? (
+							<Badge variant={priorityBadge.variant}>
+								{priorityBadge.label}
+							</Badge>
+						) : null}
+					</div>
 				</div>
+
+				{/* Base — the worker's destination, highlighted */}
+				{task.base ? (
+					<div className="flex items-start gap-2 rounded-md bg-primary/5 px-2.5 py-2">
+						<WarehouseIcon className="mt-0.5 size-4 shrink-0 text-primary" />
+						<div className="min-w-0">
+							<p className="font-medium text-foreground text-xs">
+								{task.base.name}
+							</p>
+							{task.base.address ? (
+								<p className="text-muted-foreground text-xs">
+									{task.base.address}
+								</p>
+							) : null}
+						</div>
+					</div>
+				) : null}
+
+				{/* Customer — name, address, tap-to-call */}
 				{customerName ? (
 					<div className="space-y-1 text-muted-foreground text-xs">
 						<p className="font-medium text-foreground">
@@ -403,7 +451,7 @@ function TaskCard({
 						</p>
 						{task.customer?.address ? (
 							<p className="flex items-center gap-1">
-								<MapPinIcon className="size-3" />
+								<MapPinIcon className="size-3 shrink-0" />
 								{task.customer.address}
 							</p>
 						) : null}
@@ -412,13 +460,51 @@ function TaskCard({
 								href={`tel:${task.customer.mobile}`}
 								className="flex items-center gap-1 text-primary"
 							>
-								<PhoneIcon className="size-3" />
+								<PhoneIcon className="size-3 shrink-0" />
 								{task.customer.mobile}
 							</a>
 						) : null}
 					</div>
 				) : null}
-				<div className="flex items-center justify-between pt-1">
+
+				{/* Meta — station & due date */}
+				{task.station || task.dueDate ? (
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">
+						{task.station ? (
+							<span className="flex items-center gap-1">
+								<RadioTowerIcon className="size-3 shrink-0" />
+								{task.station.name}
+							</span>
+						) : null}
+						{task.dueDate ? (
+							<span
+								className={
+									isOverdue
+										? "flex items-center gap-1 font-medium text-destructive"
+										: "flex items-center gap-1"
+								}
+							>
+								<CalendarClockIcon className="size-3 shrink-0" />
+								Due{" "}
+								{formatDate(task.dueDate, {
+									dateStyle: "medium",
+								})}
+								{isOverdue ? " · overdue" : ""}
+							</span>
+						) : null}
+					</div>
+				) : null}
+
+				{/* Notes */}
+				{task.notes ? (
+					<p className="flex items-start gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-muted-foreground text-xs">
+						<StickyNoteIcon className="mt-0.5 size-3 shrink-0" />
+						<span className="line-clamp-3">{task.notes}</span>
+					</p>
+				) : null}
+
+				{/* Footer — created date & action */}
+				<div className="flex items-center justify-between border-t pt-2">
 					<span className="text-muted-foreground text-xs">
 						{formatDate(task.createdAt, { dateStyle: "medium" })}
 					</span>

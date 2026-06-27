@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	getDealerScopeFilter,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -48,6 +49,7 @@ export const updateTask = protectedProcedure
 			notes: z.string().max(5000).nullable().optional(),
 			customerId: z.string().nullable().optional(),
 			stationId: z.string().nullable().optional(),
+			baseId: z.string().nullable().optional(),
 			followUpStatus: z
 				.enum([
 					"pending",
@@ -87,6 +89,22 @@ export const updateTask = protectedProcedure
 
 		await verifyTaskOwnership(permCtx, "update", existing);
 
+		if (input.baseId) {
+			const base = await db.base.findFirst({
+				where: {
+					id: input.baseId,
+					organizationId: input.organizationId,
+					...getDealerScopeFilter(activeDealerId),
+				},
+				select: { id: true },
+			});
+			if (!base) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Base does not belong to your dealer",
+				});
+			}
+		}
+
 		const updateData: Record<string, unknown> = {};
 		if (input.title !== undefined) {
 			updateData["title"] = input.title;
@@ -111,6 +129,9 @@ export const updateTask = protectedProcedure
 		}
 		if (input.stationId !== undefined) {
 			updateData["stationId"] = input.stationId ?? null;
+		}
+		if (input.baseId !== undefined) {
+			updateData["baseId"] = input.baseId ?? null;
 		}
 		if (input.followUpStatus !== undefined) {
 			updateData["followUpStatus"] = input.followUpStatus;

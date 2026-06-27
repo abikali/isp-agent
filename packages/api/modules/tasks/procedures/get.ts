@@ -98,6 +98,13 @@ export const getTask = protectedProcedure
 						address: true,
 					},
 				},
+				base: {
+					select: {
+						id: true,
+						name: true,
+						address: true,
+					},
+				},
 				assignments: {
 					select: {
 						assignedAt: true,

@@ -192,6 +192,13 @@ export const listTasks = protectedProcedure
 							name: true,
 						},
 					},
+					base: {
+						select: {
+							id: true,
+							name: true,
+							address: true,
+						},
+					},
 					conversation: {
 						select: {
 							id: true,

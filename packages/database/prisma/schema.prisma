@@ -1072,6 +1072,7 @@ model Base {
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   dealer       IspDealer?     @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   workers      BaseEmployee[]
+  tasks        Task[]
 
   @@index([organizationId])
   @@index([dealerId])
@@ -1759,6 +1760,7 @@ model Task {
   createdById    String?
   customerId     String?
   stationId      String?
+  baseId         String?
   conversationId String?
   followUpStatus String?        // pending | contacted | promised | resolved | escalated
   externalBillingId Int?        @map("external_billing_id")
@@ -1774,6 +1776,7 @@ model Task {
   createdBy    User?            @relation("taskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
   station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  base         Base?            @relation(fields: [baseId], references: [id], onDelete: SetNull)
   conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   completedByEmployee Employee? @relation("TaskCompleter", fields: [completedByEmployeeId], references: [id], onDelete: SetNull)
   assignments  TaskAssignment[]
@@ -1787,6 +1790,7 @@ model Task {
   @@index([createdById])
   @@index([customerId])
   @@index([stationId])
+  @@index([baseId])
   @@index([conversationId])
   @@index([dueDate])
   @@map("task")

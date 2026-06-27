@@ -24,6 +24,7 @@ export { PlansListSkeleton } from "./components/PlansListSkeleton";
 export { StationsList } from "./components/StationsList";
 export { StationsListSkeleton } from "./components/StationsListSkeleton";
 export { useAccessPoints } from "./hooks/use-access-points";
+export { useBasesQuery } from "./hooks/use-bases";
 export {
 	useApplyIRadiusEntitySync,
 	useBulkExport,

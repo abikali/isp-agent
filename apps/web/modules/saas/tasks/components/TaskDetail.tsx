@@ -1,6 +1,6 @@
 "use client";
 
-import { useStationsQuery } from "@saas/customers/client";
+import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
 import { PageShell } from "@shared/components/PageShell";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -41,6 +41,7 @@ export function TaskDetail({
 	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
 	const { stations } = useStationsQuery();
+	const { bases } = useBasesQuery();
 
 	const { data } = useSuspenseQuery(
 		orpc.tasks.get.queryOptions({
@@ -62,6 +63,7 @@ export function TaskDetail({
 			category: task.category,
 			dueDate: task.dueDate ? formatDateInput(task.dueDate) : "",
 			stationId: task.stationId ?? "",
+			baseId: task.baseId ?? "",
 			notes: task.notes ?? "",
 		},
 		onSubmit: async ({ value }) => {
@@ -94,6 +96,7 @@ export function TaskDetail({
 						| "GENERAL",
 					dueDate: value.dueDate ? new Date(value.dueDate) : null,
 					stationId: value.stationId || null,
+					baseId: value.baseId || null,
 					notes: value.notes || null,
 				});
 				toast.success("Task updated");
@@ -287,7 +290,7 @@ export function TaskDetail({
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">
-								Station & Notes
+								Station, Base & Notes
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
@@ -311,6 +314,37 @@ export function TaskDetail({
 														{s.name}
 													</SelectItem>
 												))}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="baseId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Base</Label>
+										<Select
+											value={field.state.value}
+											onValueChange={field.handleChange}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="No base" />
+											</SelectTrigger>
+											<SelectContent>
+												{bases.length === 0 ? (
+													<div className="px-2 py-1.5 text-muted-foreground text-sm">
+														No bases yet
+													</div>
+												) : (
+													bases.map((b) => (
+														<SelectItem
+															key={b.id}
+															value={b.id}
+														>
+															{b.name}
+														</SelectItem>
+													))
+												)}
 											</SelectContent>
 										</Select>
 									</div>

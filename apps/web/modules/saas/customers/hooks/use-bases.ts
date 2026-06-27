@@ -1,9 +1,10 @@
 "use client";
 
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
 	useMutation,
+	useQuery,
 	useQueryClient,
 	useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -20,6 +21,22 @@ export function useBases() {
 	);
 
 	return { bases: query.data?.bases ?? [] };
+}
+
+// Non-suspense variant for dropdowns/forms (e.g. task create/edit).
+export function useBasesQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.bases.list.queryOptions({ input: { organizationId } })
+			: disabledQuery(["bases", "list"]),
+	);
+
+	return {
+		bases: query.data?.bases ?? [],
+		isLoading: query.isLoading,
+	};
 }
 
 export function useCreateBase() {

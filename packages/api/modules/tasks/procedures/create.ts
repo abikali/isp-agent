@@ -50,6 +50,7 @@ export const createTask = protectedProcedure
 			notes: z.string().max(5000).optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
+			baseId: z.string().optional(),
 			employeeIds: z.array(z.string()).optional(),
 			// Maintenance-visit WhatsApp to the customer (legacy parity)
 			notifyCustomerWhatsApp: z.boolean().optional(),
@@ -77,6 +78,22 @@ export const createTask = protectedProcedure
 			if (!customer) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "Customer does not belong to your dealer",
+				});
+			}
+		}
+
+		if (input.baseId) {
+			const base = await db.base.findFirst({
+				where: {
+					id: input.baseId,
+					organizationId: input.organizationId,
+					...dealerFilter,
+				},
+				select: { id: true },
+			});
+			if (!base) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Base does not belong to your dealer",
 				});
 			}
 		}
@@ -110,6 +127,7 @@ export const createTask = protectedProcedure
 				createdById: user.id,
 				customerId: input.customerId ?? null,
 				stationId: input.stationId ?? null,
+				baseId: input.baseId ?? null,
 				completedAt: input.status === "COMPLETED" ? new Date() : null,
 				...(input.employeeIds?.length
 					? {
