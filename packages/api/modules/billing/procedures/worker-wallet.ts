@@ -5,6 +5,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { fetchCollectorBalance } from "../lib/queries";
+import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 
 /**
  * Worker-scoped wallet: cash balance + expense totals + recent ledger.
@@ -41,6 +42,11 @@ export const getMyWallet = protectedProcedure
 			});
 		}
 
+		// Expense totals are scoped to the active billing month so the worker
+		// portal shows only the current month's pending/approved expenses.
+		const { year, month } = await resolveYearMonth(input.organizationId);
+		const monthRange = getMonthDateRange(year, month);
+
 		const [balance, pendingExpenses, approvedExpenses, recentEntries] =
 			await Promise.all([
 				fetchCollectorBalance(input.organizationId, employeeId),
@@ -49,6 +55,7 @@ export const getMyWallet = protectedProcedure
 						organizationId: input.organizationId,
 						submittedById: employeeId,
 						status: "PENDING",
+						createdAt: { gte: monthRange.gte, lte: monthRange.lte },
 					},
 					_count: true,
 					_sum: { amount: true },
@@ -58,6 +65,7 @@ export const getMyWallet = protectedProcedure
 						organizationId: input.organizationId,
 						submittedById: employeeId,
 						status: "APPROVED",
+						createdAt: { gte: monthRange.gte, lte: monthRange.lte },
 					},
 					_count: true,
 					_sum: { amount: true },
