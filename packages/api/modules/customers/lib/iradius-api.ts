@@ -1,6 +1,36 @@
 import { type IspApiConfig, ispPost } from "@repo/ai/isp-api-client";
-import { executeIRadius, withIRadiusConnection } from "@repo/database/iradius";
+import {
+	executeIRadius,
+	queryIRadius,
+	withIRadiusConnection,
+} from "@repo/database/iradius";
 import { iradiusForceDisconnect } from "./iradius-disconnect";
+
+/**
+ * Read-only check: is `username` already taken on iRadius (User.UserName)?
+ *
+ * Matches case-insensitively via MySQL's default collation on `=`, which is
+ * the stricter (safer) choice for an existence check. Used before assigning a
+ * username to a locally-approved customer so an admin can never pick one that
+ * already exists on the legacy system. This is a SELECT only — it never
+ * mutates iRadius, so it sits outside the narrow sanctioned-write carve-out.
+ */
+export async function iradiusUsernameExists(
+	username: string,
+): Promise<boolean> {
+	const trimmed = username.trim();
+	if (!trimmed) {
+		return false;
+	}
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			"SELECT Id FROM User WHERE UserName = ? LIMIT 1",
+			[trimmed],
+		);
+		return rows.length > 0;
+	});
+}
 
 /**
  * Thrown by `iradiusSetActive` when iRadius reports the user no longer

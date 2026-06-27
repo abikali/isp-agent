@@ -18,6 +18,7 @@ import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { approveInstallationInTx } from "../../installations/procedures/review";
+import { iradiusUsernameExists } from "../lib/iradius-api";
 
 const setupItemSchema = z
 	.object({
@@ -339,6 +340,7 @@ export const listSetupRequests = protectedProcedure
 						mobile: true,
 						address: true,
 						groupName: true,
+						username: true,
 						status: true,
 						expiresAt: true,
 						plan: { select: { id: true, name: true } },
@@ -380,6 +382,7 @@ export const updateSetupRequest = protectedProcedure
 			mobile: z.string().max(50).optional(),
 			address: z.string().max(500).optional(),
 			groupName: z.string().max(100).nullable().optional(),
+			username: z.string().trim().min(1).max(100).optional(),
 			planId: z.string().optional(),
 			collectorId: z.string().nullable().optional(),
 			monthlyRate: z.number().min(0).optional(),
@@ -391,7 +394,7 @@ export const updateSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -405,7 +408,11 @@ export const updateSetupRequest = protectedProcedure
 				status: "PENDING",
 				customer: getDealerScopeFilter(activeDealerId),
 			},
-			select: { id: true, customerId: true },
+			select: {
+				id: true,
+				customerId: true,
+				customer: { select: { username: true } },
+			},
 		});
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
@@ -441,7 +448,25 @@ export const updateSetupRequest = protectedProcedure
 			}
 		}
 
+		// Re-validate a newly-assigned username against iRadius (defense in
+		// depth — the dialog checks on blur, but never trust the client). Only
+		// re-check when it actually changed: the stored value isn't pushed to
+		// iRadius, so re-saving an unchanged username must not block edits.
+		if (
+			input.username !== undefined &&
+			input.username !== request.customer.username &&
+			!iradiusDisabled &&
+			(await iradiusUsernameExists(input.username))
+		) {
+			throw new ORPCError("CONFLICT", {
+				message: `Username "${input.username}" already exists on iRadius`,
+			});
+		}
+
 		const customerData: Record<string, unknown> = {};
+		if (input.username !== undefined) {
+			customerData["username"] = input.username;
+		}
 		if (input.firstName !== undefined) {
 			customerData["firstName"] = input.firstName;
 		}
@@ -499,6 +524,39 @@ export const updateSetupRequest = protectedProcedure
 		});
 
 		return { request: updated };
+	});
+
+/**
+ * Read-only availability check for an iRadius username. Backs the live "is
+ * this taken?" feedback in the Edit-Before-Approval dialog. Returns
+ * `available: true` for iRadius-disabled orgs (no legacy system to collide
+ * with). Read-only — never writes to iRadius.
+ */
+export const checkIradiusUsername = protectedProcedure
+	.route({
+		method: "GET",
+		path: "/customers/setup-requests/check-username",
+		tags: ["Customers"],
+		summary: "Check whether a username is already taken on iRadius",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			username: z.string().trim().min(1).max(100),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		const { iradiusDisabled } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"customers",
+			"update",
+		);
+		if (iradiusDisabled) {
+			return { available: true };
+		}
+		const exists = await iradiusUsernameExists(input.username);
+		return { available: !exists };
 	});
 
 export const approveSetupRequest = protectedProcedure

@@ -50,6 +50,7 @@ import { searchCustomersForPicker } from "./procedures/search-for-picker";
 import { setCustomerPin } from "./procedures/set-pin";
 import {
 	approveSetupRequest,
+	checkIradiusUsername,
 	listSetupRequests,
 	rejectSetupRequest,
 	updateSetupRequest,
@@ -137,5 +138,6 @@ export const customersRouter = {
 		update: updateSetupRequest,
 		approve: approveSetupRequest,
 		reject: rejectSetupRequest,
+		checkUsername: checkIradiusUsername,
 	},
 };
