@@ -50,27 +50,37 @@ export const getMyCustomerItems = protectedProcedure
 			select: {
 				customerId: true,
 				quantity: true,
+				price: true,
+				isAddOn: true,
 				stockItem: { select: { name: true } },
 			},
 			orderBy: { installedAt: "desc" },
 			take: 2000,
 		});
 
-		const byCustomer: Record<string, { name: string; quantity: number }[]> =
-			{};
+		interface CustomerItems {
+			items: { name: string; quantity: number }[];
+			equipmentTotal: number;
+		}
+		const byCustomer: Record<string, CustomerItems> = {};
 		for (const row of rows) {
 			if (!row.customerId) {
 				continue;
 			}
-			const name = row.stockItem?.name ?? "Item";
-			const list = byCustomer[row.customerId] ?? [];
-			const existing = list.find((item) => item.name === name);
+			const name =
+				row.stockItem?.name ?? (row.isAddOn ? "Add-on" : "Item");
+			const entry = byCustomer[row.customerId] ?? {
+				items: [],
+				equipmentTotal: 0,
+			};
+			entry.equipmentTotal += row.price * row.quantity;
+			const existing = entry.items.find((item) => item.name === name);
 			if (existing) {
 				existing.quantity += row.quantity;
 			} else {
-				list.push({ name, quantity: row.quantity });
+				entry.items.push({ name, quantity: row.quantity });
 			}
-			byCustomer[row.customerId] = list;
+			byCustomer[row.customerId] = entry;
 		}
 
 		return { byCustomer };

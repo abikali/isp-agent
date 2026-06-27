@@ -19,6 +19,11 @@ import {
 	useMyWalletQuery,
 } from "../hooks/use-worker";
 
+const STATUS_VARIANTS: Record<string, "success" | "info" | "outline"> = {
+	ACTIVE: "success",
+	PENDING: "info",
+};
+
 export function WorkerHome() {
 	const { activeOrganization } = useActiveOrganization();
 	const { wallet, isLoading: walletLoading } = useMyWalletQuery();
@@ -27,6 +32,12 @@ export function WorkerHome() {
 	const { byCustomer } = useMyCustomerItemsQuery();
 
 	const orgSlug = activeOrganization?.slug ?? "";
+
+	const visibleCustomers = [...customers]
+		.sort((a, b) =>
+			a.status === "PENDING" ? -1 : b.status === "PENDING" ? 1 : 0,
+		)
+		.slice(0, 10);
 
 	return (
 		<div className="space-y-4">
@@ -123,91 +134,97 @@ export function WorkerHome() {
 				</Link>
 			</div>
 
-			{/* My customers — with items installed by this worker */}
+			{/* My customers — items installed + total to collect (worker.php parity) */}
 			{customers.length > 0 && (
 				<Card>
 					<CardContent className="p-4">
-						<div className="mb-2 flex items-center justify-between">
+						<div className="mb-3 flex items-center justify-between">
 							<p className="font-medium text-sm">My customers</p>
 							<span className="text-muted-foreground text-xs tabular-nums">
 								{customers.length}
 							</span>
 						</div>
-						<div className="space-y-2.5">
-							{[...customers]
-								.sort((a, b) =>
-									a.status === "PENDING"
-										? -1
-										: b.status === "PENDING"
-											? 1
-											: 0,
-								)
-								.slice(0, 10)
-								.map((customer) => {
-									const name =
-										[customer.firstName, customer.lastName]
-											.filter(Boolean)
-											.join(" ") ||
-										customer.accountNumber;
-									const items = byCustomer[customer.id] ?? [];
-									return (
-										<div
-											key={customer.id}
-											className="space-y-1.5 border-b pb-2.5 last:border-b-0 last:pb-0"
-										>
-											<div className="flex items-center justify-between gap-2 text-sm">
-												<div className="min-w-0">
-													<p className="truncate font-medium">
-														{name}
+						<div className="grid gap-2 sm:grid-cols-2">
+							{visibleCustomers.map((customer) => {
+								const name =
+									[customer.firstName, customer.lastName]
+										.filter(Boolean)
+										.join(" ") || customer.accountNumber;
+								const entry = byCustomer[customer.id];
+								const items = entry?.items ?? [];
+								const toCollect =
+									(customer.monthlyRate ?? 0) +
+									(entry?.equipmentTotal ?? 0);
+								return (
+									<div
+										key={customer.id}
+										className="flex flex-col gap-2 rounded-lg border p-3"
+									>
+										<div className="flex items-start justify-between gap-2">
+											<div className="min-w-0">
+												<p className="truncate font-medium text-sm">
+													{name}
+												</p>
+												{customer.groupName && (
+													<p className="truncate text-muted-foreground text-xs">
+														{customer.groupName}
 													</p>
-													{customer.groupName && (
-														<p className="truncate text-muted-foreground text-xs">
-															{customer.groupName}
-														</p>
-													)}
-												</div>
-												<div className="flex shrink-0 items-center gap-2">
-													{customer.monthlyRate !=
-														null && (
-														<span className="font-mono text-muted-foreground text-xs tabular-nums">
-															{formatCurrency(
-																customer.monthlyRate,
-															)}
-														</span>
-													)}
-													<Badge
-														variant={
-															customer.status ===
-															"ACTIVE"
-																? "success"
-																: customer.status ===
-																		"PENDING"
-																	? "info"
-																	: "outline"
-														}
-													>
-														{customer.status.toLowerCase()}
-													</Badge>
-												</div>
+												)}
 											</div>
-											{items.length > 0 && (
-												<div className="flex flex-wrap gap-1">
-													{items.map((item) => (
-														<span
-															key={item.name}
-															className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-														>
-															<PackageIcon className="size-3 shrink-0" />
+											<Badge
+												variant={
+													STATUS_VARIANTS[
+														customer.status
+													] ?? "outline"
+												}
+											>
+												{customer.status.toLowerCase()}
+											</Badge>
+										</div>
+										<div className="flex items-end justify-between gap-2">
+											<div className="min-w-0">
+												<p className="text-[11px] text-muted-foreground">
+													Total to collect
+												</p>
+												<p className="font-mono font-semibold text-base tabular-nums">
+													{formatCurrency(toCollect)}
+												</p>
+											</div>
+											{customer.monthlyRate != null && (
+												<span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+													{formatCurrency(
+														customer.monthlyRate,
+													)}
+													/mo
+												</span>
+											)}
+										</div>
+										{items.length > 0 && (
+											<div className="flex flex-wrap gap-1 border-t pt-2">
+												{items.map((item) => (
+													<span
+														key={item.name}
+														className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+													>
+														<PackageIcon className="size-3 shrink-0" />
+														<span className="truncate">
 															{item.quantity}×{" "}
 															{item.name}
 														</span>
-													))}
-												</div>
-											)}
-										</div>
-									);
-								})}
+													</span>
+												))}
+											</div>
+										)}
+									</div>
+								);
+							})}
 						</div>
+						{customers.length > visibleCustomers.length && (
+							<p className="mt-3 text-center text-muted-foreground text-xs">
+								Showing {visibleCustomers.length} of{" "}
+								{customers.length}
+							</p>
+						)}
 					</CardContent>
 				</Card>
 			)}
