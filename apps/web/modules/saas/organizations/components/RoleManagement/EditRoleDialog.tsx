@@ -1,8 +1,11 @@
 "use client";
 
+import { roleNameSchema } from "@repo/api/lib/validation";
 import type { PermissionRecord } from "@repo/auth/permissions";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
+import { Field, FieldError, FieldLabel } from "@ui/components/field";
+import { Input } from "@ui/components/input";
 import {
 	Sheet,
 	SheetContent,
@@ -48,6 +51,7 @@ export function EditRoleDialog({
 
 	const form = useForm({
 		defaultValues: {
+			name: role?.name ?? "",
 			permissions: (role
 				? parsePermissions(role.permissions)
 				: {}) as Record<string, string[]>,
@@ -57,10 +61,16 @@ export function EditRoleDialog({
 				return;
 			}
 
+			const trimmedName = value.name.trim();
+			const renamed = trimmedName !== "" && trimmedName !== role.name;
+
 			toast.promise(
 				updateRoleMutation.mutateAsync({
 					roleId: role.id,
 					permissions: value.permissions as PermissionRecord,
+					...(renamed
+						? { name: trimmedName, previousName: role.name }
+						: {}),
 				}),
 				{
 					loading: "Updating role...",
@@ -78,6 +88,7 @@ export function EditRoleDialog({
 	useEffect(() => {
 		if (role) {
 			form.reset({
+				name: role.name,
 				permissions: parsePermissions(role.permissions),
 			});
 		}
@@ -113,6 +124,50 @@ export function EditRoleDialog({
 					className="flex flex-1 flex-col overflow-hidden"
 				>
 					<div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+						<form.Field
+							name="name"
+							validators={{ onBlur: roleNameSchema }}
+						>
+							{(field) => {
+								const hasErrors =
+									field.state.meta.isTouched &&
+									field.state.meta.errors.length > 0;
+								return (
+									<Field
+										data-invalid={hasErrors || undefined}
+									>
+										<FieldLabel htmlFor="edit-role-name">
+											Role Name
+										</FieldLabel>
+										<Input
+											id="edit-role-name"
+											placeholder="e.g. collector, field-tech, dealer"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+											onBlur={field.handleBlur}
+											aria-invalid={
+												hasErrors || undefined
+											}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Lowercase letters, numbers, and
+											hyphens only. Renaming updates all
+											members with this role.
+										</p>
+										{hasErrors && (
+											<FieldError
+												errors={field.state.meta.errors}
+											/>
+										)}
+									</Field>
+								);
+							}}
+						</form.Field>
+
 						<form.Field name="permissions">
 							{(field) => (
 								<RolePermissionsGrid

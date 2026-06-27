@@ -23,8 +23,8 @@ export const listCustomerGroups = protectedProcedure
 		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
-			"billing",
-			"view",
+			"groups",
+			"read",
 		);
 
 		const where: Record<string, unknown> = {
@@ -33,7 +33,8 @@ export const listCustomerGroups = protectedProcedure
 			...getDealerScopeFilter(activeDealerId),
 		};
 
-		// If scope is "own", only show groups for this collector's customers
+		// Collectors restricted to their own customers (billing collect:own)
+		// still only see areas among the customers they collect for.
 		const scope = getActionScope(permCtx, "billing", "collect");
 		if (scope === "own") {
 			const emp = await db.employee.findFirst({

@@ -129,6 +129,12 @@ export const AUDIT_ACTIONS = {
 		deleted: "station.deleted",
 	},
 
+	base: {
+		created: "base.created",
+		updated: "base.updated",
+		deleted: "base.deleted",
+	},
+
 	// Employee management actions
 	employee: {
 		created: "employee.created",
@@ -174,6 +180,7 @@ export const RESOURCE_TYPES = {
 	customer: "customer",
 	servicePlan: "service_plan",
 	station: "station",
+	base: "base",
 	employee: "employee",
 	task: "task",
 } as const;

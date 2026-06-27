@@ -52,6 +52,8 @@ const RESOURCE_LABELS: Record<PermissionResource, string> = {
 	customers: "Customers",
 	servicePlans: "Service Plans",
 	stations: "Stations",
+	bases: "Bases",
+	groups: "Areas",
 	accessPoints: "Access Points",
 	employees: "Employees",
 	tasks: "Tasks",

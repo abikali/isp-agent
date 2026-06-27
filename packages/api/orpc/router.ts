@@ -5,6 +5,7 @@ import { aiAgentsRouter } from "../modules/ai-agents/router";
 import { apiKeysRouter } from "../modules/api-keys/router";
 import { auditRouter } from "../modules/audit/router";
 import { authRouter } from "../modules/auth/router";
+import { basesRouter } from "../modules/bases/router";
 import { billingRouter } from "../modules/billing/router";
 import { customersRouter } from "../modules/customers/router";
 import { dashboardRouter } from "../modules/dashboard/router";
@@ -39,6 +40,7 @@ export const router = publicProcedure.router({
 	accessPoints: accessPointsRouter,
 	admin: adminRouter,
 	aiAgents: aiAgentsRouter,
+	bases: basesRouter,
 	billing: billingRouter,
 	auth: authRouter,
 	customers: customersRouter,

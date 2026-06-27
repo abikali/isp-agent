@@ -88,6 +88,22 @@ export function useEmployeeStats() {
 	return query.data;
 }
 
+export function useEmployeeReport(employeeId: string, months: 3 | 6 | 12 = 6) {
+	const organizationId = useOrganizationId();
+
+	const query = useSuspenseQuery(
+		orpc.employees.report.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				id: employeeId,
+				months,
+			},
+		}),
+	);
+
+	return query.data;
+}
+
 export function useEmployeesQuery(opts?: { dealerId?: string | null }) {
 	const organizationId = useOrganizationId();
 	const dealerId = opts?.dealerId ?? undefined;

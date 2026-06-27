@@ -3,15 +3,9 @@
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import { formatCurrency } from "@shared/lib/format";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useMyStockQuery } from "../hooks/use-worker";
 
@@ -121,9 +115,12 @@ export function InstallItemRows({
 					</div>
 
 					{line.kind === "item" ? (
-						<Select
+						<Combobox
 							value={line.stockItemId ?? ""}
-							onValueChange={(v) => {
+							placeholder="Pick from my stock"
+							searchPlaceholder="Search my stock…"
+							emptyText="No stock items"
+							onChange={(v) => {
 								const alloc = allocations.find(
 									(a) => a.stockItem.id === v,
 								);
@@ -135,56 +132,39 @@ export function InstallItemRows({
 										0,
 								});
 							}}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Pick from my stock" />
-							</SelectTrigger>
-							<SelectContent>
-								{allocations.map((alloc) => (
-									<SelectItem
-										key={alloc.stockItem.id}
-										value={alloc.stockItem.id}
-									>
-										{alloc.stockItem.name} (have{" "}
-										{alloc.quantity})
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							options={allocations.map((alloc) => ({
+								value: alloc.stockItem.id,
+								label: `${alloc.stockItem.name} (have ${alloc.quantity})`,
+							}))}
+						/>
 					) : (
-						<Select
+						<Combobox
 							value={line.addonType ?? ""}
-							onValueChange={(v) => {
+							placeholder="Add-on type"
+							searchPlaceholder="Search add-ons…"
+							onChange={(v) => {
 								const addonType = v as "IPTV" | "REAL_IP";
 								update(line.key, {
 									addonType,
 									price: defaultAddonPrice(addonType),
 								});
 							}}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Add-on type" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem
-									value="IPTV"
-									disabled={
-										hasIptv && line.addonType !== "IPTV"
-									}
-								>
-									IPTV
-								</SelectItem>
-								<SelectItem
-									value="REAL_IP"
-									disabled={
+							options={[
+								{
+									value: "IPTV",
+									label: "IPTV",
+									disabled:
+										hasIptv && line.addonType !== "IPTV",
+								},
+								{
+									value: "REAL_IP",
+									label: "Real IP",
+									disabled:
 										hasRealIp &&
-										line.addonType !== "REAL_IP"
-									}
-								>
-									Real IP
-								</SelectItem>
-							</SelectContent>
-						</Select>
+										line.addonType !== "REAL_IP",
+								},
+							]}
+						/>
 					)}
 
 					<div className="grid grid-cols-2 gap-2">

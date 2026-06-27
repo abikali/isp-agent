@@ -7,6 +7,7 @@ export { BulkImportDialog } from "./components/BulkImportDialog";
 export { CreateEmployeeDialog } from "./components/CreateEmployeeDialog";
 export { EmployeeDetail } from "./components/EmployeeDetail";
 export { EmployeeFilters } from "./components/EmployeeFilters";
+export { EmployeeReport } from "./components/EmployeeReport";
 export { EmployeeStats } from "./components/EmployeeStats";
 export { EmployeeStatsSkeleton } from "./components/EmployeeStatsSkeleton";
 export { EmployeesList } from "./components/EmployeesList";
@@ -19,6 +20,7 @@ export {
 	useDeleteEmployee,
 	useEmployeeBulkExport,
 	useEmployeeBulkImport,
+	useEmployeeReport,
 	useEmployeeStats,
 	useEmployees,
 	useEmployeesQuery,

@@ -75,6 +75,23 @@ pnpm --filter @repo/web test path/to/file.test.ts
 
 **Note:** This project requires Node.js >= 24. Dev server runs on port **5050**.
 
+### Local Infrastructure (Docker + Makefile)
+
+Local dev depends on Postgres, Redis, and Mailpit running via `docker compose`. A `Makefile` wraps the common flows:
+
+```bash
+make setup        # First-time: docker compose up + install + db generate/push
+make up / make down / make logs / make ps   # Manage docker services (postgres, redis, mailpit)
+make dev          # pnpm dev
+make check        # lint + type-check + build (the pre-commit gate)
+
+# Webhook development (Nango, Stripe, etc. need a public URL)
+make tunnel       # Cloudflare tunnel to localhost:3030
+make dev-tunnel   # Dev server + tunnel together
+```
+
+> **Stale starter-template files — ignore them.** `README.md`, `.windsurfrules`, and `.cursor/rules/*` are leftovers from the original SaaS starter and describe a *different* product (a Next.js App Router "digital profiles / lead capture" app with RSC and `nuqs`). This project is **TanStack Start** (not Next.js) and an **ISP management platform**. This file (`CLAUDE.md`) is authoritative; do not follow or re-import those files.
+
 ## Storage (Cloudflare R2)
 
 File storage uses Cloudflare R2 (S3-compatible). Images are uploaded via signed URLs and served through an image-proxy route.

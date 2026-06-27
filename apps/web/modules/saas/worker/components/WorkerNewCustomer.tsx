@@ -4,16 +4,10 @@ import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { PhoneInput } from "@ui/components/phone-input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { CheckIcon } from "lucide-react";
 import { useState } from "react";
@@ -162,42 +156,35 @@ export function WorkerNewCustomer() {
 				<div className="grid grid-cols-2 gap-2">
 					<div className="space-y-1.5">
 						<Label>Area</Label>
-						<Select
-							value={groupName || "none"}
-							onValueChange={(v) =>
-								setGroupName(v === "none" ? "" : v)
-							}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="None" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="none">None</SelectItem>
-								{groups.map((group) => (
-									<SelectItem key={group} value={group}>
-										{group}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<Combobox
+							value={groupName}
+							onChange={setGroupName}
+							placeholder="None"
+							searchPlaceholder="Search areas…"
+							options={[
+								{ value: "", label: "None" },
+								...groups.map((group) => ({
+									value: group,
+									label: group,
+								})),
+							]}
+						/>
 					</div>
 					<div className="space-y-1.5">
 						<Label>Collector</Label>
-						<Select
+						<Combobox
 							value={collectorId}
-							onValueChange={setCollectorId}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Optional" />
-							</SelectTrigger>
-							<SelectContent>
-								{collectors.map((emp) => (
-									<SelectItem key={emp.id} value={emp.id}>
-										{emp.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={setCollectorId}
+							placeholder="Optional"
+							searchPlaceholder="Search collectors…"
+							options={[
+								{ value: "", label: "None" },
+								...collectors.map((emp) => ({
+									value: emp.id,
+									label: emp.name,
+								})),
+							]}
+						/>
 					</div>
 				</div>
 			</div>
@@ -207,19 +194,16 @@ export function WorkerNewCustomer() {
 				<SectionTitle>Plan &amp; duration</SectionTitle>
 				<div className="space-y-1.5">
 					<Label>Plan *</Label>
-					<Select value={planId} onValueChange={setPlanId}>
-						<SelectTrigger>
-							<SelectValue placeholder="Pick a plan" />
-						</SelectTrigger>
-						<SelectContent>
-							{plans.map((p) => (
-								<SelectItem key={p.id} value={p.id}>
-									{p.name} — {formatCurrency(p.monthlyPrice)}
-									/mo
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<Combobox
+						value={planId}
+						onChange={setPlanId}
+						placeholder="Pick a plan"
+						searchPlaceholder="Search plans…"
+						options={plans.map((p) => ({
+							value: p.id,
+							label: `${p.name} — ${formatCurrency(p.monthlyPrice)}/mo`,
+						}))}
+					/>
 				</div>
 				<div className="space-y-1.5">
 					<Label>Duration</Label>

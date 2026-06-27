@@ -3,6 +3,9 @@
 // Components
 export { AccessPointsList } from "./components/AccessPointsList";
 export { AccessPointsListSkeleton } from "./components/AccessPointsListSkeleton";
+export { BaseFormDialog } from "./components/BaseFormDialog";
+export { BasesList } from "./components/BasesList";
+export { BasesListSkeleton } from "./components/BasesListSkeleton";
 export { BulkExportButton } from "./components/BulkExportButton";
 export { BulkImportDialog } from "./components/BulkImportDialog";
 export { CreateCustomerDialog } from "./components/CreateCustomerDialog";

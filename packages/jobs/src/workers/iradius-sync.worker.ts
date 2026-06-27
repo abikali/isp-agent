@@ -106,34 +106,56 @@ const PROFILE_ROLE_MAP: Record<number, string> = {
 	8: "manager", // Read Only
 };
 
-/** ISP role permissions (mirrors ISP_ROLE_TEMPLATES from @repo/auth) */
+/**
+ * ISP role permissions used to seed OrganizationRole rows on first sync.
+ *
+ * This MUST stay in sync with `ISP_ROLE_TEMPLATES` in
+ * `packages/auth/permissions/roles.ts`. It is duplicated (not imported) because
+ * `@repo/auth` depends on `@repo/jobs`, so importing `@repo/auth` here would
+ * create a circular workspace dependency. Keep the two in lockstep — drift here
+ * is what silently strips field-tech permissions (e.g. customers:create,
+ * servicePlans:read, groups:read) from synced orgs.
+ */
 const ISP_ROLE_PERMISSIONS: Record<string, Record<string, string[]>> = {
 	collector: {
-		customers: ["read"],
+		customers: ["read:own"],
 		billing: ["view", "collect:own"],
-		tasks: ["read"],
+		tasks: ["read:own"],
+		followups: ["read", "update"],
+		groups: ["read"],
 	},
 	field_tech: {
-		customers: ["read"],
-		tasks: ["create", "read", "update"],
+		customers: ["read", "create"],
+		servicePlans: ["read"],
+		tasks: ["create", "read:own", "update:own"],
 		inventory: ["read", "update"],
-		installations: ["create", "read", "update"],
+		installations: ["create", "read:own", "update"],
+		expenses: ["create", "read:own"],
 		stations: ["read"],
+		bases: ["read"],
+		groups: ["read"],
 	},
 	dealer: {
-		customers: ["read"],
+		customers: ["read:own"],
 		servicePlans: ["read"],
 		billing: ["view"],
+		bases: ["read"],
+		groups: ["read"],
 	},
 	manager: {
 		customers: ["create", "read", "update", "delete", "import", "export"],
 		employees: ["read", "update"],
 		servicePlans: ["read", "update"],
 		stations: ["read", "update"],
+		bases: ["create", "read", "update", "delete"],
+		groups: ["read"],
+		accessPoints: ["read", "update"],
 		tasks: ["create", "read", "update", "delete", "assign"],
 		billing: ["view", "manage", "collect"],
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
+		expenses: ["create", "read", "approve"],
+		followups: ["create", "read", "update", "delete"],
 		audit: ["view"],
 	},
 };

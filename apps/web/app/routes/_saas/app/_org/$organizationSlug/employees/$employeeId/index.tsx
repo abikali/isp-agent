@@ -7,7 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Skeleton } from "@ui/components/skeleton";
 
 export const Route = createFileRoute(
-	"/_saas/app/_org/$organizationSlug/employees/$employeeId",
+	"/_saas/app/_org/$organizationSlug/employees/$employeeId/",
 )({
 	head: () => ({
 		meta: [{ title: `Employee Details - ${config.appName}` }],

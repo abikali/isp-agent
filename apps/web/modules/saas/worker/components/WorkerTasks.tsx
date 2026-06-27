@@ -11,15 +11,9 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import {
 	Sheet,
 	SheetContent,
@@ -269,21 +263,15 @@ function MaintenanceSubmitSheet({
 		>
 			<div className="space-y-1.5">
 				<Label>What did you find?</Label>
-				<Select
+				<Combobox
 					value={resolutionCode}
-					onValueChange={setResolutionCode}
-				>
-					<SelectTrigger>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{TASK_RESOLUTION_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+					onChange={setResolutionCode}
+					searchPlaceholder="Search…"
+					options={TASK_RESOLUTION_OPTIONS.map((opt) => ({
+						value: opt.value,
+						label: opt.label,
+					}))}
+				/>
 			</div>
 			<div className="space-y-1.5">
 				<Label htmlFor="maint-note">
@@ -640,31 +628,25 @@ function RecoveredItemsEditor({
 					</div>
 					<div className="space-y-1.5">
 						<Label>Item</Label>
-						<Select
+						<Combobox
 							value={item.stockItemId ?? "custom"}
-							onValueChange={(v) =>
+							searchPlaceholder="Search my stock…"
+							onChange={(v) =>
 								updateItem(item.key, {
 									stockItemId: v === "custom" ? null : v,
 								})
 							}
-						>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="custom">
-									Other / type a name
-								</SelectItem>
-								{allocations.map((alloc) => (
-									<SelectItem
-										key={alloc.stockItem.id}
-										value={alloc.stockItem.id}
-									>
-										{alloc.stockItem.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							options={[
+								{
+									value: "custom",
+									label: "Other / type a name",
+								},
+								...allocations.map((alloc) => ({
+									value: alloc.stockItem.id,
+									label: alloc.stockItem.name,
+								})),
+							]}
+						/>
 						{!item.stockItemId && (
 							<Input
 								value={item.itemName}

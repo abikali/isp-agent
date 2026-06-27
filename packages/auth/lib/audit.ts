@@ -1282,6 +1282,79 @@ export const servicePlanAudit = {
 };
 
 /**
+ * Base audit logging functions
+ */
+export const baseAudit = {
+	created: (
+		baseId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata?: { name?: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.base.created,
+					resourceType: RESOURCE_TYPES.base,
+				},
+				{
+					resourceId: baseId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	updated: (
+		baseId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.base.updated,
+					resourceType: RESOURCE_TYPES.base,
+				},
+				{
+					resourceId: baseId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+
+	deleted: (
+		baseId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.base.deleted,
+					resourceType: RESOURCE_TYPES.base,
+				},
+				{
+					resourceId: baseId,
+					userId,
+					organizationId,
+					context,
+				},
+			),
+		);
+	},
+};
+
+/**
  * Station audit logging functions
  */
 export const stationAudit = {

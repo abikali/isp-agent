@@ -52,6 +52,7 @@ export {
 	PaymentsListSkeleton,
 } from "./components/PaymentsList";
 export { RegenerateInvoicesCard } from "./components/RegenerateInvoicesCard";
+export { ResetMonthCard } from "./components/ResetMonthCard";
 export {
 	StoppedAccountsList,
 	StoppedAccountsListSkeleton,

@@ -59,6 +59,7 @@ import {
 } from "@ui/components/select";
 import { Textarea } from "@ui/components/textarea";
 import {
+	BarChart3Icon,
 	CheckCircle2Icon,
 	ClipboardListIcon,
 	DollarSignIcon,
@@ -259,6 +260,16 @@ export function EmployeeDetail({
 			}
 			actions={
 				<div className="flex flex-wrap gap-2">
+					<Button asChild variant="outline" size="sm">
+						<Link
+							to="/app/$organizationSlug/employees/$employeeId/report"
+							params={{ organizationSlug, employeeId }}
+							preload="intent"
+						>
+							<BarChart3Icon className="mr-1.5 size-3.5" />
+							Report
+						</Link>
+					</Button>
 					{employee.externalId && (
 						<Button
 							variant="outline"

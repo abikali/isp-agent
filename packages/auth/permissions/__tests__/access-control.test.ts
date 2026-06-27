@@ -99,6 +99,8 @@ describe("permissionStatement", () => {
 			"customers",
 			"servicePlans",
 			"stations",
+			"bases",
+			"groups",
 			"accessPoints",
 			"employees",
 			"tasks",

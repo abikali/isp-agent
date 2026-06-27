@@ -6,6 +6,7 @@ import {
 import {
 	getDealerScopeFilter,
 	getUserEmployeeId,
+	hasPermission,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db, getPrimaryPhone } from "@repo/database";
@@ -45,7 +46,7 @@ export const workerCreateOptions = protectedProcedure
 	})
 	.input(z.object({ organizationId: z.string() }))
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -53,37 +54,53 @@ export const workerCreateOptions = protectedProcedure
 		);
 		const dealerScope = getDealerScopeFilter(activeDealerId);
 
+		// Plans and areas are each gated by their own read permission, so an
+		// admin can control which roles see them in the field form. Collectors
+		// stay tied to the create permission (the form always needs them).
+		const canReadPlans = hasPermission(permCtx, "servicePlans", "read");
+		const canReadGroups = hasPermission(permCtx, "groups", "read");
+
 		const [plans, collectors, groupRows] = await Promise.all([
-			db.servicePlan.findMany({
-				where: {
-					organizationId: input.organizationId,
-					deletedAt: null,
-					archived: false,
-					...dealerScope,
-				},
-				select: { id: true, name: true, monthlyPrice: true },
-				orderBy: { name: "asc" },
-			}),
+			canReadPlans
+				? db.servicePlan.findMany({
+						where: {
+							organizationId: input.organizationId,
+							deletedAt: null,
+							archived: false,
+							...dealerScope,
+						},
+						select: { id: true, name: true, monthlyPrice: true },
+						orderBy: { name: "asc" },
+					})
+				: Promise.resolve([]),
+			// Collectors only — billing-department staff or anyone already
+			// assigned customers as a collector. Mirrors billing.listCollectors
+			// so the field form doesn't list techs/other roles.
 			db.employee.findMany({
 				where: {
 					organizationId: input.organizationId,
 					status: "ACTIVE",
 					deletedAt: null,
-					...dealerScope,
+					OR: [
+						{ ...dealerScope, department: "BILLING" },
+						{ customerCollections: { some: dealerScope } },
+					],
 				},
 				select: { id: true, name: true },
 				orderBy: { name: "asc" },
 			}),
-			db.customer.findMany({
-				where: {
-					organizationId: input.organizationId,
-					groupName: { not: null },
-					...dealerScope,
-				},
-				select: { groupName: true },
-				distinct: ["groupName"],
-				orderBy: { groupName: "asc" },
-			}),
+			canReadGroups
+				? db.customer.findMany({
+						where: {
+							organizationId: input.organizationId,
+							groupName: { not: null },
+							...dealerScope,
+						},
+						select: { groupName: true },
+						distinct: ["groupName"],
+						orderBy: { groupName: "asc" },
+					})
+				: Promise.resolve([]),
 		]);
 
 		return {

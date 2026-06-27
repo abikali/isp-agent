@@ -18,6 +18,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["create", "read", "update", "delete", "import", "export"],
 		servicePlans: ["create", "read", "update", "delete"],
 		stations: ["create", "read", "update", "delete"],
+		bases: ["create", "read", "update", "delete"],
+		groups: ["read"],
 		accessPoints: ["create", "read", "update", "delete"],
 		employees: [
 			"create",
@@ -58,6 +60,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["create", "read", "update", "delete", "import", "export"],
 		servicePlans: ["create", "read", "update", "delete"],
 		stations: ["create", "read", "update", "delete"],
+		bases: ["create", "read", "update", "delete"],
+		groups: ["read"],
 		accessPoints: ["create", "read", "update", "delete"],
 		employees: [
 			"create",
@@ -93,6 +97,8 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		customers: ["read"],
 		servicePlans: ["read"],
 		stations: ["read"],
+		bases: ["read"],
+		groups: ["read"],
 		accessPoints: ["read"],
 		employees: ["read"],
 		tasks: ["read"],
@@ -146,6 +152,8 @@ export const owner = ac.newRole({
 	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	bases: ["create", "read", "update", "delete"],
+	groups: ["read"],
 	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
@@ -225,6 +233,8 @@ export const admin = ac.newRole({
 	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	bases: ["create", "read", "update", "delete"],
+	groups: ["read"],
 	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
@@ -274,6 +284,8 @@ export const member = ac.newRole({
 	customers: ["read"],
 	servicePlans: ["read"],
 	stations: ["read"],
+	bases: ["read"],
+	groups: ["read"],
 	accessPoints: ["read"],
 	employees: ["read"],
 	tasks: ["read"],
@@ -377,6 +389,7 @@ export const ISP_ROLE_TEMPLATES = {
 			billing: ["view", "collect:own"],
 			tasks: ["read:own"],
 			followups: ["read", "update"],
+			groups: ["read"],
 		},
 	},
 	field_tech: {
@@ -384,11 +397,14 @@ export const ISP_ROLE_TEMPLATES = {
 		description: "Field worker — manages installations, stock, and tasks",
 		permissions: {
 			customers: ["read", "create"],
+			servicePlans: ["read"],
 			tasks: ["create", "read:own", "update:own"],
 			inventory: ["read", "update"],
 			installations: ["create", "read:own", "update"],
 			expenses: ["create", "read:own"],
 			stations: ["read"],
+			bases: ["read"],
+			groups: ["read"],
 		},
 	},
 	dealer: {
@@ -398,6 +414,8 @@ export const ISP_ROLE_TEMPLATES = {
 			customers: ["read:own"],
 			servicePlans: ["read"],
 			billing: ["view"],
+			bases: ["read"],
+			groups: ["read"],
 		},
 	},
 	manager: {
@@ -416,6 +434,8 @@ export const ISP_ROLE_TEMPLATES = {
 			employees: ["read", "update"],
 			servicePlans: ["read", "update"],
 			stations: ["read", "update"],
+			bases: ["create", "read", "update", "delete"],
+			groups: ["read"],
 			accessPoints: ["read", "update"],
 			tasks: ["create", "read", "update", "delete", "assign"],
 

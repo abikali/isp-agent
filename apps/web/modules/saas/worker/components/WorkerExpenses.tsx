@@ -10,15 +10,9 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import {
 	Sheet,
 	SheetContent,
@@ -166,24 +160,15 @@ export function WorkerExpenses() {
 						</div>
 						<div className="space-y-1.5">
 							<Label>Category</Label>
-							<Select
+							<Combobox
 								value={category}
-								onValueChange={setCategory}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{EXPENSE_CATEGORIES.map((cat) => (
-										<SelectItem
-											key={cat.value}
-											value={cat.value}
-										>
-											{cat.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								onChange={setCategory}
+								searchPlaceholder="Search categories…"
+								options={EXPENSE_CATEGORIES.map((cat) => ({
+									value: cat.value,
+									label: cat.label,
+								}))}
+							/>
 						</div>
 						<div className="space-y-1.5">
 							<Label htmlFor="expense-note">

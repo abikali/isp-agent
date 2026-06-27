@@ -323,6 +323,18 @@ export function useRegenerateMonthInvoices() {
 	});
 }
 
+export function useResetMonth() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.months.reset.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.billing.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		},
+	});
+}
+
 export function useReactivateAccount() {
 	const queryClient = useQueryClient();
 

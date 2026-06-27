@@ -3,6 +3,7 @@
 import { authClient } from "@repo/auth/client";
 import type { PermissionRecord } from "@repo/auth/permissions";
 import { disabledQuery, hasOrganizationId } from "@shared/lib/organization";
+import { orpcClient } from "@shared/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { organizationsQueryKeys } from "../lib/api";
 
@@ -94,19 +95,36 @@ export function useUpdateRoleMutation(organizationId: string) {
 		mutationKey: ["update-role", organizationId],
 		mutationFn: async ({
 			roleId,
+			name,
+			previousName,
 			permissions,
 		}: {
 			roleId: string;
+			name?: string;
+			previousName?: string;
 			permissions: PermissionRecord;
 		}) => {
 			const { error } = await authClient.organization.updateRole({
 				organizationId,
 				roleId,
-				data: { permission: permissions },
+				data: {
+					permission: permissions,
+					...(name ? { roleName: name } : {}),
+				},
 			});
 
 			if (error) {
 				throw error;
+			}
+
+			// Better Auth renames the role row but does not cascade to
+			// member.role, which would orphan assigned members. Reassign them.
+			if (name && previousName && name !== previousName) {
+				await orpcClient.organizations.reassignRoleMembers({
+					organizationId,
+					fromRole: previousName,
+					toRole: name,
+				});
 			}
 		},
 		onSuccess: () => {

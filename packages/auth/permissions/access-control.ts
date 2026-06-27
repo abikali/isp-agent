@@ -56,6 +56,11 @@ export const permissionStatement = {
 	],
 	servicePlans: ["create", "read", "update", "delete"],
 	stations: ["create", "read", "update", "delete"],
+	// Operational bases that can be assigned to workers (employees).
+	bases: ["create", "read", "update", "delete"],
+	// Customer areas (distinct `customer.groupName` values). Read-only:
+	// controls who can see the list of areas/groups in pickers and filters.
+	groups: ["read"],
 	accessPoints: ["create", "read", "update", "delete"],
 	employees: [
 		"create",
@@ -187,6 +192,8 @@ export const PERMISSION_GROUPS = {
 			"customers",
 			"servicePlans",
 			"stations",
+			"bases",
+			"groups",
 			"accessPoints",
 			"employees",
 			"tasks",

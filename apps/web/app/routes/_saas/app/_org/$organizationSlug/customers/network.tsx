@@ -2,6 +2,8 @@ import { config } from "@repo/config";
 import {
 	AccessPointsList,
 	AccessPointsListSkeleton,
+	BasesList,
+	BasesListSkeleton,
 	StationsList,
 	StationsListSkeleton,
 } from "@saas/customers/client";
@@ -10,7 +12,7 @@ import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/components/tabs";
-import { RadioTowerIcon, WifiIcon } from "lucide-react";
+import { Building2Icon, RadioTowerIcon, WifiIcon } from "lucide-react";
 
 export const Route = createFileRoute(
 	"/_saas/app/_org/$organizationSlug/customers/network",
@@ -26,7 +28,7 @@ function NetworkPage() {
 		<PermissionGate resource="stations" action="read">
 			<PageShell
 				title="Network"
-				description="Stations and access points synced from iRadius"
+				description="Stations, access points, and bases"
 			>
 				<Tabs defaultValue="stations" className="space-y-4">
 					<TabsList className="w-full justify-start sm:w-auto">
@@ -37,6 +39,10 @@ function NetworkPage() {
 						<TabsTrigger value="access-points" className="gap-1.5">
 							<WifiIcon className="size-3.5" />
 							Access Points
+						</TabsTrigger>
+						<TabsTrigger value="bases" className="gap-1.5">
+							<Building2Icon className="size-3.5" />
+							Bases
 						</TabsTrigger>
 					</TabsList>
 
@@ -52,6 +58,14 @@ function NetworkPage() {
 								fallback={<AccessPointsListSkeleton />}
 							>
 								<AccessPointsList />
+							</AsyncBoundary>
+						</PermissionGate>
+					</TabsContent>
+
+					<TabsContent value="bases">
+						<PermissionGate resource="bases" action="read">
+							<AsyncBoundary fallback={<BasesListSkeleton />}>
+								<BasesList />
 							</AsyncBoundary>
 						</PermissionGate>
 					</TabsContent>

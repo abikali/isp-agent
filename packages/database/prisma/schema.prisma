@@ -319,6 +319,7 @@ model Organization {
   employees            Employee[]
   servicePlans         ServicePlan[]
   stations             Station[]
+  bases                Base[]
   tasks                Task[]
   billingMonths        BillingMonth[]
   payments             Payment[]
@@ -1056,6 +1057,42 @@ model Station {
   @@map("station")
 }
 
+// A Base is a physical/operational hub that can be assigned to one or more
+// workers (employees). Dealer-scoped like stations/customers.
+model Base {
+  id             String   @id @default(cuid())
+  organizationId String
+  dealerId       String?
+  name           String
+  description    String?  @db.Text
+  address        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer       IspDealer?     @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  workers      BaseEmployee[]
+
+  @@index([organizationId])
+  @@index([dealerId])
+  @@map("base")
+}
+
+model BaseEmployee {
+  id         String   @id @default(cuid())
+  baseId     String
+  employeeId String
+  assignedAt DateTime @default(now())
+
+  base     Base     @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([baseId, employeeId])
+  @@index([baseId])
+  @@index([employeeId])
+  @@map("base_employee")
+}
+
 model AccessPoint {
   id             String   @id @default(cuid())
   organizationId String
@@ -1431,6 +1468,7 @@ model IspDealer {
   customers      Customer[]
   employees      Employee[]
   servicePlans   ServicePlan[]
+  bases          Base[]
   dealerAccounts         IspDealerAccount[]
   activeForOrganization  Organization?       @relation("ActiveDealer")
 
@@ -1666,6 +1704,7 @@ model Employee {
   user                  User?                 @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
   dealer                IspDealer?            @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   stations              EmployeeStation[]
+  bases                 BaseEmployee[]
   taskAssignments       TaskAssignment[]
   customerCollections   Customer[]            @relation("CustomerCollector")
   customerWorkerAssignments Customer[]        @relation("CustomerWorker")
