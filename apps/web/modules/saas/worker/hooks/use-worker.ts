@@ -40,6 +40,46 @@ export function useMyStatsQuery() {
 	return { stats: query.data, isLoading: query.isLoading };
 }
 
+/** Monthly activity trend for the Tasks chart (lazy: only fetched when shown). */
+export function useMyTrendQuery(months: 3 | 6 | 12, enabled: boolean) {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? {
+					...orpc.employees.myTrend.queryOptions({
+						input: { organizationId, months },
+					}),
+					enabled,
+				}
+			: disabledQuery(["employees", "myTrend"]),
+	);
+
+	return {
+		trend: query.data?.trend ?? [],
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
+	};
+}
+
+/** Installed items grouped by customer for the logged-in field employee. */
+export function useMyCustomerItemsQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.employees.myCustomerItems.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["employees", "myCustomerItems"]),
+	);
+
+	return {
+		byCustomer: query.data?.byCustomer ?? {},
+		isLoading: query.isLoading,
+	};
+}
+
 /** Wallet balance + expense totals for the logged-in field employee. */
 export function useMyWalletQuery() {
 	const organizationId = useOrganizationId();

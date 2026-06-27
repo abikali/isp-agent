@@ -87,7 +87,7 @@ export const getMyWorkerStats = protectedProcedure
 					installedAt: monthRange,
 				},
 				_count: true,
-				_sum: { price: true },
+				_sum: { price: true, quantity: true },
 			}),
 			db.customerSetupRequest.count({
 				where: {
@@ -139,6 +139,7 @@ export const getMyWorkerStats = protectedProcedure
 			},
 			installations: {
 				completedThisMonth: installAgg._count,
+				itemsThisMonth: installAgg._sum.quantity ?? 0,
 				valueThisMonth: installAgg._sum.price ?? 0,
 			},
 			customers: {

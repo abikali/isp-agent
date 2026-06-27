@@ -7,7 +7,9 @@ import { getEmployee } from "./procedures/get";
 import { inviteEmployee } from "./procedures/invite";
 import { listEmployees } from "./procedures/list";
 import { getMyEmployeeIdentity } from "./procedures/me";
+import { getMyCustomerItems } from "./procedures/my-customer-items";
 import { getMyWorkerStats } from "./procedures/my-stats";
+import { getMyWorkerTrend } from "./procedures/my-trend";
 import { getEmployeeReport } from "./procedures/report";
 import { getEmployeeStats } from "./procedures/stats";
 import { updateEmployee } from "./procedures/update";
@@ -26,4 +28,6 @@ export const employeesRouter = {
 	invite: inviteEmployee,
 	me: getMyEmployeeIdentity,
 	myStats: getMyWorkerStats,
+	myTrend: getMyWorkerTrend,
+	myCustomerItems: getMyCustomerItems,
 };

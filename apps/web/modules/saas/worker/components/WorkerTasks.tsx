@@ -5,6 +5,7 @@ import {
 	useCompleteTaskWithEvidence,
 	useCreateEvidenceUploadUrl,
 } from "@saas/tasks/client";
+import { CHART_TOKENS } from "@shared/components/charts/chart-utils";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -12,6 +13,14 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
+import {
+	type ChartConfig,
+	ChartContainer,
+	ChartLegend,
+	ChartLegendContent,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "@ui/components/chart";
 import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -25,6 +34,9 @@ import {
 import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
 import {
+	BarChart3Icon,
+	ChevronDownIcon,
+	ChevronUpIcon,
 	ClipboardListIcon,
 	MapPinIcon,
 	PhoneIcon,
@@ -32,6 +44,8 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts is the shared chart lib statically imported across the codebase (single shared chunk)
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import {
 	type TaskCategoryValue,
@@ -39,11 +53,22 @@ import {
 	useMyStatsQuery,
 	useMyStockQuery,
 	useMyTasksList,
+	useMyTrendQuery,
 } from "../hooks/use-worker";
 import { InstallItemRows } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
 import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
+
+const TREND_PERIODS = [
+	{ value: "3", label: "3 months" },
+	{ value: "6", label: "6 months" },
+	{ value: "12", label: "12 months" },
+];
+const trendConfig = {
+	completed: { label: "Completed", color: CHART_TOKENS.c1 },
+	items: { label: "Items installed", color: CHART_TOKENS.c2 },
+} satisfies ChartConfig;
 
 type WorkerTask = ReturnType<typeof useMyTasksList>["tasks"][number];
 
@@ -162,6 +187,8 @@ export function WorkerTasks() {
 		<div className="space-y-3">
 			<StatStrip items={statItems} isLoading={statsLoading} />
 
+			<TaskTrendChart />
+
 			<SearchBar
 				value={search}
 				onChange={onFilter(setSearch)}
@@ -229,6 +256,107 @@ export function WorkerTasks() {
 					task={activeTask}
 					onClose={() => setActiveTask(null)}
 				/>
+			)}
+		</div>
+	);
+}
+
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- trend chart colocated with the tasks tab
+function TaskTrendChart() {
+	const [open, setOpen] = useState(false);
+	const [months, setMonths] = useState<"3" | "6" | "12">("6");
+	const { trend, isFetching } = useMyTrendQuery(
+		Number(months) as 3 | 6 | 12,
+		open,
+	);
+	const hasData = trend.some((t) => t.completed > 0 || t.items > 0);
+
+	return (
+		<div className="overflow-hidden rounded-lg border">
+			<button
+				type="button"
+				onClick={() => setOpen((o) => !o)}
+				className="flex w-full items-center justify-between px-4 py-3 font-medium text-sm"
+				aria-expanded={open}
+			>
+				<span className="flex items-center gap-2">
+					<BarChart3Icon className="size-4 text-muted-foreground" />
+					Monthly trend
+				</span>
+				{open ? (
+					<ChevronUpIcon className="size-4 text-muted-foreground" />
+				) : (
+					<ChevronDownIcon className="size-4 text-muted-foreground" />
+				)}
+			</button>
+			{open && (
+				<div className="space-y-3 border-t px-3 pt-3 pb-4">
+					<div className="flex justify-end">
+						<SelectControl
+							ariaLabel="Trend period"
+							value={months}
+							onChange={(v) => setMonths(v as "3" | "6" | "12")}
+							options={TREND_PERIODS}
+						/>
+					</div>
+					{isFetching && trend.length === 0 ? (
+						<Skeleton className="h-56 w-full rounded-lg" />
+					) : hasData ? (
+						<ChartContainer
+							config={trendConfig}
+							className="h-56 w-full"
+						>
+							<BarChart
+								data={trend}
+								margin={{
+									left: -16,
+									right: 4,
+									top: 8,
+									bottom: 0,
+								}}
+							>
+								<CartesianGrid
+									strokeDasharray="3 3"
+									stroke={CHART_TOKENS.grid}
+									vertical={false}
+								/>
+								<XAxis
+									dataKey="label"
+									stroke={CHART_TOKENS.axis}
+									tickLine={false}
+									axisLine={false}
+									fontSize={11}
+								/>
+								<YAxis
+									allowDecimals={false}
+									stroke={CHART_TOKENS.axis}
+									tickLine={false}
+									axisLine={false}
+									fontSize={11}
+									width={28}
+								/>
+								<ChartTooltip
+									content={<ChartTooltipContent />}
+								/>
+								<ChartLegend content={<ChartLegendContent />} />
+								<Bar
+									dataKey="completed"
+									fill={CHART_TOKENS.c1}
+									radius={[3, 3, 0, 0]}
+								/>
+								<Bar
+									dataKey="items"
+									fill={CHART_TOKENS.c2}
+									radius={[3, 3, 0, 0]}
+								/>
+							</BarChart>
+						</ChartContainer>
+					) : (
+						<p className="py-8 text-center text-muted-foreground text-sm">
+							No activity in this period.
+						</p>
+					)}
+				</div>
 			)}
 		</div>
 	);
