@@ -258,6 +258,7 @@ function useEscalationColumns(organizationSlug: string) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination slices; a reducer would add ceremony without grouping related transitions
 export function EscalationsList({
 	organizationSlug,
 }: {

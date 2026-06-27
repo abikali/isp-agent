@@ -14,6 +14,8 @@ import {
 	renderPlaceholderPreview,
 } from "../lib/template-placeholders";
 
+const EMPTY_STRINGS: string[] = [];
+
 interface WhatsAppPreviewProps {
 	template: SaltiTemplate | undefined;
 	headerValues?: string[];
@@ -30,8 +32,8 @@ interface WhatsAppPreviewProps {
  */
 export function WhatsAppPreview({
 	template,
-	headerValues = [],
-	bodyValues = [],
+	headerValues = EMPTY_STRINGS,
+	bodyValues = EMPTY_STRINGS,
 	headerMediaUrl,
 	className,
 }: WhatsAppPreviewProps) {

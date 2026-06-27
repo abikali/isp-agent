@@ -217,6 +217,7 @@ export function SyncConflictsDialog({
 // Conflict Table (inside dialog)
 // ---------------------------------------------------------------------------
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive conflict-resolution table (filters, selection, bulk/row actions, pagination) sharing one state surface
 function ConflictTable({ organizationId }: { organizationId: string }) {
 	const [page, setPage] = useState(1);
 	const pageSize = 100;
@@ -238,7 +239,10 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	const resolveMutation = useResolveSyncConflict();
 	const bulkMutation = useBulkResolveSyncConflicts();
 
-	const conflicts = conflictsData?.conflicts ?? [];
+	const conflicts = useMemo(
+		() => conflictsData?.conflicts ?? [],
+		[conflictsData],
+	);
 	const totalCount = conflictsData?.totalCount ?? 0;
 	const pendingCount = summary?.pendingCount ?? 0;
 	const affectedCustomers = summary?.affectedCustomers ?? 0;
@@ -328,9 +332,12 @@ function ConflictTable({ organizationId }: { organizationId: string }) {
 	function resolveSelected(resolution: "keep_local" | "keep_remote") {
 		const conflictIds = [
 			...new Set(
-				[...selected].map((key) => key.split(":")[0]).filter(Boolean),
+				[...selected].flatMap((key) => {
+					const id = key.split(":")[0];
+					return id ? [id] : [];
+				}),
 			),
-		] as string[];
+		];
 		bulkMutation.mutate({
 			organizationId,
 			resolution,

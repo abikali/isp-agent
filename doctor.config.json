@@ -1,0 +1,11 @@
+{
+	"ignore": {
+		"files": [
+			"**/.output/**",
+			"**/.nitro/**",
+			"**/dist/**",
+			"**/coverage/**",
+			"**/build/**"
+		]
+	}
+}

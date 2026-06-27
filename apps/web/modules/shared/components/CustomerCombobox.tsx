@@ -50,7 +50,7 @@ export function CustomerCombobox({
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 250 });
 
-	const query = useQuery(
+	const { data, isLoading } = useQuery(
 		organizationId
 			? orpc.customers.searchForPicker.queryOptions({
 					input: {
@@ -63,7 +63,7 @@ export function CustomerCombobox({
 			: disabledQuery(["customers", "searchForPicker"]),
 	);
 
-	const customers = query.data?.customers ?? [];
+	const customers = data?.customers ?? [];
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -102,7 +102,7 @@ export function CustomerCombobox({
 					/>
 				</div>
 				<div className="max-h-64 overflow-y-auto border-t">
-					{query.isLoading ? (
+					{isLoading ? (
 						<div className="flex items-center justify-center py-6 text-muted-foreground">
 							<Loader2Icon className="size-4 animate-spin" />
 						</div>

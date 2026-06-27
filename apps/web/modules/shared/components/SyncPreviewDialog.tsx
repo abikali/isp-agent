@@ -206,6 +206,7 @@ interface SyncPreviewDialogProps {
 // Track selected fields per entity: entityId → Set of field names
 type FieldSelection = Record<string, Set<string>>;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive controlled sync dialog; bulk of length is one diff-table render, splitting would scatter selection state
 export function SyncPreviewDialog({
 	open,
 	onOpenChange,
@@ -221,8 +222,8 @@ export function SyncPreviewDialog({
 	// Fetch preview when dialog opens
 	const { mutate: fetchPreview } = preview;
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-event-handler -- fires an async preview mutation when the controlled `open` prop flips; network side effect, the dialog cannot reach the parent's trigger handler
 		if (open && organizationId && entityIds.length > 0) {
-			setFieldSelection({});
 			fetchPreview({
 				organizationId,
 				entityType,
@@ -231,15 +232,13 @@ export function SyncPreviewDialog({
 		}
 	}, [open, organizationId, entityType, entityIds, fetchPreview]);
 
-	// Initialize all fields as selected when preview data arrives
+	// Selection mirrors the latest preview: cleared while the mutation is
+	// pending (data undefined) and repopulated when fresh previews arrive.
 	const previews = preview.data?.previews ?? [];
 	const previewsRef = preview.data?.previews;
 	useEffect(() => {
-		if (!previewsRef || previewsRef.length === 0) {
-			return;
-		}
 		const initial: FieldSelection = {};
-		for (const entity of previewsRef) {
+		for (const entity of previewsRef ?? []) {
 			if (entity.changes.length > 0) {
 				initial[entity.entityId] = new Set(
 					entity.changes.map((c) => c.field),

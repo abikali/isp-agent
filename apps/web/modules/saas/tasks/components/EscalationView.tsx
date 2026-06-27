@@ -48,6 +48,7 @@ import { TaskCustomerCard } from "./TaskCustomerCard";
 import { TaskEmployeeCard } from "./TaskEmployeeCard";
 import { TaskOverdueWarning } from "./TaskOverdueWarning";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-task escalation detail view; sections share one query/state and splitting obscures data flow
 export function EscalationView({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });

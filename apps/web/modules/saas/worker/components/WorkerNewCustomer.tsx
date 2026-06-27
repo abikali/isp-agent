@@ -31,6 +31,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices; a reducer would add ceremony without grouping related transitions
 export function WorkerNewCustomer() {
 	const organizationId = useOrganizationId();
 	const { plans, collectors, groups } = useWorkerCreateOptions();

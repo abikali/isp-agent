@@ -313,6 +313,7 @@ function ServicePlanSelector({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive agent-settings form; the fields and their TanStack Form wiring are tightly coupled and splitting would fragment one save flow
 export function AgentSettings({
 	agentId,
 	organizationId,
@@ -443,6 +444,7 @@ export function AgentSettings({
 
 	return (
 		<TooltipProvider>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit; this app has no server action to wire up */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();

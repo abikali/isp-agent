@@ -110,6 +110,7 @@ const GROUP_DESCRIPTIONS: Record<string, string> = {
 		"Control payment collection, billing management, and financial data",
 };
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive permissions-grid feature component; splitting would obscure shared permission state
 export function RolePermissionsGrid({
 	value,
 	onChange,

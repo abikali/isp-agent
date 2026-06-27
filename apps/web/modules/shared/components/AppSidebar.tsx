@@ -70,6 +70,7 @@ interface NavSection {
 	items: NavItem[];
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive navigation shell; the nav config and rendering are tightly coupled and splitting obscures the layout
 export function AppSidebar() {
 	const location = useLocation();
 	const pathname = location.pathname;

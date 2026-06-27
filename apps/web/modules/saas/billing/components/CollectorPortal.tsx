@@ -31,6 +31,7 @@ function StatsStrip() {
 	return <BillingStatsCards stats={stats ?? null} isLoading={isLoading} />;
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- these are independent UI slices (search, group/day filters, page, selected customer); a reducer would not group them meaningfully
 export function CollectorPortal() {
 	const { employee } = useActiveOrganization();
 	const [search, setSearch] = useState("");
@@ -263,6 +264,7 @@ export function CollectorPortal() {
 
 			{/* Payment bottom sheet */}
 			<PaymentSheet
+				key={selectedCustomer?.id}
 				open={!!selectedCustomer}
 				onOpenChange={(open) => {
 					if (!open) {

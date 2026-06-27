@@ -44,6 +44,7 @@ const CardTitle = ({
 	className,
 	...props
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
+	// react-doctor-disable-next-line react-doctor/heading-has-content -- reusable primitive; heading text is supplied by the consumer via {...props} children, not statically visible here
 	<h3
 		className={cn("font-semibold text-xl leading-none", className)}
 		{...props}

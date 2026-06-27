@@ -45,52 +45,52 @@ const TONE_HOVER: Record<Action["tone"], string> = {
 	warning: "hover:border-warning/40",
 };
 
-export function QuickActions({ organizationSlug }: QuickActionsProps) {
-	const actions: Action[] = [
-		{
-			to: "/app/$organizationSlug/customers",
-			icon: UsersIcon,
-			tone: "info",
-			title: "Customers",
-			description: "Manage subscribers",
-		},
-		{
-			to: "/app/$organizationSlug/watchers",
-			icon: ActivityIcon,
-			tone: "success",
-			title: "Watchers",
-			description: "Monitor infrastructure",
-		},
-		{
-			to: "/app/$organizationSlug/ai-agents",
-			icon: BotIcon,
-			tone: "purple",
-			title: "AI Agents",
-			description: "Configure assistants",
-		},
-		{
-			to: "/app/$organizationSlug/conversations",
-			icon: MessageSquareIcon,
-			tone: "cyan",
-			title: "Conversations",
-			description: "Open inbox",
-		},
-		{
-			to: "/app/$organizationSlug/marketing",
-			icon: MegaphoneIcon,
-			tone: "warning",
-			title: "Marketing",
-			description: "Send a broadcast",
-		},
-	];
+const ACTIONS: Action[] = [
+	{
+		to: "/app/$organizationSlug/customers",
+		icon: UsersIcon,
+		tone: "info",
+		title: "Customers",
+		description: "Manage subscribers",
+	},
+	{
+		to: "/app/$organizationSlug/watchers",
+		icon: ActivityIcon,
+		tone: "success",
+		title: "Watchers",
+		description: "Monitor infrastructure",
+	},
+	{
+		to: "/app/$organizationSlug/ai-agents",
+		icon: BotIcon,
+		tone: "purple",
+		title: "AI Agents",
+		description: "Configure assistants",
+	},
+	{
+		to: "/app/$organizationSlug/conversations",
+		icon: MessageSquareIcon,
+		tone: "cyan",
+		title: "Conversations",
+		description: "Open inbox",
+	},
+	{
+		to: "/app/$organizationSlug/marketing",
+		icon: MegaphoneIcon,
+		tone: "warning",
+		title: "Marketing",
+		description: "Send a broadcast",
+	},
+];
 
+export function QuickActions({ organizationSlug }: QuickActionsProps) {
 	return (
 		<section className="space-y-2">
 			<h3 className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
 				Quick actions
 			</h3>
 			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-				{actions.map((action) => (
+				{ACTIONS.map((action) => (
 					<Link
 						key={action.title}
 						to={action.to}

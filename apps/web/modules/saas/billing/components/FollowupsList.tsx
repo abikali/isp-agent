@@ -57,6 +57,8 @@ const STATUS_OPTIONS = [
 	{ value: "other", label: "Other" },
 ];
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive followups list (tabs, filters, table, pagination) sharing one query; splitting fragments the data flow
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination state slices; a reducer would not simplify these unrelated values
 export function FollowupsList() {
 	const organizationId = useOrganizationId();
 	const [tab, setTab] = useState<"open" | "done">("open");

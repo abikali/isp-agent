@@ -62,7 +62,10 @@ interface ToolConfigDialogProps {
  */
 function parseRepeaterValue(value: unknown): string[] {
 	if (Array.isArray(value)) {
-		return value.map((v) => String(v).trim()).filter((v) => v.length > 0);
+		return value.flatMap((v) => {
+			const trimmed = String(v).trim();
+			return trimmed.length > 0 ? [trimmed] : [];
+		});
 	}
 	if (typeof value === "string" && value.length > 0) {
 		return value
@@ -80,6 +83,7 @@ interface TestResult {
 	results: Array<{ chatId: string; success: boolean; error?: string }>;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-dialog form; sections share form/repeater/test state and splitting would scatter tightly-coupled state
 export function ToolConfigDialog({
 	open,
 	onOpenChange,
@@ -106,11 +110,19 @@ export function ToolConfigDialog({
 			(existingConfig?.[field.key] as string) ?? field.defaultValue ?? "";
 	}
 
-	// Manage repeater state separately
-	const initialRepeaterState: Record<string, string[]> = {};
+	// Manage repeater state separately. Each item carries a stable id so list
+	// rows keep their identity across add/remove (no index-as-key reconciliation).
+	const initialRepeaterState: Record<
+		string,
+		Array<{ id: string; value: string }>
+	> = {};
 	for (const field of repeaterFields) {
 		const parsed = parseRepeaterValue(existingConfig?.[field.key]);
-		initialRepeaterState[field.key] = parsed.length > 0 ? parsed : [""];
+		const values = parsed.length > 0 ? parsed : [""];
+		initialRepeaterState[field.key] = values.map((value) => ({
+			id: crypto.randomUUID(),
+			value,
+		}));
 	}
 
 	const [repeaterValues, setRepeaterValues] = useState(initialRepeaterState);
@@ -124,7 +136,10 @@ export function ToolConfigDialog({
 	function addRepeaterItem(key: string) {
 		setRepeaterValues((prev) => ({
 			...prev,
-			[key]: [...(prev[key] ?? []), ""],
+			[key]: [
+				...(prev[key] ?? []),
+				{ id: crypto.randomUUID(), value: "" },
+			],
 		}));
 	}
 
@@ -145,7 +160,7 @@ export function ToolConfigDialog({
 		setRepeaterValues((prev) => ({
 			...prev,
 			[key]: (prev[key] ?? []).map((item, i) =>
-				i === index ? value : item,
+				i === index ? { ...item, value } : item,
 			),
 		}));
 	}
@@ -154,9 +169,12 @@ export function ToolConfigDialog({
 		setTestResult(null);
 
 		const botToken = form.getFieldValue("telegramBotToken");
-		const chatIds = (repeaterValues["telegramChatIds"] ?? [])
-			.map((v) => v.trim())
-			.filter((v) => v.length > 0);
+		const chatIds = (repeaterValues["telegramChatIds"] ?? []).flatMap(
+			(item) => {
+				const trimmed = item.value.trim();
+				return trimmed.length > 0 ? [trimmed] : [];
+			},
+		);
 
 		if (!botToken || chatIds.length === 0) {
 			return;
@@ -183,9 +201,12 @@ export function ToolConfigDialog({
 			}
 
 			for (const field of repeaterFields) {
-				const items = (repeaterValues[field.key] ?? [])
-					.map((v) => v.trim())
-					.filter((v) => v.length > 0);
+				const items = (repeaterValues[field.key] ?? []).flatMap(
+					(item) => {
+						const trimmed = item.value.trim();
+						return trimmed.length > 0 ? [trimmed] : [];
+					},
+				);
 				if (items.length > 0) {
 					config[field.key] = items;
 				}
@@ -211,6 +232,7 @@ export function ToolConfigDialog({
 					<DialogTitle>Configure {toolName}</DialogTitle>
 				</DialogHeader>
 
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- client-side TanStack Form submitting via oRPC mutation; no server action exists, preventDefault is the documented pattern */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -221,7 +243,7 @@ export function ToolConfigDialog({
 				>
 					{configFields.map((field) => {
 						if (field.type === "repeater") {
-							const items = repeaterValues[field.key] ?? [""];
+							const items = repeaterValues[field.key] ?? [];
 							return (
 								<Field key={field.key}>
 									<FieldLabel>
@@ -231,11 +253,11 @@ export function ToolConfigDialog({
 									<div className="space-y-2">
 										{items.map((item, index) => (
 											<div
-												key={`${field.key}-${index}`}
+												key={item.id}
 												className="flex items-center gap-2"
 											>
 												<Input
-													value={item}
+													value={item.value}
 													onChange={(e) =>
 														updateRepeaterItem(
 															field.key,

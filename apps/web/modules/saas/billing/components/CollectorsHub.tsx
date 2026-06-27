@@ -63,9 +63,13 @@ function slugFor(c: { username: string | null; id: string }): string {
 	return c.username ?? c.id;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive collectors hub; sections share filter/totals/list state and splitting would scatter tightly-coupled logic
 export function CollectorsHub() {
 	const { data, isLoading } = useCollectors();
-	const collectors: CollectorRow[] = data?.collectors ?? [];
+	const collectors: CollectorRow[] = useMemo(
+		() => data?.collectors ?? [],
+		[data],
+	);
 	const { activeOrganization } = useActiveOrganization();
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}/billing/collectors`

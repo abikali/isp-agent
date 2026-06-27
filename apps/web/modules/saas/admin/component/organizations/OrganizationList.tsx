@@ -87,6 +87,7 @@ const sortByMap = {
 	customers: "customersCount",
 } as const;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive admin table; bulk of the length is the memoized column definitions, splitting them would obscure the table contract
 export function OrganizationList() {
 	const { confirm } = useConfirmationAlert();
 	const queryClient = useQueryClient();
@@ -126,6 +127,7 @@ export function OrganizationList() {
 				backTo: `${location.pathname}${search.size ? `?${search.toString()}` : ""}`,
 			});
 		},
+		// react-doctor-disable-next-line react-doctor/no-mutable-in-deps -- `location` is a reactive useLocation() value, not the browser global; these deps are correct
 		[location.pathname, location.searchStr],
 	);
 
@@ -150,10 +152,10 @@ export function OrganizationList() {
 		}),
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset to page 1 only when search changes, setCurrentPage is stable from useCallback
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset to page 1 only when search changes; setCurrentPage is stable from useCallback
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [debouncedSearchTerm]);
+	}, [debouncedSearchTerm, setCurrentPage]);
 
 	const setIradiusDisabledMutation = useMutation({
 		...orpc.admin.organizations.setIradiusDisabled.mutationOptions(),

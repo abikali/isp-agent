@@ -107,14 +107,19 @@ type EmployeeItem = Awaited<
 
 function getCustomerFormDefaults(customer: CustomerData) {
 	const phones = Array.isArray(customer.phones)
-		? (customer.phones as Array<{ number: string; primary: boolean }>)
+		? (customer.phones as Array<{ number: string; primary: boolean }>).map(
+				(p, i) => ({ id: `phone-${i}`, ...p }),
+			)
 		: [];
 
 	return {
 		firstName: customer.firstName ?? "",
 		lastName: customer.lastName ?? "",
 		email: customer.email ?? "",
-		phones: phones.length > 0 ? phones : [{ number: "", primary: true }],
+		phones:
+			phones.length > 0
+				? phones
+				: [{ id: "phone-0", number: "", primary: true }],
 		address: customer.address ?? "",
 		planId: customer.planId ?? "",
 		status: customer.status,
@@ -152,12 +157,14 @@ type CustomerForm = ReactFormExtendedApi<
 
 // ─── Parent ────────────────────────────────────────────────────────────
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive customer-detail page orchestrating the edit form, account-type/collector-sync flows, and confirm dialogs; the tab sections are already extracted into focused subcomponents below
 export function CustomerDetail({
 	customerId,
 	organizationSlug,
 }: {
 	customerId: string;
 	organizationSlug: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- the 5 useState slices are independent dialog/flow toggles (preview, collector-sync, change-result, deactivate, reactivate), not one cohesive state machine
 }) {
 	const organizationId = useOrganizationId();
 	const updateCustomer = useUpdateCustomer();
@@ -511,6 +518,7 @@ export function CustomerDetail({
 				</div>
 			}
 		>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Start SPA form: TanStack Form handles submit client-side via an oRPC mutation; there is no server action to post to */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -947,7 +955,7 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 		if (phones.length < MAX_PHONES) {
 			form.setFieldValue("phones", [
 				...phones,
-				{ number: "", primary: false },
+				{ id: crypto.randomUUID(), number: "", primary: false },
 			]);
 		}
 	}
@@ -974,7 +982,7 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 			<FieldLabel>Phone numbers</FieldLabel>
 			<div className="space-y-2">
 				{phones.map((phone, index) => (
-					<div key={index} className="flex items-center gap-1.5">
+					<div key={phone.id} className="flex items-center gap-1.5">
 						<PhoneInput
 							value={phone.number}
 							onChange={(val) => updatePhone(index, val)}
@@ -1136,6 +1144,7 @@ function LocationPinSection({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive service/billing tab; its fields share the same form and pricing data flow, so splitting would scatter tightly-coupled state
 function ServiceTab({
 	form,
 	customer,
@@ -1441,6 +1450,7 @@ function ServiceTab({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive read-only network/iRadius info tab; the rows are a single flat detail list, not separable responsibilities
 function NetworkTab({ customer }: { customer: CustomerData }) {
 	return (
 		<>

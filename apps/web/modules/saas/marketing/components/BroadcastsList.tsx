@@ -201,6 +201,7 @@ export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 								? `${totals.active} active`
 								: undefined
 						}
+						// react-doctor-disable-next-line react-doctor/jsx-no-jsx-as-prop -- `trailing` is a MetricCard layout slot; MetricCard is not memoized so re-render cost of inline JSX is negligible (canonical slot pattern)
 						trailing={
 							totals.active > 0 ? (
 								<PlayIcon className="size-3 animate-pulse text-info" />

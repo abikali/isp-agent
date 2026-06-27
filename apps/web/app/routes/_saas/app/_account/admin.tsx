@@ -14,6 +14,41 @@ import {
 	UsersIcon,
 } from "lucide-react";
 
+const menuItems = [
+	{
+		avatar: <Logo className="size-8" withLabel={false} />,
+		title: "Admin",
+		items: [
+			{
+				title: "Users",
+				href: "/app/admin/users",
+				icon: <UsersIcon className="size-4 opacity-50" />,
+			},
+			...(config.organizations.enable
+				? [
+						{
+							title: "Organizations",
+							href: "/app/admin/organizations",
+							icon: (
+								<Building2Icon className="size-4 opacity-50" />
+							),
+						},
+					]
+				: []),
+			{
+				title: "Dealers",
+				href: "/app/admin/dealers",
+				icon: <HandshakeIcon className="size-4 opacity-50" />,
+			},
+			{
+				title: "Feature Flags",
+				href: "/app/admin/feature-flags",
+				icon: <FlagIcon className="size-4 opacity-50" />,
+			},
+		],
+	},
+];
+
 export const Route = createFileRoute("/_saas/app/_account/admin")({
 	beforeLoad: ({ context }) => {
 		if (context.session.user.role !== "admin") {
@@ -29,41 +64,6 @@ function AdminNotFound() {
 }
 
 function AdminLayout() {
-	const menuItems = [
-		{
-			avatar: <Logo className="size-8" withLabel={false} />,
-			title: "Admin",
-			items: [
-				{
-					title: "Users",
-					href: "/app/admin/users",
-					icon: <UsersIcon className="size-4 opacity-50" />,
-				},
-				...(config.organizations.enable
-					? [
-							{
-								title: "Organizations",
-								href: "/app/admin/organizations",
-								icon: (
-									<Building2Icon className="size-4 opacity-50" />
-								),
-							},
-						]
-					: []),
-				{
-					title: "Dealers",
-					href: "/app/admin/dealers",
-					icon: <HandshakeIcon className="size-4 opacity-50" />,
-				},
-				{
-					title: "Feature Flags",
-					href: "/app/admin/feature-flags",
-					icon: <FlagIcon className="size-4 opacity-50" />,
-				},
-			],
-		},
-	];
-
 	return (
 		<>
 			<PageHeader title="Admin" subtitle="Manage your application" />

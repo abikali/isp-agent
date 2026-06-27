@@ -13,28 +13,28 @@ import {
 import { HardDriveIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useState } from "react";
 
+const colorModeOptions = [
+	{
+		value: "system",
+		label: "System",
+		icon: HardDriveIcon,
+	},
+	{
+		value: "light",
+		label: "Light",
+		icon: SunIcon,
+	},
+	{
+		value: "dark",
+		label: "Dark",
+		icon: MoonIcon,
+	},
+];
+
 export function ColorModeToggle() {
 	const { resolvedTheme, setTheme, theme } = useTheme();
 	const [value, setValue] = useState<string>(theme ?? "system");
 	const isClient = useIsClient();
-
-	const colorModeOptions = [
-		{
-			value: "system",
-			label: "System",
-			icon: HardDriveIcon,
-		},
-		{
-			value: "light",
-			label: "Light",
-			icon: SunIcon,
-		},
-		{
-			value: "dark",
-			label: "Dark",
-			icon: MoonIcon,
-		},
-	];
 
 	if (!isClient) {
 		return null;

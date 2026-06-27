@@ -2,7 +2,7 @@
 
 import { PricingTable } from "@saas/payments/client";
 import { CheckIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
 	SectionHeader,
 	SectionWrapper,
@@ -25,7 +25,7 @@ export function PricingSection() {
 			/>
 
 			{/* Trust badges */}
-			<motion.div
+			<m.div
 				variants={fadeUpVariants}
 				initial="hidden"
 				whileInView="visible"
@@ -41,10 +41,10 @@ export function PricingSection() {
 						{badge}
 					</span>
 				))}
-			</motion.div>
+			</m.div>
 
 			{/* Pricing table with animation wrapper */}
-			<motion.div
+			<m.div
 				initial={{ opacity: 0, y: 30 }}
 				whileInView={{ opacity: 1, y: 0 }}
 				viewport={{ once: true }}
@@ -52,7 +52,7 @@ export function PricingSection() {
 				className="mx-auto max-w-5xl"
 			>
 				<PricingTable />
-			</motion.div>
+			</m.div>
 		</SectionWrapper>
 	);
 }

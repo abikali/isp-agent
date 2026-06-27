@@ -103,12 +103,14 @@ const columnClass: Record<number, string> = {
 	6: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",
 };
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive StatCard primitive barrel (card, group, skeleton)
 export function StatCardGroup({ children, columns = 4 }: StatCardGroupProps) {
 	return (
 		<div className={cn("grid gap-3", columnClass[columns])}>{children}</div>
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive StatCard primitive barrel (card, group, skeleton)
 export function StatCardSkeleton() {
 	return (
 		<div className="rounded-lg border bg-card px-4 py-3">

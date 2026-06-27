@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@ui/lib";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
 	SectionHeader,
 	SectionWrapper,
@@ -19,7 +19,7 @@ export function FeaturesGrid() {
 				description="Powerful tools to create, share, and track your digital identity"
 			/>
 
-			<motion.div
+			<m.div
 				variants={bentoContainerVariants}
 				initial="hidden"
 				whileInView="visible"
@@ -38,16 +38,16 @@ export function FeaturesGrid() {
 							: "lg:row-span-1";
 
 					return (
-						<motion.div
+						<m.div
 							key={feature.id}
 							variants={bentoItemVariants}
 							className={cn(colSpan, rowSpan)}
 						>
 							<FeatureCard feature={feature} />
-						</motion.div>
+						</m.div>
 					);
 				})}
-			</motion.div>
+			</m.div>
 		</SectionWrapper>
 	);
 }

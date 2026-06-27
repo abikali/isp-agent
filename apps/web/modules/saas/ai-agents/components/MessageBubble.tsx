@@ -313,6 +313,7 @@ export function MessageBubble({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
 function AttachmentContent({
 	type,
 	url: rawUrl,
@@ -381,10 +382,12 @@ function AttachmentContent({
 	}
 	if (type === "video") {
 		return (
+			// react-doctor-disable-next-line react-doctor/media-has-caption -- chat videos are arbitrary user uploads with no caption tracks available
 			// biome-ignore lint/a11y/useMediaCaption: chat videos don't have caption tracks
 			<video
 				src={url}
 				controls
+				aria-label="Video attachment"
 				className="max-h-64 max-w-full rounded-md"
 				preload="metadata"
 			/>
@@ -404,6 +407,7 @@ function AttachmentContent({
 	return null;
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
 function DeliveryTicks({ status }: { status: string | null | undefined }) {
 	if (!status || status === "sent") {
 		return <CheckIcon className="size-3 text-muted-foreground" />;
@@ -425,6 +429,7 @@ function formatToolResult(result: unknown): string {
 }
 
 /** Collapsible pill showing a tool call with its input and result. */
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
 function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
 	const [isOpen, setIsOpen] = useState(false);
 
@@ -480,6 +485,7 @@ function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
 }
 
 /** Animated typing dots displayed while bot is composing. */
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; sibling render helper colocated with MessageBubble
 export function TypingBubble() {
 	return (
 		<div className="flex justify-end">
@@ -488,8 +494,11 @@ export function TypingBubble() {
 					<div className="absolute left-0 top-0 size-3 origin-top-left -rotate-45 bg-primary/10" />
 				</div>
 				<div className="flex items-center gap-1 rounded-lg rounded-tr-none bg-primary/10 px-4 py-3">
+					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
 					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0ms]" />
+					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
 					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:150ms]" />
+					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
 					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:300ms]" />
 				</div>
 			</div>
@@ -498,6 +507,7 @@ export function TypingBubble() {
 }
 
 /** Centered date separator pill between message groups. */
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; sibling render helper colocated with MessageBubble
 export function DateSeparator({ date }: { date: string }) {
 	return (
 		<div className="flex items-center justify-center py-2">

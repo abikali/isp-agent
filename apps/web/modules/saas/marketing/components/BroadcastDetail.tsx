@@ -82,6 +82,7 @@ interface BroadcastDetailProps {
 
 const RECIPIENT_PAGE_SIZE = 50;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive broadcast detail page: header, metrics, recipient table, and pagination share local state; splitting would scatter tightly-coupled state
 export function BroadcastDetail({
 	broadcastId,
 	organizationSlug,
@@ -262,6 +263,7 @@ export function BroadcastDetail({
 					)}
 				</div>
 			}
+			// react-doctor-disable-next-line react-doctor/jsx-no-jsx-as-prop -- `badges` is a PageShell layout slot; PageShell is not memoized so re-render cost of inline JSX is negligible (canonical slot pattern, like subtitle/actions)
 			badges={
 				<Badge
 					variant={

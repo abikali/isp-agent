@@ -55,6 +55,26 @@ interface ReplyTarget {
 	content: string;
 }
 
+/** Format the human-takeover countdown label from a deadline and the current clock. */
+function formatTakeoverRemaining(expiresAtMs: number, now: number): string {
+	if (!expiresAtMs) {
+		return "";
+	}
+	const remaining = expiresAtMs - now;
+	if (remaining <= 0) {
+		return "";
+	}
+	const mins = Math.floor(remaining / 60000);
+	const secs = Math.floor((remaining % 60000) / 1000);
+	if (mins >= 60) {
+		const hrs = Math.floor(mins / 60);
+		const m = mins % 60;
+		return `${hrs}h ${m}m remaining`;
+	}
+	return `${mins}m ${secs}s remaining`;
+}
+
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive conversation thread view; splitting further would scatter tightly-coupled message/scroll/takeover state
 export function ConversationDetailPanel({
 	conversationId,
 	organizationId,
@@ -67,6 +87,7 @@ export function ConversationDetailPanel({
 	organizationSlug: string;
 	fullPage?: boolean | undefined;
 	pinned?: boolean | undefined;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- these are independent UI slices (search, reply target, edit target, clock); a reducer would not group them meaningfully
 }) {
 	const {
 		conversation,
@@ -122,38 +143,21 @@ export function ConversationDetailPanel({
 	const takeoverExpiresAt = conversation?.humanTakeoverExpiresAt
 		? new Date(conversation.humanTakeoverExpiresAt)
 		: null;
-	const [takeoverRemaining, setTakeoverRemaining] = useState("");
+	const [now, setNow] = useState(() => Date.now());
 	const isHumanTakeover = !!takeoverExpiresAt;
 	const isAwaitingResponse =
 		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
 
-	// Countdown timer for human takeover
+	// Countdown timer for human takeover — tick a clock, derive the label in render
 	const expiresAtMs = takeoverExpiresAt?.getTime() ?? 0;
 	useEffect(() => {
 		if (!expiresAtMs) {
-			setTakeoverRemaining("");
 			return;
 		}
-		function update() {
-			const remaining = expiresAtMs - Date.now();
-			if (remaining <= 0) {
-				setTakeoverRemaining("");
-				return;
-			}
-			const mins = Math.floor(remaining / 60000);
-			const secs = Math.floor((remaining % 60000) / 1000);
-			if (mins >= 60) {
-				const hrs = Math.floor(mins / 60);
-				const m = mins % 60;
-				setTakeoverRemaining(`${hrs}h ${m}m remaining`);
-			} else {
-				setTakeoverRemaining(`${mins}m ${secs}s remaining`);
-			}
-		}
-		update();
-		const interval = setInterval(update, 1000);
+		const interval = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(interval);
 	}, [expiresAtMs]);
+	const takeoverRemaining = formatTakeoverRemaining(expiresAtMs, now);
 
 	function handleResumeAi() {
 		resumeConversation.mutate({ conversationId, organizationId });

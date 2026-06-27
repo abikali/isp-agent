@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "motion/react";
+import { m, useInView } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { companyLogos, stats } from "../data/stats";
 import { counterVariants, staggerContainerVariants } from "../lib/motion";
@@ -11,7 +11,7 @@ export function SocialProofBar() {
 			<div className="container">
 				<div className="flex flex-col items-center gap-8 lg:flex-row lg:justify-between">
 					{/* Stats */}
-					<motion.div
+					<m.div
 						variants={staggerContainerVariants}
 						initial="hidden"
 						whileInView="visible"
@@ -21,7 +21,7 @@ export function SocialProofBar() {
 						{stats.map((stat) => (
 							<StatCounter key={stat.id} stat={stat} />
 						))}
-					</motion.div>
+					</m.div>
 
 					{/* Divider */}
 					<div className="hidden h-12 w-px bg-border lg:block" />
@@ -31,7 +31,7 @@ export function SocialProofBar() {
 						<span className="text-xs uppercase tracking-wider text-muted-foreground">
 							Trusted by teams at
 						</span>
-						<motion.div
+						<m.div
 							variants={staggerContainerVariants}
 							initial="hidden"
 							whileInView="visible"
@@ -39,7 +39,7 @@ export function SocialProofBar() {
 							className="flex flex-wrap items-center justify-center gap-6"
 						>
 							{companyLogos.map((logo) => (
-								<motion.div
+								<m.div
 									key={logo.id}
 									variants={counterVariants}
 									className="grayscale opacity-60 transition-all duration-300 hover:opacity-100 hover:grayscale-0"
@@ -50,9 +50,9 @@ export function SocialProofBar() {
 										className="h-6 w-auto object-contain md:h-8"
 										loading="lazy"
 									/>
-								</motion.div>
+								</m.div>
 							))}
-						</motion.div>
+						</m.div>
 					</div>
 				</div>
 			</div>
@@ -126,7 +126,7 @@ function StatCounter({ stat }: StatCounterProps) {
 	}, [isInView, stat.numericValue, formatNumber]);
 
 	return (
-		<motion.div
+		<m.div
 			ref={ref}
 			variants={counterVariants}
 			className="flex flex-col items-center text-center"
@@ -138,6 +138,6 @@ function StatCounter({ stat }: StatCounterProps) {
 			<span className="mt-1 text-sm text-muted-foreground">
 				{stat.label}
 			</span>
-		</motion.div>
+		</m.div>
 	);
 }

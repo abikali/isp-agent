@@ -25,7 +25,7 @@ import { Label } from "@ui/components/label";
 import { Separator } from "@ui/components/separator";
 import { Textarea } from "@ui/components/textarea";
 import { LockIcon, UnlockIcon, UserIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useReducer, useState } from "react";
 import { toast } from "sonner";
 import {
 	useCreateInvoice,
@@ -62,6 +62,69 @@ function emptyIfNullish(n: number | null | undefined): string {
 	return n == null ? "" : String(n);
 }
 
+// Editable form fields. A `null` slot means "untouched", so the field falls
+// back to its current default (derived from the invoice / customer / active
+// month). Once the user edits a field its draft value sticks.
+interface InvoiceDraftState {
+	year: number | null;
+	month: number | null;
+	accountPrice: string | null;
+	iptvPrice: string | null;
+	realIpPrice: string | null;
+	discount: string | null;
+	tax: string | null;
+	expiryDate: string | null;
+	note: string | null;
+	totalWithTaxOverride: string | null;
+}
+
+const INITIAL_DRAFT: InvoiceDraftState = {
+	year: null,
+	month: null,
+	accountPrice: null,
+	iptvPrice: null,
+	realIpPrice: null,
+	discount: null,
+	tax: null,
+	expiryDate: null,
+	note: null,
+	totalWithTaxOverride: null,
+};
+
+type InvoiceDraftAction =
+	| { type: "reset" }
+	| { type: "setNumber"; field: "year" | "month"; value: number }
+	| {
+			type: "setString";
+			field:
+				| "accountPrice"
+				| "iptvPrice"
+				| "realIpPrice"
+				| "discount"
+				| "tax"
+				| "expiryDate"
+				| "note";
+			value: string;
+	  }
+	| { type: "setOverride"; value: string | null };
+
+function draftReducer(
+	state: InvoiceDraftState,
+	action: InvoiceDraftAction,
+): InvoiceDraftState {
+	switch (action.type) {
+		case "reset":
+			return INITIAL_DRAFT;
+		case "setNumber":
+			return { ...state, [action.field]: action.value };
+		case "setString":
+			return { ...state, [action.field]: action.value };
+		case "setOverride":
+			return { ...state, totalWithTaxOverride: action.value };
+	}
+}
+
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single invoice-form dialog; the length is JSX-heavy markup (line items, totals, customer panel) sharing one draft reducer, splitting would scatter tightly-coupled form state
 export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 	const organizationId = useOrganizationId();
 	const isEdit = mode.mode === "edit";
@@ -92,78 +155,56 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 	);
 	const cust = customerFull?.customer;
 
-	const [year, setYear] = useState(0);
-	const [month, setMonth] = useState(0);
-	const [accountPrice, setAccountPrice] = useState("");
-	const [iptvPrice, setIptvPrice] = useState("");
-	const [realIpPrice, setRealIpPrice] = useState("");
-	const [discount, setDiscount] = useState("0");
-	const [tax, setTax] = useState("0");
-	const [totalWithTaxOverride, setTotalWithTaxOverride] = useState<
-		string | null
-	>(null);
-	const [expiryDate, setExpiryDate] = useState("");
-	const [note, setNote] = useState("");
+	const [draft, dispatch] = useReducer(draftReducer, INITIAL_DRAFT);
 
-	useEffect(() => {
-		if (!open) {
+	// Current default for each field, derived from whichever async source is
+	// authoritative for the active mode. In edit mode the (frozen) invoice
+	// wins; in create mode the picked customer + active billing month win.
+	const defaults = {
+		year: isEdit ? (invoice?.year ?? 0) : (activeMonth?.year ?? 0),
+		month: isEdit ? (invoice?.month ?? 0) : (activeMonth?.month ?? 0),
+		accountPrice: isEdit
+			? emptyIfNullish(invoice?.accountPrice)
+			: emptyIfNullish(cust?.monthlyRate ?? cust?.plan?.monthlyPrice),
+		iptvPrice: isEdit
+			? emptyIfNullish(invoice?.iptvPrice)
+			: emptyIfNullish(cust?.iptvPrice),
+		realIpPrice: isEdit
+			? emptyIfNullish(invoice?.realIpPrice)
+			: emptyIfNullish(cust?.realIpPrice),
+		discount: isEdit
+			? invoice
+				? String(invoice.discount)
+				: "0"
+			: cust
+				? emptyIfNullish(cust.discount)
+				: "0",
+		tax: isEdit && invoice ? String(invoice.tax) : "0",
+		expiryDate:
+			isEdit && invoice?.expiryDate
+				? formatDateInput(invoice.expiryDate)
+				: "",
+		note: isEdit ? (invoice?.note ?? "") : "",
+	};
+
+	const year = draft.year ?? defaults.year;
+	const month = draft.month ?? defaults.month;
+	const accountPrice = draft.accountPrice ?? defaults.accountPrice;
+	const iptvPrice = draft.iptvPrice ?? defaults.iptvPrice;
+	const realIpPrice = draft.realIpPrice ?? defaults.realIpPrice;
+	const discount = draft.discount ?? defaults.discount;
+	const tax = draft.tax ?? defaults.tax;
+	const expiryDate = draft.expiryDate ?? defaults.expiryDate;
+	const note = draft.note ?? defaults.note;
+	const totalWithTaxOverride = draft.totalWithTaxOverride;
+
+	function handleOpenChange(next: boolean) {
+		if (!next) {
 			setCustomer(null);
-			setYear(0);
-			setMonth(0);
-			setAccountPrice("");
-			setIptvPrice("");
-			setRealIpPrice("");
-			setDiscount("0");
-			setTax("0");
-			setTotalWithTaxOverride(null);
-			setExpiryDate("");
-			setNote("");
+			dispatch({ type: "reset" });
 		}
-	}, [open]);
-
-	useEffect(() => {
-		if (open && !isEdit && activeMonth && year === 0) {
-			setYear(activeMonth.year);
-			setMonth(activeMonth.month);
-		}
-	}, [open, isEdit, activeMonth, year]);
-
-	useEffect(() => {
-		if (!open || isEdit || !cust) {
-			return;
-		}
-		setAccountPrice((prev) =>
-			prev === ""
-				? emptyIfNullish(cust.monthlyRate ?? cust.plan?.monthlyPrice)
-				: prev,
-		);
-		setIptvPrice((prev) =>
-			prev === "" ? emptyIfNullish(cust.iptvPrice) : prev,
-		);
-		setRealIpPrice((prev) =>
-			prev === "" ? emptyIfNullish(cust.realIpPrice) : prev,
-		);
-		setDiscount((prev) =>
-			prev === "0" || prev === "" ? emptyIfNullish(cust.discount) : prev,
-		);
-	}, [open, isEdit, cust]);
-
-	useEffect(() => {
-		if (!invoice) {
-			return;
-		}
-		setYear(invoice.year);
-		setMonth(invoice.month);
-		setAccountPrice(emptyIfNullish(invoice.accountPrice));
-		setIptvPrice(emptyIfNullish(invoice.iptvPrice));
-		setRealIpPrice(emptyIfNullish(invoice.realIpPrice));
-		setDiscount(String(invoice.discount));
-		setTax(String(invoice.tax));
-		setExpiryDate(
-			invoice.expiryDate ? formatDateInput(invoice.expiryDate) : "",
-		);
-		setNote(invoice.note ?? "");
-	}, [invoice]);
+		onOpenChange(next);
+	}
 
 	const ap = parseOrEmpty(accountPrice);
 	const ip = parseOrEmpty(iptvPrice);
@@ -226,7 +267,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 				{
 					onSuccess: () => {
 						toast.success("Invoice updated");
-						onOpenChange(false);
+						handleOpenChange(false);
 					},
 					onError: (err) => toast.error(err.message || "Failed"),
 				},
@@ -253,7 +294,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 				{
 					onSuccess: () => {
 						toast.success("Invoice created");
-						onOpenChange(false);
+						handleOpenChange(false);
 					},
 					onError: (err) => toast.error(err.message || "Failed"),
 				},
@@ -279,7 +320,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 	}
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
@@ -360,12 +401,15 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									type="number"
 									value={year || ""}
 									onChange={(e) =>
-										setYear(
-											Number.parseInt(
-												e.target.value,
-												10,
-											) || 0,
-										)
+										dispatch({
+											type: "setNumber",
+											field: "year",
+											value:
+												Number.parseInt(
+													e.target.value,
+													10,
+												) || 0,
+										})
 									}
 								/>
 							</div>
@@ -378,12 +422,15 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									max={12}
 									value={month || ""}
 									onChange={(e) =>
-										setMonth(
-											Number.parseInt(
-												e.target.value,
-												10,
-											) || 0,
-										)
+										dispatch({
+											type: "setNumber",
+											field: "month",
+											value:
+												Number.parseInt(
+													e.target.value,
+													10,
+												) || 0,
+										})
 									}
 								/>
 							</div>
@@ -412,7 +459,11 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									step="0.01"
 									value={accountPrice}
 									onChange={(e) =>
-										setAccountPrice(e.target.value)
+										dispatch({
+											type: "setString",
+											field: "accountPrice",
+											value: e.target.value,
+										})
 									}
 									placeholder="0.00"
 								/>
@@ -430,7 +481,11 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									step="0.01"
 									value={iptvPrice}
 									onChange={(e) =>
-										setIptvPrice(e.target.value)
+										dispatch({
+											type: "setString",
+											field: "iptvPrice",
+											value: e.target.value,
+										})
 									}
 									placeholder="0.00"
 								/>
@@ -448,7 +503,11 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									step="0.01"
 									value={realIpPrice}
 									onChange={(e) =>
-										setRealIpPrice(e.target.value)
+										dispatch({
+											type: "setString",
+											field: "realIpPrice",
+											value: e.target.value,
+										})
 									}
 									placeholder="0.00"
 								/>
@@ -464,7 +523,13 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 								type="number"
 								step="0.01"
 								value={discount}
-								onChange={(e) => setDiscount(e.target.value)}
+								onChange={(e) =>
+									dispatch({
+										type: "setString",
+										field: "discount",
+										value: e.target.value,
+									})
+								}
 							/>
 						</div>
 						<div>
@@ -474,7 +539,13 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 								type="number"
 								step="0.01"
 								value={tax}
-								onChange={(e) => setTax(e.target.value)}
+								onChange={(e) =>
+									dispatch({
+										type: "setString",
+										field: "tax",
+										value: e.target.value,
+									})
+								}
 							/>
 						</div>
 					</div>
@@ -525,9 +596,10 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 										step="0.01"
 										value={totalWithTaxOverride ?? ""}
 										onChange={(e) =>
-											setTotalWithTaxOverride(
-												e.target.value,
-											)
+											dispatch({
+												type: "setOverride",
+												value: e.target.value,
+											})
 										}
 										className="h-8 w-32 text-right"
 									/>
@@ -538,11 +610,12 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 									size="icon"
 									className="size-7"
 									onClick={() =>
-										setTotalWithTaxOverride(
-											isLocked
+										dispatch({
+											type: "setOverride",
+											value: isLocked
 												? String(computedTotalWithTax)
 												: null,
-										)
+										})
 									}
 									title={
 										isLocked
@@ -566,7 +639,13 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 							id="expiryDate"
 							type="date"
 							value={expiryDate}
-							onChange={(e) => setExpiryDate(e.target.value)}
+							onChange={(e) =>
+								dispatch({
+									type: "setString",
+									field: "expiryDate",
+									value: e.target.value,
+								})
+							}
 						/>
 					</div>
 
@@ -575,7 +654,13 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 						<Textarea
 							id="note"
 							value={note}
-							onChange={(e) => setNote(e.target.value)}
+							onChange={(e) =>
+								dispatch({
+									type: "setString",
+									field: "note",
+									value: e.target.value,
+								})
+							}
 							placeholder="Special instructions or payment context shown on the receipt"
 							rows={2}
 						/>
@@ -588,7 +673,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 				<DialogFooter>
 					<Button
 						variant="outline"
-						onClick={() => onOpenChange(false)}
+						onClick={() => handleOpenChange(false)}
 						disabled={isPending}
 					>
 						Cancel

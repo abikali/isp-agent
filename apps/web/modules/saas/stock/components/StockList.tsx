@@ -52,6 +52,7 @@ import { WorkerAllocationsDialog } from "./WorkerAllocationsDialog";
 
 export type StockItem = ReturnType<typeof useStockItems>["items"][number];
 
+// react-doctor-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- cohesive stock data-table feature (filters, columns, dialogs) sharing one state surface; the useState slices are independent UI toggles, not one related state machine
 export function StockList({ organizationSlug }: { organizationSlug: string }) {
 	const organizationId = useOrganizationId();
 	const [search, setSearch] = useState("");

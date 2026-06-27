@@ -39,6 +39,7 @@ type PreviewData = Awaited<
 	ReturnType<ReturnType<typeof usePreviewAccountTypeChange>["mutateAsync"]>
 >;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-dialog plan-change flow; sections share form/preview/mutation state and splitting would scatter tightly-coupled logic
 export function ChangePlanDialog({
 	open,
 	onOpenChange,

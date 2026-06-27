@@ -30,6 +30,7 @@ import {
 	toApiNotificationConfig,
 } from "./NotificationSettings";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form create dialog; splitting would scatter shared form state
 export function CreateWatcherDialog({
 	open,
 	onOpenChange,
@@ -119,6 +120,7 @@ export function CreateWatcherDialog({
 					</SheetDescription>
 				</SheetHeader>
 
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- canonical TanStack Form submit; not a server-action form */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

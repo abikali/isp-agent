@@ -60,6 +60,7 @@ export function WorkerShell({ children }: PropsWithChildren) {
 		return () => {
 			setTheme(previousTheme.current);
 		};
+		// react-doctor-disable-next-line react-doctor/exhaustive-deps -- mount-only theme toggle; depending on theme/setTheme would re-run and fight the user's choice
 	}, []);
 
 	const matchRoute = useMatchRoute();

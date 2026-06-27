@@ -52,6 +52,7 @@ export function ContactForm() {
 					<AlertTitle>Message sent successfully!</AlertTitle>
 				</Alert>
 			) : (
+				// react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form drives client-side validation/submission via form.handleSubmit(); preventDefault is required, this is not a progressively-enhanced server-action form
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

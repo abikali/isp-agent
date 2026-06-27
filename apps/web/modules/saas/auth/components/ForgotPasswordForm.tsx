@@ -71,6 +71,7 @@ export function ForgotPasswordForm() {
 					</AlertDescription>
 				</Alert>
 			) : (
+				// react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit; SPA auth form requires JS (authClient), no server action
 				<form
 					className="flex flex-col items-stretch gap-4"
 					onSubmit={(e) => {

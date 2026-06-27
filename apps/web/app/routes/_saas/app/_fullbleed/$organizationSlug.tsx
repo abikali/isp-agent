@@ -7,8 +7,10 @@ const getOrganizationFn = createServerFn({ method: "GET" })
 	.inputValidator((data: { organizationSlug: string }) => data)
 	.handler(async ({ data }: { data: { organizationSlug: string } }) => {
 		// Dynamic imports to prevent server code from being bundled for client
-		const { authApi } = await import("@repo/auth");
-		const { logger } = await import("@repo/logs");
+		const [{ authApi }, { logger }] = await Promise.all([
+			import("@repo/auth"),
+			import("@repo/logs"),
+		]);
 		try {
 			const organization = await authApi.getFullOrganization({
 				query: {

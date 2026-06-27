@@ -71,6 +71,7 @@ export function CreatePlanDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Create Service Plan</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Start SPA form: TanStack Form handles submit client-side via an oRPC mutation; there is no server action to post to */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

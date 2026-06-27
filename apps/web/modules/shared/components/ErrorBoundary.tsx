@@ -71,6 +71,7 @@ export class ErrorBoundary extends Component<
 
 			if (keysChanged) {
 				this.props.onReset?.();
+				// react-doctor-disable-next-line react-doctor/no-did-update-set-state -- guarded by resetKeys prop-diff; React-sanctioned escape hatch, cannot loop
 				this.setState({ hasError: false, error: null });
 			}
 		}

@@ -34,6 +34,7 @@ const STATUS_VARIANTS: Record<string, "info" | "success" | "error"> = {
 	REJECTED: "error",
 };
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices (sheet visibility + 4 inputs); a reducer would add ceremony without grouping related transitions
 export function WorkerExpenses() {
 	const organizationId = useOrganizationId();
 	const { expenses, isLoading } = useMyExpensesQuery();

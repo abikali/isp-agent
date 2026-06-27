@@ -10,7 +10,7 @@ import { Field, FieldError, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { ArrowRightIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 export function OnboardingStep1({ onCompleted }: { onCompleted: () => void }) {
 	const { user } = useSession();
@@ -38,16 +38,11 @@ export function OnboardingStep1({ onCompleted }: { onCompleted: () => void }) {
 		},
 	});
 
-	useEffect(() => {
-		if (user) {
-			form.setFieldValue("name", user.name ?? "");
-		}
-	}, [user, form]);
-
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
 	return (
 		<div>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form drives client-side validation/submission via form.handleSubmit(); preventDefault is required, this is not a progressively-enhanced server-action form */}
 			<form
 				className="flex flex-col items-stretch gap-8"
 				onSubmit={(e) => {

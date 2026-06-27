@@ -72,7 +72,7 @@ export function OtpForm() {
 			<p className="mt-1 mb-4 text-foreground/60">
 				Enter the verification code from your authenticator app
 			</p>
-
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit; SPA auth form requires JS (authClient), no server action */}
 			<form
 				className="flex flex-col items-stretch gap-4"
 				onSubmit={(e) => {
@@ -162,7 +162,6 @@ export function OtpForm() {
 
 				<Button loading={isSubmitting}>Verify</Button>
 			</form>
-
 			<div className="mt-6 text-center text-sm">
 				<Link to="/login">
 					<ArrowLeftIcon className="mr-1 inline size-4 align-middle" />

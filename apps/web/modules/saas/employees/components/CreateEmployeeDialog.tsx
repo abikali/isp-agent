@@ -93,6 +93,7 @@ export function CreateEmployeeDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Add Employee</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form (SPA) requires client-side onSubmit with preventDefault; no server-action equivalent */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

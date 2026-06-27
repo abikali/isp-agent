@@ -3,7 +3,7 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { ArrowRightIcon, CheckIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import { fadeUpVariants, staggerContainerVariants } from "../lib/motion";
 
 const benefits = [
@@ -27,14 +27,14 @@ export function FinalCTA() {
 			</div>
 
 			<div className="container relative z-10">
-				<motion.div
+				<m.div
 					variants={staggerContainerVariants}
 					initial="hidden"
 					whileInView="visible"
 					viewport={{ once: true }}
 					className="mx-auto max-w-3xl text-center"
 				>
-					<motion.h2
+					<m.h2
 						variants={fadeUpVariants}
 						className="font-bold text-3xl tracking-tight sm:text-4xl md:text-5xl lg:text-6xl"
 					>
@@ -42,18 +42,18 @@ export function FinalCTA() {
 						<span className="bg-gradient-to-r from-highlight to-orange-400 bg-clip-text text-transparent">
 							Stand Out?
 						</span>
-					</motion.h2>
+					</m.h2>
 
-					<motion.p
+					<m.p
 						variants={fadeUpVariants}
 						className="mx-auto mt-6 max-w-xl text-lg text-background/70 md:text-xl"
 					>
 						Join thousands of professionals who are elevating their
 						digital presence with LibanCom.
-					</motion.p>
+					</m.p>
 
 					{/* Benefits */}
-					<motion.ul
+					<m.ul
 						variants={fadeUpVariants}
 						className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-2"
 					>
@@ -66,10 +66,10 @@ export function FinalCTA() {
 								{benefit}
 							</li>
 						))}
-					</motion.ul>
+					</m.ul>
 
 					{/* CTA Button */}
-					<motion.div variants={fadeUpVariants} className="mt-10">
+					<m.div variants={fadeUpVariants} className="mt-10">
 						<Button
 							size="lg"
 							className="bg-background text-foreground hover:bg-background/90"
@@ -80,8 +80,8 @@ export function FinalCTA() {
 								<ArrowRightIcon className="ml-2 size-4" />
 							</Link>
 						</Button>
-					</motion.div>
-				</motion.div>
+					</m.div>
+				</m.div>
 			</div>
 		</section>
 	);

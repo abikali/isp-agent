@@ -32,6 +32,7 @@ import {
 } from "../constants/oauth-providers";
 import { SocialSigninButton } from "./SocialSigninButton";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- cohesive auth signup form; the state slices (password visibility, root error, success, resend flow) are independent UI flags, splitting/reducing would scatter tightly-coupled form logic
 export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 	const router = useRouter();
 	const searchParams = useSearch({ strict: false }) as {
@@ -137,6 +138,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 
 	const isSubmitting = useStore(form.store, (state) => state.isSubmitting);
 
+	// react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- side-effect mutation (sends a verification email); there is no cached query data to invalidate
 	const resendMutation = useMutation({
 		mutationFn: async (email: string) => {
 			const { error } = await authClient.sendVerificationEmail({
@@ -181,6 +183,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 						<OrganizationInvitationAlert className="mb-6" />
 					)}
 
+					{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- client-side TanStack Form submitting via authClient/oRPC; no server action exists, preventDefault is the documented pattern */}
 					<form
 						className="flex flex-col items-stretch gap-4"
 						onSubmit={(e) => {

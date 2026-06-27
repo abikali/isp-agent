@@ -257,6 +257,7 @@ export function UsageCell({
 							)}
 						</span>
 					</div>
+					{/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- custom styled bar with a nested animated fill child; native <progress> is a replaced element and cannot render the styled inner fill */}
 					<div
 						role="progressbar"
 						aria-valuenow={Math.round(quotaPct)}

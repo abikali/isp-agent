@@ -10,7 +10,7 @@ import {
 import { Button } from "@ui/components/button";
 import { cn } from "@ui/lib";
 import { MessageCircleIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
 	SectionHeader,
 	SectionWrapper,
@@ -65,7 +65,7 @@ export function FaqSection({ className }: { className?: string }) {
 				description="Find answers to common questions about LibanCom"
 			/>
 
-			<motion.div
+			<m.div
 				variants={staggerContainerVariants}
 				initial="hidden"
 				whileInView="visible"
@@ -80,32 +80,34 @@ export function FaqSection({ className }: { className?: string }) {
 							collapsible
 							className="w-full"
 						>
-							{faqs
-								.filter((_, i) => i % 2 === columnIndex)
-								.map((item, i) => (
-									<motion.div
-										key={`faq-${columnIndex}-${i}`}
-										variants={fadeUpVariants}
-									>
-										<AccordionItem
-											value={`faq-${columnIndex}-${i}`}
-											className="mb-4 rounded-lg border border-border bg-card px-5 last:mb-0 data-[state=open]:bg-card/80 lg:px-6"
-										>
-											<AccordionTrigger className="py-5 text-left font-semibold hover:no-underline">
-												{item.question}
-											</AccordionTrigger>
-											<AccordionContent className="text-muted-foreground">
-												{item.answer}
-											</AccordionContent>
-										</AccordionItem>
-									</motion.div>
-								))}
+							{faqs.flatMap((item, i) =>
+								i % 2 === columnIndex
+									? [
+											<m.div
+												key={item.question}
+												variants={fadeUpVariants}
+											>
+												<AccordionItem
+													value={item.question}
+													className="mb-4 rounded-lg border border-border bg-card px-5 last:mb-0 data-[state=open]:bg-card/80 lg:px-6"
+												>
+													<AccordionTrigger className="py-5 text-left font-semibold hover:no-underline">
+														{item.question}
+													</AccordionTrigger>
+													<AccordionContent className="text-muted-foreground">
+														{item.answer}
+													</AccordionContent>
+												</AccordionItem>
+											</m.div>,
+										]
+									: [],
+							)}
 						</Accordion>
 					))}
 				</div>
 
 				{/* Still have questions CTA */}
-				<motion.div
+				<m.div
 					variants={fadeUpVariants}
 					initial="hidden"
 					whileInView="visible"
@@ -121,8 +123,8 @@ export function FaqSection({ className }: { className?: string }) {
 							Contact Support
 						</Link>
 					</Button>
-				</motion.div>
-			</motion.div>
+				</m.div>
+			</m.div>
 		</SectionWrapper>
 	);
 }

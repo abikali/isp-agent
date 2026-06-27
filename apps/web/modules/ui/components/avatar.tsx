@@ -17,6 +17,7 @@ const Avatar = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Avatar family kept colocated by convention)
 const AvatarImage = ({
 	className,
 	...props
@@ -27,6 +28,7 @@ const AvatarImage = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Avatar family kept colocated by convention)
 const AvatarFallback = ({
 	className,
 	...props

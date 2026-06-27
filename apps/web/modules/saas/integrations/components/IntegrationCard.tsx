@@ -26,6 +26,7 @@ interface IntegrationCardProps {
 	onManage?: () => void;
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-explicit-variants -- isConnected/isConnecting are transient runtime states of one card (they only swap the action button), not distinct variant components; splitting would duplicate the shared card shell
 export function IntegrationCard({
 	provider,
 	isConnected,

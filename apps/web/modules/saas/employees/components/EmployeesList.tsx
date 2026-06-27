@@ -35,6 +35,7 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import {
+	BarChart3Icon,
 	CheckCircle2Icon,
 	ClipboardCopyIcon,
 	EyeIcon,
@@ -99,10 +100,12 @@ interface EmployeeRow {
 	createdAt: Date;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive employees-list feature: filters, table, pagination and dialogs share one query/selection flow; splitting would scatter it
 export function EmployeesList({
 	organizationSlug,
 }: {
 	organizationSlug: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination/dialog-toggle state slices; a reducer adds indirection without grouping
 }) {
 	const organizationId = useOrganizationId();
 	const [search, setSearch] = useState("");
@@ -336,6 +339,18 @@ export function EmployeesList({
 										>
 											<EyeIcon className="mr-2 size-4" />
 											View Details
+										</Link>
+									</DropdownMenuItem>
+									<DropdownMenuItem asChild>
+										<Link
+											to="/app/$organizationSlug/employees/$employeeId/report"
+											params={{
+												organizationSlug,
+												employeeId: emp.id,
+											}}
+										>
+											<BarChart3Icon className="mr-2 size-4" />
+											View Report
 										</Link>
 									</DropdownMenuItem>
 									<DropdownMenuItem

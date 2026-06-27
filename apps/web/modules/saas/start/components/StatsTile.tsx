@@ -10,6 +10,7 @@ function formatNumber(
 	style: "currency" | "percent" | "decimal" = "decimal",
 	currency?: string,
 ) {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- style and currency vary per call, so a single hoisted formatter cannot cover every (style, currency) combination
 	return new Intl.NumberFormat("en-US", {
 		style,
 		currency: style === "currency" ? currency : undefined,

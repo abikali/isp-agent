@@ -23,9 +23,10 @@ import {
 	XIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent dialog-flow slices (open, view, totpURI, password, totpCode), not one cohesive state machine
 export function TwoFactorBlock() {
 	const { user, reloadSession } = useSession();
 
@@ -39,10 +40,12 @@ export function TwoFactorBlock() {
 
 	const { data: accounts } = useUserAccountsQuery();
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally reset password when dialog state changes for security
-	useEffect(() => {
+	// Clear the password whenever the dialog visibility toggles (security),
+	// computed at the call site instead of in a post-render effect.
+	const handleDialogOpenChange = (open: boolean) => {
 		setPassword("");
-	}, [dialogOpen]);
+		setDialogOpen(open);
+	};
 
 	const totpURISecret = useMemo(() => {
 		if (!totpURI) {
@@ -55,9 +58,10 @@ export function TwoFactorBlock() {
 
 	const verifyPassword = async () => {
 		setDialogView("password");
-		setDialogOpen(true);
+		handleDialogOpenChange(true);
 	};
 
+	// react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- auth side-effect (better-auth 2FA enable); 2FA status lives in the session and is refreshed via reloadSession, not React Query cache
 	const enableTwoFactorMutation = useMutation({
 		mutationKey: ["enableTwoFactor"],
 		mutationFn: async () => {
@@ -80,6 +84,7 @@ export function TwoFactorBlock() {
 		},
 	});
 
+	// react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- auth side-effect (better-auth 2FA disable); 2FA status lives in the session and is refreshed via reloadSession, not React Query cache
 	const disableTwoFactorMutation = useMutation({
 		mutationKey: ["disableTwoFactor"],
 		mutationFn: async () => {
@@ -91,7 +96,7 @@ export function TwoFactorBlock() {
 				throw error;
 			}
 
-			setDialogOpen(false);
+			handleDialogOpenChange(false);
 
 			toast.success("Two-factor authentication disabled");
 
@@ -103,6 +108,7 @@ export function TwoFactorBlock() {
 		},
 	});
 
+	// react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- auth side-effect (better-auth 2FA verify); 2FA status lives in the session and is refreshed via reloadSession, not React Query cache
 	const verifyTwoFactorMutation = useMutation({
 		mutationKey: ["verifyTwoFactor"],
 		mutationFn: async () => {
@@ -117,7 +123,7 @@ export function TwoFactorBlock() {
 			toast.success("Two-factor authentication enabled successfully");
 
 			reloadSession();
-			setDialogOpen(false);
+			handleDialogOpenChange(false);
 		},
 	});
 
@@ -168,7 +174,7 @@ export function TwoFactorBlock() {
 				</div>
 			)}
 
-			<Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+			<Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>

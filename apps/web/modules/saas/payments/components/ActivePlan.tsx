@@ -8,6 +8,7 @@ import { usePlanData } from "../hooks/plan-data";
 import { usePurchases } from "../hooks/purchases";
 
 function formatCurrency(amount: number, currency: string) {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- currency is a per-call dynamic arg; a single module-scope formatter can't cover all currencies
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency,

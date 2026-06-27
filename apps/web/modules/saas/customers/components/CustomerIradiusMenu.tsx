@@ -81,6 +81,7 @@ function toDateInputValue(value: string | Date | null): string {
  *
  * Hidden when the customer isn't linked to iRadius — there's nothing to do.
  */
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-responsibility iRadius menu; splitting would scatter tightly-coupled dialog wiring
 export function CustomerIradiusMenu({
 	organizationId,
 	customer,

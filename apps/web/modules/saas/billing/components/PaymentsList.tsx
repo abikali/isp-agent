@@ -176,9 +176,10 @@ function collectCustomerPhones(customer: {
 		...parsePhones(customer.phones).map((p) => p.number),
 		customer.mobile ?? "",
 		customer.phone ?? "",
-	]
-		.map((p) => p.trim())
-		.filter(Boolean);
+	].flatMap((p) => {
+		const trimmed = p.trim();
+		return trimmed ? [trimmed] : [];
+	});
 	return [...new Set(all)];
 }
 
@@ -504,6 +505,7 @@ function ActivityLogDialog({
 					) : (
 						<div className="space-y-2">
 							{log.map((entry, i) => (
+								// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- append-only read-only activity log; entries have no stable id and never reorder or filter
 								<div
 									key={i}
 									className="flex items-start gap-3 rounded-lg border p-3 text-sm"
@@ -626,6 +628,12 @@ function isIradiusUserMissing(error: unknown): boolean {
 
 // ─── Main Component ─────────────────────────────────────────────
 
+function rowClassName(row: { original: PaymentRow }) {
+	return getPaymentRowClassName(row.original);
+}
+
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive payments table feature; dialogs/cells already extracted, remaining body is one coordinated data table + toolbar
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/selection/dialog state slices, not a single related state machine
 export function PaymentsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
@@ -779,9 +787,9 @@ export function PaymentsList() {
 	// selection needs review.
 	const reviewablePaymentIds = useMemo(() => {
 		const selectedPaymentIds = new Set(Object.keys(rowSelection));
-		return payments
-			.filter((p) => selectedPaymentIds.has(p.id) && isUnreviewed(p))
-			.map((p) => p.id);
+		return payments.flatMap((p) =>
+			selectedPaymentIds.has(p.id) && isUnreviewed(p) ? [p.id] : [],
+		);
 	}, [rowSelection, payments]);
 	// Any stopped accounts in the selection? Their approval also deactivates
 	// the customer in iRadius + voids the invoice, so the confirm copy warns.
@@ -818,9 +826,6 @@ export function PaymentsList() {
 			},
 		);
 	}
-
-	const rowClassName = (row: { original: PaymentRow }) =>
-		getPaymentRowClassName(row.original);
 
 	const hasActiveFilters =
 		typeFilter !== "all" ||

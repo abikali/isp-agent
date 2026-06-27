@@ -68,9 +68,9 @@ function getOrCreateSessionId(token: string): string {
 function TypingDots() {
 	return (
 		<div className="flex items-center gap-1 py-0.5">
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:0ms]" />
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:150ms]" />
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:300ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:0ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:150ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:300ms]" />
 		</div>
 	);
 }
@@ -190,10 +190,15 @@ function WebChatInner({
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, []);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages; scrollToBottom is stable from useCallback
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages, isLoading]);
+	}, [messages, isLoading, scrollToBottom]);
+
+	// Focus the input when the chat mounts (replaces autoFocus)
+	useEffect(() => {
+		textareaRef.current?.focus();
+	}, []);
 
 	// Auto-resize textarea
 	function resizeTextarea() {
@@ -401,6 +406,7 @@ function WebChatInner({
 							}}
 							onKeyDown={handleKeyDown}
 							placeholder="Message..."
+							aria-label="Message"
 							disabled={isLoading}
 							rows={1}
 							className={cn(
@@ -410,8 +416,6 @@ function WebChatInner({
 								"disabled:cursor-not-allowed disabled:opacity-50",
 								"max-h-40 min-h-[42px]",
 							)}
-							// biome-ignore lint/a11y/noAutofocus: chat input should auto-focus
-							autoFocus
 						/>
 					</div>
 					<Tooltip>
@@ -445,13 +449,17 @@ export function WebChatInterface({ token }: { token: string }) {
 	// Key used to remount WebChatInner to reset useChat state
 	const [chatKey, setChatKey] = useState(0);
 
-	const agentInfo = useQuery(
+	const {
+		data: agentData,
+		isError: agentError,
+		isLoading: agentLoading,
+	} = useQuery(
 		orpc.aiAgents.webChatInfo.queryOptions({
 			input: { token },
 		}),
 	);
 
-	const history = useQuery({
+	const { data: historyData, isLoading: historyLoading } = useQuery({
 		...orpc.aiAgents.getWebChatHistory.queryOptions({
 			input: { token, sessionId },
 		}),
@@ -459,11 +467,11 @@ export function WebChatInterface({ token }: { token: string }) {
 	});
 
 	const initialMessages = useMemo(() => {
-		if (history.data?.messages && history.data.messages.length > 0) {
-			return convertHistoryToUIMessages(history.data.messages);
+		if (historyData?.messages && historyData.messages.length > 0) {
+			return convertHistoryToUIMessages(historyData.messages);
 		}
 		return [];
-	}, [history.data]);
+	}, [historyData]);
 
 	function handleNewConversation() {
 		const newId = crypto.randomUUID();
@@ -475,11 +483,11 @@ export function WebChatInterface({ token }: { token: string }) {
 		});
 	}
 
-	const agentName = agentInfo.data?.name ?? "Assistant";
+	const agentName = agentData?.name ?? "Assistant";
 	const agentInitial = agentName.charAt(0).toUpperCase();
 
 	// Error state
-	if (agentInfo.isError) {
+	if (agentError) {
 		return (
 			<div className="flex h-dvh items-center justify-center bg-background px-6">
 				<div className="text-center space-y-4">
@@ -501,7 +509,7 @@ export function WebChatInterface({ token }: { token: string }) {
 	}
 
 	// Loading state
-	if (agentInfo.isLoading || history.isLoading) {
+	if (agentLoading || historyLoading) {
 		return (
 			<div className="flex h-dvh items-center justify-center bg-background">
 				<div className="flex flex-col items-center gap-3">
@@ -586,7 +594,7 @@ export function WebChatInterface({ token }: { token: string }) {
 					initialMessages={initialMessages}
 					agentName={agentName}
 					agentInitial={agentInitial}
-					greetingMessage={agentInfo.data?.greetingMessage ?? null}
+					greetingMessage={agentData?.greetingMessage ?? null}
 				/>
 			</div>
 		</TooltipProvider>

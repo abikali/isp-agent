@@ -177,6 +177,7 @@ export function BasesList() {
 			},
 		],
 		// eslint-disable-next-line react-hooks/exhaustive-deps
+		// react-doctor-disable-next-line react-doctor/exhaustive-deps -- openEdit/handleDelete only use stable setters/refs; columns intentionally rebuild only on permission change
 		[canUpdate, canDelete],
 	);
 

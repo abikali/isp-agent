@@ -84,14 +84,18 @@ export function BillingDashboard() {
 		return map;
 	}, [collectorsListData]);
 
-	const collectorEntries = reports.collectorBreakdown
-		.map((c) => ({
-			collectorId: c.collectorId,
-			name: c.name,
-			amount: c.totalCollected,
-			count: c.paymentCount,
-		}))
-		.filter((c) => c.amount > 0);
+	const collectorEntries = reports.collectorBreakdown.flatMap((c) =>
+		c.totalCollected > 0
+			? [
+					{
+						collectorId: c.collectorId,
+						name: c.name,
+						amount: c.totalCollected,
+						count: c.paymentCount,
+					},
+				]
+			: [],
+	);
 
 	const breakdownEntries = reports.collectorBreakdown
 		.map((c) => ({

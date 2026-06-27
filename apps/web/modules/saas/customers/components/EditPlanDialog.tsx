@@ -82,6 +82,7 @@ export function EditPlanDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Edit Service Plan</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- client-side TanStack Form (project convention); no server action exists to delegate to */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

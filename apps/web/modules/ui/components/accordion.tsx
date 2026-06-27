@@ -14,6 +14,7 @@ const AccordionItem = ({
 	<AccordionPrimitive.Item className={cn("border-b", className)} {...props} />
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Accordion family kept colocated by convention)
 const AccordionTrigger = ({
 	className,
 	children,
@@ -33,6 +34,7 @@ const AccordionTrigger = ({
 	</AccordionPrimitive.Header>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Accordion family kept colocated by convention)
 const AccordionContent = ({
 	className,
 	children,

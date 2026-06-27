@@ -1,0 +1,258 @@
+[
+	{
+		"name": "خشان",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "ميدع السبتية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "سنتر قمر",
+		"workers": ["walewe", "wjhonny", "wmarwan"]
+	},
+	{
+		"name": "زهر سد البوشرية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "مانولي دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "كاريتاس دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بناية الحمرا دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "جوني بسابا",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "فرحا بصاليم",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "عين عنوب",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "عبدالمسيح زلقا",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "ابو علاء سدالبوشرية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "ابونا بول",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "ابيض تاور",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "احمد عواد",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "اكاسيا",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "ايميل اشرفية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بيت شاي",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "بيت مري وليد",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "برنار اشرفية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بيشو سن الفيل",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "كريس سن الفيل",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "دافيد بياقوت",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "دير كركفي",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "دورة omt",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "الياس نمور",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "ايلي مراد",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "فاضل",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "فنار ايلي",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "جورج سعد مروكز",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "حارة الست",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "هيلز",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "حومال",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "ابراهيم ابراهيم سبتية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "ابراهيم تكتك",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "كسليك",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "كريستيان بيطار",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "كوع كوتي",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "لارا زلقا",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "معماري",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "مركباوي",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "ميرنا فرح",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "محمد اسعد برج حمود",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "موسا زلقا",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "نبيل سليم",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "باتريك بصاليم",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بول ابراهيم دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بول جديدة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "رفول وادي",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "طوني ملحم قشورية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "وروار",
+		"workers": ["wtaktak"]
+	},
+	{
+		"name": "تورال دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "عبد العزيز سن الفيل",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "TEST-STATION",
+		"workers": ["wtest"]
+	},
+	{
+		"name": "جوني سبتية",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "راضي",
+		"workers": ["wmarwan", "wtaktak"]
+	},
+	{
+		"name": "حسون دكوانة",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "ogero-jdeide",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "بردايز",
+		"workers": ["walewe", "wmarwan"]
+	},
+	{
+		"name": "كحالة محطة2",
+		"workers": ["emileabouzeidan", "wmarwan"]
+	},
+	{
+		"name": "كحالة محطة1",
+		"workers": ["emileabouzeidan", "wmarwan"]
+	},
+	{
+		"name": "كحالة محطة3 ميشال",
+		"workers": ["emileabouzeidan", "wmarwan"]
+	},
+	{
+		"name": "كحالة محطة4 388",
+		"workers": ["emileabouzeidan", "wmarwan"]
+	},
+	{
+		"name": "سليم سابا",
+		"workers": ["walewe", "wmarwan"]
+	}
+]

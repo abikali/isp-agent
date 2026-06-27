@@ -100,9 +100,9 @@ function CollapsibleJson({
 function TypingDots() {
 	return (
 		<div className="flex items-center gap-1 py-0.5">
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:0ms]" />
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:150ms]" />
-			<span className="size-1.5 animate-bounce rounded-full bg-current opacity-60 [animation-delay:300ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:0ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:150ms]" />
+			<span className="size-1.5 animate-pulse rounded-full bg-current opacity-60 [animation-delay:300ms]" />
 		</div>
 	);
 }
@@ -280,10 +280,10 @@ function DebugChatInner({
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, []);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new messages; scrollToBottom is stable from useCallback
 	useEffect(() => {
 		scrollToBottom();
-	}, [messages, isLoading]);
+	}, [messages, isLoading, scrollToBottom]);
 
 	function resizeTextarea() {
 		const el = textareaRef.current;
@@ -368,6 +368,7 @@ function DebugChatInner({
 							resizeTextarea();
 						}}
 						onKeyDown={handleKeyDown}
+						aria-label="WhatsApp message"
 						placeholder="Type the WhatsApp message…"
 						disabled={isLoading}
 						rows={1}

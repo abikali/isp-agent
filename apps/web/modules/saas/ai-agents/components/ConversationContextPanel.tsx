@@ -219,12 +219,12 @@ function CustomerCardContainer({
 	organizationId: string;
 	organizationSlug: string;
 }) {
-	const query = useQuery(
+	const { data, isLoading } = useQuery(
 		orpc.customers.get.queryOptions({
 			input: { organizationId, id: customerId },
 		}),
 	);
-	const customer = query.data?.customer;
+	const customer = data?.customer;
 	const customerSummary: CustomerSummary | null = customer
 		? {
 				id: customer.id,
@@ -259,7 +259,7 @@ function CustomerCardContainer({
 		: null;
 	return (
 		<CustomerCard
-			loading={query.isLoading}
+			loading={isLoading}
 			customer={customerSummary}
 			customerId={customerId}
 			organizationSlug={organizationSlug}

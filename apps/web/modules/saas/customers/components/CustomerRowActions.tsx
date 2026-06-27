@@ -89,6 +89,7 @@ interface CustomerRowActionsProps {
  * Subscribes to the mutation hooks locally so a pending flip re-renders
  * only this one cell, not the entire `columns` useMemo on the parent.
  */
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive row action menu wiring many tightly-coupled per-row dialogs; splitting would scatter shared state
 export function CustomerRowActions({
 	customerId,
 	customerName,

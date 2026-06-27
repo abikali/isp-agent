@@ -31,40 +31,40 @@ import {
 	SunIcon,
 } from "lucide-react";
 
+const colorModeOptions = [
+	{
+		value: "system",
+		label: "System",
+		icon: HardDriveIcon,
+	},
+	{
+		value: "light",
+		label: "Light",
+		icon: SunIcon,
+	},
+	{
+		value: "dark",
+		label: "Dark",
+		icon: MoonIcon,
+	},
+];
+
+function onLogout() {
+	authClient.signOut({
+		fetchOptions: {
+			onSuccess: async () => {
+				window.location.href = new URL(
+					config.auth.redirectAfterLogout,
+					window.location.origin,
+				).toString();
+			},
+		},
+	});
+}
+
 export function UserMenu({ showUserName }: { showUserName?: boolean }) {
 	const { user } = useSession();
 	const { setTheme, theme } = useTheme();
-
-	const colorModeOptions = [
-		{
-			value: "system",
-			label: "System",
-			icon: HardDriveIcon,
-		},
-		{
-			value: "light",
-			label: "Light",
-			icon: SunIcon,
-		},
-		{
-			value: "dark",
-			label: "Dark",
-			icon: MoonIcon,
-		},
-	];
-
-	const onLogout = () => {
-		authClient.signOut({
-			fetchOptions: {
-				onSuccess: async () => {
-					window.location.href = new URL(
-						config.auth.redirectAfterLogout,
-						window.location.origin,
-					).toString();
-				},
-			},
-		});
-	};
 
 	if (!user) {
 		return null;

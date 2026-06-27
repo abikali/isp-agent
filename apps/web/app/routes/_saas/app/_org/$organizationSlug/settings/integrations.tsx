@@ -28,6 +28,7 @@ export const Route = createFileRoute(
 		);
 
 		return {
+			// react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone -- intentional SSR serialization of dehydrated query cache (strips non-serializable values for the client payload); canonical pattern per CLAUDE.md
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 			organizationId: organization.id,
 		};
@@ -38,15 +39,15 @@ export const Route = createFileRoute(
 	component: OrganizationIntegrationsPage,
 });
 
+const skeleton = (
+	<>
+		<ConnectedIntegrationsSkeleton />
+		<IntegrationsGridSkeleton />
+	</>
+);
+
 function OrganizationIntegrationsPage() {
 	const loaderData = Route.useLoaderData();
-
-	const skeleton = (
-		<>
-			<ConnectedIntegrationsSkeleton />
-			<IntegrationsGridSkeleton />
-		</>
-	);
 
 	return (
 		<SettingsList>

@@ -1,6 +1,7 @@
 "use client";
 
 import { type ChartConfig, ChartContainer } from "@ui/components/chart";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts already in client bundle via @ui/components/chart (ChartContainer); per-leaf lazy import wouldn't reduce bundle
 import { PolarAngleAxis, RadialBar, RadialBarChart } from "recharts";
 import {
 	CHART_TOKENS,

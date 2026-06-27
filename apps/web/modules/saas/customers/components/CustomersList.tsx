@@ -223,10 +223,12 @@ interface CustomerRow {
 	notes: string | null;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive data-table feature (filters, columns, bulk actions, dialogs) sharing one state surface
 export function CustomersList({
 	organizationSlug,
 }: {
 	organizationSlug: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent UI slices (selection, paging, filter, dialogs), not one related state machine
 }) {
 	const maybeOrganizationId = useOrganizationId();
 	// The `_org/$organizationSlug` route's `beforeLoad` guard guarantees an
@@ -280,7 +282,12 @@ export function CustomersList({
 	const { stations } = useStationsQuery();
 	const { groups } = useCustomerGroups();
 	const { data: collectorsData } = useCollectors();
-	const collectors = collectorsData?.collectors ?? [];
+	// Stabilize the reference so the `activeChips`/`columns` memos that depend
+	// on it don't recompute on every render.
+	const collectors = useMemo(
+		() => collectorsData?.collectors ?? [],
+		[collectorsData],
+	);
 
 	const selectedIds = useMemo(
 		() => Object.keys(rowSelection),

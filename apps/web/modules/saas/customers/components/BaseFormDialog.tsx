@@ -26,6 +26,7 @@ interface BaseFormDialogProps {
 	base?: Base | null;
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field state slices; plain useState reads clearer than a reducer here
 export function BaseFormDialog({
 	open,
 	onOpenChange,

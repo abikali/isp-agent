@@ -35,6 +35,7 @@ function Field({
 	...props
 }: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
 	return (
+		// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- role="group" has no clean native HTML equivalent (<address>/<fieldset> change semantics); intentional per shadcn/ui Field
 		// biome-ignore lint/a11y/useSemanticElements: Official shadcn/ui Field component uses role="group" for form field grouping
 		<div
 			role="group"
@@ -64,6 +65,7 @@ function FieldLabel({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui field barrel of related primitives
 function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
 	return (
 		<p
@@ -88,28 +90,33 @@ function normalizeErrors(errors: readonly unknown[] | undefined): string[] {
 		return [];
 	}
 
-	return errors
-		.filter((error): error is NonNullable<unknown> => error != null)
-		.map((error) => {
-			// Handle string errors (inline validators)
-			if (typeof error === "string") {
-				return error;
-			}
+	return errors.reduce<string[]>((acc, error) => {
+		if (error == null) {
+			return acc;
+		}
+		let msg: string;
+		// Handle string errors (inline validators)
+		if (typeof error === "string") {
+			msg = error;
+		} else if (
 			// Handle Standard Schema errors (zod validators)
-			if (
-				typeof error === "object" &&
-				error !== null &&
-				"message" in error &&
-				typeof (error as { message: unknown }).message === "string"
-			) {
-				return (error as { message: string }).message;
-			}
+			typeof error === "object" &&
+			"message" in error &&
+			typeof (error as { message: unknown }).message === "string"
+		) {
+			msg = (error as { message: string }).message;
+		} else {
 			// Fallback for unknown error types
-			return String(error);
-		})
-		.filter((msg) => msg.length > 0);
+			msg = String(error);
+		}
+		if (msg.length > 0) {
+			acc.push(msg);
+		}
+		return acc;
+	}, []);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui field barrel of related primitives
 function FieldError({
 	className,
 	children,
@@ -121,30 +128,22 @@ function FieldError({
 }) {
 	const normalizedErrors = useMemo(() => normalizeErrors(errors), [errors]);
 
-	const content = useMemo(() => {
-		if (children) {
-			return children;
-		}
-
-		if (normalizedErrors.length === 0) {
-			return null;
-		}
-
-		if (normalizedErrors.length === 1) {
-			return normalizedErrors[0];
-		}
-
-		return (
-			<ul className="ml-4 flex list-disc flex-col gap-1">
-				{normalizedErrors.map((error, index) => (
-					<li key={index}>{error}</li>
-				))}
-			</ul>
-		);
-	}, [children, normalizedErrors]);
-
-	if (!content) {
+	if (!children && normalizedErrors.length === 0) {
 		return null;
+	}
+
+	let content: React.ReactNode = children;
+	if (!children) {
+		content =
+			normalizedErrors.length === 1 ? (
+				normalizedErrors[0]
+			) : (
+				<ul className="ml-4 flex list-disc flex-col gap-1">
+					{normalizedErrors.map((error) => (
+						<li key={error}>{error}</li>
+					))}
+				</ul>
+			);
 	}
 
 	return (

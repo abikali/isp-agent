@@ -31,7 +31,7 @@ import {
 import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	useCreateBillingLocationRequest,
@@ -56,10 +56,12 @@ interface PaymentSheetProps {
 
 const MAX_PHONES = 5;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive payment-collection sheet; shared form state and data flow make splitting obscure rather than clearer
 export function PaymentSheet({
 	open,
 	onOpenChange,
 	customer,
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field state slices (amount, toggles, phones, notes); a reducer adds indirection without grouping related transitions
 }: PaymentSheetProps) {
 	const organizationId = useOrganizationId();
 	const { employee } = useActiveOrganization();
@@ -73,7 +75,14 @@ export function PaymentSheet({
 	const { accountPrice, iptvPrice, realIpPrice, discountAmount } =
 		extractPriceComponents(customer);
 
-	const [paidAmount, setPaidAmount] = useState("");
+	// Form state is initialized once from the selected customer. The parent
+	// remounts this component via `key={customer.id}`, so switching customers
+	// re-runs these initializers with fresh values instead of an effect reset.
+	const [paidAmount, setPaidAmount] = useState(() =>
+		customer
+			? String(calculateTotalDue(customer, { freeAccount: false }))
+			: "",
+	);
 	const [freeAccount, setFreeAccount] = useState(false);
 	const [referredCustomer, setReferredCustomer] = useState<{
 		id: string;
@@ -86,45 +95,28 @@ export function PaymentSheet({
 	const phoneIdRef = useRef(0);
 	const [phones, setPhones] = useState<
 		Array<{ id: number; number: string; primary: boolean }>
-	>([{ id: 0, number: "", primary: true }]);
-	// Reset form when a different customer is selected
-	const customerId = customer?.id;
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only reset form when a different customer is selected
-	useEffect(() => {
-		if (customerId && customer) {
-			const amount = calculateTotalDue(customer, { freeAccount: false });
-			setPaidAmount(String(amount));
-			setFreeAccount(false);
-			setReferredCustomer(null);
-			setStoppedAccount(false);
-			setNoteCategory("");
-			setNotes("");
-			// Initialize phones from customer.phones array (or fallback to mobile/phone)
-			phoneIdRef.current = 0;
-			const parsed = Array.isArray(customer.phones)
-				? customer.phones.map(
-						(p: { number: string; primary: boolean }) => ({
-							id: phoneIdRef.current++,
-							number: toInternationalPhone(p.number),
-							primary: p.primary,
-						}),
-					)
-				: [customer.mobile, customer.phone]
-						.filter(Boolean)
-						.map((p, i) => ({
-							id: phoneIdRef.current++,
-							number: toInternationalPhone(p as string),
-							primary: i === 0,
-						}));
-			setPhones(
-				parsed.length > 0
-					? parsed
-					: [{ id: phoneIdRef.current++, number: "", primary: true }],
-			);
-			setShowLocationPrompt(false);
+	>(() => {
+		// Initialize phones from customer.phones array (or fallback to mobile/phone)
+		if (!customer) {
+			return [{ id: 0, number: "", primary: true }];
 		}
-	}, [customerId]);
+		const parsed = Array.isArray(customer.phones)
+			? customer.phones.map(
+					(p: { number: string; primary: boolean }) => ({
+						id: phoneIdRef.current++,
+						number: toInternationalPhone(p.number),
+						primary: p.primary,
+					}),
+				)
+			: [customer.mobile, customer.phone].filter(Boolean).map((p, i) => ({
+					id: phoneIdRef.current++,
+					number: toInternationalPhone(p as string),
+					primary: i === 0,
+				}));
+		return parsed.length > 0
+			? parsed
+			: [{ id: phoneIdRef.current++, number: "", primary: true }];
+	});
 
 	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
 	const pastDueMonths = customer?.pastDueMonths ?? 0;
@@ -191,13 +183,11 @@ export function PaymentSheet({
 			return;
 		}
 
-		// Build phones array with stripped numbers
-		const customerPhones = phones
-			.map((p) => ({
-				number: stripPhone(p.number),
-				primary: p.primary,
-			}))
-			.filter((p) => p.number !== "");
+		// Build phones array with stripped numbers (single pass)
+		const customerPhones = phones.flatMap((p) => {
+			const number = stripPhone(p.number);
+			return number !== "" ? [{ number, primary: p.primary }] : [];
+		});
 
 		createPayment.mutate(
 			{
@@ -272,6 +262,7 @@ export function PaymentSheet({
 	return (
 		<>
 			<LocationPromptDialog
+				key={String(showLocationPrompt)}
 				open={showLocationPrompt}
 				customerName={name}
 				onConfirm={(latitude, longitude) => {

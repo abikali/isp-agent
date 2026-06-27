@@ -14,7 +14,7 @@ import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
 import { PauseIcon, PlayIcon, TrashIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { webhooksQueryOptions } from "../hooks/use-webhooks";
 
@@ -66,34 +66,42 @@ export function WebhooksList() {
 	const deleteMutation = useMutation(orpc.webhooks.delete.mutationOptions());
 	const updateMutation = useMutation(orpc.webhooks.update.mutationOptions());
 	const testMutation = useMutation(orpc.webhooks.test.mutationOptions());
+	const { mutateAsync: deleteWebhook } = deleteMutation;
+	const { mutateAsync: updateWebhook } = updateMutation;
 
-	const handleDelete = async (id: string) => {
-		if (!confirm("Are you sure you want to delete this webhook?")) {
-			return;
-		}
+	const handleDelete = useCallback(
+		async (id: string) => {
+			if (!confirm("Are you sure you want to delete this webhook?")) {
+				return;
+			}
 
-		try {
-			await deleteMutation.mutateAsync({ id });
-			queryClient.invalidateQueries({
-				queryKey: orpc.webhooks.list.key(),
-			});
-			toast.success("Webhook deleted successfully");
-		} catch {
-			toast.error("Failed to delete webhook");
-		}
-	};
+			try {
+				await deleteWebhook({ id });
+				queryClient.invalidateQueries({
+					queryKey: orpc.webhooks.list.key(),
+				});
+				toast.success("Webhook deleted successfully");
+			} catch {
+				toast.error("Failed to delete webhook");
+			}
+		},
+		[deleteWebhook, queryClient],
+	);
 
-	const handleToggle = async (id: string, enabled: boolean) => {
-		try {
-			await updateMutation.mutateAsync({ id, enabled });
-			queryClient.invalidateQueries({
-				queryKey: orpc.webhooks.list.key(),
-			});
-			toast.success("Webhook updated successfully");
-		} catch {
-			toast.error("Failed to update webhook");
-		}
-	};
+	const handleToggle = useCallback(
+		async (id: string, enabled: boolean) => {
+			try {
+				await updateWebhook({ id, enabled });
+				queryClient.invalidateQueries({
+					queryKey: orpc.webhooks.list.key(),
+				});
+				toast.success("Webhook updated successfully");
+			} catch {
+				toast.error("Failed to update webhook");
+			}
+		},
+		[updateWebhook, queryClient],
+	);
 
 	const _handleTest = async (id: string) => {
 		try {
@@ -110,7 +118,6 @@ export function WebhooksList() {
 		}
 	};
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: handlers are stable enough via isPending
 	const columns: ColumnDef<Webhook, unknown>[] = useMemo(
 		() => [
 			{
@@ -193,7 +200,12 @@ export function WebhooksList() {
 				),
 			},
 		],
-		[updateMutation.isPending, deleteMutation.isPending],
+		[
+			handleToggle,
+			handleDelete,
+			updateMutation.isPending,
+			deleteMutation.isPending,
+		],
 	);
 
 	if (!organizationId) {

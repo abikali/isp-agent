@@ -706,6 +706,7 @@ function NasRow({
 }) {
 	return (
 		<div className="flex items-center gap-3 px-4 py-2.5 text-sm md:px-5">
+			{/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- decorative CSS status dot; <img> is a void element needing a src and cannot render this styled span, so role="img"+aria-label is the right semantic */}
 			<span
 				role="img"
 				className={cn(
@@ -887,6 +888,7 @@ function TopConsumers({
 								>
 									<div className="min-w-0">
 										<div className="flex items-center gap-1.5 truncate font-medium">
+											{/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- decorative CSS status dot; <img> is a void element needing a src and cannot render this styled span, so role="img"+aria-label is the right semantic */}
 											<span
 												role="img"
 												className={cn(

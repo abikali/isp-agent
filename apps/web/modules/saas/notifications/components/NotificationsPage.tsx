@@ -109,14 +109,15 @@ export function NotificationsPage() {
 	});
 
 	const grouped = useMemo(() => {
-		const today: typeof notifications = [];
-		const yesterday: typeof notifications = [];
-		const older: typeof notifications = [];
+		const items = data?.notifications ?? [];
+		const today: typeof items = [];
+		const yesterday: typeof items = [];
+		const older: typeof items = [];
 		const todayStart = new Date();
 		todayStart.setHours(0, 0, 0, 0);
 		const yesterdayStart = new Date(todayStart);
 		yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-		for (const n of notifications) {
+		for (const n of items) {
 			const created = new Date(n.createdAt).getTime();
 			if (created >= todayStart.getTime()) {
 				today.push(n);
@@ -127,7 +128,7 @@ export function NotificationsPage() {
 			}
 		}
 		return { today, yesterday, older };
-	}, [notifications]);
+	}, [data]);
 
 	return (
 		<PageShell

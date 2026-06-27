@@ -577,14 +577,17 @@ function PushResult({ operation }: { operation: PushOperation }) {
 			{errors.length > 0 && (
 				<ScrollArea className="max-h-32 rounded-md border p-3">
 					<ul className="space-y-1 text-xs text-destructive">
-						{errors.slice(0, 50).map((err, i) => (
-							<li key={`push-err-${i}`}>
-								<span className="font-medium">
-									[{err.phase}]{" "}
-								</span>
-								{err.detail}
-							</li>
-						))}
+						{errors.slice(0, 50).map((err, i) => {
+							// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- append-only error log; rows have no intrinsic id and never reorder or filter
+							return (
+								<li key={`push-err-${i}`}>
+									<span className="font-medium">
+										[{err.phase}]{" "}
+									</span>
+									{err.detail}
+								</li>
+							);
+						})}
 					</ul>
 				</ScrollArea>
 			)}

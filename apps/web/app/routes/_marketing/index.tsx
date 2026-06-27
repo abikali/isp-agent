@@ -8,6 +8,7 @@ import { SocialProofBar } from "@marketing/home/components/SocialProofBar";
 import { TestimonialsSection } from "@marketing/home/components/TestimonialsSection";
 import { config } from "@repo/config";
 import { createFileRoute } from "@tanstack/react-router";
+import { domAnimation, LazyMotion } from "motion/react";
 
 export const Route = createFileRoute("/_marketing/")({
 	head: () => ({
@@ -88,30 +89,32 @@ export const Route = createFileRoute("/_marketing/")({
 
 function HomePage() {
 	return (
-		<main className="flex flex-col">
-			{/* Hero - Above the fold, immediate impact */}
-			<HeroSection />
+		<LazyMotion features={domAnimation}>
+			<main className="flex flex-col">
+				{/* Hero - Above the fold, immediate impact */}
+				<HeroSection />
 
-			{/* Social Proof - Build trust with logos and stats */}
-			<SocialProofBar />
+				{/* Social Proof - Build trust with logos and stats */}
+				<SocialProofBar />
 
-			{/* Features - Bento grid showcasing capabilities */}
-			<FeaturesGrid />
+				{/* Features - Bento grid showcasing capabilities */}
+				<FeaturesGrid />
 
-			{/* How It Works - Simple 3-step flow */}
-			<HowItWorks />
+				{/* How It Works - Simple 3-step flow */}
+				<HowItWorks />
 
-			{/* Testimonials - Social proof carousel */}
-			<TestimonialsSection />
+				{/* Testimonials - Social proof carousel */}
+				<TestimonialsSection />
 
-			{/* Pricing - Plans and pricing table */}
-			<PricingSection />
+				{/* Pricing - Plans and pricing table */}
+				<PricingSection />
 
-			{/* FAQ - Common questions */}
-			<FaqSection />
+				{/* FAQ - Common questions */}
+				<FaqSection />
 
-			{/* Final CTA - Conversion focused closing section */}
-			<FinalCTA />
-		</main>
+				{/* Final CTA - Conversion focused closing section */}
+				<FinalCTA />
+			</main>
+		</LazyMotion>
 	);
 }

@@ -468,6 +468,7 @@ const SORT_BY_MAP = {
 	"oldestUnpaidExpiry" | "firstName" | "groupName" | "monthlyRate"
 >;
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination state slices, not a related state machine
 export function UnpaidCustomersList() {
 	const { employee, isOrganizationAdmin, activeOrganization } =
 		useActiveOrganization();

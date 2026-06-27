@@ -11,6 +11,7 @@ export function DeleteAccountForm() {
 	const { reloadSession } = useSession();
 	const { confirm } = useConfirmationAlert();
 
+	// react-doctor-disable-next-line react-doctor/query-mutation-missing-invalidation -- deleting the account reloads the whole session (reloadSession); there is no cached query data left to invalidate
 	const deleteUserMutation = useMutation({
 		mutationFn: async () => {
 			const { error } = await authClient.deleteUser({});

@@ -9,8 +9,10 @@ const getInvitationFn = createServerFn({ method: "GET" })
 	.inputValidator((data: { invitationId: string }) => data)
 	.handler(async ({ data }) => {
 		// Dynamic imports to prevent server code from being bundled for client
-		const { authApi } = await import("@repo/auth");
-		const { getOrganizationById } = await import("@repo/database");
+		const [{ authApi }, { getOrganizationById }] = await Promise.all([
+			import("@repo/auth"),
+			import("@repo/database"),
+		]);
 
 		const request = getRequest();
 

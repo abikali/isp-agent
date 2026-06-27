@@ -10,6 +10,12 @@ interface VoiceRecorderProps {
 	onCancel: () => void;
 }
 
+function formatDuration(seconds: number): string {
+	const m = Math.floor(seconds / 60);
+	const s = seconds % 60;
+	return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function VoiceRecorder({
 	onRecordingComplete,
 	onCancel,
@@ -55,8 +61,10 @@ export function VoiceRecorder({
 	}, [onCancel]);
 
 	// Start recording on mount
+	// react-doctor-disable-next-line react-doctor/exhaustive-deps -- cleanup intentionally reads the latest ref.current (interval/recorder are created asynchronously after mount)
 	// biome-ignore lint/correctness/useExhaustiveDependencies: start once on mount
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-initialize-state -- startRecording is an async side effect (getUserMedia), not derivable initial state
 		startRecording();
 		return () => {
 			if (intervalRef.current) {
@@ -69,6 +77,7 @@ export function VoiceRecorder({
 				}
 			}
 		};
+		// react-doctor-disable-next-line react-doctor/exhaustive-deps -- mount-only; re-running would restart the recording
 	}, []);
 
 	function stopAndSend() {
@@ -110,12 +119,6 @@ export function VoiceRecorder({
 		onCancel();
 	}
 
-	function formatDuration(seconds: number): string {
-		const m = Math.floor(seconds / 60);
-		const s = seconds % 60;
-		return `${m}:${s.toString().padStart(2, "0")}`;
-	}
-
 	return (
 		<div className="flex items-center gap-2">
 			<Button
@@ -143,6 +146,7 @@ export function VoiceRecorder({
 					{Array.from({ length: 20 }, (_, i) => (
 						<div
 							key={i}
+							suppressHydrationWarning
 							className="w-0.5 rounded-full bg-destructive/50"
 							style={{
 								height: `${6 + Math.sin(Date.now() / 200 + i) * 6}px`,

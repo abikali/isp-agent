@@ -35,10 +35,12 @@ const Alert = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Alert family kept colocated by convention)
 const AlertTitle = ({
 	className,
 	...props
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
+	// react-doctor-disable-next-line react-doctor/heading-has-content -- reusable primitive; heading text is supplied by the consumer via {...props} children, not statically visible here
 	<h5
 		className={cn(
 			"font-semibold text-sm leading-tight tracking-tight",
@@ -48,6 +50,7 @@ const AlertTitle = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn-style primitives barrel (cohesive Alert family kept colocated by convention)
 const AlertDescription = ({
 	className,
 	...props

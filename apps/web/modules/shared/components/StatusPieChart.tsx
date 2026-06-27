@@ -1,6 +1,7 @@
 "use client";
 
 import { ChartCard } from "@shared/components/ChartCard";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts already in client bundle via @ui/components/chart + sibling charts; per-leaf lazy import wouldn't reduce bundle
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 export const TOOLTIP_STYLE = {

@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useCreateTask } from "../hooks/use-tasks";
 import { TASK_CATEGORY_OPTIONS, TASK_PRIORITY_OPTIONS } from "../lib/constants";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form create dialog; splitting would scatter shared form state
 export function CreateTaskDialog({
 	open,
 	onOpenChange,
@@ -122,6 +123,7 @@ export function CreateTaskDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Create Task</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- canonical TanStack Form submit; not a server-action form */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

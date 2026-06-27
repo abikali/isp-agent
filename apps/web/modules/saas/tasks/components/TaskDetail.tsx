@@ -29,6 +29,7 @@ import {
 } from "../lib/constants";
 import { TaskEvidenceCard } from "./TaskEvidenceCard";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form edit page; splitting would scatter shared form state
 export function TaskDetail({
 	taskId,
 	backPath = "/app/$organizationSlug/tasks/$taskId",
@@ -114,6 +115,7 @@ export function TaskDetail({
 
 	return (
 		<PageShell title="Edit task" backTo={resolvedBackPath} backLabel="Task">
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- canonical TanStack Form submit; not a server-action form */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();

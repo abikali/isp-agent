@@ -128,6 +128,7 @@ const planColumns: ColumnDef<ServicePlan, unknown>[] = [
 	},
 ];
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive dealer-detail feature component; tabs share one form/data flow and splitting would scatter it
 export function DealerDetail({ dealerId }: { dealerId: string }) {
 	const updateDealer = useUpdateDealer();
 	const deleteDealer = useDeleteDealer();
@@ -240,6 +241,7 @@ export function DealerDetail({ dealerId }: { dealerId: string }) {
 				</div>
 			}
 		>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form (SPA) requires client-side onSubmit with preventDefault; no server-action equivalent */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();

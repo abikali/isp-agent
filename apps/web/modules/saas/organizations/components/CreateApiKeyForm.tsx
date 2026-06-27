@@ -133,6 +133,7 @@ export function CreateApiKeyForm() {
 					</Button>
 				</div>
 			) : (
+				// react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client submit via oRPC; JS-required SPA dashboard, no server action available
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

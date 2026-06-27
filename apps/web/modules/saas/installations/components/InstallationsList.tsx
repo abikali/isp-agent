@@ -78,10 +78,12 @@ interface RowEdit {
 	quantity: string;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive installations review page: filters, inline row edits, and table column defs share local state; splitting would scatter tightly-coupled state
 export function InstallationsList({
 	organizationSlug,
 }: {
 	organizationSlug: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/inline-edit state slices read clearer as separate useState than a reducer
 }) {
 	const organizationId = useOrganizationId();
 	const [tab, setTab] = useState<"pending" | "history">("pending");
@@ -424,6 +426,7 @@ export function InstallationsList({
 						} satisfies ColumnDef<Installation, unknown>,
 					]),
 		],
+		// react-doctor-disable-next-line react-doctor/exhaustive-deps -- getEdit/handleApprove only close over reactive values already in deps (edits, organizationId, approveInstallations); listing the per-render function identities would rebuild columns every render and defeat the memo
 		[
 			tab,
 			edits,

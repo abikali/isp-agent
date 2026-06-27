@@ -19,7 +19,11 @@ import { toast } from "sonner";
  * flow when the collector doesn't know where the customer lives.
  */
 export function LocationRequestPage({ token }: { token: string }) {
-	const lookup = useQuery(
+	const {
+		data: lookupData,
+		isLoading: lookupIsLoading,
+		isError: lookupIsError,
+	} = useQuery(
 		orpc.customers.getLocationRequestByToken.queryOptions({
 			input: { token },
 		}),
@@ -30,7 +34,7 @@ export function LocationRequestPage({ token }: { token: string }) {
 	const [submitted, setSubmitted] = useState(false);
 	const [busy, setBusy] = useState(false);
 
-	if (lookup.isLoading) {
+	if (lookupIsLoading) {
 		return (
 			<Centered>
 				<Loader2Icon className="size-8 animate-spin text-muted-foreground" />
@@ -38,7 +42,7 @@ export function LocationRequestPage({ token }: { token: string }) {
 		);
 	}
 
-	if (lookup.isError || !lookup.data) {
+	if (lookupIsError || !lookupData) {
 		return (
 			<Centered>
 				<Card className="max-w-sm">
@@ -55,7 +59,7 @@ export function LocationRequestPage({ token }: { token: string }) {
 		);
 	}
 
-	if (lookup.data.completed || submitted) {
+	if (lookupData.completed || submitted) {
 		return (
 			<Centered>
 				<Card className="max-w-sm">
@@ -72,7 +76,7 @@ export function LocationRequestPage({ token }: { token: string }) {
 		);
 	}
 
-	if (lookup.data.expired) {
+	if (lookupData.expired) {
 		return (
 			<Centered>
 				<Card className="max-w-sm">
@@ -127,8 +131,8 @@ export function LocationRequestPage({ token }: { token: string }) {
 		);
 	}
 
-	const greeting = lookup.data.customerFirstName
-		? `Hi ${lookup.data.customerFirstName}!`
+	const greeting = lookupData.customerFirstName
+		? `Hi ${lookupData.customerFirstName}!`
 		: "Hi!";
 
 	return (

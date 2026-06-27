@@ -82,6 +82,7 @@ interface PreviewData {
 	unmatchedCustomers: UnmatchedCustomer[];
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component, react-doctor/prefer-useReducer -- cohesive billing-sync settings flow; the useState slices are independent and read more clearly separate
 export function BillingSyncSettings() {
 	const organizationId = useOrganizationId();
 	const testConnection = useTestBilling();

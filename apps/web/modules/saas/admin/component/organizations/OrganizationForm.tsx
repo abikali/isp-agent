@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { CreateOwnerDialog } from "./CreateOwnerDialog";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive admin org editor (details, members, dealer + iRadius cards); JSX-heavy, splitting would scatter shared org data/mutations
 export function OrganizationForm({
 	organizationId,
 }: {
@@ -157,6 +158,7 @@ export function OrganizationForm({
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
+						{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form requires client-side onSubmit with preventDefault; there is no server-action submit path for this form */}
 						<form
 							onSubmit={(e) => {
 								e.preventDefault();

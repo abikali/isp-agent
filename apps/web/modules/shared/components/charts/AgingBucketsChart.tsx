@@ -6,6 +6,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "@ui/components/chart";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts already in client bundle via @ui/components/chart (ChartContainer); per-leaf lazy import wouldn't reduce bundle
 import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts";
 import { CHART_TOKENS, formatCurrency } from "./chart-utils";
 

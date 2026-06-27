@@ -58,11 +58,11 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@orpc/client": "^1.12.2",
-		"@orpc/json-schema": "^1.12.2",
-		"@orpc/openapi": "^1.12.2",
-		"@orpc/server": "^1.12.2",
-		"@orpc/zod": "^1.12.2",
+		"@orpc/client": "^1.14.6",
+		"@orpc/json-schema": "^1.14.6",
+		"@orpc/openapi": "^1.14.6",
+		"@orpc/server": "^1.14.6",
+		"@orpc/zod": "^1.14.6",
 		"@paralleldrive/cuid2": "3.0.6",
 		"@repo/ai": "workspace:*",
 		"@repo/audit": "workspace:*",
@@ -93,6 +93,6 @@
 		"@biomejs/biome": "2.3.11",
 		"@repo/tsconfig": "workspace:*",
 		"typescript": "5.9.3",
-		"vitest": "^4.0.17"
+		"vitest": "^4.1.9"
 	}
 }

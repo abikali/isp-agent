@@ -61,6 +61,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 			title={task.title}
 			backTo={`/app/${organizationSlug}/tasks`}
 			backLabel="Tasks"
+			// react-doctor-disable-next-line react-doctor/jsx-no-jsx-as-prop -- slot prop like header/actions; inline JSX is canonical and child is not memoized
 			badges={
 				<span className="flex flex-wrap items-center gap-2">
 					<span

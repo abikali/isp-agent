@@ -15,7 +15,7 @@ import {
 	MessageCircleIcon,
 	SendIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 interface LocationPromptDialogProps {
 	open: boolean;
@@ -36,13 +36,6 @@ export function LocationPromptDialog({
 }: LocationPromptDialogProps) {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [errorMessage, setErrorMessage] = useState("");
-
-	useEffect(() => {
-		if (open) {
-			setStatus("idle");
-			setErrorMessage("");
-		}
-	}, [open]);
 
 	const requestLocation = useCallback(() => {
 		if (!navigator.geolocation) {

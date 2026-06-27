@@ -78,9 +78,10 @@ export function MultiSelectFilter({
 
 	const selectedLabels = useMemo(
 		() =>
-			value
-				.map((v) => options.find((o) => o.value === v)?.label ?? v)
-				.filter(Boolean),
+			value.flatMap((v) => {
+				const label = options.find((o) => o.value === v)?.label ?? v;
+				return label ? [label] : [];
+			}),
 		[value, options],
 	);
 

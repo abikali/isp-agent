@@ -13,7 +13,8 @@ import { Button } from "@ui/components/button";
 import {
 	createContext,
 	type PropsWithChildren,
-	useContext,
+	use,
+	useMemo,
 	useState,
 } from "react";
 
@@ -36,12 +37,17 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 		null,
 	);
 
-	const confirm = (options: ConfirmOptions) => {
-		setConfirmOptions(options);
-	};
+	const value = useMemo(
+		() => ({
+			confirm: (options: ConfirmOptions) => {
+				setConfirmOptions(options);
+			},
+		}),
+		[],
+	);
 
 	return (
-		<ConfirmationAlertContext.Provider value={{ confirm }}>
+		<ConfirmationAlertContext.Provider value={value}>
 			{children}
 
 			<AlertDialog
@@ -85,7 +91,7 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 }
 
 export const useConfirmationAlert = () => {
-	const context = useContext(ConfirmationAlertContext);
+	const context = use(ConfirmationAlertContext);
 
 	if (!context) {
 		throw new Error(

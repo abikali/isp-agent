@@ -134,6 +134,7 @@ export function BulkImportDialog({
 							<input
 								type="file"
 								accept=".csv"
+								aria-label="Upload CSV file"
 								className="hidden"
 								id="emp-csv-upload"
 								onChange={(e) => {

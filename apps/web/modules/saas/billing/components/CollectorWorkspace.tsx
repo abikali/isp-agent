@@ -63,7 +63,7 @@ import {
 	TrashIcon,
 	WalletIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useCollectorBalance,
@@ -152,21 +152,25 @@ export function CollectorWorkspace({
 				? "All bills collected"
 				: `${unpaidCount} bills still to collect`;
 
+	const badges = useMemo(
+		() =>
+			pendingStoppedCount > 0 ? (
+				<Badge
+					variant="outline"
+					className="border-warning/40 bg-warning/10 text-warning"
+				>
+					{pendingStoppedCount} need review
+				</Badge>
+			) : null,
+		[pendingStoppedCount],
+	);
+
 	return (
 		<PageShell
 			title={collectorName}
 			backTo={backTo}
 			backLabel="Collectors"
-			badges={
-				pendingStoppedCount > 0 ? (
-					<Badge
-						variant="outline"
-						className="border-warning/40 bg-warning/10 text-warning"
-					>
-						{pendingStoppedCount} need review
-					</Badge>
-				) : null
-			}
+			badges={badges}
 			subtitle={
 				<div className="flex flex-wrap items-center gap-1.5 text-xs">
 					<Avatar className="size-5">
@@ -339,6 +343,7 @@ function HandoffCard({
 			)}
 		>
 			<ContentCardSection padded={false} className="border-b-0">
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- client-side TanStack Form submitting via oRPC mutation; no server action exists, preventDefault is the documented pattern */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -422,6 +427,7 @@ function HandoffCard({
 
 // ─── Payments panel ──────────────────────────────────────────────────
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive collector payments panel; sections share filter/pagination/mutation state and splitting would scatter tightly-coupled logic
 function PaymentsPanel({
 	collectorId,
 	collectorName,
@@ -432,6 +438,7 @@ function PaymentsPanel({
 	collectorName: string;
 	orgSlug: string;
 	organizationId: string | null;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- these are independent UI slices (page, status/group filters, search); a reducer would not group them meaningfully
 }) {
 	const [page, setPage] = useState(1);
 	const [statusFilter, setStatusFilter] = useState<string>("");

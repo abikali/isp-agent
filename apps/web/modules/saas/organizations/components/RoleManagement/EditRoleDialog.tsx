@@ -86,6 +86,7 @@ export function EditRoleDialog({
 	});
 
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-event-handler -- re-syncs form to the parent-owned `role` prop; no local handler sets it, and a key-remount would lose focus/scroll
 		if (role) {
 			form.reset({
 				name: role.name,
@@ -115,6 +116,7 @@ export function EditRoleDialog({
 					</SheetDescription>
 				</SheetHeader>
 
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client submit via oRPC; JS-required SPA dashboard, no server action available */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

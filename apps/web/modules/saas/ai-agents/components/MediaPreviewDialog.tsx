@@ -4,7 +4,7 @@ import { Button } from "@ui/components/button";
 import { Dialog, DialogContent, DialogFooter } from "@ui/components/dialog";
 import { cn } from "@ui/lib";
 import { FileTextIcon, SendIcon, XIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface MediaPreviewDialogProps {
 	file: File | null;
@@ -28,28 +28,34 @@ export function MediaPreviewDialog({
 	onClose,
 }: MediaPreviewDialogProps) {
 	const [caption, setCaption] = useState("");
-	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	const captionRef = useRef<HTMLTextAreaElement>(null);
 
+	// Preview URL for images/videos is derived from the file, not stored state.
+	const previewUrl = useMemo(() => {
+		if (
+			file &&
+			(file.type.startsWith("image/") || file.type.startsWith("video/"))
+		) {
+			return URL.createObjectURL(file);
+		}
+		return null;
+	}, [file]);
+
+	// Revoke the object URL when the file changes or the dialog unmounts.
 	useEffect(() => {
-		if (!file) {
-			setCaption("");
-			setPreviewUrl(null);
+		if (!previewUrl) {
 			return undefined;
 		}
+		return () => URL.revokeObjectURL(previewUrl);
+	}, [previewUrl]);
 
-		// Auto-focus caption input
-		setTimeout(() => captionRef.current?.focus(), 100);
-
-		// Generate preview URL for images/videos
-		if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
-			const url = URL.createObjectURL(file);
-			setPreviewUrl(url);
-			return () => URL.revokeObjectURL(url);
+	// Auto-focus the caption input when a file is present.
+	useEffect(() => {
+		if (!file) {
+			return undefined;
 		}
-
-		setPreviewUrl(null);
-		return undefined;
+		const timer = setTimeout(() => captionRef.current?.focus(), 100);
+		return () => clearTimeout(timer);
 	}, [file]);
 
 	if (!file) {
@@ -114,6 +120,7 @@ export function MediaPreviewDialog({
 						<video
 							src={previewUrl}
 							controls
+							aria-label="Video preview"
 							className="max-h-[50dvh] max-w-full"
 						>
 							<track kind="captions" />
@@ -144,6 +151,7 @@ export function MediaPreviewDialog({
 							value={caption}
 							onChange={(e) => setCaption(e.target.value)}
 							onKeyDown={handleKeyDown}
+							aria-label="Caption"
 							placeholder="Add a caption..."
 							rows={1}
 							className={cn(

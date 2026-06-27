@@ -25,6 +25,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { FeatureFlag } from "../../lib/types";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive list + inline edit dialog; length is JSX-heavy markup, splitting would obscure shared mutation/data flow
 export function FeatureFlagsList() {
 	const queryClient = useQueryClient();
 	const { confirm } = useConfirmationAlert();

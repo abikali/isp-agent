@@ -312,7 +312,7 @@ export function StatCards() {
 }
 
 function useCustomerStatsQuery(organizationId: string | null) {
-	const query = useQuery(
+	const { data: stats, isLoading } = useQuery(
 		organizationId
 			? {
 					...orpc.customers.stats.queryOptions({
@@ -322,38 +322,38 @@ function useCustomerStatsQuery(organizationId: string | null) {
 				}
 			: disabledQuery(["customers", "stats"]),
 	);
-	return { stats: query.data, isLoading: query.isLoading };
+	return { stats, isLoading };
 }
 
 function useWatcherStatsQuery(organizationId: string | null) {
-	const query = useQuery(
+	const { data: stats, isLoading } = useQuery(
 		organizationId
 			? orpc.watchers.getStats.queryOptions({
 					input: { organizationId },
 				})
 			: disabledQuery(["watchers", "getStats"]),
 	);
-	return { stats: query.data, isLoading: query.isLoading };
+	return { stats, isLoading };
 }
 
 function useTaskStatsQuery(organizationId: string | null) {
-	const query = useQuery(
+	const { data: stats, isLoading } = useQuery(
 		organizationId
 			? orpc.tasks.stats.queryOptions({
 					input: { organizationId },
 				})
 			: disabledQuery(["tasks", "stats"]),
 	);
-	return { stats: query.data, isLoading: query.isLoading };
+	return { stats, isLoading };
 }
 
 function useBillingStatsQuery(organizationId: string | null) {
-	const query = useQuery(
+	const { data: stats, isLoading } = useQuery(
 		organizationId
 			? orpc.billing.payments.stats.queryOptions({
 					input: { organizationId },
 				})
 			: disabledQuery(["billing", "payments", "stats"]),
 	);
-	return { stats: query.data, isLoading: query.isLoading };
+	return { stats, isLoading };
 }

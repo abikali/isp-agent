@@ -35,6 +35,7 @@ function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui input-otp barrel of related primitives
 function InputOTPSlot({
 	index,
 	className,
@@ -42,7 +43,7 @@ function InputOTPSlot({
 }: React.ComponentProps<"div"> & {
 	index: number;
 }) {
-	const inputOTPContext = React.useContext(OTPInputContext);
+	const inputOTPContext = React.use(OTPInputContext);
 	const { char, hasFakeCaret, isActive } =
 		inputOTPContext?.slots[index] ?? {};
 
@@ -66,6 +67,7 @@ function InputOTPSlot({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui input-otp barrel of related primitives
 function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
 	return (
 		<div data-slot="input-otp-separator" {...props}>

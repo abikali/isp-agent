@@ -22,6 +22,7 @@ import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent dialog/form fields with simple per-field setters; a reducer adds indirection without grouping related transitions
 export function CreateFeatureFlagForm() {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);

@@ -79,6 +79,7 @@ const sortByMap = {
 	role: "role",
 } as const;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive admin table; bulk of the length is the memoized column definitions, splitting them would obscure the table contract
 export function UserList() {
 	const queryClient = useQueryClient();
 	const { confirm } = useConfirmationAlert();
@@ -124,10 +125,10 @@ export function UserList() {
 		}),
 	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset to page 1 only when search changes, setCurrentPage is stable from useCallback
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset to page 1 only when search changes; setCurrentPage is stable from useCallback
 	useEffect(() => {
 		setCurrentPage(1);
-	}, [debouncedSearchTerm]);
+	}, [debouncedSearchTerm, setCurrentPage]);
 
 	const impersonateUser = useCallback(
 		async (userId: string, { name }: { name: string }) => {

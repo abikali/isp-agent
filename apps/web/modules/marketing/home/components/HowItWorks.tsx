@@ -1,7 +1,7 @@
 "use client";
 
 import { PaletteIcon, RocketIcon, UserPlusIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
 	SectionHeader,
 	SectionWrapper,
@@ -44,7 +44,7 @@ export function HowItWorks() {
 			<div className="relative">
 				{/* Connecting line (desktop only) - centered through icons */}
 				<div className="pointer-events-none absolute top-8 hidden h-0.5 md:block md:left-[16.67%] md:right-[16.67%]">
-					<motion.div
+					<m.div
 						initial={{ scaleX: 0 }}
 						whileInView={{ scaleX: 1 }}
 						transition={{
@@ -58,7 +58,7 @@ export function HowItWorks() {
 				</div>
 
 				{/* Steps */}
-				<motion.div
+				<m.div
 					variants={staggerContainerVariants}
 					initial="hidden"
 					whileInView="visible"
@@ -66,7 +66,7 @@ export function HowItWorks() {
 					className="grid gap-8 md:grid-cols-3 md:gap-12"
 				>
 					{steps.map((step) => (
-						<motion.div
+						<m.div
 							key={step.id}
 							variants={staggerItemVariants}
 							className="relative flex flex-col items-center text-center"
@@ -88,9 +88,9 @@ export function HowItWorks() {
 							<p className="text-muted-foreground">
 								{step.description}
 							</p>
-						</motion.div>
+						</m.div>
 					))}
-				</motion.div>
+				</m.div>
 			</div>
 		</SectionWrapper>
 	);

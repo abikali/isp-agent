@@ -42,6 +42,7 @@ export function EditSetupRequestDialog({
 }: {
 	request: SetupRequest;
 	onClose: () => void;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- flat list of independent editable form fields seeded from the request, not a related state machine
 }) {
 	const organizationId = useOrganizationId();
 	const { groups } = useCustomerGroups();
@@ -174,13 +175,18 @@ export function EditSetupRequestDialog({
 									<SelectValue placeholder="Pick a plan" />
 								</SelectTrigger>
 								<SelectContent>
-									{plans
-										.filter((p) => !p.archived)
-										.map((p) => (
-											<SelectItem key={p.id} value={p.id}>
-												{p.name}
-											</SelectItem>
-										))}
+									{plans.flatMap((p) =>
+										p.archived
+											? []
+											: [
+													<SelectItem
+														key={p.id}
+														value={p.id}
+													>
+														{p.name}
+													</SelectItem>,
+												],
+									)}
 								</SelectContent>
 							</Select>
 						</div>

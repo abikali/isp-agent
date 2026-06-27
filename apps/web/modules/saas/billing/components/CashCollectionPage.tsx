@@ -107,6 +107,7 @@ function getInitials(name: string): string {
 		.toUpperCase();
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive cash-collection feature file; collector picker, page, handoff card and tables share billing state/columns and belong together
 export function CollectorPickerPage({ basePath }: { basePath: string }) {
 	const { data: collectorsData, isLoading } = useCollectors();
 	const collectors = collectorsData?.collectors ?? [];
@@ -270,12 +271,14 @@ function useCollectorPayments(filters: {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component, react-doctor/no-multi-comp -- cohesive cash-collection feature page; sections share collector/page/filter state and splitting would scatter tightly-coupled billing logic
 export function CashCollectionPage({
 	collectorId,
 	collectorName,
 }: {
 	collectorId: string;
 	collectorName: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- these are independent UI slices (page, tab, status/group filters, search); a reducer would not group them meaningfully
 }) {
 	const organizationId = useOrganizationId();
 	const [page, setPage] = useState(1);
@@ -618,6 +621,7 @@ export function CashCollectionPage({
 
 // ─── Handoff Card ──────────────────────────────────────────────────
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive cash-collection feature file; private helper component of CashCollectionPage
 function HandoffCard({
 	balance,
 	handoffForm,
@@ -633,6 +637,7 @@ function HandoffCard({
 	return (
 		<Card className="border-amber-200/60 bg-amber-50/30 dark:border-amber-900/40 dark:bg-amber-950/10 overflow-hidden">
 			<div className="px-4 py-3">
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- client-side TanStack Form submitting via oRPC mutation; no server action exists, preventDefault is the documented pattern */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -882,6 +887,7 @@ function getPaymentColumns(actions: {
 
 const PAYMENTS_PER_PAGE = 25;
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive cash-collection feature file; private helper component of CashCollectionPage
 function PaymentsTable({
 	payments,
 	total,
@@ -1004,6 +1010,7 @@ interface Collection {
 
 const HANDOFFS_PER_PAGE = 10;
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive cash-collection feature file; private helper component of CashCollectionPage
 function HandoffsTable({
 	collections,
 	total,

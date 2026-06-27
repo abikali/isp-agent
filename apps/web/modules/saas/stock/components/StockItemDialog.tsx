@@ -92,6 +92,7 @@ export function StockItemDialog({
 						{isEdit ? "Edit Item" : "Add Stock Item"}
 					</DialogTitle>
 				</DialogHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit via form.handleSubmit(); no server action exists, preventDefault is the documented pattern */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

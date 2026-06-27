@@ -19,6 +19,7 @@ const TabsList = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui tabs barrel of related primitives
 const TabsTrigger = ({
 	className,
 	...props
@@ -36,6 +37,7 @@ const TabsTrigger = ({
 	/>
 );
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn/ui tabs barrel of related primitives
 const TabsContent = ({
 	className,
 	...props

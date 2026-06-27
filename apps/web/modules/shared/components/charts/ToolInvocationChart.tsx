@@ -6,6 +6,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "@ui/components/chart";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts sub-components are config children read via child.type; lazy-wrapping breaks detection, and @ui/components/chart already imports recharts statically so no bundle savings here (lazy boundary belongs at consumers)
 import { Bar, BarChart, Cell, XAxis, YAxis } from "recharts";
 import { CHART_TOKENS, formatNumber } from "./chart-utils";
 

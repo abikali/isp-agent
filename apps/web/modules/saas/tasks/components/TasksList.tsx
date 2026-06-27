@@ -303,6 +303,7 @@ function useTaskColumns(organizationSlug: string) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination slices; a reducer would add ceremony without grouping related transitions
 export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });

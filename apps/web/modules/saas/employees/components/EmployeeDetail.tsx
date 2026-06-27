@@ -144,12 +144,14 @@ type EmployeeForm = ReactFormExtendedApi<
 	unknown
 >;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive employee-detail feature component; splitting would scatter shared form/data flow
 export function EmployeeDetail({
 	employeeId,
 	organizationSlug,
 }: {
 	employeeId: string;
 	organizationSlug: string;
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent dialog-toggle and invite-field state slices; a reducer adds indirection without grouping
 }) {
 	const organizationId = useOrganizationId();
 	const updateEmployee = useUpdateEmployee();
@@ -409,6 +411,7 @@ export function EmployeeDetail({
 				</div>
 			}
 		>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form (SPA) requires client-side onSubmit with preventDefault; no server-action equivalent */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
@@ -587,6 +590,7 @@ export function EmployeeDetail({
 
 // ─── Overview Tab ──────────────────────────────────────────────────────
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive overview tab; its sections share one form instance and splitting would thread props excessively
 function OverviewTab({
 	form,
 	employee,

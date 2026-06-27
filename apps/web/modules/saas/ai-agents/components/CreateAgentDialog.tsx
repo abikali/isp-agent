@@ -85,6 +85,7 @@ export function CreateAgentDialog({
 					</SheetDescription>
 				</SheetHeader>
 
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit; this app has no server action to wire up */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

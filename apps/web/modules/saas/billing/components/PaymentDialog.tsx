@@ -58,10 +58,12 @@ interface PaymentDialogProps {
 	};
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive payment dialog; shared form state and data flow make splitting obscure rather than clearer
 export function PaymentDialog({
 	open,
 	onOpenChange,
 	customer,
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field state slices; a reducer adds indirection without grouping related transitions
 }: PaymentDialogProps) {
 	const organizationId = useOrganizationId();
 	const { employee, isOrganizationAdmin } = useActiveOrganization();

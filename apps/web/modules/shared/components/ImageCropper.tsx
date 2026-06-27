@@ -11,7 +11,7 @@ import {
 import { Slider } from "@ui/components/slider";
 import imageCompression from "browser-image-compression";
 import { Minus, Plus, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 
 export interface ImageCompressionOptions {
@@ -285,17 +285,18 @@ export function ImageCropper({
 	title = "Crop Image",
 	compression,
 }: ImageCropperProps) {
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent state slices (crop/zoom/rotation transform, processing flag, bg color); not one cohesive reducer
 	const [crop, setCrop] = useState({ x: 0, y: 0 });
 	const [zoom, setZoom] = useState(1);
 	const [rotation, setRotation] = useState(0);
-	const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(
-		null,
-	);
+	// Only read inside the save handler, never during render → ref, no re-render
+	const croppedAreaPixelsRef = useRef<Area | null>(null);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [bgColor, setBgColor] = useState("rgb(0, 0, 0)");
 
 	// Extract dominant color when image changes
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-event-handler -- bgColor is asynchronously derived from the `image` prop via canvas pixel sampling; can't compute during render and there's no triggering event handler
 		if (image) {
 			getAverageColor(image).then(setBgColor);
 		}
@@ -303,12 +304,13 @@ export function ImageCropper({
 
 	const onCropCompleteHandler = useCallback(
 		(_croppedArea: Area, croppedAreaPixels: Area) => {
-			setCroppedAreaPixels(croppedAreaPixels);
+			croppedAreaPixelsRef.current = croppedAreaPixels;
 		},
 		[],
 	);
 
 	const handleSave = useCallback(async () => {
+		const croppedAreaPixels = croppedAreaPixelsRef.current;
 		if (!croppedAreaPixels) {
 			return;
 		}
@@ -333,14 +335,7 @@ export function ImageCropper({
 		} finally {
 			setIsProcessing(false);
 		}
-	}, [
-		croppedAreaPixels,
-		image,
-		rotation,
-		onCropComplete,
-		onClose,
-		compression,
-	]);
+	}, [image, rotation, onCropComplete, onClose, compression]);
 
 	const handleReset = useCallback(() => {
 		setCrop({ x: 0, y: 0 });
@@ -370,6 +365,7 @@ export function ImageCropper({
 							backgroundImage: `url(${image})`,
 							backgroundSize: "cover",
 							backgroundPosition: "center",
+							// react-doctor-disable-next-line react-doctor/no-large-animated-blur -- static decorative backdrop, never animated; painted once so no per-frame GPU cost
 							filter: "blur(20px)",
 							backgroundColor: bgColor,
 						}}

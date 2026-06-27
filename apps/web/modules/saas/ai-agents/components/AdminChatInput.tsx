@@ -50,6 +50,7 @@ function getAttachmentType(
 	return "document";
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive chat composer (reply/edit/upload/voice states share value + refs); splitting would scatter tightly-coupled input state
 export function AdminChatInput({
 	conversationId,
 	organizationId,
@@ -79,7 +80,9 @@ export function AdminChatInput({
 
 	// Pre-populate when entering edit mode
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-event-handler -- editingMessage is a parent-owned prop; seeding the editable draft + imperative focus must run in an effect, not a local handler
 		if (editingMessage) {
+			// react-doctor-disable-next-line react-doctor/no-derived-state -- `value` is independently editable draft state seeded once on entering edit mode, not a derived mirror
 			setValue(editingMessage.content);
 			textareaRef.current?.focus();
 		}
@@ -340,6 +343,7 @@ export function AdminChatInput({
 							ref={imageInputRef}
 							type="file"
 							accept="image/*,video/*"
+							aria-label="Upload photo or video"
 							className="hidden"
 							onChange={(e) => {
 								const file = e.target.files?.[0];
@@ -353,6 +357,7 @@ export function AdminChatInput({
 							ref={docInputRef}
 							type="file"
 							accept=".pdf,.doc,.docx,.txt"
+							aria-label="Upload document"
 							className="hidden"
 							onChange={(e) => {
 								const file = e.target.files?.[0];
@@ -373,6 +378,9 @@ export function AdminChatInput({
 									resizeTextarea();
 								}}
 								onKeyDown={handleKeyDown}
+								aria-label={
+									isEditing ? "Edit message" : "Message"
+								}
 								placeholder={
 									isEditing
 										? "Edit message..."
@@ -434,6 +442,11 @@ export function AdminChatInput({
 
 			{/* Media preview dialog */}
 			<MediaPreviewDialog
+				key={
+					previewFile
+						? `${previewFile.name}-${previewFile.size}-${previewFile.lastModified}`
+						: "empty"
+				}
 				file={previewFile}
 				onSend={handleMediaSend}
 				onClose={() => setPreviewFile(null)}

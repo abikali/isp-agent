@@ -73,6 +73,7 @@ interface Filters {
 function ChannelBadge({ provider }: { provider: string | undefined }) {
 	if (provider === "whatsapp") {
 		return (
+			// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- decorative CSS color dot; role="img" + aria-label is the correct pattern, native <img> needs a src
 			<span
 				className={cn(
 					"flex size-4 items-center justify-center rounded-full",
@@ -86,6 +87,7 @@ function ChannelBadge({ provider }: { provider: string | undefined }) {
 	}
 	if (provider === "telegram") {
 		return (
+			// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- decorative CSS color dot; role="img" + aria-label is the correct pattern, native <img> needs a src
 			<span
 				className={cn(
 					"flex size-4 items-center justify-center rounded-full",
@@ -98,6 +100,7 @@ function ChannelBadge({ provider }: { provider: string | undefined }) {
 		);
 	}
 	return (
+		// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- decorative CSS dot with an icon child; role="img" + aria-label is the correct pattern, native <img> needs a src
 		<span
 			className={cn(
 				"flex size-4 items-center justify-center rounded-full",
@@ -157,6 +160,131 @@ function ConversationCardSkeleton() {
 	);
 }
 
+/** Single conversation row card. Pure render of one item — hoisted to module scope. */
+function renderCard(conv: ConversationItem, isSelected: boolean) {
+	const initials = getContactInitials(conv.contactName);
+	const avatarColor = getAvatarColor(conv.contactName);
+	const channelProvider = conv.channel?.provider;
+	const showPhoneNumber =
+		conv.channel?.provider &&
+		conv.channel.provider !== "web" &&
+		conv.externalChatId;
+	const isFlagged = conv.status === "needs_human";
+
+	return (
+		<div className="flex w-full items-start gap-3 px-3 py-3 text-left">
+			{/* Avatar with channel badge */}
+			<div className="relative shrink-0">
+				<div
+					className={cn(
+						"flex size-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm ring-2",
+						avatarColor,
+						isSelected ? "ring-primary/30" : "ring-transparent",
+					)}
+				>
+					{initials}
+				</div>
+				<div className="absolute -bottom-0.5 -right-0.5">
+					<ChannelBadge provider={channelProvider} />
+				</div>
+			</div>
+
+			{/* Content */}
+			<div className="min-w-0 flex-1">
+				<div className="flex items-center justify-between gap-2">
+					<div className="flex min-w-0 items-center gap-1.5">
+						{conv.pinned && (
+							<PinIcon className="size-3 shrink-0 -rotate-45 text-primary" />
+						)}
+						<span
+							className={cn(
+								"truncate text-sm",
+								isFlagged
+									? "font-semibold text-warning"
+									: "font-medium text-foreground",
+							)}
+						>
+							{conv.contactName || "Unknown contact"}
+						</span>
+					</div>
+					{conv.lastMessageAt && (
+						<span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+							{formatListTimestamp(conv.lastMessageAt)}
+						</span>
+					)}
+				</div>
+
+				{(() => {
+					const primaryCustomer = conv.customers[0];
+					const extraCustomers = conv.customers.length - 1;
+					if (
+						!showPhoneNumber &&
+						!primaryCustomer?.username &&
+						!primaryCustomer?.accountNumber
+					) {
+						return null;
+					}
+					return (
+						<div className="mt-0.5 flex flex-wrap items-center gap-1">
+							{showPhoneNumber && (
+								<ContactPhone contactId={conv.contactId} />
+							)}
+							<ContactUsername
+								username={primaryCustomer?.username}
+							/>
+							{primaryCustomer?.accountNumber && (
+								<Badge
+									variant="secondary"
+									className="h-4 px-1.5 font-mono text-[10px]"
+								>
+									#{primaryCustomer.accountNumber}
+								</Badge>
+							)}
+							{extraCustomers > 0 && (
+								<Badge
+									variant="outline"
+									className="h-4 px-1.5 text-[10px]"
+									title={`${extraCustomers + 1} customers share this number`}
+								>
+									+{extraCustomers}
+								</Badge>
+							)}
+						</div>
+					);
+				})()}
+
+				<div className="mt-1 flex items-center justify-between gap-2">
+					<p className="min-w-0 truncate text-xs text-muted-foreground">
+						{conv.lastMessage ? (
+							<>
+								<span className="font-medium text-foreground/70">
+									{getRolePrefix(conv.lastMessage.role)}
+								</span>
+								{conv.lastMessage.content}
+							</>
+						) : (
+							<span className="italic">No messages yet</span>
+						)}
+					</p>
+					{isFlagged ? (
+						<Badge
+							variant="outline"
+							className="h-4 border-warning/40 bg-warning/10 px-1.5 text-[9px] font-semibold uppercase tracking-wider text-warning"
+						>
+							Needs human
+						</Badge>
+					) : conv.messageCount > 0 ? (
+						<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+							{conv.messageCount}
+						</span>
+					) : null}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive conversations-list view (header/filters/day-grouped rows); splitting would scatter tightly-coupled list state
 export function ConversationsListPanel({
 	conversations,
 	isLoading,
@@ -181,6 +309,7 @@ export function ConversationsListPanel({
 	onLoadMore?: () => void;
 }) {
 	const { agents } = useAgentsQuery();
+	// react-doctor-disable-next-line react-doctor/no-derived-useState -- intentional uncontrolled mirror: seeded once from filters.search, then debounced back up; re-syncing every render would break typing
 	const [searchInput, setSearchInput] = useState(filters.search);
 
 	// Debounce search — only react to searchInput changes, not filter object identity
@@ -250,129 +379,6 @@ export function ConversationsListPanel({
 		return () => observer.disconnect();
 	}, [onLoadMore, hasNextPage, isFetchingNextPage]);
 
-	function renderCard(conv: ConversationItem, isSelected: boolean) {
-		const initials = getContactInitials(conv.contactName);
-		const avatarColor = getAvatarColor(conv.contactName);
-		const channelProvider = conv.channel?.provider;
-		const showPhoneNumber =
-			conv.channel?.provider &&
-			conv.channel.provider !== "web" &&
-			conv.externalChatId;
-		const isFlagged = conv.status === "needs_human";
-
-		return (
-			<div className="flex w-full items-start gap-3 px-3 py-3 text-left">
-				{/* Avatar with channel badge */}
-				<div className="relative shrink-0">
-					<div
-						className={cn(
-							"flex size-11 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm ring-2",
-							avatarColor,
-							isSelected ? "ring-primary/30" : "ring-transparent",
-						)}
-					>
-						{initials}
-					</div>
-					<div className="absolute -bottom-0.5 -right-0.5">
-						<ChannelBadge provider={channelProvider} />
-					</div>
-				</div>
-
-				{/* Content */}
-				<div className="min-w-0 flex-1">
-					<div className="flex items-center justify-between gap-2">
-						<div className="flex min-w-0 items-center gap-1.5">
-							{conv.pinned && (
-								<PinIcon className="size-3 shrink-0 -rotate-45 text-primary" />
-							)}
-							<span
-								className={cn(
-									"truncate text-sm",
-									isFlagged
-										? "font-semibold text-warning"
-										: "font-medium text-foreground",
-								)}
-							>
-								{conv.contactName || "Unknown contact"}
-							</span>
-						</div>
-						{conv.lastMessageAt && (
-							<span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-								{formatListTimestamp(conv.lastMessageAt)}
-							</span>
-						)}
-					</div>
-
-					{(() => {
-						const primaryCustomer = conv.customers[0];
-						const extraCustomers = conv.customers.length - 1;
-						if (
-							!showPhoneNumber &&
-							!primaryCustomer?.username &&
-							!primaryCustomer?.accountNumber
-						) {
-							return null;
-						}
-						return (
-							<div className="mt-0.5 flex flex-wrap items-center gap-1">
-								{showPhoneNumber && (
-									<ContactPhone contactId={conv.contactId} />
-								)}
-								<ContactUsername
-									username={primaryCustomer?.username}
-								/>
-								{primaryCustomer?.accountNumber && (
-									<Badge
-										variant="secondary"
-										className="h-4 px-1.5 font-mono text-[10px]"
-									>
-										#{primaryCustomer.accountNumber}
-									</Badge>
-								)}
-								{extraCustomers > 0 && (
-									<Badge
-										variant="outline"
-										className="h-4 px-1.5 text-[10px]"
-										title={`${extraCustomers + 1} customers share this number`}
-									>
-										+{extraCustomers}
-									</Badge>
-								)}
-							</div>
-						);
-					})()}
-
-					<div className="mt-1 flex items-center justify-between gap-2">
-						<p className="min-w-0 truncate text-xs text-muted-foreground">
-							{conv.lastMessage ? (
-								<>
-									<span className="font-medium text-foreground/70">
-										{getRolePrefix(conv.lastMessage.role)}
-									</span>
-									{conv.lastMessage.content}
-								</>
-							) : (
-								<span className="italic">No messages yet</span>
-							)}
-						</p>
-						{isFlagged ? (
-							<Badge
-								variant="outline"
-								className="h-4 border-warning/40 bg-warning/10 px-1.5 text-[9px] font-semibold uppercase tracking-wider text-warning"
-							>
-								Needs human
-							</Badge>
-						) : conv.messageCount > 0 ? (
-							<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-								{conv.messageCount}
-							</span>
-						) : null}
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	function renderRow(conv: ConversationItem) {
 		const isSelected = selectedId === conv.id;
 		const card = renderCard(conv, isSelected);
@@ -392,6 +398,7 @@ export function ConversationsListPanel({
 			return (
 				<div key={conv.id} className={wrapperClass}>
 					{accent}
+					{/* react-doctor-disable-next-line react-doctor/no-render-in-render -- renderWrapper is an injected render-prop from the parent, not a local inline render fn to extract */}
 					{renderWrapper(conv, card)}
 				</div>
 			);

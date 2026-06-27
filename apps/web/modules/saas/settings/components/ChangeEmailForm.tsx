@@ -42,6 +42,7 @@ export function ChangeEmailForm() {
 			title="Change Email"
 			description="Update your email address"
 		>
+			{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client submit via oRPC; JS-required SPA dashboard, no server action available */}
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();

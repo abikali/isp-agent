@@ -28,7 +28,7 @@ import {
 	MoreVerticalIcon,
 	XIcon,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { OrganizationRoleSelect } from "./OrganizationRoleSelect";
 
@@ -116,32 +116,35 @@ export function OrganizationInvitationsList({
 		[organization?.invitations],
 	);
 
-	const revokeInvitation = (invitationId: string) => {
-		toast.promise(
-			async () => {
-				const { error } =
-					await authClient.organization.cancelInvitation({
-						invitationId,
-					});
-				if (error) {
-					throw error;
-				}
-			},
-			{
-				loading: "Revoking invitation...",
-				success: () => {
-					queryClient.invalidateQueries({
-						queryKey: organizationsQueryKeys.detail(organizationId),
-					});
-					return "Invitation revoked successfully";
+	const revokeInvitation = useCallback(
+		(invitationId: string) => {
+			toast.promise(
+				async () => {
+					const { error } =
+						await authClient.organization.cancelInvitation({
+							invitationId,
+						});
+					if (error) {
+						throw error;
+					}
 				},
-				error: (error: { message?: string }) =>
-					error?.message || "Failed to revoke invitation",
-			},
-		);
-	};
+				{
+					loading: "Revoking invitation...",
+					success: () => {
+						queryClient.invalidateQueries({
+							queryKey:
+								organizationsQueryKeys.detail(organizationId),
+						});
+						return "Invitation revoked successfully";
+					},
+					error: (error: { message?: string }) =>
+						error?.message || "Failed to revoke invitation",
+				},
+			);
+		},
+		[queryClient, organizationId],
+	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: revokeInvitation is stable enough via other deps
 	const columns: ColumnDef<Invitation, unknown>[] = useMemo(
 		() => [
 			{
@@ -223,7 +226,12 @@ export function OrganizationInvitationsList({
 				},
 			},
 		],
-		[canUserEditInvitations, dateFormatter, organizationId],
+		[
+			canUserEditInvitations,
+			dateFormatter,
+			organizationId,
+			revokeInvitation,
+		],
 	);
 
 	return (

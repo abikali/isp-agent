@@ -21,6 +21,12 @@ import { AlertTriangleIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+const longDateOptions: Intl.DateTimeFormatOptions = {
+	year: "numeric",
+	month: "long",
+	day: "numeric",
+};
+
 export function RequestDeletionForm() {
 	const queryClient = useQueryClient();
 	const [reason, setReason] = useState("");
@@ -65,12 +71,6 @@ export function RequestDeletionForm() {
 		} catch {
 			toast.error("Failed to cancel account deletion");
 		}
-	};
-
-	const longDateOptions: Intl.DateTimeFormatOptions = {
-		year: "numeric",
-		month: "long",
-		day: "numeric",
 	};
 
 	if (isLoading) {

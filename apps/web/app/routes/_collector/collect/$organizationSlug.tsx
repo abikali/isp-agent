@@ -17,8 +17,10 @@ const activeOrganizationQueryKey = (slug: string) =>
 const getOrganizationFn = createServerFn({ method: "GET" })
 	.inputValidator((data: { organizationSlug: string }) => data)
 	.handler(async ({ data }: { data: { organizationSlug: string } }) => {
-		const { authApi } = await import("@repo/auth");
-		const { logger } = await import("@repo/logs");
+		const [{ authApi }, { logger }] = await Promise.all([
+			import("@repo/auth"),
+			import("@repo/logs"),
+		]);
 
 		try {
 			const { db } = await import("@repo/database");
@@ -77,6 +79,7 @@ export const Route = createFileRoute("/_collector/collect/$organizationSlug")({
 			organization: context.organization as ActiveOrganization & {
 				activeDealerId: string | null;
 			},
+			// react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone -- intentional SSR serialization of dehydrated query cache (strips non-serializable values for the client payload); canonical pattern per CLAUDE.md
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 		};
 	},

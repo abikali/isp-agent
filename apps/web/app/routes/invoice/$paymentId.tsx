@@ -25,6 +25,7 @@ const getInvoiceFn = createServerFn({ method: "GET" })
 		}
 
 		return {
+			// react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone -- intentional JSON serialization (not a clone) to strip non-serializable values from the dehydrated query cache before it is sent to the client; the documented SSR pattern
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 			paymentId: data.paymentId,
 		};

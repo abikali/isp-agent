@@ -18,7 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
 	useBulkChangeCollector,
@@ -139,21 +139,14 @@ export function BulkResetMacDialog({
 
 // ─── Bulk set discount ─────────────────────────────────────────────────
 
-export function BulkSetDiscountDialog({
-	open,
+function BulkSetDiscountBody({
 	onOpenChange,
 	organizationId,
 	customerIds,
 	onCompleted,
-}: BulkDialogShellProps) {
+}: Omit<BulkDialogShellProps, "open">) {
 	const bulkSetDiscount = useBulkSetDiscount();
 	const [value, setValue] = useState("0");
-
-	useEffect(() => {
-		if (open) {
-			setValue("0");
-		}
-	}, [open]);
 
 	function handleSubmit() {
 		const parsed = Number.parseFloat(value);
@@ -180,45 +173,63 @@ export function BulkSetDiscountDialog({
 	}
 
 	return (
+		<>
+			<DialogHeader>
+				<DialogTitle>
+					Set recurring discount for {customerIds.length} customer
+					{customerIds.length === 1 ? "" : "s"}
+				</DialogTitle>
+				<DialogDescription>
+					Applies the same recurring discount to every selected
+					customer. Set to 0 to remove. Customers without an iRadius
+					link are skipped.
+				</DialogDescription>
+			</DialogHeader>
+			<div>
+				<Label htmlFor="bulk-discount">Discount amount</Label>
+				<Input
+					id="bulk-discount"
+					type="number"
+					step="0.01"
+					min="0"
+					inputMode="decimal"
+					value={value}
+					onChange={(e) => setValue(e.target.value)}
+				/>
+			</div>
+			<DialogFooter>
+				<Button variant="outline" onClick={() => onOpenChange(false)}>
+					Cancel
+				</Button>
+				<Button
+					disabled={bulkSetDiscount.isPending}
+					onClick={handleSubmit}
+				>
+					{bulkSetDiscount.isPending ? "Saving…" : "Apply to all"}
+				</Button>
+			</DialogFooter>
+		</>
+	);
+}
+
+export function BulkSetDiscountDialog({
+	open,
+	onOpenChange,
+	organizationId,
+	customerIds,
+	onCompleted,
+}: BulkDialogShellProps) {
+	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						Set recurring discount for {customerIds.length} customer
-						{customerIds.length === 1 ? "" : "s"}
-					</DialogTitle>
-					<DialogDescription>
-						Applies the same recurring discount to every selected
-						customer. Set to 0 to remove. Customers without an
-						iRadius link are skipped.
-					</DialogDescription>
-				</DialogHeader>
-				<div>
-					<Label htmlFor="bulk-discount">Discount amount</Label>
-					<Input
-						id="bulk-discount"
-						type="number"
-						step="0.01"
-						min="0"
-						inputMode="decimal"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+				{open && (
+					<BulkSetDiscountBody
+						onOpenChange={onOpenChange}
+						organizationId={organizationId}
+						customerIds={customerIds}
+						onCompleted={onCompleted}
 					/>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={bulkSetDiscount.isPending}
-						onClick={handleSubmit}
-					>
-						{bulkSetDiscount.isPending ? "Saving…" : "Apply to all"}
-					</Button>
-				</DialogFooter>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
@@ -226,21 +237,14 @@ export function BulkSetDiscountDialog({
 
 // ─── Bulk set IPTV price ───────────────────────────────────────────────
 
-export function BulkSetIptvPriceDialog({
-	open,
+function BulkSetIptvPriceBody({
 	onOpenChange,
 	organizationId,
 	customerIds,
 	onCompleted,
-}: BulkDialogShellProps) {
+}: Omit<BulkDialogShellProps, "open">) {
 	const bulkSetIptvPrice = useBulkSetIptvPrice();
 	const [value, setValue] = useState("0");
-
-	useEffect(() => {
-		if (open) {
-			setValue("0");
-		}
-	}, [open]);
 
 	function handleSubmit() {
 		const parsed = Number.parseFloat(value);
@@ -267,47 +271,63 @@ export function BulkSetIptvPriceDialog({
 	}
 
 	return (
+		<>
+			<DialogHeader>
+				<DialogTitle>
+					Set IPTV price for {customerIds.length} customer
+					{customerIds.length === 1 ? "" : "s"}
+				</DialogTitle>
+				<DialogDescription>
+					Sets the recurring IPTV add-on price for each selected
+					customer. Set to 0 to remove. Customers without an iRadius
+					link are skipped.
+				</DialogDescription>
+			</DialogHeader>
+			<div>
+				<Label htmlFor="bulk-iptv">IPTV price</Label>
+				<Input
+					id="bulk-iptv"
+					type="number"
+					step="0.01"
+					min="0"
+					inputMode="decimal"
+					value={value}
+					onChange={(e) => setValue(e.target.value)}
+				/>
+			</div>
+			<DialogFooter>
+				<Button variant="outline" onClick={() => onOpenChange(false)}>
+					Cancel
+				</Button>
+				<Button
+					disabled={bulkSetIptvPrice.isPending}
+					onClick={handleSubmit}
+				>
+					{bulkSetIptvPrice.isPending ? "Saving…" : "Apply to all"}
+				</Button>
+			</DialogFooter>
+		</>
+	);
+}
+
+export function BulkSetIptvPriceDialog({
+	open,
+	onOpenChange,
+	organizationId,
+	customerIds,
+	onCompleted,
+}: BulkDialogShellProps) {
+	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						Set IPTV price for {customerIds.length} customer
-						{customerIds.length === 1 ? "" : "s"}
-					</DialogTitle>
-					<DialogDescription>
-						Sets the recurring IPTV add-on price for each selected
-						customer. Set to 0 to remove. Customers without an
-						iRadius link are skipped.
-					</DialogDescription>
-				</DialogHeader>
-				<div>
-					<Label htmlFor="bulk-iptv">IPTV price</Label>
-					<Input
-						id="bulk-iptv"
-						type="number"
-						step="0.01"
-						min="0"
-						inputMode="decimal"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+				{open && (
+					<BulkSetIptvPriceBody
+						onOpenChange={onOpenChange}
+						organizationId={organizationId}
+						customerIds={customerIds}
+						onCompleted={onCompleted}
 					/>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={bulkSetIptvPrice.isPending}
-						onClick={handleSubmit}
-					>
-						{bulkSetIptvPrice.isPending
-							? "Saving…"
-							: "Apply to all"}
-					</Button>
-				</DialogFooter>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
@@ -315,21 +335,14 @@ export function BulkSetIptvPriceDialog({
 
 // ─── Bulk set expiry date ──────────────────────────────────────────────
 
-export function BulkSetExpiryDialog({
-	open,
+function BulkSetExpiryBody({
 	onOpenChange,
 	organizationId,
 	customerIds,
 	onCompleted,
-}: BulkDialogShellProps) {
+}: Omit<BulkDialogShellProps, "open">) {
 	const bulkSetExpiry = useBulkSetExpiry();
 	const [value, setValue] = useState("");
-
-	useEffect(() => {
-		if (open) {
-			setValue("");
-		}
-	}, [open]);
 
 	function handleSubmit() {
 		const expiryDate = value || null;
@@ -356,43 +369,60 @@ export function BulkSetExpiryDialog({
 	}
 
 	return (
+		<>
+			<DialogHeader>
+				<DialogTitle>
+					Set billing expiry for {customerIds.length} customer
+					{customerIds.length === 1 ? "" : "s"}
+				</DialogTitle>
+				<DialogDescription>
+					Applies the same end-of-day expiry to each selected customer
+					in iRadius. Clear the field to remove their expiry date.
+					Customers without an iRadius link are skipped.
+				</DialogDescription>
+			</DialogHeader>
+			<div>
+				<Label htmlFor="bulk-expiry">Expiry date</Label>
+				<Input
+					id="bulk-expiry"
+					type="date"
+					value={value}
+					onChange={(e) => setValue(e.target.value)}
+				/>
+			</div>
+			<DialogFooter>
+				<Button variant="outline" onClick={() => onOpenChange(false)}>
+					Cancel
+				</Button>
+				<Button
+					disabled={bulkSetExpiry.isPending}
+					onClick={handleSubmit}
+				>
+					{bulkSetExpiry.isPending ? "Saving…" : "Apply to all"}
+				</Button>
+			</DialogFooter>
+		</>
+	);
+}
+
+export function BulkSetExpiryDialog({
+	open,
+	onOpenChange,
+	organizationId,
+	customerIds,
+	onCompleted,
+}: BulkDialogShellProps) {
+	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						Set billing expiry for {customerIds.length} customer
-						{customerIds.length === 1 ? "" : "s"}
-					</DialogTitle>
-					<DialogDescription>
-						Applies the same end-of-day expiry to each selected
-						customer in iRadius. Clear the field to remove their
-						expiry date. Customers without an iRadius link are
-						skipped.
-					</DialogDescription>
-				</DialogHeader>
-				<div>
-					<Label htmlFor="bulk-expiry">Expiry date</Label>
-					<Input
-						id="bulk-expiry"
-						type="date"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+				{open && (
+					<BulkSetExpiryBody
+						onOpenChange={onOpenChange}
+						organizationId={organizationId}
+						customerIds={customerIds}
+						onCompleted={onCompleted}
 					/>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={bulkSetExpiry.isPending}
-						onClick={handleSubmit}
-					>
-						{bulkSetExpiry.isPending ? "Saving…" : "Apply to all"}
-					</Button>
-				</DialogFooter>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
@@ -404,26 +434,20 @@ interface BulkChangeCollectorDialogProps extends BulkDialogShellProps {
 	collectors: Array<{ id: string; name: string }>;
 }
 
-export function BulkChangeCollectorDialog({
-	open,
+// Sentinel value used in the Select to represent "no collector" because
+// Radix's `<SelectItem value="">` is reserved for the placeholder slot.
+// We translate it back to `null` on submit.
+const NONE = "__none__";
+
+function BulkChangeCollectorBody({
 	onOpenChange,
 	organizationId,
 	customerIds,
 	collectors,
 	onCompleted,
-}: BulkChangeCollectorDialogProps) {
+}: Omit<BulkChangeCollectorDialogProps, "open">) {
 	const bulkChangeCollector = useBulkChangeCollector();
-	// Sentinel value used in the Select to represent "no collector"
-	// because Radix's `<SelectItem value="">` is reserved for the
-	// placeholder slot. We translate it back to `null` on submit.
-	const NONE = "__none__";
 	const [value, setValue] = useState<string>(NONE);
-
-	useEffect(() => {
-		if (open) {
-			setValue(NONE);
-		}
-	}, [open]);
 
 	function handleSubmit() {
 		bulkChangeCollector.mutate(
@@ -446,54 +470,71 @@ export function BulkChangeCollectorDialog({
 	}
 
 	return (
+		<>
+			<DialogHeader>
+				<DialogTitle>
+					Change collector for {customerIds.length} customer
+					{customerIds.length === 1 ? "" : "s"}
+				</DialogTitle>
+				<DialogDescription>
+					Reassigns each selected customer to the chosen collector.
+					Local-only — does not push the new collector to iRadius (use
+					the single-customer detail flow if you need that).
+				</DialogDescription>
+			</DialogHeader>
+			<div>
+				<Label htmlFor="bulk-collector">Collector</Label>
+				<Select value={value} onValueChange={setValue}>
+					<SelectTrigger id="bulk-collector">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value={NONE}>
+							— Unassign collector —
+						</SelectItem>
+						{collectors.map((c) => (
+							<SelectItem key={c.id} value={c.id}>
+								{c.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<DialogFooter>
+				<Button variant="outline" onClick={() => onOpenChange(false)}>
+					Cancel
+				</Button>
+				<Button
+					disabled={bulkChangeCollector.isPending}
+					onClick={handleSubmit}
+				>
+					{bulkChangeCollector.isPending ? "Saving…" : "Apply to all"}
+				</Button>
+			</DialogFooter>
+		</>
+	);
+}
+
+export function BulkChangeCollectorDialog({
+	open,
+	onOpenChange,
+	organizationId,
+	customerIds,
+	collectors,
+	onCompleted,
+}: BulkChangeCollectorDialogProps) {
+	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
-				<DialogHeader>
-					<DialogTitle>
-						Change collector for {customerIds.length} customer
-						{customerIds.length === 1 ? "" : "s"}
-					</DialogTitle>
-					<DialogDescription>
-						Reassigns each selected customer to the chosen
-						collector. Local-only — does not push the new collector
-						to iRadius (use the single-customer detail flow if you
-						need that).
-					</DialogDescription>
-				</DialogHeader>
-				<div>
-					<Label htmlFor="bulk-collector">Collector</Label>
-					<Select value={value} onValueChange={setValue}>
-						<SelectTrigger id="bulk-collector">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={NONE}>
-								— Unassign collector —
-							</SelectItem>
-							{collectors.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={bulkChangeCollector.isPending}
-						onClick={handleSubmit}
-					>
-						{bulkChangeCollector.isPending
-							? "Saving…"
-							: "Apply to all"}
-					</Button>
-				</DialogFooter>
+				{open && (
+					<BulkChangeCollectorBody
+						onOpenChange={onOpenChange}
+						organizationId={organizationId}
+						customerIds={customerIds}
+						collectors={collectors}
+						onCompleted={onCompleted}
+					/>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

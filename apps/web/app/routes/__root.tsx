@@ -12,6 +12,7 @@ import {
 import {
 	createRootRoute,
 	HeadContent,
+	Link,
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
@@ -128,6 +129,7 @@ function RootComponent() {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="en" suppressHydrationWarning>
@@ -148,6 +150,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
 function GlobalErrorComponent({ error }: { error: Error }) {
 	return (
 		<RootDocument>
@@ -215,6 +218,7 @@ function GlobalErrorComponent({ error }: { error: Error }) {
 								</svg>
 								Reload page
 							</button>
+							{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- error-boundary recovery: full reload intentionally resets crashed app/router state */}
 							<a
 								href="/"
 								className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -230,8 +234,10 @@ function GlobalErrorComponent({ error }: { error: Error }) {
 						© {getBeirutDate().year} {config.appName}
 					</span>
 					<span className="mx-2 opacity-50">|</span>
+					{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
 					<a href="/legal/privacy-policy">Privacy Policy</a>
 					<span className="mx-2 opacity-50">|</span>
+					{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
 					<a href="/legal/terms">Terms</a>
 				</footer>
 			</div>
@@ -239,6 +245,7 @@ function GlobalErrorComponent({ error }: { error: Error }) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
 function NotFoundComponent() {
 	return (
 		<div className="flex min-h-screen flex-col bg-gradient-to-br from-background to-muted">
@@ -275,12 +282,13 @@ function NotFoundComponent() {
 					</div>
 
 					<div className="flex flex-col gap-3 pt-2">
-						<a
-							href="/"
+						<Link
+							to="/"
+							preload="intent"
 							className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 						>
 							Go to Homepage
-						</a>
+						</Link>
 						<button
 							type="button"
 							onClick={() => window.history.back()}
@@ -311,8 +319,10 @@ function NotFoundComponent() {
 					© {getBeirutDate().year} {config.appName}
 				</span>
 				<span className="mx-2 opacity-50">|</span>
+				{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
 				<a href="/legal/privacy-policy">Privacy Policy</a>
 				<span className="mx-2 opacity-50">|</span>
+				{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
 				<a href="/legal/terms">Terms</a>
 			</footer>
 		</div>

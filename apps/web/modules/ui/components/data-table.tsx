@@ -232,6 +232,7 @@ function SkeletonRows({
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive generic table primitive; the table state/config and render are a single unit (PaginationBar/SkeletonRows already extracted), further splitting would obscure data flow
 export function DataTable<TData>({
 	columns,
 	data,

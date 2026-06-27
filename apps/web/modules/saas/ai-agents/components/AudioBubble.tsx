@@ -31,6 +31,10 @@ function generateStaticBars(count: number): number[] {
 // Cache audio contexts per element to avoid re-connecting
 const connectedElements = new WeakSet<HTMLAudioElement>();
 
+// Deterministic fallback waveform — same for every bubble, computed once.
+const STATIC_BARS = generateStaticBars(BAR_COUNT);
+
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- cohesive audio-player component; the playback values are independent slices, a reducer would obscure them
 export function AudioBubble({ url, duration }: AudioBubbleProps) {
 	const audioRef = useRef<HTMLAudioElement>(null);
 	const waveformRef = useRef<HTMLDivElement>(null);
@@ -42,7 +46,8 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 	const [currentTime, setCurrentTime] = useState(0);
 	const [audioDuration, setAudioDuration] = useState(duration ?? 0);
 	const [speedIndex, setSpeedIndex] = useState(0);
-	const [isDragging, setIsDragging] = useState(false);
+	// Drag state is only read inside event handlers, never in render
+	const isDraggingRef = useRef(false);
 
 	// Live waveform bars (updated by analyser during playback)
 	const [liveBars, setLiveBars] = useState<number[] | null>(null);
@@ -50,7 +55,6 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 	const snapshotRef = useRef<number[] | null>(null);
 
 	const playbackSpeed = SPEED_OPTIONS[speedIndex] ?? 1;
-	const staticBars = useRef(generateStaticBars(BAR_COUNT)).current;
 
 	// Connect AnalyserNode to audio element on first play
 	const ensureAnalyser = useCallback(() => {
@@ -115,8 +119,8 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	// Determine which bars to render
 	const displayBars = isPlaying
-		? (liveBars ?? staticBars)
-		: (snapshotRef.current ?? staticBars);
+		? (liveBars ?? STATIC_BARS)
+		: (snapshotRef.current ?? STATIC_BARS);
 
 	const togglePlay = useCallback(() => {
 		const audio = audioRef.current;
@@ -142,7 +146,7 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	function handleTimeUpdate() {
 		const audio = audioRef.current;
-		if (!audio || !audio.duration || isDragging) {
+		if (!audio || !audio.duration || isDraggingRef.current) {
 			return;
 		}
 		const pct = (audio.currentTime / audio.duration) * 100;
@@ -174,7 +178,7 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent) => {
-			setIsDragging(true);
+			isDraggingRef.current = true;
 			(e.target as HTMLElement).setPointerCapture(e.pointerId);
 			seekFromEvent(e.clientX);
 		},
@@ -183,16 +187,16 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	const handlePointerMove = useCallback(
 		(e: React.PointerEvent) => {
-			if (!isDragging) {
+			if (!isDraggingRef.current) {
 				return;
 			}
 			seekFromEvent(e.clientX);
 		},
-		[isDragging, seekFromEvent],
+		[seekFromEvent],
 	);
 
 	const handlePointerUp = useCallback(() => {
-		setIsDragging(false);
+		isDraggingRef.current = false;
 	}, []);
 
 	const displayTime =
@@ -205,9 +209,11 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 
 	return (
 		<div className="flex items-center gap-2.5 min-w-[220px]">
+			{/* react-doctor-disable-next-line react-doctor/media-has-caption -- chat voice notes have no captions track to attach */}
 			{/* biome-ignore lint/a11y/useMediaCaption: chat voice notes don't have captions */}
 			<audio
 				ref={audioRef}
+				aria-label="Voice message"
 				src={url}
 				crossOrigin="anonymous"
 				onPlay={() => setIsPlaying(true)}

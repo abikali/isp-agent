@@ -80,6 +80,7 @@ export function PhotoCaptureInput({
 				type="file"
 				accept="image/*"
 				capture="environment"
+				aria-label={label}
 				className="sr-only"
 				onChange={(e) => {
 					const file = e.target.files?.[0];

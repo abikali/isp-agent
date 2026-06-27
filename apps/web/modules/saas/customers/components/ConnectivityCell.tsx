@@ -64,6 +64,7 @@ export function ConnectivityCell({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
+				{/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- <img> is a void element and cannot wrap these decorative dot spans; role="img"+aria-label labels the group as one image */}
 				<span
 					role="img"
 					aria-label={label}

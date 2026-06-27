@@ -1,5 +1,5 @@
 import { onError } from "@orpc/client";
-import { experimental_SmartCoercionPlugin as SmartCoercionPlugin } from "@orpc/json-schema";
+import { SmartCoercionPlugin } from "@orpc/json-schema";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { RPCHandler } from "@orpc/server/fetch";

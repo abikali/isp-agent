@@ -15,6 +15,7 @@ import {
 	TrendingUpIcon,
 	UsersIcon,
 } from "lucide-react";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts is the repo-wide charting lib, statically imported by every shared chart component and already in the billing route's vendor chunk; a one-off lazy boundary here yields no bundle win
 import {
 	Bar,
 	BarChart,

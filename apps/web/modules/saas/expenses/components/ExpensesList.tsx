@@ -53,6 +53,8 @@ const STATUS_BADGES: Record<
 	REJECTED: { label: "Rejected", variant: "error" },
 };
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive expenses review page: filters, approval/reject dialog, and table column defs share local state; splitting would scatter tightly-coupled state
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/dialog state slices (status, employee, month, page, ...) read clearer as separate useState than a reducer
 export function ExpensesList() {
 	const organizationId = useOrganizationId();
 	const [status, setStatus] = useState<ExpenseStatus>("PENDING");

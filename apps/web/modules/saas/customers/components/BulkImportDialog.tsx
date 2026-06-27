@@ -44,6 +44,7 @@ interface ImportResult {
 	total: number;
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- cohesive wizard dialog; the 5 state slices drive independent steps and read cleanly as separate useState
 export function BulkImportDialog({
 	open,
 	onOpenChange,
@@ -180,10 +181,28 @@ export function BulkImportDialog({
 					</DialogDescription>
 				</DialogHeader>
 
-				{step === "upload" && <UploadStep />}
-				{step === "preview" && <PreviewStep />}
-				{step === "importing" && <ImportingStep />}
-				{step === "complete" && <CompleteStep />}
+				{step === "upload" && (
+					<UploadStep
+						isDragOver={isDragOver}
+						fileInputRef={fileInputRef}
+						onDrop={handleDrop}
+						onDragOver={handleDragOver}
+						onDragLeave={handleDragLeave}
+						onFileChange={handleFileChange}
+					/>
+				)}
+				{step === "preview" && (
+					<PreviewStep
+						parseResult={parseResult}
+						fileName={fileName}
+					/>
+				)}
+				{step === "importing" && (
+					<ImportingStep rowCount={parseResult.rows.length} />
+				)}
+				{step === "complete" && (
+					<CompleteStep importResult={importResult} />
+				)}
 
 				<DialogFooter>
 					{step === "upload" && (
@@ -219,220 +238,236 @@ export function BulkImportDialog({
 			</DialogContent>
 		</Dialog>
 	);
+}
 
-	function UploadStep() {
-		return (
-			<div className="space-y-4">
-				<button
-					type="button"
-					className={`flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed bg-transparent p-8 transition-colors ${
-						isDragOver
-							? "border-primary bg-primary/5"
-							: "border-border hover:border-primary/50"
-					}`}
-					onDrop={handleDrop}
-					onDragOver={handleDragOver}
-					onDragLeave={handleDragLeave}
-					onClick={() => fileInputRef.current?.click()}
-				>
-					<UploadIcon className="size-10 text-muted-foreground" />
-					<div className="text-center">
-						<p className="text-sm font-medium">
-							Drop your CSV file here or click to browse
-						</p>
-						<p className="mt-1 text-xs text-muted-foreground">
-							Supports .csv files up to 1,000 rows
-						</p>
-					</div>
-					<input
-						ref={fileInputRef}
-						type="file"
-						accept=".csv"
-						className="hidden"
-						onChange={handleFileChange}
-					/>
-				</button>
-
-				<Button
-					variant="outline"
-					size="sm"
-					className="w-full"
-					onClick={() =>
-						downloadCsv(
-							generateCsvTemplate(),
-							"customers-template.csv",
-						)
-					}
-				>
-					<DownloadIcon className="mr-2 size-4" />
-					Download CSV Template
-				</Button>
-			</div>
-		);
-	}
-
-	function PreviewStep() {
-		const { rows, errors } = parseResult;
-		const hasRows = rows.length > 0;
-
-		return (
-			<div className="space-y-4">
-				{/* File info */}
-				<div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-					<FileSpreadsheetIcon className="size-4 text-muted-foreground" />
-					<span className="text-sm font-medium">{fileName}</span>
-					<span className="text-xs text-muted-foreground">
-						({rows.length} valid row
-						{rows.length !== 1 ? "s" : ""})
-					</span>
+function UploadStep({
+	isDragOver,
+	fileInputRef,
+	onDrop,
+	onDragOver,
+	onDragLeave,
+	onFileChange,
+}: {
+	isDragOver: boolean;
+	fileInputRef: React.RefObject<HTMLInputElement | null>;
+	onDrop: (e: React.DragEvent) => void;
+	onDragOver: (e: React.DragEvent) => void;
+	onDragLeave: (e: React.DragEvent) => void;
+	onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+	return (
+		<div className="space-y-4">
+			<button
+				type="button"
+				className={`flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed bg-transparent p-8 transition-colors ${
+					isDragOver
+						? "border-primary bg-primary/5"
+						: "border-border hover:border-primary/50"
+				}`}
+				onDrop={onDrop}
+				onDragOver={onDragOver}
+				onDragLeave={onDragLeave}
+				onClick={() => fileInputRef.current?.click()}
+			>
+				<UploadIcon className="size-10 text-muted-foreground" />
+				<div className="text-center">
+					<p className="text-sm font-medium">
+						Drop your CSV file here or click to browse
+					</p>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Supports .csv files up to 1,000 rows
+					</p>
 				</div>
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept=".csv"
+					aria-label="Upload CSV file"
+					className="hidden"
+					onChange={onFileChange}
+				/>
+			</button>
 
-				{/* Parse errors */}
-				{errors.length > 0 && (
-					<Alert variant="error">
-						<AlertCircleIcon />
-						<AlertTitle>
-							{errors.length} row{errors.length !== 1 ? "s" : ""}{" "}
-							skipped
-						</AlertTitle>
-						<AlertDescription>
-							<ScrollArea className="max-h-24">
-								<ul className="mt-1 space-y-0.5 text-xs">
-									{errors.map((err) => (
-										<li key={`err-${err.row}`}>
-											{err.row > 0 && (
-												<span className="font-medium">
-													Row {err.row}:{" "}
-												</span>
-											)}
-											{err.error}
-										</li>
-									))}
-								</ul>
-							</ScrollArea>
-						</AlertDescription>
-					</Alert>
-				)}
+			<Button
+				variant="outline"
+				size="sm"
+				className="w-full"
+				onClick={() =>
+					downloadCsv(generateCsvTemplate(), "customers-template.csv")
+				}
+			>
+				<DownloadIcon className="mr-2 size-4" />
+				Download CSV Template
+			</Button>
+		</div>
+	);
+}
 
-				{/* No valid rows */}
-				{!hasRows && errors.length > 0 && (
-					<Alert variant="error">
-						<XCircleIcon />
-						<AlertTitle>No valid rows to import</AlertTitle>
-						<AlertDescription>
-							Fix the errors above and try again, or download the
-							template for the expected format.
-						</AlertDescription>
-					</Alert>
-				)}
+function PreviewStep({
+	parseResult,
+	fileName,
+}: {
+	parseResult: ParseResult;
+	fileName: string;
+}) {
+	const { rows, errors } = parseResult;
+	const hasRows = rows.length > 0;
 
-				{/* Data preview table */}
-				{hasRows && (
-					<ScrollArea className="max-h-64 rounded-md border">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-12">#</TableHead>
-									<TableHead>Name</TableHead>
-									<TableHead>Email</TableHead>
-									<TableHead className="hidden sm:table-cell">
-										Phone
-									</TableHead>
-									<TableHead className="hidden md:table-cell">
-										Plan
-									</TableHead>
-									<TableHead className="hidden lg:table-cell">
-										Station
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{rows.slice(0, 50).map((row, i) => (
-									<PreviewRow
-										key={`row-${row.firstName}-${i}`}
-										row={row}
-										index={i}
-									/>
-								))}
-							</TableBody>
-						</Table>
-						{rows.length > 50 && (
-							<p className="border-t px-3 py-2 text-center text-xs text-muted-foreground">
-								Showing first 50 of {rows.length} rows
-							</p>
-						)}
-					</ScrollArea>
-				)}
+	return (
+		<div className="space-y-4">
+			{/* File info */}
+			<div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
+				<FileSpreadsheetIcon className="size-4 text-muted-foreground" />
+				<span className="text-sm font-medium">{fileName}</span>
+				<span className="text-xs text-muted-foreground">
+					({rows.length} valid row
+					{rows.length !== 1 ? "s" : ""})
+				</span>
 			</div>
-		);
-	}
 
-	function ImportingStep() {
-		return (
-			<div className="flex flex-col items-center justify-center gap-3 py-8">
-				<LoaderIcon className="size-8 animate-spin text-primary" />
-				<p className="text-sm text-muted-foreground">
-					Importing {parseResult.rows.length} customer
-					{parseResult.rows.length !== 1 ? "s" : ""}...
-				</p>
-			</div>
-		);
-	}
-
-	function CompleteStep() {
-		if (!importResult) {
-			return null;
-		}
-
-		const allSuccess = importResult.errorCount === 0;
-		const allFailed = importResult.successCount === 0;
-
-		return (
-			<div className="space-y-4">
-				{/* Summary */}
-				<Alert variant={allFailed ? "error" : "success"}>
-					{allFailed ? <XCircleIcon /> : <CheckCircle2Icon />}
+			{/* Parse errors */}
+			{errors.length > 0 && (
+				<Alert variant="error">
+					<AlertCircleIcon />
 					<AlertTitle>
-						{allFailed
-							? "Import failed"
-							: allSuccess
-								? "Import successful"
-								: "Import completed with errors"}
+						{errors.length} row{errors.length !== 1 ? "s" : ""}{" "}
+						skipped
 					</AlertTitle>
 					<AlertDescription>
-						<div className="mt-1 flex gap-4 text-sm">
-							{importResult.successCount > 0 && (
-								<span>
-									{importResult.successCount} imported
-								</span>
-							)}
-							{importResult.errorCount > 0 && (
-								<span>{importResult.errorCount} failed</span>
-							)}
-						</div>
+						<ScrollArea className="max-h-24">
+							<ul className="mt-1 space-y-0.5 text-xs">
+								{errors.map((err) => (
+									<li key={`err-${err.row}`}>
+										{err.row > 0 && (
+											<span className="font-medium">
+												Row {err.row}:{" "}
+											</span>
+										)}
+										{err.error}
+									</li>
+								))}
+							</ul>
+						</ScrollArea>
 					</AlertDescription>
 				</Alert>
+			)}
 
-				{/* Error details */}
-				{importResult.errors.length > 0 && (
-					<ScrollArea className="max-h-32 rounded-md border p-3">
-						<ul className="space-y-1 text-xs text-destructive">
-							{importResult.errors.map((err) => (
-								<li key={`import-err-${err.row}`}>
-									{err.row > 0 && (
-										<span className="font-medium">
-											Row {err.row}:{" "}
-										</span>
-									)}
-									{err.error}
-								</li>
+			{/* No valid rows */}
+			{!hasRows && errors.length > 0 && (
+				<Alert variant="error">
+					<XCircleIcon />
+					<AlertTitle>No valid rows to import</AlertTitle>
+					<AlertDescription>
+						Fix the errors above and try again, or download the
+						template for the expected format.
+					</AlertDescription>
+				</Alert>
+			)}
+
+			{/* Data preview table */}
+			{hasRows && (
+				<ScrollArea className="max-h-64 rounded-md border">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-12">#</TableHead>
+								<TableHead>Name</TableHead>
+								<TableHead>Email</TableHead>
+								<TableHead className="hidden sm:table-cell">
+									Phone
+								</TableHead>
+								<TableHead className="hidden md:table-cell">
+									Plan
+								</TableHead>
+								<TableHead className="hidden lg:table-cell">
+									Station
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{rows.slice(0, 50).map((row, i) => (
+								<PreviewRow
+									key={`row-${row.firstName}-${i}`}
+									row={row}
+									index={i}
+								/>
 							))}
-						</ul>
-					</ScrollArea>
-				)}
-			</div>
-		);
+						</TableBody>
+					</Table>
+					{rows.length > 50 && (
+						<p className="border-t px-3 py-2 text-center text-xs text-muted-foreground">
+							Showing first 50 of {rows.length} rows
+						</p>
+					)}
+				</ScrollArea>
+			)}
+		</div>
+	);
+}
+
+function ImportingStep({ rowCount }: { rowCount: number }) {
+	return (
+		<div className="flex flex-col items-center justify-center gap-3 py-8">
+			<LoaderIcon className="size-8 animate-spin text-primary" />
+			<p className="text-sm text-muted-foreground">
+				Importing {rowCount} customer
+				{rowCount !== 1 ? "s" : ""}...
+			</p>
+		</div>
+	);
+}
+
+function CompleteStep({ importResult }: { importResult: ImportResult | null }) {
+	if (!importResult) {
+		return null;
 	}
+
+	const allSuccess = importResult.errorCount === 0;
+	const allFailed = importResult.successCount === 0;
+
+	return (
+		<div className="space-y-4">
+			{/* Summary */}
+			<Alert variant={allFailed ? "error" : "success"}>
+				{allFailed ? <XCircleIcon /> : <CheckCircle2Icon />}
+				<AlertTitle>
+					{allFailed
+						? "Import failed"
+						: allSuccess
+							? "Import successful"
+							: "Import completed with errors"}
+				</AlertTitle>
+				<AlertDescription>
+					<div className="mt-1 flex gap-4 text-sm">
+						{importResult.successCount > 0 && (
+							<span>{importResult.successCount} imported</span>
+						)}
+						{importResult.errorCount > 0 && (
+							<span>{importResult.errorCount} failed</span>
+						)}
+					</div>
+				</AlertDescription>
+			</Alert>
+
+			{/* Error details */}
+			{importResult.errors.length > 0 && (
+				<ScrollArea className="max-h-32 rounded-md border p-3">
+					<ul className="space-y-1 text-xs text-destructive">
+						{importResult.errors.map((err) => (
+							<li key={`import-err-${err.row}`}>
+								{err.row > 0 && (
+									<span className="font-medium">
+										Row {err.row}:{" "}
+									</span>
+								)}
+								{err.error}
+							</li>
+						))}
+					</ul>
+				</ScrollArea>
+			)}
+		</div>
+	);
 }
 
 function PreviewRow({ row, index }: { row: CsvRow; index: number }) {

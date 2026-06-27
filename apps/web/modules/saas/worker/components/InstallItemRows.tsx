@@ -23,21 +23,31 @@ export function installLinesTotal(lines: InstallLine[]): number {
 }
 
 export function linesToPayload(lines: InstallLine[]) {
-	return lines
-		.filter((l) => l.stockItemId || l.addonType)
-		.map((l) =>
-			l.kind === "item"
-				? {
+	return lines.flatMap<{
+		stockItemId?: string;
+		addonType?: "IPTV" | "REAL_IP";
+		quantity: number;
+		price: number;
+	}>((l) => {
+		if (!(l.stockItemId || l.addonType)) {
+			return [];
+		}
+		return l.kind === "item"
+			? [
+					{
 						stockItemId: l.stockItemId as string,
 						quantity: l.quantity,
 						price: l.price,
-					}
-				: {
+					},
+				]
+			: [
+					{
 						addonType: l.addonType as "IPTV" | "REAL_IP",
 						quantity: 1,
 						price: l.price,
 					},
-		);
+				];
+	});
 }
 
 /**

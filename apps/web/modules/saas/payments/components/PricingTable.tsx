@@ -21,6 +21,7 @@ import { usePlanData } from "../hooks/plan-data";
 
 // Simple currency formatter helper
 function formatCurrency(amount: number, currency: string) {
+	// react-doctor-disable-next-line react-doctor/js-hoist-intl -- currency is a per-call dynamic arg; a single module-scope formatter can't cover all currencies
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency,
@@ -123,178 +124,171 @@ export function PricingTable({
 					"@4xl:grid-cols-4": filteredPlans.length >= 4,
 				})}
 			>
-				{filteredPlans
-					.filter(([planId]) => planId !== activePlanId)
-					.map(([planId, plan]) => {
-						const { isFree, isEnterprise, prices, recommended } =
-							plan;
-						const { title, description, features } =
-							planData[planId as keyof typeof planData];
+				{filteredPlans.map(([planId, plan]) => {
+					const { isFree, isEnterprise, prices, recommended } = plan;
+					const { title, description, features } =
+						planData[planId as keyof typeof planData];
 
-						let price = prices?.find(
-							(price) =>
-								!price.hidden &&
-								(price.type === "one-time" ||
-									price.interval === interval) &&
-								price.currency === localeCurrency,
-						);
+					let price = prices?.find(
+						(price) =>
+							!price.hidden &&
+							(price.type === "one-time" ||
+								price.interval === interval) &&
+							price.currency === localeCurrency,
+					);
 
-						if (isFree) {
-							price = {
-								amount: 0,
-								currency: localeCurrency,
-								interval,
-								productId: "",
-								type: "recurring",
-							};
-						}
+					if (isFree) {
+						price = {
+							amount: 0,
+							currency: localeCurrency,
+							interval,
+							productId: "",
+							type: "recurring",
+						};
+					}
 
-						if (!(price || isEnterprise)) {
-							return null;
-						}
+					if (!(price || isEnterprise)) {
+						return null;
+					}
 
-						return (
-							<div
-								key={planId}
-								className={cn(
-									"rounded-2xl border p-4 sm:rounded-3xl sm:p-6",
-									{
-										"border-2 border-primary": recommended,
-									},
-								)}
-								data-test="price-table-plan"
-							>
-								<div className="flex h-full flex-col justify-between gap-4">
-									<div>
-										{recommended && (
-											<div className="-mt-7 flex justify-center sm:-mt-9">
-												<div className="mb-2 flex h-6 w-auto items-center gap-1.5 rounded-full bg-primary px-2 py-1 font-semibold text-primary-foreground text-xs">
-													<StarIcon className="size-3" />
-													Recommended
-												</div>
+					return (
+						<div
+							key={planId}
+							className={cn(
+								"rounded-2xl border p-4 sm:rounded-3xl sm:p-6",
+								{
+									"border-2 border-primary": recommended,
+								},
+							)}
+							data-test="price-table-plan"
+						>
+							<div className="flex h-full flex-col justify-between gap-4">
+								<div>
+									{recommended && (
+										<div className="-mt-7 flex justify-center sm:-mt-9">
+											<div className="mb-2 flex h-6 w-auto items-center gap-1.5 rounded-full bg-primary px-2 py-1 font-semibold text-primary-foreground text-xs">
+												<StarIcon className="size-3" />
+												Recommended
+											</div>
+										</div>
+									)}
+									<h3
+										className={cn(
+											"my-0 font-semibold text-2xl",
+											{
+												"font-bold text-primary":
+													recommended,
+											},
+										)}
+									>
+										{title}
+									</h3>
+									{description && (
+										<div className="prose mt-2 text-foreground/60 text-sm">
+											{description}
+										</div>
+									)}
+
+									{!!features?.length && (
+										<ul className="mt-4 grid list-none gap-2 text-sm">
+											{features.map((feature, key) => (
+												<li
+													key={key}
+													className="flex items-center justify-start"
+												>
+													<CheckIcon className="mr-2 size-4 text-primary" />
+													<span>{feature}</span>
+												</li>
+											))}
+										</ul>
+									)}
+
+									{price &&
+										"trialPeriodDays" in price &&
+										price.trialPeriodDays && (
+											<div className="mt-4 flex items-center justify-start font-medium text-primary text-sm opacity-80">
+												<BadgePercentIcon className="mr-2 size-4" />
+												{price.trialPeriodDays} day free
+												trial
 											</div>
 										)}
-										<h3
-											className={cn(
-												"my-0 font-semibold text-2xl",
-												{
-													"font-bold text-primary":
-														recommended,
-												},
-											)}
+								</div>
+
+								<div>
+									{price && (
+										<strong
+											className="block font-medium text-2xl lg:text-3xl"
+											data-test="price-table-plan-price"
 										>
-											{title}
-										</h3>
-										{description && (
-											<div className="prose mt-2 text-foreground/60 text-sm">
-												{description}
-											</div>
-										)}
-
-										{!!features?.length && (
-											<ul className="mt-4 grid list-none gap-2 text-sm">
-												{features.map(
-													(feature, key) => (
-														<li
-															key={key}
-															className="flex items-center justify-start"
-														>
-															<CheckIcon className="mr-2 size-4 text-primary" />
-															<span>
-																{feature}
-															</span>
-														</li>
-													),
-												)}
-											</ul>
-										)}
-
-										{price &&
-											"trialPeriodDays" in price &&
-											price.trialPeriodDays && (
-												<div className="mt-4 flex items-center justify-start font-medium text-primary text-sm opacity-80">
-													<BadgePercentIcon className="mr-2 size-4" />
-													{price.trialPeriodDays} day
-													free trial
-												</div>
+											{formatCurrency(
+												price.amount,
+												price.currency,
 											)}
-									</div>
-
-									<div>
-										{price && (
-											<strong
-												className="block font-medium text-2xl lg:text-3xl"
-												data-test="price-table-plan-price"
-											>
-												{formatCurrency(
-													price.amount,
-													price.currency,
-												)}
-												{"interval" in price && (
-													<span className="font-normal text-xs opacity-60">
-														{" / "}
-														{interval === "month"
-															? price.intervalCount &&
+											{"interval" in price && (
+												<span className="font-normal text-xs opacity-60">
+													{" / "}
+													{interval === "month"
+														? price.intervalCount &&
+															price.intervalCount >
+																1
+															? `${price.intervalCount} months`
+															: "month"
+														: price.intervalCount &&
 																price.intervalCount >
 																	1
-																? `${price.intervalCount} months`
-																: "month"
-															: price.intervalCount &&
-																	price.intervalCount >
-																		1
-																? `${price.intervalCount} years`
-																: "year"}
+															? `${price.intervalCount} years`
+															: "year"}
+												</span>
+											)}
+											{organizationId &&
+												"seatBased" in price &&
+												price.seatBased && (
+													<span className="font-normal text-xs opacity-60">
+														{" / "}
+														per seat
 													</span>
 												)}
-												{organizationId &&
-													"seatBased" in price &&
-													price.seatBased && (
-														<span className="font-normal text-xs opacity-60">
-															{" / "}
-															per seat
-														</span>
-													)}
-											</strong>
-										)}
+										</strong>
+									)}
 
-										{isEnterprise ? (
-											<Button
-												className="mt-4 w-full"
-												variant="secondary"
-												asChild
-											>
-												<Link to="/contact">
-													<PhoneIcon className="mr-2 size-4" />
-													Contact Sales
-												</Link>
-											</Button>
-										) : (
-											<Button
-												className="mt-4 w-full"
-												variant={
-													recommended
-														? "primary"
-														: "secondary"
-												}
-												onClick={() =>
-													onSelectPlan(
-														planId as PlanId,
-														price?.productId,
-													)
-												}
-												loading={loading === planId}
-											>
-												{userId || organizationId
-													? "Choose Plan"
-													: "Get Started"}
-												<ArrowRightIcon className="ml-2 size-4" />
-											</Button>
-										)}
-									</div>
+									{isEnterprise ? (
+										<Button
+											className="mt-4 w-full"
+											variant="secondary"
+											asChild
+										>
+											<Link to="/contact">
+												<PhoneIcon className="mr-2 size-4" />
+												Contact Sales
+											</Link>
+										</Button>
+									) : (
+										<Button
+											className="mt-4 w-full"
+											variant={
+												recommended
+													? "primary"
+													: "secondary"
+											}
+											onClick={() =>
+												onSelectPlan(
+													planId as PlanId,
+													price?.productId,
+												)
+											}
+											loading={loading === planId}
+										>
+											{userId || organizationId
+												? "Choose Plan"
+												: "Get Started"}
+											<ArrowRightIcon className="ml-2 size-4" />
+										</Button>
+									)}
 								</div>
 							</div>
-						);
-					})}
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);

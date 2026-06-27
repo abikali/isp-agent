@@ -36,6 +36,12 @@ interface SuccessSummary {
 	passwordReused: boolean;
 }
 
+function copy(value: string) {
+	navigator.clipboard.writeText(value);
+	toast.success("Copied to clipboard");
+}
+
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive owner-creation sheet (form + success summary states); JSX-heavy, splitting would fragment a single workflow
 export function CreateOwnerDialog({
 	organizationId,
 	organizationName,
@@ -97,11 +103,6 @@ export function CreateOwnerDialog({
 			form.reset();
 			setSummary(null);
 		}
-	}
-
-	function copy(value: string) {
-		navigator.clipboard.writeText(value);
-		toast.success("Copied to clipboard");
 	}
 
 	return (
@@ -197,6 +198,7 @@ export function CreateOwnerDialog({
 						</SheetFooter>
 					</>
 				) : (
+					// react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form requires client-side onSubmit with preventDefault; there is no server-action submit path for this form
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

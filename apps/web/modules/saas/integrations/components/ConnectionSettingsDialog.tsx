@@ -15,7 +15,7 @@ import { Label } from "@ui/components/label";
 import { RadioGroup, RadioGroupItem } from "@ui/components/radio-group";
 import { Skeleton } from "@ui/components/skeleton";
 import { HistoryIcon, Loader2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
 	useConnectionsQueryNonSuspense,
 	useUpdateConnectionMutation,
@@ -44,14 +44,17 @@ export function ConnectionSettingsDialog({
 	const [syncMode, setSyncMode] = useState<"manual" | "auto">("manual");
 	const [autoSyncEvents, setAutoSyncEvents] = useState<string[]>([]);
 
-	// Initialize form when connection loads
-	useEffect(() => {
-		if (connection) {
-			setName(connection.name || "");
-			setSyncMode(connection.syncMode as "manual" | "auto");
-			setAutoSyncEvents(connection.autoSyncEvents || []);
-		}
-	}, [connection]);
+	// Seed the editable form from the connection once it loads (and re-seed if a
+	// different connection id is shown). Adjusting state during render with a
+	// previous-value compare avoids the extra render hop of an init effect —
+	// see react.dev/learn/you-might-not-need-an-effect.
+	const [seededId, setSeededId] = useState<string | null>(null);
+	if (connection && connection.id !== seededId) {
+		setSeededId(connection.id);
+		setName(connection.name || "");
+		setSyncMode(connection.syncMode as "manual" | "auto");
+		setAutoSyncEvents(connection.autoSyncEvents || []);
+	}
 
 	const handleSave = async () => {
 		await updateMutation.mutateAsync({

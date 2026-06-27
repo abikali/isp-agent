@@ -36,11 +36,13 @@ const MAX_PHONES = 5;
 
 // biome-ignore lint/suspicious/noExplicitAny: TanStack Form generic types are complex; the form shape is known at usage site
 function PhoneFieldsCreate({ form }: { form: any }) {
-	const phones: Array<{ number: string; primary: boolean }> =
-		form.getFieldValue("phones") ?? [{ number: "", primary: true }];
+	const phones: Array<{ id: string; number: string; primary: boolean }> =
+		form.getFieldValue("phones") ?? [
+			{ id: "phone-0", number: "", primary: true },
+		];
 
 	function updatePhones(
-		updated: Array<{ number: string; primary: boolean }>,
+		updated: Array<{ id: string; number: string; primary: boolean }>,
 	) {
 		form.setFieldValue("phones", updated);
 	}
@@ -50,7 +52,7 @@ function PhoneFieldsCreate({ form }: { form: any }) {
 			<Label>Phone Numbers</Label>
 			<div className="space-y-2">
 				{phones.map((phone, index) => (
-					<div key={index} className="flex items-center gap-1.5">
+					<div key={phone.id} className="flex items-center gap-1.5">
 						<PhoneInput
 							value={phone.number}
 							onChange={(val: string) => {
@@ -95,7 +97,11 @@ function PhoneFieldsCreate({ form }: { form: any }) {
 						onClick={() =>
 							updatePhones([
 								...phones,
-								{ number: "", primary: false },
+								{
+									id: crypto.randomUUID(),
+									number: "",
+									primary: false,
+								},
 							])
 						}
 					>
@@ -108,6 +114,7 @@ function PhoneFieldsCreate({ form }: { form: any }) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose create-customer form sheet; splitting the colocated field list would obscure the form data flow
 export function CreateCustomerDialog({
 	open,
 	onOpenChange,
@@ -125,7 +132,8 @@ export function CreateCustomerDialog({
 			firstName: "",
 			lastName: "",
 			email: "",
-			phones: [{ number: "", primary: true }] as Array<{
+			phones: [{ id: "phone-0", number: "", primary: true }] as Array<{
+				id: string;
 				number: string;
 				primary: boolean;
 			}>,
@@ -187,6 +195,7 @@ export function CreateCustomerDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Add Customer</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Start SPA form: TanStack Form handles submit client-side via an oRPC mutation; there is no server action to post to */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

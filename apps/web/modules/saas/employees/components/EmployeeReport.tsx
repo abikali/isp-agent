@@ -29,12 +29,18 @@ import {
 	BoxesIcon,
 	CheckCircle2Icon,
 	ClipboardListIcon,
+	HandCoinsIcon,
+	PackagePlusIcon,
 	PencilIcon,
 	ReceiptIcon,
+	RotateCcwIcon,
+	ScaleIcon,
+	Undo2Icon,
 	WalletIcon,
 	WrenchIcon,
 } from "lucide-react";
 import { useState } from "react";
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts is the shared chart lib statically imported across the codebase (single shared chunk); lazy-loading one consumer yields no bundle win
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { useEmployeeReport } from "../hooks/use-employees";
 import {
@@ -63,6 +69,7 @@ const trendConfig = {
 	expenses: { label: "Expenses", color: CHART_TOKENS.c4 },
 } satisfies ChartConfig;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive employee-report feature; its stat/chart/activity sections share one report dataset and splitting would thread props excessively
 export function EmployeeReport({
 	employeeId,
 	organizationSlug,
@@ -73,8 +80,17 @@ export function EmployeeReport({
 	const [months, setMonths] = useState<Period>(6);
 	const report = useEmployeeReport(employeeId, months);
 
-	const { employee, financial, period, activity, stock, trend, recent } =
-		report;
+	const {
+		employee,
+		financial,
+		period,
+		activity,
+		stock,
+		settlement,
+		stockFlow,
+		trend,
+		recent,
+	} = report;
 
 	const statusType =
 		employee.status === "ACTIVE"
@@ -195,6 +211,12 @@ export function EmployeeReport({
 					hint={`${stock.units} unit${stock.units !== 1 ? "s" : ""}`}
 				/>
 			</MetricStrip>
+
+			{/* ── Settlement (who owes whom) ────────────────────────────── */}
+			<SettlementPanel
+				firstName={employee.name}
+				settlement={settlement}
+			/>
 
 			{/* ── Trend chart ───────────────────────────────────────────── */}
 			<ChartCard
@@ -373,11 +395,60 @@ export function EmployeeReport({
 				</DetailSection>
 			</div>
 
-			{/* ── Inventory ─────────────────────────────────────────────── */}
+			{/* ── Inventory / stock accountability ──────────────────────── */}
 			<DetailSection
-				title="Inventory held"
-				description={`${stock.itemCount} item${stock.itemCount !== 1 ? "s" : ""} · ${formatCurrency(stock.value)} total value`}
+				title="Stock accountability"
+				description="Inventory in this worker's custody and how it moved"
 			>
+				{/* Held value — what the worker is accountable for right now */}
+				<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+							Value held (owed for stock)
+						</p>
+						<p className="mt-0.5 text-2xl font-semibold tabular-nums">
+							{formatCurrency(stock.value)}
+						</p>
+						<p className="text-xs text-muted-foreground">
+							{stock.units} unit{stock.units !== 1 ? "s" : ""}{" "}
+							across {stock.itemCount} item
+							{stock.itemCount !== 1 ? "s" : ""} — to be
+							installed, returned, or settled
+						</p>
+					</div>
+					<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+						<StockFlowChip
+							icon={PackagePlusIcon}
+							label="Delivered"
+							value={stockFlow.deliveredUnits}
+							hint={`last ${months}m`}
+						/>
+						<StockFlowChip
+							icon={Undo2Icon}
+							label="Returned"
+							value={stockFlow.returnedUnits}
+							hint={`last ${months}m`}
+						/>
+						<StockFlowChip
+							icon={WrenchIcon}
+							label="Installed"
+							value={stockFlow.installedUnits}
+							hint={`last ${months}m`}
+						/>
+						<StockFlowChip
+							icon={RotateCcwIcon}
+							label="Recovery"
+							value={stockFlow.recoveryPendingUnits}
+							hint={`${stockFlow.recoveryPendingCount} pending`}
+							tone={
+								stockFlow.recoveryPendingCount > 0
+									? "warning"
+									: "default"
+							}
+						/>
+					</div>
+				</div>
+
 				{stock.allocations.length === 0 ? (
 					<p className="text-sm text-muted-foreground">
 						No stock currently allocated to this worker.
@@ -473,6 +544,185 @@ export function EmployeeReport({
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────
+
+function SettlementPanel({
+	firstName,
+	settlement,
+}: {
+	firstName: string;
+	settlement: {
+		cashInHand: number;
+		stockValue: number;
+		pendingReimbursements: number;
+		netOwedByWorker: number;
+	};
+}) {
+	const net = settlement.netOwedByWorker;
+	const settled = Math.abs(net) < 0.005;
+	const workerOwes = net > 0;
+	const shortName = firstName.split(" ")[0] ?? firstName;
+
+	const headline = settled
+		? "All settled"
+		: workerOwes
+			? `${shortName} owes the office`
+			: `Office owes ${shortName}`;
+
+	const tone = settled ? "success" : workerOwes ? "warning" : "info";
+	const toneText =
+		tone === "success"
+			? "text-success"
+			: tone === "warning"
+				? "text-warning"
+				: "text-info";
+	const toneRing =
+		tone === "success"
+			? "ring-success/20"
+			: tone === "warning"
+				? "ring-warning/25"
+				: "ring-info/25";
+
+	return (
+		<DetailSection
+			title="Settlement"
+			description="Net cash + stock position between this worker and the office"
+		>
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+				{/* Net — the headline answer */}
+				<div
+					className={cn(
+						"flex flex-col justify-center rounded-lg border border-border bg-card p-5 shadow-xs ring-1 ring-inset lg:col-span-5",
+						toneRing,
+					)}
+				>
+					<div className="flex items-center gap-2 text-muted-foreground">
+						<ScaleIcon className="size-4" />
+						<span className="text-xs font-medium uppercase tracking-wider">
+							Net balance
+						</span>
+					</div>
+					<p
+						className={cn(
+							"mt-1 text-3xl font-semibold tabular-nums",
+							toneText,
+						)}
+					>
+						{formatCurrency(Math.abs(net))}
+					</p>
+					<p className="mt-1 text-sm text-muted-foreground">
+						{headline}
+					</p>
+				</div>
+
+				{/* Breakdown — cash + stock − reimbursements = net */}
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:col-span-7">
+					<SettlementTile
+						icon={WalletIcon}
+						label="Cash in hand"
+						value={settlement.cashInHand}
+						caption="Collected, not handed off"
+						sign="owes"
+					/>
+					<SettlementTile
+						icon={BoxesIcon}
+						label="Stock held"
+						value={settlement.stockValue}
+						caption="Value in his custody"
+						sign="owes"
+					/>
+					<SettlementTile
+						icon={HandCoinsIcon}
+						label="Reimbursements"
+						value={settlement.pendingReimbursements}
+						caption="Pending expenses owed to him"
+						sign="owed"
+					/>
+				</div>
+			</div>
+			<p className="text-xs text-muted-foreground/70">
+				Net = cash in hand + stock held − pending reimbursements.
+				Approved expenses are already deducted from cash in hand.
+			</p>
+		</DetailSection>
+	);
+}
+
+function SettlementTile({
+	icon: Icon,
+	label,
+	value,
+	caption,
+	sign,
+}: {
+	icon: typeof WalletIcon;
+	label: string;
+	value: number;
+	caption: string;
+	sign: "owes" | "owed";
+}) {
+	return (
+		<div className="flex flex-col justify-between rounded-lg border border-border p-3.5">
+			<div className="flex items-center justify-between gap-2">
+				<span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+					{label}
+				</span>
+				<Icon className="size-3.5 shrink-0 text-muted-foreground" />
+			</div>
+			<p className="mt-2 text-xl font-semibold tabular-nums">
+				{formatCurrency(value)}
+			</p>
+			<p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+				<span
+					className={cn(
+						"inline-block rounded px-1 py-px text-[9px] font-medium uppercase tracking-wide",
+						sign === "owed"
+							? "bg-info/10 text-info"
+							: "bg-warning/10 text-warning",
+					)}
+				>
+					{sign === "owed" ? "+ office" : "− worker"}
+				</span>
+				{caption}
+			</p>
+		</div>
+	);
+}
+
+function StockFlowChip({
+	icon: Icon,
+	label,
+	value,
+	hint,
+	tone = "default",
+}: {
+	icon: typeof PackagePlusIcon;
+	label: string;
+	value: number;
+	hint: string;
+	tone?: "default" | "warning";
+}) {
+	return (
+		<div className="rounded-md border border-border bg-card px-2.5 py-2">
+			<div className="flex items-center gap-1.5">
+				<Icon
+					className={cn(
+						"size-3.5",
+						tone === "warning"
+							? "text-warning"
+							: "text-muted-foreground",
+					)}
+				/>
+				<span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+					{label}
+				</span>
+			</div>
+			<p className="mt-1 text-lg font-semibold leading-none tabular-nums">
+				{value}
+			</p>
+			<p className="mt-1 text-[10px] text-muted-foreground/70">{hint}</p>
+		</div>
+	);
+}
 
 function ExpenseRow({
 	label,

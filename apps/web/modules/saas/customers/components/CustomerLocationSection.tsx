@@ -57,12 +57,14 @@ interface CustomerLocationSectionProps {
 	locationRequestedAt: Date | string | null;
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive location panel (map, edit/delete/re-request dialogs); splitting would fragment shared state
 export function CustomerLocationSection({
 	organizationId,
 	customerId,
 	latitude,
 	longitude,
 	locationRequestedAt,
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent UI toggles + two input fields, not a related state machine
 }: CustomerLocationSectionProps) {
 	const createRequest = useCreateLocationRequest();
 	const updateLocation = useUpdateCustomerLocation();

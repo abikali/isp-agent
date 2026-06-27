@@ -2,7 +2,7 @@
 
 import { cn } from "@ui/lib";
 import { ChevronLeftIcon, ChevronRightIcon, StarIcon } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import {
 	SectionHeader,
@@ -12,6 +12,7 @@ import { testimonials } from "../data/testimonials";
 
 export function TestimonialsSection() {
 	const [currentIndex, setCurrentIndex] = useState(0);
+	// react-doctor-disable-next-line react-doctor/rerender-state-only-in-handlers -- isPaused gates the auto-advance interval via the effect's dependency array; a ref would not re-run the effect and would break pause-on-hover
 	const [isPaused, setIsPaused] = useState(false);
 
 	const nextTestimonial = useCallback(() => {
@@ -57,7 +58,7 @@ export function TestimonialsSection() {
 				{/* Testimonial card */}
 				<div className="relative overflow-hidden rounded-2xl border border-border bg-card p-8 md:p-12">
 					<AnimatePresence mode="wait">
-						<motion.div
+						<m.div
 							key={currentTestimonial.id}
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
@@ -93,7 +94,7 @@ export function TestimonialsSection() {
 									{currentTestimonial.author.company}
 								</div>
 							</div>
-						</motion.div>
+						</m.div>
 					</AnimatePresence>
 
 					{/* Quote decoration */}
@@ -115,10 +116,10 @@ export function TestimonialsSection() {
 
 					{/* Pagination dots */}
 					<div className="flex gap-2">
-						{testimonials.map((_, index) => (
+						{testimonials.map((testimonial, index) => (
 							<button
 								type="button"
-								key={index}
+								key={testimonial.id}
 								onClick={() => setCurrentIndex(index)}
 								className={cn(
 									"size-2 rounded-full transition-all",

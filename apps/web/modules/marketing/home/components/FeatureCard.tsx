@@ -2,7 +2,7 @@
 
 import { cn } from "@ui/lib";
 import { CheckIcon, NfcIcon, TrendingUpIcon, ZapIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import type { Feature } from "../data/features";
 
 interface FeatureCardProps {
@@ -14,7 +14,7 @@ export function FeatureCard({ feature }: FeatureCardProps) {
 	const isWide = feature.span.cols === 2 && feature.span.rows === 1;
 
 	return (
-		<motion.div
+		<m.div
 			whileHover={{ y: -4, transition: { duration: 0.2 } }}
 			className={cn(
 				"bento-card group relative h-full w-full max-w-full overflow-hidden",
@@ -68,7 +68,7 @@ export function FeatureCard({ feature }: FeatureCardProps) {
 					<FeatureVisual type={feature.visual} isWide={isWide} />
 				</div>
 			</div>
-		</motion.div>
+		</m.div>
 	);
 }
 
@@ -131,8 +131,8 @@ function ProfilePreview() {
 					"from-purple-400 to-purple-600",
 					"from-green-400 to-green-600",
 				].map((gradient, i) => (
-					<motion.div
-						key={i}
+					<m.div
+						key={gradient}
 						initial={{ scale: 0.8, opacity: 0 }}
 						whileInView={{ scale: 1, opacity: 1 }}
 						transition={{ delay: i * 0.05 }}
@@ -167,9 +167,9 @@ function LeadCapturePreview() {
 						<div className="h-2.5 md:h-3 w-16 md:w-24 rounded bg-foreground/70" />
 						<div className="mt-1 h-2 w-20 md:w-32 rounded bg-muted-foreground/40" />
 					</div>
-					<motion.div
-						initial={{ scale: 0 }}
-						whileInView={{ scale: 1 }}
+					<m.div
+						initial={{ scale: 0.95, opacity: 0 }}
+						whileInView={{ scale: 1, opacity: 1 }}
 						transition={{
 							delay: 0.3,
 							type: "spring",
@@ -179,12 +179,12 @@ function LeadCapturePreview() {
 						className="flex size-6 md:size-7 shrink-0 items-center justify-center rounded-full bg-success/15 text-success ring-2 ring-success/20"
 					>
 						<CheckIcon className="size-3 md:size-4" />
-					</motion.div>
+					</m.div>
 				</div>
 			</div>
 
 			{/* Animated arrow with pulse */}
-			<motion.div
+			<m.div
 				animate={{ x: [0, 4, 0] }}
 				transition={{
 					duration: 1.5,
@@ -197,7 +197,7 @@ function LeadCapturePreview() {
 				<div className="absolute inset-0 animate-ping text-sm md:text-lg text-highlight/30">
 					→
 				</div>
-			</motion.div>
+			</m.div>
 
 			{/* CRM badge - enhanced */}
 			<div className="shrink-0 rounded-lg md:rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/30 px-2.5 md:px-4 py-2 md:py-2.5 shadow-lg shadow-black/5">
@@ -245,7 +245,7 @@ const QR_PATTERN = [
 
 function QRCodePreview() {
 	return (
-		<motion.div
+		<m.div
 			initial={{ scale: 0.9, opacity: 0 }}
 			whileInView={{ scale: 1, opacity: 1 }}
 			transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
@@ -261,25 +261,30 @@ function QRCodePreview() {
 						className="grid gap-[2px]"
 						style={{ gridTemplateColumns: "repeat(21, 1fr)" }}
 					>
-						{QR_PATTERN.flat().map((cell, i) => (
-							<motion.div
-								key={i}
-								initial={{ opacity: 0 }}
-								whileInView={{ opacity: 1 }}
-								transition={{ delay: i * 0.001 }}
-								viewport={{ once: true }}
-								className={cn(
-									"size-[6px] rounded-[1px]",
-									cell === 1
-										? "bg-gray-900"
-										: "bg-transparent",
-								)}
-							/>
-						))}
+						{QR_PATTERN.flatMap((row, r) =>
+							row.map((cell, c) => {
+								const index = r * row.length + c;
+								return (
+									<m.div
+										key={`${r}-${c}`}
+										initial={{ opacity: 0 }}
+										whileInView={{ opacity: 1 }}
+										transition={{ delay: index * 0.001 }}
+										viewport={{ once: true }}
+										className={cn(
+											"size-[6px] rounded-[1px]",
+											cell === 1
+												? "bg-gray-900"
+												: "bg-transparent",
+										)}
+									/>
+								);
+							}),
+						)}
 					</div>
 				</div>
 			</div>
-		</motion.div>
+		</m.div>
 	);
 }
 
@@ -288,7 +293,7 @@ function NFCPreview() {
 		<div className="mt-4 flex justify-center">
 			<div className="relative">
 				{/* NFC Card - enhanced */}
-				<motion.div
+				<m.div
 					whileHover={{ scale: 1.05, rotateY: 5 }}
 					className="relative rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-5 shadow-2xl shadow-black/30"
 					style={{ perspective: 1000 }}
@@ -296,11 +301,11 @@ function NFCPreview() {
 					{/* Card shine effect */}
 					<div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-transparent" />
 					<NfcIcon className="relative size-8 text-white/90" />
-				</motion.div>
+				</m.div>
 
 				{/* Pulse rings - enhanced with gradient */}
 				{[1, 2, 3].map((ring) => (
-					<motion.div
+					<m.div
 						key={ring}
 						initial={{ scale: 1, opacity: 0.6 }}
 						animate={{
@@ -348,7 +353,8 @@ function AnalyticsPreview({ isWide }: AnalyticsPreviewProps) {
 			{/* Bar chart - enhanced */}
 			<div className="flex items-end gap-1.5" style={{ height: 70 }}>
 				{bars.map((height, i) => (
-					<motion.div
+					// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static decorative bar chart with fixed positions; bars never reorder/filter and heights are not unique
+					<m.div
 						key={i}
 						initial={{ height: 0 }}
 						whileInView={{ height: `${height}%` }}
@@ -362,7 +368,7 @@ function AnalyticsPreview({ isWide }: AnalyticsPreviewProps) {
 					>
 						{/* Shine effect */}
 						<div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-					</motion.div>
+					</m.div>
 				))}
 			</div>
 
@@ -375,20 +381,20 @@ function AnalyticsPreview({ isWide }: AnalyticsPreviewProps) {
 	);
 }
 
-function TeamPreview() {
-	const avatarColors = [
-		"from-blue-400 to-blue-600",
-		"from-purple-400 to-purple-600",
-		"from-green-400 to-green-600",
-		"from-orange-400 to-orange-600",
-	];
+const avatarColors = [
+	"from-blue-400 to-blue-600",
+	"from-purple-400 to-purple-600",
+	"from-green-400 to-green-600",
+	"from-orange-400 to-orange-600",
+];
 
+function TeamPreview() {
 	return (
 		<div className="mt-4 flex justify-center">
 			<div className="flex -space-x-3">
 				{avatarColors.map((color, i) => (
-					<motion.div
-						key={i}
+					<m.div
+						key={color}
 						initial={{ x: -20, opacity: 0, scale: 0.8 }}
 						whileInView={{ x: 0, opacity: 1, scale: 1 }}
 						transition={{
@@ -405,9 +411,9 @@ function TeamPreview() {
 					>
 						{/* Avatar shine */}
 						<div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/30 via-transparent to-transparent" />
-					</motion.div>
+					</m.div>
 				))}
-				<motion.div
+				<m.div
 					initial={{ x: -20, opacity: 0, scale: 0.8 }}
 					whileInView={{ x: 0, opacity: 1, scale: 1 }}
 					transition={{
@@ -420,7 +426,7 @@ function TeamPreview() {
 					className="flex size-11 items-center justify-center rounded-full border-2 border-card bg-gradient-to-br from-muted to-muted/80 text-xs font-bold shadow-lg"
 				>
 					+99
-				</motion.div>
+				</m.div>
 			</div>
 		</div>
 	);

@@ -14,7 +14,7 @@ import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Skeleton } from "@ui/components/skeleton";
 import { TrashIcon } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { apiKeysQueryOptions } from "../hooks/use-api-keys";
 
@@ -66,24 +66,27 @@ export function ApiKeysList() {
 	const apiKeys = (data?.apiKeys ?? []) as ApiKey[];
 
 	const revokeMutation = useMutation(orpc.apiKeys.revoke.mutationOptions());
+	const { mutateAsync: revokeApiKey } = revokeMutation;
 
-	const handleRevoke = async (id: string) => {
-		if (!confirm("Are you sure you want to revoke this API key?")) {
-			return;
-		}
+	const handleRevoke = useCallback(
+		async (id: string) => {
+			if (!confirm("Are you sure you want to revoke this API key?")) {
+				return;
+			}
 
-		try {
-			await revokeMutation.mutateAsync({ id });
-			queryClient.invalidateQueries({
-				queryKey: orpc.apiKeys.list.key(),
-			});
-			toast.success("API key revoked successfully");
-		} catch {
-			toast.error("Failed to revoke API key");
-		}
-	};
+			try {
+				await revokeApiKey({ id });
+				queryClient.invalidateQueries({
+					queryKey: orpc.apiKeys.list.key(),
+				});
+				toast.success("API key revoked successfully");
+			} catch {
+				toast.error("Failed to revoke API key");
+			}
+		},
+		[revokeApiKey, queryClient],
+	);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: handleRevoke is stable enough via isPending
 	const columns: ColumnDef<ApiKey, unknown>[] = useMemo(
 		() => [
 			{
@@ -142,7 +145,7 @@ export function ApiKeysList() {
 				),
 			},
 		],
-		[revokeMutation.isPending],
+		[handleRevoke, revokeMutation.isPending],
 	);
 
 	if (!organizationId) {

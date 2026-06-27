@@ -26,6 +26,7 @@ export default function Wrapper({
 	const displayDomain = baseUrl
 		.replace(/^https?:\/\//, "")
 		.replace(/\/$/, "");
+	const currentYear = new Date().getFullYear();
 
 	return (
 		<Tailwind
@@ -93,8 +94,8 @@ export default function Wrapper({
 							</Text>
 							<Hr className="my-4 border-border" />
 							<Text className="m-0 text-muted-foreground text-xs">
-								&copy; {new Date().getFullYear()} LibanCom. All
-								rights reserved.
+								&copy; {currentYear} LibanCom. All rights
+								reserved.
 							</Text>
 							<Text className="m-0 mt-2 text-muted-foreground text-xs">
 								<Link

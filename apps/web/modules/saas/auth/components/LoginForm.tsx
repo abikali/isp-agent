@@ -51,6 +51,7 @@ const formSchema = z.union([
 
 type FormValues = z.infer<typeof formSchema>;
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive auth form: JSX-heavy single responsibility (sign-in modes, password field, OAuth/passkey buttons, dev quick-login)
 export function LoginForm() {
 	const router = useRouter();
 	const queryClient = useQueryClient();
@@ -185,7 +186,7 @@ export function LoginForm() {
 					{invitationId && (
 						<OrganizationInvitationAlert className="mb-6" />
 					)}
-
+					{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form client-side submit; SPA auth form requires JS (authClient), no server action */}
 					<form
 						className="space-y-4"
 						onSubmit={(e) => {
@@ -356,7 +357,6 @@ export function LoginForm() {
 								: "Sign in"}
 						</Button>
 					</form>
-
 					{(config.auth.enablePasskeys ||
 						(config.auth.enableSignup &&
 							config.auth.enableSocialLogin)) && (
@@ -395,7 +395,6 @@ export function LoginForm() {
 							</div>
 						</>
 					)}
-
 					{config.auth.enableSignup && (
 						<div className="mt-6 text-center text-sm">
 							<span className="text-foreground/60">

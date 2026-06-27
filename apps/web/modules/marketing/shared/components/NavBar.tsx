@@ -15,13 +15,36 @@ import {
 } from "@ui/components/sheet";
 import { cn } from "@ui/lib";
 import { MenuIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface MenuItem {
 	label: string;
 	href: string;
 	isAnchor?: boolean;
 }
+
+const menuItems: MenuItem[] = [
+	{
+		label: "Features",
+		href: "#features",
+		isAnchor: true,
+	},
+	{
+		label: "How it Works",
+		href: "#how-it-works",
+		isAnchor: true,
+	},
+	{
+		label: "Pricing",
+		href: "#pricing",
+		isAnchor: true,
+	},
+	{
+		label: "FAQ",
+		href: "#faq",
+		isAnchor: true,
+	},
+];
 
 export function NavBar() {
 	const { user } = useSession();
@@ -41,6 +64,11 @@ export function NavBar() {
 		},
 		{ wait: 150 },
 	);
+
+	// Keep the latest debounced handler in a ref so the scroll listener can
+	// stay subscribed once while always calling the current handler.
+	const scrollHandlerRef = useRef(debouncedScrollHandler);
+	scrollHandlerRef.current = debouncedScrollHandler;
 
 	// Smooth scroll to section
 	const scrollToSection = useCallback(
@@ -97,42 +125,21 @@ export function NavBar() {
 	}, [pathname]);
 
 	useEffect(() => {
-		window.addEventListener("scroll", debouncedScrollHandler);
-		debouncedScrollHandler();
+		const handleScroll = () => scrollHandlerRef.current();
+		window.addEventListener("scroll", handleScroll, { passive: true });
+		handleScroll();
 		return () => {
-			window.removeEventListener("scroll", debouncedScrollHandler);
+			window.removeEventListener("scroll", handleScroll);
 		};
-	}, [debouncedScrollHandler]);
+	}, []);
 
+	// react-doctor-disable-next-line react-doctor/no-derived-state-effect -- closing the mobile menu in response to navigation is a real side effect; a key prop would remount this persistent nav and lose scroll/active-section state
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally close mobile menu on route change only
 	useEffect(() => {
 		setMobileMenuOpen(false);
 	}, [pathname]);
 
 	const isDocsPage = pathname.startsWith("/docs");
-
-	const menuItems: MenuItem[] = [
-		{
-			label: "Features",
-			href: "#features",
-			isAnchor: true,
-		},
-		{
-			label: "How it Works",
-			href: "#how-it-works",
-			isAnchor: true,
-		},
-		{
-			label: "Pricing",
-			href: "#pricing",
-			isAnchor: true,
-		},
-		{
-			label: "FAQ",
-			href: "#faq",
-			isAnchor: true,
-		},
-	];
 
 	const isMenuItemActive = (item: MenuItem) => {
 		if (item.isAnchor) {

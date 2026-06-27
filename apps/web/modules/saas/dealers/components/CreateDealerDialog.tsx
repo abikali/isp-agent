@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { useCreateDealer, useDealersQuery } from "../hooks/use-dealers";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive create-dealer form dialog; its fields share one TanStack Form instance and splitting would scatter the form flow
 export function CreateDealerDialog({
 	open,
 	onOpenChange,
@@ -99,6 +100,7 @@ export function CreateDealerDialog({
 				<SheetHeader className="border-b border-border px-6 py-4">
 					<SheetTitle>Add Dealer</SheetTitle>
 				</SheetHeader>
+				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form (SPA) requires client-side onSubmit with preventDefault; no server-action equivalent */}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

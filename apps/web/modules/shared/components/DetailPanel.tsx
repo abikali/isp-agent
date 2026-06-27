@@ -74,6 +74,7 @@ interface DetailSectionProps {
 	className?: string;
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive DetailPanel primitive barrel (panel, section, skeleton)
 export function DetailSection({
 	title,
 	description,
@@ -110,6 +111,7 @@ interface DetailPanelSkeletonProps {
 	tabCount?: number;
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive DetailPanel primitive barrel (panel, section, skeleton)
 export function DetailPanelSkeleton({
 	tabCount = 4,
 }: DetailPanelSkeletonProps) {

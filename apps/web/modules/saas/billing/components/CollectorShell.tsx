@@ -9,6 +9,11 @@ import { cn } from "@ui/lib";
 import { LogOutIcon, ReceiptTextIcon, UsersIcon } from "lucide-react";
 import { type PropsWithChildren, useEffect, useRef } from "react";
 
+async function handleLogout() {
+	await authClient.signOut();
+	window.location.href = new URL("/login", window.location.origin).toString();
+}
+
 export function CollectorShell({ children }: PropsWithChildren) {
 	const { activeOrganization, employee } = useActiveOrganization();
 	const { theme, setTheme } = useTheme();
@@ -23,15 +28,8 @@ export function CollectorShell({ children }: PropsWithChildren) {
 		return () => {
 			setTheme(previousTheme.current);
 		};
+		// react-doctor-disable-next-line react-doctor/exhaustive-deps -- intentional mount/unmount-only effect: captures the initial theme, forces light for the collector portal, and restores on unmount; adding theme/setTheme would re-run on every theme change and fight the user
 	}, []);
-
-	async function handleLogout() {
-		await authClient.signOut();
-		window.location.href = new URL(
-			"/login",
-			window.location.origin,
-		).toString();
-	}
 
 	const matchRoute = useMatchRoute();
 	const orgSlug = activeOrganization?.slug ?? "";

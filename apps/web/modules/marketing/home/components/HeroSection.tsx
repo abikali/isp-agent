@@ -5,7 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { cn } from "@ui/lib";
 import { ArrowRightIcon, SparklesIcon, UsersIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import {
 	floatVariants,
 	heroImageVariants,
@@ -42,7 +42,7 @@ export function HeroSection() {
 					{/* Left side - Text content */}
 					<div className="text-center lg:text-left">
 						{/* Badge */}
-						<motion.div
+						<m.div
 							variants={heroTextVariants}
 							initial="hidden"
 							animate="visible"
@@ -53,10 +53,10 @@ export function HeroSection() {
 							<span className="font-medium text-muted-foreground">
 								New: AI-Powered Analytics
 							</span>
-						</motion.div>
+						</m.div>
 
 						{/* Headline */}
-						<motion.h1
+						<m.h1
 							variants={heroTextVariants}
 							initial="hidden"
 							animate="visible"
@@ -67,10 +67,10 @@ export function HeroSection() {
 							<span className="text-gradient-highlight">
 								Elevated
 							</span>
-						</motion.h1>
+						</m.h1>
 
 						{/* Subheadline */}
-						<motion.p
+						<m.p
 							variants={heroTextVariants}
 							initial="hidden"
 							animate="visible"
@@ -80,10 +80,10 @@ export function HeroSection() {
 							Create stunning profiles, capture leads, and track
 							engagement. One link for all your professional
 							connections.
-						</motion.p>
+						</m.p>
 
 						{/* CTA buttons */}
-						<motion.div
+						<m.div
 							variants={heroTextVariants}
 							initial="hidden"
 							animate="visible"
@@ -99,10 +99,10 @@ export function HeroSection() {
 							<Button size="lg" variant="outline" asChild>
 								<a href="#features">See How It Works</a>
 							</Button>
-						</motion.div>
+						</m.div>
 
 						{/* Trust indicator */}
-						<motion.div
+						<m.div
 							variants={heroTextVariants}
 							initial="hidden"
 							animate="visible"
@@ -111,11 +111,11 @@ export function HeroSection() {
 						>
 							<UsersIcon className="size-4" />
 							<span>Join 10,000+ professionals</span>
-						</motion.div>
+						</m.div>
 					</div>
 
 					{/* Right side - Hero mockup */}
-					<motion.div
+					<m.div
 						variants={heroImageVariants}
 						initial="hidden"
 						animate="visible"
@@ -188,18 +188,18 @@ export function HeroSection() {
 								</div>
 							</FloatingBadge>
 						</div>
-					</motion.div>
+					</m.div>
 				</div>
 			</div>
 
 			{/* Scroll indicator */}
-			<motion.div
+			<m.div
 				initial={{ opacity: 0 }}
 				animate={{ opacity: 1 }}
 				transition={{ delay: 1.5 }}
 				className="absolute bottom-8 left-1/2 -translate-x-1/2"
 			>
-				<motion.div
+				<m.div
 					animate={{ y: [0, 8, 0] }}
 					transition={{
 						duration: 1.5,
@@ -209,7 +209,7 @@ export function HeroSection() {
 				>
 					<span className="text-xs">Scroll to explore</span>
 					<div className="h-8 w-5 rounded-full border-2 border-current p-1">
-						<motion.div
+						<m.div
 							animate={{ y: [0, 8, 0] }}
 							transition={{
 								duration: 1.5,
@@ -218,8 +218,8 @@ export function HeroSection() {
 							className="size-1.5 rounded-full bg-current"
 						/>
 					</div>
-				</motion.div>
-			</motion.div>
+				</m.div>
+			</m.div>
 		</section>
 	);
 }
@@ -232,7 +232,7 @@ interface FloatingBadgeProps {
 
 function FloatingBadge({ children, className, delay = 0 }: FloatingBadgeProps) {
 	return (
-		<motion.div
+		<m.div
 			variants={floatVariants}
 			initial="initial"
 			animate="animate"
@@ -240,6 +240,6 @@ function FloatingBadge({ children, className, delay = 0 }: FloatingBadgeProps) {
 			className={cn("hidden md:block", className)}
 		>
 			{children}
-		</motion.div>
+		</m.div>
 	);
 }

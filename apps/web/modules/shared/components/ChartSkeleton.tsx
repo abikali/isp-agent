@@ -3,6 +3,14 @@
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 
+// Fixed silhouette heights so the line-variant skeleton renders identically on
+// the server and the first client render (Math.random would diverge → hydration
+// mismatch).
+const LINE_BAR_HEIGHTS = [
+	42, 68, 35, 75, 50, 80, 28, 60, 45, 72, 38, 65, 55, 30, 78, 48, 62, 40, 70,
+	33, 58, 52, 25, 67,
+];
+
 export interface ChartSkeletonProps {
 	variant?: "line" | "bar" | "donut" | "gauge";
 	className?: string;
@@ -80,11 +88,11 @@ export function ChartSkeleton({
 				/>
 			</svg>
 			<div className="absolute inset-0 flex items-end gap-1 px-2 opacity-30">
-				{Array.from({ length: 24 }).map((_, i) => (
+				{LINE_BAR_HEIGHTS.map((h, i) => (
 					<Skeleton
-						key={`line-bar-${i}`}
+						key={`line-bar-${i}-${h}`}
 						className="flex-1 rounded-sm"
-						style={{ height: `${20 + Math.random() * 60}%` }}
+						style={{ height: `${h}%` }}
 					/>
 				))}
 			</div>

@@ -62,6 +62,7 @@ interface StoppedPaymentRow {
 	notes: string | null;
 }
 
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/pagination state slices, not a related state machine
 export function StoppedAccountsList() {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });

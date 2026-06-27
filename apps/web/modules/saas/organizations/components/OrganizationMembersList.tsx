@@ -71,6 +71,7 @@ export function OrganizationMembersListSkeleton() {
  * Members list component using Suspense for data fetching.
  * MUST be wrapped in a Suspense boundary.
  */
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive members-list feature component; splitting would obscure shared data flow
 export function OrganizationMembersList({
 	organizationId,
 }: {

@@ -41,8 +41,8 @@ import {
 import {
 	createContext,
 	type PropsWithChildren,
+	use,
 	useCallback,
-	useContext,
 	useEffect,
 	useMemo,
 	useState,
@@ -59,7 +59,7 @@ const CommandPaletteContext = createContext<CommandPaletteContextValue>({
 });
 
 export function useCommandPalette() {
-	return useContext(CommandPaletteContext);
+	return use(CommandPaletteContext);
 }
 
 /**
@@ -106,6 +106,7 @@ export function CommandPaletteProvider({ children }: PropsWithChildren) {
 	);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive command-palette body; length is repeated CommandGroup JSX, splitting would obscure data flow
 function PaletteBody({ onClose }: { onClose: () => void }) {
 	const navigate = useNavigate();
 	const { user } = useSession();
@@ -138,7 +139,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 	const trimmedQuery = query.trim();
 	const enableSearch = trimmedQuery.length >= 2 && activeOrganization != null;
 
-	const searchQuery = useQuery({
+	const { data: searchData, isLoading: searchLoading } = useQuery({
 		...orpc.shared.search.queryOptions({
 			input: {
 				organizationId: activeOrganization?.id ?? "",
@@ -151,7 +152,10 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 		staleTime: 30_000,
 	});
 
-	const searchResults = searchQuery.data?.results ?? [];
+	const searchResults = useMemo(
+		() => searchData?.results ?? [],
+		[searchData],
+	);
 	const grouped = useMemo(() => {
 		const groups = {
 			customer: [] as typeof searchResults,
@@ -282,7 +286,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 				onValueChange={setQuery}
 			/>
 			<CommandList>
-				{!searchQuery.isLoading && trimmedQuery.length >= 2 && (
+				{!searchLoading && trimmedQuery.length >= 2 && (
 					<CommandEmpty>No results found.</CommandEmpty>
 				)}
 

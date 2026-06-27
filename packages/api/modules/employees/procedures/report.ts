@@ -107,6 +107,9 @@ export const getEmployeeReport = protectedProcedure
 			openTasks,
 			completedThisMonth,
 			installationsAll,
+			stockDelivered,
+			stockReturned,
+			recoveryPending,
 			windowPayments,
 			windowHandoffs,
 			windowExpenses,
@@ -163,6 +166,36 @@ export const getEmployeeReport = protectedProcedure
 				},
 				_count: true,
 				_sum: { price: true },
+			}),
+			// Stock delivered to the worker within the window (custody he took on).
+			db.stockLog.aggregate({
+				where: {
+					organizationId: input.organizationId,
+					employeeId: employee.id,
+					action: "TRANSFER_TO_WORKER",
+					createdAt: { gte: windowStart },
+				},
+				_sum: { quantity: true },
+			}),
+			// Stock returned by the worker within the window (custody he gave back).
+			db.stockLog.aggregate({
+				where: {
+					organizationId: input.organizationId,
+					employeeId: employee.id,
+					action: "TRANSFER_FROM_WORKER",
+					createdAt: { gte: windowStart },
+				},
+				_sum: { quantity: true },
+			}),
+			// Recovered/uninstalled gear awaiting review (credits back to his stock).
+			db.uninstalledItem.aggregate({
+				where: {
+					organizationId: input.organizationId,
+					employeeId: employee.id,
+					status: "PENDING",
+				},
+				_count: true,
+				_sum: { quantity: true },
 			}),
 			db.payment.findMany({
 				where: {
@@ -351,6 +384,26 @@ export const getEmployeeReport = protectedProcedure
 			0,
 		);
 
+		// ── Worker settlement ─────────────────────────────────────────────
+		// What the worker owes the office, and what the office owes back:
+		//   • cashInHand  — collected cash not yet handed off. Approved expenses
+		//     are already netted out (each writes an EXPENSE_DEDUCTION cash row),
+		//     so this is the live cash debt. Positive ⇒ worker holds office cash.
+		//   • stockValue  — sell-price value of inventory in his custody. Until
+		//     installed or returned he is accountable for it.
+		//   • pendingReimbursements — expenses he fronted that aren't approved
+		//     yet; once approved they reduce his cash debt. The office owes these.
+		// Net = cash + stock − pendingReimbursements. Positive ⇒ worker owes
+		// office; negative ⇒ office owes worker.
+		const cashInHand = balance.balance;
+		const pendingReimbursements = expensePending.amount;
+		const netOwedByWorker = cashInHand + stockValue - pendingReimbursements;
+
+		const installedUnits = windowInstallations.reduce(
+			(sum, inst) => sum + inst.quantity,
+			0,
+		);
+
 		return {
 			employee: {
 				id: employee.id,
@@ -395,6 +448,19 @@ export const getEmployeeReport = protectedProcedure
 				units: stockUnits,
 				itemCount: stockAllocations.length,
 				allocations: stockAllocations,
+			},
+			settlement: {
+				cashInHand,
+				stockValue,
+				pendingReimbursements,
+				netOwedByWorker,
+			},
+			stockFlow: {
+				deliveredUnits: stockDelivered._sum.quantity ?? 0,
+				returnedUnits: stockReturned._sum.quantity ?? 0,
+				installedUnits,
+				recoveryPendingCount: recoveryPending._count,
+				recoveryPendingUnits: recoveryPending._sum.quantity ?? 0,
 			},
 			trend,
 			recent: {

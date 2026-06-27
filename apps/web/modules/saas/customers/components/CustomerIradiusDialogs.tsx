@@ -11,7 +11,7 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import { useEffect, useState } from "react";
+import { useRef } from "react";
 import { toast } from "sonner";
 import {
 	useResetMacAddress,
@@ -122,21 +122,15 @@ export function ChangeNameDialog({
 	customer,
 }: DialogProps) {
 	const updateName = useUpdateNameInIRadius();
-	const [firstName, setFirstName] = useState(customer.firstName ?? "");
-	const [lastName, setLastName] = useState(customer.lastName ?? "");
-
-	// Re-seed when the dialog reopens against a different customer, e.g.
-	// when the same dialog instance is reused for multiple rows.
-	useEffect(() => {
-		if (open) {
-			setFirstName(customer.firstName ?? "");
-			setLastName(customer.lastName ?? "");
-		}
-	}, [open, customer.firstName, customer.lastName]);
+	// Uncontrolled inputs: Radix unmounts the dialog body on close, so the
+	// `defaultValue`s re-seed from the current customer on each reopen — no
+	// state mirror or reset effect needed.
+	const firstNameRef = useRef<HTMLInputElement>(null);
+	const lastNameRef = useRef<HTMLInputElement>(null);
 
 	function handleSave() {
-		const f = firstName.trim();
-		const l = lastName.trim();
+		const f = (firstNameRef.current?.value ?? "").trim();
+		const l = (lastNameRef.current?.value ?? "").trim();
 		if (!f) {
 			toast.error("First name is required");
 			return;
@@ -173,8 +167,8 @@ export function ChangeNameDialog({
 						<Label htmlFor="iradius-first-name">First name</Label>
 						<Input
 							id="iradius-first-name"
-							value={firstName}
-							onChange={(e) => setFirstName(e.target.value)}
+							ref={firstNameRef}
+							defaultValue={customer.firstName ?? ""}
 						/>
 					</div>
 					<div>
@@ -183,8 +177,8 @@ export function ChangeNameDialog({
 						</Label>
 						<Input
 							id="iradius-last-name"
-							value={lastName}
-							onChange={(e) => setLastName(e.target.value)}
+							ref={lastNameRef}
+							defaultValue={customer.lastName ?? ""}
 						/>
 					</div>
 				</div>
@@ -216,16 +210,12 @@ export function SetDiscountDialog({
 	customer,
 }: DialogProps) {
 	const setDiscount = useSetDiscount();
-	const [value, setValue] = useState((customer.discount ?? 0).toString());
-
-	useEffect(() => {
-		if (open) {
-			setValue((customer.discount ?? 0).toString());
-		}
-	}, [open, customer.discount]);
+	// Uncontrolled: re-seeds from `defaultValue` on each reopen (Radix
+	// unmounts the dialog body on close).
+	const valueRef = useRef<HTMLInputElement>(null);
 
 	function handleSave() {
-		const parsed = Number.parseFloat(value);
+		const parsed = Number.parseFloat(valueRef.current?.value ?? "");
 		if (!Number.isFinite(parsed) || parsed < 0) {
 			toast.error("Discount must be a non-negative number");
 			return;
@@ -264,8 +254,8 @@ export function SetDiscountDialog({
 						step="0.01"
 						min="0"
 						inputMode="decimal"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+						ref={valueRef}
+						defaultValue={(customer.discount ?? 0).toString()}
 					/>
 				</div>
 				<DialogFooter>
@@ -296,16 +286,12 @@ export function SetIptvPriceDialog({
 	customer,
 }: DialogProps) {
 	const setIptvPrice = useSetIptvPrice();
-	const [value, setValue] = useState((customer.iptvPrice ?? 0).toString());
-
-	useEffect(() => {
-		if (open) {
-			setValue((customer.iptvPrice ?? 0).toString());
-		}
-	}, [open, customer.iptvPrice]);
+	// Uncontrolled: re-seeds from `defaultValue` on each reopen (Radix
+	// unmounts the dialog body on close).
+	const valueRef = useRef<HTMLInputElement>(null);
 
 	function handleSave() {
-		const parsed = Number.parseFloat(value);
+		const parsed = Number.parseFloat(valueRef.current?.value ?? "");
 		if (!Number.isFinite(parsed) || parsed < 0) {
 			toast.error("IPTV price must be a non-negative number");
 			return;
@@ -344,8 +330,8 @@ export function SetIptvPriceDialog({
 						step="0.01"
 						min="0"
 						inputMode="decimal"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+						ref={valueRef}
+						defaultValue={(customer.iptvPrice ?? 0).toString()}
 					/>
 				</div>
 				<DialogFooter>
@@ -376,17 +362,13 @@ export function SetExpiryDialog({
 	customer,
 }: DialogProps) {
 	const setExpiryDate = useSetCustomerExpiryDate();
-	const [value, setValue] = useState(toDateInputValue(customer.expiresAt));
-
-	useEffect(() => {
-		if (open) {
-			setValue(toDateInputValue(customer.expiresAt));
-		}
-	}, [open, customer.expiresAt]);
+	// Uncontrolled: re-seeds from `defaultValue` on each reopen (Radix
+	// unmounts the dialog body on close).
+	const valueRef = useRef<HTMLInputElement>(null);
 
 	function handleSave() {
 		// Pass null when cleared so iRadius removes the expiry date.
-		const expiryDate = value || null;
+		const expiryDate = valueRef.current?.value || null;
 		if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
 			toast.error("Expected YYYY-MM-DD");
 			return;
@@ -422,8 +404,8 @@ export function SetExpiryDialog({
 					<Input
 						id="iradius-expiry"
 						type="date"
-						value={value}
-						onChange={(e) => setValue(e.target.value)}
+						ref={valueRef}
+						defaultValue={toDateInputValue(customer.expiresAt)}
 					/>
 				</div>
 				<DialogFooter>
