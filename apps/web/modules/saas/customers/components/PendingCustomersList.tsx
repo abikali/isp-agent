@@ -228,7 +228,15 @@ export function PendingCustomersList() {
 											</Button>
 											<Button
 												size="sm"
-												disabled={approve.isPending}
+												disabled={
+													approve.isPending ||
+													!request.customer.username?.trim()
+												}
+												title={
+													request.customer.username?.trim()
+														? undefined
+														: "Set a username (Edit) before approving"
+												}
 												onClick={async () => {
 													if (!organizationId) {
 														return;

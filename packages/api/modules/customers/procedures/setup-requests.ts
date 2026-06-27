@@ -597,13 +597,27 @@ export const approveSetupRequest = protectedProcedure
 			include: {
 				installations: true,
 				customer: {
-					select: { id: true, firstName: true, lastName: true },
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						username: true,
+					},
 				},
 			},
 		});
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Setup request not found or already reviewed",
+			});
+		}
+
+		// A username is mandatory before activation — it's the iRadius login the
+		// account will be linked to. Enforced here (not just in the dialog) so a
+		// direct approve from the list can't skip it.
+		if (!request.customer.username?.trim()) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Set a username before approving this customer",
 			});
 		}
 

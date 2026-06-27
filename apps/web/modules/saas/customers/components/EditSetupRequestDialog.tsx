@@ -91,7 +91,12 @@ export function EditSetupRequestDialog({
 		usernameCheck.data?.available === true;
 
 	async function handleSave() {
-		if (!organizationId || !firstName.trim() || usernameTaken) {
+		if (
+			!organizationId ||
+			!firstName.trim() ||
+			!trimmedUsername ||
+			usernameTaken
+		) {
 			return;
 		}
 		try {
@@ -149,7 +154,9 @@ export function EditSetupRequestDialog({
 						</div>
 					</div>
 					<div className="space-y-1.5">
-						<Label htmlFor="esr-username">Username (iRadius)</Label>
+						<Label htmlFor="esr-username">
+							Username (iRadius) *
+						</Label>
 						<Input
 							id="esr-username"
 							value={username}
@@ -332,6 +339,7 @@ export function EditSetupRequestDialog({
 						disabled={
 							updateRequest.isPending ||
 							!firstName.trim() ||
+							!trimmedUsername ||
 							usernameChecking ||
 							usernameTaken
 						}
