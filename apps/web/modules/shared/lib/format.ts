@@ -16,7 +16,7 @@ export const MEDIUM_DATE_TIME_FORMAT = {
 	minute: "2-digit",
 } as const satisfies Intl.DateTimeFormatOptions;
 
-type DateInput = Date | string | number;
+export type DateInput = Date | string | number;
 
 function toDate(value: DateInput): Date {
 	return value instanceof Date ? value : new Date(value);
