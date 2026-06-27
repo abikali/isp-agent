@@ -70,6 +70,12 @@ export const listCustomers = protectedProcedure
 			// must not appear in lists. See `softDeleteStaleRecords` in
 			// `packages/jobs/src/workers/iradius-sync.worker.ts`.
 			deletedAt: null,
+			// Exclude customers whose worker-portal setup request was rejected.
+			// `rejectSetupRequest` now soft-deletes these (caught by `deletedAt`
+			// above), but legacy rejected rows predate that change and only have
+			// `status: INACTIVE`, so they would otherwise resurface here. See
+			// `rejectSetupRequest` in `setup-requests.ts`.
+			NOT: { setupRequest: { status: "REJECTED" } },
 			...ownerFilter,
 			...getDealerScopeFilter(activeDealerId),
 		};

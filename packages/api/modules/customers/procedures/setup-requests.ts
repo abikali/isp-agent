@@ -691,10 +691,13 @@ export const rejectSetupRequest = protectedProcedure
 					rejectedReason: input.reason ?? null,
 				},
 			});
-			// Keep the customer for audit, but inactive
+			// Keep the customer row for audit/back-references, but soft-delete it
+			// so it drops out of the default customers list (which filters on
+			// `deletedAt: null`). It was never approved into iRadius, so there is
+			// nothing remote to clean up.
 			await tx.customer.update({
 				where: { id: request.customerId },
-				data: { status: "INACTIVE" },
+				data: { status: "INACTIVE", deletedAt: new Date() },
 			});
 			await tx.installation.updateMany({
 				where: { setupRequestId: request.id, status: "PENDING" },
