@@ -104,9 +104,13 @@ export function useEmployeeReport(employeeId: string, months: 3 | 6 | 12 = 6) {
 	return query.data;
 }
 
-export function useEmployeesQuery(opts?: { dealerId?: string | null }) {
+export function useEmployeesQuery(opts?: {
+	dealerId?: string | null;
+	role?: string;
+}) {
 	const organizationId = useOrganizationId();
 	const dealerId = opts?.dealerId ?? undefined;
+	const role = opts?.role;
 
 	const query = useQuery(
 		organizationId
@@ -115,6 +119,7 @@ export function useEmployeesQuery(opts?: { dealerId?: string | null }) {
 						organizationId,
 						status: "ACTIVE",
 						...(dealerId ? { dealerId } : {}),
+						...(role ? { role } : {}),
 					},
 				})
 			: disabledQuery(["employees", "list"]),

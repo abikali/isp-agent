@@ -1,6 +1,6 @@
 "use client";
 
-import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
+import { useBasesQuery } from "@saas/customers/client";
 import { PageShell } from "@shared/components/PageShell";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -40,7 +40,6 @@ export function TaskDetail({
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
-	const { stations } = useStationsQuery();
 	const { bases } = useBasesQuery();
 
 	const { data } = useSuspenseQuery(
@@ -62,7 +61,6 @@ export function TaskDetail({
 			priority: task.priority,
 			category: task.category,
 			dueDate: task.dueDate ? formatDateInput(task.dueDate) : "",
-			stationId: task.stationId ?? "",
 			baseId: task.baseId ?? "",
 			notes: task.notes ?? "",
 		},
@@ -95,7 +93,6 @@ export function TaskDetail({
 						| "BILLING"
 						| "GENERAL",
 					dueDate: value.dueDate ? new Date(value.dueDate) : null,
-					stationId: value.stationId || null,
 					baseId: value.baseId || null,
 					notes: value.notes || null,
 				});
@@ -290,35 +287,10 @@ export function TaskDetail({
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">
-								Station, Base & Notes
+								Base & Notes
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<form.Field name="stationId">
-								{(field) => (
-									<div className="space-y-2">
-										<Label>Station</Label>
-										<Select
-											value={field.state.value}
-											onValueChange={field.handleChange}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="No station" />
-											</SelectTrigger>
-											<SelectContent>
-												{stations.map((s) => (
-													<SelectItem
-														key={s.id}
-														value={s.id}
-													>
-														{s.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-								)}
-							</form.Field>
 							<form.Field name="baseId">
 								{(field) => (
 									<div className="space-y-2">

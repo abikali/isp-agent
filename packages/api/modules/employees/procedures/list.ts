@@ -28,6 +28,10 @@ export const listEmployees = protectedProcedure
 				])
 				.optional(),
 			stationId: z.string().optional(),
+			// When provided, only return employees whose linked user holds this
+			// organization role (e.g. "worker"). Used by forms that should list a
+			// single staff role rather than everyone (e.g. task "assign workers").
+			role: z.string().optional(),
 			// When provided, scope to a specific dealer instead of the caller's
 			// activeDealerId. Used by forms that need the dealer of the record
 			// being edited (e.g. customer edit form's collector picker).
@@ -66,6 +70,18 @@ export const listEmployees = protectedProcedure
 		if (input.stationId) {
 			where["stations"] = {
 				some: { stationId: input.stationId },
+			};
+		}
+		if (input.role) {
+			// Filter to employees whose linked user is a member of this org with
+			// the given role. Employees without a linked user are excluded.
+			where["user"] = {
+				members: {
+					some: {
+						organizationId: input.organizationId,
+						role: input.role,
+					},
+				},
 			};
 		}
 		if (input.search) {

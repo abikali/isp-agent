@@ -1,6 +1,6 @@
 "use client";
 
-import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
+import { useBasesQuery } from "@saas/customers/client";
 import { useEmployeesQuery } from "@saas/employees/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -38,9 +38,8 @@ export function CreateTaskDialog({
 }) {
 	const organizationId = useOrganizationId();
 	const createTask = useCreateTask();
-	const { stations } = useStationsQuery();
 	const { bases } = useBasesQuery();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const [customer, setCustomer] = useState<{
 		id: string;
 		name: string;
@@ -58,7 +57,6 @@ export function CreateTaskDialog({
 			priority: "MEDIUM",
 			category: "GENERAL",
 			dueDate: "",
-			stationId: "",
 			baseId: "",
 			notes: "",
 		},
@@ -95,7 +93,6 @@ export function CreateTaskDialog({
 					dueDate: value.dueDate
 						? new Date(value.dueDate)
 						: undefined,
-					stationId: value.stationId || undefined,
 					baseId: value.baseId || undefined,
 					notes: value.notes || undefined,
 				});
@@ -256,26 +253,32 @@ export function CreateTaskDialog({
 									</div>
 								)}
 							</form.Field>
-							<form.Field name="stationId">
+							<form.Field name="baseId">
 								{(field) => (
 									<div className="space-y-2">
-										<Label>Station</Label>
+										<Label>Base</Label>
 										<Select
 											value={field.state.value}
 											onValueChange={field.handleChange}
 										>
 											<SelectTrigger>
-												<SelectValue placeholder="None" />
+												<SelectValue placeholder="No base" />
 											</SelectTrigger>
 											<SelectContent>
-												{stations.map((s) => (
-													<SelectItem
-														key={s.id}
-														value={s.id}
-													>
-														{s.name}
-													</SelectItem>
-												))}
+												{bases.length === 0 ? (
+													<div className="px-2 py-1.5 text-muted-foreground text-sm">
+														No bases yet
+													</div>
+												) : (
+													bases.map((b) => (
+														<SelectItem
+															key={b.id}
+															value={b.id}
+														>
+															{b.name}
+														</SelectItem>
+													))
+												)}
 											</SelectContent>
 										</Select>
 									</div>
@@ -283,44 +286,12 @@ export function CreateTaskDialog({
 							</form.Field>
 						</div>
 
-						<form.Field name="baseId">
-							{(field) => (
-								<div className="space-y-2">
-									<Label>Base (optional)</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="No base" />
-										</SelectTrigger>
-										<SelectContent>
-											{bases.length === 0 ? (
-												<div className="px-2 py-1.5 text-muted-foreground text-sm">
-													No bases yet
-												</div>
-											) : (
-												bases.map((b) => (
-													<SelectItem
-														key={b.id}
-														value={b.id}
-													>
-														{b.name}
-													</SelectItem>
-												))
-											)}
-										</SelectContent>
-									</Select>
-								</div>
-							)}
-						</form.Field>
-
 						<div className="space-y-2">
 							<Label>Assign workers</Label>
 							<div className="max-h-44 space-y-1.5 overflow-y-auto rounded-md border p-2">
 								{employees.length === 0 ? (
 									<p className="px-1 py-2 text-sm text-muted-foreground">
-										No active employees.
+										No active workers.
 									</p>
 								) : (
 									employees.map((emp) => (
