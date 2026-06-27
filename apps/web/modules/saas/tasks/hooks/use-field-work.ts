@@ -42,7 +42,12 @@ export const useReviewUninstalledItem = createInvalidatingMutation(
 
 export const useCompleteTaskWithEvidence = createInvalidatingMutation(
 	() => orpc.tasks.completeWithEvidence.mutationOptions(),
-	() => [orpc.tasks.key(), orpc.installations.key(), orpc.stock.key()],
+	() => [
+		orpc.tasks.key(),
+		orpc.installations.key(),
+		orpc.stock.key(),
+		orpc.employees.key(),
+	],
 );
 
 export function useCreateEvidenceUploadUrl() {

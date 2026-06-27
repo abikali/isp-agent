@@ -13,6 +13,7 @@ import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+	useMyStatsQuery,
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,
 } from "../hooks/use-worker";
@@ -22,6 +23,7 @@ import {
 	installLinesTotal,
 	linesToPayload,
 } from "./install-lines";
+import { StatStrip } from "./WorkerUI";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (
@@ -35,6 +37,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export function WorkerNewCustomer() {
 	const organizationId = useOrganizationId();
 	const { plans, collectors, groups } = useWorkerCreateOptions();
+	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const createCustomer = useWorkerCreateCustomer();
 
 	const [firstName, setFirstName] = useState("");
@@ -117,6 +120,20 @@ export function WorkerNewCustomer() {
 
 	return (
 		<div className="space-y-6 pb-4">
+			<StatStrip
+				items={[
+					{
+						label: "Created (mo)",
+						value: String(stats?.customers.createdThisMonth ?? 0),
+					},
+					{
+						label: "Pending approval",
+						value: String(stats?.customers.pendingApproval ?? 0),
+					},
+				]}
+				isLoading={statsLoading}
+			/>
+
 			{/* Customer */}
 			<div className="space-y-3">
 				<SectionTitle>Customer</SectionTitle>

@@ -12,9 +12,10 @@ export { WorkerTasks } from "./components/WorkerTasks";
 // Hooks
 export {
 	useMyCustomersQuery,
-	useMyExpensesQuery,
+	useMyExpensesList,
+	useMyStatsQuery,
 	useMyStockQuery,
-	useMyTasksQuery,
+	useMyTasksList,
 	useMyWalletQuery,
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,

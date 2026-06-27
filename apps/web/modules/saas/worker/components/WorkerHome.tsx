@@ -15,15 +15,16 @@ import {
 } from "lucide-react";
 import {
 	useMyCustomersQuery,
+	useMyStatsQuery,
 	useMyStockQuery,
-	useMyTasksQuery,
 	useMyWalletQuery,
 } from "../hooks/use-worker";
+import { StatStrip } from "./WorkerUI";
 
 export function WorkerHome() {
 	const { activeOrganization } = useActiveOrganization();
 	const { wallet, isLoading: walletLoading } = useMyWalletQuery();
-	const { tasks } = useMyTasksQuery();
+	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const { allocations, totalValue } = useMyStockQuery();
 	const { customers } = useMyCustomersQuery();
 
@@ -70,6 +71,33 @@ export function WorkerHome() {
 				</CardContent>
 			</Card>
 
+			{/* This month overview */}
+			<StatStrip
+				items={[
+					{
+						label: "Done (mo)",
+						value: String(stats?.tasks.completedThisMonth ?? 0),
+					},
+					{
+						label: "Installs (mo)",
+						value: String(
+							stats?.installations.completedThisMonth ?? 0,
+						),
+					},
+					{
+						label: "New (mo)",
+						value: String(stats?.customers.createdThisMonth ?? 0),
+					},
+					{
+						label: "Install value",
+						value: formatCurrency(
+							stats?.installations.valueThisMonth ?? 0,
+						),
+					},
+				]}
+				isLoading={statsLoading}
+			/>
+
 			{/* Quick stats */}
 			<div className="grid grid-cols-2 gap-3">
 				<Link
@@ -80,7 +108,7 @@ export function WorkerHome() {
 						<CardContent className="p-4 text-center">
 							<ClipboardListIcon className="mx-auto size-5 text-muted-foreground" />
 							<p className="mt-1 text-xl font-semibold tabular-nums">
-								{tasks.length}
+								{stats?.tasks.open ?? 0}
 							</p>
 							<p className="text-xs text-muted-foreground">
 								Open tasks

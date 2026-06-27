@@ -5,26 +5,15 @@ import {
 	useCreateExpense,
 	useCreateReceiptUploadUrl,
 } from "@saas/expenses/client";
-import {
-	type DateInput,
-	formatCurrency,
-	formatDate,
-	getBeirutDate,
-} from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
-import {
-	Accordion,
-	AccordionContent,
-	AccordionItem,
-	AccordionTrigger,
-} from "@ui/components/accordion";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import { Separator } from "@ui/components/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -34,14 +23,14 @@ import {
 } from "@ui/components/sheet";
 import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
-import { cn } from "@ui/lib";
 import { PlusIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useMyExpensesQuery } from "../hooks/use-worker";
+import { useMyExpensesList, useMyStatsQuery } from "../hooks/use-worker";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
+import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
 
-type WorkerExpense = ReturnType<typeof useMyExpensesQuery>["expenses"][number];
+type WorkerExpense = ReturnType<typeof useMyExpensesList>["expenses"][number];
 
 const STATUS_VARIANTS: Record<string, "info" | "success" | "error"> = {
 	PENDING: "info",
@@ -55,149 +44,98 @@ const STATUS_LABELS: Record<string, string> = {
 	REJECTED: "Rejected",
 };
 
-// Status order + dot colors for the per-month breakdown (matches Badge variants).
-const STATUS_BREAKDOWN = [
-	{ status: "APPROVED", label: "Approved", dot: "bg-success" },
-	{ status: "PENDING", label: "Pending", dot: "bg-blue-500" },
-	{ status: "REJECTED", label: "Rejected", dot: "bg-destructive" },
-] as const;
+const STATUS_OPTIONS = [
+	{ value: "all", label: "All statuses" },
+	{ value: "PENDING", label: "Pending" },
+	{ value: "APPROVED", label: "Approved" },
+	{ value: "REJECTED", label: "Rejected" },
+];
+const SORT_OPTIONS = [
+	{ value: "newest", label: "Newest first" },
+	{ value: "oldest", label: "Oldest first" },
+	{ value: "highest", label: "Highest amount" },
+	{ value: "lowest", label: "Lowest amount" },
+];
+const SORT_MAP: Record<
+	string,
+	{ sortBy: "createdAt" | "amount"; sortOrder: "asc" | "desc" }
+> = {
+	newest: { sortBy: "createdAt", sortOrder: "desc" },
+	oldest: { sortBy: "createdAt", sortOrder: "asc" },
+	highest: { sortBy: "amount", sortOrder: "desc" },
+	lowest: { sortBy: "amount", sortOrder: "asc" },
+};
 
-/** Ordinal month key in Beirut time, so grouping matches the displayed dates. */
-function monthKey(value: DateInput): number {
-	const { year, month } = getBeirutDate(value);
-	return year * 12 + month;
-}
-
-interface MonthBucket {
-	key: number;
-	label: string;
-	expenses: WorkerExpense[];
-	total: number;
-}
-
-/** Bucket expenses (already newest-first) into months, preserving that order. */
-function groupByMonth(expenses: WorkerExpense[]): MonthBucket[] {
-	const buckets = new Map<number, MonthBucket>();
-	for (const expense of expenses) {
-		const key = monthKey(expense.createdAt);
-		let bucket = buckets.get(key);
-		if (!bucket) {
-			bucket = {
-				key,
-				label: formatDate(expense.createdAt, {
-					month: "long",
-					year: "numeric",
-				}),
-				expenses: [],
-				total: 0,
-			};
-			buckets.set(key, bucket);
-		}
-		bucket.expenses.push(expense);
-		bucket.total += expense.amount;
-	}
-	return [...buckets.values()];
-}
-
-function statusTotal(expenses: WorkerExpense[], status: string): number {
-	return expenses
-		.filter((e) => e.status === status)
-		.reduce((sum, e) => sum + e.amount, 0);
-}
-
-function statusCount(expenses: WorkerExpense[], status: string): number {
-	return expenses.filter((e) => e.status === status).length;
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- single-file feature: month breakdown + expense row are local presentational helpers, not shared components
-function MonthBreakdown({ expenses }: { expenses: WorkerExpense[] }) {
-	return (
-		<div className="grid grid-cols-3 gap-2">
-			{STATUS_BREAKDOWN.map(({ status, label, dot }) => (
-				<div key={status} className="space-y-0.5">
-					<div className="flex items-center gap-1.5">
-						<span className={cn("size-1.5 rounded-full", dot)} />
-						<span className="text-muted-foreground text-xs">
-							{label}
-						</span>
-					</div>
-					<p className="font-medium text-sm tabular-nums">
-						{formatCurrency(statusTotal(expenses, status))}
-					</p>
-					<p className="text-[11px] text-muted-foreground">
-						{statusCount(expenses, status)} item(s)
-					</p>
-				</div>
-			))}
-		</div>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- single-file feature: month breakdown + expense row are local presentational helpers, not shared components
-function ExpenseRow({ expense }: { expense: WorkerExpense }) {
-	const categoryLabel = EXPENSE_CATEGORIES.find(
-		(c) => c.value === expense.category,
-	)?.label;
-	return (
-		<Card>
-			<CardContent className="flex items-center justify-between gap-3 p-4">
-				<div className="min-w-0 flex-1 space-y-0.5">
-					<p className="font-medium font-mono text-sm tabular-nums">
-						{formatCurrency(expense.amount)}
-					</p>
-					<p className="line-clamp-1 text-muted-foreground text-xs">
-						{expense.description}
-					</p>
-					<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-						<span>
-							{formatDate(expense.createdAt, {
-								day: "numeric",
-								month: "short",
-							})}
-						</span>
-						{categoryLabel ? (
-							<>
-								<span aria-hidden>·</span>
-								<span>{categoryLabel}</span>
-							</>
-						) : null}
-						{expense.receiptUrl ? (
-							<>
-								<span aria-hidden>·</span>
-								<span className="inline-flex items-center gap-1">
-									<ReceiptIcon className="size-3" />
-									Receipt
-								</span>
-							</>
-						) : null}
-					</div>
-					{expense.status === "REJECTED" && expense.rejectedReason ? (
-						<p className="text-destructive text-xs">
-							{expense.rejectedReason}
-						</p>
-					) : null}
-				</div>
-				<Badge variant={STATUS_VARIANTS[expense.status] ?? "info"}>
-					{STATUS_LABELS[expense.status] ??
-						expense.status.toLowerCase()}
-				</Badge>
-			</CardContent>
-		</Card>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices (sheet visibility + 4 inputs); a reducer would add ceremony without grouping related transitions
+// react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices (sheet visibility + 4 inputs) plus list filters; a reducer would add ceremony without grouping related transitions
 export function WorkerExpenses() {
 	const organizationId = useOrganizationId();
-	const { expenses, isLoading } = useMyExpensesQuery();
+	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const createExpense = useCreateExpense();
 	const createUploadUrl = useCreateReceiptUploadUrl();
+
+	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
+	const [statusFilter, setStatusFilter] = useState("all");
+	const [sort, setSort] = useState("newest");
+	const [page, setPage] = useState(1);
 
 	const [showSubmit, setShowSubmit] = useState(false);
 	const [amount, setAmount] = useState("");
 	const [category, setCategory] = useState("toolkit");
 	const [note, setNote] = useState("");
 	const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+
+	const sortCfg =
+		SORT_MAP[sort] ?? ({ sortBy: "createdAt", sortOrder: "desc" } as const);
+	const { expenses, totalPages, isLoading, isFetching } = useMyExpensesList({
+		search: debouncedSearch || undefined,
+		status:
+			statusFilter === "all"
+				? undefined
+				: (statusFilter as "PENDING" | "APPROVED" | "REJECTED"),
+		sortBy: sortCfg.sortBy,
+		sortOrder: sortCfg.sortOrder,
+		page,
+	});
+
+	function onFilter<T>(setter: (value: T) => void) {
+		return (value: T) => {
+			setter(value);
+			setPage(1);
+		};
+	}
+
+	const monthExpenses = stats?.expenses;
+	const monthTotal =
+		(monthExpenses?.approved.amount ?? 0) +
+		(monthExpenses?.pending.amount ?? 0) +
+		(monthExpenses?.rejected.amount ?? 0);
+	const monthCount =
+		(monthExpenses?.approved.count ?? 0) +
+		(monthExpenses?.pending.count ?? 0) +
+		(monthExpenses?.rejected.count ?? 0);
+	const statItems = [
+		{
+			label: "This month",
+			value: formatCurrency(monthTotal),
+			hint: `${monthCount} item(s)`,
+		},
+		{
+			label: "Approved (mo)",
+			value: formatCurrency(monthExpenses?.approved.amount ?? 0),
+			hint: `${monthExpenses?.approved.count ?? 0} item(s)`,
+		},
+		{
+			label: "Pending (mo)",
+			value: formatCurrency(monthExpenses?.pending.amount ?? 0),
+			hint: `${monthExpenses?.pending.count ?? 0} item(s)`,
+		},
+		{
+			label: "Rejected (mo)",
+			value: formatCurrency(monthExpenses?.rejected.amount ?? 0),
+			hint: `${monthExpenses?.rejected.count ?? 0} item(s)`,
+		},
+	];
 
 	async function handleSubmit() {
 		if (!organizationId || !amount || Number(amount) <= 0) {
@@ -231,24 +169,35 @@ export function WorkerExpenses() {
 		}
 	}
 
-	const now = new Date();
-	const currentKey = monthKey(now);
-	const currentLabel = formatDate(now, { month: "long", year: "numeric" });
-
-	const months = groupByMonth(expenses);
-	const currentMonth = months.find((m) => m.key === currentKey);
-	const currentExpenses = currentMonth?.expenses ?? [];
-	const currentTotal = currentMonth?.total ?? 0;
-	const pastMonths = months
-		.filter((m) => m.key !== currentKey)
-		.sort((a, b) => b.key - a.key);
-
 	return (
-		<div className="space-y-4">
+		<div className="space-y-3">
+			<StatStrip items={statItems} isLoading={statsLoading} />
+
 			<Button className="w-full" onClick={() => setShowSubmit(true)}>
 				<PlusIcon className="mr-2 size-4" />
 				Submit expense
 			</Button>
+
+			<SearchBar
+				value={search}
+				onChange={onFilter(setSearch)}
+				placeholder="Search expenses…"
+			/>
+			<div className="flex flex-wrap items-center gap-2">
+				<SelectControl
+					ariaLabel="Filter by status"
+					value={statusFilter}
+					onChange={onFilter(setStatusFilter)}
+					options={STATUS_OPTIONS}
+				/>
+				<SelectControl
+					ariaLabel="Sort expenses"
+					value={sort}
+					onChange={onFilter(setSort)}
+					options={SORT_OPTIONS}
+					className="ml-auto"
+				/>
+			</div>
 
 			{isLoading ? (
 				<div className="space-y-2">
@@ -263,96 +212,23 @@ export function WorkerExpenses() {
 				<div className="py-16 text-center">
 					<ReceiptIcon className="mx-auto size-10 text-muted-foreground/50" />
 					<p className="mt-3 text-sm text-muted-foreground">
-						No expenses yet.
+						No expenses match your filters.
 					</p>
 				</div>
 			) : (
-				<div className="space-y-5">
-					{/* Current month — the focus */}
-					<section className="space-y-3">
-						<Card className="border-primary/20 bg-primary/5">
-							<CardContent className="p-4">
-								<div className="flex items-start justify-between gap-3">
-									<div>
-										<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-											This month
-										</p>
-										<p className="font-medium text-sm">
-											{currentLabel}
-										</p>
-									</div>
-									<div className="text-right">
-										<p className="font-semibold text-2xl tabular-nums">
-											{formatCurrency(currentTotal)}
-										</p>
-										<p className="text-muted-foreground text-xs">
-											{currentExpenses.length} expense(s)
-										</p>
-									</div>
-								</div>
-								<Separator className="my-3" />
-								<MonthBreakdown expenses={currentExpenses} />
-							</CardContent>
-						</Card>
-
-						{currentExpenses.length === 0 ? (
-							<p className="py-4 text-center text-muted-foreground text-sm">
-								No expenses this month yet.
-							</p>
-						) : (
-							currentExpenses.map((expense) => (
-								<ExpenseRow
-									key={expense.id}
-									expense={expense}
-								/>
-							))
-						)}
-					</section>
-
-					{/* Earlier months — collapsed by default */}
-					{pastMonths.length > 0 ? (
-						<section className="space-y-2">
-							<p className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-								Earlier months
-							</p>
-							<Accordion
-								type="multiple"
-								className="overflow-hidden rounded-lg border"
-							>
-								{pastMonths.map((month) => (
-									<AccordionItem
-										key={month.key}
-										value={String(month.key)}
-										className="border-b last:border-b-0"
-									>
-										<AccordionTrigger className="px-4 py-3 hover:no-underline">
-											<div className="flex flex-1 items-center justify-between gap-2 pr-2">
-												<span className="font-medium text-sm">
-													{month.label}
-												</span>
-												<span className="text-muted-foreground text-xs tabular-nums">
-													{formatCurrency(
-														month.total,
-													)}{" "}
-													· {month.expenses.length}
-												</span>
-											</div>
-										</AccordionTrigger>
-										<AccordionContent className="space-y-2 bg-muted/30 px-3 pt-1 pb-3">
-											{month.expenses.map((expense) => (
-												<ExpenseRow
-													key={expense.id}
-													expense={expense}
-												/>
-											))}
-										</AccordionContent>
-									</AccordionItem>
-								))}
-							</Accordion>
-						</section>
-					) : null}
+				<div className="space-y-2">
+					{expenses.map((expense) => (
+						<ExpenseRow key={expense.id} expense={expense} />
+					))}
 				</div>
 			)}
+
+			<Pager
+				page={page}
+				totalPages={totalPages}
+				onPageChange={setPage}
+				isFetching={isFetching}
+			/>
 
 			<Sheet open={showSubmit} onOpenChange={setShowSubmit}>
 				<SheetContent
@@ -442,5 +318,59 @@ export function WorkerExpenses() {
 				</SheetContent>
 			</Sheet>
 		</div>
+	);
+}
+
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- expense row colocated with its list
+function ExpenseRow({ expense }: { expense: WorkerExpense }) {
+	const categoryLabel = EXPENSE_CATEGORIES.find(
+		(c) => c.value === expense.category,
+	)?.label;
+	return (
+		<Card>
+			<CardContent className="flex items-center justify-between gap-3 p-4">
+				<div className="min-w-0 flex-1 space-y-0.5">
+					<p className="font-medium font-mono text-sm tabular-nums">
+						{formatCurrency(expense.amount)}
+					</p>
+					<p className="line-clamp-1 text-muted-foreground text-xs">
+						{expense.description}
+					</p>
+					<div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+						<span>
+							{formatDate(expense.createdAt, {
+								day: "numeric",
+								month: "short",
+								year: "numeric",
+							})}
+						</span>
+						{categoryLabel ? (
+							<>
+								<span aria-hidden>·</span>
+								<span>{categoryLabel}</span>
+							</>
+						) : null}
+						{expense.receiptUrl ? (
+							<>
+								<span aria-hidden>·</span>
+								<span className="inline-flex items-center gap-1">
+									<ReceiptIcon className="size-3" />
+									Receipt
+								</span>
+							</>
+						) : null}
+					</div>
+					{expense.status === "REJECTED" && expense.rejectedReason ? (
+						<p className="text-destructive text-xs">
+							{expense.rejectedReason}
+						</p>
+					) : null}
+				</div>
+				<Badge variant={STATUS_VARIANTS[expense.status] ?? "info"}>
+					{STATUS_LABELS[expense.status] ??
+						expense.status.toLowerCase()}
+				</Badge>
+			</CardContent>
+		</Card>
 	);
 }

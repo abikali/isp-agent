@@ -17,12 +17,17 @@ export const listExpenses = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
+			search: z.string().optional(),
 			status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 			employeeId: z.string().optional(),
 			from: z.coerce.date().optional(),
 			to: z.coerce.date().optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
+			sortBy: z
+				.enum(["createdAt", "amount", "status"])
+				.default("createdAt"),
+			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -56,6 +61,12 @@ export const listExpenses = protectedProcedure
 				...(input.to ? { lte: input.to } : {}),
 			};
 		}
+		if (input.search) {
+			where["description"] = {
+				contains: input.search,
+				mode: "insensitive",
+			};
+		}
 
 		const [expenses, total, totalAmountAgg] = await Promise.all([
 			db.expense.findMany({
@@ -64,7 +75,7 @@ export const listExpenses = protectedProcedure
 					submittedBy: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
 				},
-				orderBy: { createdAt: "desc" },
+				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),

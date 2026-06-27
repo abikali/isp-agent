@@ -28,6 +28,17 @@ export const listTasks = protectedProcedure
 					"CANCELLED",
 				])
 				.optional(),
+			statuses: z
+				.array(
+					z.enum([
+						"OPEN",
+						"IN_PROGRESS",
+						"ON_HOLD",
+						"COMPLETED",
+						"CANCELLED",
+					]),
+				)
+				.optional(),
 			priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
 			category: z
 				.enum([
@@ -102,7 +113,9 @@ export const listTasks = protectedProcedure
 			where["AND"] = andClauses;
 		}
 
-		if (input.status) {
+		if (input.statuses && input.statuses.length > 0) {
+			where["status"] = { in: input.statuses };
+		} else if (input.status) {
 			where["status"] = input.status;
 		}
 		if (input.priority) {

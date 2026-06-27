@@ -25,6 +25,21 @@ export function useWorkerCreateOptions() {
 	};
 }
 
+/** Current-month activity stats for the logged-in field employee. */
+export function useMyStatsQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.employees.myStats.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["employees", "myStats"]),
+	);
+
+	return { stats: query.data, isLoading: query.isLoading };
+}
+
 /** Wallet balance + expense totals for the logged-in field employee. */
 export function useMyWalletQuery() {
 	const organizationId = useOrganizationId();
@@ -57,8 +72,38 @@ export function useMyStockQuery() {
 	};
 }
 
-/** Open tasks assigned to the logged-in worker (scoped by tasks read:own). */
-export function useMyTasksQuery() {
+export type TaskStatusValue =
+	| "OPEN"
+	| "IN_PROGRESS"
+	| "ON_HOLD"
+	| "COMPLETED"
+	| "CANCELLED";
+
+export type TaskCategoryValue =
+	| "INSTALLATION"
+	| "MAINTENANCE"
+	| "REPLACEMENT"
+	| "REPAIR"
+	| "SUPPORT"
+	| "BILLING"
+	| "GENERAL"
+	| "UNINSTALL";
+
+export interface MyTasksParams {
+	search?: string;
+	statuses?: TaskStatusValue[];
+	category?: TaskCategoryValue;
+	sortBy?: "createdAt" | "title" | "priority" | "status" | "dueDate";
+	sortOrder?: "asc" | "desc";
+	page?: number;
+	pageSize?: number;
+}
+
+/**
+ * Tasks assigned to the logged-in worker (scoped by `tasks read:own`), with
+ * server-side search / status / category filtering, sorting and pagination.
+ */
+export function useMyTasksList(params: MyTasksParams = {}) {
 	const organizationId = useOrganizationId();
 
 	const query = useQuery(
@@ -67,41 +112,73 @@ export function useMyTasksQuery() {
 					input: {
 						organizationId,
 						sources: ["MANUAL", "LEGACY"],
-						pageSize: 100,
+						page: params.page ?? 1,
+						pageSize: params.pageSize ?? 15,
+						sortBy: params.sortBy ?? "createdAt",
+						sortOrder: params.sortOrder ?? "desc",
+						...(params.search ? { search: params.search } : {}),
+						...(params.statuses
+							? { statuses: params.statuses }
+							: {}),
+						...(params.category
+							? { category: params.category }
+							: {}),
 					},
 				})
 			: disabledQuery(["tasks", "myList"]),
 	);
 
-	const open = (query.data?.tasks ?? []).filter(
-		(t) =>
-			t.status === "OPEN" ||
-			t.status === "IN_PROGRESS" ||
-			t.status === "ON_HOLD",
-	);
-
 	return {
-		tasks: open,
+		tasks: query.data?.tasks ?? [],
+		total: query.data?.total ?? 0,
+		totalPages: query.data?.totalPages ?? 0,
+		page: query.data?.page ?? params.page ?? 1,
 		isLoading: query.isLoading,
+		isFetching: query.isFetching,
 		refetch: query.refetch,
 	};
 }
 
-/** The logged-in worker's expenses. */
-export function useMyExpensesQuery() {
+export interface MyExpensesParams {
+	search?: string;
+	status?: "PENDING" | "APPROVED" | "REJECTED";
+	sortBy?: "createdAt" | "amount" | "status";
+	sortOrder?: "asc" | "desc";
+	page?: number;
+	pageSize?: number;
+}
+
+/**
+ * The logged-in worker's expenses (scoped by `expenses read:own`), with
+ * server-side search / status filtering, sorting and pagination.
+ */
+export function useMyExpensesList(params: MyExpensesParams = {}) {
 	const organizationId = useOrganizationId();
 
 	const query = useQuery(
 		organizationId
 			? orpc.expenses.list.queryOptions({
-					input: { organizationId, pageSize: 50 },
+					input: {
+						organizationId,
+						page: params.page ?? 1,
+						pageSize: params.pageSize ?? 15,
+						sortBy: params.sortBy ?? "createdAt",
+						sortOrder: params.sortOrder ?? "desc",
+						...(params.search ? { search: params.search } : {}),
+						...(params.status ? { status: params.status } : {}),
+					},
 				})
 			: disabledQuery(["expenses", "my"]),
 	);
 
 	return {
 		expenses: query.data?.expenses ?? [],
+		total: query.data?.total ?? 0,
+		totalAmount: query.data?.totalAmount ?? 0,
+		totalPages: query.data?.totalPages ?? 0,
+		page: query.data?.page ?? params.page ?? 1,
 		isLoading: query.isLoading,
+		isFetching: query.isFetching,
 	};
 }
 
@@ -136,5 +213,9 @@ export function useMyCustomersQuery() {
 
 export const useWorkerCreateCustomer = createInvalidatingMutation(
 	() => orpc.customers.workerCreate.mutationOptions(),
-	() => [orpc.customers.key(), orpc.installations.key()],
+	() => [
+		orpc.customers.key(),
+		orpc.installations.key(),
+		orpc.employees.key(),
+	],
 );

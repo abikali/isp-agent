@@ -6,8 +6,9 @@ import {
 	useCreateEvidenceUploadUrl,
 } from "@saas/tasks/client";
 import { displayName } from "@shared/lib/display-name";
-import { formatDate } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
@@ -32,12 +33,53 @@ import {
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { useMyStockQuery, useMyTasksQuery } from "../hooks/use-worker";
+import {
+	type TaskCategoryValue,
+	type TaskStatusValue,
+	useMyStatsQuery,
+	useMyStockQuery,
+	useMyTasksList,
+} from "../hooks/use-worker";
 import { InstallItemRows } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
+import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
 
-type WorkerTask = ReturnType<typeof useMyTasksQuery>["tasks"][number];
+type WorkerTask = ReturnType<typeof useMyTasksList>["tasks"][number];
+
+const STATUS_OPTIONS = [
+	{ value: "open", label: "Open" },
+	{ value: "completed", label: "Completed" },
+	{ value: "cancelled", label: "Cancelled" },
+	{ value: "all", label: "All statuses" },
+];
+const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
+	open: ["OPEN", "IN_PROGRESS", "ON_HOLD"],
+	completed: ["COMPLETED"],
+	cancelled: ["CANCELLED"],
+	all: undefined,
+};
+const CATEGORY_OPTIONS = [
+	{ value: "all", label: "All types" },
+	{ value: "INSTALLATION", label: "Installation" },
+	{ value: "MAINTENANCE", label: "Maintenance" },
+	{ value: "UNINSTALL", label: "Uninstall" },
+	{ value: "REPLACEMENT", label: "Replacement" },
+];
+const SORT_OPTIONS = [
+	{ value: "newest", label: "Newest first" },
+	{ value: "oldest", label: "Oldest first" },
+	{ value: "priority", label: "Priority" },
+];
+const SORT_MAP: Record<
+	string,
+	{ sortBy: "createdAt" | "priority"; sortOrder: "asc" | "desc" }
+> = {
+	newest: { sortBy: "createdAt", sortOrder: "desc" },
+	oldest: { sortBy: "createdAt", sortOrder: "asc" },
+	priority: { sortBy: "priority", sortOrder: "desc" },
+};
+const OPEN_STATUSES = new Set(["OPEN", "IN_PROGRESS", "ON_HOLD"]);
 
 interface RecoveredItem {
 	key: number;
@@ -70,108 +112,117 @@ function useUploadUrlGetter(organizationId: string | null) {
 }
 
 export function WorkerTasks() {
-	const { tasks, isLoading } = useMyTasksQuery();
+	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const [activeTask, setActiveTask] = useState<WorkerTask | null>(null);
+	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
+	const [statusFilter, setStatusFilter] = useState("open");
+	const [categoryFilter, setCategoryFilter] = useState("all");
+	const [sort, setSort] = useState("newest");
+	const [page, setPage] = useState(1);
 
-	if (isLoading) {
-		return (
-			<div className="space-y-2">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<Skeleton
-						key={`task-skel-${i}`}
-						className="h-24 rounded-lg"
-					/>
-				))}
-			</div>
-		);
+	const sortCfg =
+		SORT_MAP[sort] ?? ({ sortBy: "createdAt", sortOrder: "desc" } as const);
+	const { tasks, totalPages, isLoading, isFetching } = useMyTasksList({
+		search: debouncedSearch || undefined,
+		statuses: STATUS_MAP[statusFilter],
+		category:
+			categoryFilter === "all"
+				? undefined
+				: (categoryFilter as TaskCategoryValue),
+		sortBy: sortCfg.sortBy,
+		sortOrder: sortCfg.sortOrder,
+		page,
+	});
+
+	function onFilter<T>(setter: (value: T) => void) {
+		return (value: T) => {
+			setter(value);
+			setPage(1);
+		};
 	}
 
-	if (tasks.length === 0) {
-		return (
-			<div className="py-16 text-center">
-				<ClipboardListIcon className="mx-auto size-10 text-muted-foreground/50" />
-				<p className="mt-3 text-sm text-muted-foreground">
-					No open tasks assigned to you.
-				</p>
-			</div>
-		);
-	}
+	const statItems = [
+		{ label: "Open", value: String(stats?.tasks.open ?? 0) },
+		{
+			label: "Done (mo)",
+			value: String(stats?.tasks.completedThisMonth ?? 0),
+		},
+		{
+			label: "Installs (mo)",
+			value: String(stats?.installations.completedThisMonth ?? 0),
+		},
+		{
+			label: "Value (mo)",
+			value: formatCurrency(stats?.installations.valueThisMonth ?? 0),
+		},
+	];
 
 	return (
-		<div className="space-y-2">
-			{tasks.map((task) => {
-				const customerName = task.customer
-					? displayName(
-							task.customer.firstName,
-							task.customer.lastName,
-						)
-					: null;
-				const isUninstall = task.category === "UNINSTALL";
-				const isReplacement = task.category === "REPLACEMENT";
-				return (
-					<Card key={task.id}>
-						<CardContent className="space-y-2 p-4">
-							<div className="flex items-start justify-between gap-2">
-								<div className="min-w-0">
-									<p className="text-sm font-medium">
-										{task.title}
-									</p>
-									{task.description && (
-										<p className="line-clamp-2 text-xs text-muted-foreground">
-											{task.description}
-										</p>
-									)}
-								</div>
-								<Badge
-									variant={
-										isUninstall || isReplacement
-											? "warning"
-											: "info"
-									}
-								>
-									{task.category.toLowerCase()}
-								</Badge>
-							</div>
-							{customerName && (
-								<div className="space-y-1 text-xs text-muted-foreground">
-									<p className="font-medium text-foreground">
-										{customerName}
-									</p>
-									{task.customer?.address && (
-										<p className="flex items-center gap-1">
-											<MapPinIcon className="size-3" />
-											{task.customer.address}
-										</p>
-									)}
-									{task.customer?.mobile && (
-										<a
-											href={`tel:${task.customer.mobile}`}
-											className="flex items-center gap-1 text-primary"
-										>
-											<PhoneIcon className="size-3" />
-											{task.customer.mobile}
-										</a>
-									)}
-								</div>
-							)}
-							<div className="flex items-center justify-between pt-1">
-								<span className="text-xs text-muted-foreground">
-									Assigned{" "}
-									{formatDate(task.createdAt, {
-										dateStyle: "medium",
-									})}
-								</span>
-								<Button
-									size="sm"
-									onClick={() => setActiveTask(task)}
-								>
-									Submit
-								</Button>
-							</div>
-						</CardContent>
-					</Card>
-				);
-			})}
+		<div className="space-y-3">
+			<StatStrip items={statItems} isLoading={statsLoading} />
+
+			<SearchBar
+				value={search}
+				onChange={onFilter(setSearch)}
+				placeholder="Search tasks…"
+			/>
+			<div className="flex flex-wrap items-center gap-2">
+				<SelectControl
+					ariaLabel="Filter by status"
+					value={statusFilter}
+					onChange={onFilter(setStatusFilter)}
+					options={STATUS_OPTIONS}
+				/>
+				<SelectControl
+					ariaLabel="Filter by type"
+					value={categoryFilter}
+					onChange={onFilter(setCategoryFilter)}
+					options={CATEGORY_OPTIONS}
+				/>
+				<SelectControl
+					ariaLabel="Sort tasks"
+					value={sort}
+					onChange={onFilter(setSort)}
+					options={SORT_OPTIONS}
+					className="ml-auto"
+				/>
+			</div>
+
+			{isLoading ? (
+				<div className="space-y-2">
+					{Array.from({ length: 3 }).map((_, i) => (
+						<Skeleton
+							key={`task-skel-${i}`}
+							className="h-24 rounded-lg"
+						/>
+					))}
+				</div>
+			) : tasks.length === 0 ? (
+				<div className="py-16 text-center">
+					<ClipboardListIcon className="mx-auto size-10 text-muted-foreground/50" />
+					<p className="mt-3 text-sm text-muted-foreground">
+						No tasks match your filters.
+					</p>
+				</div>
+			) : (
+				<div className="space-y-2">
+					{tasks.map((task) => (
+						<TaskCard
+							key={task.id}
+							task={task}
+							onSubmit={() => setActiveTask(task)}
+						/>
+					))}
+				</div>
+			)}
+
+			<Pager
+				page={page}
+				totalPages={totalPages}
+				onPageChange={setPage}
+				isFetching={isFetching}
+			/>
 
 			{activeTask && (
 				<TaskSubmitSheet
@@ -180,6 +231,87 @@ export function WorkerTasks() {
 				/>
 			)}
 		</div>
+	);
+}
+
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- task card colocated with its list
+function TaskCard({
+	task,
+	onSubmit,
+}: {
+	task: WorkerTask;
+	onSubmit: () => void;
+}) {
+	const customerName = task.customer
+		? displayName(task.customer.firstName, task.customer.lastName)
+		: null;
+	const isUninstall = task.category === "UNINSTALL";
+	const isReplacement = task.category === "REPLACEMENT";
+	const isOpen = OPEN_STATUSES.has(task.status);
+	return (
+		<Card>
+			<CardContent className="space-y-2 p-4">
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0">
+						<p className="font-medium text-sm">{task.title}</p>
+						{task.description ? (
+							<p className="line-clamp-2 text-muted-foreground text-xs">
+								{task.description}
+							</p>
+						) : null}
+					</div>
+					<Badge
+						variant={
+							isUninstall || isReplacement ? "warning" : "info"
+						}
+					>
+						{task.category.toLowerCase()}
+					</Badge>
+				</div>
+				{customerName ? (
+					<div className="space-y-1 text-muted-foreground text-xs">
+						<p className="font-medium text-foreground">
+							{customerName}
+						</p>
+						{task.customer?.address ? (
+							<p className="flex items-center gap-1">
+								<MapPinIcon className="size-3" />
+								{task.customer.address}
+							</p>
+						) : null}
+						{task.customer?.mobile ? (
+							<a
+								href={`tel:${task.customer.mobile}`}
+								className="flex items-center gap-1 text-primary"
+							>
+								<PhoneIcon className="size-3" />
+								{task.customer.mobile}
+							</a>
+						) : null}
+					</div>
+				) : null}
+				<div className="flex items-center justify-between pt-1">
+					<span className="text-muted-foreground text-xs">
+						{formatDate(task.createdAt, { dateStyle: "medium" })}
+					</span>
+					{isOpen ? (
+						<Button size="sm" onClick={onSubmit}>
+							Submit
+						</Button>
+					) : (
+						<Badge
+							variant={
+								task.status === "COMPLETED"
+									? "success"
+									: "outline"
+							}
+						>
+							{task.status.toLowerCase().replace("_", " ")}
+						</Badge>
+					)}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }
 

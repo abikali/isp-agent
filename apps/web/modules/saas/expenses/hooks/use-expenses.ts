@@ -35,7 +35,7 @@ export function useExpenses(filters: {
 
 export const useCreateExpense = createInvalidatingMutation(
 	() => orpc.expenses.create.mutationOptions(),
-	() => orpc.expenses.key(),
+	() => [orpc.expenses.key(), orpc.employees.key(), orpc.billing.key()],
 );
 
 export const useApproveExpense = createInvalidatingMutation(
