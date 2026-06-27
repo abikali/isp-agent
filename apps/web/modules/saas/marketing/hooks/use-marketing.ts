@@ -23,16 +23,6 @@ export function useIntegration() {
 	};
 }
 
-export function useTemplates() {
-	const organizationId = useOrganizationId();
-	const query = useSuspenseQuery(
-		orpc.marketing.listTemplates.queryOptions({
-			input: { organizationId: organizationId ?? "" },
-		}),
-	);
-	return { templates: query.data?.templates ?? [], refetch: query.refetch };
-}
-
 export function useTemplatesQuery() {
 	const organizationId = useOrganizationId();
 	const query = useQuery(
@@ -167,10 +157,6 @@ export function useBroadcast(
 		},
 		refetch: query.refetch,
 	};
-}
-
-export function useAudiencePreview() {
-	return useMutation(orpc.marketing.previewAudience.mutationOptions());
 }
 
 /**

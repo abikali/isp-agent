@@ -20,8 +20,3 @@ export const usePurchases = (organizationId?: string) => {
 
 	return { purchases, activePlan, hasSubscription, hasPurchase };
 };
-
-export const useUserPurchases = () => usePurchases();
-
-export const useOrganizationPurchases = (organizationId: string) =>
-	usePurchases(organizationId);

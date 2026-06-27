@@ -9,12 +9,12 @@ import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
+import { PhoneInput } from "@ui/components/phone-input";
 import {
 	isValidPhone,
-	PhoneInput,
 	stripPhone,
 	toInternationalPhone,
-} from "@ui/components/phone-input";
+} from "@ui/components/phone-input-utils";
 import {
 	Select,
 	SelectContent,

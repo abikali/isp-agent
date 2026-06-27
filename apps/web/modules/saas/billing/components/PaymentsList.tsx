@@ -59,7 +59,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@ui/components/select";
-import { Skeleton } from "@ui/components/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -2124,28 +2123,5 @@ export function PaymentsList() {
 				</DialogContent>
 			</Dialog>
 		</>
-	);
-}
-
-export function PaymentsListSkeleton() {
-	return (
-		<div className="space-y-6">
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-				{Array.from({ length: 4 }).map((_, i) => (
-					<Skeleton key={i} className="h-[88px] rounded-lg" />
-				))}
-			</div>
-			<Skeleton className="h-10 w-full" />
-			<div className="rounded-lg border bg-card p-4">
-				{Array.from({ length: 5 }).map((_, i) => (
-					<div key={i} className="flex items-center gap-4 py-3">
-						<Skeleton className="h-5 w-32" />
-						<Skeleton className="h-5 w-20" />
-						<Skeleton className="h-5 w-16" />
-						<Skeleton className="ml-auto h-5 w-16" />
-					</div>
-				))}
-			</div>
-		</div>
 	);
 }

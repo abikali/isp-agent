@@ -106,49 +106,6 @@ export function useCustomerGroups() {
 	return { groups: query.data?.groups ?? [], isLoading: query.isLoading };
 }
 
-// ─── Payments List (suspense) ───────────────────────────────────
-
-export function usePayments(filters: {
-	billingMonthId?: string;
-	collectorId?: string;
-	stoppedAccount?: boolean;
-	freeAccount?: boolean;
-	unreviewedOnly?: boolean;
-	reviewedOnly?: boolean;
-	noteCategory?: string;
-	amountMismatch?: "any" | "overpaid" | "underpaid";
-	groupName?: string;
-	search?: string;
-	dateFrom?: string;
-	dateTo?: string;
-	page?: number;
-	pageSize?: number;
-	refetchInterval?: number;
-}) {
-	const organizationId = useOrganizationId();
-	const { refetchInterval, ...queryFilters } = filters;
-
-	const query = useSuspenseQuery({
-		...orpc.billing.payments.list.queryOptions({
-			input: {
-				organizationId: organizationId ?? "",
-				...queryFilters,
-				page: queryFilters.page ?? 1,
-				pageSize: queryFilters.pageSize ?? 25,
-			},
-		}),
-		refetchInterval,
-	});
-
-	return {
-		payments: query.data.payments,
-		total: query.data.total,
-		page: query.data.page,
-		pageSize: query.data.pageSize,
-		totalPages: query.data.totalPages,
-	};
-}
-
 // ─── Payments List (non-suspense) ──────────────────────────────
 
 export function usePaymentsQuery(filters: {
@@ -393,26 +350,6 @@ export function useCollectorBalance(collectorId: string | null) {
 	);
 }
 
-export function useCollectorLedger(
-	collectorId: string | null,
-	filters?: { page?: number; pageSize?: number },
-) {
-	const organizationId = useOrganizationId();
-
-	return useQuery(
-		organizationId && collectorId
-			? orpc.billing.collectors.ledger.queryOptions({
-					input: {
-						organizationId,
-						collectorId,
-						page: filters?.page ?? 1,
-						pageSize: filters?.pageSize ?? 25,
-					},
-				})
-			: disabledQuery(["billing", "collectors", "ledger"]),
-	);
-}
-
 export function useCollectorStats(
 	collectorId?: string,
 	refetchInterval?: number,
@@ -489,10 +426,6 @@ export function useDeleteCollection() {
 }
 
 // ─── Request Location ───────────────────────────────────────
-
-export function useRequestLocation() {
-	return useMutation(orpc.billing.location.request.mutationOptions());
-}
 
 export function useNotifyLocationNeeded() {
 	return useMutation(orpc.billing.location.notifyNeeded.mutationOptions());
@@ -774,22 +707,6 @@ export function useUnvoidInvoice() {
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.customers.listInvoices.key(),
-			});
-		},
-	});
-}
-
-export function useUpdatePayment() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.billing.payments.update.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.payments.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.invoices.key(),
 			});
 		},
 	});

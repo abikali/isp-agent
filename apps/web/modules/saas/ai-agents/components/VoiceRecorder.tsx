@@ -1,3 +1,4 @@
+// biome-ignore-all lint/correctness/useExhaustiveDependencies: the recording effect is intentionally mount-only (re-running would restart audio capture)
 "use client";
 
 import { Button } from "@ui/components/button";
@@ -61,8 +62,7 @@ export function VoiceRecorder({
 	}, [onCancel]);
 
 	// Start recording on mount
-	// react-doctor-disable-next-line react-doctor/exhaustive-deps -- cleanup intentionally reads the latest ref.current (interval/recorder are created asynchronously after mount)
-	// biome-ignore lint/correctness/useExhaustiveDependencies: start once on mount
+	// react-doctor-disable-next-line react-doctor/exhaustive-deps -- mount-only recording effect; re-running would restart the recording
 	useEffect(() => {
 		// react-doctor-disable-next-line react-doctor/no-initialize-state -- startRecording is an async side effect (getUserMedia), not derivable initial state
 		startRecording();
@@ -146,10 +146,9 @@ export function VoiceRecorder({
 					{Array.from({ length: 20 }, (_, i) => (
 						<div
 							key={i}
-							suppressHydrationWarning
 							className="w-0.5 rounded-full bg-destructive/50"
 							style={{
-								height: `${6 + Math.sin(Date.now() / 200 + i) * 6}px`,
+								height: `${6 + Math.sin(i) * 6}px`,
 								animation: isRecording
 									? `pulse 0.5s ease-in-out ${i * 50}ms infinite alternate`
 									: "none",

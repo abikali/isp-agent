@@ -1,8 +1,8 @@
 "use client";
 
-import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
+import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 
 export function useAccessPoints(filters?: {
 	search?: string;
@@ -23,21 +23,4 @@ export function useAccessPoints(filters?: {
 	});
 
 	return { accessPoints: query.data?.accessPoints ?? [] };
-}
-
-export function useAccessPointsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.accessPoints.list.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["accessPoints", "list"]),
-	);
-
-	return {
-		accessPoints: query.data?.accessPoints ?? [],
-		isLoading: query.isLoading,
-	};
 }

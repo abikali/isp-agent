@@ -21,23 +21,6 @@ export function useWatchers() {
 	return { watchers: query.data?.watchers ?? [] };
 }
 
-export function useWatchersQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.watchers.list.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["watchers", "list"]),
-	);
-
-	return {
-		watchers: query.data?.watchers ?? [],
-		isLoading: query.isLoading,
-	};
-}
-
 export function useWatcher(watcherId: string) {
 	const organizationId = useOrganizationId();
 

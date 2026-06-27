@@ -256,6 +256,6 @@ function UnlockConfirmDialog({
 	);
 }
 
-export function BillingCycleManagerSkeleton() {
+function BillingCycleManagerSkeleton() {
 	return <Skeleton className="h-20 w-full rounded-xl" />;
 }

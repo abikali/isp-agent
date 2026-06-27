@@ -7,7 +7,7 @@ import { getBeirutDate } from "@shared/lib/format";
 
 // ─── Cycle Constants & Formatting ──────────────────────────────
 
-export const MONTH_SHORT = [
+const MONTH_SHORT = [
 	"Jan",
 	"Feb",
 	"Mar",
@@ -22,7 +22,7 @@ export const MONTH_SHORT = [
 	"Dec",
 ] as const;
 
-export const MONTH_NAMES = [
+const MONTH_NAMES = [
 	"January",
 	"February",
 	"March",
@@ -314,9 +314,7 @@ export function isAmountMismatch(payment: {
 }
 
 /** Determine the flag type for a payment, or null if normal. */
-export function getPaymentFlagType(
-	payment: FlaggablePayment,
-): PaymentFlagType | null {
+function getPaymentFlagType(payment: FlaggablePayment): PaymentFlagType | null {
 	if (payment.stoppedAccount) {
 		return "stopped";
 	}

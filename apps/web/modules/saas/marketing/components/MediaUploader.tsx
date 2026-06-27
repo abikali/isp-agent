@@ -20,6 +20,7 @@ import { useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 import { useCreateAssetUploadUrl } from "../hooks/use-marketing";
+import { isPreviewMediaUrl } from "./media-utils";
 
 type MediaKind = "image" | "video" | "document";
 
@@ -270,8 +271,4 @@ function kindExt(kind: MediaKind): string {
 		return "mp4";
 	}
 	return "pdf";
-}
-
-export function isPreviewMediaUrl(url: string): boolean {
-	return /(^|\.)scontent\.whatsapp\.net\//i.test(url.trim());
 }

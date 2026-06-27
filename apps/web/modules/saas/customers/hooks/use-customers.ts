@@ -114,23 +114,6 @@ export function useCustomerStats() {
 	return query.data;
 }
 
-export function useCustomerStatsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.customers.stats.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["customers", "stats"]),
-	);
-
-	return {
-		stats: query.data,
-		isLoading: query.isLoading,
-	};
-}
-
 // Every per-customer write — create, update, delete, sync, pin, location,
 // iRadius action — invalidates the whole `customers` namespace so the
 // list + detail + stats all refetch. One-liners via the shared factory;

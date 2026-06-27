@@ -48,6 +48,7 @@ export function ConnectionSettingsDialog({
 	// different connection id is shown). Adjusting state during render with a
 	// previous-value compare avoids the extra render hop of an init effect —
 	// see react.dev/learn/you-might-not-need-an-effect.
+	// react-doctor-disable-next-line react-doctor/rerender-state-only-in-handlers -- seededId is read during render below (connection.id !== seededId) to gate the re-seed; not a handler-only value
 	const [seededId, setSeededId] = useState<string | null>(null);
 	if (connection && connection.id !== seededId) {
 		setSeededId(connection.id);

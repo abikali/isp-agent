@@ -34,7 +34,6 @@ import {
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import {
-	ActivityIcon,
 	AlertTriangleIcon,
 	ArrowUpRightIcon,
 	CalendarXIcon,
@@ -944,25 +943,6 @@ function TopConsumersSkeleton() {
 							<Skeleton key={i} className="h-7 w-full" />
 						))}
 					</div>
-				</div>
-			</ContentCardSection>
-		</ContentCard>
-	);
-}
-
-export function IRadiusControlCenterEmpty() {
-	return (
-		<ContentCard>
-			<ContentCardSection>
-				<div className="flex flex-col items-center justify-center py-12 text-center">
-					<ActivityIcon className="size-10 text-muted-foreground/60" />
-					<h3 className="mt-3 text-base font-medium">
-						iRadius is offline
-					</h3>
-					<p className="mt-1 max-w-md text-sm text-muted-foreground">
-						Could not reach the iRadius MySQL through SSH. Check
-						credentials in the org's iRadius settings.
-					</p>
 				</div>
 			</ContentCardSection>
 		</ContentCard>

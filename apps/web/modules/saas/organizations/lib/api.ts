@@ -107,7 +107,7 @@ export const useFullOrganizationSuspense = (id: string) => {
 /*
  * Create organization
  */
-export const createOrganizationMutationKey = ["create-organization"] as const;
+const createOrganizationMutationKey = ["create-organization"] as const;
 export const useCreateOrganizationMutation = () => {
 	return useMutation({
 		mutationKey: createOrganizationMutationKey,
@@ -147,7 +147,7 @@ export const useCreateOrganizationMutation = () => {
 /*
  * Update organization
  */
-export const updateOrganizationMutationKey = ["update-organization"] as const;
+const updateOrganizationMutationKey = ["update-organization"] as const;
 export const useUpdateOrganizationMutation = () => {
 	return useMutation({
 		mutationKey: updateOrganizationMutationKey,

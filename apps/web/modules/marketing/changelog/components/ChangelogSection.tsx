@@ -16,6 +16,7 @@ export function ChangelogSection({ items }: { items: ChangelogItem[] }) {
 							title={formatDateInput(parseISO(item.date))}
 							suppressHydrationWarning
 						>
+							{/* react-doctor-disable-next-line react-doctor/rendering-hydration-mismatch-time -- relative time; the parent <small> already carries suppressHydrationWarning so the server/client divergence is intentional */}
 							{formatDistance(parseISO(item.date), new Date(), {
 								addSuffix: true,
 							})}

@@ -27,8 +27,8 @@ import { INTERVAL_OPTIONS, WATCHER_TYPES } from "../lib/constants";
 import {
 	type NotificationConfig,
 	NotificationSettings,
-	toApiNotificationConfig,
 } from "./NotificationSettings";
+import { toApiNotificationConfig } from "./notification-config";
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form create dialog; splitting would scatter shared form state
 export function CreateWatcherDialog({

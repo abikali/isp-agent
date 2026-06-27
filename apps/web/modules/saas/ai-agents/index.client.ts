@@ -20,7 +20,6 @@ export {
 	ConversationDetailPanel,
 } from "./components/ConversationDetailPanel";
 export { ConversationsHub } from "./components/ConversationsHub";
-export { ConversationsHubSkeleton } from "./components/ConversationsHubSkeleton";
 export { ConversationsList } from "./components/ConversationsList";
 export { ConversationsListPanel } from "./components/ConversationsListPanel";
 export { ConversationThread } from "./components/ConversationThread";
@@ -46,7 +45,6 @@ export {
 	useAgents,
 	useAgentsQuery,
 	useCreateAgent,
-	useDeleteAgent,
 	useUpdateAgent,
 } from "./hooks/use-agents";
 export {

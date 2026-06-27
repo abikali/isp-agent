@@ -9,7 +9,6 @@ export {
 	useApproveExpense,
 	useCreateExpense,
 	useCreateReceiptUploadUrl,
-	useExpenseStatsQuery,
 	useExpenses,
 	useRejectExpense,
 } from "./hooks/use-expenses";

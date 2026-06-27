@@ -19,7 +19,6 @@ export {
 export { SyncHistoryDialog } from "./components/SyncHistoryDialog";
 // Hooks
 export {
-	connectionsQueryOptions,
 	useConnectionsQuery,
 	useConnectionsQueryNonSuspense,
 	useDeleteConnectionMutation,

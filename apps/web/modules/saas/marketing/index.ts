@@ -3,7 +3,6 @@
 
 export {
 	CUSTOMER_VARIABLE_FIELDS,
-	countPlaceholders,
 	getTemplatePlaceholderCounts,
 	renderPlaceholderPreview,
 } from "./lib/template-placeholders";

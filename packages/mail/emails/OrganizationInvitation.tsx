@@ -67,4 +67,5 @@ OrganizationInvitation.PreviewProps = {
 	organizationName: "Acme Corp",
 };
 
+// react-doctor-disable-next-line deslop/unused-export -- default export consumed by the react-email preview/dev tooling (scans this dir for default exports + PreviewProps)
 export default OrganizationInvitation;

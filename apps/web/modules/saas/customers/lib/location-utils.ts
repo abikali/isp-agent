@@ -2,7 +2,7 @@
  * Threshold for considering a location request "recent" enough to warn
  * the admin before sending another one (to avoid spamming the customer).
  */
-export const RECENT_REQUEST_MS = 24 * 60 * 60 * 1000;
+const RECENT_REQUEST_MS = 24 * 60 * 60 * 1000;
 
 export function isLocationRequestRecent(
 	locationRequestedAt: Date | string | null | undefined,

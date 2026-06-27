@@ -1,9 +1,9 @@
 "use client";
 
 import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
-import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
+import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 
 export type ExpenseStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -31,18 +31,6 @@ export function useExpenses(filters: {
 		totalAmount: query.data?.totalAmount ?? 0,
 		totalPages: query.data?.totalPages ?? 1,
 	};
-}
-
-export function useExpenseStatsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.expenses.stats.queryOptions({ input: { organizationId } })
-			: disabledQuery(["expenses", "stats"]),
-	);
-
-	return { stats: query.data, isLoading: query.isLoading };
 }
 
 export const useCreateExpense = createInvalidatingMutation(

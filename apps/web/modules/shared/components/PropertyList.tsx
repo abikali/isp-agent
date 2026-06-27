@@ -1,4 +1,3 @@
-import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -87,32 +86,6 @@ function PropertyItem({ label, value, mono, copyable }: PropertyItem) {
 						</button>
 					)}
 			</dd>
-		</div>
-	);
-}
-
-interface PropertyListSkeletonProps {
-	count?: number;
-	columns?: 2 | 3 | 4;
-}
-
-export function PropertyListSkeleton({
-	count = 6,
-	columns = 3,
-}: PropertyListSkeletonProps) {
-	return (
-		<div
-			className={cn(
-				"grid gap-x-4 gap-y-3 sm:gap-x-8",
-				columnClass[columns],
-			)}
-		>
-			{Array.from({ length: count }).map((_, i) => (
-				<div key={`prop-skel-${i}`} className="space-y-1">
-					<Skeleton className="h-3 w-16" />
-					<Skeleton className="h-4 w-24" />
-				</div>
-			))}
 		</div>
 	);
 }

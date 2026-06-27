@@ -201,7 +201,3 @@ export function formatNumber(value: number | bigint): string {
 	const num = typeof value === "bigint" ? Number(value) : value;
 	return num.toLocaleString();
 }
-
-export function truncate(str: string, max: number): string {
-	return str.length > max ? `${str.slice(0, max)}...` : str;
-}

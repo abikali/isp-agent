@@ -5,7 +5,6 @@ export { BillingSyncSettings } from "./components/BillingSyncSettings";
 export { ChangeEmailForm } from "./components/ChangeEmailForm";
 export { ChangeNameForm } from "./components/ChangeNameForm";
 export { ChangePasswordForm } from "./components/ChangePassword";
-export { ConnectedAccountsBlock } from "./components/ConnectedAccountsBlock";
 export { CustomerPortalButton } from "./components/CustomerPortalButton";
 export { DeleteAccountForm } from "./components/DeleteAccountForm";
 export { ExportDataForm } from "./components/ExportDataForm";

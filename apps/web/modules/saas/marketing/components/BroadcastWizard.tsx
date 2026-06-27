@@ -42,7 +42,7 @@ import {
 	TriangleAlertIcon,
 	UsersIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	useAudiencePreviewQuery,
@@ -58,8 +58,9 @@ import {
 	headerFormatToMediaKind,
 	type TemplateHeaderFormat,
 } from "../lib/template-placeholders";
-import { isPreviewMediaUrl, MediaUploader } from "./MediaUploader";
+import { MediaUploader } from "./MediaUploader";
 import { MultiSelectFilter } from "./MultiSelectFilter";
+import { isPreviewMediaUrl } from "./media-utils";
 import { WhatsAppPreview } from "./WhatsAppPreview";
 
 type AudienceTab = "isp_customers" | "salti_group" | "csv" | "manual";
@@ -121,10 +122,12 @@ const STEPS: { id: Step; label: string; icon: typeof UsersIcon }[] = [
 	{ id: "review", label: "Review", icon: SendIcon },
 ];
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive 4-step broadcast wizard; the steps share one state graph, splitting it scatters that flow without making it clearer
 export function BroadcastWizard({
 	organizationSlug,
 	initial,
 	mode = "create",
+	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- the slices (audience filters, template, variable mappings, name) are independent and edited from unrelated steps; one reducer would couple them artificially
 }: BroadcastWizardProps) {
 	const organizationId = useOrganizationId();
 	const navigate = useNavigate();
@@ -145,7 +148,7 @@ export function BroadcastWizard({
 	const update = useUpdateBroadcast();
 
 	const [step, setStep] = useState<Step>("audience");
-	const [audienceTab, setAudienceTab] = useState<AudienceTab>(
+	const [audienceTab, setAudienceTab] = useState<AudienceTab>(() =>
 		coerceAudienceTab(initial?.audience),
 	);
 
@@ -157,13 +160,13 @@ export function BroadcastWizard({
 		initialCustomerFilters,
 	);
 
-	const [groupIds, setGroupIds] = useState<string[]>(
+	const [groupIds, setGroupIds] = useState<string[]>(() =>
 		coerceGroupIds(initial?.audience),
 	);
-	const [manualPhones, setManualPhones] = useState<string>(
+	const [manualPhones, setManualPhones] = useState<string>(() =>
 		coerceManualPhones(initial?.audience),
 	);
-	const [csvText, setCsvText] = useState<string>(
+	const [csvText, setCsvText] = useState<string>(() =>
 		coerceCsvText(initial?.audience),
 	);
 
@@ -216,18 +219,27 @@ export function BroadcastWizard({
 	const headerMediaKind = headerFormatToMediaKind(headerInfo.format);
 
 	// Keep mapping arrays sized to the template's placeholder count when the
-	// template changes. Preserves operator-entered values for the first N
-	// slots, drops/adds extra rows.
-	useEffect(() => {
-		if (!selectedTemplate) {
-			return;
-		}
+	// template changes — including when it first resolves from the async
+	// templates query in edit mode. Preserves operator-entered values for the
+	// first N slots, drops/adds extra rows. Adjusting during render (instead of
+	// in an effect) avoids the extra commit + flash and keeps the resize in sync
+	// with the same render that surfaced the new template.
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	// react-doctor-disable-next-line react-doctor/rerender-state-only-in-handlers -- sizedForTemplate is read during render below (templateSig !== sizedForTemplate) to gate the resize; not a handler-only value
+	const [sizedForTemplate, setSizedForTemplate] = useState<string | null>(
+		null,
+	);
+	const templateSig = selectedTemplate
+		? `${selectedTemplate.name}:${selectedTemplate.language}`
+		: null;
+	if (templateSig !== null && templateSig !== sizedForTemplate) {
+		setSizedForTemplate(templateSig);
 		setHeaderMappings((prev) => resizeMappings(prev, counts.header));
 		setBodyMappings((prev) => resizeMappings(prev, counts.body));
 		if (!headerMediaKind) {
 			setHeaderMediaUrl("");
 		}
-	}, [counts.header, counts.body, headerMediaKind, selectedTemplate]);
+	}
 
 	const [debouncedManualPhones] = useDebouncedValue(manualPhones, {
 		wait: 300,
@@ -253,11 +265,10 @@ export function BroadcastWizard({
 			};
 		}
 		if (audienceTab === "salti_group") {
-			const names = groupIds
-				.map(
-					(id) => groups.find((g) => String(g.id) === id)?.name ?? "",
-				)
-				.filter(Boolean);
+			const names = groupIds.flatMap((id) => {
+				const name = groups.find((g) => String(g.id) === id)?.name;
+				return name ? [name] : [];
+			});
 			return {
 				type: "salti_group",
 				groupIds,
@@ -267,16 +278,16 @@ export function BroadcastWizard({
 		if (audienceTab === "manual") {
 			return {
 				type: "manual",
-				phones: debouncedManualPhones
-					.split(/[\s,;]+/)
-					.map((s) => s.trim())
-					.filter(Boolean),
+				phones: debouncedManualPhones.split(/[\s,;]+/).flatMap((s) => {
+					const trimmed = s.trim();
+					return trimmed ? [trimmed] : [];
+				}),
 			};
 		}
-		const lines = debouncedCsvText
-			.split("\n")
-			.map((l) => l.trim())
-			.filter(Boolean);
+		const lines = debouncedCsvText.split("\n").flatMap((l) => {
+			const trimmed = l.trim();
+			return trimmed ? [trimmed] : [];
+		});
 		return {
 			type: "csv",
 			rows: lines.flatMap((l) => {
@@ -1302,17 +1313,7 @@ function VariablesStep({
 		return <p>Select a template first.</p>;
 	}
 	const ispMode = audienceTab === "isp_customers";
-
-	const updateMapping = (
-		list: VariableMapping[],
-		set: (m: VariableMapping[]) => void,
-		index: number,
-		patch: Partial<VariableMapping>,
-	) => {
-		const copy = [...list];
-		copy[index] = { ...copy[index], ...patch } as VariableMapping;
-		set(copy);
-	};
+	const namePlaceholder = `${template.name} – ${new Date().toLocaleDateString()}`;
 
 	const renderMappingRow = (
 		mapping: VariableMapping,
@@ -1321,6 +1322,7 @@ function VariablesStep({
 		set: (m: VariableMapping[]) => void,
 		label: string,
 	) => (
+		// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- positional template placeholder slots ({{1}}, {{2}}…); the index is the stable identity and rows are only appended/dropped at the end, never reordered
 		<div
 			key={`${label}-${index}`}
 			className="grid grid-cols-1 gap-2 rounded border bg-card p-3 sm:grid-cols-[120px_140px_1fr]"
@@ -1383,7 +1385,7 @@ function VariablesStep({
 				<Input
 					value={broadcastName}
 					onChange={(e) => setBroadcastName(e.target.value)}
-					placeholder={`${template.name} – ${new Date().toLocaleDateString()}`}
+					placeholder={namePlaceholder}
 				/>
 			</Field>
 
@@ -1472,6 +1474,8 @@ function ReviewStep({
 		return <p>Select a template first.</p>;
 	}
 
+	const defaultName = `${template.name} – ${new Date().toLocaleDateString()}`;
+
 	return (
 		<div className="space-y-4">
 			<div className="grid gap-4 sm:grid-cols-2">
@@ -1480,9 +1484,7 @@ function ReviewStep({
 					rows={[
 						{
 							label: "Name",
-							value:
-								broadcastName ||
-								`${template.name} – ${new Date().toLocaleDateString()}`,
+							value: broadcastName || defaultName,
 						},
 						{ label: "Template", value: template.name },
 						{ label: "Language", value: template.language },
@@ -1532,6 +1534,7 @@ function ReviewStep({
 					<div className="font-medium">Variable mappings</div>
 					<dl className="mt-2 space-y-1 text-xs">
 						{headerMappings.map((m, i) => (
+							// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- positional header placeholder rows ({{1}}, {{2}}…); index is the stable identity, never reordered
 							<div
 								key={`h-${i}`}
 								className="flex items-baseline gap-2"
@@ -1543,6 +1546,7 @@ function ReviewStep({
 							</div>
 						))}
 						{bodyMappings.map((m, i) => (
+							// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- positional body placeholder rows ({{1}}, {{2}}…); index is the stable identity, never reordered
 							<div
 								key={`b-${i}`}
 								className="flex items-baseline gap-2"
@@ -1587,6 +1591,17 @@ function ReviewCard({
 }
 
 // ── helpers ──────────────────────────────────────────────────────────
+
+function updateMapping(
+	list: VariableMapping[],
+	set: (m: VariableMapping[]) => void,
+	index: number,
+	patch: Partial<VariableMapping>,
+): void {
+	const copy = [...list];
+	copy[index] = { ...copy[index], ...patch } as VariableMapping;
+	set(copy);
+}
 
 function summarize(m: VariableMapping): string {
 	if (m.kind === "static") {

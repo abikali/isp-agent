@@ -1,3 +1,4 @@
+// biome-ignore-all lint/correctness/useExhaustiveDependencies: the route-change menu-close effect intentionally depends only on pathname (closing the mobile menu on navigation is a real side effect)
 "use client";
 
 import { config } from "@repo/config";
@@ -134,7 +135,6 @@ export function NavBar() {
 	}, []);
 
 	// react-doctor-disable-next-line react-doctor/no-derived-state-effect -- closing the mobile menu in response to navigation is a real side effect; a key prop would remount this persistent nav and lose scroll/active-section state
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Intentionally close mobile menu on route change only
 	useEffect(() => {
 		setMobileMenuOpen(false);
 	}, [pathname]);

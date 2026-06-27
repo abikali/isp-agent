@@ -4,7 +4,7 @@ import type { SaltiTemplate } from "@repo/integrations";
  * Count `{{N}}` placeholders in a template string.
  * Salti/WhatsApp templates use 1-based numeric placeholders like {{1}} {{2}}.
  */
-export function countPlaceholders(text: string | undefined): number {
+function countPlaceholders(text: string | undefined): number {
 	if (!text) {
 		return 0;
 	}

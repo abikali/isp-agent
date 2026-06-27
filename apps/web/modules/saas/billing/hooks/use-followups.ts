@@ -39,8 +39,3 @@ export const useUpdateFollowup = createInvalidatingMutation(
 	() => orpc.followups.update.mutationOptions(),
 	() => orpc.followups.key(),
 );
-
-export const useDeleteFollowup = createInvalidatingMutation(
-	() => orpc.followups.delete.mutationOptions(),
-	() => orpc.followups.key(),
-);

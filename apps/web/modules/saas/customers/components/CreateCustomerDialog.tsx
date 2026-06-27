@@ -98,6 +98,7 @@ function PhoneFieldsCreate({ form }: { form: any }) {
 							updatePhones([
 								...phones,
 								{
+									// react-doctor-disable-next-line react-doctor/rendering-hydration-mismatch-time -- crypto.randomUUID() runs inside the onClick handler, not during render; no hydration mismatch
 									id: crypto.randomUUID(),
 									number: "",
 									primary: false,

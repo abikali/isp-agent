@@ -66,4 +66,5 @@ MemberJoined.PreviewProps = {
 	viewUrl: "https://libancom.co/app/acme/settings/members",
 };
 
+// react-doctor-disable-next-line deslop/unused-export -- default export consumed by the react-email preview/dev tooling (scans this dir for default exports + PreviewProps)
 export default MemberJoined;

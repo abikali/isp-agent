@@ -3,7 +3,7 @@ import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
 import type React from "react";
 
-export const badge = cva(
+const badge = cva(
 	[
 		"inline-flex",
 		"items-center",

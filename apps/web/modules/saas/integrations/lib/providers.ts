@@ -74,22 +74,6 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
 ];
 
 /**
- * Get provider by key.
- */
-export function getProvider(key: string): IntegrationProvider | undefined {
-	return INTEGRATION_PROVIDERS.find((p) => p.key === key);
-}
-
-/**
- * Get providers by category.
- */
-export function getProvidersByCategory(
-	category: IntegrationProvider["category"],
-): IntegrationProvider[] {
-	return INTEGRATION_PROVIDERS.filter((p) => p.category === category);
-}
-
-/**
  * Provider categories for UI grouping.
  */
 export const PROVIDER_CATEGORIES = {

@@ -25,14 +25,3 @@ export const EMPLOYEE_DEPARTMENT_OPTIONS = [
 	{ value: "MANAGEMENT", label: "Management" },
 	{ value: "FIELD_OPS", label: "Field Operations" },
 ] as const;
-
-export const EMPLOYEE_CSV_HEADERS = [
-	"Name",
-	"Email",
-	"Phone",
-	"Position",
-	"Department",
-	"Hire Date",
-	"Station",
-	"Notes",
-] as const;

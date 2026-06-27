@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/useSemanticElements: shadcn/ui Field uses role="group" for form-field grouping; no clean native equivalent (<fieldset> changes layout/semantics)
 "use client";
 
 import { Label } from "@ui/components/label";
@@ -36,7 +37,6 @@ function Field({
 }: React.ComponentProps<"div"> & VariantProps<typeof fieldVariants>) {
 	return (
 		// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- role="group" has no clean native HTML equivalent (<address>/<fieldset> change semantics); intentional per shadcn/ui Field
-		// biome-ignore lint/a11y/useSemanticElements: Official shadcn/ui Field component uses role="group" for form field grouping
 		<div
 			role="group"
 			data-slot="field"

@@ -9,9 +9,7 @@ export {
 	type InstallationStatus,
 	useAddonDefaultsQuery,
 	useApproveInstallations,
-	useCreateInstallation,
 	useDenyInstallation,
-	useInstallationStatsQuery,
 	useInstallations,
 	useUpdatePendingInstallation,
 } from "./hooks/use-installations";

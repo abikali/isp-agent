@@ -50,10 +50,6 @@ export function formatNumber(value: number): string {
 	return new Intl.NumberFormat("en-US").format(value);
 }
 
-export function formatPercent(value: number, fractionDigits = 0): string {
-	return `${value.toFixed(fractionDigits)}%`;
-}
-
 /**
  * Percent formatter that never lies about progress:
  *   0          → "0%"

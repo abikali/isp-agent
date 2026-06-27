@@ -164,15 +164,3 @@ export function useDealerSyncStatus(operationId: string | null) {
 		},
 	});
 }
-
-export function useSetActiveDealer() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.admin.dealers.setActive.mutationOptions(),
-		onSuccess: () => {
-			// Invalidate everything since dealer scope affects all data
-			queryClient.invalidateQueries();
-		},
-	});
-}

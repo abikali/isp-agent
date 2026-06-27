@@ -36,8 +36,8 @@ import { ExecutionHistory } from "./ExecutionHistory";
 import {
 	type NotificationConfig,
 	NotificationSettings,
-	toApiNotificationConfig,
 } from "./NotificationSettings";
+import { toApiNotificationConfig } from "./notification-config";
 import { WatcherStatusBadge } from "./WatcherStatusBadge";
 
 export function WatcherDetail({

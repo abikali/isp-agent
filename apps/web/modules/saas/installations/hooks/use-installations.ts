@@ -47,20 +47,6 @@ export function useInstallations(filters: InstallationFilters) {
 	};
 }
 
-export function useInstallationStatsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.installations.stats.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["installations", "stats"]),
-	);
-
-	return { stats: query.data, isLoading: query.isLoading };
-}
-
 export function useAddonDefaultsQuery() {
 	const organizationId = useOrganizationId();
 
@@ -77,11 +63,6 @@ export function useAddonDefaultsQuery() {
 		realIpPrice: query.data?.realIpPrice ?? 0,
 	};
 }
-
-export const useCreateInstallation = createInvalidatingMutation(
-	() => orpc.installations.create.mutationOptions(),
-	() => orpc.installations.key(),
-);
 
 export const useUpdatePendingInstallation = createInvalidatingMutation(
 	() => orpc.installations.updatePending.mutationOptions(),

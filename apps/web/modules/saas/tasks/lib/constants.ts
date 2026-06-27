@@ -22,14 +22,6 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
 	CANCELLED: "bg-gray-400",
 };
 
-export const TASK_STATUS_TEXT_COLORS: Record<string, string> = {
-	OPEN: "text-blue-700 dark:text-blue-400",
-	IN_PROGRESS: "text-amber-700 dark:text-amber-400",
-	ON_HOLD: "text-orange-700 dark:text-orange-400",
-	COMPLETED: "text-emerald-700 dark:text-emerald-400",
-	CANCELLED: "text-gray-500 dark:text-gray-400",
-};
-
 export const TASK_STATUS_BG_COLORS: Record<string, string> = {
 	OPEN: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
 	IN_PROGRESS:
@@ -55,13 +47,6 @@ export const TASK_PRIORITY_OPTIONS = [
 	{ value: "HIGH", label: "High" },
 	{ value: "URGENT", label: "Urgent" },
 ] as const;
-
-export const TASK_PRIORITY_COLORS: Record<string, string> = {
-	LOW: "bg-slate-400",
-	MEDIUM: "bg-blue-500",
-	HIGH: "bg-orange-500",
-	URGENT: "bg-red-500",
-};
 
 export const TASK_PRIORITY_BG_COLORS: Record<string, string> = {
 	LOW: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700",
@@ -92,28 +77,11 @@ export const TASK_CATEGORY_OPTIONS = [
 	{ value: "UNINSTALL", label: "Uninstall" },
 ] as const;
 
-export const TASK_CATEGORY_ICONS: Record<string, string> = {
-	INSTALLATION: "Cable",
-	MAINTENANCE: "Wrench",
-	REPLACEMENT: "Repeat",
-	REPAIR: "Hammer",
-	SUPPORT: "Headphones",
-	BILLING: "Receipt",
-	GENERAL: "FileText",
-	UNINSTALL: "PackageMinus",
-};
-
 export const TASK_SOURCE_LABELS: Record<string, string> = {
 	MANUAL: "Manual",
 	AI_ESCALATION: "AI Escalation",
 	LEGACY: "Legacy",
 };
-
-export const TASK_SOURCE_OPTIONS = [
-	{ value: "MANUAL", label: "Manual" },
-	{ value: "AI_ESCALATION", label: "AI Escalation" },
-	{ value: "LEGACY", label: "Legacy" },
-] as const;
 
 export const FOLLOW_UP_STATUS_LABELS: Record<string, string> = {
 	pending: "Pending",

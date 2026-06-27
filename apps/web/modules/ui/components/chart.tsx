@@ -135,7 +135,11 @@ function ChartTooltipContent({
 	}) {
 	const { config } = useChart();
 
-	const tooltipLabel = React.useMemo(() => {
+	if (!active || !payload?.length) {
+		return null;
+	}
+
+	const tooltipLabel = (() => {
 		if (hideLabel || !payload?.length) {
 			return null;
 		}
@@ -161,19 +165,7 @@ function ChartTooltipContent({
 		}
 
 		return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-	}, [
-		label,
-		labelFormatter,
-		payload,
-		hideLabel,
-		labelClassName,
-		config,
-		labelKey,
-	]);
-
-	if (!active || !payload?.length) {
-		return null;
-	}
+	})();
 
 	const nestLabel = payload.length === 1 && indicator !== "dot";
 
@@ -187,8 +179,8 @@ function ChartTooltipContent({
 		>
 			{!nestLabel ? tooltipLabel : null}
 			<div className="grid gap-1.5">
+				{/* react-doctor-disable-next-line react-doctor/js-combine-iterations -- chart payload is a handful of series; the filtered index is passed to the user formatter, so collapsing the passes would change behavior */}
 				{payload
-					// react-doctor-disable-next-line react-doctor/js-combine-iterations -- chart payload is a handful of series; the filtered index is passed to the user formatter, so collapsing the passes would change behavior
 					.filter((item) => item.type !== "none")
 					.map((item, index) => {
 						const key = `${nameKey || item.name || item.dataKey || "value"}`;
@@ -318,8 +310,8 @@ function ChartLegendContent({
 				className,
 			)}
 		>
+			{/* react-doctor-disable-next-line react-doctor/js-combine-iterations -- chart legend payload is a handful of series; the extra pass is negligible */}
 			{payload
-				// react-doctor-disable-next-line react-doctor/js-combine-iterations -- chart legend payload is a handful of series; the extra pass is negligible
 				.filter((item) => item.type !== "none")
 				.map((item) => {
 					const key = `${nameKey || item.dataKey || "value"}`;

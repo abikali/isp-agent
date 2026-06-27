@@ -39,19 +39,3 @@ export function getStorageImageUrl(
 		.join("/");
 	return `/image-proxy/${bucket}/${encodedPath}`;
 }
-
-/**
- * Converts a storage path to a CSS-safe background-image URL.
- * Returns undefined if no path is provided.
- *
- * @param path - The storage path or URL
- * @param bucket - Optional bucket name (defaults to avatars bucket)
- * @returns A url() string for CSS or undefined
- */
-export function getStorageBackgroundUrl(
-	path: string | null | undefined,
-	bucket: string = avatarsBucket,
-): string | undefined {
-	const url = getStorageImageUrl(path, bucket);
-	return url ? `url(${url})` : undefined;
-}

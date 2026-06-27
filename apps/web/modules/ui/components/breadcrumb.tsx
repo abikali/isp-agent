@@ -1,3 +1,5 @@
+// biome-ignore-all lint/a11y/useFocusableInteractive: BreadcrumbPage uses role="link" for the current (non-navigable) page label — shadcn convention, not an interactive link
+// biome-ignore-all lint/a11y/useSemanticElements: BreadcrumbPage is intentionally a span with role/aria-current, not an <a> (it's the current page, not a link)
 import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@ui/lib";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
@@ -74,8 +76,6 @@ const BreadcrumbPage = ({
 	ref?: React.Ref<HTMLSpanElement>;
 }) => (
 	// react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- BreadcrumbPage is the current (non-navigable) page label, intentionally a span with aria-current/aria-disabled, not an <a>
-	// biome-ignore lint/a11y/useFocusableInteractive: BreadcrumbPage represents the current page, not navigable — span+role pattern is the shadcn convention
-	// biome-ignore lint/a11y/useSemanticElements: BreadcrumbPage is intentionally not an <a> — it's the current page label, not a link
 	<span
 		ref={ref}
 		role="link"

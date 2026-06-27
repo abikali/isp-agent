@@ -13,7 +13,7 @@ import { toast } from "sonner";
 /**
  * Query options for fetching integration connections.
  */
-export function connectionsQueryOptions(organizationId: string) {
+function connectionsQueryOptions(organizationId: string) {
 	return orpc.integrations.listConnections.queryOptions({
 		input: { organizationId },
 	});
@@ -130,7 +130,7 @@ export function useSyncContactsMutation() {
 /**
  * Query options for fetching sync history.
  */
-export function syncHistoryQueryOptions(connectionId: string, limit = 10) {
+function syncHistoryQueryOptions(connectionId: string, limit = 10) {
 	return orpc.integrations.listSyncHistory.queryOptions({
 		input: { connectionId, limit },
 	});

@@ -24,7 +24,6 @@ export {
 	useGroupsQuery,
 	useIntegration,
 	useResendBroadcast,
-	useTemplates,
 	useTemplatesQuery,
 	useTestConnection,
 	useUpdateBroadcast,

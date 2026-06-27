@@ -90,18 +90,6 @@ export function useWorkerStockQuery(employeeId: string | null) {
 	};
 }
 
-export function useStockStatsQuery() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.stock.stats.queryOptions({ input: { organizationId } })
-			: disabledQuery(["stock", "stats"]),
-	);
-
-	return { stats: query.data, isLoading: query.isLoading };
-}
-
 export const useCreateStockItem = createInvalidatingMutation(
 	() => orpc.stock.createItem.mutationOptions(),
 	() => orpc.stock.key(),

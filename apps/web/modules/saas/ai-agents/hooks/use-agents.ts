@@ -64,19 +64,6 @@ export function useUpdateAgent() {
 	});
 }
 
-export function useDeleteAgent() {
-	const queryClient = useQueryClient();
-
-	return useMutation({
-		...orpc.aiAgents.deleteAgent.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.aiAgents.listAgents.key(),
-			});
-		},
-	});
-}
-
 export function useGenerateSystemPrompt() {
 	return useMutation(orpc.aiAgents.generateSystemPrompt.mutationOptions());
 }

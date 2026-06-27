@@ -14,11 +14,11 @@ export {
 export {
 	DataState,
 	DefaultEmptyState,
-	EmptyStates,
 	ErrorState,
 	LoadingState,
 	StateCard,
 } from "./components/DataState";
+export { EmptyStates } from "./components/EmptyStates";
 export { Footer } from "./components/Footer";
 // Components - Navigation
 export { NotificationBell } from "./components/NotificationBell";
@@ -29,5 +29,4 @@ export { Pagination } from "./components/Pagination";
 export { SettingsItem } from "./components/SettingsItem";
 export { SettingsList } from "./components/SettingsList";
 export { SidebarContentLayout } from "./components/SidebarContentLayout";
-export { TabGroup } from "./components/TabGroup";
 export { UserMenu } from "./components/UserMenu";

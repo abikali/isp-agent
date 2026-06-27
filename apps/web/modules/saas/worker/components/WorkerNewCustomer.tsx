@@ -16,12 +16,12 @@ import {
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,
 } from "../hooks/use-worker";
+import { InstallItemRows } from "./InstallItemRows";
 import {
-	InstallItemRows,
 	type InstallLine,
 	installLinesTotal,
 	linesToPayload,
-} from "./InstallItemRows";
+} from "./install-lines";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (

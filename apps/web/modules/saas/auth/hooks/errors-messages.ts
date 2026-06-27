@@ -13,7 +13,7 @@ type OAuthErrorCodes =
 /**
  * Auth error messages map - includes both Better Auth and custom OAuth error codes
  */
-export const AUTH_ERROR_MESSAGES: Partial<
+const AUTH_ERROR_MESSAGES: Partial<
 	Record<keyof AuthClientErrorCodes | OAuthErrorCodes, string>
 > = {
 	INVALID_EMAIL_OR_PASSWORD: "Invalid email or password",

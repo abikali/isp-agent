@@ -17,6 +17,5 @@ export {
 	useDealers,
 	useDealersQuery,
 	useDeleteDealer,
-	useSetActiveDealer,
 	useUpdateDealer,
 } from "./hooks/use-dealers";

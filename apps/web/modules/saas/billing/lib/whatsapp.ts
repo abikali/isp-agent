@@ -15,16 +15,3 @@ export function formatWhatsAppLink(
 			: `961${digits}`;
 	return `https://wa.me/${normalized}`;
 }
-
-export function formatWhatsAppReceiptLink(
-	phone: string | null | undefined,
-	customerName: string,
-	amount: number,
-): string | null {
-	const baseLink = formatWhatsAppLink(phone);
-	if (!baseLink) {
-		return null;
-	}
-	const message = `Thank you ${customerName}! Payment of $${amount.toFixed(2)} received.`;
-	return `${baseLink}?text=${encodeURIComponent(message)}`;
-}

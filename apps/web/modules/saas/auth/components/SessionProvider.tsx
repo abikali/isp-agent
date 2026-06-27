@@ -19,8 +19,8 @@ export function SessionProvider({
 	const queryClient = useQueryClient();
 
 	// Populate React Query cache with initial session on mount
-	// react-doctor-disable-next-line react-doctor/no-event-handler -- hydrates the React Query cache from the SSR-provided initialSession prop; not driven by a user event
 	useEffect(() => {
+		// react-doctor-disable-next-line react-doctor/no-event-handler -- hydrates the React Query cache from the SSR-provided initialSession prop; not driven by a user event
 		if (initialSession) {
 			queryClient.setQueryData(authQueryKeys.session(), initialSession);
 		}

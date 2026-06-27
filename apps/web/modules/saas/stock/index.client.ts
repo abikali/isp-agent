@@ -18,7 +18,6 @@ export {
 	useStockItems,
 	useStockItemsQuery,
 	useStockLogs,
-	useStockStatsQuery,
 	useUpdateStockItem,
 	useWorkerStockQuery,
 } from "./hooks/use-stock";

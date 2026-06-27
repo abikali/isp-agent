@@ -24,5 +24,4 @@ export {
 	useUpdateWatcher,
 	useWatcher,
 	useWatchers,
-	useWatchersQuery,
 } from "./hooks/use-watchers";

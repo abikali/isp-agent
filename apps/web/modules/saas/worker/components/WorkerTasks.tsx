@@ -33,11 +33,8 @@ import {
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useMyStockQuery, useMyTasksQuery } from "../hooks/use-worker";
-import {
-	InstallItemRows,
-	type InstallLine,
-	linesToPayload,
-} from "./InstallItemRows";
+import { InstallItemRows } from "./InstallItemRows";
+import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
 
 type WorkerTask = ReturnType<typeof useMyTasksQuery>["tasks"][number];
