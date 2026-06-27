@@ -143,10 +143,13 @@ export function useDeleteRoleMutation(organizationId: string) {
 
 	return useMutation({
 		mutationKey: ["delete-role", organizationId],
-		mutationFn: async (roleId: string) => {
+		mutationFn: async (roleName: string) => {
+			// Better Auth's deleteRole looks up by the `id` column when given
+			// `roleId`. The UI works with role names, so delete by `roleName`
+			// (matched against the `role` column) instead.
 			const { error } = await authClient.organization.deleteRole({
 				organizationId,
-				roleId,
+				roleName,
 			});
 
 			if (error) {

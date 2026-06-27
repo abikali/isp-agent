@@ -2,6 +2,7 @@
 
 import { isValidEmail } from "@repo/api/lib/validation";
 import { CUSTOMER_STATUS_LABELS } from "@saas/customers";
+import { useOrganizationRolesQuery } from "@saas/organizations/client";
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from "@saas/tasks";
 import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
 import { FieldGroup } from "@shared/components/FieldGroup";
@@ -157,10 +158,12 @@ export function EmployeeDetail({
 	const updateEmployee = useUpdateEmployee();
 	const deleteEmployee = useDeleteEmployee();
 	const inviteEmployee = useInviteEmployee();
+	const { data: orgRoles } = useOrganizationRolesQuery(organizationId);
+	const inviteRoleOptions = orgRoles?.roles ?? [];
 	const [showAssignStations, setShowAssignStations] = useState(false);
 	const [showInvite, setShowInvite] = useState(false);
 	const [showSyncPreview, setShowSyncPreview] = useState(false);
-	const [inviteRole, setInviteRole] = useState("collector");
+	const [inviteRole, setInviteRole] = useState("");
 	const [inviteUsername, setInviteUsername] = useState("");
 
 	const { data } = useSuspenseQuery(
@@ -523,18 +526,18 @@ export function EmployeeDetail({
 								onValueChange={setInviteRole}
 							>
 								<SelectTrigger>
-									<SelectValue />
+									<SelectValue placeholder="Select a role" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="collector">
-										Collector
-									</SelectItem>
-									<SelectItem value="field_tech">
-										Field Technician
-									</SelectItem>
-									<SelectItem value="manager">
-										Manager
-									</SelectItem>
+									{inviteRoleOptions.map((role) => (
+										<SelectItem
+											key={role.id}
+											value={role.role}
+											className="capitalize"
+										>
+											{role.role}
+										</SelectItem>
+									))}
 								</SelectContent>
 							</Select>
 						</div>
@@ -543,7 +546,8 @@ export function EmployeeDetail({
 							className="w-full"
 							disabled={
 								inviteEmployee.isPending ||
-								!inviteUsername.trim()
+								!inviteUsername.trim() ||
+								!inviteRole
 							}
 							onClick={() => {
 								if (!organizationId) {
@@ -552,10 +556,7 @@ export function EmployeeDetail({
 								const mutation = inviteEmployee.mutateAsync({
 									organizationId,
 									employeeId,
-									role: inviteRole as
-										| "collector"
-										| "field_tech"
-										| "manager",
+									role: inviteRole,
 									username: inviteUsername.trim(),
 								});
 

@@ -102,7 +102,7 @@ const PROFILE_ROLE_MAP: Record<number, string> = {
 	1: "manager", // Administrator
 	3: "manager", // Viewer
 	6: "collector", // Collector
-	7: "field_tech", // Help Desk
+	7: "worker", // Help Desk
 	8: "manager", // Read Only
 };
 
@@ -113,7 +113,7 @@ const PROFILE_ROLE_MAP: Record<number, string> = {
  * `packages/auth/permissions/roles.ts`. It is duplicated (not imported) because
  * `@repo/auth` depends on `@repo/jobs`, so importing `@repo/auth` here would
  * create a circular workspace dependency. Keep the two in lockstep — drift here
- * is what silently strips field-tech permissions (e.g. customers:create,
+ * is what silently strips worker permissions (e.g. customers:create,
  * servicePlans:read, groups:read) from synced orgs.
  */
 const ISP_ROLE_PERMISSIONS: Record<string, Record<string, string[]>> = {
@@ -124,7 +124,7 @@ const ISP_ROLE_PERMISSIONS: Record<string, Record<string, string[]>> = {
 		followups: ["read", "update"],
 		groups: ["read"],
 	},
-	field_tech: {
+	worker: {
 		customers: ["read", "create"],
 		servicePlans: ["read"],
 		tasks: ["create", "read:own", "update:own"],

@@ -392,8 +392,8 @@ export const ISP_ROLE_TEMPLATES = {
 			groups: ["read"],
 		},
 	},
-	field_tech: {
-		label: "Field Technician",
+	worker: {
+		label: "Worker",
 		description: "Field worker — manages installations, stock, and tasks",
 		permissions: {
 			customers: ["read", "create"],

@@ -3,10 +3,6 @@ import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import {
-	ISP_ROLE_TEMPLATES,
-	type IspRoleTemplate,
-} from "@repo/auth/permissions";
 import { db } from "@repo/database";
 import { hashPassword } from "@repo/utils/password";
 import z from "zod";
@@ -21,9 +17,10 @@ const DEFAULT_PASSWORD = "123456";
  *
  * Flow:
  * 1. Validate employee exists, has a username, not already linked
- * 2. Ensure the ISP role exists in the org's custom roles (create if missing)
+ * 2. Verify the chosen role exists in the org's roles (never recreate it —
+ *    roles are owned by role management / iRadius sync, and may be renamed)
  * 3. Find or create User by username (with default password, auto-verified)
- * 4. Create Member with the ISP role
+ * 4. Create Member with the chosen role
  * 5. Link Employee.userId → User.id
  */
 export const inviteEmployee = protectedProcedure
@@ -37,7 +34,7 @@ export const inviteEmployee = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			employeeId: z.string(),
-			role: z.enum(["collector", "field_tech", "dealer", "manager"]),
+			role: z.string().min(1, "Role is required"),
 			username: z.string().min(1, "Username is required"),
 		}),
 	)
@@ -88,33 +85,23 @@ export const inviteEmployee = protectedProcedure
 			});
 		}
 
-		// 2. Ensure the ISP role exists in this org's custom roles
-		const template = ISP_ROLE_TEMPLATES[input.role as IspRoleTemplate];
-		const rolePermissions: Record<string, string[]> = {};
-		for (const resource of Object.keys(template.permissions)) {
-			const actions =
-				template.permissions[
-					resource as keyof typeof template.permissions
-				];
-			if (actions) {
-				rolePermissions[resource] = [...actions];
-			}
-		}
-
-		await db.organizationRole.upsert({
+		// 2. Verify the chosen role exists in this org's roles.
+		//    Never recreate it from a template — roles are owned by role
+		//    management / iRadius sync and may have been renamed. Recreating
+		//    here would resurrect deleted/renamed roles.
+		const orgRole = await db.organizationRole.findUnique({
 			where: {
 				organizationId_role: {
 					organizationId: input.organizationId,
 					role: input.role,
 				},
 			},
-			update: {},
-			create: {
-				organizationId: input.organizationId,
-				role: input.role,
-				permission: JSON.stringify(rolePermissions),
-			},
 		});
+		if (!orgRole) {
+			throw new ORPCError("NOT_FOUND", {
+				message: `Role "${input.role}" does not exist in this organization`,
+			});
+		}
 
 		// 3. Find or create User by username
 		let targetUser = await db.user.findFirst({
