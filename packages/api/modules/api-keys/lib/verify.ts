@@ -8,6 +8,7 @@ export interface ApiKeyVerificationResult {
 		name: string;
 		organizationId: string;
 		permissions: string[];
+		createdById: string;
 	};
 	error?: string;
 }
@@ -36,6 +37,7 @@ export async function verifyApiKey(
 			permissions: true,
 			expiresAt: true,
 			revokedAt: true,
+			createdById: true,
 		},
 	});
 
@@ -70,6 +72,7 @@ export async function verifyApiKey(
 			name: apiKey.name,
 			organizationId: apiKey.organizationId,
 			permissions: apiKey.permissions,
+			createdById: apiKey.createdById,
 		},
 	};
 }

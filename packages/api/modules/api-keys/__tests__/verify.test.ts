@@ -25,6 +25,7 @@ describe("verifyApiKey", () => {
 		permissions: ["read:users", "write:members"],
 		expiresAt: null,
 		revokedAt: null,
+		createdById: "user-789",
 	};
 
 	beforeEach(() => {
@@ -105,6 +106,7 @@ describe("verifyApiKey", () => {
 			name: mockApiKeyData.name,
 			organizationId: mockApiKeyData.organizationId,
 			permissions: mockApiKeyData.permissions,
+			createdById: mockApiKeyData.createdById,
 		});
 		expect(mockFindUnique).toHaveBeenCalledWith({
 			where: { keyHash },
@@ -115,6 +117,7 @@ describe("verifyApiKey", () => {
 				permissions: true,
 				expiresAt: true,
 				revokedAt: true,
+				createdById: true,
 			},
 		});
 	});

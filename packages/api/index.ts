@@ -11,6 +11,7 @@ import {
 	telegramWebhookHandler,
 	whatsappWebhookHandler,
 } from "./modules/ai-agents/lib/webhook-handlers";
+import { taskIngestHandler } from "./modules/tasks/lib/ingest-handler";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export const app = new Hono()
@@ -46,6 +47,10 @@ export const app = new Hono()
 	)
 	// AI Agent debug streaming endpoint (admin-authenticated, ephemeral)
 	.post("/ai-agents/debug/stream", (c) => handleDebugChatStream(c.req.raw))
+	// Task ingest endpoint for the Telegram ISP bot (API-key authenticated)
+	.post("/task-ingest/:organizationSlug", (c) =>
+		taskIngestHandler(c.req.raw, c.req.param("organizationSlug")),
+	)
 	// Health check
 	.get("/health", (c) => c.text("OK"))
 	// oRPC handlers (for RPC and OpenAPI)
