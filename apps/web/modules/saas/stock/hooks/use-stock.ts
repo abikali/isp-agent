@@ -90,6 +90,42 @@ export function useWorkerStockQuery(employeeId: string | null) {
 	};
 }
 
+export function useStockRefundRequests(filters?: {
+	status?: "PENDING" | "APPROVED" | "REJECTED";
+	page?: number;
+}) {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.stock.listRefundRequests.queryOptions({
+					input: {
+						organizationId,
+						...(filters?.status ? { status: filters.status } : {}),
+						...(filters?.page ? { page: filters.page } : {}),
+					},
+				})
+			: disabledQuery(["stock", "listRefundRequests"]),
+	);
+
+	return {
+		requests: query.data?.requests ?? [],
+		pendingCount: query.data?.pendingCount ?? 0,
+		totalPages: query.data?.totalPages ?? 1,
+		isLoading: query.isLoading,
+	};
+}
+
+export const useApproveStockRefund = createInvalidatingMutation(
+	() => orpc.stock.approveRefund.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
+export const useRejectStockRefund = createInvalidatingMutation(
+	() => orpc.stock.rejectRefund.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
 export const useCreateStockItem = createInvalidatingMutation(
 	() => orpc.stock.createItem.mutationOptions(),
 	() => orpc.stock.key(),

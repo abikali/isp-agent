@@ -108,9 +108,16 @@ export function useMyStockQuery() {
 	return {
 		allocations: query.data?.allocations ?? [],
 		totalValue: query.data?.totalValue ?? 0,
+		pendingRefundByItem: query.data?.pendingRefundByItem ?? {},
 		isLoading: query.isLoading,
 	};
 }
+
+/** Request a refund (return) on stock the worker holds. */
+export const useRequestStockRefund = createInvalidatingMutation(
+	() => orpc.stock.requestRefund.mutationOptions(),
+	() => [orpc.stock.key()],
+);
 
 export type TaskStatusValue =
 	| "OPEN"

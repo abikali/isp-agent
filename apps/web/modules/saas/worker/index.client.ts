@@ -17,6 +17,7 @@ export {
 	useMyStockQuery,
 	useMyTasksList,
 	useMyWalletQuery,
+	useRequestStockRefund,
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,
 } from "./hooks/use-worker";

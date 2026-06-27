@@ -4,7 +4,13 @@ import { deleteStockItem } from "./procedures/delete-item";
 import { deliverStockToWorker } from "./procedures/deliver-to-worker";
 import { listStockItems } from "./procedures/list-items";
 import { listStockLogs } from "./procedures/list-logs";
+import { listStockRefundRequests } from "./procedures/list-refund-requests";
+import { requestStockRefund } from "./procedures/request-refund";
 import { returnStockFromWorker } from "./procedures/return-from-worker";
+import {
+	approveStockRefund,
+	rejectStockRefund,
+} from "./procedures/review-refund";
 import { getStockStats } from "./procedures/stats";
 import { updateStockItem } from "./procedures/update-item";
 import {
@@ -24,4 +30,8 @@ export const stockRouter = {
 	workerStockByEmployee: getWorkerStockByEmployee,
 	myStock: getMyStock,
 	stats: getStockStats,
+	requestRefund: requestStockRefund,
+	listRefundRequests: listStockRefundRequests,
+	approveRefund: approveStockRefund,
+	rejectRefund: rejectStockRefund,
 };

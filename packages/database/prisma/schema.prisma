@@ -331,6 +331,7 @@ model Organization {
   followups            Followup[]
   uninstalledItems     UninstalledItem[]
   customerSetupRequests CustomerSetupRequest[]
+  stockRefundRequests  StockRefundRequest[]
   billingSyncOps           BillingSyncOperation[]
   noteCategories           NoteCategory[]
   syncConflicts            SyncConflict[]
@@ -500,6 +501,7 @@ model User {
   installationsApproved Installation[]   @relation("InstallationApprover")
   uninstalledItemsReviewed UninstalledItem[] @relation("UninstalledItemReviewer")
   setupRequestsReviewed CustomerSetupRequest[] @relation("SetupRequestReviewer")
+  stockRefundRequestsReviewed StockRefundRequest[] @relation("StockRefundReviewer")
   resolvedConflicts     SyncConflict[]   @relation("ConflictResolver")
   pushSubscriptions     PushSubscription[]
   userPrefs             UserPref[]
@@ -1718,6 +1720,7 @@ model Employee {
   installationsDone     Installation[]        @relation("Installer")
   tasksCompleted        Task[]                @relation("TaskCompleter")
   setupRequests         CustomerSetupRequest[] @relation("SetupRequester")
+  stockRefundRequests   StockRefundRequest[]  @relation("StockRefundRequester")
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -1873,6 +1876,12 @@ enum StockAction {
   DELIVER
 }
 
+enum StockRefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ─── Billing ───────────────────────────────────────────────────────
 
 model BillingMonth {
@@ -2023,6 +2032,7 @@ model StockItem {
   logs              StockLog[]
   installations     Installation[]
   uninstalledItems  UninstalledItem[]
+  refundRequests    StockRefundRequest[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -2045,6 +2055,38 @@ model WorkerStock {
   @@index([stockItemId])
   @@index([employeeId])
   @@map("worker_stock")
+}
+
+// A field worker's request to return stock they hold back to the warehouse.
+// PENDING → APPROVED/REJECTED. Approval moves the stock back to admin
+// inventory (decrement WorkerStock, increment StockItem, write a
+// TRANSFER_FROM_WORKER StockLog) — no cash-ledger entry, mirroring how stock
+// delivery never touches the cash ledger either.
+model StockRefundRequest {
+  id             String            @id @default(cuid())
+  organizationId String
+  stockItemId    String
+  employeeId     String
+  quantity       Int
+  // Snapshot of WorkerStock.unitPrice at request time (for display/value).
+  unitPrice      Float             @default(0)
+  status         StockRefundStatus @default(PENDING)
+  notes          String?           @db.Text
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectedReason String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockItem    StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation("StockRefundRequester", fields: [employeeId], references: [id], onDelete: Restrict)
+  reviewedBy   User?        @relation("StockRefundReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([employeeId])
+  @@index([stockItemId])
+  @@map("stock_refund_request")
 }
 
 model StockLog {

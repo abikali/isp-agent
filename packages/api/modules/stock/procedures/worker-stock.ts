@@ -79,23 +79,42 @@ export const getMyStock = protectedProcedure
 			});
 		}
 
-		const allocations = await db.workerStock.findMany({
-			where: {
-				employeeId,
-				quantity: { gt: 0 },
-				stockItem: { organizationId: input.organizationId },
-			},
-			include: {
-				stockItem: {
-					select: { id: true, name: true, sellPrice: true },
+		const [allocations, pendingRefunds] = await Promise.all([
+			db.workerStock.findMany({
+				where: {
+					employeeId,
+					quantity: { gt: 0 },
+					stockItem: { organizationId: input.organizationId },
 				},
-			},
-			orderBy: { stockItem: { name: "asc" } },
-		});
+				include: {
+					stockItem: {
+						select: { id: true, name: true, sellPrice: true },
+					},
+				},
+				orderBy: { stockItem: { name: "asc" } },
+			}),
+			db.stockRefundRequest.groupBy({
+				by: ["stockItemId"],
+				where: {
+					organizationId: input.organizationId,
+					employeeId,
+					status: "PENDING",
+				},
+				_sum: { quantity: true },
+			}),
+		]);
+
+		// Map of stockItemId → quantity already awaiting refund approval, so the
+		// worker UI can show pending state and cap further refund requests.
+		const pendingRefundByItem: Record<string, number> = {};
+		for (const row of pendingRefunds) {
+			pendingRefundByItem[row.stockItemId] = row._sum.quantity ?? 0;
+		}
 
 		return {
 			employeeId,
 			allocations,
+			pendingRefundByItem,
 			totalValue: allocations.reduce(
 				(sum, a) => sum + a.quantity * a.unitPrice,
 				0,

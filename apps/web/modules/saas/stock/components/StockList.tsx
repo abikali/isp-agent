@@ -43,10 +43,12 @@ import { toast } from "sonner";
 import {
 	useDeleteStockItem,
 	useStockItems,
+	useStockRefundRequests,
 	useUpdateStockItem,
 } from "../hooks/use-stock";
 import { AddQuantityDialog } from "./AddQuantityDialog";
 import { DeliverToWorkerDialog } from "./DeliverToWorkerDialog";
+import { RefundRequestsDialog } from "./RefundRequestsDialog";
 import { StockItemDialog } from "./StockItemDialog";
 import { WorkerAllocationsDialog } from "./WorkerAllocationsDialog";
 
@@ -66,8 +68,12 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 
 	const updateItem = useUpdateStockItem();
 	const deleteItem = useDeleteStockItem();
+	const { pendingCount: pendingRefundCount } = useStockRefundRequests({
+		status: "PENDING",
+	});
 
 	const [showCreate, setShowCreate] = useState(false);
+	const [showRefunds, setShowRefunds] = useState(false);
 	const [editingItem, setEditingItem] = useState<StockItem | null>(null);
 	const [addQtyItem, setAddQtyItem] = useState<StockItem | null>(null);
 	const [deliverItem, setDeliverItem] = useState<StockItem | null>(null);
@@ -266,6 +272,18 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 				<div className="flex gap-2">
 					<Button
 						variant="outline"
+						onClick={() => setShowRefunds(true)}
+					>
+						<UndoIcon className="mr-2 size-4" />
+						Refund requests
+						{pendingRefundCount > 0 && (
+							<Badge variant="error" className="ml-2">
+								{pendingRefundCount}
+							</Badge>
+						)}
+					</Button>
+					<Button
+						variant="outline"
 						onClick={() => setShowWorkerView(true)}
 					>
 						<UsersIcon className="mr-2 size-4" />
@@ -412,6 +430,10 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 			<WorkerAllocationsDialog
 				open={showWorkerView}
 				onOpenChange={setShowWorkerView}
+			/>
+			<RefundRequestsDialog
+				open={showRefunds}
+				onOpenChange={setShowRefunds}
 			/>
 		</PageShell>
 	);
