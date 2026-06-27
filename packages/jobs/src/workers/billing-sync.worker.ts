@@ -658,18 +658,28 @@ async function processBillingSync(
 
 			await updateProgress(operationId, { phase: "stockItems" });
 
-			// Cutover guard: once native stock operations exist (StockLog
-			// rows created by the app, not the import), local quantities are
-			// the source of truth — never overwrite them from the legacy DB.
-			// New items are still created and prices/alerts still refresh.
-			const hasNativeStockOps =
-				(await db.stockLog.count({
-					where: { organizationId, externalBillingId: null },
-				})) > 0;
-			if (hasNativeStockOps) {
+			// Cutover guard (per item): once an individual stock item has
+			// native stock operations (StockLog rows created by the app, not
+			// the import), that item's quantities are locally authoritative
+			// and are never overwritten from the legacy DB. Items that have
+			// only ever been synced keep mirroring legacy admin_stock. This is
+			// per-item on purpose — a native op on one item must not freeze the
+			// quantity sync for every other item in the org. New items, prices,
+			// and alerts always refresh regardless.
+			const nativeLogItems = await db.stockLog.findMany({
+				where: { organizationId, externalBillingId: null },
+				select: { stockItem: { select: { name: true } } },
+				distinct: ["stockItemId"],
+			});
+			const nativeStockNames = new Set(
+				nativeLogItems.map((r) =>
+					r.stockItem.name.trim().toLowerCase(),
+				),
+			);
+			if (nativeStockNames.size > 0) {
 				logger.info(
-					"[Billing Sync] Native stock activity detected — skipping quantity overwrites",
-					{ organizationId },
+					"[Billing Sync] Native stock activity detected — preserving local quantities for affected items",
+					{ organizationId, items: nativeStockNames.size },
 				);
 			}
 
@@ -694,12 +704,16 @@ async function processBillingSync(
 						continue;
 					}
 
+					const itemHasNativeOps = nativeStockNames.has(
+						name.toLowerCase(),
+					);
+
 					const item = await db.stockItem.upsert({
 						where: {
 							organizationId_name: { organizationId, name },
 						},
 						update: {
-							...(hasNativeStockOps
+							...(itemHasNativeOps
 								? {}
 								: { quantity: toFloat(row["quantity"]) }),
 							costPrice: toFloat(row["price"]),
@@ -768,12 +782,16 @@ async function processBillingSync(
 						continue;
 					}
 
+					const itemHasNativeOps = itemName
+						? nativeStockNames.has(itemName)
+						: false;
+
 					await db.workerStock.upsert({
 						where: {
 							stockItemId_employeeId: { stockItemId, employeeId },
 						},
 						update: {
-							...(hasNativeStockOps
+							...(itemHasNativeOps
 								? {}
 								: { quantity: toFloat(row["quantity"]) }),
 							unitPrice: toFloat(row["unitprice"]),
