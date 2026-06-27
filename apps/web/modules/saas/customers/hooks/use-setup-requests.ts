@@ -1,9 +1,9 @@
 "use client";
 
 import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
-import { useOrganizationId } from "@shared/lib/organization";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
 export function useSetupRequests(
 	status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING",
@@ -41,3 +41,21 @@ export const useRejectSetupRequest = createInvalidatingMutation(
 	() => orpc.customers.setupRequests.reject.mutationOptions(),
 	() => [orpc.customers.key(), orpc.installations.key()],
 );
+
+/**
+ * Live "is this username free on iRadius?" check. Pass the value to check
+ * (set on blur, not on every keystroke). Disabled until a non-empty username
+ * is supplied. `data.available` is `true` when the username can be used.
+ */
+export function useCheckIradiusUsername(username: string) {
+	const organizationId = useOrganizationId();
+	const trimmed = username.trim();
+
+	return useQuery(
+		organizationId && trimmed
+			? orpc.customers.setupRequests.checkUsername.queryOptions({
+					input: { organizationId, username: trimmed },
+				})
+			: disabledQuery(["customers", "checkUsername"]),
+	);
+}

@@ -25,6 +25,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { usePlansQuery } from "../hooks/use-plans";
 import {
+	useCheckIradiusUsername,
 	type useSetupRequests,
 	useUpdateSetupRequest,
 } from "../hooks/use-setup-requests";
@@ -53,6 +54,10 @@ export function EditSetupRequestDialog({
 	const customer = request.customer;
 	const [firstName, setFirstName] = useState(customer.firstName ?? "");
 	const [lastName, setLastName] = useState(customer.lastName ?? "");
+	const [username, setUsername] = useState(customer.username ?? "");
+	// Value the iRadius availability check runs against — set on blur, not on
+	// every keystroke, so we don't hammer the SSH tunnel as the admin types.
+	const [usernameToCheck, setUsernameToCheck] = useState("");
 	const [mobile, setMobile] = useState(customer.mobile ?? "");
 	const [address, setAddress] = useState(customer.address ?? "");
 	const [groupName, setGroupName] = useState(customer.groupName ?? "");
@@ -70,8 +75,23 @@ export function EditSetupRequestDialog({
 		customer.expiresAt ? formatDateInput(customer.expiresAt) : "",
 	);
 
+	const usernameCheck = useCheckIradiusUsername(usernameToCheck);
+	const trimmedUsername = username.trim();
+	// The check result only applies while the input still matches what we sent.
+	const usernameChecked =
+		usernameToCheck !== "" && usernameToCheck === trimmedUsername;
+	const usernameChecking = usernameChecked && usernameCheck.isFetching;
+	const usernameTaken =
+		usernameChecked &&
+		!usernameCheck.isFetching &&
+		usernameCheck.data?.available === false;
+	const usernameAvailable =
+		usernameChecked &&
+		!usernameCheck.isFetching &&
+		usernameCheck.data?.available === true;
+
 	async function handleSave() {
-		if (!organizationId || !firstName.trim()) {
+		if (!organizationId || !firstName.trim() || usernameTaken) {
 			return;
 		}
 		try {
@@ -80,6 +100,7 @@ export function EditSetupRequestDialog({
 				id: request.id,
 				firstName: firstName.trim(),
 				lastName: lastName.trim() || null,
+				...(trimmedUsername ? { username: trimmedUsername } : {}),
 				mobile: mobile.trim(),
 				address: address.trim(),
 				groupName: groupName || null,
@@ -126,6 +147,33 @@ export function EditSetupRequestDialog({
 								onChange={(e) => setLastName(e.target.value)}
 							/>
 						</div>
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor="esr-username">Username (iRadius)</Label>
+						<Input
+							id="esr-username"
+							value={username}
+							onChange={(e) => setUsername(e.target.value)}
+							onBlur={() => setUsernameToCheck(username.trim())}
+							aria-invalid={usernameTaken || undefined}
+							placeholder="iRadius login username"
+						/>
+						{usernameChecking && (
+							<p className="text-muted-foreground text-xs">
+								Checking availability on iRadius…
+							</p>
+						)}
+						{usernameTaken && (
+							<p className="text-destructive text-xs">
+								Already exists on iRadius — pick another
+								username
+							</p>
+						)}
+						{usernameAvailable && (
+							<p className="text-xs text-emerald-600">
+								Available on iRadius
+							</p>
+						)}
 					</div>
 					<div className="grid grid-cols-2 gap-3">
 						<div className="space-y-1.5">
@@ -281,7 +329,12 @@ export function EditSetupRequestDialog({
 					</Button>
 					<Button
 						onClick={handleSave}
-						disabled={updateRequest.isPending || !firstName.trim()}
+						disabled={
+							updateRequest.isPending ||
+							!firstName.trim() ||
+							usernameChecking ||
+							usernameTaken
+						}
 					>
 						{updateRequest.isPending ? "Saving…" : "Save changes"}
 					</Button>
