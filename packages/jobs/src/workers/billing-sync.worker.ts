@@ -1072,6 +1072,39 @@ async function processBillingSync(
 				}
 			}
 
+			// ── Phase 9b: Task assignments via join table ───────────
+			// Legacy moved the worker→task link from the deprecated
+			// `tasks.wid` text column to the `task_assignments` join table
+			// (keyed by isplogin id). Newer open tasks have `wid = NULL`
+			// and are assigned ONLY here, so the wid pass above misses them.
+			// Resolve worker_id → isplogin username → employee and upsert.
+			// Idempotent; complements the wid pass for older rows.
+			const assignmentRows = await queryBilling(
+				conn,
+				"SELECT ta.task_id, il.username FROM task_assignments ta JOIN isplogin il ON il.id = ta.worker_id",
+			);
+
+			for (const row of assignmentRows) {
+				const legacyTaskId = row["task_id"] as number;
+				const taskId = taskIdMap.get(legacyTaskId);
+				if (!taskId) {
+					continue;
+				}
+				const empId = findEmployeeId(row["username"] as string | null);
+				if (!empId) {
+					continue;
+				}
+				await db.taskAssignment
+					.upsert({
+						where: {
+							taskId_employeeId: { taskId, employeeId: empId },
+						},
+						update: {},
+						create: { taskId, employeeId: empId },
+					})
+					.catch(() => {});
+			}
+
 			// ── Phase 10: Uninstalled Items ─────────────────────────
 
 			await updateProgress(operationId, { phase: "uninstalled_items" });
