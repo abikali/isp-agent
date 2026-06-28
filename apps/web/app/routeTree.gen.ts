@@ -83,6 +83,7 @@ import { Route as SaasAppAccountAdminDealersIndexRouteImport } from "./routes/_s
 import { Route as SaasAppOrgOrganizationSlugStockLogRouteImport } from "./routes/_saas/app/_org/$organizationSlug/stock/log"
 import { Route as SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/webhooks"
 import { Route as SaasAppOrgOrganizationSlugSettingsRolesRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/roles"
+import { Route as SaasAppOrgOrganizationSlugSettingsNotificationsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/notifications"
 import { Route as SaasAppOrgOrganizationSlugSettingsNoteCategoriesRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/note-categories"
 import { Route as SaasAppOrgOrganizationSlugSettingsMembersRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/members"
 import { Route as SaasAppOrgOrganizationSlugSettingsMarketingRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/marketing"
@@ -546,6 +547,12 @@ const SaasAppOrgOrganizationSlugSettingsRolesRoute =
     path: "/roles",
     getParentRoute: () => SaasAppOrgOrganizationSlugSettingsRoute,
   } as any)
+const SaasAppOrgOrganizationSlugSettingsNotificationsRoute =
+  SaasAppOrgOrganizationSlugSettingsNotificationsRouteImport.update({
+    id: "/notifications",
+    path: "/notifications",
+    getParentRoute: () => SaasAppOrgOrganizationSlugSettingsRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute =
   SaasAppOrgOrganizationSlugSettingsNoteCategoriesRouteImport.update({
     id: "/note-categories",
@@ -895,6 +902,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/settings/marketing": typeof SaasAppOrgOrganizationSlugSettingsMarketingRoute
   "/app/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/app/$organizationSlug/settings/note-categories": typeof SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute
+  "/app/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
@@ -1003,6 +1011,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/settings/marketing": typeof SaasAppOrgOrganizationSlugSettingsMarketingRoute
   "/app/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/app/$organizationSlug/settings/note-categories": typeof SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute
+  "/app/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
@@ -1126,6 +1135,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/settings/marketing": typeof SaasAppOrgOrganizationSlugSettingsMarketingRoute
   "/_saas/app/_org/$organizationSlug/settings/members": typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   "/_saas/app/_org/$organizationSlug/settings/note-categories": typeof SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute
+  "/_saas/app/_org/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/_saas/app/_org/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/_saas/app/_org/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/_saas/app/_org/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
@@ -1243,6 +1253,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/marketing"
     | "/app/$organizationSlug/settings/members"
     | "/app/$organizationSlug/settings/note-categories"
+    | "/app/$organizationSlug/settings/notifications"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
     | "/app/$organizationSlug/stock/log"
@@ -1351,6 +1362,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/marketing"
     | "/app/$organizationSlug/settings/members"
     | "/app/$organizationSlug/settings/note-categories"
+    | "/app/$organizationSlug/settings/notifications"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
     | "/app/$organizationSlug/stock/log"
@@ -1473,6 +1485,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/settings/marketing"
     | "/_saas/app/_org/$organizationSlug/settings/members"
     | "/_saas/app/_org/$organizationSlug/settings/note-categories"
+    | "/_saas/app/_org/$organizationSlug/settings/notifications"
     | "/_saas/app/_org/$organizationSlug/settings/roles"
     | "/_saas/app/_org/$organizationSlug/settings/webhooks"
     | "/_saas/app/_org/$organizationSlug/stock/log"
@@ -2061,6 +2074,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugSettingsRolesRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugSettingsRoute
     }
+    "/_saas/app/_org/$organizationSlug/settings/notifications": {
+      id: "/_saas/app/_org/$organizationSlug/settings/notifications"
+      path: "/notifications"
+      fullPath: "/app/$organizationSlug/settings/notifications"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugSettingsNotificationsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugSettingsRoute
+    }
     "/_saas/app/_org/$organizationSlug/settings/note-categories": {
       id: "/_saas/app/_org/$organizationSlug/settings/note-categories"
       path: "/note-categories"
@@ -2525,6 +2545,7 @@ interface SaasAppOrgOrganizationSlugSettingsRouteChildren {
   SaasAppOrgOrganizationSlugSettingsMarketingRoute: typeof SaasAppOrgOrganizationSlugSettingsMarketingRoute
   SaasAppOrgOrganizationSlugSettingsMembersRoute: typeof SaasAppOrgOrganizationSlugSettingsMembersRoute
   SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute: typeof SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute
+  SaasAppOrgOrganizationSlugSettingsNotificationsRoute: typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   SaasAppOrgOrganizationSlugSettingsRolesRoute: typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   SaasAppOrgOrganizationSlugSettingsWebhooksRoute: typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   SaasAppOrgOrganizationSlugSettingsIndexRoute: typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
@@ -2554,6 +2575,8 @@ const SaasAppOrgOrganizationSlugSettingsRouteChildren: SaasAppOrgOrganizationSlu
       SaasAppOrgOrganizationSlugSettingsMembersRoute,
     SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute:
       SaasAppOrgOrganizationSlugSettingsNoteCategoriesRoute,
+    SaasAppOrgOrganizationSlugSettingsNotificationsRoute:
+      SaasAppOrgOrganizationSlugSettingsNotificationsRoute,
     SaasAppOrgOrganizationSlugSettingsRolesRoute:
       SaasAppOrgOrganizationSlugSettingsRolesRoute,
     SaasAppOrgOrganizationSlugSettingsWebhooksRoute:

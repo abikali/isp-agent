@@ -350,6 +350,14 @@ model Organization {
   // their customers should never flow to/from the legacy iRadius system.
   iradiusDisabled Boolean @default(false)
 
+  // Notification & automation toggles for the collector "stopped payment"
+  // flow (see billing create-payment). Default true preserves existing
+  // behavior: a "Review stopped payment" task + admin notification are
+  // created when a collector flags a stop. Admins can disable either from
+  // the Notifications settings page.
+  stoppedPaymentTaskEnabled   Boolean @default(true)
+  stoppedPaymentNotifyEnabled Boolean @default(true)
+
   @@map("organization")
 }
 

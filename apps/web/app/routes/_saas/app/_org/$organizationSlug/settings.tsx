@@ -6,6 +6,7 @@ import { AppNotFound, SidebarContentLayout } from "@saas/shared/client";
 import { PageShell } from "@shared/components/PageShell";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import {
+	BellIcon,
 	ClipboardListIcon,
 	CreditCardIcon,
 	DatabaseIcon,
@@ -84,6 +85,13 @@ function OrganizationSettingsLayout() {
 								href: `${organizationSettingsBasePath}/roles`,
 								icon: (
 									<ShieldCheckIcon className="size-4 opacity-50" />
+								),
+							},
+							{
+								title: "Notifications",
+								href: `${organizationSettingsBasePath}/notifications`,
+								icon: (
+									<BellIcon className="size-4 opacity-50" />
 								),
 							},
 							{

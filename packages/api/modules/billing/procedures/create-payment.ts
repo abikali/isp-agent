@@ -407,48 +407,59 @@ export const createPayment = protectedProcedure
 
 			const org = await db.organization.findFirst({
 				where: { id: input.organizationId },
-				select: { slug: true },
+				select: {
+					slug: true,
+					stoppedPaymentTaskEnabled: true,
+					stoppedPaymentNotifyEnabled: true,
+				},
 			});
 
 			const orgSlug = org?.slug ?? "";
 
-			// Fire-and-forget notification
-			sendOrganizationNotification(input.organizationId, {
-				category: "monitoring",
-				type: "warning",
-				title: "Stopped Payment Needs Review",
-				message: `${customerName} marked as stopped — review required before deactivation`,
-				link: `/app/${orgSlug}/billing/payments`,
-			}).catch((err) =>
-				logger.warn("[Stopped Account] Failed to send notification", {
-					error: String(err),
-				}),
-			);
-
-			// Fire-and-forget task creation
-			const taskDescription =
-				input.paidAmount > 0
-					? `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop. Review and approve in Billing → Payments → Needs Review to deactivate.`
-					: `Customer "${customerName}" (${customer.username}) requested to stop without payment. Review and approve in Billing → Payments → Needs Review to deactivate.`;
-
-			db.task
-				.create({
-					data: {
-						organizationId: input.organizationId,
-						title: `${REVIEW_STOPPED_TASK_TITLE_PREFIX} ${customerName}`,
-						description: taskDescription,
-						priority: "HIGH",
-						status: "OPEN",
-						category: "BILLING",
-						customerId: input.customerId,
-						createdById: user.id,
-					},
-				})
-				.catch((err) =>
-					logger.warn("[Stopped Account] Failed to create task", {
-						error: String(err),
-					}),
+			// Fire-and-forget notification (admin-configurable)
+			if (org?.stoppedPaymentNotifyEnabled !== false) {
+				sendOrganizationNotification(input.organizationId, {
+					category: "monitoring",
+					type: "warning",
+					title: "Stopped Payment Needs Review",
+					message: `${customerName} marked as stopped — review required before deactivation`,
+					link: `/app/${orgSlug}/billing/payments`,
+				}).catch((err) =>
+					logger.warn(
+						"[Stopped Account] Failed to send notification",
+						{
+							error: String(err),
+						},
+					),
 				);
+			}
+
+			// Fire-and-forget task creation (admin-configurable)
+			if (org?.stoppedPaymentTaskEnabled !== false) {
+				const taskDescription =
+					input.paidAmount > 0
+						? `Customer "${customerName}" (${customer.username}) paid their final bill and requested to stop. Review and approve in Billing → Payments → Needs Review to deactivate.`
+						: `Customer "${customerName}" (${customer.username}) requested to stop without payment. Review and approve in Billing → Payments → Needs Review to deactivate.`;
+
+				db.task
+					.create({
+						data: {
+							organizationId: input.organizationId,
+							title: `${REVIEW_STOPPED_TASK_TITLE_PREFIX} ${customerName}`,
+							description: taskDescription,
+							priority: "HIGH",
+							status: "OPEN",
+							category: "BILLING",
+							customerId: input.customerId,
+							createdById: user.id,
+						},
+					})
+					.catch((err) =>
+						logger.warn("[Stopped Account] Failed to create task", {
+							error: String(err),
+						}),
+					);
+			}
 		}
 
 		notifyBadgeForOrganization(input.organizationId);

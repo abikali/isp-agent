@@ -13,6 +13,7 @@ export {
 	NoteCategoriesSettingsSkeleton,
 } from "./components/NoteCategoriesSettings";
 export { NotificationPreferencesForm } from "./components/NotificationPreferencesForm";
+export { NotificationSettings } from "./components/NotificationSettings";
 export { PasskeysBlock } from "./components/PasskeysBlock";
 export { RequestDeletionForm } from "./components/RequestDeletionForm";
 export { SetPasswordForm } from "./components/SetPassword";
