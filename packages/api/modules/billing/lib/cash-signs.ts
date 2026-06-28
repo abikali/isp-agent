@@ -48,12 +48,3 @@ export function handoffAmount(total: number): number {
 export function moneyGivenAmount(total: number): number {
 	return Math.abs(total);
 }
-
-/**
- * Worker buying a company item out of the cash he collected. Cash leaves his
- * pocket toward the org (he pays for the item), so it is POSITIVE — it lowers
- * his cash in hand and counts as company income. No offsetting expense.
- */
-export function storePurchaseAmount(total: number): number {
-	return Math.abs(total);
-}

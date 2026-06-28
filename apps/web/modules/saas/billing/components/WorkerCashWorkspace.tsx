@@ -606,47 +606,32 @@ function HandoffCard({
 
 // ─── Worker cash entry card ──────────────────────────────────────────
 
-type CashReason = "advance" | "keep_collected" | "purchase";
+type CashReason = "advance" | "keep_collected";
 
 interface ReasonConfig {
 	title: string;
 	desc: string;
 	notePlaceholder: string;
-	submit: string;
 	/** Does it lower his cash in hand? */
 	affectsInHand: boolean;
-	/** What the company books. */
-	books: "expense" | "income";
 }
 
 const REASONS: Record<CashReason, ReasonConfig> = {
 	advance: {
-		title: "Pay him from company cash",
+		title: "From company cash",
 		desc: "Company gives him money. His cash in hand stays the same.",
-		notePlaceholder: "For… (e.g. June pay, fuel advance)",
-		submit: "Give money",
+		notePlaceholder: "For… (e.g. June pay, fuel advance, to buy parts)",
 		affectsInHand: false,
-		books: "expense",
 	},
 	keep_collected: {
-		title: "He keeps cash he collected",
-		desc: "He pockets some of the cash he collected. Lowers his cash in hand.",
+		title: "From the cash he collected",
+		desc: "He keeps some of the cash he collected. Lowers his cash in hand.",
 		notePlaceholder: "For… (e.g. his share)",
-		submit: "Give money",
 		affectsInHand: true,
-		books: "expense",
-	},
-	purchase: {
-		title: "He bought something from us",
-		desc: "He pays for a company item from his cash. Lowers his cash in hand.",
-		notePlaceholder: "Item (e.g. router, cable)",
-		submit: "Record purchase",
-		affectsInHand: true,
-		books: "income",
 	},
 };
 
-const REASON_ORDER: CashReason[] = ["advance", "keep_collected", "purchase"];
+const REASON_ORDER: CashReason[] = ["advance", "keep_collected"];
 
 function GiveMoneyCard({
 	workerId,
@@ -699,7 +684,7 @@ function GiveMoneyCard({
 			<ContentCardSection className="space-y-3">
 				<div className="flex items-center gap-2 text-sm font-semibold">
 					<BanknoteIcon className="size-4 text-muted-foreground" />
-					Give money or record a purchase
+					Give money
 				</div>
 				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form via oRPC mutation; preventDefault is the documented pattern */}
 				<form
@@ -714,6 +699,9 @@ function GiveMoneyCard({
 						<form.Field name="reason">
 							{(field) => (
 								<div className="space-y-1.5">
+									<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+										Money comes from
+									</div>
 									{REASON_ORDER.map((r) => {
 										const selected =
 											field.state.value === r;
@@ -780,7 +768,7 @@ function GiveMoneyCard({
 							disabled={isSubmitting}
 						>
 							<BanknoteIcon className="mr-1.5 size-4" />
-							{isSubmitting ? "Recording…" : cfg.submit}
+							{isSubmitting ? "Recording…" : "Give money"}
 						</Button>
 					</div>
 
@@ -854,9 +842,7 @@ function GiveMoneyPreview({
 						<>
 							+{formatCurrency(amount)}{" "}
 							<span className="text-[11px] font-normal text-muted-foreground">
-								{cfg.books === "expense"
-									? "expense"
-									: "income (a sale)"}
+								expense
 							</span>
 						</>
 					) : (
