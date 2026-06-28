@@ -11,31 +11,32 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import {
 	expenseDeductionAmount,
 	moneyGivenAmount,
+	storePurchaseAmount,
 } from "../../billing/lib/cash-signs";
 
 /**
- * Give a worker money (advance, salary, reimbursement…).
+ * Record a worker cash entry — one transaction, three reasons. The reason
+ * decides the cash-ledger type and whether a company expense is booked:
  *
- * Always creates an already-APPROVED expense (surfacing in the accounting
- * reports' `totalExpenses`) plus a cash-ledger row, in one transaction. The
- * `reduceBalance` flag decides whether it touches the worker's cash in hand:
+ *  - `advance` — company pays him from its OWN funds. Books an approved
+ *    expense (+`totalExpenses`) plus a DISPLAY-ONLY `SALARY` ledger row that
+ *    is excluded from every balance sum → his cash in hand is UNCHANGED.
+ *  - `keep_collected` — he keeps money he already collected. Books the same
+ *    approved expense plus an `EXPENSE_DEDUCTION` row that COUNTS → LOWERS his
+ *    cash in hand.
+ *  - `purchase` — he bought a company item out of his collected cash. NO
+ *    expense (it's a sale, +company income); a `STORE_PURCHASE` row that
+ *    counts → LOWERS his cash in hand.
  *
- *  - `reduceBalance: false` (default) — money came from the company's own
- *    funds. The ledger row is a DISPLAY-ONLY `SALARY` type, excluded from
- *    every balance/handed-off aggregation, so his cash in hand is untouched.
- *  - `reduceBalance: true` — the worker is keeping money he already collected,
- *    so it's an `EXPENSE_DEDUCTION` row (counted in the ledger) that REDUCES
- *    his cash in hand by the amount.
- *
- * `source` is a bookkeeping label (Company cash | Bank | Other) for where the
- * money came from.
+ * `source` is a bookkeeping label (Company cash | Bank | Other) — only
+ * meaningful for `advance`.
  */
 export const paySalary = protectedProcedure
 	.route({
 		method: "POST",
 		path: "/expenses/pay-salary",
 		tags: ["Expenses"],
-		summary: "Give a worker money (records an approved company expense)",
+		summary: "Record a worker cash entry (advance, kept cash, or purchase)",
 	})
 	.input(
 		z.object({
@@ -44,8 +45,9 @@ export const paySalary = protectedProcedure
 			amount: z.number().finite().positive(),
 			notes: z.string().max(500).optional(),
 			source: z.string().max(100).optional(),
-			// When true, deduct from the worker's collected cash in hand.
-			reduceBalance: z.boolean().optional(),
+			reason: z
+				.enum(["advance", "keep_collected", "purchase"])
+				.default("advance"),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -73,56 +75,75 @@ export const paySalary = protectedProcedure
 
 		const note = input.notes?.trim();
 		const source = input.source?.trim();
-		const description = note ? `Money given: ${note}` : "Money given";
+		const isPurchase = input.reason === "purchase";
+
+		// Cash-ledger row config per reason.
+		const cashType = isPurchase
+			? "STORE_PURCHASE"
+			: input.reason === "keep_collected"
+				? "EXPENSE_DEDUCTION"
+				: "SALARY";
+		const cashAmount = isPurchase
+			? storePurchaseAmount(input.amount)
+			: input.reason === "keep_collected"
+				? expenseDeductionAmount(input.amount)
+				: moneyGivenAmount(input.amount);
+
+		const verb = isPurchase ? "Purchase" : "Money given";
+		const description = note ? `${verb}: ${note}` : verb;
 		// History note keeps the "for what" plus the funding source.
 		const ledgerNote = [
-			note ?? "Money given",
-			source ? `from ${source}` : null,
+			note ?? verb,
+			!isPurchase && source ? `from ${source}` : null,
 		]
 			.filter(Boolean)
 			.join(" · ");
 
-		const expense = await db.$transaction(async (tx) => {
-			const created = await tx.expense.create({
-				data: {
-					organizationId: input.organizationId,
-					submittedById: input.workerId,
-					amount: input.amount,
-					description,
-					category: "salary",
-					source: source ?? null,
-					status: "APPROVED",
-					approvedById: user.id,
-					approvedAt: new Date(),
-				},
-			});
+		await db.$transaction(async (tx) => {
+			// A purchase is a sale (income), NOT a company expense — no expense row.
+			const expenseId = isPurchase
+				? null
+				: (
+						await tx.expense.create({
+							data: {
+								organizationId: input.organizationId,
+								submittedById: input.workerId,
+								amount: input.amount,
+								description,
+								category: "salary",
+								source: source ?? null,
+								status: "APPROVED",
+								approvedById: user.id,
+								approvedAt: new Date(),
+							},
+						})
+					).id;
 			await tx.cashCollection.create({
 				data: {
 					organizationId: input.organizationId,
 					collectorId: input.workerId,
-					amount: input.reduceBalance
-						? expenseDeductionAmount(input.amount)
-						: moneyGivenAmount(input.amount),
-					type: input.reduceBalance ? "EXPENSE_DEDUCTION" : "SALARY",
-					expenseId: created.id,
+					amount: cashAmount,
+					type: cashType,
+					expenseId,
 					receivedById: user.id,
 					notes: ledgerNote.slice(0, 200),
 				},
 			});
-			return created;
 		});
 
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: input.workerId,
-			title: "Money received",
-			message: `You were given $${input.amount.toFixed(2)}${note ? ` — ${note}` : ""}`,
+			title: isPurchase ? "Charged for a purchase" : "Money received",
+			message: isPurchase
+				? `$${input.amount.toFixed(2)} for a company purchase${note ? ` — ${note}` : ""}`
+				: `You were given $${input.amount.toFixed(2)}${note ? ` — ${note}` : ""}`,
 			type: "success",
 		}).catch((err: unknown) =>
-			logger.warn("[Pay Salary] notify failed", {
+			logger.warn("[Worker Cash] notify failed", {
 				error: String(err),
 			}),
 		);
 
-		return { expense };
+		return { success: true };
 	});

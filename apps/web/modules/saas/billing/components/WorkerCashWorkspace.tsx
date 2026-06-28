@@ -44,7 +44,6 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
-import { Switch } from "@ui/components/switch";
 import { Toggle } from "@ui/components/toggle";
 import { cn } from "@ui/lib";
 import {
@@ -612,9 +611,50 @@ function HandoffCard({
 	);
 }
 
-// ─── Give money card ─────────────────────────────────────────────────
+// ─── Worker cash entry card ──────────────────────────────────────────
 
 const MONEY_SOURCES = ["Company cash", "Bank", "Other"] as const;
+
+type CashReason = "advance" | "keep_collected" | "purchase";
+
+const REASONS: Record<
+	CashReason,
+	{
+		label: string;
+		header: string;
+		effect: string;
+		notePlaceholder: string;
+		submit: string;
+		showSource: boolean;
+	}
+> = {
+	advance: {
+		label: "Pay / advance",
+		header: "Give money",
+		effect: "From company cash — his cash in hand stays the same.",
+		notePlaceholder: "For… (e.g. June pay, fuel advance)",
+		submit: "Give money",
+		showSource: true,
+	},
+	keep_collected: {
+		label: "Let him keep collected cash",
+		header: "Give money",
+		effect: "He keeps cash he collected — lowers his cash in hand.",
+		notePlaceholder: "For… (e.g. his share)",
+		submit: "Give money",
+		showSource: false,
+	},
+	purchase: {
+		label: "He bought from us",
+		header: "Record a purchase",
+		effect: "He paid from his cash for a company item — lowers his cash in hand; booked as a sale, not an expense.",
+		notePlaceholder: "Item (e.g. router, cable)",
+		submit: "Record purchase",
+		showSource: false,
+	},
+};
+
+const REASON_ORDER: CashReason[] = ["advance", "keep_collected", "purchase"];
 
 function GiveMoneyCard({ workerId }: { workerId: string }) {
 	const organizationId = useOrganizationId();
@@ -625,26 +665,30 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 			amount: "",
 			notes: "",
 			source: MONEY_SOURCES[0] as string,
-			reduceBalance: false,
+			reason: "advance" as CashReason,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
 				return;
 			}
+			const cfg = REASONS[value.reason];
 			toast.promise(
 				paySalary.mutateAsync({
 					organizationId,
 					workerId,
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
-					source: value.source || undefined,
-					reduceBalance: value.reduceBalance,
+					source:
+						cfg.showSource && value.source
+							? value.source
+							: undefined,
+					reason: value.reason,
 				}),
 				{
 					loading: "Recording…",
 					success: () => {
 						form.reset();
-						return "Money given";
+						return "Recorded";
 					},
 					error: (err: { message?: string }) =>
 						err?.message ?? "Failed to record",
@@ -654,20 +698,16 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
-	const reduceBalance = useStore(form.store, (s) => s.values.reduceBalance);
+	const reason = useStore(form.store, (s) => s.values.reason);
+	const cfg = REASONS[reason];
 
 	return (
 		<ContentCard>
 			<ContentCardSection className="space-y-3">
 				<div className="flex items-center gap-2 text-sm font-semibold">
 					<BanknoteIcon className="size-4 text-muted-foreground" />
-					Give money
+					{cfg.header}
 				</div>
-				<p className="text-xs text-muted-foreground">
-					{reduceBalance
-						? "Taken from the cash he collected — reduces his cash in hand by this amount."
-						: "Recorded as a company expense. His cash-in-hand is unchanged."}
-				</p>
 				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form via oRPC mutation; preventDefault is the documented pattern */}
 				<form
 					onSubmit={(e) => {
@@ -676,72 +716,87 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 					}}
 					className="space-y-2.5"
 				>
-					<form.Field name="amount">
-						{(field) => (
-							<Input
-								type="number"
-								step="0.01"
-								min="0.01"
-								placeholder="0.00"
-								value={field.state.value}
-								onChange={(e) =>
-									field.handleChange(e.target.value)
-								}
-								className="h-9 tabular-nums"
-								required
-							/>
-						)}
-					</form.Field>
-					<form.Field name="notes">
-						{(field) => (
-							<Input
-								value={field.state.value}
-								onChange={(e) =>
-									field.handleChange(e.target.value)
-								}
-								placeholder="For… (e.g. advance for fuel)"
-								className="h-9"
-							/>
-						)}
-					</form.Field>
-					<form.Field name="source">
+					<form.Field name="reason">
 						{(field) => (
 							<Select
 								value={field.state.value}
-								onValueChange={(v) => field.handleChange(v)}
+								onValueChange={(v) =>
+									field.handleChange(v as CashReason)
+								}
 							>
 								<SelectTrigger className="h-9">
 									<span className="mr-1 text-xs text-muted-foreground">
-										Comes from
+										Reason
 									</span>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									{MONEY_SOURCES.map((s) => (
-										<SelectItem key={s} value={s}>
-											{s}
+									{REASON_ORDER.map((r) => (
+										<SelectItem key={r} value={r}>
+											{REASONS[r].label}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
 						)}
 					</form.Field>
-					<form.Field name="reduceBalance">
-						{(field) => (
-							<div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs">
-								<span className="text-muted-foreground">
-									Take from his cash in hand
-								</span>
-								<Switch
-									aria-label="Take from his cash in hand"
-									checked={field.state.value}
-									onCheckedChange={(v) =>
-										field.handleChange(v)
+					<div className="flex gap-2">
+						<form.Field name="amount">
+							{(field) => (
+								<Input
+									type="number"
+									step="0.01"
+									min="0.01"
+									placeholder="0.00"
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
 									}
+									className="h-9 w-28 shrink-0 tabular-nums"
+									required
 								/>
-							</div>
-						)}
-					</form.Field>
+							)}
+						</form.Field>
+						<form.Field name="notes">
+							{(field) => (
+								<Input
+									value={field.state.value}
+									onChange={(e) =>
+										field.handleChange(e.target.value)
+									}
+									placeholder={cfg.notePlaceholder}
+									className="h-9 flex-1"
+								/>
+							)}
+						</form.Field>
+					</div>
+					{cfg.showSource && (
+						<form.Field name="source">
+							{(field) => (
+								<Select
+									value={field.state.value}
+									onValueChange={(v) => field.handleChange(v)}
+								>
+									<SelectTrigger className="h-9">
+										<span className="mr-1 text-xs text-muted-foreground">
+											Comes from
+										</span>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{MONEY_SOURCES.map((s) => (
+											<SelectItem key={s} value={s}>
+												{s}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
+						</form.Field>
+					)}
+					<p className="text-xs text-muted-foreground">
+						{cfg.effect}
+					</p>
 					<Button
 						type="submit"
 						variant="secondary"
@@ -749,7 +804,7 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 						disabled={isSubmitting}
 					>
 						<BanknoteIcon className="mr-1.5 size-4" />
-						{isSubmitting ? "Recording…" : "Give money"}
+						{isSubmitting ? "Recording…" : cfg.submit}
 					</Button>
 				</form>
 			</ContentCardSection>
@@ -763,7 +818,13 @@ interface CashRow {
 	id: string;
 	amount: number;
 	notes: string | null;
-	type: "HANDOFF" | "SALARY" | "EXPENSE_DEDUCTION" | "EXPENSE" | string;
+	type:
+		| "HANDOFF"
+		| "SALARY"
+		| "STORE_PURCHASE"
+		| "EXPENSE_DEDUCTION"
+		| "EXPENSE"
+		| string;
 	externalBillingId: number | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
@@ -846,13 +907,17 @@ function CashHistoryPanel({
 						? "border-success/40 bg-success/10 text-success"
 						: t === "SALARY"
 							? "border-primary/40 bg-primary/10 text-primary"
-							: "border-destructive/40 bg-destructive/10 text-destructive";
+							: t === "STORE_PURCHASE"
+								? "border-warning/40 bg-warning/10 text-warning"
+								: "border-destructive/40 bg-destructive/10 text-destructive";
 				const label =
 					t === "HANDOFF"
 						? "Handoff"
 						: t === "SALARY"
 							? "Money given"
-							: "Expense";
+							: t === "STORE_PURCHASE"
+								? "Purchase"
+								: "Expense";
 				return (
 					<Badge
 						variant="outline"
@@ -952,7 +1017,9 @@ function CashHistoryPanel({
 								? "The worker's in-hand balance will jump back up by the handoff amount."
 								: pendingDelete?.type === "SALARY"
 									? "This removes the money-given record and its expense. His cash-in-hand is unchanged."
-									: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
+									: pendingDelete?.type === "STORE_PURCHASE"
+										? "This removes the purchase. His cash in hand goes back up by the amount."
+										: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

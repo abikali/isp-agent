@@ -1857,6 +1857,9 @@ enum CashCollectionType {
   // company, so it is DISPLAY-ONLY in the cash ledger and intentionally
   // EXCLUDED from every worker/collector balance + handed-off aggregation.
   SALARY
+  // Worker bought a company item out of the cash he collected. Counts in the
+  // ledger (lowers his cash in hand, +company income — it is NOT an expense).
+  STORE_PURCHASE
   OTHER
 }
 
