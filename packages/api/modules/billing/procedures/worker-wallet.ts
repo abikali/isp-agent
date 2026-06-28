@@ -4,7 +4,7 @@ import { getUserEmployeeId } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { fetchCollectorBalance } from "../lib/queries";
+import { fetchWorkerBalance } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 
 /**
@@ -49,7 +49,7 @@ export const getMyWallet = protectedProcedure
 
 		const [balance, pendingExpenses, approvedExpenses, recentEntries] =
 			await Promise.all([
-				fetchCollectorBalance(input.organizationId, employeeId),
+				fetchWorkerBalance(input.organizationId, employeeId),
 				db.expense.aggregate({
 					where: {
 						organizationId: input.organizationId,

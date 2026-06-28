@@ -52,6 +52,12 @@ export {
 	UnpaidCustomersListSkeleton,
 } from "./components/UnpaidCustomersList";
 export {
+	WorkerCashWorkspace,
+	WorkerCashWorkspaceSkeleton,
+	WorkersHub,
+	WorkersHubSkeleton,
+} from "./components/WorkerCashWorkspace";
+export {
 	useAccountingReports,
 	useBillingMonths,
 	useBillingSyncStatus,

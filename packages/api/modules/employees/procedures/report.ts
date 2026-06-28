@@ -7,7 +7,10 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { fetchCollectorBalance } from "../../billing/lib/queries";
+import {
+	fetchCollectorBalance,
+	fetchWorkerBalance,
+} from "../../billing/lib/queries";
 import { taskDealerScopeWhere } from "../../tasks/lib/dealer-scope";
 
 /**
@@ -85,6 +88,14 @@ export const getEmployeeReport = protectedProcedure
 			throw new ORPCError("NOT_FOUND", { message: "Employee not found" });
 		}
 
+		// Workers hold cash attributed to their own pocket (Payment.workerId);
+		// collectors hold cash where they are the recorder (workerId: null).
+		// This drives both the cash balance and the recent-payments feed below.
+		const isWorker = employee.preferredLayout === "worker";
+		const paymentCashScope = isWorker
+			? { workerId: employee.id }
+			: { collectorId: employee.id, workerId: null };
+
 		// ── Window boundaries (Beirut-agnostic: trend buckets use UTC months) ──
 		const now = new Date();
 		const windowStart = new Date(
@@ -115,7 +126,9 @@ export const getEmployeeReport = protectedProcedure
 			windowExpenses,
 			windowInstallations,
 		] = await Promise.all([
-			fetchCollectorBalance(input.organizationId, employee.id),
+			isWorker
+				? fetchWorkerBalance(input.organizationId, employee.id)
+				: fetchCollectorBalance(input.organizationId, employee.id),
 			db.expense.groupBy({
 				by: ["status"],
 				where: {
@@ -200,9 +213,8 @@ export const getEmployeeReport = protectedProcedure
 			db.payment.findMany({
 				where: {
 					organizationId: input.organizationId,
-					collectorId: employee.id,
 					status: "COLLECTED",
-					workerId: null,
+					...paymentCashScope,
 					paidAt: { gte: windowStart },
 				},
 				select: {

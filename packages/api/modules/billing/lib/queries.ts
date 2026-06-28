@@ -109,6 +109,93 @@ export async function fetchCollectorBalanceBatch(
 	return { collectedMap, handedOffMap };
 }
 
+// ── Worker Balance ───────────────────────────────────────────────
+
+/**
+ * Fetch the cash balance for a single worker.
+ *
+ * Unlike collectors, a worker's "collected" cash is the payments attributed
+ * to *his pocket* (`workerId: workerId`), regardless of which collector
+ * recorded them. Cash entries (handoffs, expense/salary deductions, install
+ * costs, setups) are keyed on `CashCollection.collectorId === workerId`, same
+ * as collectors. Balance = Σ worker-attributed payments − Σ cashCollection.
+ * Intentionally NOT dealer-scoped: cash is cash.
+ */
+export async function fetchWorkerBalance(
+	organizationId: string,
+	workerId: string,
+): Promise<CollectorBalanceResult> {
+	const [paymentsAgg, collectionsAgg] = await Promise.all([
+		db.payment.aggregate({
+			where: {
+				organizationId,
+				workerId,
+				status: "COLLECTED",
+			},
+			_sum: { paidAmount: true },
+		}),
+		db.cashCollection.aggregate({
+			where: { organizationId, collectorId: workerId },
+			_sum: { amount: true },
+		}),
+	]);
+
+	const totalCollected = sumOrZero(paymentsAgg);
+	const totalHandedOff = sumAmountOrZero(collectionsAgg);
+
+	return {
+		totalCollected,
+		totalHandedOff,
+		balance: collectorBalance(totalCollected, totalHandedOff),
+	};
+}
+
+/**
+ * Fetch cash balances for multiple workers in batch (two groupBy queries).
+ * Returns Maps keyed by workerId. See `fetchWorkerBalance` for the formula.
+ */
+export async function fetchWorkerBalanceBatch(
+	organizationId: string,
+	workerIds: string[],
+): Promise<{
+	collectedMap: Map<string, number>;
+	handedOffMap: Map<string, number>;
+}> {
+	const [collectedByWorker, handoffsByWorker] = await Promise.all([
+		db.payment.groupBy({
+			by: ["workerId"],
+			where: {
+				organizationId,
+				workerId: { in: workerIds },
+				status: "COLLECTED",
+			},
+			_sum: { paidAmount: true },
+		}),
+		db.cashCollection.groupBy({
+			by: ["collectorId"],
+			where: {
+				organizationId,
+				collectorId: { in: workerIds },
+			},
+			_sum: { amount: true },
+		}),
+	]);
+
+	const collectedMap = new Map(
+		collectedByWorker
+			.filter(
+				(c): c is typeof c & { workerId: string } =>
+					c.workerId !== null,
+			)
+			.map((c) => [c.workerId, c._sum.paidAmount ?? 0]),
+	);
+	const handedOffMap = new Map(
+		handoffsByWorker.map((c) => [c.collectorId, c._sum.amount ?? 0]),
+	);
+
+	return { collectedMap, handedOffMap };
+}
+
 // ── Relevant Billing Months ──────────────────────────────────────
 
 /**
