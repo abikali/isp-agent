@@ -114,39 +114,36 @@ export async function fetchCollectorBalanceBatch(
 /**
  * Fetch the cash balance for a single worker.
  *
- * Unlike collectors, a worker's "collected" cash is the payments attributed
- * to *his pocket* (`workerId: workerId`), regardless of which collector
- * recorded them. Cash entries (handoffs, expense/salary deductions, install
- * costs, setups) are keyed on `CashCollection.collectorId === workerId`, same
- * as collectors. Balance = Σ worker-attributed payments − Σ cashCollection.
+ * A worker's wallet is driven ENTIRELY by the cash ledger, matching legacy
+ * `worker.php` exactly: `wallet = −1 × Σ(john_collection)`. The cash a worker
+ * pockets (installs, new-user setup) arrives as NEGATIVE `CashCollection` rows
+ * and handoffs/expense deductions as POSITIVE rows, so the signed ledger sum
+ * already captures everything. Balance = −Σ cashCollection.amount.
+ *
+ * We deliberately do NOT add worker-attributed `Payment` rows. In legacy,
+ * `john_payment.worker` is the customer's *assigned technician*, not whoever
+ * collected the cash (`john_payment.collector`) — those monthly bills are
+ * collected by collectors and never touch the worker's wallet. Counting them
+ * here double-attributed a collector's cash onto the worker and broke parity
+ * with legacy after every billing sync.
+ *
  * Intentionally NOT dealer-scoped: cash is cash.
  */
 export async function fetchWorkerBalance(
 	organizationId: string,
 	workerId: string,
 ): Promise<CollectorBalanceResult> {
-	const [paymentsAgg, collectionsAgg] = await Promise.all([
-		db.payment.aggregate({
-			where: {
-				organizationId,
-				workerId,
-				status: "COLLECTED",
-			},
-			_sum: { paidAmount: true },
-		}),
-		db.cashCollection.aggregate({
-			where: { organizationId, collectorId: workerId },
-			_sum: { amount: true },
-		}),
-	]);
+	const collectionsAgg = await db.cashCollection.aggregate({
+		where: { organizationId, collectorId: workerId },
+		_sum: { amount: true },
+	});
 
-	const totalCollected = sumOrZero(paymentsAgg);
 	const totalHandedOff = sumAmountOrZero(collectionsAgg);
 
 	return {
-		totalCollected,
+		totalCollected: 0,
 		totalHandedOff,
-		balance: collectorBalance(totalCollected, totalHandedOff),
+		balance: collectorBalance(0, totalHandedOff),
 	};
 }
 
@@ -161,34 +158,18 @@ export async function fetchWorkerBalanceBatch(
 	collectedMap: Map<string, number>;
 	handedOffMap: Map<string, number>;
 }> {
-	const [collectedByWorker, handoffsByWorker] = await Promise.all([
-		db.payment.groupBy({
-			by: ["workerId"],
-			where: {
-				organizationId,
-				workerId: { in: workerIds },
-				status: "COLLECTED",
-			},
-			_sum: { paidAmount: true },
-		}),
-		db.cashCollection.groupBy({
-			by: ["collectorId"],
-			where: {
-				organizationId,
-				collectorId: { in: workerIds },
-			},
-			_sum: { amount: true },
-		}),
-	]);
+	const handoffsByWorker = await db.cashCollection.groupBy({
+		by: ["collectorId"],
+		where: {
+			organizationId,
+			collectorId: { in: workerIds },
+		},
+		_sum: { amount: true },
+	});
 
-	const collectedMap = new Map(
-		collectedByWorker
-			.filter(
-				(c): c is typeof c & { workerId: string } =>
-					c.workerId !== null,
-			)
-			.map((c) => [c.workerId, c._sum.paidAmount ?? 0]),
-	);
+	// Workers have no separate "collected" term — the wallet is driven solely
+	// by the signed cash ledger (see `fetchWorkerBalance`).
+	const collectedMap = new Map<string, number>();
 	const handedOffMap = new Map(
 		handoffsByWorker.map((c) => [c.collectorId, c._sum.amount ?? 0]),
 	);
