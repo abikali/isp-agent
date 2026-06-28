@@ -15,7 +15,11 @@ export const Route = createFileRoute("/_saas/app/_account/")({
 			const organization =
 				organizations?.find(
 					(org) => org.id === session.session.activeOrganizationId,
-				) || organizations?.[0];
+				) ||
+				organizations?.find((org) =>
+					org.slug.toLowerCase().includes("libancom"),
+				) ||
+				organizations?.[0];
 
 			if (!organization) {
 				throw redirect({ to: "/new-organization" });

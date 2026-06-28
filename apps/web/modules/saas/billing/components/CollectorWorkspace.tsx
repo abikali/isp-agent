@@ -81,6 +81,7 @@ import {
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
+import { GiveMoneyCard } from "./GiveMoneyCard";
 
 const HANDOFF_SORT_BY_MAP = {
 	collectedAt: "collectedAt",
@@ -255,6 +256,8 @@ export function CollectorWorkspace({
 				balance={balance}
 				orgSlug={orgSlug}
 			/>
+
+			<GiveMoneyCard employeeId={collectorId} balance={balance} />
 
 			<Tabs defaultValue="payments" className="space-y-3">
 				<TabsList className="w-full justify-start sm:w-auto">
@@ -794,17 +797,20 @@ function HandoffsPanel({
 	const total = collectionsData?.total ?? 0;
 
 	const deleteCollection = useDeleteCollection();
-	const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+	const [pendingDelete, setPendingDelete] = useState<HandoffRow | null>(null);
 
-	const handleDelete = (id: string) => {
+	const handleDelete = (row: HandoffRow) => {
 		if (!organizationId) {
 			return;
 		}
 		toast.promise(
-			deleteCollection.mutateAsync({ organizationId, collectionId: id }),
+			deleteCollection.mutateAsync({
+				organizationId,
+				collectionId: row.id,
+			}),
 			{
 				loading: "Deleting…",
-				success: "Handoff deleted",
+				success: "Entry deleted",
 				error: (err: { message?: string }) =>
 					err?.message ?? "Failed to delete",
 			},
@@ -831,17 +837,32 @@ function HandoffsPanel({
 			enableSorting: true,
 			cell: ({ row }) => {
 				const t = row.original.type;
+				const tone =
+					t === "HANDOFF"
+						? "border-success/40 bg-success/10 text-success"
+						: t === "CASH_FLOAT"
+							? "border-primary/40 bg-primary/10 text-primary"
+							: t === "SALARY"
+								? "border-border bg-muted text-foreground"
+								: t === "STORE_PURCHASE"
+									? "border-warning/40 bg-warning/10 text-warning"
+									: "border-destructive/40 bg-destructive/10 text-destructive";
+				const label =
+					t === "HANDOFF"
+						? "Handoff"
+						: t === "CASH_FLOAT"
+							? "Float"
+							: t === "SALARY"
+								? "His pay"
+								: t === "STORE_PURCHASE"
+									? "Purchase"
+									: "Expense";
 				return (
 					<Badge
 						variant="outline"
-						className={cn(
-							"text-[10px]",
-							t === "HANDOFF"
-								? "border-success/40 bg-success/10 text-success"
-								: "border-destructive/40 bg-destructive/10 text-destructive",
-						)}
+						className={cn("text-[10px]", tone)}
 					>
-						{t === "HANDOFF" ? "Handoff" : "Expense"}
+						{label}
 					</Badge>
 				);
 			},
@@ -883,15 +904,16 @@ function HandoffsPanel({
 			header: "",
 			enableSorting: false,
 			meta: { className: "w-10 text-right" },
+			// Only entries created in this app are deletable; synced legacy rows
+			// (externalBillingId) re-sync, so they stay read-only.
 			cell: ({ row }) =>
-				row.original.type === "HANDOFF" &&
 				row.original.externalBillingId === null ? (
 					<Button
 						variant="ghost"
 						size="icon"
 						className="size-7 text-muted-foreground hover:text-destructive"
-						onClick={() => setPendingDelete(row.original.id)}
-						aria-label="Delete handoff"
+						onClick={() => setPendingDelete(row.original)}
+						aria-label="Delete entry"
 					>
 						<TrashIcon className="size-3.5" />
 					</Button>
@@ -928,10 +950,15 @@ function HandoffsPanel({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete handoff?</AlertDialogTitle>
+						<AlertDialogTitle>Delete entry?</AlertDialogTitle>
 						<AlertDialogDescription>
-							The collector's in-hand balance will jump back up by
-							the handoff amount.
+							{pendingDelete?.type === "HANDOFF"
+								? "The collector's in-hand balance will jump back up by the handoff amount."
+								: pendingDelete?.type === "CASH_FLOAT"
+									? "This removes the float. His cash in hand goes back down by the amount."
+									: pendingDelete?.type === "SALARY"
+										? "This removes his pay and its expense. His cash in hand is unchanged."
+										: "This removes the entry and its linked expense; the collector's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -955,7 +982,14 @@ interface HandoffRow {
 	id: string;
 	amount: number;
 	notes: string | null;
-	type: "HANDOFF" | "EXPENSE";
+	type:
+		| "HANDOFF"
+		| "SALARY"
+		| "CASH_FLOAT"
+		| "STORE_PURCHASE"
+		| "EXPENSE_DEDUCTION"
+		| "EXPENSE"
+		| string;
 	externalBillingId: number | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
