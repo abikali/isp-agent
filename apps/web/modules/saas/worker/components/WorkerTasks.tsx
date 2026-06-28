@@ -58,6 +58,7 @@ import {
 	useMyStockQuery,
 	useMyTasksList,
 	useMyTrendQuery,
+	useUninstallItemsQuery,
 } from "../hooks/use-worker";
 import { InstallItemRows } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
@@ -845,6 +846,7 @@ function UninstallSubmitSheet({
 				items={items}
 				onChange={setItems}
 				getUploadUrl={getUploadUrl}
+				source="uninstall"
 			/>
 		</SubmitSheet>
 	);
@@ -929,6 +931,7 @@ function RecoveredItemsEditor({
 	items,
 	onChange,
 	getUploadUrl,
+	source = "my-stock",
 }: {
 	items: RecoveredItem[];
 	onChange: (items: RecoveredItem[]) => void;
@@ -936,8 +939,20 @@ function RecoveredItemsEditor({
 		uploadUrl: string;
 		publicUrl: string;
 	}>;
+	// "my-stock": the worker's own allocations (replacement-task recovery).
+	// "uninstall": the admin-curated `showInUninstall` item list.
+	source?: "my-stock" | "uninstall";
 }) {
 	const { allocations } = useMyStockQuery();
+	const { items: uninstallItems } = useUninstallItemsQuery();
+
+	const stockOptions =
+		source === "uninstall"
+			? uninstallItems.map((i) => ({ value: i.id, label: i.name }))
+			: allocations.map((alloc) => ({
+					value: alloc.stockItem.id,
+					label: alloc.stockItem.name,
+				}));
 
 	function updateItem(key: number, patch: Partial<RecoveredItem>) {
 		onChange(
@@ -973,7 +988,11 @@ function RecoveredItemsEditor({
 						<Label>Item</Label>
 						<Combobox
 							value={item.stockItemId ?? "custom"}
-							searchPlaceholder="Search my stock…"
+							searchPlaceholder={
+								source === "uninstall"
+									? "Search items…"
+									: "Search my stock…"
+							}
 							onChange={(v) =>
 								updateItem(item.key, {
 									stockItemId: v === "custom" ? null : v,
@@ -984,10 +1003,7 @@ function RecoveredItemsEditor({
 									value: "custom",
 									label: "Other / type a name",
 								},
-								...allocations.map((alloc) => ({
-									value: alloc.stockItem.id,
-									label: alloc.stockItem.name,
-								})),
+								...stockOptions,
 							]}
 						/>
 						{!item.stockItemId && (

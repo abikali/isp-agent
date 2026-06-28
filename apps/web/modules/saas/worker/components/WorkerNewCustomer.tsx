@@ -1,15 +1,16 @@
 "use client";
 
+import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
+import { Checkbox } from "@ui/components/checkbox";
 import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import { PhoneInput } from "@ui/components/phone-input";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, CrosshairIcon, LoaderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -33,6 +34,99 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 	);
 }
 
+function LocationField({
+	latitude,
+	longitude,
+	onCoords,
+	requestWhatsapp,
+	onRequestWhatsapp,
+}: {
+	latitude: string;
+	longitude: string;
+	onCoords: (lat: string, lng: string) => void;
+	requestWhatsapp: boolean;
+	onRequestWhatsapp: (v: boolean) => void;
+}) {
+	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+
+	function useCurrentLocation() {
+		if (!navigator.geolocation) {
+			setStatus("error");
+			toast.error("Location is not supported on this device");
+			return;
+		}
+		setStatus("loading");
+		navigator.geolocation.getCurrentPosition(
+			(pos) => {
+				setStatus("idle");
+				onCoords(
+					String(pos.coords.latitude),
+					String(pos.coords.longitude),
+				);
+			},
+			() => {
+				setStatus("error");
+				toast.error("Couldn't get your location — enter it manually");
+			},
+			{ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+		);
+	}
+
+	const hasCoords = latitude.trim() !== "" && longitude.trim() !== "";
+
+	return (
+		<div className="space-y-2">
+			<Button
+				type="button"
+				variant="outline"
+				size="sm"
+				className="w-full"
+				onClick={useCurrentLocation}
+				disabled={status === "loading"}
+			>
+				{status === "loading" ? (
+					<LoaderIcon className="mr-2 size-4 animate-spin" />
+				) : (
+					<CrosshairIcon className="mr-2 size-4" />
+				)}
+				Use my current location
+			</Button>
+			<div className="grid grid-cols-2 gap-2">
+				<Input
+					type="number"
+					step="any"
+					inputMode="decimal"
+					value={latitude}
+					onChange={(e) => onCoords(e.target.value, longitude)}
+					placeholder="Latitude"
+				/>
+				<Input
+					type="number"
+					step="any"
+					inputMode="decimal"
+					value={longitude}
+					onChange={(e) => onCoords(latitude, e.target.value)}
+					placeholder="Longitude"
+				/>
+			</div>
+			<div className="flex items-center gap-2">
+				<Checkbox
+					id="nc-wa-location"
+					checked={requestWhatsapp}
+					onCheckedChange={(v) => onRequestWhatsapp(v === true)}
+					disabled={hasCoords}
+				/>
+				<Label
+					htmlFor="nc-wa-location"
+					className="text-sm font-normal text-muted-foreground"
+				>
+					Ask the customer for their location on WhatsApp
+				</Label>
+			</div>
+		</div>
+	);
+}
+
 // react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices; a reducer would add ceremony without grouping related transitions
 export function WorkerNewCustomer() {
 	const organizationId = useOrganizationId();
@@ -42,9 +136,14 @@ export function WorkerNewCustomer() {
 
 	const [firstName, setFirstName] = useState("");
 	const [lastName, setLastName] = useState("");
-	const [mobile, setMobile] = useState("");
+	const [phones, setPhones] = useState<PhoneRow[]>([
+		{ id: "phone-0", number: "", primary: true },
+	]);
 	const [address, setAddress] = useState("");
 	const [groupName, setGroupName] = useState("");
+	const [latitude, setLatitude] = useState("");
+	const [longitude, setLongitude] = useState("");
+	const [requestWhatsapp, setRequestWhatsapp] = useState(false);
 	const [collectorId, setCollectorId] = useState("");
 	const [planId, setPlanId] = useState("");
 	const [durationType, setDurationType] = useState<"month" | "days">("month");
@@ -69,10 +168,12 @@ export function WorkerNewCustomer() {
 		return d;
 	})();
 
-	const mobileDigits = mobile.replace(/\D/g, "").length;
+	const hasValidPhone = phones.some(
+		(p) => p.number.replace(/\D/g, "").length >= 7,
+	);
 	const valid =
 		firstName.trim() &&
-		mobileDigits >= 7 &&
+		hasValidPhone &&
 		address.trim() &&
 		planId &&
 		(durationType === "month" || Number(durationDays) >= 1);
@@ -80,9 +181,12 @@ export function WorkerNewCustomer() {
 	function reset() {
 		setFirstName("");
 		setLastName("");
-		setMobile("");
+		setPhones([{ id: "phone-0", number: "", primary: true }]);
 		setAddress("");
 		setGroupName("");
+		setLatitude("");
+		setLongitude("");
+		setRequestWhatsapp(false);
 		setCollectorId("");
 		setPlanId("");
 		setDurationType("month");
@@ -94,14 +198,41 @@ export function WorkerNewCustomer() {
 		if (!organizationId || !valid) {
 			return;
 		}
+		const cleanedPhones = phones
+			.filter((p) => p.number.trim() !== "")
+			.map((p) => ({ number: p.number.trim(), primary: p.primary }));
+		// Keep exactly one primary even if the primary row was left blank.
+		if (!cleanedPhones.some((p) => p.primary) && cleanedPhones[0]) {
+			cleanedPhones[0].primary = true;
+		}
+
+		const lat = Number.parseFloat(latitude);
+		const lng = Number.parseFloat(longitude);
+		const hasCoords =
+			Number.isFinite(lat) &&
+			lat >= -90 &&
+			lat <= 90 &&
+			Number.isFinite(lng) &&
+			lng >= -180 &&
+			lng <= 180;
+
 		try {
 			await createCustomer.mutateAsync({
 				organizationId,
 				firstName: firstName.trim(),
 				lastName: lastName.trim() || undefined,
-				mobile: mobile.trim(),
+				phones: cleanedPhones,
 				address: address.trim(),
 				groupName: groupName.trim() || undefined,
+				// Pass the iRadius UserGroupId (FK) straight from the selected
+				// option — the mirror layer keys off this, not the name.
+				groupExternalId: groupName
+					? (groups.find((g) => g.name === groupName)?.externalId ??
+						undefined)
+					: undefined,
+				...(hasCoords ? { latitude: lat, longitude: lng } : {}),
+				requestLocationViaWhatsapp:
+					!hasCoords && requestWhatsapp ? true : undefined,
 				collectorId: collectorId || undefined,
 				planId,
 				durationType,
@@ -156,12 +287,8 @@ export function WorkerNewCustomer() {
 					</div>
 				</div>
 				<div className="space-y-1.5">
-					<Label htmlFor="nc-mobile">Mobile *</Label>
-					<PhoneInput
-						value={mobile}
-						onChange={setMobile}
-						placeholder="Mobile number"
-					/>
+					<Label>Phone numbers *</Label>
+					<PhoneRows phones={phones} onChange={setPhones} />
 				</div>
 				<div className="space-y-1.5">
 					<Label htmlFor="nc-address">Address *</Label>
@@ -182,8 +309,8 @@ export function WorkerNewCustomer() {
 							options={[
 								{ value: "", label: "None" },
 								...groups.map((group) => ({
-									value: group,
-									label: group,
+									value: group.name,
+									label: group.name,
 								})),
 							]}
 						/>
@@ -204,6 +331,19 @@ export function WorkerNewCustomer() {
 							]}
 						/>
 					</div>
+				</div>
+				<div className="space-y-1.5">
+					<Label>Location</Label>
+					<LocationField
+						latitude={latitude}
+						longitude={longitude}
+						onCoords={(lat, lng) => {
+							setLatitude(lat);
+							setLongitude(lng);
+						}}
+						requestWhatsapp={requestWhatsapp}
+						onRequestWhatsapp={setRequestWhatsapp}
+					/>
 				</div>
 			</div>
 

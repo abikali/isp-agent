@@ -1,7 +1,7 @@
 "use client";
 
-import { useCustomerGroups } from "@saas/billing/client";
 import { useEmployeesQuery } from "@saas/employees/client";
+import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
@@ -23,6 +23,7 @@ import {
 } from "@ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useIRadiusGroups } from "../hooks/use-customers";
 import { usePlansQuery } from "../hooks/use-plans";
 import {
 	useCheckIradiusUsername,
@@ -46,7 +47,7 @@ export function EditSetupRequestDialog({
 	// react-doctor-disable-next-line react-doctor/prefer-useReducer -- flat list of independent editable form fields seeded from the request, not a related state machine
 }) {
 	const organizationId = useOrganizationId();
-	const { groups } = useCustomerGroups();
+	const { groups } = useIRadiusGroups();
 	const { plans } = usePlansQuery();
 	const { employees } = useEmployeesQuery();
 	const updateRequest = useUpdateSetupRequest();
@@ -58,9 +59,42 @@ export function EditSetupRequestDialog({
 	// Value the iRadius availability check runs against — set on blur, not on
 	// every keystroke, so we don't hammer the SSH tunnel as the admin types.
 	const [usernameToCheck, setUsernameToCheck] = useState("");
-	const [mobile, setMobile] = useState(customer.mobile ?? "");
+	const [phones, setPhones] = useState<PhoneRow[]>(() => {
+		const raw = Array.isArray(customer.phones)
+			? (customer.phones as Array<{
+					number?: unknown;
+					primary?: unknown;
+				}>)
+			: [];
+		const rows = raw.flatMap((p, i) =>
+			typeof p?.number === "string"
+				? [
+						{
+							id: `phone-${i}`,
+							number: p.number,
+							primary: p.primary === true,
+						},
+					]
+				: [],
+		);
+		if (rows.length === 0) {
+			return [
+				{ id: "phone-0", number: customer.mobile ?? "", primary: true },
+			];
+		}
+		if (!rows.some((r) => r.primary) && rows[0]) {
+			rows[0].primary = true;
+		}
+		return rows;
+	});
 	const [address, setAddress] = useState(customer.address ?? "");
-	const [groupName, setGroupName] = useState(customer.groupName ?? "");
+	// Track the selected iRadius UserGroupId (FK) — the mirror layer keys off
+	// this, not the name. Seeded from the customer's current FK.
+	const [groupExternalId, setGroupExternalId] = useState(
+		customer.groupExternalId != null
+			? String(customer.groupExternalId)
+			: "",
+	);
 	const [planId, setPlanId] = useState(customer.plan?.id ?? "");
 	const [collectorId, setCollectorId] = useState(
 		customer.collector?.id ?? "",
@@ -99,6 +133,12 @@ export function EditSetupRequestDialog({
 		) {
 			return;
 		}
+		const cleanedPhones = phones
+			.filter((p) => p.number.trim() !== "")
+			.map((p) => ({ number: p.number.trim(), primary: p.primary }));
+		if (!cleanedPhones.some((p) => p.primary) && cleanedPhones[0]) {
+			cleanedPhones[0].primary = true;
+		}
 		try {
 			await updateRequest.mutateAsync({
 				organizationId,
@@ -106,9 +146,17 @@ export function EditSetupRequestDialog({
 				firstName: firstName.trim(),
 				lastName: lastName.trim() || null,
 				...(trimmedUsername ? { username: trimmedUsername } : {}),
-				mobile: mobile.trim(),
+				...(cleanedPhones.length > 0 ? { phones: cleanedPhones } : {}),
 				address: address.trim(),
-				groupName: groupName || null,
+				groupName: groupExternalId
+					? (groups.find((g) => String(g.id) === groupExternalId)
+							?.name ??
+						customer.groupName ??
+						null)
+					: null,
+				groupExternalId: groupExternalId
+					? Number(groupExternalId)
+					: null,
 				...(planId ? { planId } : {}),
 				collectorId: collectorId || null,
 				firstChargeAmount: Number(firstCharge) || 0,
@@ -182,37 +230,33 @@ export function EditSetupRequestDialog({
 							</p>
 						)}
 					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<div className="space-y-1.5">
-							<Label htmlFor="esr-mobile">Mobile</Label>
-							<Input
-								id="esr-mobile"
-								type="tel"
-								value={mobile}
-								onChange={(e) => setMobile(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label>Group</Label>
-							<Select
-								value={groupName || "none"}
-								onValueChange={(v) =>
-									setGroupName(v === "none" ? "" : v)
-								}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="None" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">None</SelectItem>
-									{groups.map((group) => (
-										<SelectItem key={group} value={group}>
-											{group}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+					<div className="space-y-1.5">
+						<Label>Phone numbers</Label>
+						<PhoneRows phones={phones} onChange={setPhones} />
+					</div>
+					<div className="space-y-1.5">
+						<Label>Group</Label>
+						<Select
+							value={groupExternalId || "none"}
+							onValueChange={(v) =>
+								setGroupExternalId(v === "none" ? "" : v)
+							}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="None" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="none">None</SelectItem>
+								{groups.map((group) => (
+									<SelectItem
+										key={group.id}
+										value={String(group.id)}
+									>
+										{group.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="esr-address">Address</Label>

@@ -658,28 +658,59 @@ async function processBillingSync(
 
 			await updateProgress(operationId, { phase: "stockItems" });
 
-			// Cutover guard (per item): once an individual stock item has
-			// native stock operations (StockLog rows created by the app, not
-			// the import), that item's quantities are locally authoritative
-			// and are never overwritten from the legacy DB. Items that have
-			// only ever been synced keep mirroring legacy admin_stock. This is
-			// per-item on purpose — a native op on one item must not freeze the
-			// quantity sync for every other item in the org. New items, prices,
-			// and alerts always refresh regardless.
-			const nativeLogItems = await db.stockLog.findMany({
+			// Cutover guard: once the app performs a *native* stock operation
+			// (a StockLog row it created, not one the import wrote — i.e.
+			// externalBillingId IS NULL), the affected quantity becomes locally
+			// authoritative and is never overwritten from the legacy DB.
+			//
+			// Granularity matters because legacy and the new app run in
+			// parallel: most workers still operate entirely in legacy while a
+			// few have started using the new portal. The guard must therefore
+			// be as narrow as the thing that actually changed:
+			//   • admin (warehouse) quantity → frozen per *item*, but only when
+			//     a native op actually touched admin stock (ADD/ADJUST/
+			//     TRANSFER_*; these set adminQtyAfter). A worker consuming their
+			//     own stock (REMOVE) never touches admin, so it must not freeze
+			//     the warehouse count.
+			//   • worker quantity → frozen per *(item, employee)*. A native op
+			//     by worker A must NOT freeze worker B's row for the same item —
+			//     otherwise one worker delivering/installing in the new app
+			//     strands every other worker's legacy-synced quantity for that
+			//     item (the bug behind "walewe's CUDY router is wrong": wjhonny
+			//     installed a CUDY in the app, which froze the same item for
+			//     every other worker, so their legacy quantities stopped
+			//     syncing).
+			// Prices, alerts, and brand-new items always refresh regardless.
+			const nativeLogs = await db.stockLog.findMany({
 				where: { organizationId, externalBillingId: null },
-				select: { stockItem: { select: { name: true } } },
-				distinct: ["stockItemId"],
+				select: {
+					employeeId: true,
+					adminQtyAfter: true,
+					stockItem: { select: { name: true } },
+				},
 			});
-			const nativeStockNames = new Set(
-				nativeLogItems.map((r) =>
-					r.stockItem.name.trim().toLowerCase(),
-				),
-			);
-			if (nativeStockNames.size > 0) {
+			// Item names whose admin/warehouse quantity is locally authoritative.
+			const nativeAdminItems = new Set<string>();
+			// `${itemNameLower}::${employeeId}` pairs whose worker quantity is
+			// locally authoritative.
+			const nativeWorkerKeys = new Set<string>();
+			for (const log of nativeLogs) {
+				const name = log.stockItem.name.trim().toLowerCase();
+				if (log.adminQtyAfter !== null) {
+					nativeAdminItems.add(name);
+				}
+				if (log.employeeId) {
+					nativeWorkerKeys.add(`${name}::${log.employeeId}`);
+				}
+			}
+			if (nativeAdminItems.size > 0 || nativeWorkerKeys.size > 0) {
 				logger.info(
-					"[Billing Sync] Native stock activity detected — preserving local quantities for affected items",
-					{ organizationId, items: nativeStockNames.size },
+					"[Billing Sync] Native stock activity detected — preserving local quantities for affected items/workers",
+					{
+						organizationId,
+						adminItems: nativeAdminItems.size,
+						workerRows: nativeWorkerKeys.size,
+					},
 				);
 			}
 
@@ -704,7 +735,7 @@ async function processBillingSync(
 						continue;
 					}
 
-					const itemHasNativeOps = nativeStockNames.has(
+					const adminHasNativeOps = nativeAdminItems.has(
 						name.toLowerCase(),
 					);
 
@@ -713,7 +744,7 @@ async function processBillingSync(
 							organizationId_name: { organizationId, name },
 						},
 						update: {
-							...(itemHasNativeOps
+							...(adminHasNativeOps
 								? {}
 								: { quantity: toFloat(row["quantity"]) }),
 							costPrice: toFloat(row["price"]),
@@ -782,16 +813,16 @@ async function processBillingSync(
 						continue;
 					}
 
-					const itemHasNativeOps = itemName
-						? nativeStockNames.has(itemName)
-						: false;
+					const workerHasNativeOps = nativeWorkerKeys.has(
+						`${itemName}::${employeeId}`,
+					);
 
 					await db.workerStock.upsert({
 						where: {
 							stockItemId_employeeId: { stockItemId, employeeId },
 						},
 						update: {
-							...(itemHasNativeOps
+							...(workerHasNativeOps
 								? {}
 								: { quantity: toFloat(row["quantity"]) }),
 							unitPrice: toFloat(row["unitprice"]),

@@ -113,6 +113,28 @@ export function useMyStockQuery() {
 	};
 }
 
+/**
+ * Admin-curated items flagged to show in the uninstall recovered-item dropdown.
+ * Not scoped to the worker's own stock — recovered equipment is the customer's
+ * old gear, not stock the worker carries.
+ */
+export function useUninstallItemsQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.stock.uninstallItems.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["stock", "uninstallItems"]),
+	);
+
+	return {
+		items: query.data?.items ?? [],
+		isLoading: query.isLoading,
+	};
+}
+
 /** Request a refund (return) on stock the worker holds. */
 export const useRequestStockRefund = createInvalidatingMutation(
 	() => orpc.stock.requestRefund.mutationOptions(),

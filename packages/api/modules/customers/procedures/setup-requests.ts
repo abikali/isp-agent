@@ -9,8 +9,11 @@ import {
 	hasPermission,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db, getPrimaryPhone } from "@repo/database";
-import { createAccountNumberGenerator } from "@repo/jobs";
+import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
+import {
+	createAccountNumberGenerator,
+	runCreateLocationRequest,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -30,6 +33,11 @@ const setupItemSchema = z
 	.refine((v) => Boolean(v.stockItemId) !== Boolean(v.addonType), {
 		message: "Each line must be either a stock item or an add-on",
 	});
+
+const phoneSchema = z.object({
+	number: z.string().max(50),
+	primary: z.boolean(),
+});
 
 /**
  * Form options for the field new-customer screen: active plans, collectors,
@@ -97,7 +105,7 @@ export const workerCreateOptions = protectedProcedure
 							groupName: { not: null },
 							...dealerScope,
 						},
-						select: { groupName: true },
+						select: { groupName: true, groupExternalId: true },
 						distinct: ["groupName"],
 						orderBy: { groupName: "asc" },
 					})
@@ -107,9 +115,15 @@ export const workerCreateOptions = protectedProcedure
 		return {
 			plans,
 			collectors,
-			groups: groupRows
-				.map((r) => r.groupName)
-				.filter((g): g is string => g !== null),
+			// Carry the iRadius UserGroupId (FK) alongside the name. The mirror
+			// layer keys off the FK, so the picker must pass it through — name
+			// alone is lost on the next sync. Dealer-scoped above, so name→FK is
+			// unambiguous here (FK is null only for iRadius-disabled orgs).
+			groups: groupRows.flatMap((r) =>
+				r.groupName === null
+					? []
+					: [{ name: r.groupName, externalId: r.groupExternalId }],
+			),
 		};
 	});
 
@@ -130,9 +144,16 @@ export const workerCreateCustomer = protectedProcedure
 			organizationId: z.string(),
 			firstName: z.string().min(1).max(100),
 			lastName: z.string().max(100).optional(),
-			mobile: z.string().min(1).max(50),
+			phones: z.array(phoneSchema).min(1).max(MAX_PHONES),
 			address: z.string().min(1).max(500),
+			latitude: z.number().finite().gte(-90).lte(90).optional(),
+			longitude: z.number().finite().gte(-180).lte(180).optional(),
+			// Send the customer a WhatsApp link to share their location after the
+			// record is created. Ignored when explicit coordinates are provided
+			// (the worker already pinned it on-site).
+			requestLocationViaWhatsapp: z.boolean().optional(),
 			groupName: z.string().max(100).optional(),
+			groupExternalId: z.number().int().optional(),
 			collectorId: z.string().optional(),
 			planId: z.string(),
 			durationType: z.enum(["month", "days"]),
@@ -161,6 +182,13 @@ export const workerCreateCustomer = protectedProcedure
 		if (input.durationType === "days" && !input.durationDays) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Number of days is required for custom durations",
+			});
+		}
+
+		const primaryPhone = getPrimaryPhone(input.phones);
+		if (!primaryPhone) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "At least one phone number is required",
 			});
 		}
 
@@ -227,12 +255,13 @@ export const workerCreateCustomer = protectedProcedure
 					firstName: input.firstName,
 					lastName: input.lastName ?? null,
 					dealerId: activeDealerId ?? null,
-					phones: [{ number: input.mobile, primary: true }],
-					mobile: getPrimaryPhone([
-						{ number: input.mobile, primary: true },
-					]),
+					phones: input.phones,
+					mobile: primaryPhone,
 					address: input.address,
+					latitude: input.latitude ?? null,
+					longitude: input.longitude ?? null,
 					groupName: input.groupName ?? null,
+					groupExternalId: input.groupExternalId ?? null,
 					planId: plan.id,
 					status: "PENDING",
 					monthlyRate: plan.monthlyPrice,
@@ -298,6 +327,25 @@ export const workerCreateCustomer = protectedProcedure
 			}),
 		);
 
+		// Optional: ask the customer to share their location over WhatsApp.
+		// Only when the worker didn't already pin it on-site. Fire-and-forget —
+		// a WhatsApp hiccup must not fail the customer creation.
+		if (
+			input.requestLocationViaWhatsapp &&
+			input.latitude === undefined &&
+			input.longitude === undefined
+		) {
+			runCreateLocationRequest({
+				organizationId: input.organizationId,
+				customerId: result.customer.id,
+				createdById: user.id,
+			}).catch((err: unknown) =>
+				logger.warn("[Worker Create] location request failed", {
+					error: String(err),
+				}),
+			);
+		}
+
 		return result;
 	});
 
@@ -338,8 +386,10 @@ export const listSetupRequests = protectedProcedure
 						firstName: true,
 						lastName: true,
 						mobile: true,
+						phones: true,
 						address: true,
 						groupName: true,
+						groupExternalId: true,
 						username: true,
 						status: true,
 						expiresAt: true,
@@ -379,9 +429,10 @@ export const updateSetupRequest = protectedProcedure
 			id: z.string(),
 			firstName: z.string().min(1).max(100).optional(),
 			lastName: z.string().max(100).nullable().optional(),
-			mobile: z.string().max(50).optional(),
+			phones: z.array(phoneSchema).min(1).max(MAX_PHONES).optional(),
 			address: z.string().max(500).optional(),
 			groupName: z.string().max(100).nullable().optional(),
+			groupExternalId: z.number().int().nullable().optional(),
 			username: z.string().trim().min(1).max(100).optional(),
 			planId: z.string().optional(),
 			collectorId: z.string().nullable().optional(),
@@ -473,15 +524,18 @@ export const updateSetupRequest = protectedProcedure
 		if (input.lastName !== undefined) {
 			customerData["lastName"] = input.lastName;
 		}
-		if (input.mobile !== undefined) {
-			customerData["mobile"] = input.mobile;
-			customerData["phones"] = [{ number: input.mobile, primary: true }];
+		if (input.phones !== undefined) {
+			customerData["phones"] = input.phones;
+			customerData["mobile"] = getPrimaryPhone(input.phones);
 		}
 		if (input.address !== undefined) {
 			customerData["address"] = input.address;
 		}
 		if (input.groupName !== undefined) {
 			customerData["groupName"] = input.groupName;
+		}
+		if (input.groupExternalId !== undefined) {
+			customerData["groupExternalId"] = input.groupExternalId;
 		}
 		if (input.planId !== undefined) {
 			customerData["planId"] = input.planId;

@@ -5,6 +5,7 @@ import { deliverStockToWorker } from "./procedures/deliver-to-worker";
 import { listStockItems } from "./procedures/list-items";
 import { listStockLogs } from "./procedures/list-logs";
 import { listStockRefundRequests } from "./procedures/list-refund-requests";
+import { listUninstallItems } from "./procedures/list-uninstall-items";
 import { requestStockRefund } from "./procedures/request-refund";
 import { returnStockFromWorker } from "./procedures/return-from-worker";
 import {
@@ -29,6 +30,7 @@ export const stockRouter = {
 	listLogs: listStockLogs,
 	workerStockByEmployee: getWorkerStockByEmployee,
 	myStock: getMyStock,
+	uninstallItems: listUninstallItems,
 	stats: getStockStats,
 	requestRefund: requestStockRefund,
 	listRefundRequests: listStockRefundRequests,

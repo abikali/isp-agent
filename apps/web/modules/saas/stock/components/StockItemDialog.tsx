@@ -39,6 +39,7 @@ export function StockItemDialog({
 			sellPrice: item?.sellPrice ?? 0,
 			alertThreshold: item?.alertThreshold ?? null,
 			alertEnabled: item?.alertEnabled ?? false,
+			showInUninstall: item?.showInUninstall ?? false,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
@@ -54,6 +55,7 @@ export function StockItemDialog({
 						sellPrice: value.sellPrice,
 						alertThreshold: value.alertThreshold,
 						alertEnabled: value.alertEnabled,
+						showInUninstall: value.showInUninstall,
 					});
 					toast.success("Item updated");
 				} else {
@@ -67,6 +69,7 @@ export function StockItemDialog({
 							alertThreshold: value.alertThreshold,
 						}),
 						alertEnabled: value.alertEnabled,
+						showInUninstall: value.showInUninstall,
 					});
 					toast.success("Item created");
 				}
@@ -238,6 +241,27 @@ export function StockItemDialog({
 							) : null
 						}
 					</form.Subscribe>
+
+					<form.Field name="showInUninstall">
+						{(field) => (
+							<div className="flex items-center justify-between rounded-md border p-3">
+								<div>
+									<Label htmlFor="stock-item-uninstall">
+										Show on uninstall
+									</Label>
+									<p className="text-xs text-muted-foreground">
+										List this item in the worker uninstall
+										recovered-equipment dropdown
+									</p>
+								</div>
+								<Switch
+									id="stock-item-uninstall"
+									checked={field.state.value}
+									onCheckedChange={field.handleChange}
+								/>
+							</div>
+						)}
+					</form.Field>
 
 					<DialogFooter>
 						<Button

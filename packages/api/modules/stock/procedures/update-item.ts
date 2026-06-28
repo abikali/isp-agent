@@ -20,6 +20,7 @@ export const updateStockItem = protectedProcedure
 			sellPrice: z.number().min(0).optional(),
 			alertThreshold: z.number().int().min(0).nullable().optional(),
 			alertEnabled: z.boolean().optional(),
+			showInUninstall: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -71,6 +72,9 @@ export const updateStockItem = protectedProcedure
 		}
 		if (input.alertEnabled !== undefined) {
 			updateData["alertEnabled"] = input.alertEnabled;
+		}
+		if (input.showInUninstall !== undefined) {
+			updateData["showInUninstall"] = input.showInUninstall;
 		}
 
 		const updated = await db.stockItem.update({

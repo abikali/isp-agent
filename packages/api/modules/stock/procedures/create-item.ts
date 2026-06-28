@@ -20,6 +20,7 @@ export const createStockItem = protectedProcedure
 			sellPrice: z.number().min(0).default(0),
 			alertThreshold: z.number().int().min(0).optional(),
 			alertEnabled: z.boolean().default(false),
+			showInUninstall: z.boolean().default(false),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -55,6 +56,7 @@ export const createStockItem = protectedProcedure
 					sellPrice: input.sellPrice,
 					alertThreshold: input.alertThreshold ?? null,
 					alertEnabled: input.alertEnabled,
+					showInUninstall: input.showInUninstall,
 				},
 			});
 			if (input.quantity > 0) {

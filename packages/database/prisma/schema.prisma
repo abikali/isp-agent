@@ -2024,6 +2024,10 @@ model StockItem {
   sellPrice      Float    @default(0)
   alertThreshold Int?
   alertEnabled   Boolean  @default(false)
+  // When true, this item appears in the worker uninstall task's recovered-item
+  // dropdown (an admin-curated list of recoverable equipment), regardless of
+  // whether the worker personally holds it in their own stock.
+  showInUninstall Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

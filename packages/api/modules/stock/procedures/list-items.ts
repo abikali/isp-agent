@@ -56,6 +56,7 @@ export const listStockItems = protectedProcedure
 			sellPrice: item.sellPrice,
 			alertThreshold: item.alertThreshold,
 			alertEnabled: item.alertEnabled,
+			showInUninstall: item.showInUninstall,
 			createdAt: item.createdAt,
 			workerQuantity: item.workerAllocations.reduce(
 				(sum, a) => sum + a.quantity,

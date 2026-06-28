@@ -180,6 +180,31 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 				},
 			},
 			{
+				id: "showInUninstall",
+				header: "Uninstall",
+				enableSorting: false,
+				meta: { className: "hidden md:table-cell" },
+				cell: ({ row }) => {
+					const item = row.original;
+					return (
+						<Switch
+							checked={item.showInUninstall}
+							onCheckedChange={(checked) => {
+								if (!organizationId) {
+									return;
+								}
+								updateItem.mutate({
+									organizationId,
+									id: item.id,
+									showInUninstall: checked,
+								});
+							}}
+							aria-label="Toggle show on uninstall"
+						/>
+					);
+				},
+			},
+			{
 				id: "actions",
 				enableSorting: false,
 				cell: ({ row }) => {
