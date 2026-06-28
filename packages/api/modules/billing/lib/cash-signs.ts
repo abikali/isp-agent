@@ -48,3 +48,12 @@ export function handoffAmount(total: number): number {
 export function moneyGivenAmount(total: number): number {
 	return Math.abs(total);
 }
+
+/**
+ * Company cash given to a worker to HOLD (a float to spend on company work).
+ * He owes it back, so it must RAISE his cash in hand → NEGATIVE, same sign
+ * convention as cash he collects into his pocket. Counted in the ledger.
+ */
+export function cashFloatAmount(total: number): number {
+	return -Math.abs(total);
+}

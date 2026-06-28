@@ -9,28 +9,31 @@ import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	cashFloatAmount,
 	expenseDeductionAmount,
 	moneyGivenAmount,
 } from "../../billing/lib/cash-signs";
 
 /**
- * Give a worker money — one transaction, an already-APPROVED expense (so it
- * surfaces in the accounting reports' `totalExpenses`) plus a cash-ledger row.
- * The `reason` is just where the money comes from and decides whether it
- * touches his cash in hand:
+ * Move money for a worker — pick where it's taken `from` and where it `to`.
+ * The effect on his cash in hand and the books follows from those two:
  *
- *  - `advance` — paid from the company's OWN funds. The ledger row is a
- *    DISPLAY-ONLY `SALARY` type, excluded from every balance sum → his cash in
- *    hand is UNCHANGED.
- *  - `keep_collected` — he keeps money he already collected, so it's an
- *    `EXPENSE_DEDUCTION` row that COUNTS → LOWERS his cash in hand.
+ *  | from      | to       | cash in hand | books        | ledger type        |
+ *  |-----------|----------|--------------|--------------|--------------------|
+ *  | company   | in_hand  | ↑            | not an expense | CASH_FLOAT (−)    |
+ *  | company   | him      | unchanged    | +expense       | SALARY (excluded) |
+ *  | collected | him      | ↓            | +expense       | EXPENSE_DEDUCTION |
+ *  | collected | in_hand  | — (rejected: that's already his cash in hand)  |
+ *
+ * "to him" means the money becomes his to keep → a company expense. "to
+ * in_hand" means he's holding our cash and owes it back → not an expense.
  */
 export const paySalary = protectedProcedure
 	.route({
 		method: "POST",
 		path: "/expenses/pay-salary",
 		tags: ["Expenses"],
-		summary: "Give a worker money (records an approved company expense)",
+		summary: "Move money for a worker (give / float / let him keep cash)",
 	})
 	.input(
 		z.object({
@@ -38,7 +41,8 @@ export const paySalary = protectedProcedure
 			workerId: z.string(),
 			amount: z.number().finite().positive(),
 			notes: z.string().max(500).optional(),
-			reason: z.enum(["advance", "keep_collected"]).default("advance"),
+			from: z.enum(["company", "collected"]).default("company"),
+			to: z.enum(["in_hand", "him"]).default("in_hand"),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -48,6 +52,18 @@ export const paySalary = protectedProcedure
 			"expenses",
 			"approve",
 		);
+
+		const toInHand = input.to === "in_hand";
+		const fromCollected = input.from === "collected";
+
+		// Moving his own collected cash into his cash in hand is a no-op —
+		// it's already there.
+		if (fromCollected && toInHand) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"That's already his cash in hand — nothing to move. Pick a different source or destination.",
+			});
+		}
 
 		const worker = await db.employee.findFirst({
 			where: {
@@ -65,37 +81,47 @@ export const paySalary = protectedProcedure
 		}
 
 		const note = input.notes?.trim();
-		const keepsCollected = input.reason === "keep_collected";
-
-		// `keep_collected` counts in the ledger (lowers his cash in hand);
-		// `advance` is a display-only SALARY row that does not.
-		const cashType = keepsCollected ? "EXPENSE_DEDUCTION" : "SALARY";
-		const cashAmount = keepsCollected
-			? expenseDeductionAmount(input.amount)
-			: moneyGivenAmount(input.amount);
+		// `to in_hand` = float he holds (raises in-hand, no expense).
+		// `to him` = his to keep → a company expense; from-collected lowers his
+		// in-hand (EXPENSE_DEDUCTION), from-company leaves it (excluded SALARY).
+		const cashType = toInHand
+			? "CASH_FLOAT"
+			: fromCollected
+				? "EXPENSE_DEDUCTION"
+				: "SALARY";
+		const cashAmount = toInHand
+			? cashFloatAmount(input.amount)
+			: fromCollected
+				? expenseDeductionAmount(input.amount)
+				: moneyGivenAmount(input.amount);
 
 		const description = note ? `Money given: ${note}` : "Money given";
 
 		await db.$transaction(async (tx) => {
-			const expense = await tx.expense.create({
-				data: {
-					organizationId: input.organizationId,
-					submittedById: input.workerId,
-					amount: input.amount,
-					description,
-					category: "salary",
-					status: "APPROVED",
-					approvedById: user.id,
-					approvedAt: new Date(),
-				},
-			});
+			// Only money that becomes his to keep (`to him`) is a company expense.
+			const expenseId = toInHand
+				? null
+				: (
+						await tx.expense.create({
+							data: {
+								organizationId: input.organizationId,
+								submittedById: input.workerId,
+								amount: input.amount,
+								description,
+								category: "salary",
+								status: "APPROVED",
+								approvedById: user.id,
+								approvedAt: new Date(),
+							},
+						})
+					).id;
 			await tx.cashCollection.create({
 				data: {
 					organizationId: input.organizationId,
 					collectorId: input.workerId,
 					amount: cashAmount,
 					type: cashType,
-					expenseId: expense.id,
+					expenseId,
 					receivedById: user.id,
 					notes: (note ?? "Money given").slice(0, 200),
 				},

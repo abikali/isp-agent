@@ -1860,6 +1860,10 @@ enum CashCollectionType {
   // Worker bought a company item out of the cash he collected. Counts in the
   // ledger (lowers his cash in hand, +company income — it is NOT an expense).
   STORE_PURCHASE
+  // Company cash given to a worker to HOLD (e.g. to buy parts for us). He owes
+  // it back, so it RAISES his cash in hand (NEGATIVE amount, counted in the
+  // ledger). NOT an expense — that happens only when he actually spends it.
+  CASH_FLOAT
   OTHER
 }
 

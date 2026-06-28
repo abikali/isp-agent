@@ -36,6 +36,13 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import { Toggle } from "@ui/components/toggle";
 import { cn } from "@ui/lib";
@@ -604,34 +611,28 @@ function HandoffCard({
 	);
 }
 
-// ─── Worker cash entry card ──────────────────────────────────────────
+// ─── Give money card ─────────────────────────────────────────────────
 
-type CashReason = "advance" | "keep_collected";
+type CashFrom = "company" | "collected";
+type CashTo = "in_hand" | "him";
 
-interface ReasonConfig {
-	title: string;
-	desc: string;
-	notePlaceholder: string;
-	/** Does it lower his cash in hand? */
-	affectsInHand: boolean;
+const FROM_OPTIONS: { value: CashFrom; label: string }[] = [
+	{ value: "company", label: "Company cash" },
+	{ value: "collected", label: "His collected cash" },
+];
+const TO_OPTIONS: { value: CashTo; label: string }[] = [
+	{ value: "in_hand", label: "His cash in hand (he owes it back)" },
+	{ value: "him", label: "Him — his to keep (pay)" },
+];
+
+/** Net effect of a from→to move on his cash in hand + the books. */
+function cashEffect(from: CashFrom, to: CashTo, amount: number) {
+	// Moving his own collected cash into his cash in hand is a no-op.
+	const invalid = from === "collected" && to === "in_hand";
+	const inHandDelta =
+		to === "in_hand" ? amount : from === "collected" ? -amount : 0;
+	return { invalid, inHandDelta, isExpense: to === "him" };
 }
-
-const REASONS: Record<CashReason, ReasonConfig> = {
-	advance: {
-		title: "From company cash",
-		desc: "Company gives him money. His cash in hand stays the same.",
-		notePlaceholder: "For… (e.g. June pay, fuel advance, to buy parts)",
-		affectsInHand: false,
-	},
-	keep_collected: {
-		title: "From the cash he collected",
-		desc: "He keeps some of the cash he collected. Lowers his cash in hand.",
-		notePlaceholder: "For… (e.g. his share)",
-		affectsInHand: true,
-	},
-};
-
-const REASON_ORDER: CashReason[] = ["advance", "keep_collected"];
 
 function GiveMoneyCard({
 	workerId,
@@ -647,7 +648,8 @@ function GiveMoneyCard({
 		defaultValues: {
 			amount: "",
 			notes: "",
-			reason: "advance" as CashReason,
+			from: "company" as CashFrom,
+			to: "in_hand" as CashTo,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
@@ -659,7 +661,8 @@ function GiveMoneyCard({
 					workerId,
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
-					reason: value.reason,
+					from: value.from,
+					to: value.to,
 				}),
 				{
 					loading: "Recording…",
@@ -675,9 +678,10 @@ function GiveMoneyCard({
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
-	const reason = useStore(form.store, (s) => s.values.reason);
+	const from = useStore(form.store, (s) => s.values.from);
+	const to = useStore(form.store, (s) => s.values.to);
 	const amountStr = useStore(form.store, (s) => s.values.amount);
-	const cfg = REASONS[reason];
+	const effect = cashEffect(from, to, Number(amountStr) || 0);
 
 	return (
 		<ContentCard className="lg:col-span-2">
@@ -696,39 +700,28 @@ function GiveMoneyCard({
 				>
 					{/* Inputs */}
 					<div className="space-y-2.5">
-						<form.Field name="reason">
+						<form.Field name="from">
 							{(field) => (
-								<div className="space-y-1.5">
-									<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-										Money comes from
-									</div>
-									{REASON_ORDER.map((r) => {
-										const selected =
-											field.state.value === r;
-										return (
-											<button
-												key={r}
-												type="button"
-												onClick={() =>
-													field.handleChange(r)
-												}
-												className={cn(
-													"w-full rounded-lg border px-3 py-2 text-left transition-colors",
-													selected
-														? "border-primary bg-primary/5 ring-1 ring-primary"
-														: "border-border hover:bg-accent/40",
-												)}
-											>
-												<div className="text-sm font-medium leading-tight">
-													{REASONS[r].title}
-												</div>
-												<div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-													{REASONS[r].desc}
-												</div>
-											</button>
-										);
-									})}
-								</div>
+								<LabeledSelect
+									label="Take from"
+									value={field.state.value}
+									onChange={(v) =>
+										field.handleChange(v as CashFrom)
+									}
+									options={FROM_OPTIONS}
+								/>
+							)}
+						</form.Field>
+						<form.Field name="to">
+							{(field) => (
+								<LabeledSelect
+									label="Goes to"
+									value={field.state.value}
+									onChange={(v) =>
+										field.handleChange(v as CashTo)
+									}
+									options={TO_OPTIONS}
+								/>
 							)}
 						</form.Field>
 						<div className="flex gap-2">
@@ -755,7 +748,7 @@ function GiveMoneyCard({
 										onChange={(e) =>
 											field.handleChange(e.target.value)
 										}
-										placeholder={cfg.notePlaceholder}
+										placeholder="For… (e.g. pay, buy a router)"
 										className="h-9 flex-1"
 									/>
 								)}
@@ -765,7 +758,7 @@ function GiveMoneyCard({
 							type="submit"
 							variant="secondary"
 							className="w-full"
-							disabled={isSubmitting}
+							disabled={isSubmitting || effect.invalid}
 						>
 							<BanknoteIcon className="mr-1.5 size-4" />
 							{isSubmitting ? "Recording…" : "Give money"}
@@ -776,7 +769,7 @@ function GiveMoneyCard({
 					<GiveMoneyPreview
 						balance={balance}
 						amount={Number(amountStr) || 0}
-						cfg={cfg}
+						effect={effect}
 					/>
 				</form>
 			</ContentCardSection>
@@ -784,17 +777,48 @@ function GiveMoneyCard({
 	);
 }
 
+function LabeledSelect<T extends string>({
+	label,
+	value,
+	onChange,
+	options,
+}: {
+	label: string;
+	value: T;
+	onChange: (value: string) => void;
+	options: { value: T; label: string }[];
+}) {
+	return (
+		<Select value={value} onValueChange={onChange}>
+			<SelectTrigger className="h-9">
+				<span className="mr-1 shrink-0 text-xs text-muted-foreground">
+					{label}
+				</span>
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				{options.map((o) => (
+					<SelectItem key={o.value} value={o.value}>
+						{o.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+}
+
 function GiveMoneyPreview({
 	balance,
 	amount,
-	cfg,
+	effect,
 }: {
 	balance: number;
 	amount: number;
-	cfg: ReasonConfig;
+	effect: { invalid: boolean; inHandDelta: number; isExpense: boolean };
 }) {
-	const newInHand = cfg.affectsInHand ? balance - amount : balance;
 	const hasAmount = amount > 0;
+	const newInHand = balance + effect.inHandDelta;
+	const movesInHand = effect.inHandDelta !== 0;
 
 	return (
 		<div className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-surface-subtle/40 p-3">
@@ -802,61 +826,76 @@ function GiveMoneyPreview({
 				What happens
 			</div>
 
-			<div className="space-y-1">
-				<div className="text-xs text-muted-foreground">
-					His cash in hand
-				</div>
-				<div className="flex items-center gap-2 text-sm font-medium tabular-nums">
-					<span className="text-muted-foreground">
-						{formatCurrency(balance)}
-					</span>
-					<span className="text-muted-foreground/50">→</span>
-					<span
-						className={cn(
-							cfg.affectsInHand && hasAmount
-								? "text-foreground"
-								: "text-muted-foreground",
-						)}
-					>
-						{formatCurrency(newInHand)}
-					</span>
-					{cfg.affectsInHand && hasAmount && (
-						<span className="text-[11px] font-normal text-warning">
-							−{formatCurrency(amount)}
-						</span>
-					)}
-					{!cfg.affectsInHand && (
-						<span className="text-[11px] font-normal text-muted-foreground">
-							no change
-						</span>
-					)}
-				</div>
-			</div>
-
-			<div className="space-y-1">
-				<div className="text-xs text-muted-foreground">
-					Company books
-				</div>
-				<div className="text-sm font-medium tabular-nums">
-					{hasAmount ? (
-						<>
-							+{formatCurrency(amount)}{" "}
-							<span className="text-[11px] font-normal text-muted-foreground">
-								expense
-							</span>
-						</>
-					) : (
-						<span className="text-sm font-normal text-muted-foreground">
-							—
-						</span>
-					)}
-				</div>
-			</div>
-
-			{!hasAmount && (
-				<p className="mt-auto text-[11px] text-muted-foreground/70">
-					Enter an amount to preview the effect.
+			{effect.invalid ? (
+				<p className="text-xs text-warning">
+					That's already his cash in hand — pick a different source or
+					destination.
 				</p>
+			) : (
+				<>
+					<div className="space-y-1">
+						<div className="text-xs text-muted-foreground">
+							His cash in hand
+						</div>
+						<div className="flex items-center gap-2 text-sm font-medium tabular-nums">
+							<span className="text-muted-foreground">
+								{formatCurrency(balance)}
+							</span>
+							<span className="text-muted-foreground/50">→</span>
+							<span
+								className={cn(
+									movesInHand && hasAmount
+										? "text-foreground"
+										: "text-muted-foreground",
+								)}
+							>
+								{formatCurrency(newInHand)}
+							</span>
+							{movesInHand && hasAmount ? (
+								<span className="text-[11px] font-normal text-muted-foreground">
+									{effect.inHandDelta > 0 ? "+" : "−"}
+									{formatCurrency(
+										Math.abs(effect.inHandDelta),
+									)}
+								</span>
+							) : (
+								<span className="text-[11px] font-normal text-muted-foreground">
+									no change
+								</span>
+							)}
+						</div>
+					</div>
+
+					<div className="space-y-1">
+						<div className="text-xs text-muted-foreground">
+							Company books
+						</div>
+						<div className="text-sm font-medium tabular-nums">
+							{!hasAmount ? (
+								<span className="text-sm font-normal text-muted-foreground">
+									—
+								</span>
+							) : effect.isExpense ? (
+								<>
+									+{formatCurrency(amount)}{" "}
+									<span className="text-[11px] font-normal text-muted-foreground">
+										expense
+									</span>
+								</>
+							) : (
+								<span className="text-[11px] font-normal text-muted-foreground">
+									not an expense (he owes it back)
+								</span>
+							)}
+						</div>
+					</div>
+
+					{!hasAmount && (
+						<p className="mt-auto text-[11px] text-muted-foreground/70">
+							Enter an amount to preview the effect.
+						</p>
+					)}
+				</>
 			)}
 		</div>
 	);
@@ -871,6 +910,7 @@ interface CashRow {
 	type:
 		| "HANDOFF"
 		| "SALARY"
+		| "CASH_FLOAT"
 		| "STORE_PURCHASE"
 		| "EXPENSE_DEDUCTION"
 		| "EXPENSE"
@@ -955,19 +995,23 @@ function CashHistoryPanel({
 				const tone =
 					t === "HANDOFF"
 						? "border-success/40 bg-success/10 text-success"
-						: t === "SALARY"
+						: t === "CASH_FLOAT"
 							? "border-primary/40 bg-primary/10 text-primary"
-							: t === "STORE_PURCHASE"
-								? "border-warning/40 bg-warning/10 text-warning"
-								: "border-destructive/40 bg-destructive/10 text-destructive";
+							: t === "SALARY"
+								? "border-border bg-muted text-foreground"
+								: t === "STORE_PURCHASE"
+									? "border-warning/40 bg-warning/10 text-warning"
+									: "border-destructive/40 bg-destructive/10 text-destructive";
 				const label =
 					t === "HANDOFF"
 						? "Handoff"
-						: t === "SALARY"
-							? "Money given"
-							: t === "STORE_PURCHASE"
-								? "Purchase"
-								: "Expense";
+						: t === "CASH_FLOAT"
+							? "Float"
+							: t === "SALARY"
+								? "His pay"
+								: t === "STORE_PURCHASE"
+									? "Purchase"
+									: "Expense";
 				return (
 					<Badge
 						variant="outline"
@@ -1065,11 +1109,14 @@ function CashHistoryPanel({
 						<AlertDialogDescription>
 							{pendingDelete?.type === "HANDOFF"
 								? "The worker's in-hand balance will jump back up by the handoff amount."
-								: pendingDelete?.type === "SALARY"
-									? "This removes the money-given record and its expense. His cash-in-hand is unchanged."
-									: pendingDelete?.type === "STORE_PURCHASE"
-										? "This removes the purchase. His cash in hand goes back up by the amount."
-										: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
+								: pendingDelete?.type === "CASH_FLOAT"
+									? "This removes the float. His cash in hand goes back down by the amount."
+									: pendingDelete?.type === "SALARY"
+										? "This removes his pay and its expense. His cash in hand is unchanged."
+										: pendingDelete?.type ===
+												"STORE_PURCHASE"
+											? "This removes the purchase. His cash in hand goes back up by the amount."
+											: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
