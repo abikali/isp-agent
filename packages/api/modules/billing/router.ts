@@ -18,6 +18,7 @@ import { listCustomerGroups } from "./procedures/list-groups";
 import { listMonths } from "./procedures/list-months";
 import { listPayments } from "./procedures/list-payments";
 import { listUnpaidCustomers } from "./procedures/list-unpaid";
+import { listWorkers } from "./procedures/list-workers";
 import { markReceiptSent } from "./procedures/mark-receipt-sent";
 import {
 	createNoteCategory,
@@ -55,6 +56,7 @@ import {
 	voidManyInvoicesProcedure,
 	voidUnpaidForCustomersProcedure,
 } from "./procedures/void-invoice";
+import { getWorkerBalance } from "./procedures/worker-balance";
 import { getMyWallet } from "./procedures/worker-wallet";
 
 export const billingRouter = {
@@ -109,6 +111,10 @@ export const billingRouter = {
 		list: listCollections,
 		create: createCollection,
 		delete: deleteCollection,
+	},
+	workers: {
+		list: listWorkers,
+		balance: getWorkerBalance,
 	},
 	location: {
 		request: requestLocation,

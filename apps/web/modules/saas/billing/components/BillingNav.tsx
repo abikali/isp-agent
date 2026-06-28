@@ -10,6 +10,7 @@ import {
 	FileTextIcon,
 	GaugeIcon,
 	HandCoinsIcon,
+	HardHatIcon,
 	type LucideIcon,
 	OctagonXIcon,
 	PhoneCallIcon,
@@ -44,6 +45,13 @@ const TABS: BillingTab[] = [
 		label: "Collectors",
 		to: "/collectors",
 		icon: WalletIcon,
+		resource: "manage",
+	},
+	{
+		id: "workers",
+		label: "Worker Cash",
+		to: "/workers",
+		icon: HardHatIcon,
 		resource: "manage",
 	},
 	{

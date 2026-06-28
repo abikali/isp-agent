@@ -324,6 +324,49 @@ export function useDeclineStoppedPayment() {
 	});
 }
 
+// ─── Workers (cash) ─────────────────────────────────────────────
+
+export function useWorkers() {
+	const organizationId = useOrganizationId();
+
+	return useSuspenseQuery(
+		orpc.billing.workers.list.queryOptions({
+			input: { organizationId: organizationId ?? "" },
+		}),
+	);
+}
+
+export function useWorkerBalance(workerId: string | null) {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId && workerId
+			? orpc.billing.workers.balance.queryOptions({
+					input: { organizationId, workerId },
+				})
+			: disabledQuery(["billing", "workers", "balance"]),
+	);
+}
+
+export function usePaySalary() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.expenses.paySalary.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.workers.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.collections.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.expenses.key(),
+			});
+		},
+	});
+}
+
 // ─── Collectors ─────────────────────────────────────────────────
 
 export function useCollectors() {
@@ -405,6 +448,9 @@ export function useCreateCollection() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.collectors.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.workers.key(),
+			});
 		},
 	});
 }
@@ -420,6 +466,9 @@ export function useDeleteCollection() {
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.collectors.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.workers.key(),
 			});
 		},
 	});
