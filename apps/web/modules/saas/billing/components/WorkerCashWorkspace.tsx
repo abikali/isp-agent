@@ -36,13 +36,6 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import { Toggle } from "@ui/components/toggle";
 import { cn } from "@ui/lib";
@@ -455,9 +448,9 @@ export function WorkerCashWorkspace({
 				)}
 			</MetricStrip>
 
-			<div className="grid gap-3 lg:grid-cols-2">
+			<div className="grid gap-3 lg:grid-cols-3">
 				<HandoffCard workerId={workerId} balance={balance} />
-				<GiveMoneyCard workerId={workerId} />
+				<GiveMoneyCard workerId={workerId} balance={balance} />
 			</div>
 
 			<CashHistoryPanel
@@ -613,50 +606,55 @@ function HandoffCard({
 
 // ─── Worker cash entry card ──────────────────────────────────────────
 
-const MONEY_SOURCES = ["Company cash", "Bank", "Other"] as const;
-
 type CashReason = "advance" | "keep_collected" | "purchase";
 
-const REASONS: Record<
-	CashReason,
-	{
-		label: string;
-		header: string;
-		effect: string;
-		notePlaceholder: string;
-		submit: string;
-		showSource: boolean;
-	}
-> = {
+interface ReasonConfig {
+	title: string;
+	desc: string;
+	notePlaceholder: string;
+	submit: string;
+	/** Does it lower his cash in hand? */
+	affectsInHand: boolean;
+	/** What the company books. */
+	books: "expense" | "income";
+}
+
+const REASONS: Record<CashReason, ReasonConfig> = {
 	advance: {
-		label: "Pay / advance",
-		header: "Give money",
-		effect: "From company cash — his cash in hand stays the same.",
+		title: "Pay him from company cash",
+		desc: "Company gives him money. His cash in hand stays the same.",
 		notePlaceholder: "For… (e.g. June pay, fuel advance)",
 		submit: "Give money",
-		showSource: true,
+		affectsInHand: false,
+		books: "expense",
 	},
 	keep_collected: {
-		label: "Let him keep collected cash",
-		header: "Give money",
-		effect: "He keeps cash he collected — lowers his cash in hand.",
+		title: "He keeps cash he collected",
+		desc: "He pockets some of the cash he collected. Lowers his cash in hand.",
 		notePlaceholder: "For… (e.g. his share)",
 		submit: "Give money",
-		showSource: false,
+		affectsInHand: true,
+		books: "expense",
 	},
 	purchase: {
-		label: "He bought from us",
-		header: "Record a purchase",
-		effect: "He paid from his cash for a company item — lowers his cash in hand; booked as a sale, not an expense.",
+		title: "He bought something from us",
+		desc: "He pays for a company item from his cash. Lowers his cash in hand.",
 		notePlaceholder: "Item (e.g. router, cable)",
 		submit: "Record purchase",
-		showSource: false,
+		affectsInHand: true,
+		books: "income",
 	},
 };
 
 const REASON_ORDER: CashReason[] = ["advance", "keep_collected", "purchase"];
 
-function GiveMoneyCard({ workerId }: { workerId: string }) {
+function GiveMoneyCard({
+	workerId,
+	balance,
+}: {
+	workerId: string;
+	balance: number;
+}) {
 	const organizationId = useOrganizationId();
 	const paySalary = usePaySalary();
 
@@ -664,24 +662,18 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 		defaultValues: {
 			amount: "",
 			notes: "",
-			source: MONEY_SOURCES[0] as string,
 			reason: "advance" as CashReason,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
 				return;
 			}
-			const cfg = REASONS[value.reason];
 			toast.promise(
 				paySalary.mutateAsync({
 					organizationId,
 					workerId,
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
-					source:
-						cfg.showSource && value.source
-							? value.source
-							: undefined,
 					reason: value.reason,
 				}),
 				{
@@ -699,14 +691,15 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
 	const reason = useStore(form.store, (s) => s.values.reason);
+	const amountStr = useStore(form.store, (s) => s.values.amount);
 	const cfg = REASONS[reason];
 
 	return (
-		<ContentCard>
+		<ContentCard className="lg:col-span-2">
 			<ContentCardSection className="space-y-3">
 				<div className="flex items-center gap-2 text-sm font-semibold">
 					<BanknoteIcon className="size-4 text-muted-foreground" />
-					{cfg.header}
+					Give money or record a purchase
 				</div>
 				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form via oRPC mutation; preventDefault is the documented pattern */}
 				<form
@@ -714,101 +707,172 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 						e.preventDefault();
 						form.handleSubmit();
 					}}
-					className="space-y-2.5"
+					className="grid gap-4 sm:grid-cols-2"
 				>
-					<form.Field name="reason">
-						{(field) => (
-							<Select
-								value={field.state.value}
-								onValueChange={(v) =>
-									field.handleChange(v as CashReason)
-								}
-							>
-								<SelectTrigger className="h-9">
-									<span className="mr-1 text-xs text-muted-foreground">
-										Reason
-									</span>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{REASON_ORDER.map((r) => (
-										<SelectItem key={r} value={r}>
-											{REASONS[r].label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						)}
-					</form.Field>
-					<div className="flex gap-2">
-						<form.Field name="amount">
+					{/* Inputs */}
+					<div className="space-y-2.5">
+						<form.Field name="reason">
 							{(field) => (
-								<Input
-									type="number"
-									step="0.01"
-									min="0.01"
-									placeholder="0.00"
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									className="h-9 w-28 shrink-0 tabular-nums"
-									required
-								/>
+								<div className="space-y-1.5">
+									{REASON_ORDER.map((r) => {
+										const selected =
+											field.state.value === r;
+										return (
+											<button
+												key={r}
+												type="button"
+												onClick={() =>
+													field.handleChange(r)
+												}
+												className={cn(
+													"w-full rounded-lg border px-3 py-2 text-left transition-colors",
+													selected
+														? "border-primary bg-primary/5 ring-1 ring-primary"
+														: "border-border hover:bg-accent/40",
+												)}
+											>
+												<div className="text-sm font-medium leading-tight">
+													{REASONS[r].title}
+												</div>
+												<div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+													{REASONS[r].desc}
+												</div>
+											</button>
+										);
+									})}
+								</div>
 							)}
 						</form.Field>
-						<form.Field name="notes">
-							{(field) => (
-								<Input
-									value={field.state.value}
-									onChange={(e) =>
-										field.handleChange(e.target.value)
-									}
-									placeholder={cfg.notePlaceholder}
-									className="h-9 flex-1"
-								/>
-							)}
-						</form.Field>
+						<div className="flex gap-2">
+							<form.Field name="amount">
+								{(field) => (
+									<Input
+										type="number"
+										step="0.01"
+										min="0.01"
+										placeholder="0.00"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										className="h-9 w-28 shrink-0 tabular-nums"
+										required
+									/>
+								)}
+							</form.Field>
+							<form.Field name="notes">
+								{(field) => (
+									<Input
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+										placeholder={cfg.notePlaceholder}
+										className="h-9 flex-1"
+									/>
+								)}
+							</form.Field>
+						</div>
+						<Button
+							type="submit"
+							variant="secondary"
+							className="w-full"
+							disabled={isSubmitting}
+						>
+							<BanknoteIcon className="mr-1.5 size-4" />
+							{isSubmitting ? "Recording…" : cfg.submit}
+						</Button>
 					</div>
-					{cfg.showSource && (
-						<form.Field name="source">
-							{(field) => (
-								<Select
-									value={field.state.value}
-									onValueChange={(v) => field.handleChange(v)}
-								>
-									<SelectTrigger className="h-9">
-										<span className="mr-1 text-xs text-muted-foreground">
-											Comes from
-										</span>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{MONEY_SOURCES.map((s) => (
-											<SelectItem key={s} value={s}>
-												{s}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							)}
-						</form.Field>
-					)}
-					<p className="text-xs text-muted-foreground">
-						{cfg.effect}
-					</p>
-					<Button
-						type="submit"
-						variant="secondary"
-						className="w-full"
-						disabled={isSubmitting}
-					>
-						<BanknoteIcon className="mr-1.5 size-4" />
-						{isSubmitting ? "Recording…" : cfg.submit}
-					</Button>
+
+					{/* Live preview */}
+					<GiveMoneyPreview
+						balance={balance}
+						amount={Number(amountStr) || 0}
+						cfg={cfg}
+					/>
 				</form>
 			</ContentCardSection>
 		</ContentCard>
+	);
+}
+
+function GiveMoneyPreview({
+	balance,
+	amount,
+	cfg,
+}: {
+	balance: number;
+	amount: number;
+	cfg: ReasonConfig;
+}) {
+	const newInHand = cfg.affectsInHand ? balance - amount : balance;
+	const hasAmount = amount > 0;
+
+	return (
+		<div className="flex flex-col gap-3 rounded-lg border border-dashed border-border bg-surface-subtle/40 p-3">
+			<div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+				What happens
+			</div>
+
+			<div className="space-y-1">
+				<div className="text-xs text-muted-foreground">
+					His cash in hand
+				</div>
+				<div className="flex items-center gap-2 text-sm font-medium tabular-nums">
+					<span className="text-muted-foreground">
+						{formatCurrency(balance)}
+					</span>
+					<span className="text-muted-foreground/50">→</span>
+					<span
+						className={cn(
+							cfg.affectsInHand && hasAmount
+								? "text-foreground"
+								: "text-muted-foreground",
+						)}
+					>
+						{formatCurrency(newInHand)}
+					</span>
+					{cfg.affectsInHand && hasAmount && (
+						<span className="text-[11px] font-normal text-warning">
+							−{formatCurrency(amount)}
+						</span>
+					)}
+					{!cfg.affectsInHand && (
+						<span className="text-[11px] font-normal text-muted-foreground">
+							no change
+						</span>
+					)}
+				</div>
+			</div>
+
+			<div className="space-y-1">
+				<div className="text-xs text-muted-foreground">
+					Company books
+				</div>
+				<div className="text-sm font-medium tabular-nums">
+					{hasAmount ? (
+						<>
+							+{formatCurrency(amount)}{" "}
+							<span className="text-[11px] font-normal text-muted-foreground">
+								{cfg.books === "expense"
+									? "expense"
+									: "income (a sale)"}
+							</span>
+						</>
+					) : (
+						<span className="text-sm font-normal text-muted-foreground">
+							—
+						</span>
+					)}
+				</div>
+			</div>
+
+			{!hasAmount && (
+				<p className="mt-auto text-[11px] text-muted-foreground/70">
+					Enter an amount to preview the effect.
+				</p>
+			)}
+		</div>
 	);
 }
 
