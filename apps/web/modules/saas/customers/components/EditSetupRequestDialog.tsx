@@ -5,6 +5,7 @@ import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -236,27 +237,26 @@ export function EditSetupRequestDialog({
 					</div>
 					<div className="space-y-1.5">
 						<Label>Group</Label>
-						<Select
+						{/* Combobox (not Radix Select) so the trigger label
+						    resolves from `options` on every render — iRadius
+						    groups load slowly over SSH and a Select would latch
+						    its label empty before the matching item arrives. */}
+						<Combobox
 							value={groupExternalId || "none"}
-							onValueChange={(v) =>
+							onChange={(v) =>
 								setGroupExternalId(v === "none" ? "" : v)
 							}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="None" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="none">None</SelectItem>
-								{groups.map((group) => (
-									<SelectItem
-										key={group.id}
-										value={String(group.id)}
-									>
-										{group.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							placeholder="None"
+							searchPlaceholder="Search groups…"
+							emptyText="No groups found"
+							options={[
+								{ value: "none", label: "None" },
+								...groups.map((group) => ({
+									value: String(group.id),
+									label: group.name,
+								})),
+							]}
+						/>
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="esr-address">Address</Label>
