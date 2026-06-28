@@ -664,7 +664,13 @@ export const approveSetupRequest = protectedProcedure
 				},
 				select: { id: true },
 			});
-			if (!existingPayment && request.firstChargeAmount > 0) {
+			// The worker only holds the subscription cash when this approval is
+			// the entry recording it. If a payment already exists (first month
+			// settled elsewhere), the worker never took that cash — so the
+			// subscription debit below is bound to the same condition.
+			const workerCollectedSubscription =
+				!existingPayment && request.firstChargeAmount > 0;
+			if (workerCollectedSubscription) {
 				await tx.payment.create({
 					data: {
 						organizationId: input.organizationId,
@@ -674,21 +680,40 @@ export const approveSetupRequest = protectedProcedure
 						accountPrice: request.firstChargeAmount,
 						paidAmount: request.firstChargeAmount,
 						notes: "New customer setup (field)",
+						// The approving admin has, by definition, just reviewed
+						// this payment. Stamp it so the setup note doesn't make it
+						// surface in the "needs review" queue (review-status.ts
+						// flags any unreviewed payment carrying a note).
+						reviewedAt: new Date(),
 					},
 				});
 			}
 
-			// Hardware/add-on money the worker collected during setup
+			// Cash the worker physically collected during setup: hardware/add-on
+			// money plus the first subscription charge (when the worker took it).
+			// Logged once as a single negative NEW_USER_SETUP entry so it lands
+			// in the worker's wallet and an admin can hand it off. Mirrors legacy
+			// adm_new.php, which debits the worker for both the subscription
+			// (account_price) and the installed hardware on approval.
+			//
+			// NOTE: the matching Payment carries collectorId = worker / workerId
+			// = null, so it would also count in fetchCollectorBalance(worker).
+			// Workers render via fetchWorkerBalance (cash only), so it's invisible
+			// today — but giving a worker a collector layout would double-count
+			// this subscription cash. Keep the two lenses in mind before then.
 			const installTotal = request.installations.reduce(
 				(sum, i) => sum + i.price * i.quantity,
 				0,
 			);
-			if (installTotal > 0) {
+			const workerCash =
+				installTotal +
+				(workerCollectedSubscription ? request.firstChargeAmount : 0);
+			if (workerCash > 0) {
 				await tx.cashCollection.create({
 					data: {
 						organizationId: input.organizationId,
 						collectorId: request.requestedById,
-						amount: newUserSetupAmount(installTotal),
+						amount: newUserSetupAmount(workerCash),
 						type: "NEW_USER_SETUP",
 						receivedById: user.id,
 						notes: `New customer setup: ${request.customer.firstName} ${request.customer.lastName ?? ""}`.trim(),
