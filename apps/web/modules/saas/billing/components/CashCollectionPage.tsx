@@ -1003,6 +1003,7 @@ interface Collection {
 	amount: number;
 	type: string;
 	notes: string | null;
+	externalBillingId: number | null;
 	collectedAt: string | Date;
 	collector: { name: string };
 	receivedBy: { name: string } | null;
@@ -1090,39 +1091,46 @@ function HandoffsTable({
 				id: "actions",
 				header: "",
 				meta: { className: "w-12" },
-				cell: ({ row }) => (
-					<AlertDialog>
-						<AlertDialogTrigger asChild>
-							<Button
-								variant="ghost"
-								size="icon"
-								className="size-8 text-destructive"
-							>
-								<TrashIcon className="size-3.5" />
-							</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>
-									Delete handoff record?
-								</AlertDialogTitle>
-								<AlertDialogDescription>
-									This will permanently delete the{" "}
-									{formatCurrency(row.original.amount)}{" "}
-									handoff record.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={() => onDelete(row.original.id)}
+				// Synced rows (externalBillingId set) re-sync on the next import,
+				// so they aren't deletable here — only native app entries are.
+				cell: ({ row }) =>
+					row.original.externalBillingId !== null ? null : (
+						<AlertDialog>
+							<AlertDialogTrigger asChild>
+								<Button
+									variant="ghost"
+									size="icon"
+									className="size-8 text-destructive"
 								>
-									Delete
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
-				),
+									<TrashIcon className="size-3.5" />
+								</Button>
+							</AlertDialogTrigger>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>
+										Delete handoff record?
+									</AlertDialogTitle>
+									<AlertDialogDescription>
+										This will permanently delete the{" "}
+										{formatCurrency(row.original.amount)}{" "}
+										handoff record.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>
+										Cancel
+									</AlertDialogCancel>
+									<AlertDialogAction
+										onClick={() =>
+											onDelete(row.original.id)
+										}
+									>
+										Delete
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					),
 			},
 		],
 		[onDelete],

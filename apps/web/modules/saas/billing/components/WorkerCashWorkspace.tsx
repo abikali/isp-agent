@@ -36,6 +36,13 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import { Toggle } from "@ui/components/toggle";
 import { cn } from "@ui/lib";
@@ -439,7 +446,7 @@ export function WorkerCashWorkspace({
 							hint="Assigned to him"
 						/>
 						<MetricCard
-							label="Salary paid"
+							label="Money given"
 							value={formatCurrency(salaryPaid)}
 							icon={HandCoinsIcon}
 							hint="This month"
@@ -450,7 +457,7 @@ export function WorkerCashWorkspace({
 
 			<div className="grid gap-3 lg:grid-cols-2">
 				<HandoffCard workerId={workerId} balance={balance} />
-				<SalaryCard workerId={workerId} workerName={workerName} />
+				<GiveMoneyCard workerId={workerId} />
 			</div>
 
 			<CashHistoryPanel
@@ -604,20 +611,20 @@ function HandoffCard({
 	);
 }
 
-// ─── Salary card ─────────────────────────────────────────────────────
+// ─── Give money card ─────────────────────────────────────────────────
 
-function SalaryCard({
-	workerId,
-	workerName,
-}: {
-	workerId: string;
-	workerName: string;
-}) {
+const MONEY_SOURCES = ["Company cash", "Bank", "Other"] as const;
+
+function GiveMoneyCard({ workerId }: { workerId: string }) {
 	const organizationId = useOrganizationId();
 	const paySalary = usePaySalary();
 
 	const form = useForm({
-		defaultValues: { amount: "", notes: "" },
+		defaultValues: {
+			amount: "",
+			notes: "",
+			source: MONEY_SOURCES[0] as string,
+		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
 				return;
@@ -628,15 +635,16 @@ function SalaryCard({
 					workerId,
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
+					source: value.source || undefined,
 				}),
 				{
-					loading: "Paying salary…",
+					loading: "Recording…",
 					success: () => {
 						form.reset();
-						return "Salary paid";
+						return "Money given";
 					},
 					error: (err: { message?: string }) =>
-						err?.message ?? "Failed to pay salary",
+						err?.message ?? "Failed to record",
 				},
 			);
 		},
@@ -649,11 +657,11 @@ function SalaryCard({
 			<ContentCardSection className="space-y-3">
 				<div className="flex items-center gap-2 text-sm font-semibold">
 					<BanknoteIcon className="size-4 text-muted-foreground" />
-					Pay salary
+					Give money
 				</div>
 				<p className="text-xs text-muted-foreground">
-					Recorded as an approved expense for {workerName}; reduces
-					his cash in hand.
+					Recorded as a company expense. His cash-in-hand is
+					unchanged.
 				</p>
 				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form via oRPC mutation; preventDefault is the documented pattern */}
 				<form
@@ -686,9 +694,31 @@ function SalaryCard({
 								onChange={(e) =>
 									field.handleChange(e.target.value)
 								}
-								placeholder="Note (e.g. June salary)"
+								placeholder="For… (e.g. advance for fuel)"
 								className="h-9"
 							/>
+						)}
+					</form.Field>
+					<form.Field name="source">
+						{(field) => (
+							<Select
+								value={field.state.value}
+								onValueChange={(v) => field.handleChange(v)}
+							>
+								<SelectTrigger className="h-9">
+									<span className="mr-1 text-xs text-muted-foreground">
+										Comes from
+									</span>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{MONEY_SOURCES.map((s) => (
+										<SelectItem key={s} value={s}>
+											{s}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						)}
 					</form.Field>
 					<Button
@@ -698,7 +728,7 @@ function SalaryCard({
 						disabled={isSubmitting}
 					>
 						<BanknoteIcon className="mr-1.5 size-4" />
-						{isSubmitting ? "Paying…" : "Pay salary"}
+						{isSubmitting ? "Recording…" : "Give money"}
 					</Button>
 				</form>
 			</ContentCardSection>
@@ -712,7 +742,8 @@ interface CashRow {
 	id: string;
 	amount: number;
 	notes: string | null;
-	type: "HANDOFF" | "EXPENSE";
+	type: "HANDOFF" | "SALARY" | "EXPENSE_DEDUCTION" | "EXPENSE" | string;
+	externalBillingId: number | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
 }
@@ -749,17 +780,20 @@ function CashHistoryPanel({
 	const total = data?.total ?? 0;
 
 	const deleteCollection = useDeleteCollection();
-	const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+	const [pendingDelete, setPendingDelete] = useState<CashRow | null>(null);
 
-	const handleDelete = (id: string) => {
+	const handleDelete = (row: CashRow) => {
 		if (!organizationId) {
 			return;
 		}
 		toast.promise(
-			deleteCollection.mutateAsync({ organizationId, collectionId: id }),
+			deleteCollection.mutateAsync({
+				organizationId,
+				collectionId: row.id,
+			}),
 			{
 				loading: "Deleting…",
-				success: "Handoff deleted",
+				success: "Entry deleted",
 				error: (err: { message?: string }) =>
 					err?.message ?? "Failed to delete",
 			},
@@ -786,17 +820,24 @@ function CashHistoryPanel({
 			enableSorting: true,
 			cell: ({ row }) => {
 				const t = row.original.type;
+				const tone =
+					t === "HANDOFF"
+						? "border-success/40 bg-success/10 text-success"
+						: t === "SALARY"
+							? "border-primary/40 bg-primary/10 text-primary"
+							: "border-destructive/40 bg-destructive/10 text-destructive";
+				const label =
+					t === "HANDOFF"
+						? "Handoff"
+						: t === "SALARY"
+							? "Money given"
+							: "Expense";
 				return (
 					<Badge
 						variant="outline"
-						className={cn(
-							"text-[10px]",
-							t === "HANDOFF"
-								? "border-success/40 bg-success/10 text-success"
-								: "border-destructive/40 bg-destructive/10 text-destructive",
-						)}
+						className={cn("text-[10px]", tone)}
 					>
-						{t === "HANDOFF" ? "Handoff" : "Salary / expense"}
+						{label}
 					</Badge>
 				);
 			},
@@ -838,14 +879,16 @@ function CashHistoryPanel({
 			header: "",
 			enableSorting: false,
 			meta: { className: "w-10 text-right" },
+			// Only entries created in this app are deletable. Rows synced from
+			// the legacy billing system carry an externalBillingId and re-sync.
 			cell: ({ row }) =>
-				row.original.type === "HANDOFF" ? (
+				row.original.externalBillingId === null ? (
 					<Button
 						variant="ghost"
 						size="icon"
 						className="size-7 text-muted-foreground hover:text-destructive"
-						onClick={() => setPendingDelete(row.original.id)}
-						aria-label="Delete handoff"
+						onClick={() => setPendingDelete(row.original)}
+						aria-label="Delete entry"
 					>
 						<RotateCcwIcon className="size-3.5" />
 					</Button>
@@ -882,10 +925,13 @@ function CashHistoryPanel({
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
-						<AlertDialogTitle>Delete handoff?</AlertDialogTitle>
+						<AlertDialogTitle>Delete entry?</AlertDialogTitle>
 						<AlertDialogDescription>
-							The worker's in-hand balance will jump back up by
-							the handoff amount.
+							{pendingDelete?.type === "HANDOFF"
+								? "The worker's in-hand balance will jump back up by the handoff amount."
+								: pendingDelete?.type === "SALARY"
+									? "This removes the money-given record and its expense. His cash-in-hand is unchanged."
+									: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

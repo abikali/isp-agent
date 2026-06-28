@@ -29,6 +29,15 @@ export function excludeGroupFilter(groupName: string) {
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 
 /**
+ * Cash-ledger rows that actually move a worker/collector balance. The
+ * `SALARY` type (money handed TO a worker, funded by the company) is
+ * display-only and must be excluded from every balance + handed-off sum, so
+ * giving a worker money never changes his cash in hand. `type` is a
+ * non-nullable enum, so `not` is safe here (no NULL-exclusion footgun).
+ */
+export const LEDGER_CASH = { type: { not: "SALARY" } } as const;
+
+/**
  * A payment that "settles" a customer for a billing month — either real cash
  * came in (`paidAmount > 0`) or the customer was marked free for the month
  * (`freeAccount = true`). Stopped payments are excluded; they go through the

@@ -38,3 +38,13 @@ export function expenseDeductionAmount(total: number): number {
 export function handoffAmount(total: number): number {
 	return Math.abs(total);
 }
+
+/**
+ * Money handed TO a worker (advance/salary/reimbursement), funded by the
+ * company. Stored POSITIVE for display only — these rows use the `SALARY`
+ * type and are excluded from every balance/handed-off aggregation, so the
+ * sign never affects a worker's cash in hand.
+ */
+export function moneyGivenAmount(total: number): number {
+	return Math.abs(total);
+}

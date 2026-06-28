@@ -355,10 +355,7 @@ export function usePaySalary() {
 		...orpc.expenses.paySalary.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.workers.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.collections.key(),
+				queryKey: orpc.billing.key(),
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.expenses.key(),
@@ -461,14 +458,13 @@ export function useDeleteCollection() {
 	return useMutation({
 		...orpc.billing.collections.delete.mutationOptions(),
 		onSuccess: () => {
+			// Deleting a money-given/expense row also removes its linked
+			// expense, so refresh the whole billing surface (reports + metric).
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.collections.key(),
+				queryKey: orpc.billing.key(),
 			});
 			queryClient.invalidateQueries({
-				queryKey: orpc.billing.collectors.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.billing.workers.key(),
+				queryKey: orpc.expenses.key(),
 			});
 		},
 	});

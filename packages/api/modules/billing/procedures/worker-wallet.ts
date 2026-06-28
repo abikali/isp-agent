@@ -4,6 +4,7 @@ import { getUserEmployeeId } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { LEDGER_CASH } from "../lib/filters";
 import { fetchWorkerBalance } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 
@@ -74,6 +75,7 @@ export const getMyWallet = protectedProcedure
 					where: {
 						organizationId: input.organizationId,
 						collectorId: employeeId,
+						...LEDGER_CASH,
 					},
 					select: {
 						id: true,

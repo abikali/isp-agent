@@ -8,23 +8,27 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { expenseDeductionAmount } from "../../billing/lib/cash-signs";
+import { moneyGivenAmount } from "../../billing/lib/cash-signs";
 
 /**
- * Pay a worker his salary (ad-hoc).
+ * Give a worker money (advance, salary, reimbursement…).
  *
- * A salary payout is folded into the Expenses pipeline: it creates an
- * already-APPROVED expense on the worker's behalf plus the offsetting
- * positive EXPENSE_DEDUCTION cash entry, in one transaction — identical to
- * `approveExpense`. This reduces the worker's owed cash, surfaces in the
- * accounting reports' `totalExpenses`, and shows in his wallet ledger.
+ * The company is handing cash TO the worker, so this is a pure company
+ * outflow: it creates an already-APPROVED expense (surfacing in the
+ * accounting reports' `totalExpenses`) plus a DISPLAY-ONLY `SALARY` cash
+ * entry, in one transaction. The `SALARY` row is excluded from every
+ * balance/handed-off aggregation, so the worker's cash-in-hand is left
+ * untouched — it only appears in his cash history for the record.
+ *
+ * `source` is a bookkeeping label (Company cash | Bank | Other) for where
+ * the money came from; it has no balance effect.
  */
 export const paySalary = protectedProcedure
 	.route({
 		method: "POST",
 		path: "/expenses/pay-salary",
 		tags: ["Expenses"],
-		summary: "Pay a worker his salary (records an approved salary expense)",
+		summary: "Give a worker money (records an approved company expense)",
 	})
 	.input(
 		z.object({
@@ -32,6 +36,7 @@ export const paySalary = protectedProcedure
 			workerId: z.string(),
 			amount: z.number().finite().positive(),
 			notes: z.string().max(500).optional(),
+			source: z.string().max(100).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -57,9 +62,16 @@ export const paySalary = protectedProcedure
 			});
 		}
 
-		const description = input.notes?.trim()
-			? `Salary: ${input.notes.trim()}`
-			: "Salary";
+		const note = input.notes?.trim();
+		const source = input.source?.trim();
+		const description = note ? `Money given: ${note}` : "Money given";
+		// History note keeps the "for what" plus the funding source.
+		const ledgerNote = [
+			note ?? "Money given",
+			source ? `from ${source}` : null,
+		]
+			.filter(Boolean)
+			.join(" · ");
 
 		const expense = await db.$transaction(async (tx) => {
 			const created = await tx.expense.create({
@@ -69,6 +81,7 @@ export const paySalary = protectedProcedure
 					amount: input.amount,
 					description,
 					category: "salary",
+					source: source ?? null,
 					status: "APPROVED",
 					approvedById: user.id,
 					approvedAt: new Date(),
@@ -78,11 +91,11 @@ export const paySalary = protectedProcedure
 				data: {
 					organizationId: input.organizationId,
 					collectorId: input.workerId,
-					amount: expenseDeductionAmount(input.amount),
-					type: "EXPENSE_DEDUCTION",
+					amount: moneyGivenAmount(input.amount),
+					type: "SALARY",
 					expenseId: created.id,
 					receivedById: user.id,
-					notes: description.slice(0, 200),
+					notes: ledgerNote.slice(0, 200),
 				},
 			});
 			return created;
@@ -91,8 +104,8 @@ export const paySalary = protectedProcedure
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: input.workerId,
-			title: "Salary paid",
-			message: `You were paid a salary of $${input.amount.toFixed(2)}`,
+			title: "Money received",
+			message: `You were given $${input.amount.toFixed(2)}${note ? ` — ${note}` : ""}`,
 			type: "success",
 		}).catch((err: unknown) =>
 			logger.warn("[Pay Salary] notify failed", {

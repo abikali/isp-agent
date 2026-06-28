@@ -1853,6 +1853,10 @@ enum CashCollectionType {
   DEALER_PAYMENT
   ADMIN_TRANSFER
   NEW_USER_SETUP
+  // Money handed TO a worker (advance, salary, reimbursement). Funded by the
+  // company, so it is DISPLAY-ONLY in the cash ledger and intentionally
+  // EXCLUDED from every worker/collector balance + handed-off aggregation.
+  SALARY
   OTHER
 }
 
@@ -2001,6 +2005,7 @@ model Expense {
   amount            Float
   description       String        @db.Text
   category          String?       // toolkit | electricity | roof | other (free text allowed)
+  source            String?       // for money-given entries: where the funds came from (Company cash | Bank | Other)
   receiptUrl        String?
   status            ExpenseStatus @default(PENDING)
   approvedById      String?

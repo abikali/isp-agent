@@ -13,6 +13,7 @@ import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
 	excludeGroupFilter,
+	LEDGER_CASH,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
 	SETTLED_PAYMENT,
@@ -49,7 +50,7 @@ export async function fetchCollectorBalance(
 			_sum: { paidAmount: true },
 		}),
 		db.cashCollection.aggregate({
-			where: { organizationId, collectorId },
+			where: { organizationId, collectorId, ...LEDGER_CASH },
 			_sum: { amount: true },
 		}),
 	]);
@@ -91,6 +92,7 @@ export async function fetchCollectorBalanceBatch(
 			where: {
 				organizationId,
 				collectorId: { in: collectorIds },
+				...LEDGER_CASH,
 			},
 			_sum: { amount: true },
 		}),
@@ -134,7 +136,7 @@ export async function fetchWorkerBalance(
 	workerId: string,
 ): Promise<CollectorBalanceResult> {
 	const collectionsAgg = await db.cashCollection.aggregate({
-		where: { organizationId, collectorId: workerId },
+		where: { organizationId, collectorId: workerId, ...LEDGER_CASH },
 		_sum: { amount: true },
 	});
 
@@ -163,6 +165,7 @@ export async function fetchWorkerBalanceBatch(
 		where: {
 			organizationId,
 			collectorId: { in: workerIds },
+			...LEDGER_CASH,
 		},
 		_sum: { amount: true },
 	});

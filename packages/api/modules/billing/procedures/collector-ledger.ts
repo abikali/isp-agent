@@ -5,6 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { LEDGER_CASH } from "../lib/filters";
 import { paginationSchema } from "../lib/schemas";
 
 export const getCollectorLedger = protectedProcedure
@@ -60,6 +61,7 @@ export const getCollectorLedger = protectedProcedure
 				where: {
 					organizationId: input.organizationId,
 					collectorId: input.collectorId,
+					...LEDGER_CASH,
 				},
 				select: {
 					id: true,

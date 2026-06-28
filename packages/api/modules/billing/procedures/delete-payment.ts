@@ -10,6 +10,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { LEDGER_CASH } from "../lib/filters";
 import { unvoidInvoice } from "../lib/invoice-void";
 
 export const deletePayment = protectedProcedure
@@ -98,6 +99,7 @@ export const deletePayment = protectedProcedure
 			where: {
 				organizationId: input.organizationId,
 				collectorId: payment.collectorId,
+				...LEDGER_CASH,
 			},
 		});
 		if (handoffCount > 0) {

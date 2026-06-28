@@ -31,6 +31,7 @@ export const deleteCollection = protectedProcedure
 				organizationId: input.organizationId,
 				collector: { dealerId: activeDealerId ?? null },
 			},
+			select: { id: true, externalBillingId: true, expenseId: true },
 		});
 
 		if (!collection) {
@@ -39,8 +40,29 @@ export const deleteCollection = protectedProcedure
 			});
 		}
 
-		await db.cashCollection.delete({
-			where: { id: input.collectionId },
+		// Rows imported from the legacy billing system are read-only here —
+		// deleting them locally is futile (they re-sync on the next import).
+		if (collection.externalBillingId !== null) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"This entry is synced from the billing system and can't be deleted here.",
+			});
+		}
+
+		await db.$transaction(async (tx) => {
+			await tx.cashCollection.delete({
+				where: { id: collection.id },
+			});
+			// Money-given / approved-expense rows own a linked expense; remove it
+			// too so the entry stops counting in the accounting reports + metric.
+			if (collection.expenseId) {
+				await tx.expense.deleteMany({
+					where: {
+						id: collection.expenseId,
+						externalBillingId: null,
+					},
+				});
+			}
 		});
 
 		return { success: true };

@@ -10,7 +10,7 @@ import {
 	sumAmountOrZero,
 	sumOrZero,
 } from "../lib/calculations";
-import { EXCLUDE_STOPPED } from "../lib/filters";
+import { EXCLUDE_STOPPED, LEDGER_CASH } from "../lib/filters";
 import { resolveCollectorNames } from "../lib/queries";
 import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
 import { monthSpecSchema } from "../lib/schemas";
@@ -81,6 +81,9 @@ export const getAccountingReports = protectedProcedure
 		const collectionWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			collector: { dealerId: activeDealerId ?? null },
+			// Money-given rows are display-only — keep them out of handed-off
+			// so they don't cancel their own expense in `grandTotal`.
+			...LEDGER_CASH,
 		};
 		const expenseWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,

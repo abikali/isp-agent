@@ -884,7 +884,8 @@ function HandoffsPanel({
 			enableSorting: false,
 			meta: { className: "w-10 text-right" },
 			cell: ({ row }) =>
-				row.original.type === "HANDOFF" ? (
+				row.original.type === "HANDOFF" &&
+				row.original.externalBillingId === null ? (
 					<Button
 						variant="ghost"
 						size="icon"
@@ -955,6 +956,7 @@ interface HandoffRow {
 	amount: number;
 	notes: string | null;
 	type: "HANDOFF" | "EXPENSE";
+	externalBillingId: number | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
 }
