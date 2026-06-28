@@ -44,6 +44,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
+import { Switch } from "@ui/components/switch";
 import { Toggle } from "@ui/components/toggle";
 import { cn } from "@ui/lib";
 import {
@@ -624,6 +625,7 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 			amount: "",
 			notes: "",
 			source: MONEY_SOURCES[0] as string,
+			reduceBalance: false,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
@@ -636,6 +638,7 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 					amount: Number(value.amount),
 					notes: value.notes || undefined,
 					source: value.source || undefined,
+					reduceBalance: value.reduceBalance,
 				}),
 				{
 					loading: "Recording…",
@@ -651,6 +654,7 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+	const reduceBalance = useStore(form.store, (s) => s.values.reduceBalance);
 
 	return (
 		<ContentCard>
@@ -660,8 +664,9 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 					Give money
 				</div>
 				<p className="text-xs text-muted-foreground">
-					Recorded as a company expense. His cash-in-hand is
-					unchanged.
+					{reduceBalance
+						? "Taken from the cash he collected — reduces his cash in hand by this amount."
+						: "Recorded as a company expense. His cash-in-hand is unchanged."}
 				</p>
 				{/* react-doctor-disable-next-line react-doctor/no-prevent-default -- TanStack Form via oRPC mutation; preventDefault is the documented pattern */}
 				<form
@@ -719,6 +724,22 @@ function GiveMoneyCard({ workerId }: { workerId: string }) {
 									))}
 								</SelectContent>
 							</Select>
+						)}
+					</form.Field>
+					<form.Field name="reduceBalance">
+						{(field) => (
+							<div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs">
+								<span className="text-muted-foreground">
+									Take from his cash in hand
+								</span>
+								<Switch
+									aria-label="Take from his cash in hand"
+									checked={field.state.value}
+									onCheckedChange={(v) =>
+										field.handleChange(v)
+									}
+								/>
+							</div>
 						)}
 					</form.Field>
 					<Button

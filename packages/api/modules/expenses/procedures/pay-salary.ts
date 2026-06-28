@@ -8,20 +8,27 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { moneyGivenAmount } from "../../billing/lib/cash-signs";
+import {
+	expenseDeductionAmount,
+	moneyGivenAmount,
+} from "../../billing/lib/cash-signs";
 
 /**
  * Give a worker money (advance, salary, reimbursement…).
  *
- * The company is handing cash TO the worker, so this is a pure company
- * outflow: it creates an already-APPROVED expense (surfacing in the
- * accounting reports' `totalExpenses`) plus a DISPLAY-ONLY `SALARY` cash
- * entry, in one transaction. The `SALARY` row is excluded from every
- * balance/handed-off aggregation, so the worker's cash-in-hand is left
- * untouched — it only appears in his cash history for the record.
+ * Always creates an already-APPROVED expense (surfacing in the accounting
+ * reports' `totalExpenses`) plus a cash-ledger row, in one transaction. The
+ * `reduceBalance` flag decides whether it touches the worker's cash in hand:
  *
- * `source` is a bookkeeping label (Company cash | Bank | Other) for where
- * the money came from; it has no balance effect.
+ *  - `reduceBalance: false` (default) — money came from the company's own
+ *    funds. The ledger row is a DISPLAY-ONLY `SALARY` type, excluded from
+ *    every balance/handed-off aggregation, so his cash in hand is untouched.
+ *  - `reduceBalance: true` — the worker is keeping money he already collected,
+ *    so it's an `EXPENSE_DEDUCTION` row (counted in the ledger) that REDUCES
+ *    his cash in hand by the amount.
+ *
+ * `source` is a bookkeeping label (Company cash | Bank | Other) for where the
+ * money came from.
  */
 export const paySalary = protectedProcedure
 	.route({
@@ -37,6 +44,8 @@ export const paySalary = protectedProcedure
 			amount: z.number().finite().positive(),
 			notes: z.string().max(500).optional(),
 			source: z.string().max(100).optional(),
+			// When true, deduct from the worker's collected cash in hand.
+			reduceBalance: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -91,8 +100,10 @@ export const paySalary = protectedProcedure
 				data: {
 					organizationId: input.organizationId,
 					collectorId: input.workerId,
-					amount: moneyGivenAmount(input.amount),
-					type: "SALARY",
+					amount: input.reduceBalance
+						? expenseDeductionAmount(input.amount)
+						: moneyGivenAmount(input.amount),
+					type: input.reduceBalance ? "EXPENSE_DEDUCTION" : "SALARY",
 					expenseId: created.id,
 					receivedById: user.id,
 					notes: ledgerNote.slice(0, 200),
