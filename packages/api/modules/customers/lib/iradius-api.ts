@@ -266,6 +266,47 @@ export async function iradiusCreateUser(
 }
 
 /**
+ * Apply iRadius's native "NEW USER" charge to a freshly-created subscriber:
+ * decrements the dealer's credit, cascades dealer commission, and generates the
+ * opening Invoice + UserBalance "Renew Account" debit — exactly what the legacy
+ * GWT add-user does. Implemented by a thin servlet we added to the iRadius
+ * Tomcat app (`/iradius/charge-new-user`) that calls iRadius's own
+ * `RenewUser.renewUser(addMode=NEW USER)`, because that billing logic lives in
+ * the GWT webapp and is NOT reachable from the `/create-user` REST app.
+ *
+ * The endpoint is idempotent (skips if the user already has a UserBalance row),
+ * so retries can't double-charge. Requires `IRADIUS_CHARGE_URL` (full endpoint
+ * URL, port 80) and `IRADIUS_CHARGE_SECRET`. Throws on any failure so the caller
+ * can log it — the user already exists at this point, so callers should log and
+ * continue rather than orphan the subscriber.
+ */
+export async function iradiusChargeNewUser(userId: number): Promise<void> {
+	const url = process.env["IRADIUS_CHARGE_URL"];
+	const secret = process.env["IRADIUS_CHARGE_SECRET"];
+	if (!url || !secret) {
+		throw new Error(
+			"iRadius charge endpoint not configured (IRADIUS_CHARGE_URL / IRADIUS_CHARGE_SECRET)",
+		);
+	}
+	const res = await fetch(`${url}?userId=${encodeURIComponent(userId)}`, {
+		method: "POST",
+		headers: { "X-Charge-Secret": secret },
+	});
+	const text = await res.text();
+	let body: { success?: boolean; error?: string } = {};
+	try {
+		body = JSON.parse(text) as { success?: boolean; error?: string };
+	} catch {
+		// non-JSON response — fall through to the status check below
+	}
+	if (!res.ok || body.success === false) {
+		throw new Error(
+			body.error ?? `iRadius charge failed (HTTP ${res.status})`,
+		);
+	}
+}
+
+/**
  * Preview an account type change in iRadius (dry-run with billing info).
  * Returns null if ISP API is not configured or customer is not linked.
  */

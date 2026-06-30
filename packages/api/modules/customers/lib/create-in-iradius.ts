@@ -1,6 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { buildIRadiusMobile, db } from "@repo/database";
+import { logger } from "@repo/logs";
 import {
+	iradiusChargeNewUser,
 	iradiusCreateUser,
 	iradiusUpdateUserAddress,
 	iradiusUpdateUserComment,
@@ -132,6 +134,22 @@ export async function createCustomerInIRadius(opts: {
 	}
 	if (hasNonAscii(customer.notes)) {
 		await iradiusUpdateUserComment(linked, customer.notes);
+	}
+
+	// Apply iRadius's native "NEW USER" charge (dealer credit + commission +
+	// opening invoice + UserBalance "Renew Account" debit). The bare
+	// `/create-user` INSERT skips this, so app-approved customers would
+	// otherwise never be billed and the dealer's credit would never be reduced.
+	// Log-and-continue: the subscriber already exists in iRadius here, so a
+	// charge hiccup must not abort the approval and orphan it — the endpoint is
+	// idempotent, so it can be safely retried.
+	try {
+		await iradiusChargeNewUser(userId);
+	} catch (error) {
+		logger.error(
+			"[iRadius] new-user charge failed — subscriber created but NOT billed",
+			{ userId, customerId: opts.customerId, error: String(error) },
+		);
 	}
 
 	return { userId };
