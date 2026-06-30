@@ -169,9 +169,13 @@ export const listTasks = protectedProcedure
 					dueDate: true,
 					completedAt: true,
 					createdAt: true,
+					updatedAt: true,
 					notes: true,
 					followUpStatus: true,
 					requestedAddons: true,
+					resolutionCode: true,
+					resolutionNote: true,
+					completionPhotoUrl: true,
 					createdBy: {
 						select: {
 							id: true,
@@ -183,7 +187,9 @@ export const listTasks = protectedProcedure
 							id: true,
 							firstName: true,
 							lastName: true,
+							accountNumber: true,
 							mobile: true,
+							phone: true,
 							address: true,
 						},
 					},
@@ -214,13 +220,43 @@ export const listTasks = protectedProcedure
 					},
 					assignments: {
 						select: {
+							assignedAt: true,
 							employee: {
 								select: {
 									id: true,
 									name: true,
+									position: true,
 								},
 							},
 						},
+					},
+					completedByEmployee: {
+						select: {
+							id: true,
+							name: true,
+						},
+					},
+					installations: {
+						select: {
+							id: true,
+							quantity: true,
+							status: true,
+							notes: true,
+							stockItem: {
+								select: {
+									name: true,
+								},
+							},
+						},
+					},
+					uninstalledItems: {
+						select: {
+							id: true,
+							itemName: true,
+							quantity: true,
+							status: true,
+						},
+						orderBy: { uninstalledAt: "desc" },
 					},
 				},
 				orderBy: { [input.sortBy]: input.sortOrder },

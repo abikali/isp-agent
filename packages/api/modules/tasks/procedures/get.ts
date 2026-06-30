@@ -132,6 +132,22 @@ export const getTask = protectedProcedure
 					},
 					orderBy: { uninstalledAt: "desc" },
 				},
+				installations: {
+					select: {
+						id: true,
+						quantity: true,
+						price: true,
+						status: true,
+						notes: true,
+						installedAt: true,
+						stockItem: {
+							select: {
+								name: true,
+							},
+						},
+					},
+					orderBy: { installedAt: "desc" },
+				},
 			},
 		});
 

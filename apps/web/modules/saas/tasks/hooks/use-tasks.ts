@@ -15,6 +15,9 @@ type ListTasksInput = Parameters<
 
 type TaskFilters = Omit<ListTasksInput, "organizationId">;
 
+/** A single task row as returned by the list endpoint (with all relations). */
+export type TaskListItem = ReturnType<typeof useTasks>["tasks"][number];
+
 export function useTasks(filters: TaskFilters = {}) {
 	const organizationId = useOrganizationId();
 

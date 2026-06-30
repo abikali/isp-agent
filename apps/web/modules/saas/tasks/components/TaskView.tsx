@@ -31,6 +31,7 @@ import { isOverdue } from "../lib/task-utils";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 import { TaskCustomerCard } from "./TaskCustomerCard";
 import { TaskEmployeeCard } from "./TaskEmployeeCard";
+import { TaskEvidenceCard } from "./TaskEvidenceCard";
 import { TaskOverdueWarning } from "./TaskOverdueWarning";
 
 const PILL =
@@ -215,6 +216,34 @@ export function TaskView({ taskId }: { taskId: string }) {
 							</CardContent>
 						</Card>
 					)}
+
+					{task.installations.length > 0 && (
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">
+									Items used
+								</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-2">
+								{task.installations.map((item) => (
+									<div
+										key={item.id}
+										className="flex items-center justify-between gap-2 rounded-md border p-2.5 text-sm"
+									>
+										<span>
+											{item.stockItem?.name ?? "Item"} ×
+											{item.quantity}
+										</span>
+										<Badge variant="outline">
+											{item.status.toLowerCase()}
+										</Badge>
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					)}
+
+					<TaskEvidenceCard task={task} />
 				</div>
 
 				<div className="space-y-6">

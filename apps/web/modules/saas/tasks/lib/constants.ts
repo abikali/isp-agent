@@ -55,6 +55,18 @@ export const TASK_PRIORITY_BG_COLORS: Record<string, string> = {
 	URGENT: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800",
 };
 
+import {
+	CircleDashedIcon,
+	HammerIcon,
+	HeadsetIcon,
+	type LucideIcon,
+	PackageMinusIcon,
+	PlugZapIcon,
+	ReceiptIcon,
+	RepeatIcon,
+	WrenchIcon,
+} from "lucide-react";
+
 export const TASK_CATEGORY_LABELS: Record<string, string> = {
 	INSTALLATION: "Installation",
 	MAINTENANCE: "Maintenance",
@@ -64,6 +76,37 @@ export const TASK_CATEGORY_LABELS: Record<string, string> = {
 	BILLING: "Billing",
 	GENERAL: "General",
 	UNINSTALL: "Uninstall",
+};
+
+/** Icon per category — makes the task type scannable at a glance. */
+export const TASK_CATEGORY_ICONS: Record<string, LucideIcon> = {
+	INSTALLATION: PlugZapIcon,
+	REPLACEMENT: RepeatIcon,
+	UNINSTALL: PackageMinusIcon,
+	MAINTENANCE: WrenchIcon,
+	REPAIR: HammerIcon,
+	SUPPORT: HeadsetIcon,
+	BILLING: ReceiptIcon,
+	GENERAL: CircleDashedIcon,
+};
+
+/** Colored chip styles per category (same palette convention as status/priority). */
+export const TASK_CATEGORY_BG_COLORS: Record<string, string> = {
+	INSTALLATION:
+		"bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800",
+	REPLACEMENT:
+		"bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800",
+	UNINSTALL:
+		"bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800",
+	MAINTENANCE:
+		"bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
+	REPAIR: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
+	SUPPORT:
+		"bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800",
+	BILLING:
+		"bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:border-teal-800",
+	GENERAL:
+		"bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700",
 };
 
 export const TASK_CATEGORY_OPTIONS = [

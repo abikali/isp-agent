@@ -13,6 +13,7 @@ declare module "@tanstack/react-table" {
 
 import type {
 	ColumnDef,
+	ExpandedState,
 	OnChangeFn,
 	Row,
 	RowSelectionState,
@@ -22,6 +23,7 @@ import type {
 import {
 	flexRender,
 	getCoreRowModel,
+	getExpandedRowModel,
 	getPaginationRowModel,
 	getSortedRowModel,
 	useReactTable,
@@ -38,7 +40,7 @@ import {
 	SlidersHorizontalIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { Button } from "./button";
 import { Checkbox } from "./checkbox";
 import {
@@ -126,6 +128,16 @@ interface DataTableProps<TData> {
 
 	/** Custom row ID accessor (defaults to row index) */
 	getRowId?: (original: TData, index: number) => string;
+
+	/**
+	 * Render an inline expandable detail panel under a row. When provided, an
+	 * expand/collapse chevron column is prepended and clicking it reveals the
+	 * returned content in a full-width sub-row. Purely additive.
+	 */
+	renderSubRow?: (row: Row<TData>) => ReactNode;
+
+	/** Gate which rows can expand (defaults to all rows when renderSubRow is set). */
+	getRowCanExpand?: (row: Row<TData>) => boolean;
 }
 
 function PaginationBar({
@@ -252,8 +264,11 @@ export function DataTable<TData>({
 	rowSelection,
 	onRowSelectionChange,
 	getRowId,
+	renderSubRow,
+	getRowCanExpand,
 }: DataTableProps<TData>) {
 	const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+	const [expanded, setExpanded] = useState<ExpandedState>({});
 
 	const isVisibilityControlled = controlledVisibility !== undefined;
 
@@ -313,37 +328,75 @@ export function DataTable<TData>({
 	const visibilityActive = isVisibilityControlled || !!columnVisibilityKey;
 
 	const hasSelection = !!enableRowSelection;
+	const hasExpansion = !!renderSubRow;
 
-	// Prepend a checkbox column when row selection is enabled
+	// Prepend checkbox (selection) and chevron (expansion) columns when enabled.
 	const allColumns = useMemo(() => {
-		if (!hasSelection) {
+		const extra: ColumnDef<TData, unknown>[] = [];
+		if (hasSelection) {
+			extra.push({
+				id: "select",
+				header: ({ table: t }) => (
+					<Checkbox
+						checked={
+							t.getIsAllPageRowsSelected() ||
+							(t.getIsSomePageRowsSelected() && "indeterminate")
+						}
+						onCheckedChange={(v) =>
+							t.toggleAllPageRowsSelected(!!v)
+						}
+						aria-label="Select all"
+					/>
+				),
+				cell: ({ row }) => (
+					<Checkbox
+						checked={row.getIsSelected()}
+						disabled={!row.getCanSelect()}
+						onCheckedChange={(v) => row.toggleSelected(!!v)}
+						aria-label="Select row"
+					/>
+				),
+				enableSorting: false,
+				meta: { className: "w-10 pr-0" },
+			});
+		}
+		if (hasExpansion) {
+			extra.push({
+				id: "expand",
+				header: () => null,
+				cell: ({ row }) =>
+					row.getCanExpand() ? (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								row.toggleExpanded();
+							}}
+							className="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+							aria-label={
+								row.getIsExpanded()
+									? "Collapse row"
+									: "Expand row"
+							}
+							aria-expanded={row.getIsExpanded()}
+						>
+							<ChevronRightIcon
+								className={cn(
+									"size-4 transition-transform",
+									row.getIsExpanded() && "rotate-90",
+								)}
+							/>
+						</button>
+					) : null,
+				enableSorting: false,
+				meta: { className: "w-8 pr-0" },
+			});
+		}
+		if (extra.length === 0) {
 			return columns;
 		}
-		const selectCol: ColumnDef<TData, unknown> = {
-			id: "select",
-			header: ({ table: t }) => (
-				<Checkbox
-					checked={
-						t.getIsAllPageRowsSelected() ||
-						(t.getIsSomePageRowsSelected() && "indeterminate")
-					}
-					onCheckedChange={(v) => t.toggleAllPageRowsSelected(!!v)}
-					aria-label="Select all"
-				/>
-			),
-			cell: ({ row }) => (
-				<Checkbox
-					checked={row.getIsSelected()}
-					disabled={!row.getCanSelect()}
-					onCheckedChange={(v) => row.toggleSelected(!!v)}
-					aria-label="Select row"
-				/>
-			),
-			enableSorting: false,
-			meta: { className: "w-10 pr-0" },
-		};
-		return [selectCol, ...columns];
-	}, [columns, hasSelection]);
+		return [...extra, ...columns];
+	}, [columns, hasSelection, hasExpansion]);
 
 	const isManual = !!pagination;
 	const isServerSorted = !!onSortingChange;
@@ -373,15 +426,24 @@ export function DataTable<TData>({
 					state: {
 						sorting,
 						rowSelection: rowSelection ?? {},
+						...(hasExpansion ? { expanded } : {}),
 						...(visibilityActive ? { columnVisibility } : {}),
 					},
 				}
 			: {
 					state: {
 						sorting,
+						...(hasExpansion ? { expanded } : {}),
 						...(visibilityActive ? { columnVisibility } : {}),
 					},
 				}),
+		...(hasExpansion
+			? {
+					onExpandedChange: setExpanded,
+					getExpandedRowModel: getExpandedRowModel(),
+					getRowCanExpand: getRowCanExpand ?? (() => true),
+				}
+			: {}),
 		...(getRowId ? { getRowId } : {}),
 		...(visibilityActive
 			? { onColumnVisibilityChange: handleVisibilityChange }
@@ -533,33 +595,46 @@ export function DataTable<TData>({
 							<SkeletonRows columnCount={allColumns.length} />
 						) : rows.length > 0 ? (
 							rows.map((row) => (
-								<TableRow
-									key={row.id}
-									data-state={
-										row.getIsSelected()
-											? "selected"
-											: undefined
-									}
-									className={cn(
-										"transition-colors hover:bg-accent/40",
-										getRowClassName?.(row),
+								<Fragment key={row.id}>
+									<TableRow
+										data-state={
+											row.getIsSelected()
+												? "selected"
+												: undefined
+										}
+										className={cn(
+											"transition-colors hover:bg-accent/40",
+											row.getIsExpanded() &&
+												"bg-accent/30",
+											getRowClassName?.(row),
+										)}
+									>
+										{row.getVisibleCells().map((cell) => (
+											<TableCell
+												key={cell.id}
+												className={cn(
+													cell.column.columnDef.meta
+														?.className,
+												)}
+											>
+												{flexRender(
+													cell.column.columnDef.cell,
+													cell.getContext(),
+												)}
+											</TableCell>
+										))}
+									</TableRow>
+									{renderSubRow && row.getIsExpanded() && (
+										<TableRow className="hover:bg-transparent">
+											<TableCell
+												colSpan={allColumns.length}
+												className="bg-surface-subtle/40 p-0"
+											>
+												{renderSubRow(row)}
+											</TableCell>
+										</TableRow>
 									)}
-								>
-									{row.getVisibleCells().map((cell) => (
-										<TableCell
-											key={cell.id}
-											className={cn(
-												cell.column.columnDef.meta
-													?.className,
-											)}
-										>
-											{flexRender(
-												cell.column.columnDef.cell,
-												cell.getContext(),
-											)}
-										</TableCell>
-									))}
-								</TableRow>
+								</Fragment>
 							))
 						) : (
 							<TableRow>
