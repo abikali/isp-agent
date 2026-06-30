@@ -61,6 +61,7 @@ export function useAddonDefaultsQuery() {
 	return {
 		iptvPrice: query.data?.iptvPrice ?? 0,
 		realIpPrice: query.data?.realIpPrice ?? 0,
+		isLoading: query.isLoading,
 	};
 }
 

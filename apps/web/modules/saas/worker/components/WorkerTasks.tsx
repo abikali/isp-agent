@@ -1,5 +1,6 @@
 "use client";
 
+import { useAddonDefaultsQuery } from "@saas/installations/client";
 import { TASK_RESOLUTION_OPTIONS } from "@saas/tasks";
 import {
 	useCompleteTaskWithEvidence,
@@ -42,12 +43,13 @@ import {
 	MapPinIcon,
 	PhoneIcon,
 	PlusIcon,
+	PuzzleIcon,
 	RadioTowerIcon,
 	StickyNoteIcon,
 	Trash2Icon,
 	WarehouseIcon,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 // react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- recharts is the shared chart lib statically imported across the codebase (single shared chunk)
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -110,6 +112,62 @@ const SORT_MAP: Record<
 	priority: { sortBy: "priority", sortOrder: "desc" },
 };
 const OPEN_STATUSES = new Set(["OPEN", "IN_PROGRESS", "ON_HOLD"]);
+
+const ADDON_LABELS: Record<string, string> = {
+	IPTV: "IPTV",
+	REAL_IP: "Real IP",
+};
+
+/**
+ * Pre-fill installation lines from the add-ons the admin requested on the task,
+ * so the worker just confirms them at completion. Only for customer tasks.
+ */
+function seedAddonLines(
+	requestedAddons: string[] | undefined,
+	defaults: { iptvPrice: number; realIpPrice: number },
+): InstallLine[] {
+	if (!requestedAddons?.length) {
+		return [];
+	}
+	return requestedAddons
+		.filter((a): a is "IPTV" | "REAL_IP" => a === "IPTV" || a === "REAL_IP")
+		.map((addonType, i) => ({
+			key: i + 1,
+			kind: "addon" as const,
+			stockItemId: null,
+			addonType,
+			quantity: 1,
+			price:
+				addonType === "IPTV"
+					? defaults.iptvPrice
+					: defaults.realIpPrice,
+		}));
+}
+
+/**
+ * Installation-line state pre-seeded once from the task's requested add-ons
+ * (after add-on default prices have loaded, so seeded prices are correct).
+ */
+function useInstallLines(task: WorkerTask) {
+	const { iptvPrice, realIpPrice, isLoading } = useAddonDefaultsQuery();
+	const [lines, setLines] = useState<InstallLine[]>([]);
+	const seeded = useRef(false);
+	useEffect(() => {
+		if (seeded.current || isLoading) {
+			return;
+		}
+		seeded.current = true;
+		if (task.customer && task.requestedAddons?.length) {
+			setLines(
+				seedAddonLines(task.requestedAddons, {
+					iptvPrice,
+					realIpPrice,
+				}),
+			);
+		}
+	}, [isLoading, iptvPrice, realIpPrice, task]);
+	return [lines, setLines] as const;
+}
 
 // Only the attention-grabbing priorities get a badge; low/medium stay quiet.
 const PRIORITY_BADGE: Record<
@@ -582,13 +640,10 @@ function MaintenanceSubmitSheet({
 	const [resolutionCode, setResolutionCode] = useState("no_problem");
 	const [note, setNote] = useState("");
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
-	// Items used during the visit are recorded but never required (PM spec)
-	const [lines, setLines] = useState<InstallLine[]>([]);
+	// Items/add-ons used during the visit are recorded but never required.
+	const [lines, setLines] = useInstallLines(task);
 
-	const installedItems = linesToPayload(lines).filter(
-		(l): l is { stockItemId: string; quantity: number; price: number } =>
-			"stockItemId" in l,
-	);
+	const installedItems = linesToPayload(lines);
 
 	async function handleSubmit() {
 		if (!organizationId) {
@@ -649,11 +704,15 @@ function MaintenanceSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label>Items used (optional)</Label>
+				<Label>
+					{task.requestedAddons?.length
+						? "Items & add-ons"
+						: "Items used (optional)"}
+				</Label>
 				<InstallItemRows
 					lines={lines}
 					onChange={setLines}
-					allowAddons={false}
+					allowAddons={Boolean(task.customer)}
 				/>
 			</div>
 			<div className="space-y-1.5">
@@ -678,13 +737,10 @@ function InstallSubmitSheet({
 	const organizationId = useOrganizationId();
 	const complete = useCompleteTaskWithEvidence();
 	const getUploadUrl = useUploadUrlGetter(organizationId);
-	const [lines, setLines] = useState<InstallLine[]>([]);
+	const [lines, setLines] = useInstallLines(task);
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
-	const installedItems = linesToPayload(lines).filter(
-		(l): l is { stockItemId: string; quantity: number; price: number } =>
-			"stockItemId" in l,
-	);
+	const installedItems = linesToPayload(lines);
 	const valid = installedItems.length > 0 && photoUrl !== null;
 
 	async function handleSubmit() {
@@ -721,7 +777,7 @@ function InstallSubmitSheet({
 				<InstallItemRows
 					lines={lines}
 					onChange={setLines}
-					allowAddons={false}
+					allowAddons={Boolean(task.customer)}
 				/>
 			</div>
 			<div className="space-y-1.5">
@@ -746,16 +802,13 @@ function ReplacementSubmitSheet({
 	const organizationId = useOrganizationId();
 	const complete = useCompleteTaskWithEvidence();
 	const getUploadUrl = useUploadUrlGetter(organizationId);
-	const [lines, setLines] = useState<InstallLine[]>([]);
+	const [lines, setLines] = useInstallLines(task);
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 	const [recovered, setRecovered] = useState<RecoveredItem[]>([
 		newRecoveredItem(1),
 	]);
 
-	const installedItems = linesToPayload(lines).filter(
-		(l): l is { stockItemId: string; quantity: number; price: number } =>
-			"stockItemId" in l,
-	);
+	const installedItems = linesToPayload(lines);
 	const valid =
 		installedItems.length > 0 &&
 		photoUrl !== null &&
@@ -796,7 +849,7 @@ function ReplacementSubmitSheet({
 				<InstallItemRows
 					lines={lines}
 					onChange={setLines}
-					allowAddons={false}
+					allowAddons={Boolean(task.customer)}
 				/>
 			</div>
 			<div className="space-y-1.5">
