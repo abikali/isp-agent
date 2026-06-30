@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_saas/app/_account/")({
 					(org) => org.id === session.session.activeOrganizationId,
 				) ||
 				organizations?.find((org) =>
-					org.slug.toLowerCase().includes("libancom"),
+					org.slug.toLowerCase().includes("liban-com"),
 				) ||
 				organizations?.[0];
 
