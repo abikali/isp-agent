@@ -1,6 +1,24 @@
 import { ORPCError } from "@orpc/server";
 import { buildIRadiusMobile, db } from "@repo/database";
-import { iradiusCreateUser } from "./iradius-api";
+import {
+	iradiusCreateUser,
+	iradiusUpdateUserAddress,
+	iradiusUpdateUserComment,
+	iradiusUpdateUserName,
+} from "./iradius-api";
+
+/** True when `s` holds any non-ASCII char (e.g. Arabic). */
+function hasNonAscii(s: string | null | undefined): boolean {
+	if (typeof s !== "string") {
+		return false;
+	}
+	for (const ch of s) {
+		if ((ch.codePointAt(0) ?? 0) > 0x7f) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /** Format a Date as the tz-naive UTC "YYYY-MM-DD HH:MM:SS" iRadius expects. */
 function toMysqlDateTimeUTC(d: Date | null | undefined): string | null {
@@ -95,6 +113,26 @@ export async function createCustomerInIRadius(opts: {
 		gsmLng: customer.longitude,
 		stationId: num(customer.station?.externalId),
 	});
+
+	// The patched `/create-user` endpoint writes through a non-UTF-8 JDBC
+	// connection, so any non-ASCII text (Arabic names/address/notes) lands in
+	// iRadius as "????". Re-write just those fields through our utf8mb4 mirror
+	// tunnel, which stores correct UTF-8 in the (utf8) columns. Only fires when
+	// a field actually contains non-ASCII, so Latin-only creates pay nothing.
+	const linked = { externalId: String(userId) };
+	if (hasNonAscii(customer.firstName) || hasNonAscii(customer.lastName)) {
+		await iradiusUpdateUserName(
+			linked,
+			customer.firstName ?? "",
+			customer.lastName ?? "",
+		);
+	}
+	if (hasNonAscii(customer.address)) {
+		await iradiusUpdateUserAddress(linked, customer.address);
+	}
+	if (hasNonAscii(customer.notes)) {
+		await iradiusUpdateUserComment(linked, customer.notes);
+	}
 
 	return { userId };
 }
