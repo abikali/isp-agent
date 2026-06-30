@@ -23,11 +23,12 @@ export const listInstallations = protectedProcedure
 			employeeId: z.string().optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
+			baseId: z.string().optional(),
 			stockItemId: z.string().optional(),
 			isAddOn: z.boolean().optional(),
 			// item = physical stock on a customer; station = station install;
-			// addon = IPTV / Real IP
-			type: z.enum(["item", "station", "addon"]).optional(),
+			// base = base install; addon = IPTV / Real IP
+			type: z.enum(["item", "station", "base", "addon"]).optional(),
 			search: z.string().optional(),
 			priceMin: z.number().optional(),
 			priceMax: z.number().optional(),
@@ -70,6 +71,9 @@ export const listInstallations = protectedProcedure
 		if (input.stationId) {
 			where["stationId"] = input.stationId;
 		}
+		if (input.baseId) {
+			where["baseId"] = input.baseId;
+		}
 		if (input.stockItemId) {
 			where["stockItemId"] = input.stockItemId;
 		}
@@ -80,9 +84,13 @@ export const listInstallations = protectedProcedure
 			where["isAddOn"] = true;
 		} else if (input.type === "station") {
 			where["stationId"] = { not: null };
+		} else if (input.type === "base") {
+			where["baseId"] = { not: null };
 		} else if (input.type === "item") {
+			// Physical stock landed on a customer (not a station / base / add-on)
 			where["isAddOn"] = false;
 			where["stationId"] = null;
+			where["baseId"] = null;
 		}
 		if (input.priceMin !== undefined || input.priceMax !== undefined) {
 			where["price"] = {
@@ -137,6 +145,16 @@ export const listInstallations = protectedProcedure
 						name: { contains: input.search, mode: "insensitive" },
 					},
 				},
+				{
+					station: {
+						name: { contains: input.search, mode: "insensitive" },
+					},
+				},
+				{
+					base: {
+						name: { contains: input.search, mode: "insensitive" },
+					},
+				},
 				{ notes: { contains: input.search, mode: "insensitive" } },
 			];
 		}
@@ -156,6 +174,7 @@ export const listInstallations = protectedProcedure
 						},
 					},
 					station: { select: { id: true, name: true } },
+					base: { select: { id: true, name: true } },
 					employee: { select: { id: true, name: true } },
 					stockItem: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },

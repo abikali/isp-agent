@@ -167,13 +167,68 @@ export function CreateTaskDialog({
 							)}
 						</form.Field>
 
-						<div className="space-y-2">
-							<Label>Customer</Label>
-							<CustomerCombobox
-								value={customer}
-								onChange={setCustomer}
-								placeholder="Link a customer (optional)"
-							/>
+						<div className="space-y-3 rounded-lg border border-border bg-surface-subtle/40 p-4">
+							<div className="space-y-0.5">
+								<p className="font-medium text-sm">Target</p>
+								<p className="text-muted-foreground text-xs">
+									Link this task to a customer or a base.
+									Leave both empty for a general task.
+								</p>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="task-customer">Customer</Label>
+								<CustomerCombobox
+									value={customer}
+									onChange={(next) => {
+										setCustomer(next);
+										if (next) {
+											form.setFieldValue("baseId", "");
+										}
+									}}
+									placeholder="Search a customer…"
+								/>
+							</div>
+							<form.Field name="baseId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label>Base</Label>
+										<Select
+											value={field.state.value || "none"}
+											onValueChange={(v) => {
+												const next =
+													v === "none" ? "" : v;
+												field.handleChange(next);
+												if (next) {
+													setCustomer(null);
+												}
+											}}
+										>
+											<SelectTrigger>
+												<SelectValue placeholder="No base" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="none">
+													No base
+												</SelectItem>
+												{bases.length === 0 ? (
+													<div className="px-2 py-1.5 text-muted-foreground text-sm">
+														No bases yet
+													</div>
+												) : (
+													bases.map((b) => (
+														<SelectItem
+															key={b.id}
+															value={b.id}
+														>
+															{b.name}
+														</SelectItem>
+													))
+												)}
+											</SelectContent>
+										</Select>
+									</div>
+								)}
+							</form.Field>
 						</div>
 
 						<div className="grid gap-4 sm:grid-cols-2">
@@ -233,58 +288,21 @@ export function CreateTaskDialog({
 							</form.Field>
 						</div>
 
-						<div className="grid gap-4 sm:grid-cols-2">
-							<form.Field name="dueDate">
-								{(field) => (
-									<div className="space-y-2">
-										<Label htmlFor="task-due">
-											Due Date
-										</Label>
-										<Input
-											id="task-due"
-											type="date"
-											value={field.state.value}
-											onChange={(e) =>
-												field.handleChange(
-													e.target.value,
-												)
-											}
-										/>
-									</div>
-								)}
-							</form.Field>
-							<form.Field name="baseId">
-								{(field) => (
-									<div className="space-y-2">
-										<Label>Base</Label>
-										<Select
-											value={field.state.value}
-											onValueChange={field.handleChange}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="No base" />
-											</SelectTrigger>
-											<SelectContent>
-												{bases.length === 0 ? (
-													<div className="px-2 py-1.5 text-muted-foreground text-sm">
-														No bases yet
-													</div>
-												) : (
-													bases.map((b) => (
-														<SelectItem
-															key={b.id}
-															value={b.id}
-														>
-															{b.name}
-														</SelectItem>
-													))
-												)}
-											</SelectContent>
-										</Select>
-									</div>
-								)}
-							</form.Field>
-						</div>
+						<form.Field name="dueDate">
+							{(field) => (
+								<div className="space-y-2">
+									<Label htmlFor="task-due">Due Date</Label>
+									<Input
+										id="task-due"
+										type="date"
+										value={field.state.value}
+										onChange={(e) =>
+											field.handleChange(e.target.value)
+										}
+									/>
+								</div>
+							)}
+						</form.Field>
 
 						<div className="space-y-2">
 							<Label>Assign workers</Label>

@@ -31,6 +31,7 @@ import {
 	CheckIcon,
 	PuzzleIcon,
 	RadioTowerIcon,
+	WarehouseIcon,
 	WrenchIcon,
 	XIcon,
 } from "lucide-react";
@@ -69,6 +70,9 @@ function TypeIcon({ inst }: { inst: Installation }) {
 	if (inst.stationId) {
 		return <RadioTowerIcon className="size-4 text-blue-500" />;
 	}
+	if (inst.baseId) {
+		return <WarehouseIcon className="size-4 text-amber-500" />;
+	}
 	return <BoxIcon className="size-4 text-muted-foreground" />;
 }
 
@@ -91,7 +95,7 @@ export function InstallationsList({
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
 	const [employeeId, setEmployeeId] = useState<string | undefined>();
 	const [typeFilter, setTypeFilter] = useState<
-		"item" | "station" | "addon" | undefined
+		"item" | "station" | "base" | "addon" | undefined
 	>();
 	const [dateFrom, setDateFrom] = useState("");
 	const [dateTo, setDateTo] = useState("");
@@ -194,7 +198,7 @@ export function InstallationsList({
 			},
 			{
 				id: "target",
-				header: "Customer / Station",
+				header: "Customer / Station / Base",
 				cell: ({ row }) => {
 					const inst = row.original;
 					if (inst.customer) {
@@ -229,6 +233,16 @@ export function InstallationsList({
 								{inst.station.name}{" "}
 								<span className="text-xs text-muted-foreground">
 									(station)
+								</span>
+							</span>
+						);
+					}
+					if (inst.base) {
+						return (
+							<span className="text-sm">
+								{inst.base.name}{" "}
+								<span className="text-xs text-muted-foreground">
+									(base)
 								</span>
 							</span>
 						);
@@ -488,6 +502,7 @@ export function InstallationsList({
 											: (v as
 													| "item"
 													| "station"
+													| "base"
 													| "addon"),
 									);
 									setPage(1);
@@ -504,6 +519,7 @@ export function InstallationsList({
 									<SelectItem value="station">
 										Stations
 									</SelectItem>
+									<SelectItem value="base">Bases</SelectItem>
 									<SelectItem value="addon">
 										Add-ons
 									</SelectItem>

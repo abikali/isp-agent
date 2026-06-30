@@ -17,7 +17,7 @@ export interface InstallationFilters {
 	customerId?: string;
 	stockItemId?: string;
 	isAddOn?: boolean;
-	type?: "item" | "station" | "addon";
+	type?: "item" | "station" | "base" | "addon";
 	search?: string;
 	priceMin?: number;
 	priceMax?: number;

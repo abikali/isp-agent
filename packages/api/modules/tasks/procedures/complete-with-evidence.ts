@@ -121,10 +121,10 @@ export const completeTaskWithEvidence = protectedProcedure
 					message: "A photo is required for this task",
 				});
 			}
-			if (!task.customerId && !task.stationId) {
+			if (!task.customerId && !task.stationId && !task.baseId) {
 				throw new ORPCError("BAD_REQUEST", {
 					message:
-						"This task must target a customer or station to record an install",
+						"This task must target a customer, station, or base to record an install",
 				});
 			}
 			if (!employeeId) {
@@ -184,6 +184,21 @@ export const completeTaskWithEvidence = protectedProcedure
 			: [];
 		const stockItemNames = new Map(stockItems.map((s) => [s.id, s.name]));
 
+		// Every recorded install must carry a target. INSTALLATION / REPLACEMENT
+		// tasks are already guarded above; this catches other categories
+		// (e.g. MAINTENANCE) that may also submit installed items.
+		if (
+			installedItems.length > 0 &&
+			!task.customerId &&
+			!task.stationId &&
+			!task.baseId
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"This task must target a customer, station, or base to record installed items",
+			});
+		}
+
 		const updated = await db.$transaction(async (tx) => {
 			if (installedItems.length > 0 && employeeId) {
 				await tx.installation.createMany({
@@ -192,6 +207,7 @@ export const completeTaskWithEvidence = protectedProcedure
 						taskId: task.id,
 						customerId: task.customerId,
 						stationId: task.stationId,
+						baseId: task.baseId,
 						employeeId,
 						stockItemId: line.stockItemId,
 						quantity: line.quantity,
