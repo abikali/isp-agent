@@ -1352,6 +1352,10 @@ model Customer {
   // Accelerates sorting/filtering by "last requested location" for the
   // bulk-request throttle UX.
   @@index([organizationId, locationRequestedAt])
+  // Backs the customer-group dropdowns (billing/worker/marketing
+  // `SELECT DISTINCT groupName`). Without it Postgres seq-scans the whole
+  // customer table per dropdown load (~107ms); index-only scan drops it to ~1ms.
+  @@index([organizationId, groupName])
   @@map("customer")
 }
 
