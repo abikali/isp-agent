@@ -23,6 +23,7 @@ import {
 	SheetTitle,
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
+import { cn } from "@ui/lib";
 import {
 	ClipboardListIcon,
 	HammerIcon,
@@ -45,6 +46,12 @@ import {
 	TASK_PRIORITY_OPTIONS,
 	type TaskCategoryValue,
 } from "../lib/constants";
+
+type AddonType = "IPTV" | "REAL_IP";
+const ADDON_OPTIONS: { value: AddonType; label: string }[] = [
+	{ value: "IPTV", label: "IPTV" },
+	{ value: "REAL_IP", label: "Real IP" },
+];
 
 const CATEGORY_ICONS: Record<
 	TaskCategoryValue,
@@ -81,6 +88,7 @@ export function CreateTaskDialog({
 		[],
 	);
 	const [notifyCustomerWhatsApp, setNotifyCustomerWhatsApp] = useState(false);
+	const [addonTypes, setAddonTypes] = useState<AddonType[]>([]);
 
 	const form = useForm({
 		defaultValues: {
@@ -127,6 +135,8 @@ export function CreateTaskDialog({
 						? new Date(value.dueDate)
 						: undefined,
 					baseId: value.baseId || undefined,
+					requestedAddons:
+						customer && addonTypes.length ? addonTypes : undefined,
 					notes: value.notes || undefined,
 				});
 				toast.success("Task created");
@@ -135,6 +145,7 @@ export function CreateTaskDialog({
 				setCustomer(null);
 				setAssignedEmployeeIds([]);
 				setNotifyCustomerWhatsApp(false);
+				setAddonTypes([]);
 			} catch (error) {
 				toast.error(
 					error instanceof Error
@@ -226,6 +237,8 @@ export function CreateTaskDialog({
 										setCustomer(next);
 										if (next) {
 											form.setFieldValue("baseId", "");
+										} else {
+											setAddonTypes([]);
 										}
 									}}
 									placeholder="Search a customer…"
@@ -243,6 +256,7 @@ export function CreateTaskDialog({
 												field.handleChange(next);
 												if (next) {
 													setCustomer(null);
+													setAddonTypes([]);
 												}
 											}}
 										>
@@ -272,6 +286,53 @@ export function CreateTaskDialog({
 									</div>
 								)}
 							</form.Field>
+							{customer && (
+								<div className="space-y-1.5 border-border border-t pt-3">
+									<Label>Add-ons to set up</Label>
+									<p className="text-muted-foreground text-xs">
+										Tell the worker which add-ons to enable.
+										They confirm it on completion.
+									</p>
+									<div className="flex flex-wrap gap-2">
+										{ADDON_OPTIONS.map((opt) => {
+											const active = addonTypes.includes(
+												opt.value,
+											);
+											return (
+												<button
+													key={opt.value}
+													type="button"
+													onClick={() =>
+														setAddonTypes((prev) =>
+															prev.includes(
+																opt.value,
+															)
+																? prev.filter(
+																		(t) =>
+																			t !==
+																			opt.value,
+																	)
+																: [
+																		...prev,
+																		opt.value,
+																	],
+														)
+													}
+													className={cn(
+														"rounded-full border px-3 py-1 text-sm transition-colors",
+														active
+															? "border-primary bg-primary/10 text-primary"
+															: "border-border text-muted-foreground hover:bg-muted",
+													)}
+												>
+													{active ? "✓ " : ""}
+													{opt.label}
+												</button>
+											);
+										})}
+									</div>
+								</div>
+							)}
 						</div>
 
 						<div className="grid gap-4 sm:grid-cols-2">

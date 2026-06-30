@@ -171,6 +171,7 @@ export const listTasks = protectedProcedure
 					createdAt: true,
 					notes: true,
 					followUpStatus: true,
+					requestedAddons: true,
 					createdBy: {
 						select: {
 							id: true,

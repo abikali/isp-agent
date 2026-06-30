@@ -1806,6 +1806,9 @@ model Task {
   conversationId String?
   followUpStatus String?        // pending | contacted | promised | resolved | escalated
   externalBillingId Int?        @map("external_billing_id")
+  // Add-ons (IPTV / Real IP) the worker should set up on this visit. Values are
+  // AddonType strings ("IPTV", "REAL_IP"). Empty for tasks with no add-on work.
+  requestedAddons String[]      @default([]) @map("requested_addons")
   // Field-work completion evidence (worker portal)
   resolutionCode        String?   // canned-reply key, see packages/api/modules/tasks/lib/resolutions.ts
   resolutionNote        String?   @db.Text

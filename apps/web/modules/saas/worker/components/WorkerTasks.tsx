@@ -468,6 +468,25 @@ function TaskCard({
 					</div>
 				) : null}
 
+				{/* Add-ons the worker must set up on this visit */}
+				{task.requestedAddons && task.requestedAddons.length > 0 ? (
+					<div className="flex items-start gap-2 rounded-md bg-purple-500/10 px-2.5 py-2">
+						<PuzzleIcon className="mt-0.5 size-4 shrink-0 text-purple-500" />
+						<div className="min-w-0">
+							<p className="font-medium text-purple-700 text-xs dark:text-purple-300">
+								Set up:{" "}
+								{task.requestedAddons
+									.map((a) => ADDON_LABELS[a] ?? a)
+									.join(", ")}
+							</p>
+							<p className="text-muted-foreground text-xs">
+								Confirm on the customer when you complete the
+								task.
+							</p>
+						</div>
+					</div>
+				) : null}
+
 				{/* Meta — station & due date */}
 				{task.station || task.dueDate ? (
 					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground text-xs">

@@ -9,18 +9,28 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	addonNoteFor,
+	classifyAddonNote,
+} from "../../installations/lib/addons";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
 import { TASK_RESOLUTION_CODES } from "../lib/resolutions";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
 // (or, optionally, a MAINTENANCE task). Each line becomes a PENDING Installation
-// row that flows through the existing Installations approval queue.
-const installedItemSchema = z.object({
-	stockItemId: z.string(),
-	quantity: z.number().int().min(1).default(1),
-	price: z.number().min(0).default(0),
-	notes: z.string().max(500).optional(),
-});
+// row that flows through the existing Installations approval queue. A line is
+// either a physical stock item or an add-on (IPTV / Real IP), never both.
+const installedItemSchema = z
+	.object({
+		stockItemId: z.string().optional(),
+		addonType: z.enum(["IPTV", "REAL_IP"]).optional(),
+		quantity: z.number().int().min(1).default(1),
+		price: z.number().min(0).default(0),
+		notes: z.string().max(500).optional(),
+	})
+	.refine((v) => Boolean(v.stockItemId) !== Boolean(v.addonType), {
+		message: "Each line must be either a stock item or an add-on",
+	});
 
 const recoveredItemSchema = z
 	.object({
@@ -145,13 +155,24 @@ export const completeTaskWithEvidence = protectedProcedure
 			});
 		}
 
-		// Soft stock check — advisory only; the hard guard runs at approval
-		if (installedItems.length > 0 && employeeId) {
+		// Split installed lines: physical stock vs add-ons (IPTV / Real IP).
+		const stockLines = installedItems.filter(
+			(i): i is typeof i & { stockItemId: string } =>
+				Boolean(i.stockItemId),
+		);
+		const addonLines = installedItems.filter(
+			(i): i is typeof i & { addonType: "IPTV" | "REAL_IP" } =>
+				Boolean(i.addonType),
+		);
+
+		// Soft stock check — advisory only; the hard guard runs at approval.
+		// Add-on lines carry no stock, so they're excluded.
+		if (stockLines.length > 0 && employeeId) {
 			const allocations = await db.workerStock.findMany({
 				where: {
 					employeeId,
 					stockItemId: {
-						in: installedItems.map((i) => i.stockItemId),
+						in: stockLines.map((i) => i.stockItemId),
 					},
 				},
 				select: { stockItemId: true, quantity: true },
@@ -159,11 +180,47 @@ export const completeTaskWithEvidence = protectedProcedure
 			const holdings = new Map(
 				allocations.map((a) => [a.stockItemId, a.quantity]),
 			);
-			for (const line of installedItems) {
+			for (const line of stockLines) {
 				if ((holdings.get(line.stockItemId) ?? 0) < line.quantity) {
 					throw new ORPCError("CONFLICT", {
 						message:
 							"You don't hold enough stock for one of the installed items — ask for a delivery first",
+					});
+				}
+			}
+		}
+
+		// Add-ons attach to a customer and are capped at one IPTV + one Real IP.
+		if (addonLines.length > 0) {
+			if (!task.customerId) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Add-ons can only be recorded for a customer task",
+				});
+			}
+			const requested = addonLines.map((l) => l.addonType);
+			if (new Set(requested).size !== requested.length) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Only one of each add-on type per task",
+				});
+			}
+			const existingAddons = await db.installation.findMany({
+				where: {
+					organizationId: input.organizationId,
+					customerId: task.customerId,
+					isAddOn: true,
+					status: { in: ["PENDING", "APPROVED"] },
+				},
+				select: { notes: true },
+			});
+			const existingTypes = new Set(
+				existingAddons
+					.map((a) => classifyAddonNote(a.notes))
+					.filter(Boolean),
+			);
+			for (const type of requested) {
+				if (existingTypes.has(type)) {
+					throw new ORPCError("CONFLICT", {
+						message: `Customer already has ${addonNoteFor(type)}`,
 					});
 				}
 			}
@@ -205,15 +262,18 @@ export const completeTaskWithEvidence = protectedProcedure
 					data: installedItems.map((line) => ({
 						organizationId: input.organizationId,
 						taskId: task.id,
+						// Add-ons attach to the customer; clear station/base.
 						customerId: task.customerId,
-						stationId: task.stationId,
-						baseId: task.baseId,
+						stationId: line.addonType ? null : task.stationId,
+						baseId: line.addonType ? null : task.baseId,
 						employeeId,
-						stockItemId: line.stockItemId,
-						quantity: line.quantity,
+						stockItemId: line.stockItemId ?? null,
+						quantity: line.addonType ? 1 : line.quantity,
 						price: line.price,
-						isAddOn: false,
-						notes: line.notes ?? null,
+						isAddOn: Boolean(line.addonType),
+						notes: line.addonType
+							? addonNoteFor(line.addonType)
+							: (line.notes ?? null),
 					})),
 				});
 			}

@@ -54,6 +54,8 @@ export const createTask = protectedProcedure
 			employeeIds: z.array(z.string()).optional(),
 			// Maintenance-visit WhatsApp to the customer (legacy parity)
 			notifyCustomerWhatsApp: z.boolean().optional(),
+			// Add-ons (IPTV / Real IP) the worker should set up on this visit.
+			requestedAddons: z.array(z.enum(["IPTV", "REAL_IP"])).optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -65,6 +67,14 @@ export const createTask = protectedProcedure
 		);
 
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
+
+		// Add-ons attach to a customer (iRadius account), never a base/station.
+		const requestedAddons = [...new Set(input.requestedAddons ?? [])];
+		if (requestedAddons.length > 0 && !input.customerId) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Add-ons require the task to target a customer",
+			});
+		}
 
 		if (input.customerId) {
 			const customer = await db.customer.findFirst({
@@ -128,6 +138,7 @@ export const createTask = protectedProcedure
 				customerId: input.customerId ?? null,
 				stationId: input.stationId ?? null,
 				baseId: input.baseId ?? null,
+				requestedAddons,
 				completedAt: input.status === "COMPLETED" ? new Date() : null,
 				...(input.employeeIds?.length
 					? {
