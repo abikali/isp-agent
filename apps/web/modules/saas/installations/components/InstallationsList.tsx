@@ -7,6 +7,7 @@ import {
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
+import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { formatCurrency, formatDate } from "@shared/lib/format";
@@ -29,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import {
 	BoxIcon,
 	CheckIcon,
+	ImageIcon,
 	PuzzleIcon,
 	RadioTowerIcon,
 	WarehouseIcon,
@@ -76,6 +78,60 @@ function TypeIcon({ inst }: { inst: Installation }) {
 	return <BoxIcon className="size-4 text-muted-foreground" />;
 }
 
+function installationKind(inst: Installation): string {
+	if (inst.isAddOn) {
+		return "Add-on";
+	}
+	if (inst.stationId) {
+		return "Station";
+	}
+	if (inst.baseId) {
+		return "Base";
+	}
+	return "Item";
+}
+
+/**
+ * Leading visual for a row: the completion photo (clickable) when one was
+ * recorded by closing a field task, otherwise a typed placeholder tile.
+ */
+function MediaThumb({
+	inst,
+	onView,
+}: {
+	inst: Installation;
+	onView: (photo: { src: string; title: string }) => void;
+}) {
+	const photoUrl = inst.task?.completionPhotoUrl ?? null;
+	if (photoUrl) {
+		return (
+			<button
+				type="button"
+				onClick={() =>
+					onView({ src: photoUrl, title: installationName(inst) })
+				}
+				className="group relative size-11 shrink-0 overflow-hidden rounded-md border bg-muted"
+				aria-label="View completion photo"
+			>
+				<img
+					src={photoUrl}
+					alt={installationName(inst)}
+					loading="lazy"
+					className="size-full object-cover transition-transform group-hover:scale-105"
+				/>
+				<span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+					<ImageIcon className="size-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+				</span>
+			</button>
+		);
+	}
+	return (
+		<div className="flex size-11 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/40">
+			<TypeIcon inst={inst} />
+		</div>
+	);
+}
+
 /** Local edit state for inline price/qty on pending rows. */
 interface RowEdit {
 	price: string;
@@ -105,6 +161,9 @@ export function InstallationsList({
 	const [qtyMax, setQtyMax] = useState("");
 	const [page, setPage] = useState(1);
 	const [edits, setEdits] = useState<Record<string, RowEdit>>({});
+	const [photo, setPhoto] = useState<{ src: string; title: string } | null>(
+		null,
+	);
 
 	const { employees } = useEmployeesQuery();
 	const { installations, total, totalPages } = useInstallations({
@@ -174,27 +233,42 @@ export function InstallationsList({
 	const columns = useMemo<ColumnDef<Installation, unknown>[]>(
 		() => [
 			{
-				id: "type",
-				header: "",
-				enableSorting: false,
-				meta: { className: "w-8" },
-				cell: ({ row }) => <TypeIcon inst={row.original} />,
-			},
-			{
 				id: "item",
 				header: "Item",
-				cell: ({ row }) => (
-					<div>
-						<p className="text-sm font-medium">
-							{installationName(row.original)}
-						</p>
-						{row.original.isAddOn && (
-							<p className="text-xs text-muted-foreground">
-								Add-on
-							</p>
-						)}
-					</div>
-				),
+				cell: ({ row }) => {
+					const inst = row.original;
+					return (
+						<div className="flex items-center gap-3">
+							<MediaThumb inst={inst} onView={setPhoto} />
+							<div className="min-w-0 space-y-0.5">
+								<p className="truncate font-medium text-sm">
+									{installationName(inst)}
+								</p>
+								<div className="flex items-center gap-1.5">
+									<Badge
+										variant="outline"
+										className="px-1.5 py-0 text-[10px]"
+									>
+										{installationKind(inst)}
+									</Badge>
+									{inst.quantity > 1 && (
+										<span className="text-muted-foreground text-xs tabular-nums">
+											×{inst.quantity}
+										</span>
+									)}
+									{inst.task?.completionPhotoUrl && (
+										<ImageIcon className="size-3 text-muted-foreground" />
+									)}
+								</div>
+								{inst.notes && !inst.isAddOn && (
+									<p className="line-clamp-1 max-w-52 text-muted-foreground text-xs">
+										{inst.notes}
+									</p>
+								)}
+							</div>
+						</div>
+					);
+				},
 			},
 			{
 				id: "target",
@@ -363,15 +437,25 @@ export function InstallationsList({
 							header: "Status",
 							enableSorting: false,
 							cell: ({ row }) => {
+								const inst = row.original;
 								const cfg =
 									STATUS_BADGES[
-										row.original
-											.status as InstallationStatus
+										inst.status as InstallationStatus
 									];
 								return (
-									<Badge variant={cfg.variant}>
-										{cfg.label}
-									</Badge>
+									<div className="space-y-1">
+										<Badge variant={cfg.variant}>
+											{cfg.label}
+										</Badge>
+										{inst.approvedBy && (
+											<p className="text-muted-foreground text-xs">
+												by {inst.approvedBy.name}
+												{inst.approvedAt
+													? ` · ${formatDate(inst.approvedAt, { dateStyle: "medium" })}`
+													: ""}
+											</p>
+										)}
+									</div>
 								);
 							},
 						} satisfies ColumnDef<Installation, unknown>,
@@ -647,6 +731,19 @@ export function InstallationsList({
 					</div>
 				)}
 			</ContentCard>
+
+			{photo && (
+				<ImageViewerDialog
+					open={!!photo}
+					onOpenChange={(open) => {
+						if (!open) {
+							setPhoto(null);
+						}
+					}}
+					src={photo.src}
+					title={photo.title}
+				/>
+			)}
 		</PageShell>
 	);
 }

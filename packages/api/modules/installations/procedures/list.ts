@@ -178,6 +178,16 @@ export const listInstallations = protectedProcedure
 					employee: { select: { id: true, name: true } },
 					stockItem: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
+					// Completion photo (if recorded by closing a field task) lives
+					// on the task, not the installation row itself.
+					task: {
+						select: {
+							id: true,
+							title: true,
+							completionPhotoUrl: true,
+							completedAt: true,
+						},
+					},
 				},
 				orderBy: { installedAt: "desc" },
 				skip: (input.page - 1) * input.pageSize,
