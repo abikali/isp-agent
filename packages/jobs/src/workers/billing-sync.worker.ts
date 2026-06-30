@@ -6,6 +6,7 @@ import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { BILLING_SYNC_QUEUE_NAME } from "../queues/billing-sync.queue";
 import type { BillingSyncJobData, BillingSyncJobResult } from "../types";
+import { normalizeReceiptUrl } from "./lib/legacy-receipts";
 
 // NOTE: We deliberately do NOT call `openBillingMonth` from this worker.
 // `@repo/jobs` cannot import `@repo/api` (would create a dependency cycle),
@@ -618,7 +619,15 @@ async function processBillingSync(
 							amount: toFloat(row["amount"]),
 							description:
 								(row["note"] as string) ?? "Imported expense",
-							receiptUrl: (row["image_name"] as string) ?? null,
+							// Store the image-proxy URL (not the bare filename) so
+							// the receipt actually renders; a one-off backfill
+							// copies the bytes into R2. normalizeReceiptUrl is a
+							// no-op for already-migrated rows, so re-syncs never
+							// clobber back to a bare name.
+							receiptUrl: normalizeReceiptUrl(
+								row["image_name"] as string | null,
+								organizationId,
+							),
 							status: approved ? "APPROVED" : "PENDING",
 							approvedAt:
 								approved && ts ? new Date(String(ts)) : null,
@@ -630,7 +639,10 @@ async function processBillingSync(
 							amount: toFloat(row["amount"]),
 							description:
 								(row["note"] as string) ?? "Imported expense",
-							receiptUrl: (row["image_name"] as string) ?? null,
+							receiptUrl: normalizeReceiptUrl(
+								row["image_name"] as string | null,
+								organizationId,
+							),
 							status: approved ? "APPROVED" : "PENDING",
 							approvedAt:
 								approved && ts ? new Date(String(ts)) : null,

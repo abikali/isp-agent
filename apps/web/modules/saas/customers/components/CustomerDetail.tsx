@@ -18,6 +18,7 @@ import type {
 } from "@tanstack/react-form";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -58,8 +59,10 @@ import {
 	MoreVerticalIcon,
 	NetworkIcon,
 	PlusIcon,
+	RefreshCwIcon,
 	UserIcon,
 	UserXIcon,
+	WrenchIcon,
 	XIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -81,6 +84,8 @@ import {
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
 import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
+import { CustomerFollowups } from "./CustomerFollowups";
+import { CustomerInstallations } from "./CustomerInstallations";
 import { CustomerInvoices } from "./CustomerInvoices";
 import { CustomerIradiusMenu } from "./CustomerIradiusMenu";
 import { CustomerLiveStrip } from "./CustomerLiveStrip";
@@ -88,6 +93,8 @@ import { CustomerLocationSection } from "./CustomerLocationSection";
 import { CustomerPayments } from "./CustomerPayments";
 import { CustomerReferrals } from "./CustomerReferrals";
 import { CustomerSaveBar } from "./CustomerSaveBar";
+import { CustomerSyncConflicts } from "./CustomerSyncConflicts";
+import { CustomerTasks } from "./CustomerTasks";
 import { CustomerTransactions } from "./CustomerTransactions";
 import { NetworkStatusField } from "./NetworkStatusField";
 
@@ -582,6 +589,23 @@ export function CustomerDetail({
 							icon: ActivityIcon,
 							content: (
 								<ActivityTab
+									customerId={customerId}
+									organizationSlug={organizationSlug}
+								/>
+							),
+						},
+						{
+							id: "field",
+							label: "Field",
+							icon: WrenchIcon,
+							content: <FieldTab customerId={customerId} />,
+						},
+						{
+							id: "sync",
+							label: "Sync",
+							icon: RefreshCwIcon,
+							content: (
+								<SyncTab
 									customerId={customerId}
 									organizationSlug={organizationSlug}
 								/>
@@ -1850,6 +1874,89 @@ function ActivityTab({
 			</DetailSection>
 			<DetailSection title="Transactions">
 				<CustomerTransactions customerId={customerId} />
+			</DetailSection>
+		</>
+	);
+}
+
+function FieldTab({ customerId }: { customerId: string }) {
+	return (
+		<>
+			<DetailSection
+				title="Tasks"
+				description="Installation, maintenance and support tasks for this customer"
+			>
+				<AsyncBoundary
+					fallback={<Skeleton className="h-40 w-full rounded-md" />}
+					errorFallback="inline"
+				>
+					<CustomerTasks customerId={customerId} />
+				</AsyncBoundary>
+			</DetailSection>
+			<DetailSection
+				title="Installations"
+				description="Equipment and add-ons installed for this customer"
+			>
+				<AsyncBoundary
+					fallback={<Skeleton className="h-40 w-full rounded-md" />}
+					errorFallback="inline"
+				>
+					<CustomerInstallations customerId={customerId} />
+				</AsyncBoundary>
+			</DetailSection>
+			<DetailSection
+				title="Follow-ups"
+				description="Collector and support follow-up notes"
+			>
+				<AsyncBoundary
+					fallback={<Skeleton className="h-40 w-full rounded-md" />}
+					errorFallback="inline"
+				>
+					<CustomerFollowups customerId={customerId} />
+				</AsyncBoundary>
+			</DetailSection>
+		</>
+	);
+}
+
+function SyncTab({
+	customerId,
+	organizationSlug,
+}: {
+	customerId: string;
+	organizationSlug: string;
+}) {
+	return (
+		<>
+			<DetailSection
+				title="Setup request"
+				description="New-customer setup requests are reviewed on the approvals page"
+			>
+				<div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+					<p>
+						Pending and past setup requests are managed centrally
+						for all customers.
+					</p>
+					<Link
+						to="/app/$organizationSlug/customers/approvals"
+						params={{ organizationSlug }}
+						preload="intent"
+						className="shrink-0 font-medium text-primary hover:underline"
+					>
+						Open approvals
+					</Link>
+				</div>
+			</DetailSection>
+			<DetailSection
+				title="Sync conflicts"
+				description="Fields that differ between local and iRadius, awaiting resolution"
+			>
+				<AsyncBoundary
+					fallback={<Skeleton className="h-32 w-full rounded-md" />}
+					errorFallback="inline"
+				>
+					<CustomerSyncConflicts customerId={customerId} />
+				</AsyncBoundary>
 			</DetailSection>
 		</>
 	);

@@ -172,7 +172,10 @@ export interface TelegramLocationJobResult {
 // Generic Telegram employee notification job types
 export interface TelegramNotifyJobData {
 	organizationId: string;
-	employeeId: string;
+	// Either resolve the chat id from an employee, or send to a raw chat id
+	// (used for admin alerts to a configured org chat). Exactly one is set.
+	employeeId?: string;
+	chatId?: string;
 	text: string;
 }
 

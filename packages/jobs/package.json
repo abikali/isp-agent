@@ -28,6 +28,7 @@
 		"@repo/database": "workspace:*",
 		"@repo/integrations": "workspace:*",
 		"@repo/logs": "workspace:*",
+		"@repo/storage": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@repo/mail": "workspace:*",
 		"bullmq": "^5.65.1",

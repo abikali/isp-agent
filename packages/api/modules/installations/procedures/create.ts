@@ -1,5 +1,8 @@
 import { ORPCError } from "@orpc/server";
-import { notifyOrgForReview } from "@repo/api/lib/notify-employee";
+import {
+	notifyAdminTelegram,
+	notifyOrgForReview,
+} from "@repo/api/lib/notify-employee";
 import {
 	getDealerScopeFilter,
 	getDealerScopeViaCustomers,
@@ -206,6 +209,19 @@ export const createInstallation = protectedProcedure
 			logger.warn("[Installation Create] notify failed", {
 				error: String(err),
 			}),
+		);
+
+		// Admin Telegram alert (opt-in per org) for a completed field installation.
+		const itemSummary = installations
+			.map(
+				(i) =>
+					`${i.stockItem?.name ?? i.notes ?? "Item"}${i.quantity > 1 ? ` ×${i.quantity}` : ""}`,
+			)
+			.join(", ");
+		notifyAdminTelegram(
+			input.organizationId,
+			"installationDone",
+			`🔧 Installation submitted\nBy: ${installations[0]?.employee.name ?? "worker"}\n${itemSummary}`,
 		);
 
 		return { installations };

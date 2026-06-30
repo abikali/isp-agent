@@ -68,14 +68,17 @@ import {
 	PackageIcon,
 	PlusIcon,
 	RefreshCwIcon,
+	SendIcon,
 	UserIcon,
 	UsersIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+	useConnectTelegram,
 	useDeleteEmployee,
 	useInviteEmployee,
+	useTestTelegram,
 	useUpdateEmployee,
 } from "../hooks/use-employees";
 import {
@@ -600,6 +603,8 @@ function OverviewTab({
 	employee: EmployeeData;
 }) {
 	const organizationId = useOrganizationId();
+	const connectTelegram = useConnectTelegram();
+	const testTelegram = useTestTelegram();
 	const { data: balanceData } = useQuery(
 		organizationId
 			? orpc.billing.collectors.balance.queryOptions({
@@ -607,6 +612,53 @@ function OverviewTab({
 				})
 			: disabledQuery(["billing", "collectorBalance"]),
 	);
+
+	async function handleConnectTelegram() {
+		if (!organizationId) {
+			return;
+		}
+		try {
+			const { deepLink } = await connectTelegram.mutateAsync({
+				organizationId,
+				id: employee.id,
+			});
+			window.open(deepLink, "_blank", "noopener");
+			toast.info(
+				"Opened Telegram. Ask the worker to tap Start on their phone, then send a test message.",
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to start Telegram connect",
+			);
+		}
+	}
+
+	async function handleTestTelegram() {
+		if (!organizationId) {
+			return;
+		}
+		try {
+			const result = await testTelegram.mutateAsync({
+				organizationId,
+				id: employee.id,
+			});
+			if (result.success) {
+				toast.success("Test message sent");
+			} else if (result.reason === "no_chat_id") {
+				toast.error("Not connected yet — use Connect Telegram first");
+			} else {
+				toast.error(
+					"Couldn't send — the worker may not have tapped Start",
+				);
+			}
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to send test",
+			);
+		}
+	}
 
 	return (
 		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -846,11 +898,38 @@ function OverviewTab({
 										onChange={(e) =>
 											field.handleChange(e.target.value)
 										}
-										placeholder="e.g. 123456789"
+										placeholder="Auto-filled by Connect Telegram"
 									/>
+									<div className="flex flex-wrap gap-2 pt-1">
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											disabled={connectTelegram.isPending}
+											onClick={handleConnectTelegram}
+										>
+											<SendIcon className="mr-1.5 size-3.5" />
+											Connect Telegram
+										</Button>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											disabled={
+												testTelegram.isPending ||
+												!field.state.value
+											}
+											onClick={handleTestTelegram}
+										>
+											Send test message
+										</Button>
+									</div>
 									<FieldDescription>
-										Used to send notifications via Telegram
-										bot.
+										Tap <strong>Connect Telegram</strong>,
+										have the worker press Start in the bot,
+										then send a test message to confirm. The
+										chat ID fills in automatically — no need
+										to type it.
 									</FieldDescription>
 								</Field>
 							)}

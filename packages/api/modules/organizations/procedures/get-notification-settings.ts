@@ -30,6 +30,10 @@ export const getNotificationSettings = protectedProcedure
 			select: {
 				stoppedPaymentTaskEnabled: true,
 				stoppedPaymentNotifyEnabled: true,
+				adminTelegramChatId: true,
+				alertOnWorkerRequest: true,
+				alertOnPaymentCollected: true,
+				alertOnInstallationDone: true,
 			},
 		});
 

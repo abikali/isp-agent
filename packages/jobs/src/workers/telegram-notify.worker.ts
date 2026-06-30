@@ -13,7 +13,7 @@ export function createTelegramNotifyWorker(): Worker<
 	return new Worker<TelegramNotifyJobData, TelegramNotifyJobResult>(
 		TELEGRAM_NOTIFY_QUEUE_NAME,
 		async (job) => {
-			const { employeeId, organizationId, text } = job.data;
+			const { employeeId, chatId, organizationId, text } = job.data;
 
 			const botToken = process.env["TELEGRAM_COLLECTOR_BOT_TOKEN"];
 			if (!botToken) {
@@ -23,14 +23,20 @@ export function createTelegramNotifyWorker(): Worker<
 				return { success: false };
 			}
 
-			const employee = await db.employee.findFirst({
-				where: { id: employeeId, organizationId },
-				select: { telegramChatId: true },
-			});
+			// A raw chatId (admin alerts) takes precedence; otherwise resolve it
+			// from the employee record.
+			let targetChatId = chatId ?? null;
+			if (!targetChatId && employeeId) {
+				const employee = await db.employee.findFirst({
+					where: { id: employeeId, organizationId },
+					select: { telegramChatId: true },
+				});
+				targetChatId = employee?.telegramChatId ?? null;
+			}
 
-			if (!employee?.telegramChatId) {
+			if (!targetChatId) {
 				logger.warn(
-					"[Telegram Notify] No Telegram chat ID for employee",
+					"[Telegram Notify] No Telegram chat ID to send to",
 					{
 						employeeId,
 					},
@@ -40,7 +46,7 @@ export function createTelegramNotifyWorker(): Worker<
 
 			const result = await telegram.sendTextMessage(
 				botToken,
-				employee.telegramChatId,
+				targetChatId,
 				text,
 			);
 

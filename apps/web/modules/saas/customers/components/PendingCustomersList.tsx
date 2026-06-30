@@ -16,6 +16,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
+import { Input } from "@ui/components/input";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
 import {
@@ -56,6 +57,36 @@ export function PendingCustomersList() {
 	const [rejecting, setRejecting] = useState<SetupRequest | null>(null);
 	const [rejectReason, setRejectReason] = useState("");
 	const [editing, setEditing] = useState<SetupRequest | null>(null);
+	const [approving, setApproving] = useState<SetupRequest | null>(null);
+	const [iradiusPassword, setIradiusPassword] = useState("");
+
+	async function confirmApprove() {
+		if (!organizationId || !approving) {
+			return;
+		}
+		const linked = !!approving.customer.externalId;
+		if (!linked && !iradiusPassword.trim()) {
+			toast.error(
+				"Enter a PPPoE password to create this account in iRadius",
+			);
+			return;
+		}
+		try {
+			await approve.mutateAsync({
+				organizationId,
+				id: approving.id,
+				...(iradiusPassword.trim()
+					? { iradiusPassword: iradiusPassword.trim() }
+					: {}),
+			});
+			toast.success("Customer approved and activated");
+			setApproving(null);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Approval failed",
+			);
+		}
+	}
 
 	return (
 		<PageShell
@@ -96,18 +127,33 @@ export function PendingCustomersList() {
 							0,
 						);
 						const badge = STATUS_BADGES[request.status];
+						const isCustomDays = request.durationType === "days";
 						return (
-							<Card key={request.id}>
+							<Card
+								key={request.id}
+								className={
+									isCustomDays
+										? "border-l-4 border-l-warning"
+										: undefined
+								}
+							>
 								<CardContent className="p-4">
 									<div className="flex flex-wrap items-start justify-between gap-3">
 										<div className="min-w-0">
-											<div className="flex items-center gap-2">
+											<div className="flex flex-wrap items-center gap-2">
 												<p className="font-medium">
 													{name}
 												</p>
 												<Badge variant={badge.variant}>
 													{badge.label}
 												</Badge>
+												{isCustomDays && (
+													<Badge variant="warning">
+														Custom ·{" "}
+														{request.durationDays}{" "}
+														days
+													</Badge>
+												)}
 											</div>
 											<div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
 												{customer.mobile && (
@@ -203,6 +249,17 @@ export function PendingCustomersList() {
 										</div>
 									)}
 
+									{request.notes && (
+										<div className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
+											<p className="mb-0.5 text-xs font-semibold uppercase tracking-wide text-warning">
+												Worker note
+											</p>
+											<p className="whitespace-pre-wrap text-foreground">
+												{request.notes}
+											</p>
+										</div>
+									)}
+
 									{request.status === "PENDING" && (
 										<div className="mt-3 flex justify-end gap-2">
 											<Button
@@ -237,28 +294,9 @@ export function PendingCustomersList() {
 														? undefined
 														: "Set a username (Edit) before approving"
 												}
-												onClick={async () => {
-													if (!organizationId) {
-														return;
-													}
-													try {
-														await approve.mutateAsync(
-															{
-																organizationId,
-																id: request.id,
-															},
-														);
-														toast.success(
-															"Customer approved and activated",
-														);
-													} catch (error) {
-														toast.error(
-															error instanceof
-																Error
-																? error.message
-																: "Approval failed",
-														);
-													}
+												onClick={() => {
+													setIradiusPassword("");
+													setApproving(request);
 												}}
 											>
 												<CheckIcon className="mr-1 size-3.5" />
@@ -284,6 +322,64 @@ export function PendingCustomersList() {
 					request={editing}
 					onClose={() => setEditing(null)}
 				/>
+			)}
+
+			{approving && (
+				<Dialog
+					open={!!approving}
+					onOpenChange={(open) => {
+						if (!open) {
+							setApproving(null);
+						}
+					}}
+				>
+					<DialogContent className="sm:max-w-sm">
+						<DialogHeader>
+							<DialogTitle>Approve & activate</DialogTitle>
+						</DialogHeader>
+						{approving.customer.externalId ? (
+							<p className="text-sm text-muted-foreground">
+								This customer is already linked to iRadius.
+								Approving activates the account and records the
+								first payment.
+							</p>
+						) : (
+							<div className="space-y-2">
+								<p className="text-sm text-muted-foreground">
+									A new iRadius account{" "}
+									<span className="font-medium text-foreground">
+										{approving.customer.username}
+									</span>{" "}
+									will be created. Set its PPPoE password:
+								</p>
+								<Input
+									type="text"
+									autoFocus
+									value={iradiusPassword}
+									onChange={(e) =>
+										setIradiusPassword(e.target.value)
+									}
+									placeholder="PPPoE password"
+								/>
+							</div>
+						)}
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setApproving(null)}
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={approve.isPending}
+								onClick={confirmApprove}
+							>
+								<CheckIcon className="mr-1 size-3.5" />
+								Approve & activate
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			)}
 
 			{rejecting && (

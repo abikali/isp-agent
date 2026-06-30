@@ -22,6 +22,8 @@ export const createServicePlan = protectedProcedure
 			downloadSpeed: z.number().int().min(1),
 			uploadSpeed: z.number().int().min(1),
 			monthlyPrice: z.number().min(0),
+			// Worker custom-portal visibility. Empty/omitted ⇒ visible to all.
+			visibleWorkerIds: z.array(z.string()).optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -41,6 +43,18 @@ export const createServicePlan = protectedProcedure
 				downloadSpeed: input.downloadSpeed,
 				uploadSpeed: input.uploadSpeed,
 				monthlyPrice: input.monthlyPrice,
+				...(input.visibleWorkerIds && input.visibleWorkerIds.length > 0
+					? {
+							visibleWorkers: {
+								createMany: {
+									data: [
+										...new Set(input.visibleWorkerIds),
+									].map((employeeId) => ({ employeeId })),
+									skipDuplicates: true,
+								},
+							},
+						}
+					: {}),
 			},
 			select: {
 				id: true,

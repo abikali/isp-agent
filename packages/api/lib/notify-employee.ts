@@ -65,6 +65,58 @@ export async function notifyFieldEmployee(
 	}
 }
 
+/** Events an org can opt into receiving an admin Telegram alert for. */
+export type AdminAlertEvent =
+	| "workerRequest"
+	| "paymentCollected"
+	| "installationDone";
+
+const ADMIN_ALERT_TOGGLE: Record<
+	AdminAlertEvent,
+	| "alertOnWorkerRequest"
+	| "alertOnPaymentCollected"
+	| "alertOnInstallationDone"
+> = {
+	workerRequest: "alertOnWorkerRequest",
+	paymentCollected: "alertOnPaymentCollected",
+	installationDone: "alertOnInstallationDone",
+};
+
+/**
+ * Send an admin Telegram alert for `event` when the org has configured an
+ * admin chat id AND enabled that event's toggle. Fire-and-forget — call
+ * without awaiting from procedure handlers; a misconfig or Telegram hiccup
+ * must never fail the originating action.
+ */
+export async function notifyAdminTelegram(
+	organizationId: string,
+	event: AdminAlertEvent,
+	text: string,
+): Promise<void> {
+	try {
+		const org = await db.organization.findUnique({
+			where: { id: organizationId },
+			select: {
+				adminTelegramChatId: true,
+				alertOnWorkerRequest: true,
+				alertOnPaymentCollected: true,
+				alertOnInstallationDone: true,
+			},
+		});
+		const chatId = org?.adminTelegramChatId?.trim();
+		if (!chatId || !org?.[ADMIN_ALERT_TOGGLE[event]]) {
+			return;
+		}
+		await queueTelegramNotify({ organizationId, chatId, text });
+	} catch (error) {
+		logger.warn("[Notify Admin] Failed to queue admin Telegram alert", {
+			organizationId,
+			event,
+			error: String(error),
+		});
+	}
+}
+
 interface NotifyOrgAdminsInput {
 	organizationId: string;
 	title: string;

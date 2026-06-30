@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	notifyAdminTelegram,
 	notifyFieldEmployee,
 	notifyOrgForReview,
 } from "@repo/api/lib/notify-employee";
@@ -21,6 +22,7 @@ import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { approveInstallationInTx } from "../../installations/procedures/review";
+import { createCustomerInIRadius } from "../lib/create-in-iradius";
 import { iradiusUsernameExists } from "../lib/iradius-api";
 
 const setupItemSchema = z
@@ -69,6 +71,22 @@ export const workerCreateOptions = protectedProcedure
 		const canReadPlans = hasPermission(permCtx, "servicePlans", "read");
 		const canReadGroups = hasPermission(permCtx, "groups", "read");
 
+		// Per-worker plan visibility: a plan with no `visibleWorkers` rows is
+		// shown to everyone; once any worker is assigned, only those workers see
+		// it. Resolve the caller's employee id so we can match the allowlist.
+		const employeeId = await getUserEmployeeId(
+			input.organizationId,
+			user.id,
+		);
+		const workerVisibilityFilter = {
+			OR: [
+				{ visibleWorkers: { none: {} } },
+				...(employeeId
+					? [{ visibleWorkers: { some: { employeeId } } }]
+					: []),
+			],
+		};
+
 		const [plans, collectors, groupRows] = await Promise.all([
 			canReadPlans
 				? db.servicePlan.findMany({
@@ -77,6 +95,7 @@ export const workerCreateOptions = protectedProcedure
 							deletedAt: null,
 							archived: false,
 							...dealerScope,
+							...workerVisibilityFilter,
 						},
 						select: { id: true, name: true, monthlyPrice: true },
 						orderBy: { name: "asc" },
@@ -158,6 +177,7 @@ export const workerCreateCustomer = protectedProcedure
 			planId: z.string(),
 			durationType: z.enum(["month", "days"]),
 			durationDays: z.number().int().min(1).max(120).optional(),
+			notes: z.string().max(2000).optional(),
 			items: z.array(setupItemSchema).max(20).default([]),
 		}),
 	)
@@ -287,6 +307,7 @@ export const workerCreateCustomer = protectedProcedure
 					durationType: input.durationType,
 					durationDays: input.durationDays ?? null,
 					firstChargeAmount,
+					notes: input.notes?.trim() || null,
 				},
 			});
 
@@ -325,6 +346,24 @@ export const workerCreateCustomer = protectedProcedure
 			logger.warn("[Worker Create] notify failed", {
 				error: String(err),
 			}),
+		);
+
+		// Admin Telegram alert (opt-in per org) for a new field request.
+		const durationLabel =
+			input.durationType === "days"
+				? `${input.durationDays} days`
+				: "1 month";
+		notifyAdminTelegram(
+			input.organizationId,
+			"workerRequest",
+			[
+				"🆕 New customer request",
+				`${input.firstName} ${input.lastName ?? ""}`.trim(),
+				`Duration: ${durationLabel}`,
+				input.notes ? `Note: ${input.notes}` : null,
+			]
+				.filter(Boolean)
+				.join("\n"),
 		);
 
 		// Optional: ask the customer to share their location over WhatsApp.
@@ -393,6 +432,7 @@ export const listSetupRequests = protectedProcedure
 						username: true,
 						status: true,
 						expiresAt: true,
+						externalId: true,
 						plan: { select: { id: true, name: true } },
 						collector: { select: { id: true, name: true } },
 					},
@@ -625,10 +665,14 @@ export const approveSetupRequest = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			id: z.string(),
+			// PPPoE password for the new iRadius subscriber. Required when the org
+			// uses iRadius and the customer isn't linked yet (the common case for
+			// app-created customers); ignored when already linked / iRadius off.
+			iradiusPassword: z.string().min(1).max(100).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -656,6 +700,7 @@ export const approveSetupRequest = protectedProcedure
 						firstName: true,
 						lastName: true,
 						username: true,
+						externalId: true,
 					},
 				},
 			},
@@ -675,6 +720,29 @@ export const approveSetupRequest = protectedProcedure
 			});
 		}
 
+		// Create the subscriber in iRadius (remote-first) for app-created
+		// customers that aren't linked yet. On success we store the returned
+		// User.Id as externalId in the transaction below so the customer mirrors
+		// like any synced one. If the remote create fails, the whole approval
+		// aborts — no half-approved local state.
+		const shouldCreateInIRadius =
+			!iradiusDisabled && !request.customer.externalId;
+		let newExternalId: string | null = null;
+		if (shouldCreateInIRadius) {
+			if (!input.iradiusPassword?.trim()) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"A PPPoE password is required to create this customer in iRadius",
+				});
+			}
+			const { userId } = await createCustomerInIRadius({
+				organizationId: input.organizationId,
+				customerId: request.customerId,
+				password: input.iradiusPassword.trim(),
+			});
+			newExternalId = String(userId);
+		}
+
 		const billingMonth = await resolveActiveBillingMonth(
 			input.organizationId,
 		);
@@ -682,7 +750,11 @@ export const approveSetupRequest = protectedProcedure
 		await db.$transaction(async (tx) => {
 			await tx.customer.update({
 				where: { id: request.customerId },
-				data: { status: "ACTIVE", activatedAt: new Date() },
+				data: {
+					status: "ACTIVE",
+					activatedAt: new Date(),
+					...(newExternalId ? { externalId: newExternalId } : {}),
+				},
 			});
 
 			await tx.customerSetupRequest.update({

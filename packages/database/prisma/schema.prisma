@@ -358,6 +358,15 @@ model Organization {
   stoppedPaymentTaskEnabled   Boolean @default(true)
   stoppedPaymentNotifyEnabled Boolean @default(true)
 
+  // Admin Telegram alerts. When `adminTelegramChatId` is set, each enabled
+  // event below sends a Telegram message to that chat via the collector bot
+  // (see notifyAdminTelegram in packages/api/lib/notify-employee.ts). All
+  // default off so existing orgs stay silent until an admin opts in.
+  adminTelegramChatId        String?  @map("admin_telegram_chat_id")
+  alertOnWorkerRequest       Boolean  @default(false) @map("alert_on_worker_request")
+  alertOnPaymentCollected    Boolean  @default(false) @map("alert_on_payment_collected")
+  alertOnInstallationDone    Boolean  @default(false) @map("alert_on_installation_done")
+
   @@map("organization")
 }
 
@@ -1010,12 +1019,29 @@ model ServicePlan {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   dealer       IspDealer?   @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   customers    Customer[]
+  // Per-worker visibility for the worker custom portal. Empty = visible to
+  // every worker (back-compat); non-empty restricts to the listed workers.
+  visibleWorkers ServicePlanWorker[]
 
   @@unique([organizationId, externalId])
   @@index([organizationId])
   @@index([organizationId, deletedAt])
   @@index([dealerId])
   @@map("service_plan")
+}
+
+// Join: which workers (employees) may see a plan in their custom-portal
+// dropdowns. No rows for a plan ⇒ all workers see it.
+model ServicePlanWorker {
+  id            String      @id @default(cuid())
+  servicePlanId String
+  employeeId    String
+  servicePlan   ServicePlan @relation(fields: [servicePlanId], references: [id], onDelete: Cascade)
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([servicePlanId, employeeId])
+  @@index([employeeId])
+  @@map("service_plan_worker")
 }
 
 model Station {
@@ -1083,6 +1109,7 @@ model Base {
   dealer       IspDealer?     @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   workers      BaseEmployee[]
   tasks        Task[]
+  installations Installation[]
 
   @@index([organizationId])
   @@index([dealerId])
@@ -1700,6 +1727,9 @@ model Employee {
   username        String?
   preferredLayout String            @default("standard") @map("preferred_layout")
   telegramChatId  String?           @map("telegram_chat_id")
+  // One-time token minted by the "Connect Telegram" flow. The collector bot's
+  // /start handler resolves it to this employee and writes telegramChatId.
+  telegramLinkToken String?         @unique @map("telegram_link_token")
   userId          String?           @unique
   dealerId        String?
   lastSyncedAt   DateTime?
@@ -1729,6 +1759,7 @@ model Employee {
   tasksCompleted        Task[]                @relation("TaskCompleter")
   setupRequests         CustomerSetupRequest[] @relation("SetupRequester")
   stockRefundRequests   StockRefundRequest[]  @relation("StockRefundRequester")
+  visiblePlans          ServicePlanWorker[]
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -2144,9 +2175,10 @@ model StockLog {
 model Installation {
   id                String    @id @default(cuid())
   organizationId    String
-  // Target is exactly one of customerId / stationId (enforced at the API layer)
+  // Target is exactly one of customerId / stationId / baseId (enforced at the API layer)
   customerId        String?
   stationId         String?
+  baseId            String?
   employeeId        String
   stockItemId       String?
   // Set when the install was recorded by closing a field Task (INSTALLATION /
@@ -2170,6 +2202,7 @@ model Installation {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  base         Base?        @relation(fields: [baseId], references: [id], onDelete: SetNull)
   employee     Employee     @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
   stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
   approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
@@ -2182,6 +2215,7 @@ model Installation {
   @@index([organizationId, status])
   @@index([customerId])
   @@index([stationId])
+  @@index([baseId])
   @@index([employeeId])
   @@index([setupRequestId])
   @@index([taskId])

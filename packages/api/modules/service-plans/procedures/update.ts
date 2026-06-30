@@ -27,6 +27,9 @@ export const updateServicePlan = protectedProcedure
 			downloadSpeed: z.number().int().min(1).optional(),
 			uploadSpeed: z.number().int().min(1).optional(),
 			monthlyPrice: z.number().min(0).optional(),
+			// Worker custom-portal visibility. Empty array ⇒ visible to all
+			// workers; omitted ⇒ leave the current assignment unchanged.
+			visibleWorkerIds: z.array(z.string()).optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -80,6 +83,28 @@ export const updateServicePlan = protectedProcedure
 				createdAt: true,
 			},
 		});
+
+		// Replace the worker-visibility set when provided. Empty array clears it
+		// (plan becomes visible to all workers again).
+		if (input.visibleWorkerIds !== undefined) {
+			const workerIds = [...new Set(input.visibleWorkerIds)];
+			await db.$transaction([
+				db.servicePlanWorker.deleteMany({
+					where: { servicePlanId: input.id },
+				}),
+				...(workerIds.length > 0
+					? [
+							db.servicePlanWorker.createMany({
+								data: workerIds.map((employeeId) => ({
+									servicePlanId: input.id,
+									employeeId,
+								})),
+								skipDuplicates: true,
+							}),
+						]
+					: []),
+			]);
+		}
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		servicePlanAudit.updated(

@@ -1,7 +1,11 @@
 "use client";
 
-import { useOrganizationId } from "@shared/lib/organization";
+import { useEmployeesQuery } from "@saas/employees/client";
+import { MultiSelectFilter } from "@saas/marketing/components/MultiSelectFilter";
+import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
+import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -13,6 +17,7 @@ import {
 	SheetTitle,
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useUpdatePlan } from "../hooks/use-plans";
 
@@ -36,6 +41,22 @@ export function EditPlanDialog({
 }) {
 	const organizationId = useOrganizationId();
 	const updatePlan = useUpdatePlan();
+	const { employees } = useEmployeesQuery();
+
+	// Current worker-visibility set, loaded fresh (the list query is cached).
+	// `null` ⇒ not yet edited; fall back to the loaded value for display.
+	const planDetail = useQuery(
+		organizationId
+			? orpc.servicePlans.get.queryOptions({
+					input: { organizationId, id: plan.id },
+				})
+			: disabledQuery(["servicePlans", "get"]),
+	);
+	const loadedWorkerIds = planDetail.data?.plan.visibleWorkerIds ?? [];
+	const [workerIdsOverride, setWorkerIdsOverride] = useState<string[] | null>(
+		null,
+	);
+	const visibleWorkerIds = workerIdsOverride ?? loadedWorkerIds;
 
 	const form = useForm({
 		defaultValues: {
@@ -58,6 +79,7 @@ export function EditPlanDialog({
 					downloadSpeed: value.downloadSpeed,
 					uploadSpeed: value.uploadSpeed,
 					monthlyPrice: value.monthlyPrice,
+					visibleWorkerIds,
 				});
 				toast.success("Plan updated");
 				onOpenChange(false);
@@ -190,6 +212,27 @@ export function EditPlanDialog({
 								</div>
 							)}
 						</form.Field>
+
+						<div className="space-y-2">
+							<Label htmlFor="edit-plan-workers">
+								Visible to workers
+							</Label>
+							<MultiSelectFilter
+								options={employees.map((e) => ({
+									value: e.id,
+									label: e.name,
+								}))}
+								value={visibleWorkerIds}
+								onChange={setWorkerIdsOverride}
+								placeholder="All workers"
+								searchPlaceholder="Search workers…"
+								emptyMessage="No workers"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Leave empty to show this plan to every worker in
+								their portal. Pick workers to restrict it.
+							</p>
+						</div>
 					</div>
 					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button

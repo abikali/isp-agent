@@ -38,6 +38,7 @@ export const getServicePlan = protectedProcedure
 				_count: {
 					select: { customers: true },
 				},
+				visibleWorkers: { select: { employeeId: true } },
 			},
 		});
 
@@ -47,5 +48,11 @@ export const getServicePlan = protectedProcedure
 			});
 		}
 
-		return { plan };
+		const { visibleWorkers, ...rest } = plan;
+		return {
+			plan: {
+				...rest,
+				visibleWorkerIds: visibleWorkers.map((w) => w.employeeId),
+			},
+		};
 	});

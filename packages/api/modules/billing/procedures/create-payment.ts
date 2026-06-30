@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { verifyOrganizationMembership } from "@repo/api/lib/membership";
+import { notifyAdminTelegram } from "@repo/api/lib/notify-employee";
 import {
 	getDealerScopeFilter,
 	getPermissionContext,
@@ -463,6 +464,22 @@ export const createPayment = protectedProcedure
 		}
 
 		notifyBadgeForOrganization(input.organizationId);
+
+		// Admin Telegram alert (opt-in per org) when a collector records a payment.
+		if (input.paidAmount > 0) {
+			const payerName =
+				[customer.firstName, customer.lastName]
+					.filter(Boolean)
+					.join(" ")
+					.trim() ||
+				customer.username ||
+				"customer";
+			notifyAdminTelegram(
+				input.organizationId,
+				"paymentCollected",
+				`💵 Payment collected\n${payerName}: ${input.paidAmount}\nBy: ${collectorName}`,
+			);
+		}
 
 		return { payment };
 	});

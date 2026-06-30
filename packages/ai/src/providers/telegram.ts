@@ -326,6 +326,22 @@ export async function sendTextMessage(
 	}
 }
 
+/**
+ * Resolve the bot's @username via getMe — needed to build a
+ * `https://t.me/<username>?start=<token>` deep link. Returns null on failure
+ * so callers can degrade gracefully.
+ */
+export async function getBotUsername(apiToken: string): Promise<string | null> {
+	try {
+		const api = new Api(apiToken);
+		const me = await api.getMe();
+		return me.username ?? null;
+	} catch (error) {
+		logger.error("Telegram getMe error", { error });
+		return null;
+	}
+}
+
 export async function setWebhook(
 	apiToken: string,
 	webhookUrl: string,
@@ -333,7 +349,11 @@ export async function setWebhook(
 ): Promise<boolean> {
 	try {
 		const api = new Api(apiToken);
-		await api.setWebhook(webhookUrl, { secret_token: secretToken });
+		// Telegram rejects an empty secret_token; only send it when configured.
+		await api.setWebhook(
+			webhookUrl,
+			secretToken ? { secret_token: secretToken } : {},
+		);
 		return true;
 	} catch (error) {
 		logger.error("Telegram setWebhook error", { error });

@@ -157,6 +157,14 @@ export function useUpdateEmployee() {
 	});
 }
 
+export function useConnectTelegram() {
+	return useMutation(orpc.employees.connectTelegram.mutationOptions());
+}
+
+export function useTestTelegram() {
+	return useMutation(orpc.employees.testTelegram.mutationOptions());
+}
+
 export function useDeleteEmployee() {
 	const queryClient = useQueryClient();
 

@@ -10,6 +10,7 @@ import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
+import { Textarea } from "@ui/components/textarea";
 import { CheckIcon, CrosshairIcon, LoaderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -148,6 +149,7 @@ export function WorkerNewCustomer() {
 	const [planId, setPlanId] = useState("");
 	const [durationType, setDurationType] = useState<"month" | "days">("month");
 	const [durationDays, setDurationDays] = useState("15");
+	const [note, setNote] = useState("");
 	const [lines, setLines] = useState<InstallLine[]>([]);
 
 	const plan = plans.find((p) => p.id === planId);
@@ -191,6 +193,7 @@ export function WorkerNewCustomer() {
 		setPlanId("");
 		setDurationType("month");
 		setDurationDays("15");
+		setNote("");
 		setLines([]);
 	}
 
@@ -238,6 +241,7 @@ export function WorkerNewCustomer() {
 				durationType,
 				durationDays:
 					durationType === "days" ? Number(durationDays) : undefined,
+				notes: note.trim() || undefined,
 				items: linesToPayload(lines),
 			});
 			toast.success("Customer submitted for approval");
@@ -398,6 +402,18 @@ export function WorkerNewCustomer() {
 			<div className="space-y-3">
 				<SectionTitle>Items &amp; add-ons (optional)</SectionTitle>
 				<InstallItemRows lines={lines} onChange={setLines} />
+			</div>
+
+			{/* Note */}
+			<div className="space-y-3">
+				<SectionTitle>Note (optional)</SectionTitle>
+				<Textarea
+					value={note}
+					onChange={(e) => setNote(e.target.value)}
+					placeholder="Anything the admin should know before approving…"
+					rows={3}
+					maxLength={2000}
+				/>
 			</div>
 
 			{/* Summary */}

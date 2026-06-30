@@ -1,5 +1,7 @@
 "use client";
 
+import { useEmployeesQuery } from "@saas/employees/client";
+import { MultiSelectFilter } from "@saas/marketing/components/MultiSelectFilter";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
@@ -13,6 +15,7 @@ import {
 	SheetTitle,
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useCreatePlan } from "../hooks/use-plans";
 
@@ -25,6 +28,8 @@ export function CreatePlanDialog({
 }) {
 	const organizationId = useOrganizationId();
 	const createPlan = useCreatePlan();
+	const { employees } = useEmployeesQuery();
+	const [visibleWorkerIds, setVisibleWorkerIds] = useState<string[]>([]);
 
 	const form = useForm({
 		defaultValues: {
@@ -46,10 +51,12 @@ export function CreatePlanDialog({
 					downloadSpeed: value.downloadSpeed,
 					uploadSpeed: value.uploadSpeed,
 					monthlyPrice: value.monthlyPrice,
+					visibleWorkerIds,
 				});
 				toast.success("Plan created");
 				onOpenChange(false);
 				form.reset();
+				setVisibleWorkerIds([]);
 			} catch (error) {
 				toast.error(
 					error instanceof Error
@@ -180,6 +187,27 @@ export function CreatePlanDialog({
 								</div>
 							)}
 						</form.Field>
+
+						<div className="space-y-2">
+							<Label htmlFor="plan-workers">
+								Visible to workers
+							</Label>
+							<MultiSelectFilter
+								options={employees.map((e) => ({
+									value: e.id,
+									label: e.name,
+								}))}
+								value={visibleWorkerIds}
+								onChange={setVisibleWorkerIds}
+								placeholder="All workers"
+								searchPlaceholder="Search workers…"
+								emptyMessage="No workers"
+							/>
+							<p className="text-xs text-muted-foreground">
+								Leave empty to show this plan to every worker in
+								their portal. Pick workers to restrict it.
+							</p>
+						</div>
 					</div>
 					<SheetFooter className="border-t border-border bg-surface-subtle/40 px-6 py-3">
 						<Button

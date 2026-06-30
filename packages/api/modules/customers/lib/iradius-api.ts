@@ -165,6 +165,59 @@ export async function iradiusSetActive(
 	}
 }
 
+export interface IradiusCreateUserInput {
+	userName: string;
+	password: string;
+	accountTypeId: number; // ServicePlan.externalId
+	parentId?: number | null; // IspDealer.externalId
+	firstName?: string | null;
+	lastName?: string | null;
+	mobile?: string | null;
+	mailAddress?: string | null;
+	address?: string | null;
+	comment?: string | null;
+	collectorId?: number | null; // Employee.externalId
+	userGroupId?: number | null; // Customer.groupExternalId
+	accountPrice?: number;
+	discount?: number;
+	expiryAccount?: string | null; // "YYYY-MM-DD HH:MM:SS" (tz-naive UTC) or null
+	iptvPrice?: number;
+	realIpPrice?: number;
+	gsmLat?: number | null;
+	gsmLng?: number | null;
+	stationId?: number | null; // Station.externalId
+	accessPointId?: number | null;
+}
+
+/**
+ * Create a brand-new subscriber (User ProfileId=4 + UserNas) in iRadius via the
+ * `/create-user` endpoint we added to RadiusServerApp. Returns the new iRadius
+ * User.Id, which the caller stores as `Customer.externalId` to link the two
+ * sides. Throws on any HTTP / config / duplicate-username failure so callers
+ * can abort before writing locally.
+ */
+export async function iradiusCreateUser(
+	input: IradiusCreateUserInput,
+): Promise<{ userId: number; username: string }> {
+	const config = getIspApiConfigFromEnv();
+	if (!config) {
+		throw new Error("ISP API not configured");
+	}
+	const result = await ispPost<{
+		success?: boolean;
+		userId?: number;
+		username?: string;
+		error?: string;
+	}>(config, "/create-user", input as unknown as Record<string, unknown>);
+	if (!result || result.success === false || !result.userId) {
+		throw new Error(result?.error ?? "iRadius create-user failed");
+	}
+	return {
+		userId: result.userId,
+		username: result.username ?? input.userName,
+	};
+}
+
 /**
  * Preview an account type change in iRadius (dry-run with billing info).
  * Returns null if ISP API is not configured or customer is not linked.
