@@ -77,6 +77,79 @@ export const TASK_CATEGORY_OPTIONS = [
 	{ value: "UNINSTALL", label: "Uninstall" },
 ] as const;
 
+export type TaskCategoryValue = (typeof TASK_CATEGORY_OPTIONS)[number]["value"];
+
+/**
+ * Per-category metadata used to make the task category dropdown self-explanatory.
+ * `completion` describes what the field worker is asked to do when they close the
+ * task; `requiresTarget` means the worker is blocked at completion unless the task
+ * targets a customer or base (so we block creation without one too).
+ */
+export const TASK_CATEGORY_META: Record<
+	TaskCategoryValue,
+	{
+		label: string;
+		/** One-line meaning, shown under the dropdown when selected. */
+		summary: string;
+		/** What the worker does to complete this task. */
+		completion: string;
+		/** Must target a customer or base to be completable. */
+		requiresTarget: boolean;
+	}
+> = {
+	INSTALLATION: {
+		label: "Installation",
+		summary: "New service or equipment setup for a customer or base.",
+		completion: "Worker records the installed equipment and a photo.",
+		requiresTarget: true,
+	},
+	REPLACEMENT: {
+		label: "Replacement",
+		summary: "Swap out equipment in the field.",
+		completion:
+			"Worker records the new equipment, a photo, and the old equipment recovered.",
+		requiresTarget: true,
+	},
+	UNINSTALL: {
+		label: "Uninstall",
+		summary: "Remove service and reclaim equipment.",
+		completion: "Worker records the recovered equipment.",
+		requiresTarget: true,
+	},
+	MAINTENANCE: {
+		label: "Maintenance",
+		summary: "Service or check-up visit.",
+		completion:
+			"Worker logs what they found; equipment used can be recorded but isn't required.",
+		requiresTarget: false,
+	},
+	REPAIR: {
+		label: "Repair",
+		summary: "Fix a reported fault.",
+		completion:
+			"Worker logs what they found; equipment used can be recorded but isn't required.",
+		requiresTarget: false,
+	},
+	SUPPORT: {
+		label: "Support",
+		summary: "General customer support visit or call.",
+		completion: "Worker logs the outcome.",
+		requiresTarget: false,
+	},
+	BILLING: {
+		label: "Billing",
+		summary: "Billing or collection follow-up.",
+		completion: "Worker logs the outcome.",
+		requiresTarget: false,
+	},
+	GENERAL: {
+		label: "General",
+		summary: "Any task that doesn't fit the other categories.",
+		completion: "Worker logs the outcome.",
+		requiresTarget: false,
+	},
+};
+
 export const TASK_SOURCE_LABELS: Record<string, string> = {
 	MANUAL: "Manual",
 	AI_ESCALATION: "AI Escalation",

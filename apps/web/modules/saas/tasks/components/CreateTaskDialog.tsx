@@ -23,10 +23,42 @@ import {
 	SheetTitle,
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
+import {
+	ClipboardListIcon,
+	HammerIcon,
+	HardHatIcon,
+	InfoIcon,
+	LifeBuoyIcon,
+	PackageMinusIcon,
+	ReceiptIcon,
+	ReplaceIcon,
+	TriangleAlertIcon,
+	WrenchIcon,
+} from "lucide-react";
+import type { ComponentType } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreateTask } from "../hooks/use-tasks";
-import { TASK_CATEGORY_OPTIONS, TASK_PRIORITY_OPTIONS } from "../lib/constants";
+import {
+	TASK_CATEGORY_META,
+	TASK_CATEGORY_OPTIONS,
+	TASK_PRIORITY_OPTIONS,
+	type TaskCategoryValue,
+} from "../lib/constants";
+
+const CATEGORY_ICONS: Record<
+	TaskCategoryValue,
+	ComponentType<{ className?: string }>
+> = {
+	INSTALLATION: WrenchIcon,
+	REPLACEMENT: ReplaceIcon,
+	UNINSTALL: PackageMinusIcon,
+	MAINTENANCE: HardHatIcon,
+	REPAIR: HammerIcon,
+	SUPPORT: LifeBuoyIcon,
+	BILLING: ReceiptIcon,
+	GENERAL: ClipboardListIcon,
+};
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form create dialog; splitting would scatter shared form state
 export function CreateTaskDialog({
@@ -64,6 +96,14 @@ export function CreateTaskDialog({
 			if (!organizationId) {
 				return;
 			}
+			const meta =
+				TASK_CATEGORY_META[value.category as TaskCategoryValue];
+			if (meta?.requiresTarget && !customer && !value.baseId) {
+				toast.error(
+					`${meta.label} tasks must target a customer or a base.`,
+				);
+				return;
+			}
 			try {
 				await createTask.mutateAsync({
 					organizationId,
@@ -74,14 +114,7 @@ export function CreateTaskDialog({
 						| "MEDIUM"
 						| "HIGH"
 						| "URGENT",
-					category: value.category as
-						| "INSTALLATION"
-						| "MAINTENANCE"
-						| "REPAIR"
-						| "SUPPORT"
-						| "BILLING"
-						| "GENERAL"
-						| "UNINSTALL",
+					category: value.category as TaskCategoryValue,
 					customerId: customer?.id ?? undefined,
 					employeeIds: assignedEmployeeIds.length
 						? assignedEmployeeIds
@@ -113,6 +146,16 @@ export function CreateTaskDialog({
 	});
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+	const category = useStore(
+		form.store,
+		(s) => s.values.category,
+	) as TaskCategoryValue;
+	const baseId = useStore(form.store, (s) => s.values.baseId);
+	const categoryMeta = TASK_CATEGORY_META[category];
+	// Foolproofing: install-type tasks can't be completed without a target,
+	// so block creating one with neither a customer nor a base.
+	const missingTarget =
+		Boolean(categoryMeta?.requiresTarget) && !customer && !baseId;
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
@@ -272,14 +315,25 @@ export function CreateTaskDialog({
 											</SelectTrigger>
 											<SelectContent>
 												{TASK_CATEGORY_OPTIONS.map(
-													(opt) => (
-														<SelectItem
-															key={opt.value}
-															value={opt.value}
-														>
-															{opt.label}
-														</SelectItem>
-													),
+													(opt) => {
+														const Icon =
+															CATEGORY_ICONS[
+																opt.value
+															];
+														return (
+															<SelectItem
+																key={opt.value}
+																value={
+																	opt.value
+																}
+															>
+																<span className="flex items-center gap-2">
+																	<Icon className="size-4 text-muted-foreground" />
+																	{opt.label}
+																</span>
+															</SelectItem>
+														);
+													},
 												)}
 											</SelectContent>
 										</Select>
@@ -287,6 +341,35 @@ export function CreateTaskDialog({
 								)}
 							</form.Field>
 						</div>
+
+						{/* Contextual explainer: what this category means for the worker */}
+						{categoryMeta ? (
+							<div className="space-y-2">
+								<div className="flex gap-2.5 rounded-lg border border-border bg-surface-subtle/40 p-3">
+									<InfoIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+									<div className="space-y-1 text-sm">
+										<p className="text-foreground">
+											{categoryMeta.summary}
+										</p>
+										<p className="text-muted-foreground text-xs">
+											On completion:{" "}
+											{categoryMeta.completion}
+										</p>
+									</div>
+								</div>
+								{missingTarget ? (
+									<div className="flex gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+										<TriangleAlertIcon className="mt-0.5 size-4 shrink-0" />
+										<p className="text-xs">
+											{categoryMeta.label} tasks must
+											target a customer or a base — the
+											worker can't record equipment
+											without one. Pick a target above.
+										</p>
+									</div>
+								) : null}
+							</div>
+						) : null}
 
 						<form.Field name="dueDate">
 							{(field) => (
@@ -350,30 +433,26 @@ export function CreateTaskDialog({
 							</div>
 						</div>
 
-						<form.Subscribe selector={(s) => s.values.category}>
-							{(category) =>
-								customer &&
-								(category === "MAINTENANCE" ||
-									category === "REPAIR") ? (
-									<label className="flex cursor-pointer items-center gap-3 rounded-md border p-3">
-										<input
-											type="checkbox"
-											className="size-4"
-											checked={notifyCustomerWhatsApp}
-											onChange={(e) =>
-												setNotifyCustomerWhatsApp(
-													e.target.checked,
-												)
-											}
-										/>
-										<span className="text-sm">
-											Send WhatsApp to the customer about
-											the maintenance visit
-										</span>
-									</label>
-								) : null
-							}
-						</form.Subscribe>
+						{customer &&
+						(category === "MAINTENANCE" ||
+							category === "REPAIR") ? (
+							<label className="flex cursor-pointer items-center gap-3 rounded-md border p-3">
+								<input
+									type="checkbox"
+									className="size-4"
+									checked={notifyCustomerWhatsApp}
+									onChange={(e) =>
+										setNotifyCustomerWhatsApp(
+											e.target.checked,
+										)
+									}
+								/>
+								<span className="text-sm">
+									Send WhatsApp to the customer about the
+									maintenance visit
+								</span>
+							</label>
+						) : null}
 
 						<form.Field name="notes">
 							{(field) => (
@@ -399,7 +478,10 @@ export function CreateTaskDialog({
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isSubmitting}>
+						<Button
+							type="submit"
+							disabled={isSubmitting || missingTarget}
+						>
 							{isSubmitting ? "Creating..." : "Create Task"}
 						</Button>
 					</SheetFooter>
