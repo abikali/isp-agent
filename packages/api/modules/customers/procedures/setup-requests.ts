@@ -71,21 +71,17 @@ export const workerCreateOptions = protectedProcedure
 		const canReadPlans = hasPermission(permCtx, "servicePlans", "read");
 		const canReadGroups = hasPermission(permCtx, "groups", "read");
 
-		// Per-worker plan visibility: a plan with no `visibleWorkers` rows is
-		// shown to everyone; once any worker is assigned, only those workers see
-		// it. Resolve the caller's employee id so we can match the allowlist.
+		// Per-worker plan visibility: a plan is shown only to the workers
+		// explicitly assigned to it. A plan with no `visibleWorkers` rows is
+		// hidden from everyone. Resolve the caller's employee id so we can
+		// match the allowlist; with no employee id, no plan is visible.
 		const employeeId = await getUserEmployeeId(
 			input.organizationId,
 			user.id,
 		);
-		const workerVisibilityFilter = {
-			OR: [
-				{ visibleWorkers: { none: {} } },
-				...(employeeId
-					? [{ visibleWorkers: { some: { employeeId } } }]
-					: []),
-			],
-		};
+		const workerVisibilityFilter = employeeId
+			? { visibleWorkers: { some: { employeeId } } }
+			: { visibleWorkers: { some: { employeeId: "__none__" } } };
 
 		const [plans, collectors, groupRows] = await Promise.all([
 			canReadPlans

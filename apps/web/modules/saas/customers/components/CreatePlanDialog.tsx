@@ -199,13 +199,13 @@ export function CreatePlanDialog({
 								}))}
 								value={visibleWorkerIds}
 								onChange={setVisibleWorkerIds}
-								placeholder="All workers"
+								placeholder="No workers"
 								searchPlaceholder="Search workers…"
 								emptyMessage="No workers"
 							/>
 							<p className="text-xs text-muted-foreground">
-								Leave empty to show this plan to every worker in
-								their portal. Pick workers to restrict it.
+								Pick the workers who can see this plan in their
+								portal. Leave empty to hide it from everyone.
 							</p>
 						</div>
 					</div>

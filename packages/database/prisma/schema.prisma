@@ -1020,7 +1020,7 @@ model ServicePlan {
   dealer       IspDealer?   @relation(fields: [dealerId], references: [id], onDelete: SetNull)
   customers    Customer[]
   // Per-worker visibility for the worker custom portal. Empty = visible to
-  // every worker (back-compat); non-empty restricts to the listed workers.
+  // no one; non-empty restricts to the listed workers.
   visibleWorkers ServicePlanWorker[]
 
   @@unique([organizationId, externalId])
@@ -1031,7 +1031,7 @@ model ServicePlan {
 }
 
 // Join: which workers (employees) may see a plan in their custom-portal
-// dropdowns. No rows for a plan ⇒ all workers see it.
+// dropdowns. No rows for a plan ⇒ no worker sees it.
 model ServicePlanWorker {
   id            String      @id @default(cuid())
   servicePlanId String

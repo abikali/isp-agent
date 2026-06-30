@@ -27,8 +27,8 @@ export const updateServicePlan = protectedProcedure
 			downloadSpeed: z.number().int().min(1).optional(),
 			uploadSpeed: z.number().int().min(1).optional(),
 			monthlyPrice: z.number().min(0).optional(),
-			// Worker custom-portal visibility. Empty array ⇒ visible to all
-			// workers; omitted ⇒ leave the current assignment unchanged.
+			// Worker custom-portal visibility. Empty array ⇒ visible to no one;
+			// omitted ⇒ leave the current assignment unchanged.
 			visibleWorkerIds: z.array(z.string()).optional(),
 		}),
 	)

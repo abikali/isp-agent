@@ -22,7 +22,7 @@ export const createServicePlan = protectedProcedure
 			downloadSpeed: z.number().int().min(1),
 			uploadSpeed: z.number().int().min(1),
 			monthlyPrice: z.number().min(0),
-			// Worker custom-portal visibility. Empty/omitted ⇒ visible to all.
+			// Worker custom-portal visibility. Empty/omitted ⇒ visible to no one.
 			visibleWorkerIds: z.array(z.string()).optional(),
 		}),
 	)
