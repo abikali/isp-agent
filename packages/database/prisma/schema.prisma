@@ -367,6 +367,14 @@ model Organization {
   alertOnPaymentCollected    Boolean  @default(false) @map("alert_on_payment_collected")
   alertOnInstallationDone    Boolean  @default(false) @map("alert_on_installation_done")
 
+  // Worker task notifications. Each assigned worker is pinged in-app and on
+  // Telegram (see notifyTaskWorkers in packages/api/modules/tasks/lib) for the
+  // matching event. Default on so workers are notified out of the box; an
+  // admin can mute any event from Settings → Notifications.
+  notifyWorkerOnTaskAssigned  Boolean @default(true) @map("notify_worker_on_task_assigned")
+  notifyWorkerOnTaskUpdated   Boolean @default(true) @map("notify_worker_on_task_updated")
+  notifyWorkerOnTaskCancelled Boolean @default(true) @map("notify_worker_on_task_cancelled")
+
   @@map("organization")
 }
 

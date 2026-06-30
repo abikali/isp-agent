@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate, formatTime, getBeirutDate } from "@shared/lib/format";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { Input } from "@ui/components/input";
@@ -15,55 +16,136 @@ import { cn } from "@ui/lib";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	type LucideIcon,
 	SearchIcon,
 	XIcon,
 } from "lucide-react";
+
+/**
+ * Whole-day count since the Unix epoch for a date, evaluated in Beirut time.
+ * Lets us compare calendar days (Today / Yesterday) without TZ drift.
+ */
+function beirutDayNumber(value: Date): number {
+	const { year, month, day } = getBeirutDate(value);
+	return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+/**
+ * Human, glanceable timestamp for the field portal: "Today · 14:30",
+ * "Yesterday · 09:12", "Mon · 16:05" (this week), else "28 Jun". Always shows
+ * the time for same-week entries so a worker can tell *when* something happened.
+ * Beirut timezone, matching the rest of the app's date display.
+ */
+export function formatWhen(value: Date | string): string {
+	const date = typeof value === "string" ? new Date(value) : value;
+	const diff = beirutDayNumber(new Date()) - beirutDayNumber(date);
+	const time = formatTime(date, { hour: "2-digit", minute: "2-digit" });
+	if (diff <= 0) {
+		return `Today · ${time}`;
+	}
+	if (diff === 1) {
+		return `Yesterday · ${time}`;
+	}
+	if (diff < 7) {
+		return `${formatDate(date, { weekday: "short" })} · ${time}`;
+	}
+	return formatDate(date, { day: "numeric", month: "short" });
+}
+
+/** Small section heading with optional icon and trailing action/aside. */
+export function SectionHeader({
+	icon: Icon,
+	title,
+	action,
+}: {
+	icon?: LucideIcon;
+	title: string;
+	action?: React.ReactNode;
+}) {
+	return (
+		<div className="flex items-center justify-between gap-2">
+			<p className="flex items-center gap-1.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+				{Icon ? <Icon className="size-3.5" /> : null}
+				{title}
+			</p>
+			{action}
+		</div>
+	);
+}
+
+const STAT_TONE: Record<string, string> = {
+	default: "text-foreground",
+	positive: "text-emerald-600",
+	negative: "text-destructive",
+	warning: "text-amber-600",
+};
 
 export interface StatItem {
 	label: string;
 	value: string;
 	hint?: string;
+	icon?: LucideIcon;
+	tone?: "default" | "positive" | "negative" | "warning";
 }
 
 /** Responsive current-month KPI strip shown at the top of each tab. */
 export function StatStrip({
 	items,
 	isLoading = false,
+	columns = 4,
 }: {
 	items: StatItem[];
 	isLoading?: boolean;
+	columns?: 2 | 3 | 4;
 }) {
+	const gridCols =
+		columns === 2
+			? "grid-cols-2"
+			: columns === 3
+				? "grid-cols-3"
+				: "grid-cols-2 sm:grid-cols-4";
 	if (isLoading) {
 		return (
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+			<div className={cn("grid gap-2", gridCols)}>
 				{items.map((item) => (
 					<Skeleton
 						key={item.label}
-						className="h-[68px] rounded-lg"
+						className="h-[72px] rounded-lg"
 					/>
 				))}
 			</div>
 		);
 	}
 	return (
-		<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-			{items.map((item) => (
-				<Card key={item.label}>
-					<CardContent className="p-3">
-						<p className="truncate text-[11px] text-muted-foreground">
-							{item.label}
-						</p>
-						<p className="mt-0.5 font-semibold text-lg tabular-nums">
-							{item.value}
-						</p>
-						{item.hint ? (
-							<p className="truncate text-[11px] text-muted-foreground">
-								{item.hint}
+		<div className={cn("grid gap-2", gridCols)}>
+			{items.map((item) => {
+				const Icon = item.icon;
+				return (
+					<Card key={item.label}>
+						<CardContent className="p-3">
+							<p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+								{Icon ? (
+									<Icon className="size-3 shrink-0" />
+								) : null}
+								<span className="truncate">{item.label}</span>
 							</p>
-						) : null}
-					</CardContent>
-				</Card>
-			))}
+							<p
+								className={cn(
+									"mt-0.5 font-semibold text-lg tabular-nums",
+									STAT_TONE[item.tone ?? "default"],
+								)}
+							>
+								{item.value}
+							</p>
+							{item.hint ? (
+								<p className="truncate text-[11px] text-muted-foreground">
+									{item.hint}
+								</p>
+							) : null}
+						</CardContent>
+					</Card>
+				);
+			})}
 		</div>
 	);
 }

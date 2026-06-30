@@ -106,13 +106,13 @@ export function WorkerShell({ children }: PropsWithChildren) {
 								to={tab.to}
 								params={params}
 								className={cn(
-									"flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
+									"flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
 									active
-										? "border-b-2 border-primary text-primary"
-										: "text-muted-foreground",
+										? "border-b-2 border-primary bg-primary/5 text-primary"
+										: "text-muted-foreground active:bg-muted",
 								)}
 							>
-								<tab.icon className="size-4" />
+								<tab.icon className="size-5" />
 								{tab.label}
 							</Link>
 						);

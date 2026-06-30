@@ -39,7 +39,10 @@ export function NotificationSettings() {
 			| "stoppedPaymentNotifyEnabled"
 			| "alertOnWorkerRequest"
 			| "alertOnPaymentCollected"
-			| "alertOnInstallationDone",
+			| "alertOnInstallationDone"
+			| "notifyWorkerOnTaskAssigned"
+			| "notifyWorkerOnTaskUpdated"
+			| "notifyWorkerOnTaskCancelled",
 		checked: boolean,
 	) => {
 		if (!organizationId) {
@@ -212,6 +215,56 @@ export function NotificationSettings() {
 									update.isPending ||
 									!data.adminTelegramChatId
 								}
+								onCheckedChange={(checked) =>
+									onToggle(row.field, checked)
+								}
+							/>
+						</div>
+					))}
+				</div>
+			</SettingsItem>
+
+			<SettingsItem
+				title="Worker Task Notifications"
+				description="Notify the workers assigned to a task — in-app and on Telegram (for workers who linked their Telegram) — when the task changes."
+			>
+				<div className="space-y-6">
+					{[
+						{
+							field: "notifyWorkerOnTaskAssigned" as const,
+							label: "Task assigned",
+							desc: "Notify a worker when a task is assigned to them (on creation or re-assignment).",
+						},
+						{
+							field: "notifyWorkerOnTaskUpdated" as const,
+							label: "Task rescheduled or re-prioritized",
+							desc: "Notify assigned workers when an active task's due date or priority changes.",
+						},
+						{
+							field: "notifyWorkerOnTaskCancelled" as const,
+							label: "Task cancelled",
+							desc: "Notify assigned workers when a task they're on is cancelled.",
+						},
+					].map((row) => (
+						<div
+							key={row.field}
+							className="flex items-start justify-between gap-4 rounded-lg border border-border p-4"
+						>
+							<div className="flex-1">
+								<Label
+									htmlFor={row.field}
+									className="font-medium"
+								>
+									{row.label}
+								</Label>
+								<p className="text-muted-foreground text-sm">
+									{row.desc}
+								</p>
+							</div>
+							<Switch
+								id={row.field}
+								checked={data[row.field]}
+								disabled={update.isPending}
 								onCheckedChange={(checked) =>
 									onToggle(row.field, checked)
 								}

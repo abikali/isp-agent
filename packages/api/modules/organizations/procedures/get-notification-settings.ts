@@ -34,6 +34,9 @@ export const getNotificationSettings = protectedProcedure
 				alertOnWorkerRequest: true,
 				alertOnPaymentCollected: true,
 				alertOnInstallationDone: true,
+				notifyWorkerOnTaskAssigned: true,
+				notifyWorkerOnTaskUpdated: true,
+				notifyWorkerOnTaskCancelled: true,
 			},
 		});
 

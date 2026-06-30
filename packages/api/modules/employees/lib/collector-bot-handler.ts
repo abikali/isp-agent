@@ -1,6 +1,7 @@
 import { telegram } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgBold, tgEscape } from "@repo/utils";
 
 /**
  * Inbound webhook for the collector/worker Telegram bot
@@ -59,7 +60,8 @@ export async function collectorBotWebhookHandler(
 				await telegram.sendTextMessage(
 					botToken,
 					message.chatId,
-					`✅ Connected! You'll now receive notifications here, ${employee.name}.`,
+					`✅ ${tgBold("Connected!")}\n\nYou'll now receive your notifications here, ${tgEscape(employee.name)}.`,
+					{ parseMode: "HTML" },
 				);
 			}
 		}

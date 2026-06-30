@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -134,6 +135,19 @@ export const paySalary = protectedProcedure
 			title: "Money received",
 			message: `You were given $${input.amount.toFixed(2)}${note ? ` — ${note}` : ""}`,
 			type: "success",
+			telegramText: tgMessage({
+				icon: "💵",
+				title: "Money received",
+				fields: [
+					{
+						icon: "💰",
+						label: "Amount",
+						value: `$${input.amount.toFixed(2)}`,
+						copyable: true,
+					},
+					note ? { icon: "✍️", label: "Note", value: note } : null,
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Worker Cash] notify failed", {
 				error: String(err),

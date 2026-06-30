@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -120,6 +121,16 @@ export const approveStockRefund = protectedProcedure
 			title: "Stock refund approved",
 			message: `Your refund of ${request.quantity} × ${request.stockItem.name} was approved`,
 			type: "success",
+			telegramText: tgMessage({
+				icon: "✅",
+				title: "Stock refund approved",
+				fields: [
+					{
+						icon: "🧰",
+						value: `${request.quantity} × ${request.stockItem.name}`,
+					},
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Stock Refund Approve] notify failed", {
 				error: String(err),
@@ -192,6 +203,19 @@ export const rejectStockRefund = protectedProcedure
 			title: "Stock refund rejected",
 			message: `Your refund of ${request.quantity} × ${request.stockItem.name} was rejected${input.reason ? `: ${input.reason}` : ""}`,
 			type: "warning",
+			telegramText: tgMessage({
+				icon: "⛔",
+				title: "Stock refund rejected",
+				fields: [
+					{
+						icon: "🧰",
+						value: `${request.quantity} × ${request.stockItem.name}`,
+					},
+					input.reason
+						? { icon: "✍️", label: "Reason", value: input.reason }
+						: null,
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Stock Refund Reject] notify failed", {
 				error: String(err),

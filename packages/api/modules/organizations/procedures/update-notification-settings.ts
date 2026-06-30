@@ -24,6 +24,9 @@ export const updateNotificationSettings = protectedProcedure
 			alertOnWorkerRequest: z.boolean().optional(),
 			alertOnPaymentCollected: z.boolean().optional(),
 			alertOnInstallationDone: z.boolean().optional(),
+			notifyWorkerOnTaskAssigned: z.boolean().optional(),
+			notifyWorkerOnTaskUpdated: z.boolean().optional(),
+			notifyWorkerOnTaskCancelled: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -55,6 +58,17 @@ export const updateNotificationSettings = protectedProcedure
 		if (input.alertOnInstallationDone !== undefined) {
 			data["alertOnInstallationDone"] = input.alertOnInstallationDone;
 		}
+		if (input.notifyWorkerOnTaskAssigned !== undefined) {
+			data["notifyWorkerOnTaskAssigned"] =
+				input.notifyWorkerOnTaskAssigned;
+		}
+		if (input.notifyWorkerOnTaskUpdated !== undefined) {
+			data["notifyWorkerOnTaskUpdated"] = input.notifyWorkerOnTaskUpdated;
+		}
+		if (input.notifyWorkerOnTaskCancelled !== undefined) {
+			data["notifyWorkerOnTaskCancelled"] =
+				input.notifyWorkerOnTaskCancelled;
+		}
 
 		const updated = await db.organization.update({
 			where: { id: input.organizationId },
@@ -66,6 +80,9 @@ export const updateNotificationSettings = protectedProcedure
 				alertOnWorkerRequest: true,
 				alertOnPaymentCollected: true,
 				alertOnInstallationDone: true,
+				notifyWorkerOnTaskAssigned: true,
+				notifyWorkerOnTaskUpdated: true,
+				notifyWorkerOnTaskCancelled: true,
 			},
 		});
 

@@ -4,6 +4,7 @@ import {
 	queryIRadius,
 	withIRadiusConnection,
 } from "@repo/database/iradius";
+import { logger } from "@repo/logs";
 import { iradiusForceDisconnect } from "./iradius-disconnect";
 
 /**
@@ -119,6 +120,44 @@ function getIspApiConfigFromEnv(): IspApiConfig | null {
  * RouterOS API path on every deactivation. Best-effort: the DB write is
  * already correct either way.
  */
+/**
+ * Write the iRadius audit-trail row for an enable/disable, mirroring exactly
+ * what the legacy GWT UI's `TraceUserLog` does when an operator toggles a
+ * user's Active flag: `OperationTypeId = 8` (ENABLE_DISABLE_USER) and
+ * `Description = "User Enable = true|false"`. iRadius's own `/activate-user`
+ * REST endpoint (UserActivationDao) only flips `UserNas.Active` and does NOT
+ * write this row, so without this the action is invisible in iRadius's user
+ * history — the gap this fills.
+ *
+ * `UserId`, `DealerId` and `UserName` are read straight from the `User` row by
+ * Id so the row matches the legacy format precisely (DealerId = the user's
+ * owning dealer, `User.ParentId`) without depending on local data being in
+ * sync. Best-effort: the remote Active flag is already flipped and the local
+ * DB write is correct either way, so a failure here must never abort the
+ * operation — it is logged and swallowed.
+ */
+async function iradiusLogEnableDisable(
+	userId: number,
+	active: boolean,
+): Promise<void> {
+	try {
+		await withIRadiusConnection(async (conn) => {
+			await executeIRadius(
+				conn,
+				`INSERT INTO UserLog (UserId, DealerId, UserName, OperationTypeId, Description, Logdate)
+				 SELECT Id, ParentId, UserName, 8, ?, NOW() FROM User WHERE Id = ?`,
+				[`User Enable = ${active ? "true" : "false"}`, userId],
+			);
+		});
+	} catch (error) {
+		logger.warn("iRadius enable/disable UserLog insert failed", {
+			userId,
+			active,
+			error: error instanceof Error ? error.message : error,
+		});
+	}
+}
+
 export async function iradiusSetActive(
 	customer: { externalId?: string | null },
 	active: boolean,
@@ -159,6 +198,14 @@ export async function iradiusSetActive(
 		}
 		throw new Error(result.error ?? "iRadius activate-user failed");
 	}
+
+	// iRadius's /activate-user only flips UserNas.Active; it doesn't record the
+	// audit-trail row the legacy UI writes. Add it ourselves so the toggle shows
+	// up in iRadius's user history. Best-effort — never blocks the local write.
+	await iradiusLogEnableDisable(
+		Number.parseInt(customer.externalId, 10),
+		active,
+	);
 
 	if (!active) {
 		await iradiusForceDisconnect({ externalId: customer.externalId });

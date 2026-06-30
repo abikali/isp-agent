@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { expenseDeductionAmount } from "../../billing/lib/cash-signs";
@@ -84,6 +85,18 @@ export const approveExpense = protectedProcedure
 			title: "Expense approved",
 			message: `Your $${expense.amount.toFixed(2)} expense was approved`,
 			type: "success",
+			telegramText: tgMessage({
+				icon: "✅",
+				title: "Expense approved",
+				fields: [
+					{
+						icon: "💰",
+						label: "Amount",
+						value: `$${expense.amount.toFixed(2)}`,
+						copyable: true,
+					},
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Expense Approve] notify failed", {
 				error: String(err),
@@ -153,6 +166,21 @@ export const rejectExpense = protectedProcedure
 			title: "Expense rejected",
 			message: `Your $${expense.amount.toFixed(2)} expense was rejected${input.reason ? `: ${input.reason}` : ""}`,
 			type: "warning",
+			telegramText: tgMessage({
+				icon: "⛔",
+				title: "Expense rejected",
+				fields: [
+					{
+						icon: "💰",
+						label: "Amount",
+						value: `$${expense.amount.toFixed(2)}`,
+						copyable: true,
+					},
+					input.reason
+						? { icon: "✍️", label: "Reason", value: input.reason }
+						: null,
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Expense Reject] notify failed", {
 				error: String(err),

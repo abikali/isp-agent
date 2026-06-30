@@ -1,6 +1,7 @@
 import { telegram } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgItalic, tgMessage } from "@repo/utils";
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { TELEGRAM_LOCATION_QUEUE_NAME } from "../queues/telegram-location.queue";
@@ -68,18 +69,44 @@ export function createTelegramLocationWorker(): Worker<
 				customer.username ||
 				"Unknown";
 
-			const lines = [
-				`📌 Location needed for: ${customerName}`,
-				...(customer.groupName ? [`Group: ${customer.groupName}`] : []),
-				...(customer.address ? [`Address: ${customer.address}`] : []),
-				"",
-				"Please visit this customer and share their location.",
-			];
+			const text = tgMessage({
+				icon: "📌",
+				title: "Location needed",
+				fields: [
+					{ icon: "👤", value: customerName },
+					customer.username
+						? {
+								icon: "🆔",
+								label: "Username",
+								value: customer.username,
+								copyable: true,
+							}
+						: null,
+					customer.groupName
+						? {
+								icon: "🗂",
+								label: "Group",
+								value: customer.groupName,
+							}
+						: null,
+					customer.address
+						? {
+								icon: "🏠",
+								label: "Address",
+								value: customer.address,
+							}
+						: null,
+				],
+				footer: tgItalic(
+					"Please visit this customer and share their location.",
+				),
+			});
 
 			const result = await telegram.sendTextMessage(
 				botToken,
 				employee.telegramChatId,
-				lines.join("\n"),
+				text,
+				{ parseMode: "HTML" },
 			);
 
 			if (!result.success) {

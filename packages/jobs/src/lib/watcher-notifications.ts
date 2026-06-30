@@ -33,26 +33,30 @@ function buildNotificationText(ctx: NotificationContext): {
 	text: string;
 	html: string;
 } {
+	// NOTE: `text` is sent verbatim to both Telegram AND WhatsApp via the
+	// unified provider sender, so it must stay provider-agnostic plain text —
+	// no HTML/Markdown tags (WhatsApp would render them literally). We lean on
+	// emoji + clear wording for scannability instead.
 	switch (ctx.eventType) {
 		case "down": {
 			return {
 				subject: `[Down] ${ctx.watcherName} is not responding`,
-				text: `${ctx.watcherName} is down. ${ctx.message}`,
-				html: `<p><strong>${ctx.watcherName}</strong> is down.</p><p>${ctx.message}</p>`,
+				text: `🔴 ${ctx.watcherName} is DOWN\n\n${ctx.message}`,
+				html: `<p>🔴 <strong>${ctx.watcherName}</strong> is down.</p><p>${ctx.message}</p>`,
 			};
 		}
 		case "recovery": {
 			return {
 				subject: `[Recovered] ${ctx.watcherName} is back up`,
-				text: `${ctx.watcherName} is back up. ${ctx.message}`,
-				html: `<p><strong>${ctx.watcherName}</strong> is back up and responding normally.</p><p>${ctx.message}</p>`,
+				text: `🟢 ${ctx.watcherName} is back UP\n\n${ctx.message}`,
+				html: `<p>🟢 <strong>${ctx.watcherName}</strong> is back up and responding normally.</p><p>${ctx.message}</p>`,
 			};
 		}
 		case "reminder": {
 			return {
 				subject: `[Still Down] ${ctx.watcherName} is still not responding`,
-				text: `Reminder: ${ctx.watcherName} is still down. ${ctx.message}`,
-				html: `<p><strong>${ctx.watcherName}</strong> is still down.</p><p>${ctx.message}</p>`,
+				text: `🟠 Reminder: ${ctx.watcherName} is still DOWN\n\n${ctx.message}`,
+				html: `<p>🟠 <strong>${ctx.watcherName}</strong> is still down.</p><p>${ctx.message}</p>`,
 			};
 		}
 	}

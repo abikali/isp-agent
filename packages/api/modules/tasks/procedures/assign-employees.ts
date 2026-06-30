@@ -8,6 +8,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
+import { notifyTaskWorkers } from "../lib/notify-task-workers";
 
 export const assignEmployees = protectedProcedure
 	.route({
@@ -39,7 +40,10 @@ export const assignEmployees = protectedProcedure
 			include: {
 				customer: { select: { dealerId: true } },
 				assignments: {
-					select: { employee: { select: { dealerId: true } } },
+					select: {
+						employeeId: true,
+						employee: { select: { dealerId: true } },
+					},
 				},
 			},
 		});
@@ -88,6 +92,21 @@ export const assignEmployees = protectedProcedure
 			auditContext,
 			{ employeeIds: input.employeeIds },
 		);
+
+		// Fire-and-forget: ping only the workers newly added to this task.
+		const previousIds = new Set(
+			existing.assignments.map((a) => a.employeeId),
+		);
+		const newlyAssigned = input.employeeIds.filter(
+			(id) => !previousIds.has(id),
+		);
+		notifyTaskWorkers({
+			organizationId: input.organizationId,
+			taskId: input.taskId,
+			taskTitle: existing.title,
+			employeeIds: newlyAssigned,
+			event: "assigned",
+		});
 
 		return { success: true };
 	});

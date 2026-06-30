@@ -34,12 +34,15 @@ import {
 } from "@ui/components/sheet";
 import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
+import { cn } from "@ui/lib";
 import {
 	BarChart3Icon,
 	CalendarClockIcon,
+	CheckCircle2Icon,
 	ChevronDownIcon,
 	ChevronUpIcon,
 	ClipboardListIcon,
+	ClockIcon,
 	MapPinIcon,
 	PhoneIcon,
 	PlusIcon,
@@ -47,6 +50,7 @@ import {
 	RadioTowerIcon,
 	StickyNoteIcon,
 	Trash2Icon,
+	UserRoundIcon,
 	WarehouseIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -65,7 +69,13 @@ import {
 import { InstallItemRows } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
-import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
+import {
+	formatWhen,
+	Pager,
+	SearchBar,
+	SelectControl,
+	StatStrip,
+} from "./WorkerUI";
 
 const TREND_PERIODS = [
 	{ value: "3", label: "3 months" },
@@ -266,25 +276,27 @@ export function WorkerTasks() {
 				onChange={onFilter(setSearch)}
 				placeholder="Search tasks…"
 			/>
-			<div className="flex flex-wrap items-center gap-2">
+			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
 				<SelectControl
 					ariaLabel="Filter by status"
 					value={statusFilter}
 					onChange={onFilter(setStatusFilter)}
 					options={STATUS_OPTIONS}
+					className="w-full"
 				/>
 				<SelectControl
 					ariaLabel="Filter by type"
 					value={categoryFilter}
 					onChange={onFilter(setCategoryFilter)}
 					options={CATEGORY_OPTIONS}
+					className="w-full"
 				/>
 				<SelectControl
 					ariaLabel="Sort tasks"
 					value={sort}
 					onChange={onFilter(setSort)}
 					options={SORT_OPTIONS}
-					className="ml-auto"
+					className="col-span-2 w-full sm:col-span-1"
 				/>
 			</div>
 
@@ -448,12 +460,22 @@ function TaskCard({
 	const isUninstall = task.category === "UNINSTALL";
 	const isReplacement = task.category === "REPLACEMENT";
 	const isOpen = OPEN_STATUSES.has(task.status);
+	const isCompleted = task.status === "COMPLETED";
 	const priorityBadge = PRIORITY_BADGE[task.priority];
 	const isOverdue =
 		isOpen && task.dueDate !== null && new Date(task.dueDate) < new Date();
 
+	// A colored left edge gives the list a scannable urgency hierarchy:
+	// red = needs attention now (overdue/urgent), amber = high priority.
+	const accent =
+		isOverdue || task.priority === "URGENT"
+			? "border-l-4 border-l-destructive"
+			: task.priority === "HIGH"
+				? "border-l-4 border-l-amber-500"
+				: "";
+
 	return (
-		<Card>
+		<Card className={cn("overflow-hidden", accent)}>
 			<CardContent className="space-y-3 p-4">
 				{/* Header — title, description, category & priority */}
 				<div className="flex items-start justify-between gap-2">
@@ -502,11 +524,16 @@ function TaskCard({
 					</div>
 				) : null}
 
-				{/* Customer — name, address, tap-to-call */}
+				{/* Customer — name, account #, address, tap-to-call */}
 				{customerName ? (
 					<div className="space-y-1 text-muted-foreground text-xs">
 						<p className="font-medium text-foreground">
 							{customerName}
+							{task.customer?.accountNumber ? (
+								<span className="ml-1.5 font-normal text-muted-foreground">
+									#{task.customer.accountNumber}
+								</span>
+							) : null}
 						</p>
 						{task.customer?.address ? (
 							<p className="flex items-center gap-1">
@@ -581,23 +608,48 @@ function TaskCard({
 					</p>
 				) : null}
 
-				{/* Footer — created date & action */}
-				<div className="flex items-center justify-between border-t pt-2">
-					<span className="text-muted-foreground text-xs">
-						{formatDate(task.createdAt, { dateStyle: "medium" })}
-					</span>
+				{/* Completion summary — when & what was resolved */}
+				{isCompleted ? (
+					<div className="flex items-start gap-2 rounded-md bg-emerald-500/10 px-2.5 py-2">
+						<CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+						<div className="min-w-0 text-xs">
+							<p className="font-medium text-emerald-700 dark:text-emerald-300">
+								Completed
+								{task.completedAt
+									? ` · ${formatWhen(task.completedAt)}`
+									: ""}
+							</p>
+							{task.resolutionNote ? (
+								<p className="text-muted-foreground">
+									{task.resolutionNote}
+								</p>
+							) : null}
+						</div>
+					</div>
+				) : null}
+
+				{/* Footer — created when / by whom & action */}
+				<div className="flex items-end justify-between gap-2 border-t pt-2">
+					<div className="min-w-0 space-y-0.5 text-muted-foreground text-xs">
+						<span className="flex items-center gap-1">
+							<ClockIcon className="size-3 shrink-0" />
+							{formatWhen(task.createdAt)}
+						</span>
+						{task.createdBy ? (
+							<span className="flex items-center gap-1 truncate">
+								<UserRoundIcon className="size-3 shrink-0" />
+								<span className="truncate">
+									by {task.createdBy.name}
+								</span>
+							</span>
+						) : null}
+					</div>
 					{isOpen ? (
 						<Button size="sm" onClick={onSubmit}>
 							Submit
 						</Button>
 					) : (
-						<Badge
-							variant={
-								task.status === "COMPLETED"
-									? "success"
-									: "outline"
-							}
-						>
+						<Badge variant={isCompleted ? "success" : "outline"}>
 							{task.status.toLowerCase().replace("_", " ")}
 						</Badge>
 					)}

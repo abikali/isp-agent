@@ -9,6 +9,7 @@ import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { notifyTaskWorkers } from "../lib/notify-task-workers";
 
 export const createTask = protectedProcedure
 	.route({
@@ -168,6 +169,21 @@ export const createTask = protectedProcedure
 			auditContext,
 			{ title: input.title },
 		);
+
+		// Fire-and-forget: tell the assigned workers they have a new task
+		if (input.employeeIds?.length) {
+			const dueDetail = input.dueDate
+				? `Due ${input.dueDate.toISOString().slice(0, 10)}`
+				: undefined;
+			notifyTaskWorkers({
+				organizationId: input.organizationId,
+				taskId: task.id,
+				taskTitle: task.title,
+				employeeIds: input.employeeIds,
+				event: "assigned",
+				...(dueDetail ? { detail: dueDetail } : {}),
+			});
+		}
 
 		// Fire-and-forget: tell the customer a maintenance visit is coming
 		if (input.notifyCustomerWhatsApp && input.customerId) {

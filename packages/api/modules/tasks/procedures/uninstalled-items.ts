@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -159,6 +160,16 @@ export const reviewUninstalledItem = protectedProcedure
 					title: "Recovered item denied",
 					message: `${item.itemName} ×${item.quantity} was denied`,
 					type: "warning",
+					telegramText: tgMessage({
+						icon: "⛔",
+						title: "Recovered item denied",
+						fields: [
+							{
+								icon: "🧰",
+								value: `${item.itemName} ×${item.quantity}`,
+							},
+						],
+					}),
 				}).catch((err: unknown) =>
 					logger.warn("[Uninstalled Review] notify failed", {
 						error: String(err),
@@ -282,6 +293,20 @@ export const reviewUninstalledItem = protectedProcedure
 				title: "Recovered item approved",
 				message: `${matchedStockItem.name} ×${quantity} added to your stock`,
 				type: "success",
+				telegramText: tgMessage({
+					icon: "✅",
+					title: "Recovered item approved",
+					fields: [
+						{
+							icon: "🧰",
+							value: `${matchedStockItem.name} ×${quantity}`,
+						},
+						{
+							icon: "📥",
+							value: "Added to your stock",
+						},
+					],
+				}),
 			}).catch((err: unknown) =>
 				logger.warn("[Uninstalled Review] notify failed", {
 					error: String(err),

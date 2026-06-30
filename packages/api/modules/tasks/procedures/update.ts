@@ -9,6 +9,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
+import { notifyTaskWorkers } from "../lib/notify-task-workers";
 
 export const updateTask = protectedProcedure
 	.route({
@@ -168,6 +169,59 @@ export const updateTask = protectedProcedure
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.updated(task.id, user.id, input.organizationId, auditContext);
+
+		// Fire-and-forget: keep assigned workers in the loop on cancels and
+		// reschedules. A cancel supersedes the "updated" ping for the same edit.
+		const assigneeIds = existing.assignments.map((a) => a.employeeId);
+		if (assigneeIds.length > 0) {
+			const becameCancelled =
+				input.status === "CANCELLED" && existing.status !== "CANCELLED";
+			if (becameCancelled) {
+				notifyTaskWorkers({
+					organizationId: input.organizationId,
+					taskId: task.id,
+					taskTitle: task.title,
+					employeeIds: assigneeIds,
+					event: "cancelled",
+				});
+			} else {
+				const dueChanged =
+					input.dueDate !== undefined &&
+					Number(input.dueDate ?? 0) !==
+						Number(existing.dueDate ?? 0);
+				const priorityChanged =
+					input.priority !== undefined &&
+					input.priority !== existing.priority;
+				const finalStatus = input.status ?? existing.status;
+				const active =
+					finalStatus !== "CANCELLED" && finalStatus !== "COMPLETED";
+				if (active && (dueChanged || priorityChanged)) {
+					const details: string[] = [];
+					if (dueChanged) {
+						details.push(
+							input.dueDate
+								? `New due date: ${input.dueDate
+										.toISOString()
+										.slice(0, 10)}`
+								: "Due date cleared",
+						);
+					}
+					if (priorityChanged && input.priority) {
+						details.push(`Priority: ${input.priority}`);
+					}
+					notifyTaskWorkers({
+						organizationId: input.organizationId,
+						taskId: task.id,
+						taskTitle: task.title,
+						employeeIds: assigneeIds,
+						event: "updated",
+						...(details.length
+							? { detail: details.join(" · ") }
+							: {}),
+					});
+				}
+			}
+		}
 
 		return { task };
 	});

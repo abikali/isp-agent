@@ -14,6 +14,7 @@ import {
 	notifyBadgeForOrganization,
 	sendOrganizationNotification,
 } from "@repo/notifications";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -474,10 +475,40 @@ export const createPayment = protectedProcedure
 					.trim() ||
 				customer.username ||
 				"customer";
+			const remainingDue = totalDue - input.paidAmount;
 			notifyAdminTelegram(
 				input.organizationId,
 				"paymentCollected",
-				`💵 Payment collected\n${payerName}: ${input.paidAmount}\nBy: ${collectorName}`,
+				tgMessage({
+					icon: "💵",
+					title: "Payment collected",
+					fields: [
+						{ icon: "👤", value: payerName },
+						customer.username
+							? {
+									icon: "🆔",
+									label: "Username",
+									value: customer.username,
+									copyable: true,
+								}
+							: null,
+						{
+							icon: "💰",
+							label: "Amount",
+							value: `$${input.paidAmount.toFixed(2)}`,
+							copyable: true,
+						},
+						remainingDue > 0.001
+							? {
+									icon: "🧾",
+									label: "Still due",
+									value: `$${remainingDue.toFixed(2)}`,
+									copyable: true,
+								}
+							: null,
+						{ icon: "🤝", label: "By", value: collectorName },
+					],
+				}),
 			);
 		}
 

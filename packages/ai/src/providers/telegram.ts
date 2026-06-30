@@ -325,33 +325,52 @@ async function tgApiCall(
 	};
 }
 
+export interface SendTextMessageOptions {
+	/**
+	 * Telegram formatting mode. Defaults to "Markdown" to preserve the AI-chat
+	 * reply behavior; notification call sites pass "HTML" for rich, escaped
+	 * messages (bold headers, tap-to-copy `<code>` values).
+	 */
+	parseMode?: "Markdown" | "HTML";
+	/** Suppress link previews (e.g. for maps links). */
+	disableWebPagePreview?: boolean;
+}
+
 export async function sendTextMessage(
 	apiToken: string,
 	chatId: string,
 	text: string,
+	options?: SendTextMessageOptions,
 ): Promise<SendMessageResult> {
+	const parseMode = options?.parseMode ?? "Markdown";
+	const previewOpt = options?.disableWebPagePreview
+		? { disable_web_page_preview: true }
+		: {};
 	try {
 		const result = await tgApiCall(apiToken, "sendMessage", {
 			chat_id: chatId,
 			text,
-			parse_mode: "Markdown",
+			parse_mode: parseMode,
+			...previewOpt,
 		});
 		if (result.ok) {
 			const msg = result.result as { message_id?: number } | undefined;
 			return { success: true, messageId: String(msg?.message_id ?? "") };
 		}
-		// LLM output with unbalanced */_/[ makes Telegram reject the whole
-		// message ("can't parse entities"). The reply must still reach the
-		// customer — resend as plain text.
+		// Unbalanced Markdown (*/_/[) or malformed HTML entities make Telegram
+		// reject the whole message ("can't parse entities"). The message must
+		// still reach the recipient — resend as plain text.
 		const plain = await tgApiCall(apiToken, "sendMessage", {
 			chat_id: chatId,
 			text,
+			...previewOpt,
 		});
 		if (plain.ok) {
 			const msg = plain.result as { message_id?: number } | undefined;
-			logger.warn("Telegram Markdown parse failed, sent as plain text", {
-				error: result.description,
-			});
+			logger.warn(
+				`Telegram ${parseMode} parse failed, sent as plain text`,
+				{ error: result.description },
+			);
 			return { success: true, messageId: String(msg?.message_id ?? "") };
 		}
 		logger.error("Telegram send error", { error: plain.description });

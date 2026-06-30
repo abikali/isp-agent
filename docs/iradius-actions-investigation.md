@@ -374,3 +374,36 @@ No IPTV column on `AccountType` — IPTV is per-subscriber on `UserNas`.
 - MySQL: `mysql -u root -pImprovedata2015 iradius` (creds from
   `/var/local/radiusserver/app/application.properties`, already in memory)
 - Read-only: only `DESCRIBE` and `SELECT` were run. No writes.
+
+## Enable / disable audit log — sanctioned `UserLog` write (2026-06-30)
+
+**Gap:** Our app toggles a customer's status through the `/activate-user` REST
+endpoint (`UserActivationDao`), which only runs `UPDATE UserNas SET Active = ?`
+plus the (buggy) disconnect — it does **not** write a `UserLog` row. The legacy
+GWT UI's single-user edit path (`UserManagement.executeBeforeUpdate` →
+`TraceUserLog`) *does*, so enable/disable done from our system was invisible in
+iRadius's per-user history while the same action done in the iRadius UI showed up.
+
+**Fix:** after a successful `/activate-user`, `iradiusSetActive`
+(`packages/api/modules/customers/lib/iradius-api.ts`) writes the row itself via
+`iradiusLogEnableDisable`, replicating `TraceUserLog` exactly:
+
+```sql
+INSERT INTO UserLog (UserId, DealerId, UserName, OperationTypeId, Description, Logdate)
+SELECT Id, ParentId, UserName, 8, 'User Enable = true|false', NOW() FROM User WHERE Id = ?
+```
+
+- `OperationTypeId = 8` = `ENABLE_DISABLE_USER` (from the `OperationType` table).
+- `Description` is `"User Enable = true"` / `"User Enable = false"` — byte-for-byte
+  what `TraceUserLog.traceUserLog(...Boolean)` produces.
+- `DealerId = User.ParentId` (the owning dealer) — pulled via the `SELECT` so the
+  row matches what the iRadius UI logs regardless of local sync state. (The legacy
+  single-edit path uses `Session.getDealerId()`; for a dealer toggling their own
+  customer that equals `ParentId`, which is every sampled row.)
+- **Best-effort:** the remote `Active` flag is already flipped before this runs, so
+  a log-insert failure is logged and swallowed — it must never abort the local DB
+  write. Note `activeSelectedUsers` (the legacy *bulk* path) does NOT write a log
+  either; only the single-edit path does.
+
+This adds `UserLog` (insert-only) to the sanctioned-write carve-out for
+`executeIRadius`, alongside the single-row `User` / `UserNas` updates above.

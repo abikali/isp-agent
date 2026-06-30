@@ -16,6 +16,7 @@ import {
 	runCreateLocationRequest,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
@@ -210,7 +211,7 @@ export const workerCreateCustomer = protectedProcedure
 
 		const plan = await db.servicePlan.findFirst({
 			where: { id: input.planId, organizationId: input.organizationId },
-			select: { id: true, monthlyPrice: true },
+			select: { id: true, name: true, monthlyPrice: true },
 		});
 		if (!plan) {
 			throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
@@ -349,17 +350,69 @@ export const workerCreateCustomer = protectedProcedure
 			input.durationType === "days"
 				? `${input.durationDays} days`
 				: "1 month";
+		const customerName =
+			`${input.firstName} ${input.lastName ?? ""}`.trim();
+		const addonLabels = input.items
+			.filter((i) => i.addonType)
+			.map((i) => (i.addonType === "IPTV" ? "IPTV" : "Real IP"));
+		const equipmentCount = input.items.filter((i) => i.stockItemId).length;
+		const approvalsLink = `${getBaseUrl()}/app/${org?.slug ?? ""}/customers/approvals`;
 		notifyAdminTelegram(
 			input.organizationId,
 			"workerRequest",
-			[
-				"🆕 New customer request",
-				`${input.firstName} ${input.lastName ?? ""}`.trim(),
-				`Duration: ${durationLabel}`,
-				input.notes ? `Note: ${input.notes}` : null,
-			]
-				.filter(Boolean)
-				.join("\n"),
+			tgMessage({
+				icon: "🆕",
+				title: "New customer request",
+				fields: [
+					{ icon: "👤", value: customerName },
+					{
+						icon: "🔢",
+						label: "Account",
+						value: result.customer.accountNumber,
+						copyable: true,
+					},
+					{
+						icon: "📞",
+						label: "Phone",
+						value: primaryPhone,
+						copyable: true,
+					},
+					input.address
+						? {
+								icon: "📍",
+								label: "Address",
+								value: input.address,
+							}
+						: null,
+					{ icon: "📦", label: "Plan", value: plan.name },
+					{ icon: "⏱", label: "Duration", value: durationLabel },
+					{
+						icon: "💰",
+						label: "First charge",
+						value: `$${firstChargeAmount.toFixed(2)}`,
+						copyable: true,
+					},
+					addonLabels.length > 0
+						? {
+								icon: "➕",
+								label: "Add-ons",
+								value: addonLabels.join(", "),
+							}
+						: null,
+					equipmentCount > 0
+						? {
+								icon: "🧰",
+								label: "Equipment",
+								value: `${equipmentCount} item(s)`,
+							}
+						: null,
+					input.notes
+						? { icon: "✍️", label: "Note", value: input.notes }
+						: null,
+					{ icon: "👷", label: "By", value: user.name },
+				],
+				footer: tgLink("Review & approve →", approvalsLink),
+			}),
 		);
 
 		// Optional: ask the customer to share their location over WhatsApp.
@@ -693,6 +746,7 @@ export const approveSetupRequest = protectedProcedure
 				customer: {
 					select: {
 						id: true,
+						accountNumber: true,
 						firstName: true,
 						lastName: true,
 						username: true,
@@ -844,12 +898,35 @@ export const approveSetupRequest = protectedProcedure
 			}
 		});
 
+		const approvedName =
+			`${request.customer.firstName} ${request.customer.lastName ?? ""}`.trim();
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: request.requestedById,
 			title: "New customer approved",
-			message: `${request.customer.firstName} ${request.customer.lastName ?? ""} was approved and activated`,
+			message: `${approvedName} was approved and activated`,
 			type: "success",
+			telegramText: tgMessage({
+				icon: "✅",
+				title: "Customer approved & activated",
+				fields: [
+					{ icon: "👤", value: approvedName },
+					{
+						icon: "🔢",
+						label: "Account",
+						value: request.customer.accountNumber,
+						copyable: true,
+					},
+					request.customer.username
+						? {
+								icon: "🆔",
+								label: "Username",
+								value: request.customer.username,
+								copyable: true,
+							}
+						: null,
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Setup Approve] notify failed", {
 				error: String(err),
@@ -928,12 +1005,24 @@ export const rejectSetupRequest = protectedProcedure
 			});
 		});
 
+		const rejectedName =
+			`${request.customer.firstName} ${request.customer.lastName ?? ""}`.trim();
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: request.requestedById,
 			title: "New customer rejected",
-			message: `${request.customer.firstName} ${request.customer.lastName ?? ""} was rejected${input.reason ? `: ${input.reason}` : ""}`,
+			message: `${rejectedName} was rejected${input.reason ? `: ${input.reason}` : ""}`,
 			type: "warning",
+			telegramText: tgMessage({
+				icon: "⛔",
+				title: "Customer rejected",
+				fields: [
+					{ icon: "👤", value: rejectedName },
+					input.reason
+						? { icon: "✍️", label: "Reason", value: input.reason }
+						: null,
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Setup Reject] notify failed", {
 				error: String(err),

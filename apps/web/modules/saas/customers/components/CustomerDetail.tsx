@@ -598,7 +598,12 @@ export function CustomerDetail({
 							id: "field",
 							label: "Field",
 							icon: WrenchIcon,
-							content: <FieldTab customerId={customerId} />,
+							content: (
+								<FieldTab
+									customerId={customerId}
+									organizationSlug={organizationSlug}
+								/>
+							),
 						},
 						{
 							id: "sync",
@@ -1879,7 +1884,13 @@ function ActivityTab({
 	);
 }
 
-function FieldTab({ customerId }: { customerId: string }) {
+function FieldTab({
+	customerId,
+	organizationSlug,
+}: {
+	customerId: string;
+	organizationSlug: string;
+}) {
 	return (
 		<>
 			<DetailSection
@@ -1890,7 +1901,10 @@ function FieldTab({ customerId }: { customerId: string }) {
 					fallback={<Skeleton className="h-40 w-full rounded-md" />}
 					errorFallback="inline"
 				>
-					<CustomerTasks customerId={customerId} />
+					<CustomerTasks
+						customerId={customerId}
+						organizationSlug={organizationSlug}
+					/>
 				</AsyncBoundary>
 			</DetailSection>
 			<DetailSection

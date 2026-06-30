@@ -2,6 +2,7 @@ import { db } from "@repo/database";
 import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { hasPermission, verifyApiKey } from "../../api-keys/lib/verify";
+import { notifyTaskWorkers } from "./notify-task-workers";
 
 /**
  * Task ingest handler for the Telegram ISP bot.
@@ -178,6 +179,15 @@ export async function taskIngestHandler(
 		customer: customerUsername,
 		worker: wid,
 		whatsapp: sendWhatsApp,
+	});
+
+	// Fire-and-forget: notify the assigned worker of the new field task.
+	notifyTaskWorkers({
+		organizationId,
+		taskId: task.id,
+		taskTitle: title,
+		employeeIds: [worker.id],
+		event: "assigned",
 	});
 
 	// 6. Fire-and-forget: tell the customer a maintenance visit is coming

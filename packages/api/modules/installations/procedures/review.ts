@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
@@ -246,6 +247,13 @@ export const approveInstallations = protectedProcedure
 				title: "Installation approved",
 				message: "Your installation submission was approved",
 				type: "success",
+				telegramText: tgMessage({
+					icon: "✅",
+					title: "Installation approved",
+					fields: [
+						{ icon: "🔧", value: "Your submission was approved" },
+					],
+				}),
 			}).catch((err: unknown) =>
 				logger.warn("[Installation Approve] notify failed", {
 					error: String(err),
@@ -317,6 +325,15 @@ export const denyInstallation = protectedProcedure
 				? `An installation was denied: ${input.reason}`
 				: "An installation submission was denied",
 			type: "warning",
+			telegramText: tgMessage({
+				icon: "⛔",
+				title: "Installation denied",
+				fields: [
+					input.reason
+						? { icon: "✍️", label: "Reason", value: input.reason }
+						: { icon: "🔧", value: "Your submission was denied" },
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Installation Deny] notify failed", {
 				error: String(err),

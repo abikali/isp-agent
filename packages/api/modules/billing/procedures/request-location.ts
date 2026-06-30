@@ -6,6 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -120,19 +121,33 @@ export const requestLocation = protectedProcedure
 				return { success: false, mapsLink };
 			}
 
-			// Follow up with customer name + address + maps link
-			const lines = [`📍 ${customerName}`];
-			if (customer.address) {
-				lines.push(customer.address);
-			}
-			lines.push(mapsLink);
+			// Follow up with customer name + username + address + maps link
+			const text = tgMessage({
+				icon: "📍",
+				title: customerName,
+				fields: [
+					customer.username
+						? {
+								icon: "🆔",
+								label: "Username",
+								value: customer.username,
+								copyable: true,
+							}
+						: null,
+					customer.address
+						? { icon: "🏠", value: customer.address }
+						: null,
+				],
+				footer: tgLink("Open in Google Maps →", mapsLink),
+			});
 
 			await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					chat_id: chatId,
-					text: lines.join("\n"),
+					text,
+					parse_mode: "HTML",
 					disable_web_page_preview: true,
 				}),
 				signal: AbortSignal.timeout(10000),

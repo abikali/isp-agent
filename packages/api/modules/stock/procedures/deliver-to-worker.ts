@@ -9,6 +9,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -126,6 +127,17 @@ export const deliverStockToWorker = protectedProcedure
 			title: "Stock delivered",
 			message: `You received ${input.quantity} × ${result.item.name}`,
 			type: "success",
+			telegramText: tgMessage({
+				icon: "📦",
+				title: "Stock delivered",
+				fields: [
+					{
+						icon: "🧰",
+						value: `${input.quantity} × ${result.item.name}`,
+					},
+					{ icon: "📥", value: "Added to your stock" },
+				],
+			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Stock Deliver] notify failed", {
 				error: String(err),

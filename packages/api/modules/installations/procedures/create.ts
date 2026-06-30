@@ -12,6 +12,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { addonNoteFor, classifyAddonNote } from "../lib/addons";
@@ -218,10 +219,64 @@ export const createInstallation = protectedProcedure
 					`${i.stockItem?.name ?? i.notes ?? "Item"}${i.quantity > 1 ? ` ×${i.quantity}` : ""}`,
 			)
 			.join(", ");
+		const installTotal = installations.reduce(
+			(sum, i) => sum + i.price * i.quantity,
+			0,
+		);
+		const installCustomer = input.customerId
+			? await db.customer.findFirst({
+					where: {
+						id: input.customerId,
+						organizationId: input.organizationId,
+					},
+					select: { firstName: true, lastName: true, username: true },
+				})
+			: null;
+		const installCustomerName = installCustomer
+			? `${installCustomer.firstName ?? ""} ${installCustomer.lastName ?? ""}`.trim()
+			: "";
 		notifyAdminTelegram(
 			input.organizationId,
 			"installationDone",
-			`🔧 Installation submitted\nBy: ${installations[0]?.employee.name ?? "worker"}\n${itemSummary}`,
+			tgMessage({
+				icon: "🔧",
+				title: "Installation submitted",
+				fields: [
+					{
+						icon: "👷",
+						label: "By",
+						value: installations[0]?.employee.name ?? "worker",
+					},
+					installCustomerName
+						? {
+								icon: "👤",
+								label: "Customer",
+								value: installCustomerName,
+							}
+						: null,
+					installCustomer?.username
+						? {
+								icon: "🆔",
+								label: "Username",
+								value: installCustomer.username,
+								copyable: true,
+							}
+						: null,
+					{ icon: "🧰", label: "Items", value: itemSummary },
+					installTotal > 0
+						? {
+								icon: "💰",
+								label: "Total",
+								value: `$${installTotal.toFixed(2)}`,
+								copyable: true,
+							}
+						: null,
+				],
+				footer: tgLink(
+					"Open installations →",
+					`${getBaseUrl()}/app/${org?.slug ?? ""}/installations`,
+				),
+			}),
 		);
 
 		return { installations };

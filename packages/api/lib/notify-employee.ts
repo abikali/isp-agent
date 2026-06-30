@@ -14,6 +14,13 @@ interface NotifyFieldEmployeeInput {
 	message: string;
 	link?: string;
 	type?: "info" | "success" | "warning" | "error";
+	/**
+	 * Rich HTML body for Telegram only (build with `@repo/api/lib/telegram-format`).
+	 * When set, it is sent to Telegram with `parse_mode: "HTML"`; the in-app
+	 * notification still uses the plain `title`/`message`. When omitted, Telegram
+	 * receives the plain `title`/`message` text.
+	 */
+	telegramText?: string;
 }
 
 /**
@@ -54,7 +61,9 @@ export async function notifyFieldEmployee(
 			await queueTelegramNotify({
 				organizationId: input.organizationId,
 				employeeId: input.employeeId,
-				text: `${input.title}\n\n${input.message}`,
+				...(input.telegramText
+					? { text: input.telegramText, parseMode: "HTML" as const }
+					: { text: `${input.title}\n\n${input.message}` }),
 			});
 		}
 	} catch (error) {
@@ -84,9 +93,10 @@ const ADMIN_ALERT_TOGGLE: Record<
 
 /**
  * Send an admin Telegram alert for `event` when the org has configured an
- * admin chat id AND enabled that event's toggle. Fire-and-forget — call
- * without awaiting from procedure handlers; a misconfig or Telegram hiccup
- * must never fail the originating action.
+ * admin chat id AND enabled that event's toggle. `text` is HTML (build with
+ * `@repo/api/lib/telegram-format`) and sent with `parse_mode: "HTML"`.
+ * Fire-and-forget — call without awaiting from procedure handlers; a misconfig
+ * or Telegram hiccup must never fail the originating action.
  */
 export async function notifyAdminTelegram(
 	organizationId: string,
@@ -107,7 +117,12 @@ export async function notifyAdminTelegram(
 		if (!chatId || !org?.[ADMIN_ALERT_TOGGLE[event]]) {
 			return;
 		}
-		await queueTelegramNotify({ organizationId, chatId, text });
+		await queueTelegramNotify({
+			organizationId,
+			chatId,
+			text,
+			parseMode: "HTML",
+		});
 	} catch (error) {
 		logger.warn("[Notify Admin] Failed to queue admin Telegram alert", {
 			organizationId,

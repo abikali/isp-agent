@@ -177,6 +177,11 @@ export interface TelegramNotifyJobData {
 	employeeId?: string;
 	chatId?: string;
 	text: string;
+	/**
+	 * Telegram formatting mode for `text`. Defaults to "Markdown" at the worker.
+	 * Rich notifications pass "HTML" (escaped bold headers, tap-to-copy values).
+	 */
+	parseMode?: "Markdown" | "HTML";
 }
 
 export interface TelegramNotifyJobResult {
