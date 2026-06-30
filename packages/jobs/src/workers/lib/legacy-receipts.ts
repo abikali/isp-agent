@@ -67,8 +67,11 @@ export async function migrateLegacyReceiptBytes(
 	organizationId: string,
 ): Promise<boolean> {
 	try {
+		// Hard timeout — a hanging legacy-server fetch must not block a worker
+		// slot forever (that stalled the whole backfill once).
 		const res = await fetch(
 			`${LEGACY_RECEIPT_BASE_URL}/${encodeURIComponent(imageName)}`,
+			{ signal: AbortSignal.timeout(20_000) },
 		);
 		if (!res.ok) {
 			return false;
@@ -128,7 +131,7 @@ export async function backfillLegacyReceipts(options?: {
 	concurrency?: number;
 	onProgress?: (done: number, total: number) => void;
 }): Promise<BackfillResult> {
-	const concurrency = options?.concurrency ?? 6;
+	const concurrency = options?.concurrency ?? 4;
 	const rows = await db.expense.findMany({
 		where: {
 			receiptUrl: { not: null },

@@ -298,31 +298,67 @@ export async function sendMediaMessage(
 	}
 }
 
+/**
+ * Call the Telegram Bot HTTP API directly with `fetch`. We deliberately avoid
+ * grammy's `Api` here: grammy's HTTP layer does NOT survive the Nitro web
+ * server bundle (its calls silently fail there), while plain `fetch` works in
+ * both the bundled web server and the tsx worker. Returns the parsed JSON.
+ */
+async function tgApiCall(
+	apiToken: string,
+	method: string,
+	body: Record<string, unknown>,
+): Promise<{ ok: boolean; result?: unknown; description?: string }> {
+	const res = await fetch(
+		`https://api.telegram.org/bot${apiToken}/${method}`,
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+			signal: AbortSignal.timeout(15_000),
+		},
+	);
+	return (await res.json()) as {
+		ok: boolean;
+		result?: unknown;
+		description?: string;
+	};
+}
+
 export async function sendTextMessage(
 	apiToken: string,
 	chatId: string,
 	text: string,
 ): Promise<SendMessageResult> {
-	const api = new Api(apiToken);
 	try {
-		const result = await api.sendMessage(Number(chatId), text, {
+		const result = await tgApiCall(apiToken, "sendMessage", {
+			chat_id: chatId,
+			text,
 			parse_mode: "Markdown",
 		});
-		return { success: true, messageId: String(result.message_id) };
-	} catch (error) {
+		if (result.ok) {
+			const msg = result.result as { message_id?: number } | undefined;
+			return { success: true, messageId: String(msg?.message_id ?? "") };
+		}
 		// LLM output with unbalanced */_/[ makes Telegram reject the whole
 		// message ("can't parse entities"). The reply must still reach the
 		// customer — resend as plain text.
-		try {
-			const result = await api.sendMessage(Number(chatId), text);
+		const plain = await tgApiCall(apiToken, "sendMessage", {
+			chat_id: chatId,
+			text,
+		});
+		if (plain.ok) {
+			const msg = plain.result as { message_id?: number } | undefined;
 			logger.warn("Telegram Markdown parse failed, sent as plain text", {
-				error,
+				error: result.description,
 			});
-			return { success: true, messageId: String(result.message_id) };
-		} catch (plainError) {
-			logger.error("Telegram send error", { error: plainError });
-			return { success: false };
+			return { success: true, messageId: String(msg?.message_id ?? "") };
 		}
+		logger.error("Telegram send error", { error: plain.description });
+		return { success: false };
+	} catch (error) {
+		logger.error("Telegram send error", { error: String(error) });
+		return { success: false };
 	}
 }
 
@@ -333,11 +369,13 @@ export async function sendTextMessage(
  */
 export async function getBotUsername(apiToken: string): Promise<string | null> {
 	try {
-		const api = new Api(apiToken);
-		const me = await api.getMe();
-		return me.username ?? null;
+		const me = await tgApiCall(apiToken, "getMe", {});
+		if (!me.ok) {
+			return null;
+		}
+		return (me.result as { username?: string }).username ?? null;
 	} catch (error) {
-		logger.error("Telegram getMe error", { error });
+		logger.error("Telegram getMe error", { error: String(error) });
 		return null;
 	}
 }
@@ -348,26 +386,24 @@ export async function setWebhook(
 	secretToken: string,
 ): Promise<boolean> {
 	try {
-		const api = new Api(apiToken);
 		// Telegram rejects an empty secret_token; only send it when configured.
-		await api.setWebhook(
-			webhookUrl,
-			secretToken ? { secret_token: secretToken } : {},
-		);
-		return true;
+		const result = await tgApiCall(apiToken, "setWebhook", {
+			url: webhookUrl,
+			...(secretToken ? { secret_token: secretToken } : {}),
+		});
+		return result.ok;
 	} catch (error) {
-		logger.error("Telegram setWebhook error", { error });
+		logger.error("Telegram setWebhook error", { error: String(error) });
 		return false;
 	}
 }
 
 export async function deleteWebhook(apiToken: string): Promise<boolean> {
 	try {
-		const api = new Api(apiToken);
-		await api.deleteWebhook();
-		return true;
+		const result = await tgApiCall(apiToken, "deleteWebhook", {});
+		return result.ok;
 	} catch (error) {
-		logger.error("Telegram deleteWebhook error", { error });
+		logger.error("Telegram deleteWebhook error", { error: String(error) });
 		return false;
 	}
 }

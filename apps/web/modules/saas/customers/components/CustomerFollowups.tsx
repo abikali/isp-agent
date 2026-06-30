@@ -40,38 +40,61 @@ export function CustomerFollowups({ customerId }: { customerId: string }) {
 	const columns = useMemo<ColumnDef<FollowupRow, unknown>[]>(
 		() => [
 			{
-				id: "note",
-				header: "Note",
-				meta: { className: "max-w-[280px] truncate text-sm" },
-				cell: ({ row }) =>
-					row.original.note || (
-						<span className="text-muted-foreground">—</span>
-					),
-			},
-			{
 				id: "status",
 				header: "Status",
 				meta: { className: "text-xs whitespace-nowrap" },
-				cell: ({ row }) =>
-					row.original.status ? (
-						<Badge variant="secondary" className="text-xs">
-							{row.original.status}
-						</Badge>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					),
+				cell: ({ row }) => (
+					<Badge variant="secondary" className="text-xs capitalize">
+						{row.original.status || "new"}
+					</Badge>
+				),
+			},
+			{
+				id: "details",
+				header: "Details",
+				meta: { className: "max-w-[360px] text-sm" },
+				cell: ({ row }) => {
+					const { note, collectorNote } = row.original;
+					if (!note && !collectorNote) {
+						return (
+							<span className="text-muted-foreground">
+								No details
+							</span>
+						);
+					}
+					return (
+						<div className="space-y-0.5">
+							{note && (
+								<p className="whitespace-pre-wrap">{note}</p>
+							)}
+							{collectorNote && (
+								<p className="text-xs text-muted-foreground">
+									<span className="font-medium">
+										Collector:
+									</span>{" "}
+									{collectorNote}
+								</p>
+							)}
+						</div>
+					);
+				},
 			},
 			{
 				id: "isDone",
 				header: "Done",
-				cell: ({ row }) => (
-					<Badge
-						variant={row.original.isDone ? "success" : "warning"}
-						className="text-xs"
-					>
-						{row.original.isDone ? "Done" : "Pending"}
-					</Badge>
-				),
+				cell: ({ row }) =>
+					row.original.isDone ? (
+						<Badge variant="success" className="text-xs">
+							Done
+							{row.original.doneAt
+								? ` · ${formatDate(row.original.doneAt)}`
+								: ""}
+						</Badge>
+					) : (
+						<Badge variant="warning" className="text-xs">
+							Pending
+						</Badge>
+					),
 			},
 			{
 				id: "createdAt",
