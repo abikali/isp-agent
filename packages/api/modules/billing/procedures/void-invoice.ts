@@ -65,6 +65,20 @@ export const voidInvoiceProcedure = protectedProcedure
 				message: "Invoice is already voided",
 			});
 		}
+		// Never void an invoice that already has cash recorded against it —
+		// voiding leaves the settled Payment behind (its amount still counts in
+		// collector/worker balances) while the charge vanishes from billing
+		// views. The admin must void/delete the payment first.
+		const settledPayment = await db.payment.findFirst({
+			where: { invoiceId: input.invoiceId, ...SETTLED_PAYMENT },
+			select: { id: true },
+		});
+		if (settledPayment) {
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Cannot void an invoice with a recorded payment. Delete the payment first.",
+			});
+		}
 		const invoice = await voidInvoice(
 			db,
 			input.invoiceId,
@@ -106,8 +120,24 @@ export const voidManyInvoicesProcedure = protectedProcedure
 		if (matching.length === 0) {
 			return { count: 0, requested: input.invoiceIds.length };
 		}
+		// Skip any invoice that already has cash recorded against it — voiding a
+		// paid invoice would strand its settled Payment (see single-void note).
+		const paid = await db.payment.findMany({
+			where: {
+				invoiceId: { in: matching.map((i) => i.id) },
+				...SETTLED_PAYMENT,
+			},
+			select: { invoiceId: true },
+		});
+		const paidInvoiceIds = new Set(paid.map((p) => p.invoiceId));
+		const voidableIds = matching
+			.map((i) => i.id)
+			.filter((id) => !paidInvoiceIds.has(id));
+		if (voidableIds.length === 0) {
+			return { count: 0, requested: input.invoiceIds.length };
+		}
 		const result = await db.customerInvoice.updateMany({
-			where: { id: { in: matching.map((i) => i.id) } },
+			where: { id: { in: voidableIds } },
 			data: {
 				voidedAt: new Date(),
 				voidedById: user.id,

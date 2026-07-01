@@ -9,7 +9,12 @@
 import type { PermissionContext } from "@repo/api/lib/permission";
 import { resolveCollectorScope } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
-import { collectorBalance, sumAmountOrZero, sumOrZero } from "./calculations";
+import {
+	collectorBalance,
+	sumAmountOrZero,
+	sumOrZero,
+	type UnpaidInvoiceRow,
+} from "./calculations";
 import {
 	BILLABLE_CUSTOMER_STATUSES,
 	excludeGroupFilter,
@@ -199,6 +204,89 @@ export async function fetchRelevantBillingMonths(
 	});
 	const cap = yearMonthToNum(upToYear, upToMonth);
 	return months.filter((bm) => yearMonthToNum(bm.year, bm.month) <= cap);
+}
+
+// ── Unpaid-invoice resolution (multi-month settlement) ───────────
+
+/**
+ * Resolve a single customer's currently-unpaid invoices, oldest first, each
+ * mapped to the billing month it settles. "Unpaid" mirrors the list-unpaid
+ * derivation: an invoice is owed when its (customer, billingMonth) has no
+ * SETTLED_PAYMENT. `billedMonthCount` is how many (non-voided) invoices the
+ * customer has across the relevant window — used to tell "fully paid" (billed
+ * but nothing unpaid → duplicate) from "never billed" (addon-only collection).
+ */
+export async function fetchCustomerUnpaidInvoices(
+	organizationId: string,
+	customerId: string,
+	upToYear: number,
+	upToMonth: number,
+): Promise<{ unpaid: UnpaidInvoiceRow[]; billedMonthCount: number }> {
+	const relevantMonths = await fetchRelevantBillingMonths(
+		organizationId,
+		upToYear,
+		upToMonth,
+	);
+	if (relevantMonths.length === 0) {
+		return { unpaid: [], billedMonthCount: 0 };
+	}
+	const billingMonthIdByYM = new Map<string, string>();
+	for (const m of relevantMonths) {
+		billingMonthIdByYM.set(`${m.year}-${m.month}`, m.id);
+	}
+	const relevantMonthIds = relevantMonths.map((m) => m.id);
+
+	const invoices = await db.customerInvoice.findMany({
+		where: {
+			organizationId,
+			customerId,
+			...NOT_VOIDED,
+			OR: relevantMonths.map((m) => ({ year: m.year, month: m.month })),
+		},
+		select: {
+			id: true,
+			year: true,
+			month: true,
+			total: true,
+			totalWithTax: true,
+		},
+	});
+	if (invoices.length === 0) {
+		return { unpaid: [], billedMonthCount: 0 };
+	}
+
+	const settled = await db.payment.findMany({
+		where: {
+			organizationId,
+			customerId,
+			billingMonthId: { in: relevantMonthIds },
+			...SETTLED_PAYMENT,
+		},
+		select: { billingMonthId: true },
+	});
+	const settledMonthIds = new Set(settled.map((p) => p.billingMonthId));
+
+	const unpaid: UnpaidInvoiceRow[] = [];
+	for (const inv of invoices) {
+		const billingMonthId = billingMonthIdByYM.get(
+			`${inv.year}-${inv.month}`,
+		);
+		if (!billingMonthId || settledMonthIds.has(billingMonthId)) {
+			continue;
+		}
+		unpaid.push({
+			invoiceId: inv.id,
+			billingMonthId,
+			year: inv.year,
+			month: inv.month,
+			amount: inv.totalWithTax > 0 ? inv.totalWithTax : inv.total,
+		});
+	}
+	unpaid.sort(
+		(a, b) =>
+			yearMonthToNum(a.year, a.month) - yearMonthToNum(b.year, b.month),
+	);
+	return { unpaid, billedMonthCount: invoices.length };
 }
 
 // ── Customers Due This Month ─────────────────────────────────────

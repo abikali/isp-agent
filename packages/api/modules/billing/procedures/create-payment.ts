@@ -7,7 +7,7 @@ import {
 	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
-import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
+import { db, getPrimaryPhone, MAX_PHONES, Prisma } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import {
@@ -22,8 +22,12 @@ import {
 	type MirrorNextFields,
 	pushMirrorDiffToIRadius,
 } from "../../customers/lib/mirror-fields";
+import { allocatePaymentAcrossInvoices } from "../lib/calculations";
+import { fetchCustomerUnpaidInvoices } from "../lib/queries";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
 import { REVIEW_STOPPED_TASK_TITLE_PREFIX } from "../lib/review-tasks";
+
+type PaymentRow = Awaited<ReturnType<typeof db.payment.create>>;
 
 export const createPayment = protectedProcedure
 	.route({
@@ -147,13 +151,34 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Determine total due for validation
-		const totalDue = input.freeAccount
+		// A normal cash collection settles every currently-owed month, not just
+		// the active one. Free/stopped keep single-active-month semantics.
+		const isCashCollection =
+			!input.freeAccount && !input.stoppedAccount && input.paidAmount > 0;
+		const { unpaid: unpaidInvoices, billedMonthCount } = isCashCollection
+			? await fetchCustomerUnpaidInvoices(
+					input.organizationId,
+					input.customerId,
+					billingMonth.year,
+					billingMonth.month,
+				)
+			: { unpaid: [], billedMonthCount: 0 };
+
+		// Determine total due for validation. When the customer owes multiple
+		// months, the amount due is the sum of every unpaid invoice (matches the
+		// collector's prefilled total). Falls back to the single-month figure
+		// when there are no billed invoices (addon-only collection).
+		const singleMonthDue = input.freeAccount
 			? (customer.iptvPrice ?? 0) + (customer.realIpPrice ?? 0)
 			: input.accountPrice +
 				(customer.iptvPrice ?? 0) +
 				(customer.realIpPrice ?? 0) -
 				input.discount;
+		const accumulatedDue = unpaidInvoices.reduce((s, i) => s + i.amount, 0);
+		const totalDue =
+			isCashCollection && unpaidInvoices.length > 0
+				? accumulatedDue
+				: singleMonthDue;
 
 		// Require a note for stopped accounts
 		if (
@@ -201,6 +226,42 @@ export const createPayment = protectedProcedure
 			});
 		}
 
+		// Duplicate guard (also gates the iRadius push below so a double submit
+		// never mirrors a phone/location change and then aborts). For a cash
+		// collection we settle every currently-unpaid invoice, so a *duplicate*
+		// is a customer who has invoices but nothing left unpaid. Old-debt
+		// cleanup — active month already settled yet an older month still owed —
+		// is NOT a duplicate and must be allowed. Free/stopped/addon collections
+		// stay one row per active month, so the old "already handled this month"
+		// check still applies to them.
+		if (isCashCollection) {
+			if (billedMonthCount > 0 && unpaidInvoices.length === 0) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This customer has already paid for all billed months",
+				});
+			}
+		} else {
+			const existing = await db.payment.findFirst({
+				where: {
+					customerId: input.customerId,
+					billingMonthId: billingMonth.id,
+					OR: [
+						{ paidAmount: { gt: 0 } },
+						{ freeAccount: true },
+						{ stoppedAccount: true },
+					],
+				},
+				select: { id: true },
+			});
+			if (existing) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This customer already has a payment recorded for this billing month",
+				});
+			}
+		}
+
 		// Mirror the opportunistic customer enrichment (phones / location) the
 		// collector entered on the payment sheet to iRadius *before* persisting
 		// it locally — same remote-first, no-drift guarantee as the customer
@@ -226,27 +287,6 @@ export const createPayment = protectedProcedure
 			customer.externalId &&
 			(mirrorDiff.phonesChanged || mirrorDiff.locationChanged)
 		) {
-			// Pre-check the same dedupe the transaction enforces so a double
-			// submit doesn't push a phone/location change to iRadius and then
-			// abort on the duplicate. The transaction re-checks for races.
-			const duplicate = await db.payment.findFirst({
-				where: {
-					customerId: input.customerId,
-					billingMonthId: billingMonth.id,
-					OR: [
-						{ paidAmount: { gt: 0 } },
-						{ freeAccount: true },
-						{ stoppedAccount: true },
-					],
-				},
-				select: { id: true },
-			});
-			if (duplicate) {
-				throw new ORPCError("CONFLICT", {
-					message:
-						"This customer already has a payment recorded for this billing month",
-				});
-			}
 			await pushMirrorDiffToIRadius({
 				externalId: customer.externalId,
 				diff: mirrorDiff,
@@ -255,74 +295,32 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Create payment in a transaction
-		const payment = await db.$transaction(async (tx) => {
-			// Prevent duplicate payments for the same customer in the same month.
-			// Only block when an existing row is settled (cash or free) or stopped
-			// — any leftover ghost row (paidAmount=0, both flags false) shouldn't
-			// permanently lock the customer out of being re-collected.
-			const existing = await tx.payment.findFirst({
-				where: {
-					customerId: input.customerId,
-					billingMonthId: billingMonth.id,
-					OR: [
-						{ paidAmount: { gt: 0 } },
-						{ freeAccount: true },
-						{ stoppedAccount: true },
-					],
-				},
-				select: { id: true },
-			});
-			if (existing) {
-				throw new ORPCError("CONFLICT", {
-					message:
-						"This customer already has a payment recorded for this billing month",
-				});
-			}
+		// Customer field updates (phones / location) applied once, whichever
+		// settlement path runs.
+		const customerUpdates: Record<string, unknown> = {};
+		if (input.customerPhones && input.customerPhones.length > 0) {
+			customerUpdates["phones"] = input.customerPhones;
+			customerUpdates["mobile"] = getPrimaryPhone(input.customerPhones);
+		}
+		if (
+			input.customerLatitude !== undefined &&
+			input.customerLongitude !== undefined
+		) {
+			customerUpdates["latitude"] = input.customerLatitude;
+			customerUpdates["longitude"] = input.customerLongitude;
+		}
 
-			// Resolve the invoice this payment satisfies. Normally exists
-			// because `openBillingMonth` generates an invoice for every
-			// billable customer when the month opens; may be null for edge
-			// cases (customer added or activated mid-month outside the
-			// generator's eligibility, free-group customers collecting addons).
-			const invoice = await tx.customerInvoice.findFirst({
-				where: {
+		// Create payment(s) in a transaction. A lump cash collection that covers
+		// several owed months is split into one settlement row per month (oldest
+		// first) so every owed invoice clears — not just the active month.
+		let payment: PaymentRow;
+		try {
+			payment = await db.$transaction(async (tx) => {
+				const baseData = {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
-					year: billingMonth.year,
-					month: billingMonth.month,
-					voidedAt: null,
-				},
-				select: { id: true },
-			});
-
-			// Validate referrer belongs to the same organization and dealer
-			// (only when free account; ignored otherwise)
-			if (input.referredCustomerId && input.freeAccount) {
-				const referrer = await tx.customer.findFirst({
-					where: {
-						id: input.referredCustomerId,
-						organizationId: input.organizationId,
-						...getDealerScopeFilter(activeDealerId),
-					},
-					select: { id: true },
-				});
-				if (!referrer) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: "Referred customer not found",
-					});
-				}
-			}
-
-			const newPayment = await tx.payment.create({
-				data: {
-					organizationId: input.organizationId,
-					customerId: input.customerId,
-					billingMonthId: billingMonth.id,
-					invoiceId: invoice?.id ?? null,
 					collectorId: input.collectorId,
 					accountPrice: input.accountPrice,
-					paidAmount: input.paidAmount,
 					discount: input.discount,
 					freeAccount: input.freeAccount,
 					stoppedAccount: input.stoppedAccount,
@@ -331,37 +329,139 @@ export const createPayment = protectedProcedure
 					// trips the `notes IS NOT NULL` needs-review predicate.
 					noteCategory: input.noteCategory?.trim() || null,
 					notes: input.notes?.trim() || null,
-					referredCustomerId:
-						input.freeAccount && input.referredCustomerId
-							? input.referredCustomerId
-							: null,
-				},
-			});
+				};
 
-			// Update customer fields if changed (phones, location)
-			const customerUpdates: Record<string, unknown> = {};
-			if (input.customerPhones && input.customerPhones.length > 0) {
-				customerUpdates["phones"] = input.customerPhones;
-				customerUpdates["mobile"] = getPrimaryPhone(
-					input.customerPhones,
-				);
-			}
+				let created: PaymentRow[];
+
+				if (isCashCollection && unpaidInvoices.length > 0) {
+					// FIFO-allocate the lump across owed invoices, oldest first.
+					// The invoiceId unique constraint makes a racing double-submit
+					// fail atomically (caught below as a CONFLICT).
+					const allocation = allocatePaymentAcrossInvoices(
+						input.paidAmount,
+						unpaidInvoices,
+					);
+					created = [];
+					for (const a of allocation) {
+						created.push(
+							await tx.payment.create({
+								data: {
+									...baseData,
+									billingMonthId: a.billingMonthId,
+									invoiceId: a.invoiceId,
+									paidAmount: a.amount,
+									referredCustomerId: null,
+								},
+							}),
+						);
+					}
+				} else {
+					// Single row against the active month (free / stopped / addon
+					// with no billed invoice). Race-safe dedupe re-check here.
+					const existing = await tx.payment.findFirst({
+						where: {
+							customerId: input.customerId,
+							billingMonthId: billingMonth.id,
+							OR: [
+								{ paidAmount: { gt: 0 } },
+								{ freeAccount: true },
+								{ stoppedAccount: true },
+							],
+						},
+						select: { id: true },
+					});
+					if (existing) {
+						throw new ORPCError("CONFLICT", {
+							message:
+								"This customer already has a payment recorded for this billing month",
+						});
+					}
+
+					// Resolve the invoice this payment satisfies. Normally exists
+					// because `openBillingMonth` generates an invoice for every
+					// billable customer when the month opens; may be null for edge
+					// cases (customer added or activated mid-month outside the
+					// generator's eligibility, free-group customers collecting
+					// addons).
+					const invoice = await tx.customerInvoice.findFirst({
+						where: {
+							organizationId: input.organizationId,
+							customerId: input.customerId,
+							year: billingMonth.year,
+							month: billingMonth.month,
+							voidedAt: null,
+						},
+						select: { id: true },
+					});
+
+					// Validate referrer belongs to the same organization and
+					// dealer (only when free account; ignored otherwise)
+					if (input.referredCustomerId && input.freeAccount) {
+						const referrer = await tx.customer.findFirst({
+							where: {
+								id: input.referredCustomerId,
+								organizationId: input.organizationId,
+								...getDealerScopeFilter(activeDealerId),
+							},
+							select: { id: true },
+						});
+						if (!referrer) {
+							throw new ORPCError("BAD_REQUEST", {
+								message: "Referred customer not found",
+							});
+						}
+					}
+
+					created = [
+						await tx.payment.create({
+							data: {
+								...baseData,
+								billingMonthId: billingMonth.id,
+								invoiceId: invoice?.id ?? null,
+								paidAmount: input.paidAmount,
+								referredCustomerId:
+									input.freeAccount &&
+									input.referredCustomerId
+										? input.referredCustomerId
+										: null,
+							},
+						}),
+					];
+				}
+
+				if (Object.keys(customerUpdates).length > 0) {
+					await tx.customer.update({
+						where: { id: input.customerId },
+						data: customerUpdates,
+					});
+				}
+
+				// Primary row (drives the receipt / activity log / response):
+				// the active-month row when the lump reached it, else the newest
+				// month settled.
+				const primary =
+					created.find((p) => p.billingMonthId === billingMonth.id) ??
+					created[created.length - 1];
+				if (!primary) {
+					throw new ORPCError("INTERNAL_SERVER_ERROR", {
+						message: "Payment creation produced no rows",
+					});
+				}
+				return primary;
+			});
+		} catch (err) {
+			// A racing double-submit trips the invoiceId unique constraint.
 			if (
-				input.customerLatitude !== undefined &&
-				input.customerLongitude !== undefined
+				err instanceof Prisma.PrismaClientKnownRequestError &&
+				err.code === "P2002"
 			) {
-				customerUpdates["latitude"] = input.customerLatitude;
-				customerUpdates["longitude"] = input.customerLongitude;
-			}
-			if (Object.keys(customerUpdates).length > 0) {
-				await tx.customer.update({
-					where: { id: input.customerId },
-					data: customerUpdates,
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This customer already has a payment recorded for one of these months",
 				});
 			}
-
-			return newPayment;
-		});
+			throw err;
+		}
 
 		// Log payment creation activity
 		const collectorName = collector.name;
