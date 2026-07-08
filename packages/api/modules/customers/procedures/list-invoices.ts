@@ -75,7 +75,14 @@ export const listCustomerInvoices = protectedProcedure
 					tax: true,
 					totalWithTax: true,
 					voidedAt: true,
-					payment: { select: { id: true } },
+					payment: {
+						select: {
+							id: true,
+							paidAmount: true,
+							freeAccount: true,
+							stoppedAccount: true,
+						},
+					},
 				},
 			}),
 			db.customerInvoice.count({
@@ -89,8 +96,18 @@ export const listCustomerInvoices = protectedProcedure
 		return {
 			invoices: invoices.map(({ payment, ...invoice }) => ({
 				...invoice,
-				// Paid ⟺ a non-voided payment exists (single source of truth).
-				paid: payment !== null && invoice.voidedAt === null,
+				// Paid ⟺ a settled payment exists (same semantics as
+				// SETTLED_PAYMENT in billing/lib/filters.ts): money actually
+				// collected or a free account, and not a collector stop-flag.
+				paid:
+					payment !== null &&
+					invoice.voidedAt === null &&
+					!payment.stoppedAccount &&
+					(payment.paidAmount > 0 || payment.freeAccount),
+				// Collector reported the customer stopped ($0 stop-flag row).
+				stopped: payment?.stoppedAccount ?? false,
+				// Any linked payment blocks deletion (see deleteInvoice).
+				hasPayment: payment !== null,
 			})),
 			total,
 			page: input.page,

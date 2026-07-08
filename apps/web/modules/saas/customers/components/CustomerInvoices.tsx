@@ -55,6 +55,8 @@ interface InvoiceRow {
 	tax: number;
 	totalWithTax: number;
 	paid: boolean;
+	stopped: boolean;
+	hasPayment: boolean;
 	voidedAt: string | Date | null;
 }
 
@@ -219,6 +221,13 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 						</Badge>
 					);
 				}
+				if (row.original.stopped) {
+					return (
+						<Badge variant="warning" className="text-xs">
+							Stopped
+						</Badge>
+					);
+				}
 				return (
 					<Badge
 						variant={row.original.paid ? "success" : "destructive"}
@@ -273,7 +282,7 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
-								disabled={row.original.paid}
+								disabled={row.original.hasPayment}
 								onClick={() => handleDelete(row.original)}
 							>
 								<TrashIcon className="mr-2 size-4" />
