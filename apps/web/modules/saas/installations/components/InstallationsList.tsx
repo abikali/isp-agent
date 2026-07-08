@@ -1,7 +1,6 @@
 "use client";
 
 import { useEmployeesQuery } from "@saas/employees/client";
-import { Pagination } from "@saas/shared/components/Pagination";
 import {
 	ContentCard,
 	ContentCardToolbar,
@@ -10,7 +9,11 @@ import { EmptyState } from "@shared/components/EmptyState";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
-import { formatCurrency, formatDate } from "@shared/lib/format";
+import { SearchInput } from "@shared/components/SearchInput";
+import { TableColumnsToggle } from "@shared/components/TableColumnsToggle";
+import { usePersistedColumnVisibility } from "@shared/hooks/use-persisted-column-visibility";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
+import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
@@ -19,37 +22,47 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@ui/components/tooltip";
 import {
 	BoxIcon,
 	CheckIcon,
+	ClipboardListIcon,
 	ImageIcon,
+	PackageIcon,
 	PuzzleIcon,
 	RadioTowerIcon,
+	StickyNoteIcon,
 	WarehouseIcon,
 	WrenchIcon,
 	XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	type InstallationStatus,
 	useApproveInstallations,
 	useDenyInstallation,
+	useInstallationStatsQuery,
 	useInstallations,
 	useUpdatePendingInstallation,
 } from "../hooks/use-installations";
+import {
+	INSTALLATION_STATUS_OPTIONS,
+	INSTALLATION_TYPE_OPTIONS,
+	InstallationFilters,
+	type InstallationFiltersValue,
+} from "./InstallationFilters";
 
 type Installation = ReturnType<
 	typeof useInstallations
 >["installations"][number];
+
+const PAGE_SIZE = 30;
 
 const STATUS_BADGES: Record<
 	InstallationStatus,
@@ -59,6 +72,34 @@ const STATUS_BADGES: Record<
 	APPROVED: { label: "Approved", variant: "success" },
 	COMPLETED: { label: "Completed", variant: "success" },
 	DENIED: { label: "Denied", variant: "error" },
+};
+
+const sortByMap = {
+	quantity: "quantity",
+	price: "price",
+	installedAt: "installedAt",
+} as const satisfies Record<string, string>;
+
+const TOGGLEABLE_COLUMNS = [
+	{ id: "item", label: "Item", alwaysVisible: true },
+	{ id: "target", label: "Installed for" },
+	{ id: "worker", label: "Worker" },
+	{ id: "quantity", label: "Qty" },
+	{ id: "price", label: "Price" },
+	{ id: "total", label: "Total" },
+	{ id: "installedAt", label: "Date" },
+] as const;
+
+const DEFAULT_FILTERS: InstallationFiltersValue = {
+	type: "all",
+	employeeId: "all",
+	status: "all",
+	dateFrom: "",
+	dateTo: "",
+	priceMin: "",
+	priceMax: "",
+	qtyMin: "",
+	qtyMax: "",
 };
 
 function installationName(inst: Installation): string {
@@ -89,6 +130,24 @@ function installationKind(inst: Installation): string {
 		return "Base";
 	}
 	return "Item";
+}
+
+/** Compact "3d ago" style suffix for past dates. */
+function relativeAgo(value: Date | string): string {
+	const days = Math.floor(
+		Math.abs(Date.now() - new Date(value).getTime()) / 86_400_000,
+	);
+	if (days === 0) {
+		return "today";
+	}
+	if (days < 30) {
+		return `${days}d ago`;
+	}
+	const months = Math.round(days / 30);
+	if (months < 12) {
+		return `${months}mo ago`;
+	}
+	return `${Math.round(months / 12)}y ago`;
 }
 
 /**
@@ -132,6 +191,143 @@ function MediaThumb({
 	);
 }
 
+/** Expanded detail panel: full notes, linked task, and review timeline. */
+function InstallationSubRow({
+	inst,
+	organizationSlug,
+	onViewPhoto,
+}: {
+	inst: Installation;
+	organizationSlug: string;
+	onViewPhoto: (photo: { src: string; title: string }) => void;
+}) {
+	const statusCfg = STATUS_BADGES[inst.status as InstallationStatus];
+	const task = inst.task;
+	const photoUrl = task?.completionPhotoUrl;
+	return (
+		<div className="grid gap-x-8 gap-y-4 px-6 py-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="space-y-1">
+				<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+					Notes
+				</p>
+				{inst.notes ? (
+					<p className="whitespace-pre-wrap text-sm">{inst.notes}</p>
+				) : (
+					<p className="text-sm text-muted-foreground">—</p>
+				)}
+			</div>
+
+			<div className="space-y-1">
+				<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+					Source
+				</p>
+				<div className="space-y-1 text-sm">
+					<p className="flex items-center gap-1.5">
+						<TypeIcon inst={inst} />
+						{installationKind(inst)}
+						{inst.stockItem && <span>· {inst.stockItem.name}</span>}
+					</p>
+					{inst.setupRequestId && (
+						<Badge variant="outline" className="gap-1">
+							<PackageIcon className="size-3" />
+							New-customer setup bundle
+						</Badge>
+					)}
+					{inst.externalBillingId != null && (
+						<p className="text-xs text-muted-foreground">
+							Legacy billing #{inst.externalBillingId}
+						</p>
+					)}
+				</div>
+			</div>
+
+			<div className="space-y-1">
+				<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+					Field task
+				</p>
+				{task ? (
+					<div className="space-y-1 text-sm">
+						<Link
+							to="/app/$organizationSlug/tasks/$taskId"
+							params={{ organizationSlug, taskId: task.id }}
+							className="flex items-center gap-1.5 font-medium hover:underline"
+							preload="intent"
+						>
+							<ClipboardListIcon className="size-3.5 shrink-0 text-muted-foreground" />
+							<span className="truncate">{task.title}</span>
+						</Link>
+						{task.completedAt && (
+							<p className="text-xs text-muted-foreground">
+								Completed{" "}
+								{formatDateTime(task.completedAt, {
+									dateStyle: "medium",
+									timeStyle: "short",
+								})}
+							</p>
+						)}
+						{photoUrl && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-7"
+								onClick={() =>
+									onViewPhoto({
+										src: photoUrl,
+										title: installationName(inst),
+									})
+								}
+							>
+								<ImageIcon className="mr-1.5 size-3.5" />
+								View photo
+							</Button>
+						)}
+					</div>
+				) : (
+					<p className="text-sm text-muted-foreground">
+						Direct worker-portal entry
+					</p>
+				)}
+			</div>
+
+			<div className="space-y-1">
+				<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+					Timeline
+				</p>
+				<div className="space-y-1 text-sm">
+					<p>
+						Installed{" "}
+						{formatDateTime(inst.installedAt, {
+							dateStyle: "medium",
+							timeStyle: "short",
+						})}
+					</p>
+					<p className="text-xs text-muted-foreground">
+						Recorded{" "}
+						{formatDateTime(inst.createdAt, {
+							dateStyle: "medium",
+							timeStyle: "short",
+						})}{" "}
+						by {inst.employee.name}
+					</p>
+					<p className="flex items-center gap-1.5">
+						<Badge variant={statusCfg.variant}>
+							{statusCfg.label}
+						</Badge>
+						{inst.approvedBy && (
+							<span className="text-xs text-muted-foreground">
+								by {inst.approvedBy.name}
+								{inst.approvedAt
+									? ` · ${formatDateTime(inst.approvedAt, { dateStyle: "medium", timeStyle: "short" })}`
+									: ""}
+							</span>
+						)}
+					</p>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 /** Local edit state for inline price/qty on pending rows. */
 interface RowEdit {
 	price: string;
@@ -149,40 +345,147 @@ export function InstallationsList({
 	const [tab, setTab] = useState<"pending" | "history">("pending");
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
-	const [employeeId, setEmployeeId] = useState<string | undefined>();
-	const [typeFilter, setTypeFilter] = useState<
-		"item" | "station" | "base" | "addon" | undefined
-	>();
-	const [dateFrom, setDateFrom] = useState("");
-	const [dateTo, setDateTo] = useState("");
-	const [priceMin, setPriceMin] = useState("");
-	const [priceMax, setPriceMax] = useState("");
-	const [qtyMin, setQtyMin] = useState("");
-	const [qtyMax, setQtyMax] = useState("");
+	const [filterValues, setFilterValues] =
+		useState<InstallationFiltersValue>(DEFAULT_FILTERS);
 	const [page, setPage] = useState(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		sortByMap,
+		() => setPage(1),
+	);
+	const [columnVisibility, setColumnVisibility] =
+		usePersistedColumnVisibility("installations");
 	const [edits, setEdits] = useState<Record<string, RowEdit>>({});
 	const [photo, setPhoto] = useState<{ src: string; title: string } | null>(
 		null,
 	);
 
 	const { employees } = useEmployeesQuery();
-	const { installations, total, totalPages } = useInstallations({
-		...(tab === "pending" ? { status: "PENDING" as const } : {}),
-		employeeId,
-		type: typeFilter,
+	const { pendingValue } = useInstallationStatsQuery();
+
+	const updateFilters = useCallback(
+		(patch: Partial<InstallationFiltersValue>) => {
+			setFilterValues((prev) => ({ ...prev, ...patch }));
+			setPage(1);
+		},
+		[],
+	);
+	const resetFilters = useCallback(() => {
+		setFilterValues(DEFAULT_FILTERS);
+		setPage(1);
+	}, []);
+
+	const { installations, total, isFetching } = useInstallations({
+		...(tab === "pending"
+			? { status: "PENDING" as const }
+			: filterValues.status !== "all"
+				? { status: filterValues.status as InstallationStatus }
+				: {}),
+		...(filterValues.employeeId !== "all"
+			? { employeeId: filterValues.employeeId }
+			: {}),
+		...(filterValues.type !== "all"
+			? {
+					type: filterValues.type as
+						| "item"
+						| "station"
+						| "base"
+						| "addon",
+				}
+			: {}),
 		search: debouncedSearch || undefined,
-		...(dateFrom ? { from: new Date(dateFrom) } : {}),
-		...(dateTo ? { to: new Date(dateTo) } : {}),
-		...(priceMin !== "" ? { priceMin: Number(priceMin) } : {}),
-		...(priceMax !== "" ? { priceMax: Number(priceMax) } : {}),
-		...(qtyMin !== "" ? { qtyMin: Number(qtyMin) } : {}),
-		...(qtyMax !== "" ? { qtyMax: Number(qtyMax) } : {}),
+		...(filterValues.dateFrom
+			? { from: new Date(filterValues.dateFrom) }
+			: {}),
+		...(filterValues.dateTo
+			? { to: new Date(`${filterValues.dateTo}T23:59:59`) }
+			: {}),
+		...(filterValues.priceMin !== ""
+			? { priceMin: Number(filterValues.priceMin) }
+			: {}),
+		...(filterValues.priceMax !== ""
+			? { priceMax: Number(filterValues.priceMax) }
+			: {}),
+		...(filterValues.qtyMin !== ""
+			? { qtyMin: Number(filterValues.qtyMin) }
+			: {}),
+		...(filterValues.qtyMax !== ""
+			? { qtyMax: Number(filterValues.qtyMax) }
+			: {}),
+		...(sortBy ? { sortBy, sortOrder } : {}),
 		page,
 	});
 
 	const approveInstallations = useApproveInstallations();
 	const denyInstallation = useDenyInstallation();
 	const updatePending = useUpdatePendingInstallation();
+
+	// Active chips: derived from filterValues so the toolbar stays in sync.
+	const activeChips = useMemo(() => {
+		const out: Array<{
+			key: string;
+			label: string;
+			onRemove: () => void;
+		}> = [];
+
+		if (filterValues.type !== "all") {
+			const label = INSTALLATION_TYPE_OPTIONS.find(
+				(o) => o.value === filterValues.type,
+			)?.label;
+			if (label) {
+				out.push({
+					key: "type",
+					label: `Type: ${label}`,
+					onRemove: () => updateFilters({ type: "all" }),
+				});
+			}
+		}
+		if (filterValues.employeeId !== "all") {
+			const label = employees.find(
+				(e) => e.id === filterValues.employeeId,
+			)?.name;
+			if (label) {
+				out.push({
+					key: "employeeId",
+					label: `Worker: ${label}`,
+					onRemove: () => updateFilters({ employeeId: "all" }),
+				});
+			}
+		}
+		if (tab === "history" && filterValues.status !== "all") {
+			const label = INSTALLATION_STATUS_OPTIONS.find(
+				(o) => o.value === filterValues.status,
+			)?.label;
+			if (label) {
+				out.push({
+					key: "status",
+					label: `Status: ${label}`,
+					onRemove: () => updateFilters({ status: "all" }),
+				});
+			}
+		}
+		if (filterValues.dateFrom || filterValues.dateTo) {
+			out.push({
+				key: "date",
+				label: `Date: ${filterValues.dateFrom || "…"} – ${filterValues.dateTo || "…"}`,
+				onRemove: () => updateFilters({ dateFrom: "", dateTo: "" }),
+			});
+		}
+		if (filterValues.priceMin !== "" || filterValues.priceMax !== "") {
+			out.push({
+				key: "price",
+				label: `Price: ${filterValues.priceMin || "0"} – ${filterValues.priceMax || "∞"}`,
+				onRemove: () => updateFilters({ priceMin: "", priceMax: "" }),
+			});
+		}
+		if (filterValues.qtyMin !== "" || filterValues.qtyMax !== "") {
+			out.push({
+				key: "qty",
+				label: `Qty: ${filterValues.qtyMin || "1"} – ${filterValues.qtyMax || "∞"}`,
+				onRemove: () => updateFilters({ qtyMin: "", qtyMax: "" }),
+			});
+		}
+		return out;
+	}, [filterValues, employees, tab, updateFilters]);
 
 	function getEdit(inst: Installation): RowEdit {
 		return (
@@ -235,15 +538,34 @@ export function InstallationsList({
 			{
 				id: "item",
 				header: "Item",
+				enableSorting: false,
+				meta: { className: "min-w-[220px]" },
 				cell: ({ row }) => {
 					const inst = row.original;
+					// For rows without a stock item the name already IS the
+					// notes text — don't duplicate it in the tooltip.
+					const note = inst.stockItem ? inst.notes?.trim() : null;
 					return (
 						<div className="flex items-center gap-3">
 							<MediaThumb inst={inst} onView={setPhoto} />
 							<div className="min-w-0 space-y-0.5">
-								<p className="truncate font-medium text-sm">
-									{installationName(inst)}
-								</p>
+								<div className="flex min-w-0 items-center gap-1.5">
+									<p className="truncate font-medium text-sm">
+										{installationName(inst)}
+									</p>
+									{note && (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex shrink-0">
+													<StickyNoteIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
+												</span>
+											</TooltipTrigger>
+											<TooltipContent className="max-w-xs whitespace-pre-wrap">
+												{note}
+											</TooltipContent>
+										</Tooltip>
+									)}
+								</div>
 								<div className="flex items-center gap-1.5">
 									<Badge
 										variant="outline"
@@ -256,15 +578,23 @@ export function InstallationsList({
 											×{inst.quantity}
 										</span>
 									)}
+									{inst.setupRequestId && (
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="inline-flex shrink-0">
+													<PackageIcon className="size-3 text-muted-foreground" />
+												</span>
+											</TooltipTrigger>
+											<TooltipContent>
+												Part of a new-customer setup
+												bundle
+											</TooltipContent>
+										</Tooltip>
+									)}
 									{inst.task?.completionPhotoUrl && (
 										<ImageIcon className="size-3 text-muted-foreground" />
 									)}
 								</div>
-								{inst.notes && !inst.isAddOn && (
-									<p className="line-clamp-1 max-w-52 text-muted-foreground text-xs">
-										{inst.notes}
-									</p>
-								)}
 							</div>
 						</div>
 					);
@@ -272,7 +602,8 @@ export function InstallationsList({
 			},
 			{
 				id: "target",
-				header: "Customer / Station / Base",
+				header: "Installed for",
+				enableSorting: false,
 				cell: ({ row }) => {
 					const inst = row.original;
 					if (inst.customer) {
@@ -280,8 +611,14 @@ export function InstallationsList({
 							[inst.customer.firstName, inst.customer.lastName]
 								.filter(Boolean)
 								.join(" ") || inst.customer.username;
+						const meta = [
+							`#${inst.customer.accountNumber}`,
+							inst.customer.username
+								? `@${inst.customer.username}`
+								: null,
+						].filter(Boolean) as string[];
 						return (
-							<div>
+							<div className="min-w-0">
 								<Link
 									to="/app/$organizationSlug/customers/$customerId"
 									params={{
@@ -293,6 +630,9 @@ export function InstallationsList({
 								>
 									{name}
 								</Link>
+								<p className="truncate font-mono text-xs text-muted-foreground">
+									{meta.join(" · ")}
+								</p>
 								{inst.customer.address && (
 									<p className="line-clamp-1 max-w-52 text-xs text-muted-foreground">
 										{inst.customer.address}
@@ -329,6 +669,8 @@ export function InstallationsList({
 			{
 				id: "worker",
 				header: "Worker",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell whitespace-nowrap" },
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{row.original.employee.name}
@@ -338,6 +680,8 @@ export function InstallationsList({
 			{
 				id: "quantity",
 				header: "Qty",
+				enableSorting: true,
+				meta: { className: "whitespace-nowrap" },
 				cell: ({ row }) => {
 					const inst = row.original;
 					if (inst.status !== "PENDING") {
@@ -379,6 +723,8 @@ export function InstallationsList({
 			{
 				id: "price",
 				header: "Price",
+				enableSorting: true,
+				meta: { className: "whitespace-nowrap" },
 				cell: ({ row }) => {
 					const inst = row.original;
 					if (inst.status !== "PENDING") {
@@ -419,15 +765,48 @@ export function InstallationsList({
 				},
 			},
 			{
+				id: "total",
+				header: "Total",
+				enableSorting: false,
+				meta: {
+					className:
+						"hidden sm:table-cell whitespace-nowrap text-right",
+				},
+				cell: ({ row }) => {
+					const inst = row.original;
+					// Reflect uncommitted inline edits so the reviewer sees the
+					// amount that would be approved.
+					const edit =
+						inst.status === "PENDING" ? edits[inst.id] : undefined;
+					const price = edit ? Number(edit.price) : inst.price;
+					const qty = edit ? Number(edit.quantity) : inst.quantity;
+					const totalValue =
+						Number.isFinite(price) && Number.isFinite(qty)
+							? price * qty
+							: inst.price * inst.quantity;
+					return (
+						<span className="font-mono text-sm font-medium tabular-nums">
+							{formatCurrency(totalValue)}
+						</span>
+					);
+				},
+			},
+			{
 				id: "installedAt",
 				header: "Date",
-				meta: { className: "hidden md:table-cell" },
+				enableSorting: true,
+				meta: { className: "hidden md:table-cell whitespace-nowrap" },
 				cell: ({ row }) => (
-					<span className="whitespace-nowrap text-sm tabular-nums">
-						{formatDate(row.original.installedAt, {
-							dateStyle: "medium",
-						})}
-					</span>
+					<div className="flex flex-col leading-tight">
+						<span className="whitespace-nowrap text-sm tabular-nums">
+							{formatDate(row.original.installedAt, {
+								dateStyle: "medium",
+							})}
+						</span>
+						<span className="text-xs text-muted-foreground">
+							{relativeAgo(row.original.installedAt)}
+						</span>
+					</div>
 				),
 			},
 			...(tab === "history"
@@ -464,6 +843,10 @@ export function InstallationsList({
 						{
 							id: "actions",
 							enableSorting: false,
+							meta: {
+								className:
+									"w-[1%] whitespace-nowrap text-right",
+							},
 							cell: ({ row }) => {
 								const inst = row.original;
 								return (
@@ -471,7 +854,7 @@ export function InstallationsList({
 										resource="installations"
 										action="approve"
 									>
-										<div className="flex gap-1.5">
+										<div className="flex justify-end gap-1.5">
 											<Button
 												size="sm"
 												disabled={
@@ -541,168 +924,118 @@ export function InstallationsList({
 			description="Review equipment and add-on installations submitted by field workers."
 		>
 			<ContentCard>
-				<ContentCardToolbar>
-					<div className="flex w-full flex-wrap items-center justify-between gap-2">
-						<Tabs
-							value={tab}
-							onValueChange={(v) => {
-								setTab(v as "pending" | "history");
-								setPage(1);
-							}}
-						>
-							<TabsList>
-								<TabsTrigger value="pending">
-									Pending
-									{tab === "pending" && total > 0 && (
-										<Badge
-											variant="info"
-											className="ml-1.5"
-										>
-											{total}
-										</Badge>
-									)}
-								</TabsTrigger>
-								<TabsTrigger value="history">
-									History
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-						<div className="flex items-center gap-2">
-							<Input
-								value={search}
-								onChange={(e) => {
-									setSearch(e.target.value);
-									setPage(1);
-								}}
-								placeholder="Search customer or item..."
-								className="w-52"
+				<ContentCardToolbar
+					actions={
+						<>
+							<InstallationFilters
+								value={filterValues}
+								onChange={updateFilters}
+								onReset={resetFilters}
+								activeCount={activeChips.length}
+								employees={employees}
+								showStatus={tab === "history"}
 							/>
-							<Select
-								value={typeFilter ?? "all"}
-								onValueChange={(v) => {
-									setTypeFilter(
-										v === "all"
-											? undefined
-											: (v as
-													| "item"
-													| "station"
-													| "base"
-													| "addon"),
-									);
-									setPage(1);
-								}}
-							>
-								<SelectTrigger className="w-32">
-									<SelectValue placeholder="All types" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All types
-									</SelectItem>
-									<SelectItem value="item">Items</SelectItem>
-									<SelectItem value="station">
-										Stations
-									</SelectItem>
-									<SelectItem value="base">Bases</SelectItem>
-									<SelectItem value="addon">
-										Add-ons
-									</SelectItem>
-								</SelectContent>
-							</Select>
-							<Select
-								value={employeeId ?? "all"}
-								onValueChange={(v) => {
-									setEmployeeId(v === "all" ? undefined : v);
-									setPage(1);
-								}}
-							>
-								<SelectTrigger className="w-40">
-									<SelectValue placeholder="All workers" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All workers
-									</SelectItem>
-									{employees.map((emp) => (
-										<SelectItem key={emp.id} value={emp.id}>
-											{emp.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-					<div className="mt-2 flex w-full flex-wrap items-center gap-2">
-						<Input
-							type="date"
-							className="w-36"
-							value={dateFrom}
-							onChange={(e) => {
-								setDateFrom(e.target.value);
-								setPage(1);
-							}}
-							aria-label="From date"
-						/>
-						<span className="text-xs text-muted-foreground">
-							to
+							<TableColumnsToggle
+								columns={
+									TOGGLEABLE_COLUMNS as unknown as Array<{
+										id: string;
+										label: string;
+										alwaysVisible?: boolean;
+									}>
+								}
+								value={columnVisibility}
+								onChange={setColumnVisibility}
+							/>
+						</>
+					}
+				>
+					<Tabs
+						value={tab}
+						onValueChange={(v) => {
+							setTab(v as "pending" | "history");
+							setPage(1);
+						}}
+					>
+						<TabsList>
+							<TabsTrigger value="pending">
+								Pending
+								{tab === "pending" && total > 0 && (
+									<Badge variant="info" className="ml-1.5">
+										{total}
+									</Badge>
+								)}
+							</TabsTrigger>
+							<TabsTrigger value="history">History</TabsTrigger>
+						</TabsList>
+					</Tabs>
+					{tab === "pending" && pendingValue > 0 && (
+						<span className="whitespace-nowrap text-xs text-muted-foreground">
+							{formatCurrency(pendingValue)} awaiting approval
 						</span>
-						<Input
-							type="date"
-							className="w-36"
-							value={dateTo}
-							onChange={(e) => {
-								setDateTo(e.target.value);
-								setPage(1);
-							}}
-							aria-label="To date"
-						/>
-						<Input
-							type="number"
-							className="w-24"
-							placeholder="Min $"
-							value={priceMin}
-							onChange={(e) => {
-								setPriceMin(e.target.value);
-								setPage(1);
-							}}
-						/>
-						<Input
-							type="number"
-							className="w-24"
-							placeholder="Max $"
-							value={priceMax}
-							onChange={(e) => {
-								setPriceMax(e.target.value);
-								setPage(1);
-							}}
-						/>
-						<Input
-							type="number"
-							className="w-24"
-							placeholder="Min qty"
-							value={qtyMin}
-							onChange={(e) => {
-								setQtyMin(e.target.value);
-								setPage(1);
-							}}
-						/>
-						<Input
-							type="number"
-							className="w-24"
-							placeholder="Max qty"
-							value={qtyMax}
-							onChange={(e) => {
-								setQtyMax(e.target.value);
-								setPage(1);
-							}}
-						/>
-					</div>
+					)}
+					<SearchInput
+						placeholder="Search customer, item, station, base, notes…"
+						hint="Searches customer name, username, stock item, station, base and notes"
+						value={search}
+						onChange={(v) => {
+							setSearch(v);
+							setPage(1);
+						}}
+					/>
 				</ContentCardToolbar>
+
+				{activeChips.length > 0 && (
+					<div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-surface-subtle/40 px-3 py-2 md:px-4">
+						{activeChips.map((chip) => (
+							<Badge
+								key={chip.key}
+								variant="secondary"
+								className="gap-1 py-1 pl-2 pr-1 font-normal"
+							>
+								<span className="text-xs">{chip.label}</span>
+								<button
+									type="button"
+									onClick={chip.onRemove}
+									className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+									aria-label={`Remove ${chip.label}`}
+								>
+									<XIcon className="size-3" />
+								</button>
+							</Badge>
+						))}
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs text-muted-foreground"
+							onClick={resetFilters}
+						>
+							Clear all
+						</Button>
+					</div>
+				)}
 
 				<DataTable
 					columns={columns}
 					data={installations}
-					pageSize={30}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					columnVisibility={columnVisibility}
+					onColumnVisibilityChange={setColumnVisibility}
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: setPage,
+					}}
+					isFetching={isFetching}
+					getRowId={(row) => row.id}
+					renderSubRow={(row) => (
+						<InstallationSubRow
+							inst={row.original}
+							organizationSlug={organizationSlug}
+							onViewPhoto={setPhoto}
+						/>
+					)}
 					emptyState={
 						<EmptyState
 							icon={WrenchIcon}
@@ -719,17 +1052,6 @@ export function InstallationsList({
 						/>
 					}
 				/>
-
-				{totalPages > 1 && (
-					<div className="border-t px-4 py-3">
-						<Pagination
-							currentPage={page}
-							totalItems={total}
-							itemsPerPage={30}
-							onChangeCurrentPage={setPage}
-						/>
-					</div>
-				)}
 			</ContentCard>
 
 			{photo && (

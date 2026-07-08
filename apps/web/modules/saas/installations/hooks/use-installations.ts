@@ -25,6 +25,8 @@ export interface InstallationFilters {
 	qtyMax?: number;
 	from?: Date;
 	to?: Date;
+	sortBy?: "installedAt" | "price" | "quantity";
+	sortOrder?: "asc" | "desc";
 	page?: number;
 }
 
@@ -44,6 +46,24 @@ export function useInstallations(filters: InstallationFilters) {
 		installations: query.data?.installations ?? [],
 		total: query.data?.total ?? 0,
 		totalPages: query.data?.totalPages ?? 1,
+		isFetching: query.isFetching,
+	};
+}
+
+export function useInstallationStatsQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.installations.stats.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["installations", "stats"]),
+	);
+
+	return {
+		pendingCount: query.data?.pendingCount ?? 0,
+		pendingValue: query.data?.pendingValue ?? 0,
 	};
 }
 
