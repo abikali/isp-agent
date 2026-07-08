@@ -5,22 +5,29 @@ import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 
+// Non-suspense on purpose: the search input changes the query key on every
+// debounced keystroke, and a suspense query would bubble each change up to the
+// route AsyncBoundary (full-page skeleton flash). useQuery + the global
+// keepPreviousData default keeps the table on screen while refetching.
 export function useStockItems(filters?: {
 	search?: string;
 	lowStockOnly?: boolean;
 }) {
 	const organizationId = useOrganizationId();
 
-	const query = useSuspenseQuery(
-		orpc.stock.listItems.queryOptions({
-			input: {
-				organizationId: organizationId ?? "",
-				...filters,
-			},
-		}),
+	const query = useQuery(
+		organizationId
+			? orpc.stock.listItems.queryOptions({
+					input: { organizationId, ...filters },
+				})
+			: disabledQuery(["stock", "listItems"]),
 	);
 
-	return { items: query.data?.items ?? [], refetch: query.refetch };
+	return {
+		items: query.data?.items ?? [],
+		isLoading: query.isLoading,
+		isFetching: query.isFetching,
+	};
 }
 
 export function useStockItemsQuery() {

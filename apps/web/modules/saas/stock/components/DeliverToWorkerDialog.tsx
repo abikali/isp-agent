@@ -10,7 +10,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
 	Select,
@@ -22,6 +21,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { useDeliverToWorker, useReturnFromWorker } from "../hooks/use-stock";
+import { QuantityInput } from "./QuantityInput";
 import type { StockItem } from "./StockList";
 
 export function DeliverToWorkerDialog({
@@ -128,15 +128,12 @@ export function DeliverToWorkerDialog({
 								(max {maxQty})
 							</span>
 						</Label>
-						<Input
+						<QuantityInput
 							id="deliver-qty"
-							type="number"
+							value={quantity}
+							onChange={setQuantity}
 							min={1}
 							max={maxQty}
-							value={quantity}
-							onChange={(e) =>
-								setQuantity(Number(e.target.value))
-							}
 						/>
 					</div>
 				</div>

@@ -61,7 +61,7 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 200 });
 	const [lowStockOnly, setLowStockOnly] = useState(false);
 
-	const { items } = useStockItems({
+	const { items, isLoading, isFetching } = useStockItems({
 		search: debouncedSearch || undefined,
 		lowStockOnly: lowStockOnly || undefined,
 	});
@@ -294,13 +294,16 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 			title="Stock"
 			description="Manage warehouse inventory, deliver equipment to workers, and track every movement."
 			actions={
-				<div className="flex gap-2">
+				// No wrapper div: PageShell's actions slot is a flex-wrap
+				// container, so the buttons must be direct children to wrap on
+				// narrow screens instead of overflowing the viewport.
+				<>
 					<Button
 						variant="outline"
 						onClick={() => setShowRefunds(true)}
 					>
 						<UndoIcon className="mr-2 size-4" />
-						Refund requests
+						Refunds
 						{pendingRefundCount > 0 && (
 							<Badge variant="error" className="ml-2">
 								{pendingRefundCount}
@@ -330,7 +333,7 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 							Add item
 						</Button>
 					</PermissionGate>
-				</div>
+				</>
 			}
 		>
 			{lowStockItems.length > 0 && (
@@ -370,6 +373,8 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 					columns={columns}
 					data={items}
 					pageSize={20}
+					isLoading={isLoading}
+					isFetching={isFetching}
 					emptyState={
 						items.length === 0 && !activeFilterCount && !search ? (
 							<EmptyState
