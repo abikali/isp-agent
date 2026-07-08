@@ -180,7 +180,7 @@ export const listInstallations = protectedProcedure
 					employee: { select: { id: true, name: true } },
 					stockItem: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
-					// Completion photo (if recorded by closing a field task) lives
+					// Completion evidence (photo + worker's resolution note) lives
 					// on the task, not the installation row itself.
 					task: {
 						select: {
@@ -188,6 +188,8 @@ export const listInstallations = protectedProcedure
 							title: true,
 							completionPhotoUrl: true,
 							completedAt: true,
+							resolutionCode: true,
+							resolutionNote: true,
 						},
 					},
 				},

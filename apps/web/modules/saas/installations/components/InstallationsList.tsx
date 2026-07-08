@@ -1,6 +1,7 @@
 "use client";
 
 import { useEmployeesQuery } from "@saas/employees/client";
+import { TASK_RESOLUTION_LABELS } from "@saas/tasks";
 import {
 	ContentCard,
 	ContentCardToolbar,
@@ -21,6 +22,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import {
@@ -132,6 +139,42 @@ function installationKind(inst: Installation): string {
 	return "Item";
 }
 
+/**
+ * Note typed on the installation row itself. Hidden when the row has no stock
+ * item, because there the notes text already doubles as the row name.
+ */
+function installationNote(inst: Installation): string | null {
+	return inst.stockItem ? (inst.notes?.trim() ?? null) : null;
+}
+
+/**
+ * Worker's completion evidence from the linked field task: the canned
+ * resolution label and/or free-text note recorded when the task was closed.
+ */
+function taskResolution(
+	inst: Installation,
+): { label: string | null; note: string | null } | null {
+	const task = inst.task;
+	if (!task) {
+		return null;
+	}
+	const note = task.resolutionNote?.trim() || null;
+	const label = task.resolutionCode
+		? ((TASK_RESOLUTION_LABELS as Record<string, string>)[
+				task.resolutionCode
+			] ?? task.resolutionCode)
+		: null;
+	// A bare "Other" code without a note carries no information.
+	if (!note && (!label || label === "Other")) {
+		return null;
+	}
+	return { label, note };
+}
+
+function hasNotes(inst: Installation): boolean {
+	return !!(installationNote(inst) || taskResolution(inst));
+}
+
 /** Compact "3d ago" style suffix for past dates. */
 function relativeAgo(value: Date | string): string {
 	const days = Math.floor(
@@ -191,6 +234,69 @@ function MediaThumb({
 	);
 }
 
+/** Modal with the full note text — tooltips don't work on touch devices. */
+function InstallationNotesDialog({
+	inst,
+	onClose,
+}: {
+	inst: Installation;
+	onClose: () => void;
+}) {
+	const note = installationNote(inst);
+	const resolution = taskResolution(inst);
+	return (
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				if (!open) {
+					onClose();
+				}
+			}}
+		>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Notes — {installationName(inst)}</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-4">
+					{note && (
+						<div className="space-y-1">
+							<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+								Installation note
+							</p>
+							<p className="whitespace-pre-wrap text-sm">
+								{note}
+							</p>
+						</div>
+					)}
+					{resolution && (
+						<div className="space-y-1.5">
+							<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+								Worker completion
+							</p>
+							{resolution.label && (
+								<Badge variant="outline">
+									{resolution.label}
+								</Badge>
+							)}
+							{resolution.note && (
+								<p className="whitespace-pre-wrap text-sm">
+									{resolution.note}
+								</p>
+							)}
+							<p className="text-xs text-muted-foreground">
+								by {inst.employee.name}
+								{inst.task?.completedAt
+									? ` · ${formatDateTime(inst.task.completedAt, { dateStyle: "medium", timeStyle: "short" })}`
+									: ""}
+							</p>
+						</div>
+					)}
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 /** Expanded detail panel: full notes, linked task, and review timeline. */
 function InstallationSubRow({
 	inst,
@@ -204,14 +310,37 @@ function InstallationSubRow({
 	const statusCfg = STATUS_BADGES[inst.status as InstallationStatus];
 	const task = inst.task;
 	const photoUrl = task?.completionPhotoUrl;
+	const note = installationNote(inst);
+	const resolution = taskResolution(inst);
 	return (
 		<div className="grid gap-x-8 gap-y-4 px-6 py-4 sm:grid-cols-2 lg:grid-cols-4">
 			<div className="space-y-1">
 				<p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
 					Notes
 				</p>
-				{inst.notes ? (
-					<p className="whitespace-pre-wrap text-sm">{inst.notes}</p>
+				{note || resolution ? (
+					<div className="space-y-2">
+						{note && (
+							<p className="whitespace-pre-wrap text-sm">
+								{note}
+							</p>
+						)}
+						{resolution && (
+							<div className="space-y-0.5">
+								<p className="text-xs text-muted-foreground">
+									Worker completion
+									{resolution.label
+										? ` · ${resolution.label}`
+										: ""}
+								</p>
+								{resolution.note && (
+									<p className="whitespace-pre-wrap text-sm">
+										{resolution.note}
+									</p>
+								)}
+							</div>
+						)}
+					</div>
 				) : (
 					<p className="text-sm text-muted-foreground">—</p>
 				)}
@@ -358,6 +487,7 @@ export function InstallationsList({
 	const [photo, setPhoto] = useState<{ src: string; title: string } | null>(
 		null,
 	);
+	const [notesFor, setNotesFor] = useState<Installation | null>(null);
 
 	const { employees } = useEmployeesQuery();
 	const { pendingValue } = useInstallationStatsQuery();
@@ -542,9 +672,13 @@ export function InstallationsList({
 				meta: { className: "min-w-[220px]" },
 				cell: ({ row }) => {
 					const inst = row.original;
-					// For rows without a stock item the name already IS the
-					// notes text — don't duplicate it in the tooltip.
-					const note = inst.stockItem ? inst.notes?.trim() : null;
+					const resolution = taskResolution(inst);
+					const preview = [
+						installationNote(inst),
+						resolution?.note ?? resolution?.label,
+					]
+						.filter(Boolean)
+						.join("\n\n");
 					return (
 						<div className="flex items-center gap-3">
 							<MediaThumb inst={inst} onView={setPhoto} />
@@ -553,15 +687,22 @@ export function InstallationsList({
 									<p className="truncate font-medium text-sm">
 										{installationName(inst)}
 									</p>
-									{note && (
+									{hasNotes(inst) && (
 										<Tooltip>
 											<TooltipTrigger asChild>
-												<span className="inline-flex shrink-0">
+												<button
+													type="button"
+													onClick={() =>
+														setNotesFor(inst)
+													}
+													className="inline-flex shrink-0"
+													aria-label="View notes"
+												>
 													<StickyNoteIcon className="size-3.5 text-amber-600 dark:text-amber-400" />
-												</span>
+												</button>
 											</TooltipTrigger>
 											<TooltipContent className="max-w-xs whitespace-pre-wrap">
-												{note}
+												{preview}
 											</TooltipContent>
 										</Tooltip>
 									)}
@@ -1053,6 +1194,13 @@ export function InstallationsList({
 					}
 				/>
 			</ContentCard>
+
+			{notesFor && (
+				<InstallationNotesDialog
+					inst={notesFor}
+					onClose={() => setNotesFor(null)}
+				/>
+			)}
 
 			{photo && (
 				<ImageViewerDialog

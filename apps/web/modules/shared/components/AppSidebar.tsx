@@ -110,6 +110,13 @@ export function AppSidebar() {
 	);
 	const pendingExpenses = expenseStats?.pendingCount ?? 0;
 
+	const { data: stockStats } = useQuery(
+		organizationId
+			? orpc.stock.stats.queryOptions({ input: { organizationId } })
+			: disabledQuery(["stock", "stats"]),
+	);
+	const pendingStockRefunds = stockStats?.pendingRefundCount ?? 0;
+
 	const { data: setupRequests } = useQuery(
 		organizationId
 			? orpc.customers.setupRequests.list.queryOptions({
@@ -240,6 +247,7 @@ export function AppSidebar() {
 					label: "Stock",
 					to: `${basePath}/stock`,
 					icon: BoxesIcon,
+					badge: pendingStockRefunds,
 				});
 			}
 			if (canReadInstallations) {
@@ -332,6 +340,7 @@ export function AppSidebar() {
 		pendingInstallations,
 		pendingExpenses,
 		pendingNewCustomers,
+		pendingStockRefunds,
 	]);
 
 	const bottomItems = useMemo<NavItem[]>(() => {

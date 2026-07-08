@@ -33,15 +33,24 @@ export const getStockStats = protectedProcedure
 			},
 		});
 
-		const workerAllocations = await db.workerStock.groupBy({
-			by: ["employeeId"],
-			where: {
-				quantity: { gt: 0 },
-				stockItem: { organizationId: input.organizationId },
-				employee: getDealerScopeFilter(activeDealerId),
-			},
-			_sum: { quantity: true },
-		});
+		const [workerAllocations, pendingRefundCount] = await Promise.all([
+			db.workerStock.groupBy({
+				by: ["employeeId"],
+				where: {
+					quantity: { gt: 0 },
+					stockItem: { organizationId: input.organizationId },
+					employee: getDealerScopeFilter(activeDealerId),
+				},
+				_sum: { quantity: true },
+			}),
+			db.stockRefundRequest.count({
+				where: {
+					organizationId: input.organizationId,
+					status: "PENDING",
+					employee: getDealerScopeFilter(activeDealerId),
+				},
+			}),
+		]);
 
 		return {
 			itemCount: items.length,
@@ -61,5 +70,6 @@ export const getStockStats = protectedProcedure
 					i.quantity <= i.alertThreshold,
 			).length,
 			workersHoldingStock: workerAllocations.length,
+			pendingRefundCount,
 		};
 	});
