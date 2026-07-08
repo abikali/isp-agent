@@ -98,6 +98,7 @@ export async function approveInstallationInTx(
 	options: { createCashEntry: boolean },
 ): Promise<void> {
 	// Consume worker stock for physical items
+	let stockItemName: string | null = null;
 	if (installation.stockItemId && !installation.isAddOn) {
 		const allocation = await tx.workerStock.findUnique({
 			where: {
@@ -121,6 +122,7 @@ export async function approveInstallationInTx(
 			where: { id: installation.stockItemId },
 			select: { name: true },
 		});
+		stockItemName = stockItem.name;
 		await tx.stockLog.create({
 			data: {
 				organizationId: installation.organizationId,
@@ -156,6 +158,25 @@ export async function approveInstallationInTx(
 	// Cash ledger: hardware/add-on money the worker collected
 	const total = installation.price * installation.quantity;
 	if (options.createCashEntry && total > 0) {
+		const customer = installation.customerId
+			? await tx.customer.findUnique({
+					where: { id: installation.customerId },
+					select: { firstName: true, lastName: true, username: true },
+				})
+			: null;
+		const customerName = customer
+			? `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() ||
+				customer.username
+			: null;
+		const item = installation.isAddOn ? installation.notes : stockItemName;
+		const detail = [
+			customerName,
+			item && installation.quantity > 1
+				? `${item} ×${installation.quantity}`
+				: item,
+		]
+			.filter(Boolean)
+			.join(" · ");
 		await tx.cashCollection.create({
 			data: {
 				organizationId: installation.organizationId,
@@ -163,7 +184,9 @@ export async function approveInstallationInTx(
 				amount: installationCostAmount(total),
 				type: "INSTALLATION_COST",
 				receivedById: userId,
-				notes: `Approved installation ${installation.id}`,
+				notes: detail
+					? `Approved installation — ${detail}`
+					: `Approved installation ${installation.id}`,
 			},
 		});
 	}
