@@ -129,9 +129,16 @@ export async function sendWPBoxTemplate(params: {
 }
 
 /**
- * Send a WhatsApp payment receipt — uses the `success_payment_url`
+ * Send a WhatsApp payment receipt — uses the `success_payment_url_v2`
  * template with an invoice URL button. Returns the full WPBox result so
  * the worker can inspect status codes for activity-log bookkeeping.
+ *
+ * v2 (created 2026-07-16): the original `success_payment_url` template's
+ * button pointed at the decommissioned legacy billing server
+ * (billing.libancomlb.com → Cloudflare 522). Salti templates are locked
+ * once approved, so the fix is a new template whose button URL is
+ * `https://cp.libancomlb.com/invoice/{{1}}` (the public /invoice/$paymentId
+ * route). Do not switch back.
  */
 export async function sendWhatsAppReceipt(params: {
 	phone: string;
@@ -139,7 +146,7 @@ export async function sendWhatsAppReceipt(params: {
 }): Promise<WPBoxSendResult> {
 	return sendWPBoxTemplate({
 		phone: params.phone,
-		templateName: "success_payment_url",
+		templateName: "success_payment_url_v2",
 		components: [
 			{
 				type: "button",
