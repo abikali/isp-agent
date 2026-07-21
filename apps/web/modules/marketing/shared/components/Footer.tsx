@@ -73,6 +73,16 @@ export function Footer() {
 						>
 							abiroot.com
 						</a>
+						<span className="text-muted-foreground/40">·</span>
+						<span>System built by</span>
+						<a
+							href="https://hephon.ai"
+							target="_blank"
+							rel="noopener"
+							className="font-medium text-muted-foreground/80 transition-colors hover:text-foreground"
+						>
+							Hephon
+						</a>
 					</p>
 				</div>
 			</div>
