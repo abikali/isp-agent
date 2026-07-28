@@ -142,11 +142,15 @@ This creates a `CustomerSetupRequest` (one per customer) in `PENDING` state, bun
 
 **Admin review (edit-before-approve):** the admin can adjust discount, prices, collector, expiry, and first charge before approving.
 
-**What approval does (atomically):**
-1. **Activates** the customer (`status = ACTIVE`, sets `activatedAt`).
+**What approval does:**
+
+First, **remotely** (before any local write, so a failure aborts cleanly rather than half-approving): if the org uses iRadius and the customer isn't linked yet, `createCustomerInIRadius` creates the real subscriber — `/create-user` (needs a PPPoE password and a username, both enforced at approval), then the `charge-new-user` servlet for iRadius's native billing (dealer credit + opening invoice), then a re-assert of the expiry. That last step is not optional: the charge routine adds a month to whatever expiry it finds, so without it a custom-days setup silently gets an extra month. See the iRadius section of `CLAUDE.md` for the full sequence.
+
+Then, in one transaction:
+1. **Activates** the customer (`status = ACTIVE`, sets `activatedAt`, stores the new `externalId`).
 2. **Approves the bundled installations** (consumes worker stock) — but *without* per-line cash entries.
 3. **Records the first payment** in the **active billing month** (resolved via `resolveActiveBillingMonth`, never today's calendar date — this matches the billing-month rule used across the system), collected by the worker.
-4. Writes one `NEW_USER_SETUP` cash entry for the hardware total.
+4. Writes one `NEW_USER_SETUP` cash entry for the hardware total plus the first charge (when the worker actually took that cash).
 
 **Rejection** sets the customer `INACTIVE` and denies the bundled installations.
 
