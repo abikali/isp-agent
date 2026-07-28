@@ -4,6 +4,7 @@ import { logger } from "@repo/logs";
 import {
 	iradiusChargeNewUser,
 	iradiusCreateUser,
+	iradiusSetExpiryAccount,
 	iradiusUpdateUserAddress,
 	iradiusUpdateUserComment,
 	iradiusUpdateUserName,
@@ -93,6 +94,8 @@ export async function createCustomerInIRadius(opts: {
 	const num = (v: string | null | undefined): number | null =>
 		v ? Number.parseInt(v, 10) : null;
 
+	const expiryAccount = toMysqlDateTimeUTC(customer.expiresAt);
+
 	const { userId } = await iradiusCreateUser({
 		userName: customer.username.trim(),
 		password: opts.password,
@@ -108,7 +111,7 @@ export async function createCustomerInIRadius(opts: {
 		userGroupId: customer.groupExternalId,
 		accountPrice: customer.monthlyRate ?? 0,
 		discount: customer.discount ?? 0,
-		expiryAccount: toMysqlDateTimeUTC(customer.expiresAt),
+		expiryAccount,
 		iptvPrice: customer.iptvPrice ?? 0,
 		realIpPrice: customer.realIpPrice ?? 0,
 		gsmLat: customer.latitude,
@@ -150,6 +153,31 @@ export async function createCustomerInIRadius(opts: {
 			"[iRadius] new-user charge failed — subscriber created but NOT billed",
 			{ userId, customerId: opts.customerId, error: String(error) },
 		);
+	}
+
+	// The charge above runs iRadius's `RenewUser.renewUser(NEW USER)`, which
+	// ends in `ChangeAccountTypeDao.updateUserExpiryAccountDate`: it takes the
+	// CURRENT `UserNas.ExpiryAccount` as its base (only falling back to "now"
+	// when the account type has `ImmediateRecharge`, which ours don't) and adds
+	// `AccountType.ValidityPeriod` — a full month. Since `/create-user` already
+	// wrote the expiry we want, the charge silently pushes it a month out: a
+	// 15-day setup lands on +1m15d, a 1-month one on +2 months. So re-assert
+	// our value afterwards. Only when we actually set one — with no expiry at
+	// create time, the date the charge computed is the correct one to keep.
+	//
+	// Log-and-continue like the charge: the subscriber already exists here, so
+	// throwing would abort the approval before `externalId` is stored locally
+	// and leave an orphan that blocks every retry on "username already exists".
+	// A wrong-by-one-month expiry is recoverable; an orphan isn't.
+	if (expiryAccount) {
+		try {
+			await iradiusSetExpiryAccount(linked, expiryAccount);
+		} catch (error) {
+			logger.error(
+				"[iRadius] could not re-assert expiry after new-user charge — customer may hold an extra month",
+				{ userId, customerId: opts.customerId, error: String(error) },
+			);
+		}
 	}
 
 	return { userId };
