@@ -158,6 +158,44 @@ async function iradiusLogEnableDisable(
 	}
 }
 
+/**
+ * Record an expiry change in iRadius's user history (`UserLog`), in the same
+ * shape the GWT UI writes when an operator edits an account (`OperationTypeId
+ * = 2`, `Description` carrying the new `[Expiry Date = ...]`), so it lands in
+ * the same history view an admin reads.
+ *
+ * Needed because iRadius's own renew writes its audit line with the expiry IT
+ * computed. When we then correct that value, the newest history row would
+ * otherwise disagree with the stored `UserNas.ExpiryAccount` — this appends the
+ * truth rather than rewriting the renew's row. Best-effort: the expiry is
+ * already stored correctly, so a failed audit line must never fail the caller.
+ */
+export async function iradiusLogExpiryAccount(
+	userId: number,
+	mysqlDateTime: string,
+	reason: string,
+): Promise<void> {
+	try {
+		await withIRadiusConnection(async (conn) => {
+			await executeIRadius(
+				conn,
+				`INSERT INTO UserLog (UserId, DealerId, UserName, OperationTypeId, Description, Logdate)
+				 SELECT Id, ParentId, UserName, 2, ?, NOW() FROM User WHERE Id = ?`,
+				[
+					`LibanCom App  ${reason}  [Expiry Date = ${mysqlDateTime}]`,
+					userId,
+				],
+			);
+		});
+	} catch (error) {
+		logger.warn("iRadius expiry UserLog insert failed", {
+			userId,
+			mysqlDateTime,
+			error: error instanceof Error ? error.message : error,
+		});
+	}
+}
+
 export async function iradiusSetActive(
 	customer: { externalId?: string | null },
 	active: boolean,

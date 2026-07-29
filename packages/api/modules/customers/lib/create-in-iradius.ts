@@ -4,6 +4,7 @@ import { logger } from "@repo/logs";
 import {
 	iradiusChargeNewUser,
 	iradiusCreateUser,
+	iradiusLogExpiryAccount,
 	iradiusSetExpiryAccount,
 	iradiusUpdateUserAddress,
 	iradiusUpdateUserComment,
@@ -172,6 +173,14 @@ export async function createCustomerInIRadius(opts: {
 	if (expiryAccount) {
 		try {
 			await iradiusSetExpiryAccount(linked, expiryAccount);
+			// The charge already logged the (inflated) expiry it computed, so
+			// append what the account actually ends up with — otherwise iRadius'
+			// user history contradicts UserNas.ExpiryAccount.
+			await iradiusLogExpiryAccount(
+				userId,
+				expiryAccount,
+				"Expiry set on approval",
+			);
 		} catch (error) {
 			logger.error(
 				"[iRadius] could not re-assert expiry after new-user charge — customer may hold an extra month",
