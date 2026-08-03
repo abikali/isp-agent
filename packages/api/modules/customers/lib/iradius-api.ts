@@ -568,6 +568,24 @@ export async function iradiusUpdateUserGroup(
  * Per-invoice discounts are NOT supported — they require recomputing
  * Invoice.TTC/Tax/TVA and would need a separate function.
  */
+/**
+ * Set a customer's monthly price in iRadius (User.AccountPrice) — the per-user
+ * price the billing engine charges on each renew. Mirrors local `monthlyRate`.
+ */
+export async function iradiusSetAccountPrice(
+	customer: { externalId?: string | null },
+	accountPrice: number,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE User SET AccountPrice = ?, UpdateDate = NOW() WHERE Id = ?",
+			[accountPrice, userId],
+		);
+	});
+}
+
 export async function iradiusSetRecurringDiscount(
 	customer: { externalId?: string | null },
 	discount: number,

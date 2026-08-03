@@ -551,7 +551,7 @@ export const updateSetupRequest = protectedProcedure
 			select: {
 				id: true,
 				customerId: true,
-				customer: { select: { username: true } },
+				customer: { select: { username: true, planId: true } },
 			},
 		});
 		if (!request) {
@@ -560,16 +560,26 @@ export const updateSetupRequest = protectedProcedure
 			});
 		}
 
+		// A plan change must re-base the customer's monthlyRate on the new plan
+		// (same sellingPrice → rate → monthlyPrice precedence as
+		// executeAccountTypeChange) — approval pushes monthlyRate to iRadius as
+		// User.AccountPrice, so a stale rate creates the subscriber at the old
+		// plan's price. An explicit input.monthlyRate still wins below.
+		let newPlanRate: number | null = null;
 		if (input.planId) {
 			const plan = await db.servicePlan.findFirst({
 				where: {
 					id: input.planId,
 					organizationId: input.organizationId,
 				},
-				select: { id: true },
+				select: { sellingPrice: true, rate: true, monthlyPrice: true },
 			});
 			if (!plan) {
 				throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
+			}
+			if (input.planId !== request.customer.planId) {
+				newPlanRate =
+					plan.sellingPrice ?? plan.rate ?? plan.monthlyPrice;
 			}
 		}
 		if (input.collectorId) {
@@ -634,6 +644,8 @@ export const updateSetupRequest = protectedProcedure
 		}
 		if (input.monthlyRate !== undefined) {
 			customerData["monthlyRate"] = input.monthlyRate;
+		} else if (newPlanRate !== null) {
+			customerData["monthlyRate"] = newPlanRate;
 		}
 		if (input.iptvPrice !== undefined) {
 			customerData["iptvPrice"] = input.iptvPrice;
