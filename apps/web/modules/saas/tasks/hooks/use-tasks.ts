@@ -95,6 +95,19 @@ export function useDeleteTask() {
 	});
 }
 
+export function useReviewTaskCompletion() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.tasks.reviewCompletion.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.tasks.key(),
+			});
+		},
+	});
+}
+
 export function useAssignTaskEmployees() {
 	const queryClient = useQueryClient();
 

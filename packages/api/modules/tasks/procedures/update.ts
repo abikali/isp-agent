@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import {
 	getDealerScopeFilter,
+	hasPermission,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -30,6 +31,7 @@ export const updateTask = protectedProcedure
 					"OPEN",
 					"IN_PROGRESS",
 					"ON_HOLD",
+					"PENDING_APPROVAL",
 					"COMPLETED",
 					"CANCELLED",
 				])
@@ -140,15 +142,36 @@ export const updateTask = protectedProcedure
 
 		// Auto-manage completedAt based on status transitions
 		if (input.status !== undefined) {
+			// Marking a task COMPLETED is an approval act — without the
+			// approve permission, completions must go through
+			// completeWithEvidence / reviewCompletion instead.
+			if (
+				input.status === "COMPLETED" &&
+				existing.status !== "COMPLETED" &&
+				!hasPermission(permCtx, "tasks", "approve")
+			) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						"Completing a task requires admin approval — submit your completion for review instead",
+				});
+			}
 			updateData["status"] = input.status;
 			if (
 				input.status === "COMPLETED" &&
 				existing.status !== "COMPLETED"
 			) {
-				updateData["completedAt"] = new Date();
+				// Keep the field-work timestamp when approving a pending
+				// completion via the edit form.
+				updateData["completedAt"] =
+					existing.status === "PENDING_APPROVAL" &&
+					existing.completedAt
+						? existing.completedAt
+						: new Date();
 			} else if (
 				input.status !== "COMPLETED" &&
-				existing.status === "COMPLETED"
+				input.status !== "PENDING_APPROVAL" &&
+				(existing.status === "COMPLETED" ||
+					existing.status === "PENDING_APPROVAL")
 			) {
 				updateData["completedAt"] = null;
 			}

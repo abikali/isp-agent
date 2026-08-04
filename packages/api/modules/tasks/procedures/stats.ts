@@ -68,14 +68,26 @@ export const getTaskStats = protectedProcedure
 						where: {
 							...base,
 							dueDate: { lt: new Date() },
-							status: { notIn: ["COMPLETED", "CANCELLED"] },
+							status: {
+								notIn: [
+									"PENDING_APPROVAL",
+									"COMPLETED",
+									"CANCELLED",
+								],
+							},
 						},
 					}),
 					db.task.count({
 						where: {
 							...base,
 							assignments: { none: {} },
-							status: { notIn: ["COMPLETED", "CANCELLED"] },
+							status: {
+								notIn: [
+									"PENDING_APPROVAL",
+									"COMPLETED",
+									"CANCELLED",
+								],
+							},
 						},
 					}),
 				]);
@@ -86,14 +98,23 @@ export const getTaskStats = protectedProcedure
 				const open = countByStatus.get("OPEN") ?? 0;
 				const inProgress = countByStatus.get("IN_PROGRESS") ?? 0;
 				const onHold = countByStatus.get("ON_HOLD") ?? 0;
+				const pendingApproval =
+					countByStatus.get("PENDING_APPROVAL") ?? 0;
 				const completed = countByStatus.get("COMPLETED") ?? 0;
 				const cancelled = countByStatus.get("CANCELLED") ?? 0;
 
 				return {
-					total: open + inProgress + onHold + completed + cancelled,
+					total:
+						open +
+						inProgress +
+						onHold +
+						pendingApproval +
+						completed +
+						cancelled,
 					open,
 					inProgress,
 					onHold,
+					pendingApproval,
 					completed,
 					cancelled,
 					overdue,

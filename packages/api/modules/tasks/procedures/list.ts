@@ -24,6 +24,7 @@ export const listTasks = protectedProcedure
 					"OPEN",
 					"IN_PROGRESS",
 					"ON_HOLD",
+					"PENDING_APPROVAL",
 					"COMPLETED",
 					"CANCELLED",
 				])
@@ -34,6 +35,7 @@ export const listTasks = protectedProcedure
 						"OPEN",
 						"IN_PROGRESS",
 						"ON_HOLD",
+						"PENDING_APPROVAL",
 						"COMPLETED",
 						"CANCELLED",
 					]),

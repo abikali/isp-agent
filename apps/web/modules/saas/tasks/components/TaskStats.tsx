@@ -4,6 +4,7 @@ import { DistributionCard } from "@shared/components/DistributionCard";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import {
 	AlertTriangleIcon,
+	BadgeCheckIcon,
 	CheckCircleIcon,
 	ClipboardListIcon,
 	ClockIcon,
@@ -17,6 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
 	Open: "var(--info)",
 	"In Progress": "var(--chart-6)",
 	"On Hold": "var(--warning)",
+	"Pending Approval": "#a855f7",
 	Completed: "var(--success)",
 	Cancelled: "var(--muted-foreground)",
 };
@@ -45,6 +47,11 @@ export function TaskStats({
 			color: STATUS_COLORS["On Hold"] ?? "var(--warning)",
 		},
 		{
+			label: "Pending Approval",
+			value: stats.pendingApproval,
+			color: STATUS_COLORS["Pending Approval"] ?? "#a855f7",
+		},
+		{
 			label: "Completed",
 			value: stats.completed,
 			color: STATUS_COLORS.Completed ?? "var(--success)",
@@ -62,13 +69,19 @@ export function TaskStats({
 
 	return (
 		<div className="space-y-4">
-			<MetricStrip columns={6}>
+			<MetricStrip columns={7}>
 				<MetricCard
 					label="Active"
 					value={activeCount}
 					icon={ClockIcon}
 					tone={activeCount > 0 ? "info" : "default"}
 					hint={`${stats.open} open · ${stats.inProgress} in progress`}
+				/>
+				<MetricCard
+					label="To approve"
+					value={stats.pendingApproval}
+					icon={BadgeCheckIcon}
+					tone={stats.pendingApproval > 0 ? "warning" : "default"}
 				/>
 				<MetricCard
 					label="Overdue"

@@ -1,5 +1,6 @@
 "use client";
 
+import { useHasPermission } from "@saas/organizations/client";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import {
@@ -16,9 +17,10 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import { cn } from "@ui/lib";
-import { EditIcon } from "lucide-react";
+import { CheckIcon, EditIcon, UndoIcon } from "lucide-react";
 import { useState } from "react";
-import { useDeleteTask } from "../hooks/use-tasks";
+import { toast } from "sonner";
+import { useDeleteTask, useReviewTaskCompletion } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_LABELS,
 	TASK_PRIORITY_BG_COLORS,
@@ -41,7 +43,46 @@ export function TaskView({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 	const deleteTask = useDeleteTask();
+	const reviewCompletion = useReviewTaskCompletion();
+	const { hasPermission: canApprove } = useHasPermission({
+		tasks: ["approve"],
+	});
 	const [showAssignEmployees, setShowAssignEmployees] = useState(false);
+
+	const reviewTask = async (action: "approve" | "reject") => {
+		if (!organizationId) {
+			return;
+		}
+		let note: string | undefined;
+		if (action === "reject") {
+			const answer = prompt(
+				"Reject this completion? The task returns to the worker's queue.\nReason (optional):",
+			);
+			if (answer === null) {
+				return;
+			}
+			note = answer.trim() || undefined;
+		}
+		try {
+			await reviewCompletion.mutateAsync({
+				organizationId,
+				taskId,
+				action,
+				...(note ? { note } : {}),
+			});
+			toast.success(
+				action === "approve"
+					? "Task completion approved"
+					: "Completion rejected — task returned to In Progress",
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to review completion",
+			);
+		}
+	};
 
 	const { data } = useSuspenseQuery(
 		orpc.tasks.get.queryOptions({
@@ -56,6 +97,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 	const overdue = isOverdue(task.dueDate, task.status);
 	const cancellable =
 		task.status !== "CANCELLED" && task.status !== "COMPLETED";
+	const awaitingApproval = task.status === "PENDING_APPROVAL";
 
 	return (
 		<PageShell
@@ -88,6 +130,27 @@ export function TaskView({ taskId }: { taskId: string }) {
 			}
 			actions={
 				<>
+					{awaitingApproval && canApprove && (
+						<>
+							<Button
+								size="sm"
+								onClick={() => reviewTask("approve")}
+								disabled={reviewCompletion.isPending}
+							>
+								<CheckIcon className="mr-1.5 size-3.5" />
+								Approve completion
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => reviewTask("reject")}
+								disabled={reviewCompletion.isPending}
+							>
+								<UndoIcon className="mr-1.5 size-3.5" />
+								Reject
+							</Button>
+						</>
+					)}
 					<Button asChild variant="outline" size="sm">
 						<Link
 							to="/app/$organizationSlug/tasks/$taskId/edit"
@@ -127,6 +190,16 @@ export function TaskView({ taskId }: { taskId: string }) {
 		>
 			{overdue && (
 				<TaskOverdueWarning dueDate={task.dueDate} label="task" />
+			)}
+
+			{awaitingApproval && (
+				<div className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-purple-800 text-sm dark:border-purple-800 dark:bg-purple-950 dark:text-purple-300">
+					This task was completed in the field and is awaiting admin
+					approval.
+					{canApprove
+						? " Review the evidence below, then approve or reject it."
+						: ""}
+				</div>
 			)}
 
 			{task.description && (

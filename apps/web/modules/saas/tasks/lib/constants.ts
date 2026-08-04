@@ -2,6 +2,7 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 	OPEN: "Open",
 	IN_PROGRESS: "In Progress",
 	ON_HOLD: "On Hold",
+	PENDING_APPROVAL: "Pending Approval",
 	COMPLETED: "Completed",
 	CANCELLED: "Cancelled",
 };
@@ -10,6 +11,7 @@ export const TASK_STATUS_OPTIONS = [
 	{ value: "OPEN", label: "Open" },
 	{ value: "IN_PROGRESS", label: "In Progress" },
 	{ value: "ON_HOLD", label: "On Hold" },
+	{ value: "PENDING_APPROVAL", label: "Pending Approval" },
 	{ value: "COMPLETED", label: "Completed" },
 	{ value: "CANCELLED", label: "Cancelled" },
 ] as const;
@@ -18,6 +20,7 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
 	OPEN: "bg-blue-500",
 	IN_PROGRESS: "bg-amber-500",
 	ON_HOLD: "bg-orange-500",
+	PENDING_APPROVAL: "bg-purple-500",
 	COMPLETED: "bg-emerald-500",
 	CANCELLED: "bg-gray-400",
 };
@@ -28,6 +31,8 @@ export const TASK_STATUS_BG_COLORS: Record<string, string> = {
 		"bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
 	ON_HOLD:
 		"bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
+	PENDING_APPROVAL:
+		"bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
 	COMPLETED:
 		"bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800",
 	CANCELLED:

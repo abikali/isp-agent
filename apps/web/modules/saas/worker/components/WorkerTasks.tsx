@@ -97,7 +97,9 @@ const STATUS_OPTIONS = [
 ];
 const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
 	open: ["OPEN", "IN_PROGRESS", "ON_HOLD"],
-	completed: ["COMPLETED"],
+	// Submitted completions awaiting admin approval live with "completed"
+	// from the worker's point of view — the field work is done.
+	completed: ["PENDING_APPROVAL", "COMPLETED"],
 	cancelled: ["CANCELLED"],
 	all: undefined,
 };

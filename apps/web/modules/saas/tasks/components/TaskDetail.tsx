@@ -78,6 +78,7 @@ export function TaskDetail({
 						| "OPEN"
 						| "IN_PROGRESS"
 						| "ON_HOLD"
+						| "PENDING_APPROVAL"
 						| "COMPLETED"
 						| "CANCELLED",
 					priority: value.priority as

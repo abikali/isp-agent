@@ -80,6 +80,7 @@ export const permissionStatement = {
 		"delete",
 		"delete:own",
 		"assign",
+		"approve",
 	],
 	// Insights
 	audit: ["view"],

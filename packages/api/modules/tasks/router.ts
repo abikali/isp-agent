@@ -5,6 +5,7 @@ import { deleteTask } from "./procedures/delete";
 import { createEvidenceUploadUrl } from "./procedures/evidence-upload-url";
 import { getTask } from "./procedures/get";
 import { listTasks } from "./procedures/list";
+import { reviewTaskCompletion } from "./procedures/review-completion";
 import { getTaskStats } from "./procedures/stats";
 import {
 	listUninstalledItems,
@@ -22,6 +23,7 @@ export const tasksRouter = {
 	assignEmployees: assignEmployees,
 	stats: getTaskStats,
 	completeWithEvidence: completeTaskWithEvidence,
+	reviewCompletion: reviewTaskCompletion,
 	createEvidenceUploadUrl,
 	uninstalledItems: {
 		list: listUninstalledItems,

@@ -150,7 +150,7 @@ const ISP_ROLE_PERMISSIONS: Record<string, Record<string, string[]>> = {
 		bases: ["create", "read", "update", "delete"],
 		groups: ["read"],
 		accessPoints: ["read", "update"],
-		tasks: ["create", "read", "update", "delete", "assign"],
+		tasks: ["create", "read", "update", "delete", "assign", "approve"],
 		billing: ["view", "manage", "collect"],
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],

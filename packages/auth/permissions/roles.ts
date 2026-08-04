@@ -30,7 +30,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"export",
 			"assign",
 		],
-		tasks: ["create", "read", "update", "delete", "assign"],
+		tasks: ["create", "read", "update", "delete", "assign", "approve"],
 
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
@@ -72,7 +72,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 			"export",
 			"assign",
 		],
-		tasks: ["create", "read", "update", "delete", "assign"],
+		tasks: ["create", "read", "update", "delete", "assign", "approve"],
 
 		inventory: ["create", "read", "update", "delete"],
 		installations: ["create", "read", "update", "approve"],
@@ -173,6 +173,7 @@ export const owner = ac.newRole({
 		"delete",
 		"delete:own",
 		"assign",
+		"approve",
 	],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "read:own", "update", "approve"],
@@ -254,6 +255,7 @@ export const admin = ac.newRole({
 		"delete",
 		"delete:own",
 		"assign",
+		"approve",
 	],
 	inventory: ["create", "read", "update", "delete"],
 	installations: ["create", "read", "read:own", "update", "approve"],
@@ -437,7 +439,7 @@ export const ISP_ROLE_TEMPLATES = {
 			bases: ["create", "read", "update", "delete"],
 			groups: ["read"],
 			accessPoints: ["read", "update"],
-			tasks: ["create", "read", "update", "delete", "assign"],
+			tasks: ["create", "read", "update", "delete", "assign", "approve"],
 
 			billing: ["view", "manage", "collect"],
 			inventory: ["create", "read", "update", "delete"],

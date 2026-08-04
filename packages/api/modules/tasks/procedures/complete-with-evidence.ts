@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { notifyOrgForReview } from "@repo/api/lib/notify-employee";
 import {
 	getUserEmployeeId,
+	hasPermission,
 	requirePermission,
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
@@ -104,6 +105,16 @@ export const completeTaskWithEvidence = protectedProcedure
 				message: "Task is already closed",
 			});
 		}
+		if (task.status === "PENDING_APPROVAL") {
+			throw new ORPCError("CONFLICT", {
+				message: "Task completion is already awaiting admin approval",
+			});
+		}
+
+		// Every completion needs an admin sign-off. Callers who hold the
+		// approve permission are the approvers, so their own completions
+		// close immediately; everyone else's go to PENDING_APPROVAL.
+		const isApprover = hasPermission(permCtx, "tasks", "approve");
 
 		const employeeId = await getUserEmployeeId(
 			input.organizationId,
@@ -299,7 +310,8 @@ export const completeTaskWithEvidence = protectedProcedure
 			return tx.task.update({
 				where: { id: task.id },
 				data: {
-					status: "COMPLETED",
+					status: isApprover ? "COMPLETED" : "PENDING_APPROVAL",
+					// Field-work timestamp; approval only flips the status.
 					completedAt: new Date(),
 					completedByEmployeeId: employeeId,
 					resolutionCode: input.resolutionCode ?? null,
@@ -332,16 +344,22 @@ export const completeTaskWithEvidence = protectedProcedure
 		].filter(Boolean);
 		notifyOrgForReview({
 			organizationId: input.organizationId,
-			title:
-				hasInstalls || hasRecovery
+			title: !isApprover
+				? "Task completion to approve"
+				: hasInstalls || hasRecovery
 					? "Field work to approve"
 					: "Task completed",
-			message: `"${task.title}"${customerName ? ` for ${customerName}` : ""} was completed${evidenceParts.length > 0 ? ` with ${evidenceParts.join(" and ")}` : ""}`,
-			link: hasInstalls
-				? `/app/${org?.slug ?? ""}/installations`
-				: `/app/${org?.slug ?? ""}/tasks/${task.id}`,
+			message: `"${task.title}"${customerName ? ` for ${customerName}` : ""} was completed${evidenceParts.length > 0 ? ` with ${evidenceParts.join(" and ")}` : ""}${!isApprover ? " — awaiting your approval" : ""}`,
+			// The task page carries the approve/reject actions; installs are
+			// reviewed on their own queue once the task itself is approved.
+			link: !isApprover
+				? `/app/${org?.slug ?? ""}/tasks/${task.id}`
+				: hasInstalls
+					? `/app/${org?.slug ?? ""}/installations`
+					: `/app/${org?.slug ?? ""}/tasks/${task.id}`,
 			excludeUserIds: [user.id],
-			type: hasInstalls || hasRecovery ? "warning" : "info",
+			type:
+				!isApprover || hasInstalls || hasRecovery ? "warning" : "info",
 		}).catch((err: unknown) =>
 			logger.warn("[Task Complete] notify failed", {
 				error: String(err),

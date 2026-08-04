@@ -4,7 +4,13 @@ export function isOverdue(
 	dueDate: string | Date | null,
 	status: string,
 ): boolean {
-	if (!dueDate || status === "COMPLETED" || status === "CANCELLED") {
+	// PENDING_APPROVAL: field work is done, only the review is outstanding
+	if (
+		!dueDate ||
+		status === "PENDING_APPROVAL" ||
+		status === "COMPLETED" ||
+		status === "CANCELLED"
+	) {
 		return false;
 	}
 	return new Date(dueDate) < new Date();
