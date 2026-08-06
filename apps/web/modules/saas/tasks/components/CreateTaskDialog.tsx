@@ -71,9 +71,19 @@ const CATEGORY_ICONS: Record<
 export function CreateTaskDialog({
 	open,
 	onOpenChange,
+	defaultCustomer = null,
+	defaultCategory = "GENERAL",
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	// Pre-seeds initial state only — callers opening the dialog for a
+	// different customer should remount it with a `key`.
+	defaultCustomer?: {
+		id: string;
+		name: string;
+		username: string | null;
+	} | null;
+	defaultCategory?: TaskCategoryValue;
 }) {
 	const organizationId = useOrganizationId();
 	const createTask = useCreateTask();
@@ -83,7 +93,7 @@ export function CreateTaskDialog({
 		id: string;
 		name: string;
 		username: string | null;
-	} | null>(null);
+	} | null>(defaultCustomer);
 	const [assignedEmployeeIds, setAssignedEmployeeIds] = useState<string[]>(
 		[],
 	);
@@ -95,7 +105,7 @@ export function CreateTaskDialog({
 			title: "",
 			description: "",
 			priority: "MEDIUM",
-			category: "GENERAL",
+			category: defaultCategory as string,
 			dueDate: "",
 			baseId: "",
 			notes: "",

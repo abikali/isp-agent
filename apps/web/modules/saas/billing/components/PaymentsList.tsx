@@ -75,6 +75,7 @@ import {
 	CheckCircle2Icon,
 	CheckIcon,
 	CircleDotIcon,
+	ClipboardListIcon,
 	CloudUploadIcon,
 	ExternalLinkIcon,
 	FilterIcon,
@@ -108,6 +109,7 @@ import {
 	usePushToIRadius,
 	useSetDiscount,
 } from "../../customers/hooks/use-customers";
+import { CreateTaskDialog } from "../../tasks/components/CreateTaskDialog";
 import {
 	useCollectors,
 	useCustomerGroups,
@@ -733,6 +735,13 @@ export function PaymentsList() {
 		customerId: string;
 		currentPlanId: string | null;
 	} | null>(null);
+	// "Assign task" row action — carries the customer snapshot so the
+	// task dialog opens pre-linked to that customer.
+	const [taskDialogCustomer, setTaskDialogCustomer] = useState<{
+		id: string;
+		name: string;
+		username: string | null;
+	} | null>(null);
 	const [whatsappPickerDialog, setWhatsappPickerDialog] = useState<{
 		customerName: string;
 		phones: string[];
@@ -1275,6 +1284,25 @@ export function PaymentsList() {
 												Change plan
 											</DropdownMenuItem>
 										)}
+										<DropdownMenuItem
+											onClick={() =>
+												setTaskDialogCustomer({
+													id: payment.customer.id,
+													name: displayName(
+														payment.customer
+															.firstName,
+														payment.customer
+															.lastName,
+													),
+													username:
+														payment.customer
+															.username,
+												})
+											}
+										>
+											<ClipboardListIcon className="mr-2 size-3.5" />
+											Assign task
+										</DropdownMenuItem>
 										<DropdownMenuSeparator />
 										{!payment.stoppedAccount && (
 											<DropdownMenuItem
@@ -2035,6 +2063,18 @@ export function PaymentsList() {
 						customer={iradiusRowDialog.customer}
 					/>
 				</>
+			)}
+
+			{/* Assign-task row action — remounts per customer so the
+			 * dialog's initial state picks up the new prefill. */}
+			{taskDialogCustomer && (
+				<CreateTaskDialog
+					key={taskDialogCustomer.id}
+					open
+					onOpenChange={(o) => !o && setTaskDialogCustomer(null)}
+					defaultCustomer={taskDialogCustomer}
+					defaultCategory="BILLING"
+				/>
 			)}
 
 			{/* Set discount dialog (review-queue inline action) */}
