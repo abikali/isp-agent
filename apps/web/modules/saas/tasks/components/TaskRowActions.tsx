@@ -1,5 +1,6 @@
 "use client";
 
+import { useHasPermission } from "@saas/organizations/client";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
@@ -20,11 +21,17 @@ import {
 	EditIcon,
 	ExternalLinkIcon,
 	MoreHorizontalIcon,
+	UndoIcon,
 	UserPlusIcon,
 	XIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { useDeleteTask, useUpdateTask } from "../hooks/use-tasks";
+import { toast } from "sonner";
+import {
+	useDeleteTask,
+	useReviewTaskCompletion,
+	useUpdateTask,
+} from "../hooks/use-tasks";
 import { TASK_STATUS_COLORS, TASK_STATUS_OPTIONS } from "../lib/constants";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 
@@ -44,9 +51,49 @@ export function TaskRowActions({
 	const organizationId = useOrganizationId();
 	const updateTask = useUpdateTask();
 	const deleteTask = useDeleteTask();
+	const reviewCompletion = useReviewTaskCompletion();
+	const { hasPermission: canApprove } = useHasPermission({
+		tasks: ["approve"],
+	});
 	const [showAssign, setShowAssign] = useState(false);
 
 	const cancellable = status !== "CANCELLED" && status !== "COMPLETED";
+	const awaitingApproval = status === "PENDING_APPROVAL";
+
+	async function reviewTask(action: "approve" | "reject") {
+		if (!organizationId) {
+			return;
+		}
+		let note: string | undefined;
+		if (action === "reject") {
+			const answer = prompt(
+				"Reject this completion? The task returns to the worker's queue.\nReason (optional):",
+			);
+			if (answer === null) {
+				return;
+			}
+			note = answer.trim() || undefined;
+		}
+		try {
+			await reviewCompletion.mutateAsync({
+				organizationId,
+				taskId,
+				action,
+				...(note ? { note } : {}),
+			});
+			toast.success(
+				action === "approve"
+					? "Task completion approved"
+					: "Completion rejected — task returned to In Progress",
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to review completion",
+			);
+		}
+	}
 
 	function changeStatus(next: string) {
 		if (!organizationId || next === status) {
@@ -111,6 +158,26 @@ export function TaskRowActions({
 						<UserPlusIcon className="mr-2 size-3.5" />
 						Assign worker
 					</DropdownMenuItem>
+
+					{awaitingApproval && canApprove && (
+						<>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								onSelect={() => reviewTask("approve")}
+								disabled={reviewCompletion.isPending}
+							>
+								<CheckIcon className="mr-2 size-3.5 text-emerald-600" />
+								Approve completion
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onSelect={() => reviewTask("reject")}
+								disabled={reviewCompletion.isPending}
+							>
+								<UndoIcon className="mr-2 size-3.5" />
+								Reject completion
+							</DropdownMenuItem>
+						</>
+					)}
 
 					<DropdownMenuSeparator />
 					<DropdownMenuLabel className="text-xs text-muted-foreground">
