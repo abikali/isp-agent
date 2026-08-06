@@ -39,6 +39,7 @@ export const resendReceipt = protectedProcedure
 			select: {
 				id: true,
 				activityLog: true,
+				stoppedAccount: true,
 				customer: {
 					select: { mobile: true, phone: true, phones: true },
 				},
@@ -48,6 +49,14 @@ export const resendReceipt = protectedProcedure
 		if (!payment) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Payment not found",
+			});
+		}
+
+		// Stopped customers must never receive the payment link — mirrors
+		// the create-payment guard, which the UI alone can't enforce.
+		if (payment.stoppedAccount) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Receipts are not sent for stopped accounts",
 			});
 		}
 
