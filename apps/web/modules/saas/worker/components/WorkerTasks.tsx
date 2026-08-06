@@ -193,7 +193,6 @@ const PRIORITY_BADGE: Record<
 interface RecoveredItem {
 	key: number;
 	stockItemId: string | null;
-	itemName: string;
 	quantity: number;
 	pictureUrl: string | null;
 }
@@ -1025,7 +1024,6 @@ function newRecoveredItem(key: number): RecoveredItem {
 	return {
 		key,
 		stockItemId: null,
-		itemName: "",
 		quantity: 1,
 		pictureUrl: null,
 	};
@@ -1036,7 +1034,7 @@ function recoveredItemsValid(items: RecoveredItem[]): boolean {
 		items.length > 0 &&
 		items.every(
 			(item) =>
-				(item.stockItemId || item.itemName.trim()) &&
+				item.stockItemId &&
 				item.quantity >= 1 &&
 				item.pictureUrl !== null,
 		)
@@ -1044,9 +1042,9 @@ function recoveredItemsValid(items: RecoveredItem[]): boolean {
 }
 
 function recoveredItemsPayload(items: RecoveredItem[]) {
+	// Validity is enforced by recoveredItemsValid before submit.
 	return items.map((item) => ({
-		stockItemId: item.stockItemId ?? undefined,
-		itemName: item.itemName.trim() || undefined,
+		stockItemId: item.stockItemId as string,
 		quantity: item.quantity,
 		pictureUrl: item.pictureUrl as string,
 	}));
@@ -1113,36 +1111,18 @@ function RecoveredItemsEditor({
 					<div className="space-y-1.5">
 						<Label>Item</Label>
 						<Combobox
-							value={item.stockItemId ?? "custom"}
+							value={item.stockItemId ?? ""}
+							placeholder="Select an item…"
 							searchPlaceholder={
 								source === "uninstall"
 									? "Search items…"
 									: "Search my stock…"
 							}
 							onChange={(v) =>
-								updateItem(item.key, {
-									stockItemId: v === "custom" ? null : v,
-								})
+								updateItem(item.key, { stockItemId: v })
 							}
-							options={[
-								{
-									value: "custom",
-									label: "Other / type a name",
-								},
-								...stockOptions,
-							]}
+							options={stockOptions}
 						/>
-						{!item.stockItemId && (
-							<Input
-								value={item.itemName}
-								onChange={(e) =>
-									updateItem(item.key, {
-										itemName: e.target.value,
-									})
-								}
-								placeholder="Item name"
-							/>
-						)}
 					</div>
 					<div className="space-y-1.5">
 						<Label>Quantity</Label>

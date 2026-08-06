@@ -33,17 +33,14 @@ const installedItemSchema = z
 		message: "Each line must be either a stock item or an add-on",
 	});
 
-const recoveredItemSchema = z
-	.object({
-		stockItemId: z.string().optional(),
-		itemName: z.string().max(255).optional(),
-		quantity: z.number().int().min(1).default(1),
-		// Photo evidence is mandatory for recovered equipment (legacy parity)
-		pictureUrl: z.string().min(1).max(1000),
-	})
-	.refine((v) => v.stockItemId || v.itemName, {
-		message: "Each recovered item needs a stock item or a name",
-	});
+// Free-typed item names were removed (owner request 2026-08-06): recovered
+// equipment must reference a real stock item so quantities stay reconcilable.
+const recoveredItemSchema = z.object({
+	stockItemId: z.string(),
+	quantity: z.number().int().min(1).default(1),
+	// Photo evidence is mandatory for recovered equipment (legacy parity)
+	pictureUrl: z.string().min(1).max(1000),
+});
 
 export const completeTaskWithEvidence = protectedProcedure
 	.route({
@@ -294,12 +291,9 @@ export const completeTaskWithEvidence = protectedProcedure
 					data: recoveredItems.map((item) => ({
 						organizationId: input.organizationId,
 						taskId: task.id,
-						stockItemId: item.stockItemId ?? null,
-						itemName: item.stockItemId
-							? (stockItemNames.get(item.stockItemId) ??
-								(item.itemName as string) ??
-								"Unknown")
-							: (item.itemName as string),
+						stockItemId: item.stockItemId,
+						itemName:
+							stockItemNames.get(item.stockItemId) ?? "Unknown",
 						quantity: item.quantity,
 						pictureUrl: item.pictureUrl,
 						employeeId,
