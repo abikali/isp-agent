@@ -41,10 +41,14 @@ export default defineConfig(({ mode }) => {
 			reportCompressedSize: false,
 			rollupOptions: {
 				output: {
-					// Use fixed name for CSS to avoid hash mismatch between SSR and client
+					// Use fixed name for CSS to avoid hash mismatch between SSR and client.
+					// CSS lives under /styles/ (NOT /assets/) because /assets/** is served
+					// with a 1-year immutable cache header — deadly for an unhashed file
+					// whose content changes every deploy (browsers would keep year-old CSS).
+					// /styles/** gets must-revalidate instead (see routeRules below).
 					assetFileNames: (assetInfo) => {
 						if (assetInfo.name?.endsWith(".css")) {
-							return "assets/[name].css";
+							return "styles/[name].css";
 						}
 						return "assets/[name]-[hash][extname]";
 					},
@@ -150,7 +154,31 @@ export default defineConfig(({ mode }) => {
 							"document-policy": "js-profiling",
 						},
 					},
+					// The unhashed CSS bundle: same URL every deploy, so it must
+					// revalidate — an immutable header here means year-old styles.
+					"/styles/**": {
+						headers: {
+							"cache-control":
+								"public, max-age=0, must-revalidate",
+							"document-policy": "js-profiling",
+						},
+					},
 				},
+				// Unknown /assets|/_build paths must 404 instead of falling
+				// through to the SPA renderer — the fallback HTML would inherit
+				// the immutable header above and get cached (edge + browser) as
+				// the chunk for a year. Static files are served before these
+				// handlers run, so only misses reach them.
+				handlers: [
+					{
+						route: "/assets/**",
+						handler: "./server/asset-404.ts",
+					},
+					{
+						route: "/_build/**",
+						handler: "./server/asset-404.ts",
+					},
+				],
 			}),
 			viteReact(),
 		],
