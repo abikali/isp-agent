@@ -169,6 +169,7 @@ export function NotificationSettings({
 					<div className="space-y-2">
 						{value.channels.map((channel, index) => (
 							<div
+								// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- channels carry no stable id; keyed by type + email/channelId with index only as a last-resort fallback for otherwise-identical rows
 								key={`${channel.type}-${channel.email ?? channel.channelId ?? index}`}
 								className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
 							>

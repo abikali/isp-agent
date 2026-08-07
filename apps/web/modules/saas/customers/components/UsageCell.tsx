@@ -1,6 +1,7 @@
 "use client";
 
 import { formatBytes } from "@shared/components/charts/chart-utils";
+import { formatDate, formatDateTime } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useIsFetching } from "@tanstack/react-query";
 import {
@@ -211,7 +212,7 @@ export function UsageCell({
 				)}
 				title={
 					lastUsageSyncAt
-						? `Last sample: ${new Date(lastUsageSyncAt).toLocaleString()}`
+						? `Last sample: ${formatDateTime(lastUsageSyncAt)}`
 						: "No recent sample from iRadius"
 				}
 			>
@@ -339,9 +340,7 @@ export function UsageCell({
 								{cycleStartedAt && (
 									<span className="ml-1 text-[10px] font-normal text-muted-foreground">
 										since{" "}
-										{new Date(
-											cycleStartedAt,
-										).toLocaleDateString()}
+										{formatDate(new Date(cycleStartedAt))}
 									</span>
 								)}
 							</div>

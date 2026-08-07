@@ -41,10 +41,16 @@ export function useNavigationPermissions(): NavigationPermissions {
 		}
 
 		// Custom role - check permissions async
+		let cancelled = false;
+
 		async function checkCustomRolePermissions() {
 			const result = await authClient.organization.hasPermission({
 				permission: { organization: ["update"] },
 			});
+
+			if (cancelled) {
+				return;
+			}
 
 			setPermissions({
 				canViewOrganizationSettings: result.data?.success ?? false,
@@ -53,6 +59,10 @@ export function useNavigationPermissions(): NavigationPermissions {
 		}
 
 		checkCustomRolePermissions();
+
+		return () => {
+			cancelled = true;
+		};
 	}, [activeOrganization, activeOrganizationUserRole]);
 
 	return permissions;

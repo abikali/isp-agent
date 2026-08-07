@@ -107,7 +107,7 @@ export function PageShell({
 											i === breadcrumbs.length - 1;
 										return (
 											<BreadcrumbItem
-												key={`${b.label}-${i}`}
+												key={`${b.label}-${b.to ?? ""}`}
 											>
 												{isLast || !b.to ? (
 													<BreadcrumbPage>

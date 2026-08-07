@@ -36,6 +36,7 @@ function beirutDayNumber(value: Date): number {
  * the time for same-week entries so a worker can tell *when* something happened.
  * Beirut timezone, matching the rest of the app's date display.
  */
+// react-doctor-disable-next-line react-doctor/only-export-components -- formatWhen is a display helper cohesive with the worker-portal UI primitives in this file; moving it would churn imports for no gain
 export function formatWhen(value: Date | string): string {
 	const date = typeof value === "string" ? new Date(value) : value;
 	const diff = beirutDayNumber(new Date()) - beirutDayNumber(date);

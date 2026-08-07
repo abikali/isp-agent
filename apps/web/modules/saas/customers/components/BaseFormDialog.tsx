@@ -43,7 +43,7 @@ export function BaseFormDialog({
 	const [description, setDescription] = useState(base?.description ?? "");
 	const [address, setAddress] = useState(base?.address ?? "");
 	const [workerIds, setWorkerIds] = useState<string[]>(
-		base?.workers.map((w) => w.id) ?? [],
+		() => base?.workers.map((w) => w.id) ?? [],
 	);
 	const [workerSearch, setWorkerSearch] = useState("");
 
@@ -60,6 +60,8 @@ export function BaseFormDialog({
 			prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id],
 		);
 	}
+
+	const workerIdSet = useMemo(() => new Set(workerIds), [workerIds]);
 
 	const isPending = createBase.isPending || updateBase.isPending;
 	const valid = name.trim().length > 0;
@@ -171,7 +173,7 @@ export function BaseFormDialog({
 									>
 										<Checkbox
 											id={`base-worker-${emp.id}`}
-											checked={workerIds.includes(emp.id)}
+											checked={workerIdSet.has(emp.id)}
 											onCheckedChange={() =>
 												toggleWorker(emp.id)
 											}

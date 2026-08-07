@@ -386,6 +386,7 @@ function PreviewStep({
 						</TableHeader>
 						<TableBody>
 							{rows.slice(0, 50).map((row, i) => (
+								// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static CSV preview slice; rows may share names, are never reordered, and are not edited in place
 								<PreviewRow
 									key={`row-${row.firstName}-${i}`}
 									row={row}

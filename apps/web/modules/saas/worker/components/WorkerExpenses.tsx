@@ -95,7 +95,7 @@ export function WorkerExpenses() {
 				label:
 					i === 0
 						? "This month"
-						: d.toLocaleDateString("en-US", {
+						: formatDate(d, {
 								month: "long",
 								year: "numeric",
 							}),

@@ -4,7 +4,7 @@ import { ContentCard } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
 import { PageShell } from "@shared/components/PageShell";
-import { formatDateTime } from "@shared/lib/format";
+import { formatDate, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -709,6 +709,9 @@ function BroadcastActions({
 	);
 }
 
+// Hoisted locale-default date formatter — same output as the zero-arg
+// toLocaleDateString(), without building a new Intl formatter per render.
+
 function formatRelative(date: Date | string): string {
 	const d = typeof date === "string" ? new Date(date) : date;
 	const diff = Date.now() - d.getTime();
@@ -731,7 +734,7 @@ function formatRelative(date: Date | string): string {
 	if (weeks < 5) {
 		return `${weeks}w ago`;
 	}
-	return d.toLocaleDateString();
+	return formatDate(d);
 }
 
 export function BroadcastsListSkeleton() {

@@ -20,6 +20,7 @@ import { cn } from "@ui/lib";
 import { ListFilterIcon } from "lucide-react";
 import { useState } from "react";
 
+// react-doctor-disable-next-line react-doctor/only-export-components -- filter option constants co-located with the filter that renders them; imported by host pages, moving would churn imports for no gain
 export const INSTALLATION_TYPE_OPTIONS = [
 	{ value: "item", label: "Items" },
 	{ value: "station", label: "Stations" },
@@ -27,6 +28,7 @@ export const INSTALLATION_TYPE_OPTIONS = [
 	{ value: "addon", label: "Add-ons" },
 ] as const;
 
+// react-doctor-disable-next-line react-doctor/only-export-components -- filter option constants co-located with the filter that renders them; imported by host pages, moving would churn imports for no gain
 export const INSTALLATION_STATUS_OPTIONS = [
 	{ value: "PENDING", label: "Pending" },
 	{ value: "APPROVED", label: "Approved" },

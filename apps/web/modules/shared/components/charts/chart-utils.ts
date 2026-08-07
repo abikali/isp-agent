@@ -46,8 +46,10 @@ export function formatBytes(bytes: number): string {
 	return `${(bytes / k ** i).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`;
 }
 
+const numberFormatter = new Intl.NumberFormat("en-US");
+
 export function formatNumber(value: number): string {
-	return new Intl.NumberFormat("en-US").format(value);
+	return numberFormatter.format(value);
 }
 
 /**

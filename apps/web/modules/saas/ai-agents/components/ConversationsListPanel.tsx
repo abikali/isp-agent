@@ -314,9 +314,11 @@ export function ConversationsListPanel({
 
 	// Debounce search — only react to searchInput changes, not filter object identity
 	const filtersRef = useRef(filters);
-	filtersRef.current = filters;
 	const onFiltersChangeRef = useRef(onFiltersChange);
-	onFiltersChangeRef.current = onFiltersChange;
+	useEffect(() => {
+		filtersRef.current = filters;
+		onFiltersChangeRef.current = onFiltersChange;
+	});
 
 	useEffect(() => {
 		const timer = setTimeout(() => {

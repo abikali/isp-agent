@@ -7,6 +7,7 @@ import {
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
+import { formatDate } from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import {
 	useMutation,
@@ -39,6 +40,9 @@ const ICONS: Record<string, ReactNode> = {
 	info: <InfoIcon className="size-4 text-info" />,
 };
 
+// Hoisted locale-default date formatter — same output as the zero-arg
+// toLocaleDateString(), without building a new Intl formatter per render.
+
 function relativeTime(date: Date): string {
 	const diff = Date.now() - new Date(date).getTime();
 	const min = Math.floor(diff / 60000);
@@ -56,7 +60,7 @@ function relativeTime(date: Date): string {
 	if (day < 30) {
 		return `${day}d ago`;
 	}
-	return new Date(date).toLocaleDateString();
+	return formatDate(date);
 }
 
 export function NotificationsPage() {

@@ -71,9 +71,10 @@ export function WorkerAllocationsDialog({
 		const map = new Map<string, WorkerSummary>();
 		for (const item of items) {
 			for (const alloc of item.workerAllocations) {
-				const entry = map.get(alloc.employee.id) ?? {
-					id: alloc.employee.id,
-					name: alloc.employee.name,
+				const { employee } = alloc;
+				const entry = map.get(employee.id) ?? {
+					id: employee.id,
+					name: employee.name,
 					itemCount: 0,
 					units: 0,
 					value: 0,
@@ -81,7 +82,7 @@ export function WorkerAllocationsDialog({
 				entry.itemCount += 1;
 				entry.units += alloc.quantity;
 				entry.value += alloc.quantity * alloc.unitPrice;
-				map.set(alloc.employee.id, entry);
+				map.set(employee.id, entry);
 			}
 		}
 		return [...map.values()].sort((a, b) => b.value - a.value);

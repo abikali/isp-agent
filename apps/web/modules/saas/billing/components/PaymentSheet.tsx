@@ -31,7 +31,7 @@ import {
 import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
 	useCreateBillingLocationRequest,
@@ -92,7 +92,6 @@ export function PaymentSheet({
 	const [stoppedAccount, setStoppedAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
-	const phoneIdRef = useRef(0);
 	const [phones, setPhones] = useState<
 		Array<{ id: number; number: string; primary: boolean }>
 	>(() => {
@@ -102,20 +101,20 @@ export function PaymentSheet({
 		}
 		const parsed = Array.isArray(customer.phones)
 			? customer.phones.map(
-					(p: { number: string; primary: boolean }) => ({
-						id: phoneIdRef.current++,
+					(p: { number: string; primary: boolean }, i) => ({
+						id: i,
 						number: toInternationalPhone(p.number),
 						primary: p.primary,
 					}),
 				)
 			: [customer.mobile, customer.phone].filter(Boolean).map((p, i) => ({
-					id: phoneIdRef.current++,
+					id: i,
 					number: toInternationalPhone(p as string),
 					primary: i === 0,
 				}));
 		return parsed.length > 0
 			? parsed
-			: [{ id: phoneIdRef.current++, number: "", primary: true }];
+			: [{ id: 0, number: "", primary: true }];
 	});
 
 	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
@@ -155,10 +154,13 @@ export function PaymentSheet({
 
 	function addPhone() {
 		if (phones.length < MAX_PHONES) {
-			setPhones((prev) => [
-				...prev,
-				{ id: ++phoneIdRef.current, number: "", primary: false },
-			]);
+			setPhones((prev) => {
+				// Ids only need to be unique within the current list; max+1
+				// keeps the updater pure (no external counter mutation).
+				const nextId =
+					prev.reduce((max, p) => Math.max(max, p.id), -1) + 1;
+				return [...prev, { id: nextId, number: "", primary: false }];
+			});
 		}
 	}
 
@@ -166,9 +168,10 @@ export function PaymentSheet({
 		if (phones.length > 1) {
 			setPhones((prev) => {
 				const updated = prev.filter((_, i) => i !== index);
-				const first = updated[0];
-				if (prev[index]?.primary && first) {
-					updated[0] = { ...first, primary: true };
+				if (prev[index]?.primary && updated.length > 0) {
+					return updated.map((p, i) =>
+						i === 0 ? { ...p, primary: true } : p,
+					);
 				}
 				return updated;
 			});

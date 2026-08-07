@@ -12,6 +12,7 @@ import {
 	MetricCardSkeleton,
 	MetricStrip,
 } from "@shared/components/MetricCard";
+import { formatNumber } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import {
@@ -462,33 +463,33 @@ function LiveMetrics({
 		<MetricStrip columns={6}>
 			<MetricCard
 				label="Online"
-				value={health.liveStats.online.toLocaleString()}
+				value={formatNumber(health.liveStats.online)}
 				icon={WifiIcon}
 				tone="success"
 				hint={`${onlinePct}% of subscribers`}
 			/>
 			<MetricCard
 				label="Offline"
-				value={health.liveStats.offline.toLocaleString()}
+				value={formatNumber(health.liveStats.offline)}
 				icon={WifiOffIcon}
 				hint={`${100 - onlinePct}% of subscribers`}
 			/>
 			<MetricCard
 				label="Active"
-				value={health.liveStats.active.toLocaleString()}
+				value={formatNumber(health.liveStats.active)}
 				icon={UsersIcon}
 				tone="info"
-				hint={`of ${health.liveStats.totalSubscribers.toLocaleString()} total`}
+				hint={`of ${formatNumber(health.liveStats.totalSubscribers)} total`}
 			/>
 			<MetricCard
 				label="Expired"
-				value={health.liveStats.expired.toLocaleString()}
+				value={formatNumber(health.liveStats.expired)}
 				icon={CalendarXIcon}
 				tone={health.liveStats.expired > 0 ? "warning" : "default"}
 			/>
 			<MetricCard
 				label="In FUP"
-				value={health.liveStats.fup.toLocaleString()}
+				value={formatNumber(health.liveStats.fup)}
 				icon={ZapIcon}
 				tone={health.liveStats.fup > 0 ? "warning" : "default"}
 			/>

@@ -99,6 +99,7 @@ export function CreateTaskDialog({
 	);
 	const [notifyCustomerWhatsApp, setNotifyCustomerWhatsApp] = useState(false);
 	const [addonTypes, setAddonTypes] = useState<AddonType[]>([]);
+	const assignedIdSet = new Set(assignedEmployeeIds);
 
 	const form = useForm({
 		defaultValues: {
@@ -474,24 +475,25 @@ export function CreateTaskDialog({
 											<input
 												type="checkbox"
 												className="size-4"
-												checked={assignedEmployeeIds.includes(
+												checked={assignedIdSet.has(
 													emp.id,
 												)}
 												onChange={() =>
 													setAssignedEmployeeIds(
-														(prev) =>
-															prev.includes(
-																emp.id,
-															)
-																? prev.filter(
-																		(id) =>
-																			id !==
-																			emp.id,
-																	)
-																: [
-																		...prev,
-																		emp.id,
-																	],
+														(prev) => {
+															const next =
+																new Set(prev);
+															if (
+																!next.delete(
+																	emp.id,
+																)
+															) {
+																next.add(
+																	emp.id,
+																);
+															}
+															return [...next];
+														},
 													)
 												}
 											/>

@@ -12,6 +12,7 @@ import {
 	CUSTOMER_STATUS_LABELS,
 } from "@saas/customers/lib/constants";
 import { PageShell } from "@shared/components/PageShell";
+import { formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate } from "@tanstack/react-router";
@@ -84,6 +85,9 @@ interface CustomerFilters {
 	expiresWithinDays?: number;
 	minBalance?: number;
 }
+
+// Hoisted locale-default date formatter — same output as the zero-arg
+// toLocaleDateString(), without building a new Intl formatter per render.
 
 const EMPTY_FILTERS: CustomerFilters = {
 	statuses: [],
@@ -1043,6 +1047,7 @@ function AudiencePreviewPanel({
 					</div>
 					<ul className="grid gap-1 sm:grid-cols-2">
 						{sample.map((r, i) => (
+							// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- read-only recipient preview; duplicate phones are possible and rows are never reordered or edited
 							<li
 								key={`${r.phone}-${i}`}
 								className="flex items-center gap-2 text-xs"
@@ -1313,7 +1318,7 @@ function VariablesStep({
 		return <p>Select a template first.</p>;
 	}
 	const ispMode = audienceTab === "isp_customers";
-	const namePlaceholder = `${template.name} – ${new Date().toLocaleDateString()}`;
+	const namePlaceholder = `${template.name} – ${formatDate(new Date())}`;
 
 	const renderMappingRow = (
 		mapping: VariableMapping,
@@ -1474,7 +1479,7 @@ function ReviewStep({
 		return <p>Select a template first.</p>;
 	}
 
-	const defaultName = `${template.name} – ${new Date().toLocaleDateString()}`;
+	const defaultName = `${template.name} – ${formatDate(new Date())}`;
 
 	return (
 		<div className="space-y-4">

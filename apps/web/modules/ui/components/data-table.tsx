@@ -274,7 +274,11 @@ export function DataTable<TData>({
 
 	const [internalVisibility, setInternalVisibility] =
 		useState<VisibilityState>(() => {
-			if (!columnVisibilityKey || isVisibilityControlled) {
+			if (
+				!columnVisibilityKey ||
+				isVisibilityControlled ||
+				typeof window === "undefined"
+			) {
 				return {};
 			}
 			try {
@@ -305,23 +309,24 @@ export function DataTable<TData>({
 				onColumnVisibilityChange?.(next);
 				return;
 			}
-			setInternalVisibility((prev) => {
-				const next =
-					typeof updater === "function" ? updater(prev) : updater;
-				if (columnVisibilityKey) {
-					localStorage.setItem(
-						`dt-cols:${columnVisibilityKey}`,
-						JSON.stringify(next),
-					);
-				}
-				return next;
-			});
+			const next =
+				typeof updater === "function"
+					? updater(internalVisibility)
+					: updater;
+			setInternalVisibility(next);
+			if (columnVisibilityKey) {
+				localStorage.setItem(
+					`dt-cols:${columnVisibilityKey}`,
+					JSON.stringify(next),
+				);
+			}
 		},
 		[
 			columnVisibilityKey,
 			isVisibilityControlled,
 			controlledVisibility,
 			onColumnVisibilityChange,
+			internalVisibility,
 		],
 	);
 

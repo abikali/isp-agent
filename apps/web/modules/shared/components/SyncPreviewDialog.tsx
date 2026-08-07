@@ -120,6 +120,7 @@ function PhonesDisplay({
 		<div className={className}>
 			{phones.map((p, i) => (
 				<div
+					// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static read-only phone diff display; numbers can repeat, the list never reorders and rows hold no state
 					key={`${p.number}-${i}`}
 					className="flex items-center gap-1"
 				>

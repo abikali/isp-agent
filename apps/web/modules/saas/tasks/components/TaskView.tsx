@@ -39,6 +39,7 @@ import { TaskOverdueWarning } from "./TaskOverdueWarning";
 const PILL =
 	"inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium";
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive task detail view; status/review actions and the detail layout share one data flow, sub-cards are already extracted
 export function TaskView({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });

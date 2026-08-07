@@ -35,6 +35,7 @@ export function SessionProvider({
 	// keep it true afterwards (computed during render, no extra render pass).
 	const loadedRef = useRef(false);
 	if (currentSession) {
+		// react-doctor-disable-next-line react-doctor/no-ref-current-in-render -- intentional render-time latch: idempotent one-way flip to true, avoids an extra render pass (hydration-safe)
 		loadedRef.current = true;
 	}
 	const loaded = loadedRef.current;

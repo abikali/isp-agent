@@ -190,6 +190,7 @@ export function ActiveOrganizationProvider({
 	// Computed during render (ref write is idempotent) — no extra render.
 	const hasLoadedRef = useRef(activeOrganization !== undefined);
 	if (activeOrganization !== undefined) {
+		// react-doctor-disable-next-line react-doctor/no-ref-current-in-render -- intentional render-time latch: idempotent one-way flip to true, avoids an extra render pass (hydration-safe)
 		hasLoadedRef.current = true;
 	}
 	const loaded = hasLoadedRef.current;

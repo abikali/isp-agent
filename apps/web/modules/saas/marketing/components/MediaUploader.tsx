@@ -159,7 +159,7 @@ export function MediaUploader({ kind, value, onChange }: MediaUploaderProps) {
 								<div className="w-full max-w-xs">
 									<div className="h-1.5 overflow-hidden rounded-full bg-muted">
 										<div
-											className="h-full bg-primary transition-all"
+											className="h-full bg-primary transition-[width]"
 											style={{ width: `${progress}%` }}
 										/>
 									</div>

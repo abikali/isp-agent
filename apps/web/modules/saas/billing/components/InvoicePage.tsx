@@ -54,10 +54,9 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 		invoice?.total ?? accountPrice + iptvPrice + realIpPrice - discount;
 	const note = invoice?.note ?? null;
 
-	const monthName = new Date(cycle.year, cycle.month - 1).toLocaleString(
-		"en-US",
-		{ month: "long" },
-	);
+	const monthName = formatDate(new Date(cycle.year, cycle.month - 1), {
+		month: "long",
+	});
 	const billingPeriod = `${monthName} ${cycle.year}`;
 
 	const statusConfig = getStatusConfig(payment.stoppedAccount);

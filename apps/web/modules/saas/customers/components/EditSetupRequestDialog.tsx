@@ -39,6 +39,7 @@ type SetupRequest = ReturnType<typeof useSetupRequests>["requests"][number];
  * parity: contact details, group, plan, prices, collector, discount,
  * expiry, and the first charge the worker collected.
  */
+// react-doctor-disable-next-line react-doctor/no-giant-component -- legacy adm_new.php parity form; the fields are one cohesive edit surface and splitting would scatter tightly-coupled state
 export function EditSetupRequestDialog({
 	request,
 	onClose,
@@ -134,9 +135,11 @@ export function EditSetupRequestDialog({
 		) {
 			return;
 		}
-		const cleanedPhones = phones
-			.filter((p) => p.number.trim() !== "")
-			.map((p) => ({ number: p.number.trim(), primary: p.primary }));
+		// Single pass: drop empty numbers and trim in one iteration.
+		const cleanedPhones = phones.flatMap((p) => {
+			const number = p.number.trim();
+			return number !== "" ? [{ number, primary: p.primary }] : [];
+		});
 		if (!cleanedPhones.some((p) => p.primary) && cleanedPhones[0]) {
 			cleanedPhones[0].primary = true;
 		}

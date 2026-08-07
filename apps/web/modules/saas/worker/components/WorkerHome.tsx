@@ -37,6 +37,7 @@ function humanizeType(type: string): string {
 	return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive worker dashboard; length is sequential summary sections over shared queries, splitting would scatter the data flow
 export function WorkerHome() {
 	const { activeOrganization } = useActiveOrganization();
 	const { wallet, isLoading: walletLoading } = useMyWalletQuery();

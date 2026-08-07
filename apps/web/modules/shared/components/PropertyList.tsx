@@ -76,6 +76,7 @@ function PropertyItem({ label, value, mono, copyable }: PropertyItem) {
 						<button
 							type="button"
 							onClick={handleCopy}
+							aria-label={`Copy ${label}`}
 							className="text-muted-foreground hover:text-foreground transition-colors"
 						>
 							{copied ? (

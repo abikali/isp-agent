@@ -2,7 +2,11 @@
 
 import { useCustomerNetworkStatus } from "@saas/customers/client";
 import { StatusIndicator } from "@shared/components/StatusIndicator";
-import { formatCurrency } from "@shared/lib/format";
+import {
+	formatCurrency,
+	formatDate,
+	MEDIUM_DATE_FORMAT,
+} from "@shared/lib/format";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -63,11 +67,7 @@ function fmtDate(d: Date | string | null): string {
 		return "—";
 	}
 	const date = typeof d === "string" ? new Date(d) : d;
-	return date.toLocaleDateString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
+	return formatDate(date, MEDIUM_DATE_FORMAT);
 }
 
 function Section({

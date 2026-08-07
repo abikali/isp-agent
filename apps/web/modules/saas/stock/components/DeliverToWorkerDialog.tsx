@@ -46,10 +46,10 @@ export function DeliverToWorkerDialog({
 	const mutation = isDeliver ? deliver : returnStock;
 
 	// For returns, only workers who actually hold this item
-	const holders = item.workerAllocations.map((a) => a.employee.id);
+	const holders = new Set(item.workerAllocations.map((a) => a.employee.id));
 	const selectable = isDeliver
 		? employees
-		: employees.filter((e) => holders.includes(e.id));
+		: employees.filter((e) => holders.has(e.id));
 
 	const selectedAllocation = item.workerAllocations.find(
 		(a) => a.employee.id === employeeId,

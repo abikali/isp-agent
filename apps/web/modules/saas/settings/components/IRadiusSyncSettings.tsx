@@ -17,7 +17,7 @@ import {
 	UploadCloudIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useCancelIRadiusPush,
 	useCancelIRadiusSync,
@@ -97,17 +97,19 @@ function IRadiusSyncSettingsInner() {
 	const isComplete = operation?.status === "completed";
 	const isFailed = operation?.status === "failed";
 
-	// Invalidate customer cache once when sync completes (no useEffect needed)
-	if (
-		(isComplete || isFailed) &&
-		operation?.id &&
-		invalidatedRef.current !== operation.id
-	) {
-		invalidatedRef.current = operation.id;
-		queryClient.invalidateQueries({
-			queryKey: orpc.customers.key(),
-		});
-	}
+	// Invalidate customer cache once when sync completes
+	useEffect(() => {
+		if (
+			(isComplete || isFailed) &&
+			operation?.id &&
+			invalidatedRef.current !== operation.id
+		) {
+			invalidatedRef.current = operation.id;
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		}
+	}, [isComplete, isFailed, operation, queryClient]);
 
 	async function handleTestConnection() {
 		if (!organizationId) {
@@ -497,7 +499,7 @@ function PushProgress({ operation }: { operation: PushOperation }) {
 				{total > 0 && (
 					<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
 						<div
-							className="h-full rounded-full bg-primary transition-all duration-300"
+							className="h-full rounded-full bg-primary transition-[width] duration-300"
 							style={{ width: `${pct}%` }}
 						/>
 					</div>
@@ -759,7 +761,7 @@ function SyncProgress({ operation }: { operation: Operation }) {
 							{status === "active" && total > 0 && (
 								<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
 									<div
-										className="h-full rounded-full bg-primary transition-all duration-300"
+										className="h-full rounded-full bg-primary transition-[width] duration-300"
 										style={{ width: `${pct}%` }}
 									/>
 								</div>
@@ -825,8 +827,8 @@ function SyncResult({ operation }: { operation: Operation }) {
 			{errors.length > 0 && (
 				<ScrollArea className="max-h-32 rounded-md border p-3">
 					<ul className="space-y-1 text-xs text-destructive">
-						{errors.slice(0, 50).map((err, i) => (
-							<li key={`err-${err.phase}-${i}`}>
+						{errors.slice(0, 50).map((err) => (
+							<li key={`${err.phase}:${err.detail}`}>
 								<span className="font-medium">
 									[{err.phase}]{" "}
 								</span>

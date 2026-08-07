@@ -3,7 +3,12 @@
 import type { OrganizationMetadata } from "@repo/auth";
 import { authClient } from "@repo/auth/client";
 import { orpcClient } from "@shared/lib/orpc";
-import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 
 // Query key factories for cache invalidation
 export const organizationsQueryKeys = {
@@ -12,7 +17,9 @@ export const organizationsQueryKeys = {
 	list: () => ["user", "organizations"] as const,
 	details: () => [...organizationsQueryKeys.all(), "detail"] as const,
 	detail: (id: string) => [...organizationsQueryKeys.details(), id] as const,
-	active: (slug: string) => ["user", "activeOrganization", slug] as const,
+	actives: () => ["user", "activeOrganization"] as const,
+	active: (slug: string) =>
+		[...organizationsQueryKeys.actives(), slug] as const,
 	roles: (organizationId: string) =>
 		[...organizationsQueryKeys.detail(organizationId), "roles"] as const,
 };
@@ -109,8 +116,15 @@ export const useFullOrganizationSuspense = (id: string) => {
  */
 const createOrganizationMutationKey = ["create-organization"] as const;
 export const useCreateOrganizationMutation = () => {
+	const queryClient = useQueryClient();
+
 	return useMutation({
 		mutationKey: createOrganizationMutationKey,
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: organizationsQueryKeys.list(),
+			});
+		},
 		mutationFn: async ({
 			name,
 			metadata,
@@ -149,8 +163,23 @@ export const useCreateOrganizationMutation = () => {
  */
 const updateOrganizationMutationKey = ["update-organization"] as const;
 export const useUpdateOrganizationMutation = () => {
+	const queryClient = useQueryClient();
+
 	return useMutation({
 		mutationKey: updateOrganizationMutationKey,
+		onSuccess: (_data, { id }) => {
+			queryClient.invalidateQueries({
+				queryKey: organizationsQueryKeys.list(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: organizationsQueryKeys.detail(id),
+			});
+			// Active-organization cache is keyed by slug (unknown here) —
+			// invalidate the shared prefix so any active org refetches.
+			queryClient.invalidateQueries({
+				queryKey: organizationsQueryKeys.actives(),
+			});
+		},
 		mutationFn: async ({
 			id,
 			name,

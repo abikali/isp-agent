@@ -32,6 +32,7 @@ interface Reaction {
 }
 
 interface ToolCallData {
+	toolCallId: string;
 	toolName: string;
 	args: unknown;
 	result: unknown;
@@ -52,6 +53,7 @@ function partsToToolCalls(
 			continue;
 		}
 		out.push({
+			toolCallId: part.toolCallId,
 			toolName: getToolName(part),
 			args: part.input,
 			result: part.output,
@@ -246,9 +248,9 @@ export function MessageBubble({
 					{/* Tool calls */}
 					{toolCalls && toolCalls.length > 0 && (
 						<div className="mb-1 space-y-1">
-							{toolCalls.map((tc, i) => (
+							{toolCalls.map((tc) => (
 								<ToolCallPill
-									key={`${tc.toolName}-${i}`}
+									key={tc.toolCallId}
 									toolCall={tc}
 								/>
 							))}

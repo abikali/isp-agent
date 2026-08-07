@@ -410,7 +410,10 @@ function useUnpaidColumns({
 											className="h-8 w-8"
 											asChild
 										>
-											<a href={`tel:${phone}`}>
+											<a
+												href={`tel:${phone}`}
+												aria-label={`Call ${phone}`}
+											>
 												<PhoneIcon className="size-3.5" />
 											</a>
 										</Button>
@@ -433,6 +436,7 @@ function useUnpaidColumns({
 												href={waLink}
 												target="_blank"
 												rel="noopener noreferrer"
+												aria-label="Chat on WhatsApp"
 											>
 												<MessageCircleIcon className="size-3.5" />
 											</a>

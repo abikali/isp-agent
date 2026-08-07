@@ -101,7 +101,7 @@ export function AgentsList({ organizationSlug }: { organizationSlug: string }) {
 							className="group block"
 							preload="intent"
 						>
-							<Card className="h-full transition-all hover:-translate-y-px hover:border-border-strong hover:shadow-sm">
+							<Card className="h-full transition-[transform,border-color,box-shadow] hover:-translate-y-px hover:border-border-strong hover:shadow-sm">
 								<div className="space-y-3 p-4">
 									<div className="flex items-start justify-between gap-2">
 										<div className="flex min-w-0 items-center gap-2.5">

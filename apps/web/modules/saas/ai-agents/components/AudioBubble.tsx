@@ -232,6 +232,9 @@ export function AudioBubble({ url, duration }: AudioBubbleProps) {
 			<button
 				type="button"
 				onClick={togglePlay}
+				aria-label={
+					isPlaying ? "Pause voice message" : "Play voice message"
+				}
 				className={cn(
 					"flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
 					"bg-primary text-primary-foreground hover:bg-primary/90",

@@ -37,7 +37,7 @@ import {
 	LoaderIcon,
 	XCircleIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Counts {
 	customers: number;
@@ -110,15 +110,17 @@ export function BillingSyncSettings() {
 	const isFailed = operation?.status === "failed";
 
 	// Invalidate caches once when sync completes
-	if (
-		(isComplete || isFailed) &&
-		operation?.id &&
-		invalidatedRef.current !== operation.id
-	) {
-		invalidatedRef.current = operation.id;
-		queryClient.invalidateQueries({ queryKey: orpc.billing.key() });
-		queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
-	}
+	useEffect(() => {
+		if (
+			(isComplete || isFailed) &&
+			operation?.id &&
+			invalidatedRef.current !== operation.id
+		) {
+			invalidatedRef.current = operation.id;
+			queryClient.invalidateQueries({ queryKey: orpc.billing.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() });
+		}
+	}, [isComplete, isFailed, operation, queryClient]);
 
 	async function handleTestConnection() {
 		if (!organizationId) {
@@ -916,7 +918,7 @@ function SyncProgress({ operation }: { operation: BillingOperation }) {
 							{status === "active" && total > 0 && (
 								<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
 									<div
-										className="h-full rounded-full bg-primary transition-all duration-300"
+										className="h-full rounded-full bg-primary transition-[width] duration-300"
 										style={{ width: `${pct}%` }}
 									/>
 								</div>
@@ -982,8 +984,8 @@ function SyncResult({ operation }: { operation: BillingOperation }) {
 			{errors.length > 0 && (
 				<div className="thin-scrollbar max-h-32 overflow-y-auto rounded-md border p-3">
 					<ul className="space-y-1 text-xs text-destructive">
-						{errors.slice(0, 50).map((err, i) => (
-							<li key={`err-${err.phase}-${i}`}>
+						{errors.slice(0, 50).map((err) => (
+							<li key={`${err.phase}:${err.detail}`}>
 								<span className="font-medium">
 									[{err.phase}]{" "}
 								</span>

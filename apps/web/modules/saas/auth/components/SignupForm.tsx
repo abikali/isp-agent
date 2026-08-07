@@ -416,6 +416,11 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 																!showPassword,
 															)
 														}
+														aria-label={
+															showPassword
+																? "Hide password"
+																: "Show password"
+														}
 														className="absolute inset-y-0 right-0 flex items-center pr-4 text-primary text-xl"
 													>
 														{showPassword ? (
@@ -502,6 +507,11 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 															setShowPassword(
 																!showPassword,
 															)
+														}
+														aria-label={
+															showPassword
+																? "Hide password"
+																: "Show password"
 														}
 														className="absolute inset-y-0 right-0 flex items-center pr-4 text-primary text-xl"
 													>

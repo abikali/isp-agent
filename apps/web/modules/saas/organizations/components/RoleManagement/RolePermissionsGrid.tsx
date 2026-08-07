@@ -179,11 +179,11 @@ export function RolePermissionsGrid({
 		const actions =
 			permissionStatement[resource as keyof typeof permissionStatement];
 		const baseActions = actions.filter((a) => !a.endsWith(":own"));
-		const currentActions = (value[resource] ?? []) as string[];
+		const currentActions = new Set((value[resource] ?? []) as string[]);
 		const allEnabled = baseActions.every(
 			(action) =>
-				currentActions.includes(action) ||
-				currentActions.includes(`${action}:own`),
+				currentActions.has(action) ||
+				currentActions.has(`${action}:own`),
 		);
 
 		const newValue: PermissionRecord = { ...value };
@@ -199,11 +199,11 @@ export function RolePermissionsGrid({
 		const actions =
 			permissionStatement[resource as keyof typeof permissionStatement];
 		const baseActions = actions.filter((a) => !a.endsWith(":own"));
-		const currentActions = (value[resource] ?? []) as string[];
+		const currentActions = new Set((value[resource] ?? []) as string[]);
 		const enabledCount = baseActions.filter(
 			(action) =>
-				currentActions.includes(action) ||
-				currentActions.includes(`${action}:own`),
+				currentActions.has(action) ||
+				currentActions.has(`${action}:own`),
 		).length;
 		return { enabled: enabledCount, total: baseActions.length };
 	};

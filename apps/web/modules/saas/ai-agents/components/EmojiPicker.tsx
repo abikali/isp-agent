@@ -166,6 +166,7 @@ export function EmojiPicker({ onEmojiSelect, disabled }: EmojiPickerProps) {
 				<button
 					type="button"
 					disabled={disabled}
+					aria-label="Insert emoji"
 					className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
 				>
 					<SmileIcon className="size-5" />

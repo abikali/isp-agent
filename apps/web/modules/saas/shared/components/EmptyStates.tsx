@@ -8,6 +8,7 @@ import { StateCard, type StateCardProps } from "./DataState";
  * Pre-built empty state configurations for common use cases
  */
 // react-doctor-disable-next-line deslop/unused-export -- public module API surface re-exported via the @saas/shared/client barrel; intended reusable empty-state presets
+// react-doctor-disable-next-line react-doctor/only-export-components -- object of empty-state render presets, not a plain component export; consumers rely on the EmptyStates.* namespace
 export const EmptyStates = {
 	/**
 	 * Empty state for list views with an add action

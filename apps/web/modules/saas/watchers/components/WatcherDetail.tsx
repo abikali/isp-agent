@@ -364,6 +364,7 @@ function NotificationSettingsCard({
 							<span className="font-medium">Channels:</span>
 							{config.channels.map((ch, i) => (
 								<div
+									// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- read-only summary list; channels carry no stable id to key by
 									key={`${ch.type}-${i}`}
 									className="flex items-center gap-2 pl-2 text-muted-foreground"
 								>

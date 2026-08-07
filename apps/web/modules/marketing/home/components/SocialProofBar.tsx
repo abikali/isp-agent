@@ -42,7 +42,7 @@ export function SocialProofBar() {
 								<m.div
 									key={logo.id}
 									variants={counterVariants}
-									className="grayscale opacity-60 transition-all duration-300 hover:opacity-100 hover:grayscale-0"
+									className="grayscale opacity-60 transition-[opacity,filter] duration-300 hover:opacity-100 hover:grayscale-0"
 								>
 									<img
 										src={logo.src}

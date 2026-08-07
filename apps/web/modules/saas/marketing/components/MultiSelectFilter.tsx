@@ -64,6 +64,8 @@ export function MultiSelectFilter({
 		);
 	}, [options, search]);
 
+	const selectedSet = useMemo(() => new Set(value), [value]);
+
 	const toggle = (v: string) => {
 		if (value.includes(v)) {
 			onChange(value.filter((x) => x !== v));
@@ -160,7 +162,7 @@ export function MultiSelectFilter({
 							</p>
 						) : (
 							filtered.map((option) => {
-								const checked = value.includes(option.value);
+								const checked = selectedSet.has(option.value);
 								return (
 									<button
 										type="button"

@@ -28,8 +28,10 @@ export function createInvalidatingMutation<TData, TVariables, TError = Error>(
 ) {
 	return () => {
 		const queryClient = useQueryClient();
-		// biome-ignore lint/correctness/useExhaustiveDependencies: getOptions/getInvalidationKeys are stable factory-time closures
-		const options = useMemo(() => getOptions(), []);
+		// getOptions is a factory-time closure, so its identity never changes
+		// between renders of the returned hook — listing it keeps the deps
+		// exhaustive without ever re-running the memo.
+		const options = useMemo(() => getOptions(), [getOptions]);
 		return useMutation({
 			...options,
 			onSuccess: () => {

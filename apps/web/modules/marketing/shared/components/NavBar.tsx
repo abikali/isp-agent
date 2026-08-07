@@ -69,7 +69,9 @@ export function NavBar() {
 	// Keep the latest debounced handler in a ref so the scroll listener can
 	// stay subscribed once while always calling the current handler.
 	const scrollHandlerRef = useRef(debouncedScrollHandler);
-	scrollHandlerRef.current = debouncedScrollHandler;
+	useEffect(() => {
+		scrollHandlerRef.current = debouncedScrollHandler;
+	}, [debouncedScrollHandler]);
 
 	// Smooth scroll to section
 	const scrollToSection = useCallback(

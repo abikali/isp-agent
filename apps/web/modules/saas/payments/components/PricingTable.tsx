@@ -44,7 +44,10 @@ export function PricingTable({
 	const router = useRouter();
 	const localeCurrency = useLocaleCurrency();
 	const [loading, setLoading] = useState<PlanId | false>(false);
-	const [interval, setInterval] = useState<"month" | "year">("month");
+	// Named to avoid shadowing the global setInterval timer API.
+	const [billingInterval, setBillingInterval] = useState<"month" | "year">(
+		"month",
+	);
 
 	const { planData } = usePlanData();
 
@@ -104,9 +107,9 @@ export function PricingTable({
 			{hasSubscriptions && (
 				<div className="mb-6 flex @xl:justify-center">
 					<Tabs
-						value={interval}
+						value={billingInterval}
 						onValueChange={(value) =>
-							setInterval(value as typeof interval)
+							setBillingInterval(value as typeof billingInterval)
 						}
 						data-test="price-table-interval-tabs"
 					>
@@ -133,7 +136,7 @@ export function PricingTable({
 						(price) =>
 							!price.hidden &&
 							(price.type === "one-time" ||
-								price.interval === interval) &&
+								price.interval === billingInterval) &&
 							price.currency === localeCurrency,
 					);
 
@@ -141,7 +144,7 @@ export function PricingTable({
 						price = {
 							amount: 0,
 							currency: localeCurrency,
-							interval,
+							interval: billingInterval,
 							productId: "",
 							type: "recurring",
 						};
@@ -227,7 +230,7 @@ export function PricingTable({
 											{"interval" in price && (
 												<span className="font-normal text-xs opacity-60">
 													{" / "}
-													{interval === "month"
+													{billingInterval === "month"
 														? price.intervalCount &&
 															price.intervalCount >
 																1

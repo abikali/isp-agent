@@ -4,7 +4,7 @@ import { Button } from "@ui/components/button";
 import { Dialog, DialogContent, DialogFooter } from "@ui/components/dialog";
 import { cn } from "@ui/lib";
 import { FileTextIcon, SendIcon, XIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface MediaPreviewDialogProps {
 	file: File | null;
@@ -30,24 +30,21 @@ export function MediaPreviewDialog({
 	const [caption, setCaption] = useState("");
 	const captionRef = useRef<HTMLTextAreaElement>(null);
 
-	// Preview URL for images/videos is derived from the file, not stored state.
-	const previewUrl = useMemo(() => {
-		if (
-			file &&
-			(file.type.startsWith("image/") || file.type.startsWith("video/"))
-		) {
-			return URL.createObjectURL(file);
-		}
-		return null;
-	}, [file]);
-
-	// Revoke the object URL when the file changes or the dialog unmounts.
+	// Preview URL for images/videos — created in an effect (not during render)
+	// and revoked when the file changes or the dialog unmounts.
+	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	useEffect(() => {
-		if (!previewUrl) {
+		if (
+			!file ||
+			!(file.type.startsWith("image/") || file.type.startsWith("video/"))
+		) {
+			setPreviewUrl(null);
 			return undefined;
 		}
-		return () => URL.revokeObjectURL(previewUrl);
-	}, [previewUrl]);
+		const url = URL.createObjectURL(file);
+		setPreviewUrl(url);
+		return () => URL.revokeObjectURL(url);
+	}, [file]);
 
 	// Auto-focus the caption input when a file is present.
 	useEffect(() => {
@@ -93,6 +90,7 @@ export function MediaPreviewDialog({
 					<button
 						type="button"
 						onClick={onClose}
+						aria-label="Close"
 						className="rounded-full p-1 text-muted-foreground hover:bg-muted"
 					>
 						<XIcon className="size-5" />

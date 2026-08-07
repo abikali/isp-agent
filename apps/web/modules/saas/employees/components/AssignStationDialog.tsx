@@ -10,7 +10,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAssignStations } from "../hooks/use-employees";
 
 export function AssignStationDialog({
@@ -52,6 +52,8 @@ function AssignStationDialogContent({
 	// react-doctor-disable-next-line react-doctor/no-derived-useState -- intentional init-once; parent remounts via key on currentStationIds change
 	const [selected, setSelected] = useState<string[]>(currentStationIds);
 
+	const selectedSet = useMemo(() => new Set(selected), [selected]);
+
 	async function handleSave() {
 		if (!organizationId) {
 			return;
@@ -90,7 +92,7 @@ function AssignStationDialogContent({
 						>
 							<input
 								type="checkbox"
-								checked={selected.includes(station.id)}
+								checked={selectedSet.has(station.id)}
 								onChange={() => toggleStation(station.id)}
 								className="size-4"
 							/>

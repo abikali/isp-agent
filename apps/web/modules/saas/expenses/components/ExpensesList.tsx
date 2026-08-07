@@ -10,7 +10,7 @@ import { EmptyState } from "@shared/components/EmptyState";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
-import { formatCurrency, formatDateTime } from "@shared/lib/format";
+import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -80,10 +80,7 @@ export function ExpensesList() {
 			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
 			options.push({
 				value: `${d.getFullYear()}-${d.getMonth() + 1}`,
-				label: d.toLocaleDateString("en-US", {
-					month: "long",
-					year: "numeric",
-				}),
+				label: formatDate(d, { month: "long", year: "numeric" }),
 			});
 		}
 		return options;

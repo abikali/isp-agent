@@ -28,12 +28,12 @@ export function FeatureCard({ feature }: FeatureCardProps) {
 			<div className="bento-card-glow group-hover:opacity-100" />
 
 			{/* Decorative corner accent */}
-			<div className="absolute -top-12 -right-12 size-24 rounded-full bg-highlight/5 blur-2xl transition-all duration-500 group-hover:bg-highlight/10" />
+			<div className="absolute -top-12 -right-12 size-24 rounded-full bg-highlight/5 blur-2xl transition-colors duration-500 group-hover:bg-highlight/10" />
 
 			<div className="relative z-10 flex h-full flex-col">
 				{/* Icon and title */}
 				<div className="mb-4">
-					<div className="mb-3 inline-flex rounded-xl bg-gradient-to-br from-muted/80 to-muted/40 p-2.5 ring-1 ring-border/50 shadow-sm transition-all duration-300 group-hover:shadow-md group-hover:ring-border">
+					<div className="mb-3 inline-flex rounded-xl bg-gradient-to-br from-muted/80 to-muted/40 p-2.5 ring-1 ring-border/50 shadow-sm transition-shadow duration-300 group-hover:shadow-md group-hover:ring-border">
 						<feature.icon className="size-5 text-foreground" />
 					</div>
 					<h3 className="font-semibold text-lg tracking-tight">
@@ -356,14 +356,15 @@ function AnalyticsPreview({ isWide }: AnalyticsPreviewProps) {
 					// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static decorative bar chart with fixed positions; bars never reorder/filter and heights are not unique
 					<m.div
 						key={i}
-						initial={{ height: 0 }}
-						whileInView={{ height: `${height}%` }}
+						initial={{ scaleY: 0 }}
+						whileInView={{ scaleY: 1 }}
 						transition={{
 							duration: 0.6,
 							delay: i * 0.05,
 							ease: [0.4, 0, 0.2, 1],
 						}}
 						viewport={{ once: true }}
+						style={{ height: `${height}%`, originY: 1 }}
 						className="relative flex-1 overflow-hidden rounded-t-md bg-gradient-to-t from-highlight/50 via-highlight to-highlight/90"
 					>
 						{/* Shine effect */}

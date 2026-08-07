@@ -51,7 +51,7 @@ function LocationField({
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 
 	function useCurrentLocation() {
-		if (!navigator.geolocation) {
+		if (typeof navigator === "undefined" || !navigator.geolocation) {
 			setStatus("error");
 			toast.error("Location is not supported on this device");
 			return;
@@ -129,6 +129,7 @@ function LocationField({
 }
 
 // react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent form-field slices; a reducer would add ceremony without grouping related transitions
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive new-customer intake form; the field state and summary/submit flow are one unit, splitting would scatter shared state
 export function WorkerNewCustomer() {
 	const organizationId = useOrganizationId();
 	const { plans, collectors, groups } = useWorkerCreateOptions();
@@ -201,9 +202,10 @@ export function WorkerNewCustomer() {
 		if (!organizationId || !valid) {
 			return;
 		}
-		const cleanedPhones = phones
-			.filter((p) => p.number.trim() !== "")
-			.map((p) => ({ number: p.number.trim(), primary: p.primary }));
+		const cleanedPhones = phones.flatMap((p) => {
+			const number = p.number.trim();
+			return number === "" ? [] : [{ number, primary: p.primary }];
+		});
 		// Keep exactly one primary even if the primary row was left blank.
 		if (!cleanedPhones.some((p) => p.primary) && cleanedPhones[0]) {
 			cleanedPhones[0].primary = true;

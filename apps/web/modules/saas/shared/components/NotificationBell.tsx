@@ -25,6 +25,7 @@ import {
 	SettingsIcon,
 	Trash2Icon,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { Notification } from "../lib/types";
 
 function getTimeAgo(date: Date): string {
@@ -90,7 +91,12 @@ export function NotificationBell() {
 	);
 
 	const handleMarkAsRead = async (id: string) => {
-		await markAsReadMutation.mutateAsync({ id });
+		try {
+			await markAsReadMutation.mutateAsync({ id });
+		} catch {
+			toast.error("Failed to mark notification as read");
+			return;
+		}
 		queryClient.invalidateQueries({
 			queryKey: orpc.notifications.list.key(),
 		});
@@ -104,7 +110,12 @@ export function NotificationBell() {
 	};
 
 	const handleDelete = async (id: string) => {
-		await deleteMutation.mutateAsync({ id });
+		try {
+			await deleteMutation.mutateAsync({ id });
+		} catch {
+			toast.error("Failed to delete notification");
+			return;
+		}
 		queryClient.invalidateQueries({
 			queryKey: orpc.notifications.list.key(),
 		});

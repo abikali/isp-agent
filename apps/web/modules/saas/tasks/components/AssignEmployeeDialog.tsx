@@ -79,6 +79,8 @@ function AssignEmployeeForm({
 		);
 	}
 
+	const selectedIds = new Set(selected);
+
 	return (
 		<>
 			<div className="max-h-60 space-y-2 overflow-y-auto">
@@ -94,7 +96,7 @@ function AssignEmployeeForm({
 						>
 							<input
 								type="checkbox"
-								checked={selected.includes(emp.id)}
+								checked={selectedIds.has(emp.id)}
 								onChange={() => toggleEmployee(emp.id)}
 								className="size-4"
 							/>

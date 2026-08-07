@@ -16,6 +16,7 @@ import { OrganizationLogo } from "./OrganizationLogo";
 export function OrganizationLogoForm() {
 	const [uploading, setUploading] = useState(false);
 	const [cropDialogOpen, setCropDialogOpen] = useState(false);
+	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [imageUrl, setImageUrl] = useState<string | null>(null);
 	const { activeOrganization, refetchActiveOrganization } =
 		useActiveOrganization();
@@ -24,24 +25,23 @@ export function OrganizationLogoForm() {
 		orpc.organizations.createLogoUploadUrl.mutationOptions(),
 	);
 
-	// Clean up object URL when component unmounts or image changes
+	// Object URL for the selected file — created in an effect and revoked
+	// when the file changes or the component unmounts.
 	useEffect(() => {
-		return () => {
-			if (imageUrl) {
-				URL.revokeObjectURL(imageUrl);
-			}
-		};
-	}, [imageUrl]);
+		if (!selectedFile) {
+			setImageUrl(null);
+			return undefined;
+		}
+		const url = URL.createObjectURL(selectedFile);
+		setImageUrl(url);
+		return () => URL.revokeObjectURL(url);
+	}, [selectedFile]);
 
 	const { getRootProps, getInputProps } = useDropzone({
 		onDrop: (acceptedFiles) => {
 			const file = acceptedFiles[0];
 			if (file) {
-				// Clean up previous URL if exists
-				if (imageUrl) {
-					URL.revokeObjectURL(imageUrl);
-				}
-				setImageUrl(URL.createObjectURL(file));
+				setSelectedFile(file);
 				setCropDialogOpen(true);
 			}
 		},

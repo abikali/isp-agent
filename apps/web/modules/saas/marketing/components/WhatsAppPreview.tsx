@@ -153,6 +153,7 @@ export function WhatsAppPreview({
 				{sections && sections.buttons.length > 0 && (
 					<div className="ml-auto flex max-w-[88%] flex-col gap-1">
 						{sections.buttons.map((b, i) => (
+							// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static template preview; button slots are positional, may share text, and never reorder
 							<div
 								key={`${b.text}-${i}`}
 								className="rounded-lg bg-white/95 px-3 py-2 text-center text-sm font-medium text-[#00a884] shadow-sm dark:bg-[#005c4b]/80 dark:text-[#53bdeb]"

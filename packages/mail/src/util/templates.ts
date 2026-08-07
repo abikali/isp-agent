@@ -36,8 +36,10 @@ export async function getTemplate<T extends TemplateId>({
 		subject = mailTranslations.subject;
 	}
 
-	const html = await render(email);
-	const text = await render(email, { plainText: true });
+	const [html, text] = await Promise.all([
+		render(email),
+		render(email, { plainText: true }),
+	]);
 	return { html, text, subject };
 }
 

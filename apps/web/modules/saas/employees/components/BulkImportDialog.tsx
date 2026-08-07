@@ -196,6 +196,7 @@ export function BulkImportDialog({
 									</TableHeader>
 									<TableBody>
 										{rows.slice(0, 20).map((row, i) => (
+											// react-doctor-disable-next-line react-doctor/no-array-index-as-key -- static CSV preview slice; rows may share names, are never reordered, and are not edited in place
 											<TableRow
 												key={`preview-${row.name}-${i}`}
 											>

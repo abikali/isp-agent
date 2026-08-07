@@ -20,8 +20,12 @@ import {
 	TooltipTrigger,
 } from "@ui/components/tooltip";
 import { CheckIcon, CopyIcon, ExternalLinkIcon, GlobeIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useToggleWebChat } from "../hooks/use-web-chat";
+
+function emptySubscribe() {
+	return () => {};
+}
 
 export function WebChatSettings({
 	agentId,
@@ -39,9 +43,18 @@ export function WebChatSettings({
 	const toggleWebChat = useToggleWebChat();
 	const [copied, setCopied] = useState(false);
 
-	const chatUrl = agent.webChatToken
-		? `${window.location.origin}/chat/${agent.webChatToken}`
-		: null;
+	// Origin is only known in the browser. useSyncExternalStore renders the
+	// server snapshot ("") during SSR/hydration and the real origin on the
+	// client without an effect->setState flash.
+	const origin = useSyncExternalStore(
+		emptySubscribe,
+		() => window.location.origin,
+		() => "",
+	);
+	const chatUrl =
+		origin && agent.webChatToken
+			? `${origin}/chat/${agent.webChatToken}`
+			: null;
 
 	function handleToggle(enabled: boolean) {
 		toggleWebChat.mutate({
@@ -136,6 +149,7 @@ export function WebChatSettings({
 											href={chatUrl}
 											target="_blank"
 											rel="noopener noreferrer"
+											aria-label="Open chat in new tab"
 										>
 											<ExternalLinkIcon className="size-4" />
 										</a>

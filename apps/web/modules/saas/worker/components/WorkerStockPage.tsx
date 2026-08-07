@@ -61,13 +61,14 @@ export function WorkerStockPage() {
 
 	const query = search.trim().toLowerCase();
 	const filtered = allocations
-		.filter((a) => a.stockItem.name.toLowerCase().includes(query))
-		.filter((a) =>
-			stockFilter === "in"
-				? a.quantity > 0
-				: stockFilter === "out"
-					? a.quantity <= 0
-					: true,
+		.filter(
+			(a) =>
+				a.stockItem.name.toLowerCase().includes(query) &&
+				(stockFilter === "in"
+					? a.quantity > 0
+					: stockFilter === "out"
+						? a.quantity <= 0
+						: true),
 		)
 		.sort((a, b) => {
 			if (sort === "qty") {
