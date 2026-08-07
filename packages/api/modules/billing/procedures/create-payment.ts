@@ -152,22 +152,30 @@ export const createPayment = protectedProcedure
 		}
 
 		// A normal cash collection settles every currently-owed month, not just
-		// the active one. Free/stopped keep single-active-month semantics.
+		// the active one. A free settlement likewise waives every owed month —
+		// otherwise mixing cash + free strands old months: cash fills oldest-
+		// first while an active-month-only free leapfrogs to the current month,
+		// leaving a middle month no collector action can ever clear. Stopped
+		// keeps single-active-month semantics (separate review flow).
 		const isCashCollection =
 			!input.freeAccount && !input.stoppedAccount && input.paidAmount > 0;
-		const { unpaid: unpaidInvoices, billedMonthCount } = isCashCollection
-			? await fetchCustomerUnpaidInvoices(
-					input.organizationId,
-					input.customerId,
-					billingMonth.year,
-					billingMonth.month,
-				)
-			: { unpaid: [], billedMonthCount: 0 };
+		const settlesAllOwedMonths = isCashCollection || input.freeAccount;
+		const { unpaid: unpaidInvoices, billedMonthCount } =
+			settlesAllOwedMonths
+				? await fetchCustomerUnpaidInvoices(
+						input.organizationId,
+						input.customerId,
+						billingMonth.year,
+						billingMonth.month,
+					)
+				: { unpaid: [], billedMonthCount: 0 };
 
 		// Determine total due for validation. When the customer owes multiple
 		// months, the amount due is the sum of every unpaid invoice (matches the
-		// collector's prefilled total). Falls back to the single-month figure
-		// when there are no billed invoices (addon-only collection).
+		// collector's prefilled total). Free settlements only owe addons, one
+		// month's worth per waived month (mirrors the sheet's prefill). Falls
+		// back to the single-month figure when there are no billed invoices
+		// (addon-only collection).
 		const singleMonthDue = input.freeAccount
 			? (customer.iptvPrice ?? 0) + (customer.realIpPrice ?? 0)
 			: input.accountPrice +
@@ -176,8 +184,10 @@ export const createPayment = protectedProcedure
 				input.discount;
 		const accumulatedDue = unpaidInvoices.reduce((s, i) => s + i.amount, 0);
 		const totalDue =
-			isCashCollection && unpaidInvoices.length > 0
-				? accumulatedDue
+			unpaidInvoices.length > 0
+				? input.freeAccount
+					? singleMonthDue * unpaidInvoices.length
+					: accumulatedDue
 				: singleMonthDue;
 
 		// Require a note for stopped accounts
@@ -227,18 +237,18 @@ export const createPayment = protectedProcedure
 		}
 
 		// Duplicate guard (also gates the iRadius push below so a double submit
-		// never mirrors a phone/location change and then aborts). For a cash
-		// collection we settle every currently-unpaid invoice, so a *duplicate*
-		// is a customer who has invoices but nothing left unpaid. Old-debt
-		// cleanup — active month already settled yet an older month still owed —
-		// is NOT a duplicate and must be allowed. Free/stopped/addon collections
-		// stay one row per active month, so the old "already handled this month"
-		// check still applies to them.
-		if (isCashCollection) {
-			if (billedMonthCount > 0 && unpaidInvoices.length === 0) {
+		// never mirrors a phone/location change and then aborts). Cash and free
+		// settle every currently-unpaid invoice, so a *duplicate* is a customer
+		// who has invoices but nothing left unpaid. Old-debt cleanup — active
+		// month already settled yet an older month still owed — is NOT a
+		// duplicate and must be allowed. Stopped and no-invoice (addon-only)
+		// collections stay one row per active month, so the old "already
+		// handled this month" check still applies to them.
+		if (settlesAllOwedMonths && billedMonthCount > 0) {
+			if (unpaidInvoices.length === 0) {
 				throw new ORPCError("CONFLICT", {
 					message:
-						"This customer has already paid for all billed months",
+						"This customer is already settled for all billed months",
 				});
 			}
 		} else {
@@ -333,16 +343,42 @@ export const createPayment = protectedProcedure
 
 				let created: PaymentRow[];
 
-				if (isCashCollection && unpaidInvoices.length > 0) {
+				// Validate referrer belongs to the same organization and
+				// dealer (only when free account; ignored otherwise)
+				if (input.referredCustomerId && input.freeAccount) {
+					const referrer = await tx.customer.findFirst({
+						where: {
+							id: input.referredCustomerId,
+							organizationId: input.organizationId,
+							...getDealerScopeFilter(activeDealerId),
+						},
+						select: { id: true },
+					});
+					if (!referrer) {
+						throw new ORPCError("BAD_REQUEST", {
+							message: "Referred customer not found",
+						});
+					}
+				}
+				const referredId =
+					input.freeAccount && input.referredCustomerId
+						? input.referredCustomerId
+						: null;
+
+				if (settlesAllOwedMonths && unpaidInvoices.length > 0) {
 					// FIFO-allocate the lump across owed invoices, oldest first.
-					// The invoiceId unique constraint makes a racing double-submit
-					// fail atomically (caught below as a CONFLICT).
+					// A free settlement emits a row for every owed invoice (the
+					// freeAccount row is what waives the month); cash only where
+					// the money reaches. The invoiceId unique constraint makes a
+					// racing double-submit fail atomically (caught below as a
+					// CONFLICT).
 					const allocation = allocatePaymentAcrossInvoices(
 						input.paidAmount,
 						unpaidInvoices,
+						{ coverAllInvoices: input.freeAccount },
 					);
 					created = [];
-					for (const a of allocation) {
+					for (const [i, a] of allocation.entries()) {
 						created.push(
 							await tx.payment.create({
 								data: {
@@ -350,14 +386,20 @@ export const createPayment = protectedProcedure
 									billingMonthId: a.billingMonthId,
 									invoiceId: a.invoiceId,
 									paidAmount: a.amount,
-									referredCustomerId: null,
+									// Referral credit rides the newest settled
+									// month, once.
+									referredCustomerId:
+										i === allocation.length - 1
+											? referredId
+											: null,
 								},
 							}),
 						);
 					}
 				} else {
-					// Single row against the active month (free / stopped / addon
-					// with no billed invoice). Race-safe dedupe re-check here.
+					// Single row against the active month (stopped, or a cash/
+					// free customer with no billed invoice — addon-only or
+					// free-group). Race-safe dedupe re-check here.
 					const existing = await tx.payment.findFirst({
 						where: {
 							customerId: input.customerId,
@@ -394,24 +436,6 @@ export const createPayment = protectedProcedure
 						select: { id: true },
 					});
 
-					// Validate referrer belongs to the same organization and
-					// dealer (only when free account; ignored otherwise)
-					if (input.referredCustomerId && input.freeAccount) {
-						const referrer = await tx.customer.findFirst({
-							where: {
-								id: input.referredCustomerId,
-								organizationId: input.organizationId,
-								...getDealerScopeFilter(activeDealerId),
-							},
-							select: { id: true },
-						});
-						if (!referrer) {
-							throw new ORPCError("BAD_REQUEST", {
-								message: "Referred customer not found",
-							});
-						}
-					}
-
 					created = [
 						await tx.payment.create({
 							data: {
@@ -419,11 +443,7 @@ export const createPayment = protectedProcedure
 								billingMonthId: billingMonth.id,
 								invoiceId: invoice?.id ?? null,
 								paidAmount: input.paidAmount,
-								referredCustomerId:
-									input.freeAccount &&
-									input.referredCustomerId
-										? input.referredCustomerId
-										: null,
+								referredCustomerId: referredId,
 							},
 						}),
 					];

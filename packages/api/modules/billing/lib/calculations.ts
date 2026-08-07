@@ -27,15 +27,21 @@ export interface PaymentAllocationRow {
  * row so the allocation always sums to exactly `paidAmount`. Returns [] only
  * when there are no unpaid invoices to settle. Callers pass `unpaid` already
  * sorted oldest-first (see `fetchCustomerUnpaidInvoices`).
+ *
+ * With `coverAllInvoices`, a row is emitted for every unpaid invoice even
+ * after the money runs out (amount 0). Used by free settlements, where the
+ * row itself (freeAccount = true) is what waives the month — without it,
+ * months past the cash would stay owed forever since free can't be re-run.
  */
 export function allocatePaymentAcrossInvoices(
 	paidAmount: number,
 	unpaid: UnpaidInvoiceRow[],
+	opts?: { coverAllInvoices?: boolean },
 ): PaymentAllocationRow[] {
 	const rows: PaymentAllocationRow[] = [];
 	let remaining = paidAmount;
 	for (const inv of unpaid) {
-		if (remaining <= 0.001 && rows.length > 0) {
+		if (remaining <= 0.001 && rows.length > 0 && !opts?.coverAllInvoices) {
 			break;
 		}
 		const amount = Math.min(remaining, inv.amount);

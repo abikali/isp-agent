@@ -80,4 +80,38 @@ describe("allocatePaymentAcrossInvoices", () => {
 		]);
 		expect(sum(rows)).toBeCloseTo(175.5, 5);
 	});
+
+	describe("coverAllInvoices (free settlements)", () => {
+		it("emits a zero-amount row for every owed month", () => {
+			const rows = allocatePaymentAcrossInvoices(
+				0,
+				[inv(2026, 5, 25), inv(2026, 6, 25), inv(2026, 7, 25)],
+				{ coverAllInvoices: true },
+			);
+			expect(rows).toHaveLength(3);
+			expect(rows.map((r) => r.amount)).toEqual([0, 0, 0]);
+		});
+
+		it("covers months past the cash instead of stranding them", () => {
+			// The eliastrad case: 2 months still owed after a cash split, free
+			// must waive both — not leapfrog to the newest one.
+			const rows = allocatePaymentAcrossInvoices(
+				0,
+				[inv(2026, 7, 25), inv(2026, 8, 25)],
+				{ coverAllInvoices: true },
+			);
+			expect(rows.map((r) => r.invoiceId)).toEqual(["2026-7", "2026-8"]);
+		});
+
+		it("still FIFO-allocates addon money and sums to the amount paid", () => {
+			const rows = allocatePaymentAcrossInvoices(
+				30,
+				[inv(2026, 6, 25), inv(2026, 7, 25), inv(2026, 8, 25)],
+				{ coverAllInvoices: true },
+			);
+			expect(rows).toHaveLength(3);
+			expect(rows.map((r) => r.amount)).toEqual([25, 5, 0]);
+			expect(sum(rows)).toBe(30);
+		});
+	});
 });

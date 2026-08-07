@@ -120,6 +120,14 @@ export function PaymentSheet({
 
 	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
 	const pastDueMonths = customer?.pastDueMonths ?? 0;
+	// Frozen invoice amounts from the unpaid list — the current monthlyRate can
+	// differ from what old months were billed at, and the active month may
+	// already be settled (old-debt cleanup).
+	const pastDueAmount = customer?.pastDueAmount ?? pastDueMonths * monthlyDue;
+	const currentMonthDue =
+		customer?.accumulatedDue != null
+			? customer.accumulatedDue - pastDueAmount
+			: monthlyDue;
 	const totalDue = customer
 		? calculateTotalDue(customer, { freeAccount })
 		: 0;
@@ -356,16 +364,22 @@ export function PaymentSheet({
 											)
 										</span>
 										<span className="tabular-nums">
-											{formatCurrency(
-												pastDueMonths * monthlyDue,
-											)}
+											{formatCurrency(pastDueAmount)}
 										</span>
 									</div>
 									<div className="flex justify-between text-muted-foreground">
 										<span>This month</span>
-										<span className="tabular-nums">
-											{formatCurrency(monthlyDue)}
-										</span>
+										{currentMonthDue > 0.001 ? (
+											<span className="tabular-nums">
+												{formatCurrency(
+													currentMonthDue,
+												)}
+											</span>
+										) : (
+											<span className="text-success">
+												Settled
+											</span>
+										)}
 									</div>
 								</div>
 							)}
