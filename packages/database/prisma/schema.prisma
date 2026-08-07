@@ -2019,15 +2019,24 @@ model CashCollection {
   notes             String?            @db.Text
   type              CashCollectionType @default(HANDOFF)
   expenseId         String?            @unique
+  // Set on INSTALLATION_COST entries created by installation approval, so
+  // deleting the cash entry can revert the installation (restore the worker's
+  // consumed stock and put it back in the pending queue).
+  installationId    String?            @unique
+  // Set on NEW_USER_SETUP entries created by setup-request approval — same
+  // revert semantics, applied to every installation in the bundle.
+  setupRequestId    String?            @unique
   receivedById      String?
   externalBillingId Int?               @map("external_billing_id")
-  collectedAt       DateTime           @default(now())
+  collectedAt      DateTime           @default(now())
   createdAt         DateTime           @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   collector    Employee     @relation("CashCollector", fields: [collectorId], references: [id], onDelete: Restrict)
   receivedBy   User?        @relation("CashReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
   expense      Expense?     @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  installation Installation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, collectorId])
@@ -2225,6 +2234,7 @@ model Installation {
   setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
   task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
   uninstalledItems UninstalledItem[]
+  cashEntry    CashCollection?
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
@@ -2261,6 +2271,7 @@ model CustomerSetupRequest {
   requestedBy   Employee     @relation("SetupRequester", fields: [requestedById], references: [id], onDelete: Restrict)
   reviewedBy    User?        @relation("SetupRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   installations Installation[]
+  cashEntry     CashCollection?
 
   @@index([organizationId, status])
   @@index([requestedById])

@@ -20,6 +20,7 @@ import { Input } from "@ui/components/input";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
 import {
+	AtSignIcon,
 	CheckIcon,
 	MapPinIcon,
 	PencilIcon,
@@ -48,6 +49,7 @@ const STATUS_BADGES: Record<
 	REJECTED: { label: "Rejected", variant: "error" },
 };
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive review queue: list, approve/reject dialogs, and edit flow share request state; splitting would obscure the flow
 export function PendingCustomersList() {
 	const organizationId = useOrganizationId();
 	const [status, setStatus] = useState<RequestStatus>("PENDING");
@@ -156,6 +158,14 @@ export function PendingCustomersList() {
 												)}
 											</div>
 											<div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+												{customer.username?.trim() && (
+													<p className="flex items-center gap-1">
+														<AtSignIcon className="size-3" />
+														<span className="font-mono">
+															{customer.username}
+														</span>
+													</p>
+												)}
 												{customer.mobile && (
 													<p className="flex items-center gap-1">
 														<PhoneIcon className="size-3" />

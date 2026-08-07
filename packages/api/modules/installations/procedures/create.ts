@@ -146,8 +146,35 @@ export const createInstallation = protectedProcedure
 			}
 		}
 
-		// Soft stock check — advisory only; the hard guard runs at approval
+		// Hardware prices are admin-controlled: non-admin submissions always get
+		// the item's current sellPrice, whatever the client sent. Admins (anyone
+		// who can approve) may override, matching the pending-edit flow. Add-on
+		// monthly prices stay caller-set — they are per-customer deals.
 		const stockLines = input.items.filter((i) => i.stockItemId);
+		const canSetPrice = hasPermission(permCtx, "installations", "approve");
+		const priceByStockItem = new Map<string, number>();
+		if (stockLines.length > 0) {
+			const stockItemIds = [
+				...new Set(stockLines.map((i) => i.stockItemId as string)),
+			];
+			const stockItems = await db.stockItem.findMany({
+				where: {
+					id: { in: stockItemIds },
+					organizationId: input.organizationId,
+				},
+				select: { id: true, sellPrice: true },
+			});
+			if (stockItems.length !== stockItemIds.length) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Stock item not found",
+				});
+			}
+			for (const item of stockItems) {
+				priceByStockItem.set(item.id, item.sellPrice);
+			}
+		}
+
+		// Soft stock check — advisory only; the hard guard runs at approval
 		if (stockLines.length > 0) {
 			const allocations = await db.workerStock.findMany({
 				where: {
@@ -182,7 +209,10 @@ export const createInstallation = protectedProcedure
 						employeeId: employeeId as string,
 						stockItemId: line.stockItemId ?? null,
 						quantity: line.quantity,
-						price: line.price,
+						price:
+							line.stockItemId && !canSetPrice
+								? (priceByStockItem.get(line.stockItemId) ?? 0)
+								: line.price,
 						isAddOn: Boolean(line.addonType),
 						notes: line.addonType
 							? addonNoteFor(line.addonType)

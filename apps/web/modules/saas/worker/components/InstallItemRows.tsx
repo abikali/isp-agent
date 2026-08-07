@@ -160,18 +160,29 @@ export function InstallItemRows({
 									? "Monthly price ($)"
 									: "Price ($)"}
 							</Label>
-							<Input
-								type="number"
-								inputMode="decimal"
-								min={0}
-								step="0.01"
-								value={line.price}
-								onChange={(e) =>
-									update(line.key, {
-										price: Number(e.target.value),
-									})
-								}
-							/>
+							{line.kind === "item" ? (
+								// Hardware prices are admin-set on the stock item;
+								// the server enforces this for worker submissions.
+								<Input
+									type="number"
+									value={line.price}
+									disabled
+									readOnly
+								/>
+							) : (
+								<Input
+									type="number"
+									inputMode="decimal"
+									min={0}
+									step="0.01"
+									value={line.price}
+									onChange={(e) =>
+										update(line.key, {
+											price: Number(e.target.value),
+										})
+									}
+								/>
+							)}
 						</div>
 					</div>
 				</div>

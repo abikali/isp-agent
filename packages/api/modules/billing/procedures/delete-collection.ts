@@ -3,6 +3,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { revertApprovedInstallation } from "../../installations/procedures/review";
 
 export const deleteCollection = protectedProcedure
 	.route({
@@ -31,7 +32,13 @@ export const deleteCollection = protectedProcedure
 				organizationId: input.organizationId,
 				collector: { dealerId: activeDealerId ?? null },
 			},
-			select: { id: true, externalBillingId: true, expenseId: true },
+			select: {
+				id: true,
+				externalBillingId: true,
+				expenseId: true,
+				installationId: true,
+				setupRequestId: true,
+			},
 		});
 
 		if (!collection) {
@@ -62,6 +69,32 @@ export const deleteCollection = protectedProcedure
 						externalBillingId: null,
 					},
 				});
+			}
+			// Installation-cost rows revert the approval they came from: the
+			// worker gets the consumed stock back and the installation returns
+			// to the pending queue for re-review. Without this, deleting the
+			// entry removed the money but left the stock consumed.
+			if (collection.installationId) {
+				await revertApprovedInstallation(
+					tx,
+					collection.installationId,
+					user.id,
+				);
+			}
+			// New-user-setup rows revert every installation in the bundle the
+			// same way. The customer/setup request itself stays approved — only
+			// the hardware lines go back to pending with their stock restored.
+			if (collection.setupRequestId) {
+				const bundleInstallations = await tx.installation.findMany({
+					where: {
+						setupRequestId: collection.setupRequestId,
+						status: "APPROVED",
+					},
+					select: { id: true },
+				});
+				for (const inst of bundleInstallations) {
+					await revertApprovedInstallation(tx, inst.id, user.id);
+				}
 			}
 		});
 

@@ -179,7 +179,7 @@ export const workerCreateCustomer = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -194,6 +194,38 @@ export const workerCreateCustomer = protectedProcedure
 			throw new ORPCError("FORBIDDEN", {
 				message: "No employee record linked to your account",
 			});
+		}
+
+		// Hardware prices are admin-controlled: non-admin submissions always
+		// get the item's current sellPrice, whatever the client sent (same
+		// rule as installations.create). Add-on monthly prices stay caller-set.
+		const canSetPrice = hasPermission(permCtx, "installations", "approve");
+		const priceByStockItem = new Map<string, number>();
+		{
+			const stockItemIds = [
+				...new Set(
+					input.items
+						.filter((i) => i.stockItemId)
+						.map((i) => i.stockItemId as string),
+				),
+			];
+			if (stockItemIds.length > 0) {
+				const stockItems = await db.stockItem.findMany({
+					where: {
+						id: { in: stockItemIds },
+						organizationId: input.organizationId,
+					},
+					select: { id: true, sellPrice: true },
+				});
+				if (stockItems.length !== stockItemIds.length) {
+					throw new ORPCError("NOT_FOUND", {
+						message: "Stock item not found",
+					});
+				}
+				for (const item of stockItems) {
+					priceByStockItem.set(item.id, item.sellPrice);
+				}
+			}
 		}
 
 		if (input.durationType === "days" && !input.durationDays) {
@@ -316,7 +348,10 @@ export const workerCreateCustomer = protectedProcedure
 						employeeId,
 						stockItemId: line.stockItemId ?? null,
 						quantity: line.quantity,
-						price: line.price,
+						price:
+							line.stockItemId && !canSetPrice
+								? (priceByStockItem.get(line.stockItemId) ?? 0)
+								: line.price,
 						isAddOn: Boolean(line.addonType),
 						notes: line.addonType
 							? addonNoteFor(line.addonType)
@@ -903,6 +938,10 @@ export const approveSetupRequest = protectedProcedure
 						collectorId: request.requestedById,
 						amount: newUserSetupAmount(workerCash),
 						type: "NEW_USER_SETUP",
+						// Links the ledger entry to its setup request so deleting
+						// the entry reverts the bundle's installations (restores
+						// the worker's consumed stock).
+						setupRequestId: request.id,
 						receivedById: user.id,
 						notes: `New customer setup: ${request.customer.firstName} ${request.customer.lastName ?? ""}`.trim(),
 					},

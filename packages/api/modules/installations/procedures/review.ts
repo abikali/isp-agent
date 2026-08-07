@@ -183,6 +183,9 @@ export async function approveInstallationInTx(
 				collectorId: installation.employeeId,
 				amount: installationCostAmount(total),
 				type: "INSTALLATION_COST",
+				// Links the ledger entry to its installation so deleting the
+				// entry can revert the approval (restore consumed stock).
+				installationId: installation.id,
 				receivedById: userId,
 				notes: detail
 					? `Approved installation — ${detail}`
@@ -197,6 +200,80 @@ export async function approveInstallationInTx(
 			status: "APPROVED",
 			approvedById: userId,
 			approvedAt: new Date(),
+		},
+	});
+}
+
+/**
+ * Inverse of `approveInstallationInTx`, used when an admin deletes the
+ * installation's cash-ledger entry: return the consumed stock to the worker
+ * and move the installation back to PENDING so it can be edited, re-approved,
+ * or denied. Add-on approvals keep the customer's recurring price (there is
+ * no reliable "previous" value to restore); re-approving re-applies it.
+ */
+export async function revertApprovedInstallation(
+	tx: Prisma.TransactionClient,
+	installationId: string,
+	userId: string,
+): Promise<void> {
+	const installation = await tx.installation.findUnique({
+		where: { id: installationId },
+		select: {
+			id: true,
+			organizationId: true,
+			employeeId: true,
+			stockItemId: true,
+			isAddOn: true,
+			quantity: true,
+			status: true,
+		},
+	});
+	if (!installation || installation.status !== "APPROVED") {
+		return;
+	}
+
+	if (installation.stockItemId && !installation.isAddOn) {
+		const allocation = await tx.workerStock.upsert({
+			where: {
+				stockItemId_employeeId: {
+					stockItemId: installation.stockItemId,
+					employeeId: installation.employeeId,
+				},
+			},
+			create: {
+				stockItemId: installation.stockItemId,
+				employeeId: installation.employeeId,
+				quantity: installation.quantity,
+			},
+			update: { quantity: { increment: installation.quantity } },
+			select: { quantity: true },
+		});
+		const stockItem = await tx.stockItem.findUniqueOrThrow({
+			where: { id: installation.stockItemId },
+			select: { name: true },
+		});
+		await tx.stockLog.create({
+			data: {
+				organizationId: installation.organizationId,
+				stockItemId: installation.stockItemId,
+				employeeId: installation.employeeId,
+				performedById: userId,
+				action: "ADD",
+				itemName: stockItem.name,
+				quantity: installation.quantity,
+				workerQtyBefore: allocation.quantity - installation.quantity,
+				workerQtyAfter: allocation.quantity,
+				notes: `Returned — approved installation ${installation.id} reverted (cash entry deleted)`,
+			},
+		});
+	}
+
+	await tx.installation.update({
+		where: { id: installation.id },
+		data: {
+			status: "PENDING",
+			approvedById: null,
+			approvedAt: null,
 		},
 	});
 }
