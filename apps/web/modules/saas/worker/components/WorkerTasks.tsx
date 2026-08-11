@@ -64,6 +64,7 @@ import { toast } from "sonner";
 import {
 	type TaskCategoryValue,
 	type TaskStatusValue,
+	useMyEmployeeId,
 	useMyStatsQuery,
 	useMyStockQuery,
 	useMyTasksList,
@@ -88,7 +89,7 @@ const TREND_PERIODS = [
 ];
 const trendConfig = {
 	completed: { label: "Completed", color: CHART_TOKENS.c1 },
-	items: { label: "Items installed", color: CHART_TOKENS.c2 },
+	newUsers: { label: "New users", color: CHART_TOKENS.c2 },
 } satisfies ChartConfig;
 
 type WorkerTask = ReturnType<typeof useMyTasksList>["tasks"][number];
@@ -358,7 +359,7 @@ function TaskTrendChart() {
 		Number(months) as 3 | 6 | 12,
 		open,
 	);
-	const hasData = trend.some((t) => t.completed > 0 || t.items > 0);
+	const hasData = trend.some((t) => t.completed > 0 || t.newUsers > 0);
 
 	return (
 		<div className="overflow-hidden rounded-lg border">
@@ -391,55 +392,72 @@ function TaskTrendChart() {
 					{isFetching && trend.length === 0 ? (
 						<Skeleton className="h-56 w-full rounded-lg" />
 					) : hasData ? (
-						<ChartContainer
-							config={trendConfig}
-							className="h-56 w-full"
-						>
-							<BarChart
-								data={trend}
-								margin={{
-									left: -16,
-									right: 4,
-									top: 8,
-									bottom: 0,
+						// Phones are too narrow for a year of month labels, and
+						// recharts silently drops the ones that would overlap.
+						// Giving each month a fixed slice and scrolling the
+						// overflow keeps every label readable at any width.
+						<div className="-mx-1 overflow-x-auto px-1 pb-1">
+							<div
+								style={{
+									minWidth: `max(100%, ${trend.length * 48}px)`,
 								}}
 							>
-								<CartesianGrid
-									strokeDasharray="3 3"
-									stroke={CHART_TOKENS.grid}
-									vertical={false}
-								/>
-								<XAxis
-									dataKey="label"
-									stroke={CHART_TOKENS.axis}
-									tickLine={false}
-									axisLine={false}
-									fontSize={11}
-								/>
-								<YAxis
-									allowDecimals={false}
-									stroke={CHART_TOKENS.axis}
-									tickLine={false}
-									axisLine={false}
-									fontSize={11}
-									width={28}
-								/>
-								<ChartTooltip
-									content={<ChartTooltipContent />}
-								/>
-								<ChartLegend content={<ChartLegendContent />} />
-								<Bar
-									dataKey="completed"
-									fill={CHART_TOKENS.c1}
-									radius={[3, 3, 0, 0]}
-								/>
-								<Bar
-									dataKey="items"
-									fill={CHART_TOKENS.c2}
-									radius={[3, 3, 0, 0]}
-								/>
-							</BarChart>
-						</ChartContainer>
+								<ChartContainer
+									config={trendConfig}
+									className="h-56 w-full"
+								>
+									<BarChart
+										data={trend}
+										margin={{
+											left: -8,
+											right: 4,
+											top: 8,
+											bottom: 0,
+										}}
+									>
+										<CartesianGrid
+											strokeDasharray="3 3"
+											stroke={CHART_TOKENS.grid}
+											vertical={false}
+										/>
+										<XAxis
+											dataKey="label"
+											stroke={CHART_TOKENS.axis}
+											tickLine={false}
+											axisLine={false}
+											fontSize={11}
+											interval={0}
+											tickMargin={6}
+											minTickGap={0}
+										/>
+										<YAxis
+											allowDecimals={false}
+											stroke={CHART_TOKENS.axis}
+											tickLine={false}
+											axisLine={false}
+											fontSize={11}
+											width={32}
+										/>
+										<ChartTooltip
+											content={<ChartTooltipContent />}
+										/>
+										<ChartLegend
+											content={<ChartLegendContent />}
+										/>
+										<Bar
+											dataKey="completed"
+											fill={CHART_TOKENS.c1}
+											radius={[3, 3, 0, 0]}
+										/>
+										<Bar
+											dataKey="newUsers"
+											fill={CHART_TOKENS.c2}
+											radius={[3, 3, 0, 0]}
+										/>
+									</BarChart>
+								</ChartContainer>
+							</div>
+						</div>
 					) : (
 						<p className="py-8 text-center text-muted-foreground text-sm">
 							No activity in this period.
@@ -447,6 +465,129 @@ function TaskTrendChart() {
 					)}
 				</div>
 			)}
+		</div>
+	);
+}
+
+/**
+ * Compact elapsed time, at most two units: "45s", "12m 30s", "5h 12m",
+ * "3d 4h", "2w 1d", "3mo 1w". The smaller unit is dropped when it is zero.
+ */
+function formatAge(ms: number): string {
+	const seconds = Math.max(0, Math.floor(ms / 1000));
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+	const days = Math.floor(hours / 24);
+	const weeks = Math.floor(days / 7);
+	const months = Math.floor(days / 30);
+
+	function pair(value: number, unit: string, rest: number, restUnit: string) {
+		return rest > 0
+			? `${value}${unit} ${rest}${restUnit}`
+			: `${value}${unit}`;
+	}
+
+	if (minutes < 60) {
+		return pair(minutes, "m", seconds % 60, "s");
+	}
+	if (hours < 24) {
+		return pair(hours, "h", minutes % 60, "m");
+	}
+	if (days < 7) {
+		return pair(days, "d", hours % 24, "h");
+	}
+	if (days < 30) {
+		return pair(weeks, "w", days % 7, "d");
+	}
+	return pair(months, "mo", Math.floor((days % 30) / 7), "w");
+}
+
+/** How often the label needs redrawing to stay truthful at its current size. */
+function tickInterval(ms: number): number {
+	if (ms < 3_600_000) {
+		return 1_000;
+	}
+	if (ms < 86_400_000) {
+		return 60_000;
+	}
+	return 300_000;
+}
+
+/**
+ * Escalating urgency for an open task, keyed off how long it has been sitting
+ * with the worker: today is calm, yesterday needs a look, a week is a problem.
+ */
+const AGE_TIERS = [
+	{
+		after: 7 * 86_400_000,
+		className:
+			"bg-destructive/10 text-destructive font-semibold dark:text-red-300",
+	},
+	{
+		after: 3 * 86_400_000,
+		className:
+			"bg-orange-500/15 font-medium text-orange-700 dark:text-orange-300",
+	},
+	{
+		after: 86_400_000,
+		className:
+			"bg-amber-500/10 font-medium text-amber-700 dark:text-amber-300",
+	},
+	{ after: 0, className: "bg-muted text-muted-foreground" },
+];
+
+/**
+ * Live "how long has this been on my plate" timer for an open task, measured
+ * from the moment it was assigned to *this* worker (falling back to the task's
+ * own creation when it predates assignment tracking).
+ */
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- age timer colocated with the task card it annotates
+function TaskAgeTimer({ task }: { task: WorkerTask }) {
+	const myEmployeeId = useMyEmployeeId();
+
+	const mine = task.assignments.find(
+		(assignment) => assignment.employee.id === myEmployeeId,
+	);
+	const earliest = task.assignments.reduce<Date | null>((oldest, current) => {
+		const at = new Date(current.assignedAt);
+		return oldest === null || at < oldest ? at : oldest;
+	}, null);
+	const since = mine
+		? new Date(mine.assignedAt)
+		: (earliest ?? new Date(task.createdAt));
+	const startedAt = since.getTime();
+
+	const [elapsed, setElapsed] = useState(() => Date.now() - startedAt);
+
+	useEffect(() => {
+		let timer: ReturnType<typeof setTimeout>;
+		const tick = () => {
+			const next = Date.now() - startedAt;
+			setElapsed(next);
+			timer = setTimeout(tick, tickInterval(next));
+		};
+		tick();
+		return () => clearTimeout(timer);
+	}, [startedAt]);
+
+	const tier = AGE_TIERS.find((t) => elapsed >= t.after) ?? AGE_TIERS.at(-1);
+
+	return (
+		<div
+			className={cn(
+				"flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-md px-2.5 py-1.5 text-xs",
+				tier?.className,
+			)}
+		>
+			<ClockIcon className="size-3.5 shrink-0" />
+			<span>Assigned</span>
+			<span className="font-mono tabular-nums" suppressHydrationWarning>
+				{formatAge(elapsed)}
+			</span>
+			<span>ago</span>
 		</div>
 	);
 }
@@ -522,6 +663,9 @@ function TaskCard({
 						) : null}
 					</div>
 				</div>
+
+				{/* How long it has been waiting on this worker */}
+				{isOpen ? <TaskAgeTimer task={task} /> : null}
 
 				{/* Base — the worker's destination, highlighted */}
 				{task.base ? (

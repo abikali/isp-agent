@@ -11,8 +11,8 @@ export { WorkerStockPage } from "./components/WorkerStockPage";
 export { WorkerTasks } from "./components/WorkerTasks";
 // Hooks
 export {
-	useMyCustomersQuery,
 	useMyExpensesList,
+	useMyMonthCustomersQuery,
 	useMyStatsQuery,
 	useMyStockQuery,
 	useMyTasksList,

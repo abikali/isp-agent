@@ -4,6 +4,7 @@ import { getUserEmployeeId } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { currentMonthRange } from "../lib/month-range";
 
 /**
  * Current-month activity stats for the logged-in field employee.
@@ -12,8 +13,8 @@ import { protectedProcedure } from "../../../orpc/procedures";
  * (field techs lack `employees view`) and is strictly scoped to the caller's
  * own employee record. Powers the per-tab stat strips in the worker portal.
  *
- * "This month" = current calendar month in UTC (the server timezone), which is
- * the worker's intuitive reading regardless of the billing-month lock state.
+ * Shares `currentMonthRange()` with `myTrend` and `myMonthCustomers` so the KPI
+ * strip always agrees with the list and the chart below it.
  */
 export const getMyWorkerStats = protectedProcedure
 	.route({
@@ -44,14 +45,7 @@ export const getMyWorkerStats = protectedProcedure
 			});
 		}
 
-		const now = new Date();
-		const monthStart = new Date(
-			Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-		);
-		const monthEnd = new Date(
-			Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-		);
-		const monthRange = { gte: monthStart, lt: monthEnd };
+		const monthRange = currentMonthRange();
 		const org = input.organizationId;
 
 		const [
@@ -67,7 +61,7 @@ export const getMyWorkerStats = protectedProcedure
 				where: {
 					organizationId: org,
 					source: { in: ["MANUAL", "LEGACY"] },
-					status: { in: ["OPEN", "IN_PROGRESS", "ON_HOLD"] },
+					status: "OPEN",
 					assignments: { some: { employeeId } },
 				},
 			}),
@@ -89,11 +83,15 @@ export const getMyWorkerStats = protectedProcedure
 				_count: true,
 				_sum: { price: true, quantity: true },
 			}),
+			// Rejected requests never became subscribers, so they must not show
+			// up as "new users" — this count is the same population the
+			// `myMonthCustomers` list and the `myTrend` chart report.
 			db.customerSetupRequest.count({
 				where: {
 					organizationId: org,
 					requestedById: employeeId,
 					createdAt: monthRange,
+					status: { in: ["PENDING", "APPROVED"] },
 				},
 			}),
 			db.customerSetupRequest.count({

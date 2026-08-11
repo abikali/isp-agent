@@ -56,7 +56,7 @@ export const getMyWorkerTrend = protectedProcedure
 		);
 		const org = input.organizationId;
 
-		const [completedTasks, installs] = await Promise.all([
+		const [completedTasks, signUps] = await Promise.all([
 			db.task.findMany({
 				where: {
 					organizationId: org,
@@ -66,14 +66,16 @@ export const getMyWorkerTrend = protectedProcedure
 				},
 				select: { completedAt: true },
 			}),
-			db.installation.findMany({
+			// Same population as the "New users" KPI and the month customer
+			// list: requests he raised, minus the rejected ones.
+			db.customerSetupRequest.findMany({
 				where: {
 					organizationId: org,
-					employeeId,
-					status: { not: "DENIED" },
-					installedAt: { gte: windowStart },
+					requestedById: employeeId,
+					createdAt: { gte: windowStart },
+					status: { in: ["PENDING", "APPROVED"] },
 				},
-				select: { installedAt: true, quantity: true },
+				select: { createdAt: true },
 			}),
 		]);
 
@@ -82,7 +84,12 @@ export const getMyWorkerTrend = protectedProcedure
 
 		const trendMap = new Map<
 			string,
-			{ month: string; label: string; completed: number; items: number }
+			{
+				month: string;
+				label: string;
+				completed: number;
+				newUsers: number;
+			}
 		>();
 		for (let i = 0; i < input.months; i++) {
 			const d = new Date(
@@ -99,7 +106,7 @@ export const getMyWorkerTrend = protectedProcedure
 					timeZone: "UTC",
 				}),
 				completed: 0,
-				items: 0,
+				newUsers: 0,
 			});
 		}
 
@@ -112,10 +119,10 @@ export const getMyWorkerTrend = protectedProcedure
 				bucket.completed += 1;
 			}
 		}
-		for (const inst of installs) {
-			const bucket = trendMap.get(monthKey(inst.installedAt));
+		for (const signUp of signUps) {
+			const bucket = trendMap.get(monthKey(signUp.createdAt));
 			if (bucket) {
-				bucket.items += inst.quantity;
+				bucket.newUsers += 1;
 			}
 		}
 

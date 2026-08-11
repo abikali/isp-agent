@@ -62,23 +62,40 @@ export function useMyTrendQuery(months: 3 | 6 | 12, enabled: boolean) {
 	};
 }
 
-/** Installed items grouped by customer for the logged-in field employee. */
-export function useMyCustomerItemsQuery() {
+/** Customers the logged-in field employee signed up or serviced this month. */
+export function useMyMonthCustomersQuery() {
 	const organizationId = useOrganizationId();
 
 	const query = useQuery(
 		organizationId
-			? orpc.employees.myCustomerItems.queryOptions({
+			? orpc.employees.myMonthCustomers.queryOptions({
 					input: { organizationId },
 				})
-			: disabledQuery(["employees", "myCustomerItems"]),
+			: disabledQuery(["employees", "myMonthCustomers"]),
 	);
 
 	return {
-		byCustomer: query.data?.byCustomer ?? {},
-		setupByCustomer: query.data?.setupByCustomer ?? {},
+		customers: query.data?.customers ?? [],
+		newCount: query.data?.newCount ?? 0,
+		serviceCount: query.data?.serviceCount ?? 0,
+		newTotal: query.data?.newTotal ?? 0,
+		serviceTotal: query.data?.serviceTotal ?? 0,
+		totalToCollect: query.data?.totalToCollect ?? 0,
 		isLoading: query.isLoading,
 	};
+}
+
+/** The logged-in user's own employee id, or undefined while it resolves. */
+export function useMyEmployeeId() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.employees.me.queryOptions({ input: { organizationId } })
+			: disabledQuery(["employees", "me"]),
+	);
+
+	return query.data?.employee?.id;
 }
 
 /** Wallet balance + expense totals for the logged-in field employee. */
@@ -252,35 +269,6 @@ export function useMyExpensesList(params: MyExpensesParams = {}) {
 		page: query.data?.page ?? params.page ?? 1,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
-	};
-}
-
-/** Customers assigned to the logged-in worker (legacy worker.php lists). */
-export function useMyCustomersQuery() {
-	const organizationId = useOrganizationId();
-
-	const meQuery = useQuery(
-		organizationId
-			? orpc.employees.me.queryOptions({ input: { organizationId } })
-			: disabledQuery(["employees", "me"]),
-	);
-	const employeeId = meQuery.data?.employee?.id;
-
-	const query = useQuery(
-		organizationId && employeeId
-			? orpc.customers.list.queryOptions({
-					input: {
-						organizationId,
-						workerId: employeeId,
-						pageSize: 100,
-					},
-				})
-			: disabledQuery(["customers", "myWorkerCustomers"]),
-	);
-
-	return {
-		customers: query.data?.customers ?? [],
-		isLoading: meQuery.isLoading || query.isLoading,
 	};
 }
 

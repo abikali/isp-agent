@@ -8,7 +8,7 @@ import { getEmployee } from "./procedures/get";
 import { inviteEmployee } from "./procedures/invite";
 import { listEmployees } from "./procedures/list";
 import { getMyEmployeeIdentity } from "./procedures/me";
-import { getMyCustomerItems } from "./procedures/my-customer-items";
+import { getMyMonthCustomers } from "./procedures/my-month-customers";
 import { getMyWorkerStats } from "./procedures/my-stats";
 import { getMyWorkerTrend } from "./procedures/my-trend";
 import { getEmployeeReport } from "./procedures/report";
@@ -33,5 +33,5 @@ export const employeesRouter = {
 	me: getMyEmployeeIdentity,
 	myStats: getMyWorkerStats,
 	myTrend: getMyWorkerTrend,
-	myCustomerItems: getMyCustomerItems,
+	myMonthCustomers: getMyMonthCustomers,
 };
