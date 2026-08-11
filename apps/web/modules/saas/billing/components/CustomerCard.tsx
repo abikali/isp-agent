@@ -1,5 +1,6 @@
 "use client";
 
+import { parsePhones } from "@repo/database/phones";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
@@ -101,8 +102,18 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const expiryDateLabel = customer.oldestUnpaidExpiry
 		? formatDate(customer.oldestUnpaidExpiry)
 		: "";
-	const waLink = formatWhatsAppLink(customer.mobile ?? customer.phone);
-	const phoneNumber = customer.mobile ?? customer.phone;
+	// All of the customer's numbers, primary first — customers often carry
+	// several and the collector needs every one, not just the primary.
+	const parsedPhones = [...parsePhones(customer.phones)].sort(
+		(a, b) => Number(b.primary) - Number(a.primary),
+	);
+	const phoneNumbers = parsedPhones.length
+		? parsedPhones.map((p) => p.number)
+		: [customer.mobile ?? customer.phone].filter((n): n is string =>
+				Boolean(n),
+			);
+	const phoneNumber = phoneNumbers[0] ?? null;
+	const waLink = formatWhatsAppLink(phoneNumber);
 	const hasLocation = customer.latitude && customer.longitude;
 
 	return (
@@ -186,15 +197,27 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 									</p>
 								</div>
 							)}
-							{phoneNumber && (
+							{phoneNumbers.length > 0 && (
 								<div>
 									<p className="text-xs font-medium text-muted-foreground">
-										Phone
+										{phoneNumbers.length > 1
+											? `Phones (${phoneNumbers.length})`
+											: "Phone"}
 									</p>
-									<p className="flex items-center">
-										{phoneNumber}
-										<CopyButton value={phoneNumber} />
-									</p>
+									{phoneNumbers.map((number) => (
+										<p
+											key={number}
+											className="flex items-center"
+										>
+											<a
+												href={`tel:${number}`}
+												className="hover:underline"
+											>
+												{number}
+											</a>
+											<CopyButton value={number} />
+										</p>
+									))}
 								</div>
 							)}
 							{customer.username && (
