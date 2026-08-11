@@ -1,4 +1,8 @@
 import { db } from "@repo/database";
+import {
+	DEFAULT_WORKER_OPTIONS,
+	WORKER_OPTION_LIST_KEYS,
+} from "@repo/database/worker-options";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
@@ -62,6 +66,37 @@ async function seedNoteCategories(organizationId: string): Promise<number> {
 	return created;
 }
 
+/** Seed the worker-portal dropdown options (expense categories, resolutions). */
+async function seedWorkerOptions(organizationId: string): Promise<number> {
+	let created = 0;
+
+	for (const listKey of WORKER_OPTION_LIST_KEYS) {
+		for (const opt of DEFAULT_WORKER_OPTIONS[listKey]) {
+			await db.workerOption.upsert({
+				where: {
+					organizationId_listKey_value: {
+						organizationId,
+						listKey,
+						value: opt.value,
+					},
+				},
+				update: {},
+				create: {
+					organizationId,
+					listKey,
+					value: opt.value,
+					label: opt.label,
+					labelAr: opt.labelAr ?? null,
+					sortOrder: opt.sortOrder,
+				},
+			});
+			created++;
+		}
+	}
+
+	return created;
+}
+
 export function createOrgSetupWorker(): Worker<
 	OrgSetupJobData,
 	OrgSetupJobResult
@@ -91,6 +126,12 @@ export function createOrgSetupWorker(): Worker<
 			const catCount = await seedNoteCategories(organizationId);
 			logger.info(
 				`[org-setup] Seeded ${catCount} note categories for "${org.name}"`,
+			);
+
+			// Seed worker-portal dropdown options
+			const optCount = await seedWorkerOptions(organizationId);
+			logger.info(
+				`[org-setup] Seeded ${optCount} worker options for "${org.name}"`,
 			);
 
 			logger.info(

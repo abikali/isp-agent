@@ -334,6 +334,7 @@ model Organization {
   stockRefundRequests  StockRefundRequest[]
   billingSyncOps           BillingSyncOperation[]
   noteCategories           NoteCategory[]
+  workerOptions            WorkerOption[]
   syncConflicts            SyncConflict[]
   saltiIntegration         SaltiIntegration?
   marketingBroadcasts      MarketingBroadcast[]
@@ -1893,6 +1894,27 @@ model NoteCategory {
   @@unique([organizationId, value])
   @@index([organizationId])
   @@map("note_category")
+}
+
+/// Admin-managed option list backing the worker-portal dropdowns
+/// (expense categories, maintenance resolutions, …). `listKey` selects which
+/// dropdown the row belongs to — see packages/api/modules/worker-options/lib/lists.ts.
+model WorkerOption {
+  id             String   @id @default(cuid())
+  organizationId String
+  listKey        String   // e.g. "EXPENSE_CATEGORY" | "TASK_RESOLUTION"
+  value          String   // Machine-readable key stored on expense.category / task.resolutionCode
+  label          String   // Display label
+  labelAr        String?  // Arabic label (optional)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, listKey, value])
+  @@index([organizationId, listKey])
+  @@map("worker_option")
 }
 
 enum CashCollectionType {

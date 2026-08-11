@@ -16,9 +16,4 @@ export {
 	TASK_STATUS_OPTIONS,
 } from "./lib/constants";
 
-export {
-	TASK_RESOLUTION_LABELS,
-	TASK_RESOLUTION_OPTIONS,
-	type TaskResolutionCode,
-} from "./lib/resolution-labels";
 export { isOverdue, timeAgo } from "./lib/task-utils";

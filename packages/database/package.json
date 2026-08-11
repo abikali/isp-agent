@@ -22,6 +22,10 @@
 		"./billing": {
 			"types": "./lib/billing.ts",
 			"default": "./lib/billing.ts"
+		},
+		"./worker-options": {
+			"types": "./lib/worker-options.ts",
+			"default": "./lib/worker-options.ts"
 		}
 	},
 	"scripts": {
@@ -36,6 +40,7 @@
 		"type-check": "tsc --noEmit",
 		"seed": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed.ts",
 		"seed:products": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-products.ts",
+		"seed:worker-options": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-worker-options.ts",
 		"backfill:shortcodes": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-shortcodes.ts",
 		"import:bases": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/import-bases.ts"
 	},

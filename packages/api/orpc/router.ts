@@ -34,6 +34,7 @@ import { userPrefsRouter } from "../modules/user-prefs/router";
 import { usersRouter } from "../modules/users/router";
 import { watchersRouter } from "../modules/watchers/router";
 import { webhooksRouter } from "../modules/webhooks/router";
+import { workerOptionsRouter } from "../modules/worker-options/router";
 import { publicProcedure } from "./procedures";
 
 export const router = publicProcedure.router({
@@ -72,6 +73,7 @@ export const router = publicProcedure.router({
 	userPrefs: userPrefsRouter,
 	savedViews: savedViewsRouter,
 	watchers: watchersRouter,
+	workerOptions: workerOptionsRouter,
 });
 
 export type ApiRouter = typeof router;

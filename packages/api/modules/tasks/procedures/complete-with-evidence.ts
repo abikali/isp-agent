@@ -7,6 +7,7 @@ import {
 	verifyTaskOwnership,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -15,7 +16,6 @@ import {
 	classifyAddonNote,
 } from "../../installations/lib/addons";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
-import { TASK_RESOLUTION_CODES } from "../lib/resolutions";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
 // (or, optionally, a MAINTENANCE task). Each line becomes a PENDING Installation
@@ -55,8 +55,10 @@ export const completeTaskWithEvidence = protectedProcedure
 			.object({
 				organizationId: z.string(),
 				taskId: z.string(),
-				// Maintenance / general branch
-				resolutionCode: z.enum(TASK_RESOLUTION_CODES).optional(),
+				// Maintenance / general branch. Free-form because the option
+				// list is admin-managed (worker_option / TASK_RESOLUTION), so a
+				// fixed enum would reject any resolution added after deploy.
+				resolutionCode: z.string().min(1).max(50).optional(),
 				resolutionNote: z.string().max(2000).optional(),
 				// Task-level completion photo. Required for INSTALLATION /
 				// REPLACEMENT (proof of the install); optional elsewhere.
@@ -68,7 +70,7 @@ export const completeTaskWithEvidence = protectedProcedure
 			})
 			.refine(
 				(v) =>
-					v.resolutionCode !== "custom" ||
+					v.resolutionCode !== CUSTOM_RESOLUTION_VALUE ||
 					(v.resolutionNote && v.resolutionNote.length > 0),
 				{ message: "A note is required for custom resolutions" },
 			),

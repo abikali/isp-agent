@@ -70,6 +70,9 @@
 				"./modules/saas/expenses/index.client.ts"
 			],
 			"@saas/worker/client": ["./modules/saas/worker/index.client.ts"],
+			"@saas/worker-options/client": [
+				"./modules/saas/worker-options/index.client.ts"
+			],
 			"@saas/*": ["./modules/saas/*"],
 			"@ui/*": ["./modules/ui/*"],
 			"@shared/*": ["./modules/shared/*"],

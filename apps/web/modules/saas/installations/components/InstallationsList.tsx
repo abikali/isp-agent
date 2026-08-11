@@ -1,7 +1,8 @@
 "use client";
 
+import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
 import { useEmployeesQuery } from "@saas/employees/client";
-import { TASK_RESOLUTION_LABELS } from "@saas/tasks";
+import { useWorkerOptions } from "@saas/worker-options/client";
 import {
 	ContentCard,
 	ContentCardToolbar,
@@ -153,26 +154,26 @@ function installationNote(inst: Installation): string | null {
  */
 function taskResolution(
 	inst: Installation,
+	labelOf: (value: string | null | undefined) => string,
 ): { label: string | null; note: string | null } | null {
 	const task = inst.task;
 	if (!task) {
 		return null;
 	}
 	const note = task.resolutionNote?.trim() || null;
-	const label = task.resolutionCode
-		? ((TASK_RESOLUTION_LABELS as Record<string, string>)[
-				task.resolutionCode
-			] ?? task.resolutionCode)
-		: null;
-	// A bare "Other" code without a note carries no information.
-	if (!note && (!label || label === "Other")) {
+	const label = task.resolutionCode ? labelOf(task.resolutionCode) : null;
+	// A bare catch-all code without a note carries no information.
+	if (!note && (!label || task.resolutionCode === CUSTOM_RESOLUTION_VALUE)) {
 		return null;
 	}
 	return { label, note };
 }
 
-function hasNotes(inst: Installation): boolean {
-	return !!(installationNote(inst) || taskResolution(inst));
+function hasNotes(
+	inst: Installation,
+	labelOf: (value: string | null | undefined) => string,
+): boolean {
+	return !!(installationNote(inst) || taskResolution(inst, labelOf));
 }
 
 /** Compact "3d ago" style suffix for past dates. */
@@ -242,8 +243,9 @@ function InstallationNotesDialog({
 	inst: Installation;
 	onClose: () => void;
 }) {
+	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 	const note = installationNote(inst);
-	const resolution = taskResolution(inst);
+	const resolution = taskResolution(inst, resolutionLabel);
 	return (
 		<Dialog
 			open
@@ -310,8 +312,9 @@ function InstallationSubRow({
 	const statusCfg = STATUS_BADGES[inst.status as InstallationStatus];
 	const task = inst.task;
 	const photoUrl = task?.completionPhotoUrl;
+	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 	const note = installationNote(inst);
-	const resolution = taskResolution(inst);
+	const resolution = taskResolution(inst, resolutionLabel);
 	return (
 		<div className="grid gap-x-8 gap-y-4 px-6 py-4 sm:grid-cols-2 lg:grid-cols-4">
 			<div className="space-y-1">
@@ -488,6 +491,7 @@ export function InstallationsList({
 		null,
 	);
 	const [notesFor, setNotesFor] = useState<Installation | null>(null);
+	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
 	const { employees } = useEmployeesQuery();
 	const { pendingValue } = useInstallationStatsQuery();
@@ -672,7 +676,7 @@ export function InstallationsList({
 				meta: { className: "min-w-[220px]" },
 				cell: ({ row }) => {
 					const inst = row.original;
-					const resolution = taskResolution(inst);
+					const resolution = taskResolution(inst, resolutionLabel);
 					const preview = [
 						installationNote(inst),
 						resolution?.note ?? resolution?.label,
@@ -687,7 +691,7 @@ export function InstallationsList({
 									<p className="truncate font-medium text-sm">
 										{installationName(inst)}
 									</p>
-									{hasNotes(inst) && (
+									{hasNotes(inst, resolutionLabel) && (
 										<Tooltip>
 											<TooltipTrigger asChild>
 												<button
@@ -1056,6 +1060,7 @@ export function InstallationsList({
 			organizationSlug,
 			approveInstallations,
 			denyInstallation,
+			resolutionLabel,
 		],
 	);
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkerOptions } from "@saas/worker-options/client";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate, formatDateTime } from "@shared/lib/format";
@@ -21,10 +22,6 @@ import {
 import { type ReactNode, useState } from "react";
 import type { TaskListItem } from "../hooks/use-tasks";
 import { FOLLOW_UP_STATUS_LABELS, TASK_SOURCE_LABELS } from "../lib/constants";
-import {
-	TASK_RESOLUTION_LABELS,
-	type TaskResolutionCode,
-} from "../lib/resolution-labels";
 
 const ITEM_STATUS_VARIANTS: Record<
 	string,
@@ -75,6 +72,7 @@ export function TaskRowDetails({
 	const [photo, setPhoto] = useState<{ src: string; title: string } | null>(
 		null,
 	);
+	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
 	const customer = task.customer;
 	const phone = customer?.mobile ?? customer?.phone ?? null;
@@ -300,9 +298,7 @@ export function TaskRowDetails({
 									variant="outline"
 									className="text-[10px]"
 								>
-									{TASK_RESOLUTION_LABELS[
-										task.resolutionCode as TaskResolutionCode
-									] ?? task.resolutionCode}
+									{resolutionLabel(task.resolutionCode)}
 								</Badge>
 							</div>
 						)}

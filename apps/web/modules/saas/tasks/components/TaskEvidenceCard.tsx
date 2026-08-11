@@ -1,5 +1,6 @@
 "use client";
 
+import { useWorkerOptions } from "@saas/worker-options/client";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { formatDateTime } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
@@ -7,10 +8,6 @@ import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import { ImageIcon } from "lucide-react";
 import { useState } from "react";
-import {
-	TASK_RESOLUTION_LABELS,
-	type TaskResolutionCode,
-} from "../lib/resolution-labels";
 
 interface EvidenceTask {
 	resolutionCode: string | null;
@@ -43,6 +40,7 @@ export function TaskEvidenceCard({ task }: { task: EvidenceTask }) {
 	const [photo, setPhoto] = useState<{ src: string; title: string } | null>(
 		null,
 	);
+	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
 	const hasEvidence =
 		task.resolutionCode ||
@@ -76,9 +74,7 @@ export function TaskEvidenceCard({ task }: { task: EvidenceTask }) {
 							Resolution:
 						</span>
 						<Badge variant="outline">
-							{TASK_RESOLUTION_LABELS[
-								task.resolutionCode as TaskResolutionCode
-							] ?? task.resolutionCode}
+							{resolutionLabel(task.resolutionCode)}
 						</Badge>
 					</div>
 				)}

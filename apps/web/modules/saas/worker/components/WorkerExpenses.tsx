@@ -1,10 +1,10 @@
 "use client";
 
-import { EXPENSE_CATEGORIES } from "@saas/expenses";
 import {
 	useCreateExpense,
 	useCreateReceiptUploadUrl,
 } from "@saas/expenses/client";
+import { useWorkerOptions } from "@saas/worker-options/client";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -117,7 +117,12 @@ export function WorkerExpenses() {
 
 	const [showSubmit, setShowSubmit] = useState(false);
 	const [amount, setAmount] = useState("");
-	const [category, setCategory] = useState("toolkit");
+	// Admin-managed list (Settings → Worker Dropdowns); empty until it loads,
+	// so the first option stands in as the default.
+	const { options: categoryOptions, labelOf: categoryLabel } =
+		useWorkerOptions("EXPENSE_CATEGORY");
+	const [pickedCategory, setPickedCategory] = useState("");
+	const category = pickedCategory || categoryOptions[0]?.value || "";
 	const [note, setNote] = useState("");
 	const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
 
@@ -186,11 +191,7 @@ export function WorkerExpenses() {
 			await createExpense.mutateAsync({
 				organizationId,
 				amount: Number(amount),
-				description:
-					note.trim() ||
-					(EXPENSE_CATEGORIES.find((c) => c.value === category)
-						?.label ??
-						category),
+				description: note.trim() || categoryLabel(category),
 				category,
 				receiptUrl: receiptUrl ?? undefined,
 			});
@@ -261,7 +262,11 @@ export function WorkerExpenses() {
 			) : (
 				<div className="space-y-2">
 					{expenses.map((expense) => (
-						<ExpenseRow key={expense.id} expense={expense} />
+						<ExpenseRow
+							key={expense.id}
+							expense={expense}
+							categoryLabel={categoryLabel(expense.category)}
+						/>
 					))}
 				</div>
 			)}
@@ -299,12 +304,9 @@ export function WorkerExpenses() {
 							<Label>Category</Label>
 							<Combobox
 								value={category}
-								onChange={setCategory}
+								onChange={setPickedCategory}
 								searchPlaceholder="Search categories…"
-								options={EXPENSE_CATEGORIES.map((cat) => ({
-									value: cat.value,
-									label: cat.label,
-								}))}
+								options={categoryOptions}
 							/>
 						</div>
 						<div className="space-y-1.5">
@@ -365,10 +367,13 @@ export function WorkerExpenses() {
 }
 
 // react-doctor-disable-next-line react-doctor/no-multi-comp -- expense row colocated with its list
-function ExpenseRow({ expense }: { expense: WorkerExpense }) {
-	const categoryLabel = EXPENSE_CATEGORIES.find(
-		(c) => c.value === expense.category,
-	)?.label;
+function ExpenseRow({
+	expense,
+	categoryLabel,
+}: {
+	expense: WorkerExpense;
+	categoryLabel: string;
+}) {
 	return (
 		<Card>
 			<CardContent className="flex items-center justify-between gap-3 p-4">

@@ -10,6 +10,7 @@ import {
 	ClipboardListIcon,
 	CreditCardIcon,
 	DatabaseIcon,
+	ListIcon,
 	MegaphoneIcon,
 	Settings2Icon,
 	ShieldCheckIcon,
@@ -99,6 +100,13 @@ function OrganizationSettingsLayout() {
 								href: `${organizationSettingsBasePath}/note-categories`,
 								icon: (
 									<TagsIcon className="size-4 opacity-50" />
+								),
+							},
+							{
+								title: "Worker Dropdowns",
+								href: `${organizationSettingsBasePath}/worker-options`,
+								icon: (
+									<ListIcon className="size-4 opacity-50" />
 								),
 							},
 							{

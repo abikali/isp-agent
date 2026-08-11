@@ -81,6 +81,7 @@ import { Route as SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport } from "./r
 import { Route as SaasAppAccountAdminOrganizationsIndexRouteImport } from "./routes/_saas/app/_account/admin/organizations/index"
 import { Route as SaasAppAccountAdminDealersIndexRouteImport } from "./routes/_saas/app/_account/admin/dealers/index"
 import { Route as SaasAppOrgOrganizationSlugStockLogRouteImport } from "./routes/_saas/app/_org/$organizationSlug/stock/log"
+import { Route as SaasAppOrgOrganizationSlugSettingsWorkerOptionsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/worker-options"
 import { Route as SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/webhooks"
 import { Route as SaasAppOrgOrganizationSlugSettingsRolesRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/roles"
 import { Route as SaasAppOrgOrganizationSlugSettingsNotificationsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/notifications"
@@ -535,6 +536,12 @@ const SaasAppOrgOrganizationSlugStockLogRoute =
     path: "/stock/log",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
+const SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute =
+  SaasAppOrgOrganizationSlugSettingsWorkerOptionsRouteImport.update({
+    id: "/worker-options",
+    path: "/worker-options",
+    getParentRoute: () => SaasAppOrgOrganizationSlugSettingsRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugSettingsWebhooksRoute =
   SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport.update({
     id: "/webhooks",
@@ -905,6 +912,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/app/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
   "/app/admin/dealers": typeof SaasAppAccountAdminDealersIndexRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
@@ -1014,6 +1022,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/app/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/app/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
   "/app/admin/dealers": typeof SaasAppAccountAdminDealersIndexRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
@@ -1138,6 +1147,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/settings/notifications": typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   "/_saas/app/_org/$organizationSlug/settings/roles": typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   "/_saas/app/_org/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  "/_saas/app/_org/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/_saas/app/_org/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
   "/_saas/app/_account/admin/dealers/": typeof SaasAppAccountAdminDealersIndexRoute
   "/_saas/app/_account/admin/organizations/": typeof SaasAppAccountAdminOrganizationsIndexRoute
@@ -1256,6 +1266,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/notifications"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
+    | "/app/$organizationSlug/settings/worker-options"
     | "/app/$organizationSlug/stock/log"
     | "/app/admin/dealers"
     | "/app/admin/organizations"
@@ -1365,6 +1376,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/notifications"
     | "/app/$organizationSlug/settings/roles"
     | "/app/$organizationSlug/settings/webhooks"
+    | "/app/$organizationSlug/settings/worker-options"
     | "/app/$organizationSlug/stock/log"
     | "/app/admin/dealers"
     | "/app/admin/organizations"
@@ -1488,6 +1500,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/settings/notifications"
     | "/_saas/app/_org/$organizationSlug/settings/roles"
     | "/_saas/app/_org/$organizationSlug/settings/webhooks"
+    | "/_saas/app/_org/$organizationSlug/settings/worker-options"
     | "/_saas/app/_org/$organizationSlug/stock/log"
     | "/_saas/app/_account/admin/dealers/"
     | "/_saas/app/_account/admin/organizations/"
@@ -2060,6 +2073,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugStockLogRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
+    "/_saas/app/_org/$organizationSlug/settings/worker-options": {
+      id: "/_saas/app/_org/$organizationSlug/settings/worker-options"
+      path: "/worker-options"
+      fullPath: "/app/$organizationSlug/settings/worker-options"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugSettingsRoute
+    }
     "/_saas/app/_org/$organizationSlug/settings/webhooks": {
       id: "/_saas/app/_org/$organizationSlug/settings/webhooks"
       path: "/webhooks"
@@ -2548,6 +2568,7 @@ interface SaasAppOrgOrganizationSlugSettingsRouteChildren {
   SaasAppOrgOrganizationSlugSettingsNotificationsRoute: typeof SaasAppOrgOrganizationSlugSettingsNotificationsRoute
   SaasAppOrgOrganizationSlugSettingsRolesRoute: typeof SaasAppOrgOrganizationSlugSettingsRolesRoute
   SaasAppOrgOrganizationSlugSettingsWebhooksRoute: typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
+  SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute: typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   SaasAppOrgOrganizationSlugSettingsIndexRoute: typeof SaasAppOrgOrganizationSlugSettingsIndexRoute
 }
 
@@ -2581,6 +2602,8 @@ const SaasAppOrgOrganizationSlugSettingsRouteChildren: SaasAppOrgOrganizationSlu
       SaasAppOrgOrganizationSlugSettingsRolesRoute,
     SaasAppOrgOrganizationSlugSettingsWebhooksRoute:
       SaasAppOrgOrganizationSlugSettingsWebhooksRoute,
+    SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute:
+      SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute,
     SaasAppOrgOrganizationSlugSettingsIndexRoute:
       SaasAppOrgOrganizationSlugSettingsIndexRoute,
   }

@@ -1,12 +1,13 @@
 "use client";
 
+import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
 import { formatWhatsAppLink } from "@saas/billing/lib/whatsapp";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
-import { TASK_RESOLUTION_OPTIONS } from "@saas/tasks";
 import {
 	useCompleteTaskWithEvidence,
 	useCreateEvidenceUploadUrl,
 } from "@saas/tasks/client";
+import { useWorkerOptions } from "@saas/worker-options/client";
 import { CHART_TOKENS } from "@shared/components/charts/chart-utils";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
@@ -754,7 +755,16 @@ function MaintenanceSubmitSheet({
 	const organizationId = useOrganizationId();
 	const complete = useCompleteTaskWithEvidence();
 	const getUploadUrl = useUploadUrlGetter(organizationId);
-	const [resolutionCode, setResolutionCode] = useState("no_problem");
+	// Admin-managed list (Settings → Worker Dropdowns). Keeps preferring
+	// "No problem found" as the default; falls back to the first option if the
+	// admin removed it, and stands in while the list loads.
+	const { options: resolutionOptions } = useWorkerOptions("TASK_RESOLUTION");
+	const [pickedResolution, setPickedResolution] = useState("");
+	const resolutionCode =
+		pickedResolution ||
+		resolutionOptions.find((o) => o.value === "no_problem")?.value ||
+		resolutionOptions[0]?.value ||
+		"";
 	const [note, setNote] = useState("");
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 	// Items/add-ons used during the visit are recorded but never required.
@@ -766,7 +776,7 @@ function MaintenanceSubmitSheet({
 		if (!organizationId) {
 			return;
 		}
-		if (resolutionCode === "custom" && !note.trim()) {
+		if (resolutionCode === CUSTOM_RESOLUTION_VALUE && !note.trim()) {
 			toast.error("A note is required for 'Other'");
 			return;
 		}
@@ -774,7 +784,7 @@ function MaintenanceSubmitSheet({
 			await complete.mutateAsync({
 				organizationId,
 				taskId: task.id,
-				resolutionCode: resolutionCode as never,
+				resolutionCode,
 				resolutionNote: note.trim() || undefined,
 				photoUrl: photoUrl ?? undefined,
 				...(installedItems.length > 0 ? { installedItems } : {}),
@@ -800,17 +810,14 @@ function MaintenanceSubmitSheet({
 				<Label>What did you find?</Label>
 				<Combobox
 					value={resolutionCode}
-					onChange={setResolutionCode}
+					onChange={setPickedResolution}
 					searchPlaceholder="Search…"
-					options={TASK_RESOLUTION_OPTIONS.map((opt) => ({
-						value: opt.value,
-						label: opt.label,
-					}))}
+					options={resolutionOptions}
 				/>
 			</div>
 			<div className="space-y-1.5">
 				<Label htmlFor="maint-note">
-					Note{resolutionCode === "custom" ? " *" : ""}
+					Note{resolutionCode === CUSTOM_RESOLUTION_VALUE ? " *" : ""}
 				</Label>
 				<Textarea
 					id="maint-note"
