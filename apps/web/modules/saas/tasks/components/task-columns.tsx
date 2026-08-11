@@ -20,6 +20,7 @@ import {
 	PackageMinusIcon,
 	PackagePlusIcon,
 	StickyNoteIcon,
+	TimerIcon,
 	UserIcon,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -47,6 +48,8 @@ export const TASK_TOGGLEABLE_COLUMNS = [
 	{ id: "items", label: "Items" },
 	{ id: "status", label: "Status" },
 	{ id: "priority", label: "Priority" },
+	{ id: "started", label: "Started" },
+	{ id: "duration", label: "Duration" },
 	{ id: "dueDate", label: "Timeline" },
 	{ id: "actions", label: "Actions", alwaysVisible: true },
 ];
@@ -59,6 +62,28 @@ function getInitials(name: string): string {
 		.join("")
 		.slice(0, 2)
 		.toUpperCase();
+}
+
+/** "2d 4h", "5h 12m", "8m", "just now" — the two largest non-zero units. */
+function formatDuration(fromMs: number, toMs: number): string {
+	const totalMinutes = Math.max(0, Math.round((toMs - fromMs) / 60000));
+	if (totalMinutes < 1) {
+		return "just now";
+	}
+	const days = Math.floor(totalMinutes / 1440);
+	const hours = Math.floor((totalMinutes % 1440) / 60);
+	const minutes = totalMinutes % 60;
+	if (days > 0) {
+		return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+	}
+	if (hours > 0) {
+		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+	}
+	return `${minutes}m`;
+}
+
+function formatAgo(date: string | Date): string {
+	return `${formatDuration(new Date(date).getTime(), Date.now())} ago`;
 }
 
 function formatRelativeDate(date: string | Date): string {
@@ -285,19 +310,26 @@ export function useTaskColumns(organizationSlug: string) {
 						);
 					}
 					if (task.assignments.length > 0) {
+						const [first, ...rest] = task.assignments;
 						return (
-							<div className="flex items-center gap-1">
-								{task.assignments.slice(0, 3).map((a) => (
+							<div className="flex min-w-0 items-center gap-2">
+								{first && (
 									<InitialsAvatar
-										key={a.employee.id}
-										name={a.employee.name}
+										name={first.employee.name}
 									/>
-								))}
-								{task.assignments.length > 3 && (
-									<span className="text-xs text-muted-foreground">
-										+{task.assignments.length - 3}
-									</span>
 								)}
+								<div className="min-w-0 leading-tight">
+									<p className="truncate text-sm font-medium">
+										{first?.employee.name}
+									</p>
+									<p className="truncate text-xs text-muted-foreground">
+										{rest.length > 0
+											? `with ${rest
+													.map((a) => a.employee.name)
+													.join(", ")}`
+											: first?.employee.position}
+									</p>
+								</div>
 							</div>
 						);
 					}
@@ -436,6 +468,125 @@ export function useTaskColumns(organizationSlug: string) {
 				},
 			},
 			{
+				id: "started",
+				header: "Started",
+				accessorFn: (row) => row.createdAt,
+				enableSorting: true,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => {
+					const task = row.original;
+					const firstAssignment = task.assignments
+						.map((a) => a.assignedAt)
+						.sort(
+							(a, b) =>
+								new Date(a).getTime() - new Date(b).getTime(),
+						)[0];
+					return (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex cursor-default flex-col gap-0.5 leading-tight">
+									<span className="text-xs">
+										{formatDateTime(task.createdAt, {
+											day: "numeric",
+											month: "short",
+											hour: "2-digit",
+											minute: "2-digit",
+										})}
+									</span>
+									<span className="text-[10px] text-muted-foreground">
+										{formatAgo(task.createdAt)}
+									</span>
+								</div>
+							</TooltipTrigger>
+							<TooltipContent side="left" className="text-xs">
+								<div className="space-y-0.5">
+									<div>
+										Created {formatDateTime(task.createdAt)}
+									</div>
+									{firstAssignment && (
+										<div>
+											Assigned{" "}
+											{formatDateTime(firstAssignment)} (
+											{formatDuration(
+												new Date(
+													task.createdAt,
+												).getTime(),
+												new Date(
+													firstAssignment,
+												).getTime(),
+											)}{" "}
+											after creation)
+										</div>
+									)}
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					);
+				},
+			},
+			{
+				id: "duration",
+				header: "Duration",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => {
+					const task = row.original;
+					const startedMs = new Date(task.createdAt).getTime();
+
+					if (task.completedAt) {
+						return (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex cursor-default items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+										<CheckCircle2Icon className="size-3" />
+										Took{" "}
+										{formatDuration(
+											startedMs,
+											new Date(
+												task.completedAt,
+											).getTime(),
+										)}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="left" className="text-xs">
+									Completed {formatDateTime(task.completedAt)}
+								</TooltipContent>
+							</Tooltip>
+						);
+					}
+
+					if (task.status === "CANCELLED") {
+						return <span className="text-muted-foreground">—</span>;
+					}
+
+					const openMs = Date.now() - startedMs;
+					const openDays = openMs / 86_400_000;
+					return (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span
+									className={cn(
+										"inline-flex cursor-default items-center gap-1 text-xs",
+										openDays >= 7
+											? "font-medium text-red-600 dark:text-red-400"
+											: openDays >= 3
+												? "font-medium text-amber-600 dark:text-amber-400"
+												: "text-foreground",
+									)}
+								>
+									<TimerIcon className="size-3" />
+									{formatDuration(startedMs, Date.now())}
+								</span>
+							</TooltipTrigger>
+							<TooltipContent side="left" className="text-xs">
+								Still open — running since{" "}
+								{formatDateTime(task.createdAt)}
+							</TooltipContent>
+						</Tooltip>
+					);
+				},
+			},
+			{
 				id: "dueDate",
 				header: "Timeline",
 				accessorFn: (row) => row.dueDate,
@@ -467,12 +618,6 @@ export function useTaskColumns(organizationSlug: string) {
 									) : (
 										<span className="text-xs text-muted-foreground">
 											No due date
-										</span>
-									)}
-									{task.completedAt && (
-										<span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
-											<CheckCircle2Icon className="size-2.5" />
-											{formatDate(task.completedAt)}
 										</span>
 									)}
 								</div>

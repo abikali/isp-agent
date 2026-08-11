@@ -572,6 +572,7 @@ export const createPayment = protectedProcedure
 							priority: "HIGH",
 							status: "OPEN",
 							category: "BILLING",
+							source: "SYSTEM",
 							customerId: input.customerId,
 							createdById: user.id,
 						},

@@ -42,7 +42,9 @@ export function useTasks(filters: TaskFilters = {}) {
 }
 
 export function useTaskStats(
-	options: { sources?: ("MANUAL" | "AI_ESCALATION" | "LEGACY")[] } = {},
+	options: {
+		sources?: ("MANUAL" | "AI_ESCALATION" | "LEGACY" | "SYSTEM")[];
+	} = {},
 ) {
 	const organizationId = useOrganizationId();
 

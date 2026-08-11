@@ -1719,6 +1719,9 @@ enum TaskSource {
   MANUAL
   AI_ESCALATION
   LEGACY
+  // Raised by the app itself (e.g. billing stop-payment review). Kept out of
+  // the human /tasks list, which only shows MANUAL + LEGACY.
+  SYSTEM
 
   @@map("task_source")
 }

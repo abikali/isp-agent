@@ -21,6 +21,7 @@ const TASK_SORT_BY_MAP = {
 	status: "status",
 	priority: "priority",
 	dueDate: "dueDate",
+	started: "createdAt",
 } as const satisfies Record<
 	string,
 	"title" | "createdAt" | "dueDate" | "priority" | "status"

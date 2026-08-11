@@ -202,6 +202,7 @@ export const TASK_SOURCE_LABELS: Record<string, string> = {
 	MANUAL: "Manual",
 	AI_ESCALATION: "AI Escalation",
 	LEGACY: "Legacy",
+	SYSTEM: "System",
 };
 
 export const FOLLOW_UP_STATUS_LABELS: Record<string, string> = {

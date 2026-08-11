@@ -15,7 +15,7 @@ export const getTaskStats = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			sources: z
-				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]))
+				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY", "SYSTEM"]))
 				.optional(),
 		}),
 	)

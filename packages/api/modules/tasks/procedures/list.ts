@@ -54,9 +54,11 @@ export const listTasks = protectedProcedure
 					"UNINSTALL",
 				])
 				.optional(),
-			source: z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]).optional(),
+			source: z
+				.enum(["MANUAL", "AI_ESCALATION", "LEGACY", "SYSTEM"])
+				.optional(),
 			sources: z
-				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY"]))
+				.array(z.enum(["MANUAL", "AI_ESCALATION", "LEGACY", "SYSTEM"]))
 				.optional(),
 			followUpStatus: z
 				.enum([
