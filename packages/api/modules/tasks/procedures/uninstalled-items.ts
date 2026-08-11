@@ -65,7 +65,9 @@ export const listUninstalledItems = protectedProcedure
 			db.uninstalledItem.findMany({
 				where,
 				include: {
-					stockItem: { select: { id: true, name: true } },
+					stockItem: {
+						select: { id: true, name: true, sellPrice: true },
+					},
 					task: {
 						select: {
 							id: true,
@@ -117,6 +119,10 @@ export const reviewUninstalledItem = protectedProcedure
 			quantity: z.number().int().min(1).optional(),
 			// Admin can correct a typo'd item name before approving
 			itemName: z.string().min(1).max(255).optional(),
+			// Value per unit at which the recovered gear enters the worker's
+			// stock (defaults to the stock item's sellPrice). 0 = the company
+			// covers it — the worker's accountable stock value doesn't grow.
+			unitPrice: z.number().min(0).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -212,6 +218,8 @@ export const reviewUninstalledItem = protectedProcedure
 		// central admin warehouse so those still resolve.
 		const recoveringEmployeeId = item.employeeId;
 
+		const unitPrice = input.unitPrice ?? matchedStockItem.sellPrice;
+
 		const updated = await db.$transaction(async (tx) => {
 			if (recoveringEmployeeId) {
 				const existing = await tx.workerStock.findUnique({
@@ -221,9 +229,22 @@ export const reviewUninstalledItem = protectedProcedure
 							employeeId: recoveringEmployeeId,
 						},
 					},
-					select: { quantity: true },
+					select: { quantity: true, unitPrice: true },
 				});
 				const workerBefore = existing?.quantity ?? 0;
+				// WorkerStock carries one price per (item, worker), but the
+				// worker's accountable value is quantity × unitPrice — so blend
+				// the recovered units in at the reviewed price via a weighted
+				// average. Existing holdings keep their value; the total grows
+				// by exactly quantity × unitPrice (0 when the company covers
+				// the recovered gear).
+				const blendedUnitPrice =
+					Math.round(
+						((workerBefore * (existing?.unitPrice ?? 0) +
+							quantity * unitPrice) /
+							(workerBefore + quantity)) *
+							100,
+					) / 100;
 				await tx.workerStock.upsert({
 					where: {
 						stockItemId_employeeId: {
@@ -235,9 +256,12 @@ export const reviewUninstalledItem = protectedProcedure
 						stockItemId: matchedStockItem.id,
 						employeeId: recoveringEmployeeId,
 						quantity,
-						unitPrice: matchedStockItem.sellPrice,
+						unitPrice,
 					},
-					update: { quantity: { increment: quantity } },
+					update: {
+						quantity: { increment: quantity },
+						unitPrice: blendedUnitPrice,
+					},
 				});
 				await tx.stockLog.create({
 					data: {
@@ -250,7 +274,7 @@ export const reviewUninstalledItem = protectedProcedure
 						quantity,
 						workerQtyBefore: workerBefore,
 						workerQtyAfter: workerBefore + quantity,
-						notes: `Recovered equipment approved (item ${item.id})`,
+						notes: `Recovered equipment approved (item ${item.id}) at $${unitPrice}/unit`,
 					},
 				});
 			} else {
