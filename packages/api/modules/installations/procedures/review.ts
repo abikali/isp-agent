@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
 import {
 	getDealerScopeFilter,
+	hasPermission,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
@@ -29,12 +30,24 @@ export const updatePendingInstallation = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { permCtx, activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
 			"update",
 		);
+
+		// Prices are admin-controlled (same rule as the sellPrice forcing on
+		// create): without the approve permission a field tech could PATCH his
+		// own pending line and defeat the forced sellPrice.
+		if (
+			input.price !== undefined &&
+			!hasPermission(permCtx, "installations", "approve")
+		) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "Only installation approvers can change prices",
+			});
+		}
 
 		const installation = await db.installation.findFirst({
 			where: {

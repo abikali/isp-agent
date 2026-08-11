@@ -76,6 +76,7 @@ export function useMyCustomerItemsQuery() {
 
 	return {
 		byCustomer: query.data?.byCustomer ?? {},
+		setupByCustomer: query.data?.setupByCustomer ?? {},
 		isLoading: query.isLoading,
 	};
 }

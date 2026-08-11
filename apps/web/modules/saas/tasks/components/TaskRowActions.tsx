@@ -1,6 +1,9 @@
 "use client";
 
-import { useHasPermission } from "@saas/organizations/client";
+import {
+	useActiveOrganization,
+	useCanAccess,
+} from "@saas/organizations/client";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
@@ -52,9 +55,12 @@ export function TaskRowActions({
 	const updateTask = useUpdateTask();
 	const deleteTask = useDeleteTask();
 	const reviewCompletion = useReviewTaskCompletion();
-	const { hasPermission: canApprove } = useHasPermission({
-		tasks: ["approve"],
-	});
+	// Synchronous, pre-fetched permission check (same as PermissionGate). The
+	// async useHasPermission fired one better-auth request per row and latched
+	// to false on any failure, making Approve completion vanish intermittently.
+	const { isOrganizationAdmin } = useActiveOrganization();
+	const canAccess = useCanAccess();
+	const canApprove = isOrganizationAdmin || canAccess("tasks", "approve");
 	const [showAssign, setShowAssign] = useState(false);
 
 	const cancellable = status !== "CANCELLED" && status !== "COMPLETED";

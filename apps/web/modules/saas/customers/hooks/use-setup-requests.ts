@@ -43,6 +43,16 @@ export const useRejectSetupRequest = createInvalidatingMutation(
 );
 
 /**
+ * Edit the unit price of a bundled installation line before approval
+ * (0 = item given free to the client, not billed to the worker).
+ * The setup-request list embeds the lines, so invalidate customers too.
+ */
+export const useUpdateSetupItemPrice = createInvalidatingMutation(
+	() => orpc.installations.updatePending.mutationOptions(),
+	() => [orpc.customers.key(), orpc.installations.key()],
+);
+
+/**
  * Live "is this username free on iRadius?" check. Pass the value to check
  * (set on blur, not on every keystroke). Disabled until a non-empty username
  * is supplied. `data.available` is `true` when the username can be used.

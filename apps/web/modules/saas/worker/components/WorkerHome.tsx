@@ -37,13 +37,41 @@ function humanizeType(type: string): string {
 	return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
+interface SetupBilling {
+	firstChargeAmount: number;
+	collectedAmount: number | null;
+}
+
+/**
+ * What this customer is actually billed for, from the worker's point of view.
+ * New customers the worker created use the frozen setup-request numbers (and,
+ * once approved, the exact ledger amount billed to the worker) — never the
+ * live monthlyRate, which admins can reprice after the request was submitted.
+ */
+function billedAmount(
+	monthlyRate: number | null,
+	equipment: { equipmentTotal: number; bundleTotal: number } | undefined,
+	setup: SetupBilling | undefined,
+): number {
+	const equipmentTotal = equipment?.equipmentTotal ?? 0;
+	if (setup) {
+		// Equipment installed after the setup (via later tasks) is billed
+		// separately from the setup ledger entry, so it always adds on top.
+		const laterEquipment = equipmentTotal - (equipment?.bundleTotal ?? 0);
+		return setup.collectedAmount != null
+			? setup.collectedAmount + laterEquipment
+			: setup.firstChargeAmount + equipmentTotal;
+	}
+	return (monthlyRate ?? 0) + equipmentTotal;
+}
+
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive worker dashboard; length is sequential summary sections over shared queries, splitting would scatter the data flow
 export function WorkerHome() {
 	const { activeOrganization } = useActiveOrganization();
 	const { wallet, isLoading: walletLoading } = useMyWalletQuery();
 	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const { customers } = useMyCustomersQuery();
-	const { byCustomer } = useMyCustomerItemsQuery();
+	const { byCustomer, setupByCustomer } = useMyCustomerItemsQuery();
 
 	const orgSlug = activeOrganization?.slug ?? "";
 	const openTasks = stats?.tasks.open ?? 0;
@@ -57,8 +85,11 @@ export function WorkerHome() {
 	const totalToCollect = customers.reduce(
 		(sum, c) =>
 			sum +
-			(c.monthlyRate ?? 0) +
-			(byCustomer[c.id]?.equipmentTotal ?? 0),
+			billedAmount(
+				c.monthlyRate,
+				byCustomer[c.id],
+				setupByCustomer[c.id],
+			),
 		0,
 	);
 
@@ -215,9 +246,11 @@ export function WorkerHome() {
 									.join(" ") || customer.accountNumber;
 							const entry = byCustomer[customer.id];
 							const items = entry?.items ?? [];
-							const toCollect =
-								(customer.monthlyRate ?? 0) +
-								(entry?.equipmentTotal ?? 0);
+							const toCollect = billedAmount(
+								customer.monthlyRate,
+								entry,
+								setupByCustomer[customer.id],
+							);
 							return (
 								<div
 									key={customer.id}

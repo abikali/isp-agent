@@ -10,6 +10,12 @@ import { protectedProcedure } from "../../../orpc/procedures";
  * Backs the "items installed" rows in the worker-portal "My customers" list.
  * Membership-scoped (same model as `myStats`); merges repeated items per
  * customer and skips denied installs.
+ *
+ * Also returns the worker's own setup requests (`setupByCustomer`) so the
+ * portal can show what was actually billed for a new customer — the frozen
+ * `firstChargeAmount` and, post-approval, the NEW_USER_SETUP ledger amount —
+ * instead of the live `customer.monthlyRate`, which admins/syncs can change
+ * after the request was priced.
  */
 export const getMyCustomerItems = protectedProcedure
 	.route({
@@ -52,6 +58,7 @@ export const getMyCustomerItems = protectedProcedure
 				quantity: true,
 				price: true,
 				isAddOn: true,
+				setupRequestId: true,
 				stockItem: { select: { name: true } },
 			},
 			orderBy: { installedAt: "desc" },
@@ -61,6 +68,10 @@ export const getMyCustomerItems = protectedProcedure
 		interface CustomerItems {
 			items: { name: string; quantity: number }[];
 			equipmentTotal: number;
+			// Portion of equipmentTotal belonging to the new-customer setup
+			// bundle — its money lives in the NEW_USER_SETUP ledger entry,
+			// unlike later installs which are billed separately.
+			bundleTotal: number;
 		}
 		const byCustomer: Record<string, CustomerItems> = {};
 		for (const row of rows) {
@@ -72,8 +83,12 @@ export const getMyCustomerItems = protectedProcedure
 			const entry = byCustomer[row.customerId] ?? {
 				items: [],
 				equipmentTotal: 0,
+				bundleTotal: 0,
 			};
 			entry.equipmentTotal += row.price * row.quantity;
+			if (row.setupRequestId) {
+				entry.bundleTotal += row.price * row.quantity;
+			}
 			const existing = entry.items.find((item) => item.name === name);
 			if (existing) {
 				existing.quantity += row.quantity;
@@ -83,5 +98,34 @@ export const getMyCustomerItems = protectedProcedure
 			byCustomer[row.customerId] = entry;
 		}
 
-		return { byCustomer };
+		// Rejected requests are excluded: nothing was billed, so the portal
+		// falls back to the plain monthlyRate + equipment view.
+		const setups = await db.customerSetupRequest.findMany({
+			where: {
+				organizationId: input.organizationId,
+				requestedById: employeeId,
+				status: { in: ["PENDING", "APPROVED"] },
+			},
+			select: {
+				customerId: true,
+				firstChargeAmount: true,
+				cashEntry: { select: { amount: true } },
+			},
+		});
+		const setupByCustomer: Record<
+			string,
+			{ firstChargeAmount: number; collectedAmount: number | null }
+		> = {};
+		for (const setup of setups) {
+			setupByCustomer[setup.customerId] = {
+				firstChargeAmount: setup.firstChargeAmount,
+				// The NEW_USER_SETUP ledger row is the exact amount billed to
+				// the worker at approval (hardware + subscription cash he took).
+				collectedAmount: setup.cashEntry
+					? Math.abs(setup.cashEntry.amount)
+					: null,
+			};
+		}
+
+		return { byCustomer, setupByCustomer };
 	});

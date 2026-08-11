@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	useActiveOrganization,
+	useCanAccess,
+} from "@saas/organizations/client";
 import { ContentCard } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
 import { PageShell } from "@shared/components/PageShell";
@@ -28,12 +32,13 @@ import {
 	UserPlusIcon,
 	XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	useApproveSetupRequest,
 	useRejectSetupRequest,
 	useSetupRequests,
+	useUpdateSetupItemPrice,
 } from "../hooks/use-setup-requests";
 import { EditSetupRequestDialog } from "./EditSetupRequestDialog";
 
@@ -49,6 +54,15 @@ const STATUS_BADGES: Record<
 	REJECTED: { label: "Rejected", variant: "error" },
 };
 
+/** Parse a price input; null for empty/invalid so blur can't silently zero an item. */
+function parsePriceInput(raw: string | undefined): number | null {
+	if (raw === undefined || raw.trim() === "") {
+		return null;
+	}
+	const value = Number(raw);
+	return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive review queue: list, approve/reject dialogs, and edit flow share request state; splitting would obscure the flow
 export function PendingCustomersList() {
 	const organizationId = useOrganizationId();
@@ -61,6 +75,63 @@ export function PendingCustomersList() {
 	const [editing, setEditing] = useState<SetupRequest | null>(null);
 	const [approving, setApproving] = useState<SetupRequest | null>(null);
 	const [iradiusPassword, setIradiusPassword] = useState("");
+	// Per-line price edits keyed by installation id. Committed on blur; a
+	// committed edit is kept in state (it equals the server value once the
+	// list refetches) so the input never flashes back to the old price.
+	const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+	// Last price we committed per line. The cached inst.price is stale until
+	// the invalidated list refetches, so no-op detection must compare against
+	// this — comparing against the cache would silently drop an edit that
+	// reverts a just-committed change (e.g. 50 → 0 → back to 50).
+	const committedPrices = useRef<Record<string, number>>({});
+	const updateItemPrice = useUpdateSetupItemPrice();
+	const { isOrganizationAdmin } = useActiveOrganization();
+	const canAccess = useCanAccess();
+	const canEditPrices =
+		isOrganizationAdmin || canAccess("installations", "approve");
+
+	async function commitItemPrice(instId: string, cachedPrice: number) {
+		if (!organizationId) {
+			return;
+		}
+		const clearEdit = () =>
+			setPriceEdits((prev) => {
+				const next = { ...prev };
+				delete next[instId];
+				return next;
+			});
+		const value = parsePriceInput(priceEdits[instId]);
+		if (value === null) {
+			// Empty/invalid input — revert to the last known price.
+			clearEdit();
+			return;
+		}
+		const baseline = committedPrices.current[instId] ?? cachedPrice;
+		if (value === baseline) {
+			// Already the server value; keep the edit so the input holds it.
+			return;
+		}
+		try {
+			await updateItemPrice.mutateAsync({
+				organizationId,
+				id: instId,
+				price: value,
+			});
+			committedPrices.current[instId] = value;
+			toast.success(
+				value === 0
+					? "Item set to free — not billed to the worker"
+					: "Price updated",
+			);
+		} catch (error) {
+			clearEdit();
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Failed to update price",
+			);
+		}
+	}
 
 	async function confirmApprove() {
 		if (!organizationId || !approving) {
@@ -124,12 +195,19 @@ export function PendingCustomersList() {
 								customer.firstName,
 								customer.lastName,
 							) || customer.accountNumber;
+						// Reflect uncommitted inline price edits so the reviewer
+						// sees the amount that would be approved.
 						const itemsTotal = request.installations.reduce(
-							(sum, i) => sum + i.price * i.quantity,
+							(sum, i) =>
+								sum +
+								(parsePriceInput(priceEdits[i.id]) ?? i.price) *
+									i.quantity,
 							0,
 						);
 						const badge = STATUS_BADGES[request.status];
 						const isCustomDays = request.durationType === "days";
+						const priceEditable =
+							request.status === "PENDING" && canEditPrices;
 						return (
 							<Card
 								key={request.id}
@@ -158,14 +236,21 @@ export function PendingCustomersList() {
 												)}
 											</div>
 											<div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-												{customer.username?.trim() && (
+												{customer.username?.trim() ? (
 													<p className="flex items-center gap-1">
 														<AtSignIcon className="size-3" />
 														<span className="font-mono">
 															{customer.username}
 														</span>
 													</p>
-												)}
+												) : request.status ===
+													"PENDING" ? (
+													<p className="flex items-center gap-1 text-warning">
+														<AtSignIcon className="size-3" />
+														No username yet — set it
+														via Edit
+													</p>
+												) : null}
 												{customer.mobile && (
 													<p className="flex items-center gap-1">
 														<PhoneIcon className="size-3" />
@@ -226,35 +311,117 @@ export function PendingCustomersList() {
 									</div>
 
 									{request.installations.length > 0 && (
-										<div className="mt-3 space-y-1 rounded-md bg-muted/40 p-3">
+										<div className="mt-3 space-y-1.5 rounded-md bg-muted/40 p-3">
 											{request.installations.map(
-												(inst) => (
-													<div
-														key={inst.id}
-														className="flex items-center justify-between text-sm"
-													>
-														<span>
-															{inst.stockItem
-																?.name ??
-																inst.notes ??
-																"Item"}
-															{inst.quantity >
-																1 &&
-																` ×${inst.quantity}`}
-															{inst.isAddOn && (
-																<span className="ml-1.5 text-xs text-muted-foreground">
-																	(add-on)
+												(inst) => {
+													const itemName =
+														inst.stockItem?.name ??
+														inst.notes ??
+														"Item";
+													const effectivePrice =
+														parsePriceInput(
+															priceEdits[inst.id],
+														) ?? inst.price;
+													const lineTotal =
+														effectivePrice *
+														inst.quantity;
+													return (
+														<div
+															key={inst.id}
+															className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm"
+														>
+															<span className="min-w-0">
+																{itemName}
+																{inst.quantity >
+																	1 &&
+																	` ×${inst.quantity}`}
+																{inst.isAddOn && (
+																	<span className="ml-1.5 text-xs text-muted-foreground">
+																		(add-on)
+																	</span>
+																)}
+															</span>
+															{priceEditable ? (
+																<span className="flex shrink-0 items-center gap-1.5">
+																	{effectivePrice ===
+																	0 ? (
+																		<Badge variant="success">
+																			Free
+																		</Badge>
+																	) : (
+																		inst.quantity >
+																			1 && (
+																			<span className="font-mono text-xs tabular-nums text-muted-foreground">
+																				={" "}
+																				{formatCurrency(
+																					lineTotal,
+																				)}
+																			</span>
+																		)
+																	)}
+																	<Input
+																		type="number"
+																		min={0}
+																		step="0.01"
+																		inputMode="decimal"
+																		aria-label={`Unit price for ${itemName}`}
+																		className="h-7 w-20 text-right font-mono text-xs"
+																		value={
+																			priceEdits[
+																				inst
+																					.id
+																			] ??
+																			String(
+																				inst.price,
+																			)
+																		}
+																		onChange={(
+																			e,
+																		) =>
+																			setPriceEdits(
+																				(
+																					prev,
+																				) => ({
+																					...prev,
+																					[inst.id]:
+																						e
+																							.target
+																							.value,
+																				}),
+																			)
+																		}
+																		onBlur={() =>
+																			commitItemPrice(
+																				inst.id,
+																				inst.price,
+																			)
+																		}
+																	/>
+																</span>
+															) : inst.price ===
+																0 ? (
+																<Badge variant="success">
+																	Free
+																</Badge>
+															) : (
+																<span className="font-mono text-xs tabular-nums">
+																	{formatCurrency(
+																		inst.price *
+																			inst.quantity,
+																	)}
 																</span>
 															)}
-														</span>
-														<span className="font-mono text-xs tabular-nums">
-															{formatCurrency(
-																inst.price *
-																	inst.quantity,
-															)}
-														</span>
-													</div>
-												),
+														</div>
+													);
+												},
+											)}
+											{priceEditable && (
+												<p className="border-t pt-1.5 text-[11px] text-muted-foreground">
+													Unit prices are editable
+													until approval — set 0 to
+													give an item free (not
+													billed to the worker).
+												</p>
 											)}
 										</div>
 									)}
@@ -297,6 +464,9 @@ export function PendingCustomersList() {
 												size="sm"
 												disabled={
 													approve.isPending ||
+													// A blur-committed price edit may still be in
+													// flight — approval must read the final price.
+													updateItemPrice.isPending ||
 													!request.customer.username?.trim()
 												}
 												title={
@@ -381,7 +551,10 @@ export function PendingCustomersList() {
 								Cancel
 							</Button>
 							<Button
-								disabled={approve.isPending}
+								disabled={
+									approve.isPending ||
+									updateItemPrice.isPending
+								}
 								onClick={confirmApprove}
 							>
 								<CheckIcon className="mr-1 size-3.5" />

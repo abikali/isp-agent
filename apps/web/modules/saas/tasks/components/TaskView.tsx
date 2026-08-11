@@ -1,6 +1,9 @@
 "use client";
 
-import { useHasPermission } from "@saas/organizations/client";
+import {
+	useActiveOrganization,
+	useCanAccess,
+} from "@saas/organizations/client";
 import { PageShell } from "@shared/components/PageShell";
 import { PropertyList } from "@shared/components/PropertyList";
 import {
@@ -45,9 +48,12 @@ export function TaskView({ taskId }: { taskId: string }) {
 	const { organizationSlug } = useParams({ strict: false });
 	const deleteTask = useDeleteTask();
 	const reviewCompletion = useReviewTaskCompletion();
-	const { hasPermission: canApprove } = useHasPermission({
-		tasks: ["approve"],
-	});
+	// Synchronous, pre-fetched permission check (same as PermissionGate) — the
+	// async useHasPermission latched to false on any failed request, hiding
+	// the Approve/Reject completion buttons intermittently.
+	const { isOrganizationAdmin } = useActiveOrganization();
+	const canAccess = useCanAccess();
+	const canApprove = isOrganizationAdmin || canAccess("tasks", "approve");
 	const [showAssignEmployees, setShowAssignEmployees] = useState(false);
 
 	const reviewTask = async (action: "approve" | "reject") => {

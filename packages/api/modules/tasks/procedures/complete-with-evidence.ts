@@ -234,6 +234,38 @@ export const completeTaskWithEvidence = protectedProcedure
 			}
 		}
 
+		// Hardware prices are admin-controlled: non-approver submissions always
+		// get the item's current sellPrice, whatever the client sent (same rule
+		// as installations.create and customers.workerCreate). Add-on prices
+		// stay caller-set (per-customer deals).
+		const canSetInstallPrice = hasPermission(
+			permCtx,
+			"installations",
+			"approve",
+		);
+		const sellPriceByStockItem = new Map<string, number>();
+		if (!canSetInstallPrice) {
+			const installedStockIds = [
+				...new Set(
+					installedItems
+						.map((i) => i.stockItemId)
+						.filter((id): id is string => Boolean(id)),
+				),
+			];
+			if (installedStockIds.length > 0) {
+				const priced = await db.stockItem.findMany({
+					where: {
+						id: { in: installedStockIds },
+						organizationId: input.organizationId,
+					},
+					select: { id: true, sellPrice: true },
+				});
+				for (const item of priced) {
+					sellPriceByStockItem.set(item.id, item.sellPrice);
+				}
+			}
+		}
+
 		// Resolve stock item names for recovered items submitted by id
 		const stockItemIds = recoveredItems
 			.map((i) => i.stockItemId)
@@ -277,7 +309,11 @@ export const completeTaskWithEvidence = protectedProcedure
 						employeeId,
 						stockItemId: line.stockItemId ?? null,
 						quantity: line.addonType ? 1 : line.quantity,
-						price: line.price,
+						price:
+							line.stockItemId && !canSetInstallPrice
+								? (sellPriceByStockItem.get(line.stockItemId) ??
+									0)
+								: line.price,
 						isAddOn: Boolean(line.addonType),
 						notes: line.addonType
 							? addonNoteFor(line.addonType)
