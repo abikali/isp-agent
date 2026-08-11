@@ -26,16 +26,10 @@ export const updateTask = protectedProcedure
 			title: z.string().min(1).max(500).optional(),
 			description: z.string().max(5000).nullable().optional(),
 			priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-			status: z
-				.enum([
-					"OPEN",
-					"IN_PROGRESS",
-					"ON_HOLD",
-					"PENDING_APPROVAL",
-					"COMPLETED",
-					"CANCELLED",
-				])
-				.optional(),
+			// PENDING_APPROVAL is system-owned: only completeWithEvidence puts a
+			// task there, and only reviewCompletion takes it out. Letting it be
+			// set by hand parked tasks in the approval queue with no evidence.
+			status: z.enum(["OPEN", "COMPLETED", "CANCELLED"]).optional(),
 			category: z
 				.enum([
 					"INSTALLATION",
@@ -169,7 +163,6 @@ export const updateTask = protectedProcedure
 						: new Date();
 			} else if (
 				input.status !== "COMPLETED" &&
-				input.status !== "PENDING_APPROVAL" &&
 				(existing.status === "COMPLETED" ||
 					existing.status === "PENDING_APPROVAL")
 			) {

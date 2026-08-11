@@ -38,7 +38,7 @@ import {
 	TASK_STATUS_COLORS,
 	TASK_STATUS_LABELS,
 } from "../lib/constants";
-import { isOverdue } from "../lib/task-utils";
+import { isOverdue, isReturned } from "../lib/task-utils";
 import { TaskRowActions } from "./TaskRowActions";
 
 export const TASK_TOGGLEABLE_COLUMNS = [
@@ -428,6 +428,11 @@ export function useTaskColumns(organizationSlug: string) {
 							>
 								{TASK_STATUS_LABELS[task.status] ?? task.status}
 							</span>
+							{isReturned(task) && (
+								<span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+									Returned
+								</span>
+							)}
 							{task.followUpStatus && (
 								<span
 									className={cn(

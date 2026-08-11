@@ -96,7 +96,7 @@ const STATUS_OPTIONS = [
 	{ value: "all", label: "All statuses" },
 ];
 const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
-	open: ["OPEN", "IN_PROGRESS", "ON_HOLD"],
+	open: ["OPEN"],
 	// Submitted completions awaiting admin approval live with "completed"
 	// from the worker's point of view — the field work is done.
 	completed: ["PENDING_APPROVAL", "COMPLETED"],
@@ -123,7 +123,7 @@ const SORT_MAP: Record<
 	oldest: { sortBy: "createdAt", sortOrder: "asc" },
 	priority: { sortBy: "priority", sortOrder: "desc" },
 };
-const OPEN_STATUSES = new Set(["OPEN", "IN_PROGRESS", "ON_HOLD"]);
+const OPEN_STATUSES = new Set(["OPEN"]);
 
 const ADDON_LABELS: Record<string, string> = {
 	IPTV: "IPTV",

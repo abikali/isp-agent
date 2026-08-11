@@ -144,8 +144,6 @@ export const useRequestStockRefund = createInvalidatingMutation(
 
 export type TaskStatusValue =
 	| "OPEN"
-	| "IN_PROGRESS"
-	| "ON_HOLD"
 	| "PENDING_APPROVAL"
 	| "COMPLETED"
 	| "CANCELLED";

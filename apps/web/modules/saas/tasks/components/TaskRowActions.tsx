@@ -35,7 +35,10 @@ import {
 	useReviewTaskCompletion,
 	useUpdateTask,
 } from "../hooks/use-tasks";
-import { TASK_STATUS_COLORS, TASK_STATUS_OPTIONS } from "../lib/constants";
+import {
+	TASK_STATUS_COLORS,
+	TASK_STATUS_SETTABLE_OPTIONS,
+} from "../lib/constants";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 
 interface TaskRowActionsProps {
@@ -90,7 +93,7 @@ export function TaskRowActions({
 			toast.success(
 				action === "approve"
 					? "Task completion approved"
-					: "Completion rejected — task returned to In Progress",
+					: "Completion rejected — task returned to the worker",
 			);
 		} catch (error) {
 			toast.error(
@@ -194,7 +197,7 @@ export function TaskRowActions({
 							Change status
 						</DropdownMenuSubTrigger>
 						<DropdownMenuSubContent>
-							{TASK_STATUS_OPTIONS.map((option) => (
+							{TASK_STATUS_SETTABLE_OPTIONS.map((option) => (
 								<DropdownMenuItem
 									key={option.value}
 									onSelect={() => changeStatus(option.value)}

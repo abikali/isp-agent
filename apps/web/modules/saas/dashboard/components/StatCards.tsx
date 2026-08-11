@@ -37,10 +37,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TASK_COLORS: Record<string, string> = {
 	Open: "var(--info)",
-	"In Progress": "var(--chart-6)",
 	Completed: "var(--success)",
 	Overdue: "var(--destructive)",
-	"On Hold": "var(--warning)",
+	"Pending Approval": "var(--warning)",
 };
 
 export function StatCards() {
@@ -109,19 +108,14 @@ export function StatCards() {
 					color: TASK_COLORS.Open ?? "var(--info)",
 				},
 				{
-					label: "In Progress",
-					value: taskStats.inProgress,
-					color: TASK_COLORS["In Progress"] ?? "var(--chart-6)",
-				},
-				{
 					label: "Overdue",
 					value: taskStats.overdue,
 					color: TASK_COLORS.Overdue ?? "var(--destructive)",
 				},
 				{
-					label: "On Hold",
-					value: taskStats.onHold,
-					color: TASK_COLORS["On Hold"] ?? "var(--warning)",
+					label: "Pending Approval",
+					value: taskStats.pendingApproval,
+					color: TASK_COLORS["Pending Approval"] ?? "var(--warning)",
 				},
 				{
 					label: "Completed",
@@ -251,10 +245,7 @@ export function StatCards() {
 						/>
 						<MetricCard
 							label="Open tasks"
-							value={
-								(taskStats?.open ?? 0) +
-								(taskStats?.inProgress ?? 0)
-							}
+							value={taskStats?.open ?? 0}
 							icon={ClipboardListIcon}
 							tone={
 								(taskStats?.overdue ?? 0) > 0

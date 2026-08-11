@@ -58,67 +58,56 @@ export const getTaskStats = protectedProcedure
 					base["id"] = { in: [] as string[] };
 				}
 
-				const [statusCounts, overdue, unassigned] = await Promise.all([
-					db.task.groupBy({
-						by: ["status"],
-						where: base,
-						_count: true,
-					}),
-					db.task.count({
-						where: {
-							...base,
-							dueDate: { lt: new Date() },
-							status: {
-								notIn: [
-									"PENDING_APPROVAL",
-									"COMPLETED",
-									"CANCELLED",
-								],
+				const [statusCounts, overdue, unassigned, returned] =
+					await Promise.all([
+						db.task.groupBy({
+							by: ["status"],
+							where: base,
+							_count: true,
+						}),
+						db.task.count({
+							where: {
+								...base,
+								dueDate: { lt: new Date() },
+								status: "OPEN",
 							},
-						},
-					}),
-					db.task.count({
-						where: {
-							...base,
-							assignments: { none: {} },
-							status: {
-								notIn: [
-									"PENDING_APPROVAL",
-									"COMPLETED",
-									"CANCELLED",
-								],
+						}),
+						db.task.count({
+							where: {
+								...base,
+								assignments: { none: {} },
+								status: "OPEN",
 							},
-						},
-					}),
-				]);
+						}),
+						// Completions an approver sent back — see isReturned().
+						db.task.count({
+							where: {
+								...base,
+								status: "OPEN",
+								completedAt: null,
+								completedByEmployeeId: { not: null },
+							},
+						}),
+					]);
 
 				const countByStatus = new Map(
 					statusCounts.map((s) => [s.status, s._count]),
 				);
 				const open = countByStatus.get("OPEN") ?? 0;
-				const inProgress = countByStatus.get("IN_PROGRESS") ?? 0;
-				const onHold = countByStatus.get("ON_HOLD") ?? 0;
 				const pendingApproval =
 					countByStatus.get("PENDING_APPROVAL") ?? 0;
 				const completed = countByStatus.get("COMPLETED") ?? 0;
 				const cancelled = countByStatus.get("CANCELLED") ?? 0;
 
 				return {
-					total:
-						open +
-						inProgress +
-						onHold +
-						pendingApproval +
-						completed +
-						cancelled,
+					total: open + pendingApproval + completed + cancelled,
 					open,
-					inProgress,
-					onHold,
 					pendingApproval,
 					completed,
 					cancelled,
 					overdue,
 					unassigned,
+					returned,
 				};
 			},
 		);

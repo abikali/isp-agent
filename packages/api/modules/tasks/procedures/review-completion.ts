@@ -15,7 +15,7 @@ export const reviewTaskCompletion = protectedProcedure
 		path: "/tasks/{taskId}/review-completion",
 		tags: ["Tasks"],
 		summary:
-			"Approve a pending task completion (closes the task) or reject it (returns it to In Progress)",
+			"Approve a pending task completion (closes the task) or reject it (returns it to Open)",
 	})
 	.input(
 		z.object({
@@ -63,9 +63,12 @@ export const reviewTaskCompletion = protectedProcedure
 						completedAt: task.completedAt ?? new Date(),
 					}
 				: {
-						// Back to the worker's queue; evidence fields stay for
-						// reference and are overwritten on resubmission.
-						status: "IN_PROGRESS",
+						// Back to the worker's queue. Evidence fields stay for
+						// reference and are overwritten on resubmission —
+						// `completedByEmployeeId` surviving with a cleared
+						// `completedAt` on an OPEN task is what marks it as
+						// returned (see isReturned in the tasks UI).
+						status: "OPEN",
 						completedAt: null,
 					},
 			select: { id: true, status: true, completedAt: true },

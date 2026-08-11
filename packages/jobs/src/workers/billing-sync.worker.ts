@@ -1041,11 +1041,10 @@ async function processBillingSync(
 					const taskDate = row["task_date"] as Date | string | null;
 					const legacyStatus = row["status"] as string;
 
-					let status:
-						| "OPEN"
-						| "IN_PROGRESS"
-						| "COMPLETED"
-						| "CANCELLED" = "OPEN";
+					// Legacy `assigned` is an assignment marker, not a distinct
+					// lifecycle stage — it maps to OPEN like `pending` does.
+					// Assignment itself lives in TaskAssignment rows.
+					let status: "OPEN" | "COMPLETED" | "CANCELLED" = "OPEN";
 					if (
 						legacyStatus === "completed" ||
 						legacyStatus === "approved"
@@ -1053,14 +1052,27 @@ async function processBillingSync(
 						status = "COMPLETED";
 					} else if (legacyStatus === "denied") {
 						status = "CANCELLED";
-					} else if (legacyStatus === "assigned") {
-						status = "IN_PROGRESS";
 					}
 
 					const category =
 						taskType === "maintenance"
 							? "MAINTENANCE"
 							: "UNINSTALL";
+
+					// Legacy can only ever CLOSE a task from its side. Rewriting
+					// status on every sync reverted local edits — including
+					// completions awaiting approval — back to whatever the old
+					// PHP app last recorded.
+					const legacyClosure =
+						status === "OPEN"
+							? {}
+							: {
+									status,
+									completedAt:
+										status === "COMPLETED" && taskDate
+											? new Date(String(taskDate))
+											: null,
+								};
 
 					const task = await db.task.upsert({
 						where: {
@@ -1069,13 +1081,7 @@ async function processBillingSync(
 								externalBillingId: billingId,
 							},
 						},
-						update: {
-							status,
-							completedAt:
-								status === "COMPLETED" && taskDate
-									? new Date(String(taskDate))
-									: null,
-						},
+						update: legacyClosure,
 						create: {
 							organizationId,
 							externalBillingId: billingId,

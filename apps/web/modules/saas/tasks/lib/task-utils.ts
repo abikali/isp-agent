@@ -16,6 +16,25 @@ export function isOverdue(
 	return new Date(dueDate) < new Date();
 }
 
+/**
+ * A task whose completion was rejected by an approver. Derived rather than
+ * stored: completeWithEvidence always stamps `completedByEmployee`, and
+ * reviewCompletion's reject clears `completedAt` and reopens the task while
+ * leaving the evidence behind. An OPEN task that carries a completer but no
+ * completion timestamp is therefore exactly one that bounced back.
+ */
+export function isReturned(task: {
+	status: string;
+	completedAt: string | Date | null;
+	completedByEmployee?: { id: string; name: string } | null;
+}): boolean {
+	return (
+		task.status === "OPEN" &&
+		!task.completedAt &&
+		Boolean(task.completedByEmployee)
+	);
+}
+
 export function timeAgo(date: string | Date): string {
 	const d = new Date(date);
 	const now = new Date();

@@ -1,25 +1,31 @@
 export const TASK_STATUS_LABELS: Record<string, string> = {
 	OPEN: "Open",
-	IN_PROGRESS: "In Progress",
-	ON_HOLD: "On Hold",
 	PENDING_APPROVAL: "Pending Approval",
 	COMPLETED: "Completed",
 	CANCELLED: "Cancelled",
 };
 
+/** Every status a task can be in — used for filtering. */
 export const TASK_STATUS_OPTIONS = [
 	{ value: "OPEN", label: "Open" },
-	{ value: "IN_PROGRESS", label: "In Progress" },
-	{ value: "ON_HOLD", label: "On Hold" },
 	{ value: "PENDING_APPROVAL", label: "Pending Approval" },
+	{ value: "COMPLETED", label: "Completed" },
+	{ value: "CANCELLED", label: "Cancelled" },
+] as const;
+
+/**
+ * Statuses an admin can set by hand. PENDING_APPROVAL is deliberately absent:
+ * it is owned by the completeWithEvidence → reviewCompletion flow, and setting
+ * it manually parked tasks in the approval queue with no evidence behind them.
+ */
+export const TASK_STATUS_SETTABLE_OPTIONS = [
+	{ value: "OPEN", label: "Open" },
 	{ value: "COMPLETED", label: "Completed" },
 	{ value: "CANCELLED", label: "Cancelled" },
 ] as const;
 
 export const TASK_STATUS_COLORS: Record<string, string> = {
 	OPEN: "bg-blue-500",
-	IN_PROGRESS: "bg-amber-500",
-	ON_HOLD: "bg-orange-500",
 	PENDING_APPROVAL: "bg-purple-500",
 	COMPLETED: "bg-emerald-500",
 	CANCELLED: "bg-gray-400",
@@ -27,10 +33,6 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
 
 export const TASK_STATUS_BG_COLORS: Record<string, string> = {
 	OPEN: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
-	IN_PROGRESS:
-		"bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
-	ON_HOLD:
-		"bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800",
 	PENDING_APPROVAL:
 		"bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800",
 	COMPLETED:

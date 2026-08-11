@@ -158,7 +158,7 @@ export const getEmployeeReport = protectedProcedure
 					employeeId: employee.id,
 					task: {
 						organizationId: input.organizationId,
-						status: { in: ["OPEN", "IN_PROGRESS", "ON_HOLD"] },
+						status: "OPEN",
 						...taskDealerScopeWhere(activeDealerId),
 					},
 				},

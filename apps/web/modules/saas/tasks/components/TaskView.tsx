@@ -32,7 +32,7 @@ import {
 	TASK_STATUS_BG_COLORS,
 	TASK_STATUS_LABELS,
 } from "../lib/constants";
-import { isOverdue } from "../lib/task-utils";
+import { isOverdue, isReturned } from "../lib/task-utils";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
 import { TaskCustomerCard } from "./TaskCustomerCard";
 import { TaskEmployeeCard } from "./TaskEmployeeCard";
@@ -80,7 +80,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 			toast.success(
 				action === "approve"
 					? "Task completion approved"
-					: "Completion rejected — task returned to In Progress",
+					: "Completion rejected — task returned to the worker",
 			);
 		} catch (error) {
 			toast.error(
@@ -119,6 +119,16 @@ export function TaskView({ taskId }: { taskId: string }) {
 					>
 						{TASK_STATUS_LABELS[task.status] ?? task.status}
 					</span>
+					{isReturned(task) && (
+						<span
+							className={cn(
+								PILL,
+								"border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
+							)}
+						>
+							Returned
+						</span>
+					)}
 					<span
 						className={cn(
 							PILL,

@@ -74,13 +74,7 @@ export function TaskDetail({
 					id: taskId,
 					title: value.title,
 					description: value.description || null,
-					status: value.status as
-						| "OPEN"
-						| "IN_PROGRESS"
-						| "ON_HOLD"
-						| "PENDING_APPROVAL"
-						| "COMPLETED"
-						| "CANCELLED",
+					status: value.status as "OPEN" | "COMPLETED" | "CANCELLED",
 					priority: value.priority as
 						| "LOW"
 						| "MEDIUM"

@@ -20,21 +20,12 @@ export const listTasks = protectedProcedure
 			organizationId: z.string(),
 			search: z.string().optional(),
 			status: z
-				.enum([
-					"OPEN",
-					"IN_PROGRESS",
-					"ON_HOLD",
-					"PENDING_APPROVAL",
-					"COMPLETED",
-					"CANCELLED",
-				])
+				.enum(["OPEN", "PENDING_APPROVAL", "COMPLETED", "CANCELLED"])
 				.optional(),
 			statuses: z
 				.array(
 					z.enum([
 						"OPEN",
-						"IN_PROGRESS",
-						"ON_HOLD",
 						"PENDING_APPROVAL",
 						"COMPLETED",
 						"CANCELLED",
@@ -195,6 +186,9 @@ export const listTasks = protectedProcedure
 							mobile: true,
 							phone: true,
 							address: true,
+							// Drives the worker card's Directions link.
+							latitude: true,
+							longitude: true,
 						},
 					},
 					station: {

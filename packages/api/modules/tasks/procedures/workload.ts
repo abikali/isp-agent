@@ -28,7 +28,7 @@ export const getWorkloadByEmployee = protectedProcedure
 				employee: dealerScope,
 				task: {
 					organizationId: input.organizationId,
-					status: { in: ["OPEN", "IN_PROGRESS", "ON_HOLD"] },
+					status: "OPEN",
 					source: { in: ["MANUAL", "LEGACY"] },
 				},
 			},

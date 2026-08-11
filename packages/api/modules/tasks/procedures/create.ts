@@ -31,15 +31,7 @@ export const createTask = protectedProcedure
 			priority: z
 				.enum(["LOW", "MEDIUM", "HIGH", "URGENT"])
 				.default("MEDIUM"),
-			status: z
-				.enum([
-					"OPEN",
-					"IN_PROGRESS",
-					"ON_HOLD",
-					"COMPLETED",
-					"CANCELLED",
-				])
-				.default("OPEN"),
+			status: z.enum(["OPEN", "COMPLETED", "CANCELLED"]).default("OPEN"),
 			category: z
 				.enum([
 					"INSTALLATION",

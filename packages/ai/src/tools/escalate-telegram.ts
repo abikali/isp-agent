@@ -384,7 +384,7 @@ async function createOrUpdateEscalationTask(
 	const existingTask = await db.task.findFirst({
 		where: {
 			conversationId: context.conversationId,
-			status: { in: ["OPEN", "IN_PROGRESS"] },
+			status: "OPEN",
 			createdAt: { gte: oneHourAgo },
 		},
 		select: { id: true },
