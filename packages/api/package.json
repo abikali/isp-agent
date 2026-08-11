@@ -47,6 +47,10 @@
 			"types": "./modules/customers/lib/mirror-fields.ts",
 			"default": "./modules/customers/lib/mirror-fields.ts"
 		},
+		"./modules/tasks/lib/task-title": {
+			"types": "./modules/tasks/lib/task-title.ts",
+			"default": "./modules/tasks/lib/task-title.ts"
+		},
 		"./modules/marketing/lib/audience": {
 			"types": "./modules/marketing/lib/audience.ts",
 			"default": "./modules/marketing/lib/audience.ts"

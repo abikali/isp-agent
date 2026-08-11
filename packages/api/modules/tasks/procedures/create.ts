@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { createId } from "@paralleldrive/cuid2";
 import {
 	getDealerScopeFilter,
 	requirePermission,
@@ -10,6 +11,7 @@ import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
+import { buildTaskTitle, taskTitleCode } from "../lib/task-title";
 
 export const createTask = protectedProcedure
 	.route({
@@ -21,7 +23,10 @@ export const createTask = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string(),
-			title: z.string().min(1).max(500),
+			// Optional: the UI never sends one. Titles are derived from the
+			// category and the target — see lib/task-title.ts. API callers may
+			// still pass their own.
+			title: z.string().min(1).max(500).optional(),
 			description: z.string().max(5000).optional(),
 			priority: z
 				.enum(["LOW", "MEDIUM", "HIGH", "URGENT"])
@@ -77,6 +82,10 @@ export const createTask = protectedProcedure
 			});
 		}
 
+		// Doubles as the title source — the target names come from the same
+		// lookups that authorize the task.
+		let target: string | null = null;
+
 		if (input.customerId) {
 			const customer = await db.customer.findFirst({
 				where: {
@@ -84,13 +93,24 @@ export const createTask = protectedProcedure
 					organizationId: input.organizationId,
 					...dealerFilter,
 				},
-				select: { id: true },
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					username: true,
+				},
 			});
 			if (!customer) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "Customer does not belong to your dealer",
 				});
 			}
+			target =
+				[customer.firstName, customer.lastName]
+					.filter(Boolean)
+					.join(" ") ||
+				customer.username ||
+				null;
 		}
 
 		if (input.baseId) {
@@ -100,13 +120,14 @@ export const createTask = protectedProcedure
 					organizationId: input.organizationId,
 					...dealerFilter,
 				},
-				select: { id: true },
+				select: { id: true, name: true },
 			});
 			if (!base) {
 				throw new ORPCError("FORBIDDEN", {
 					message: "Base does not belong to your dealer",
 				});
 			}
+			target ??= base.name;
 		}
 
 		if (input.employeeIds?.length) {
@@ -125,10 +146,21 @@ export const createTask = protectedProcedure
 			}
 		}
 
+		// Generate the id up front so the title can carry its short code.
+		const taskId = createId();
+		const title =
+			input.title?.trim() ||
+			buildTaskTitle({
+				category: input.category,
+				target,
+				code: taskTitleCode(taskId),
+			});
+
 		const task = await db.task.create({
 			data: {
+				id: taskId,
 				organizationId: input.organizationId,
-				title: input.title,
+				title,
 				description: input.description ?? null,
 				priority: input.priority,
 				status: input.status,
@@ -167,7 +199,7 @@ export const createTask = protectedProcedure
 			user.id,
 			input.organizationId,
 			auditContext,
-			{ title: input.title },
+			{ title },
 		);
 
 		// Fire-and-forget: tell the assigned workers they have a new task

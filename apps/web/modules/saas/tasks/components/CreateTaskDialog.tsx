@@ -1,5 +1,6 @@
 "use client";
 
+import { buildTaskTitle } from "@repo/api/modules/tasks/lib/task-title";
 import { useBasesQuery } from "@saas/customers/client";
 import { useEmployeesQuery } from "@saas/employees/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
@@ -103,7 +104,6 @@ export function CreateTaskDialog({
 
 	const form = useForm({
 		defaultValues: {
-			title: "",
 			description: "",
 			priority: "MEDIUM",
 			category: defaultCategory as string,
@@ -126,7 +126,8 @@ export function CreateTaskDialog({
 			try {
 				await createTask.mutateAsync({
 					organizationId,
-					title: value.title,
+					// No title field: the server derives it from the category
+					// and the target (see @repo/api task-title).
 					description: value.description || undefined,
 					priority: value.priority as
 						| "LOW"
@@ -174,6 +175,14 @@ export function CreateTaskDialog({
 	) as TaskCategoryValue;
 	const baseId = useStore(form.store, (s) => s.values.baseId);
 	const categoryMeta = TASK_CATEGORY_META[category];
+	// Same builder the server uses, minus the id-derived code it can't know yet.
+	const titlePreview = buildTaskTitle({
+		category,
+		target:
+			customer?.name ||
+			customer?.username ||
+			bases.find((b) => b.id === baseId)?.name,
+	});
 	// Foolproofing: install-type tasks can't be completed without a target,
 	// so block creating one with neither a customer nor a base.
 	const missingTarget =
@@ -198,21 +207,19 @@ export function CreateTaskDialog({
 					className="flex flex-1 flex-col overflow-hidden"
 				>
 					<div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-						<form.Field name="title">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="task-title">Title *</Label>
-									<Input
-										id="task-title"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-										placeholder="Task title"
-									/>
-								</div>
-							)}
-						</form.Field>
+						{/* Titles are generated, not typed — show exactly what gets stored. */}
+						<div className="rounded-lg border border-border bg-surface-subtle/40 px-3 py-2.5">
+							<p className="font-medium text-sm">
+								{titlePreview}{" "}
+								<span className="text-muted-foreground">
+									#••••
+								</span>
+							</p>
+							<p className="text-muted-foreground text-xs">
+								Title is generated from the category and target
+								— a short code is added to keep it unique.
+							</p>
+						</div>
 
 						<form.Field name="description">
 							{(field) => (
