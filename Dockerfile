@@ -150,20 +150,67 @@ CMD ["node", ".output/server/index.mjs"]
 # ===============================================
 # Worker Runner Stage (background jobs)
 # ===============================================
-# Reuses the fully-built `builder` stage (full source + node_modules + generated
-# Prisma client) so deps + install are NEVER rebuilt for the worker — only this
-# thin user/CMD layer differs. The worker runs apps/worker/index.ts via tsx at
-# runtime (mirrors the old Dockerfile.worker behaviour); it does NOT use tsyringe,
-# so reflect-metadata is deliberately NOT preloaded here.
-FROM builder AS worker
+# Resolve ONLY the @repo/worker dependency graph into a standalone tree.
+#
+# The worker used to be `FROM builder`, which shipped the ENTIRE monorepo
+# node_modules — the whole web dependency graph rode along for a process that
+# runs background jobs and serves no UI. Two separate costs: the tree itself,
+# and a `chown -R /app` on top of builder that wrote a full duplicate of /app as
+# its own layer. On the sibling apps this pattern took images from ~7GB to ~1GB
+# and worker deploys from ~220s to ~80s.
+#
+# --legacy is required: the workspace does not set inject-workspace-packages.
+#
+# --prod drops devDependencies. tsx survives because it is already a real
+# dependency of apps/worker (it must be — the CMD is `node --import tsx`, and
+# every @repo/* package exports raw .ts with no build step, so the worker
+# transpiles source at boot). `prisma` is added as a dependency for the same
+# reason — see the migration note below.
+FROM builder AS worker-deploy
+WORKDIR /app
+RUN pnpm deploy --filter @repo/worker --prod --legacy /tmp/worker
+
+# `pnpm deploy` materialises a FRESH tree, so the Prisma client the builder
+# generated does not come along and @repo/database fails at import with
+# ERR_MODULE_NOT_FOUND on prisma/generated/client.
+RUN DEST="$(ls -d /tmp/worker/node_modules/.pnpm/@repo+database@*/node_modules/@repo/database)" && \
+    cp -R /app/packages/database/prisma/generated "$DEST/prisma/generated"
+
+# Fresh runner — does NOT inherit builder's layers, so nothing from the web
+# build survives into the shipped image.
+FROM base AS worker
+
+WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Ownership is already set across /app by the builder's COPY layers; create the
-# worker user with the same uid/gid the old Dockerfile.worker used.
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 worker && \
-    chown -R worker:nodejs /app
+    adduser --system --uid 1001 worker
+
+# --chown during the copy: a separate recursive chown would write a full
+# duplicate of the tree as its own layer.
+COPY --from=worker-deploy --chown=worker:nodejs /tmp/worker ./
 USER worker
 
-CMD ["pnpm", "--filter", "@repo/worker", "worker:prod"]
+# The fresh runner does not inherit builder's ENVs; re-declare the ones the
+# worker has always run with so behaviour is unchanged.
+ARG AVATARS_BUCKET_NAME
+ENV AVATARS_BUCKET_NAME=${AVATARS_BUCKET_NAME}
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+
+# ⚠️ MIGRATIONS: Coolify's post_deployment_command runs `prisma migrate deploy`.
+# In this slim tree /app IS the worker package, so the old
+# `pnpm --filter @repo/database migrate:deploy` matches no project and exits 0 —
+# a SILENT no-op that would ship code against an unmigrated database. It must
+# become, and prisma must be a dependency of THIS package for the bin to resolve
+# at /app/node_modules/.bin (declared on @repo/database it lands under a hashed
+# .pnpm path that changes on any dependency bump):
+#   cd /app/node_modules/@repo/database && \
+#     /app/node_modules/.bin/prisma migrate deploy --schema=./prisma/schema.prisma
+# The `cd` is load-bearing: schema.prisma carries no datasource url, it comes
+# from prisma.config.ts which the CLI resolves relative to the WORKING DIRECTORY.
+#
+# Entry point is index.ts here, not worker.ts like the sibling apps. Invoking
+# node directly also avoids corepack downloading pnpm from the registry at every
+# container start, and `pnpm run`'s dep-status check hitting EACCES on /app.
+CMD ["node", "--import", "tsx", "./index.ts"]
