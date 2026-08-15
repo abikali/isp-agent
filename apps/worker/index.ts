@@ -22,8 +22,14 @@ import {
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { sendOrganizationNotification } from "@repo/notifications";
+import { startHealthServer } from "./health-server";
 
 async function main() {
+	// Bind the health endpoint BEFORE any slow startup work (queue creation,
+	// scheduler setup, Redis handshakes) so the container can report healthy
+	// while that runs, rather than looking dead during a cold boot.
+	const healthServer = startHealthServer();
+
 	logger.info("Starting job workers...");
 
 	// Initialize WhatsApp send rate limiter with the shared Redis connection
@@ -100,6 +106,7 @@ async function main() {
 			whatsAppReceiptWorker.close(),
 		]);
 
+		healthServer.close();
 		await closeConnection();
 		logger.info("Workers shut down gracefully");
 		process.exit(0);

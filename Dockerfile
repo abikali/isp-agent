@@ -58,9 +58,16 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --no-frozen-lockfile --prefer-offline
 
 # ===============================================
-# Builder
+# Source Stage — everything BOTH targets need, and nothing either doesn't
 # ===============================================
-FROM base AS builder
+# Split out of `builder` so the worker does not have to wait for (or cache-
+# restore) the web bundle. `builder` continues from here and adds `pnpm build`;
+# `worker-deploy` branches off HERE instead, because the worker runs its entry
+# .ts through tsx at runtime and never reads the web output. The only thing it
+# needs from this stage is the generated Prisma client, produced below — before
+# the web build. BuildKit shares this stage between both targets, so nothing is
+# built twice.
+FROM base AS source
 WORKDIR /app
 
 # Carry the entire installed workspace from deps (root + per-package node_modules,
@@ -71,6 +78,13 @@ COPY . .
 # Prisma client (no real DB needed for generate)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN pnpm --filter @repo/database generate
+
+# ===============================================
+# Builder Stage (web only, from here down)
+# ===============================================
+FROM source AS builder
+
+WORKDIR /app
 
 ENV NODE_ENV=production
 
@@ -166,8 +180,11 @@ CMD ["node", ".output/server/index.mjs"]
 # every @repo/* package exports raw .ts with no build step, so the worker
 # transpiles source at boot). `prisma` is added as a dependency for the same
 # reason — see the migration note below.
-FROM builder AS worker-deploy
+# NB `FROM source`, NOT `FROM builder`: branching before `pnpm build` means the
+# worker image never waits for the web bundle it would immediately discard.
+FROM source AS worker-deploy
 WORKDIR /app
+ENV NODE_ENV=production
 RUN pnpm deploy --filter @repo/worker --prod --legacy /tmp/worker
 
 # `pnpm deploy` materialises a FRESH tree, so the Prisma client the builder
@@ -196,7 +213,13 @@ USER worker
 # worker has always run with so behaviour is unchanged.
 ARG AVATARS_BUCKET_NAME
 ENV AVATARS_BUCKET_NAME=${AVATARS_BUCKET_NAME}
-ENV NODE_OPTIONS="--max-old-space-size=8192"
+# Heap ceiling, set from measurement rather than inherited from the builder
+# (which legitimately needs a large heap for the Vite build). Workers on this
+# node actually use 45-406MB resident; 8192 is 20-180x that and exceeds the
+# box's total RAM, so a runaway job could take the whole node down instead of
+# failing its own process. 2048 keeps ~5x headroom over the largest observed
+# worker while bounding the blast radius. One line to raise if a job needs more.
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # ⚠️ MIGRATIONS: Coolify's post_deployment_command runs `prisma migrate deploy`.
 # In this slim tree /app IS the worker package, so the old
@@ -213,4 +236,22 @@ ENV NODE_OPTIONS="--max-old-space-size=8192"
 # Entry point is index.ts here, not worker.ts like the sibling apps. Invoking
 # node directly also avoids corepack downloading pnpm from the registry at every
 # container start, and `pnpm run`'s dep-status check hitting EACCES on /app.
+
+EXPOSE 9091
+
+# Worker health. The entry file now binds a node:http liveness server on :9091 as
+# the FIRST thing main() does, before any queue or scheduler setup, so this
+# reports healthy through a cold boot rather than looking dead.
+#
+# Why bother: without it a wedged worker — event loop blocked, queues not
+# draining — keeps its container in `Up` and is completely invisible. A
+# crash-loop at least shows as `Restarting`.
+#
+# Liveness-only and deliberately NOT wired to a restart: Docker marks the
+# container unhealthy but does not restart it, which is what we want on an
+# IO-pressured node. 30s/3 detects a hang in ~90s without restart churn from a
+# transient blip.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=60s \
+  CMD wget -qO- http://127.0.0.1:9091/health || exit 1
+
 CMD ["node", "--import", "tsx", "./index.ts"]
