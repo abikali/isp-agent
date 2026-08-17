@@ -202,6 +202,9 @@ export function getPaymentFlagVariant(
 	if (flag === "free") {
 		return "info";
 	}
+	if (flag === "debt") {
+		return "warning";
+	}
 	if (flag === "overpaid") {
 		return "success";
 	}
@@ -225,6 +228,9 @@ export function getPaymentFlagLabel(payment: FlaggablePayment): string {
 	}
 	if (flag === "free") {
 		return "Free";
+	}
+	if (flag === "debt") {
+		return "Debt";
 	}
 	if (flag === "overpaid") {
 		return "Overpaid";
@@ -270,6 +276,7 @@ export function getPaymentStatusLabel(stoppedAccount: boolean): string {
 export type PaymentFlagType =
 	| "stopped"
 	| "free"
+	| "debt"
 	| "overpaid"
 	| "underpaid"
 	| "noted";
@@ -277,6 +284,8 @@ export type PaymentFlagType =
 interface FlaggablePayment {
 	freeAccount: boolean;
 	stoppedAccount: boolean;
+	// Optional so payment shapes fetched before the debt feature still fit.
+	debtAccount?: boolean;
 	paidAmount: number;
 	accountPrice: number;
 	discount: number;
@@ -321,6 +330,11 @@ function getPaymentFlagType(payment: FlaggablePayment): PaymentFlagType | null {
 	if (payment.freeAccount) {
 		return "free";
 	}
+	// Before the mismatch check: a debt row is always paidAmount 0, which
+	// would otherwise read as "underpaid".
+	if (payment.debtAccount) {
+		return "debt";
+	}
 	if (isAmountMismatch(payment)) {
 		return payment.paidAmount > expectedTotal(payment)
 			? "overpaid"
@@ -342,6 +356,7 @@ export function isUnreviewed(payment: FlaggablePayment): boolean {
 const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
 	stopped: "border-l-4 border-l-red-600 bg-red-100 dark:bg-red-950",
 	free: "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950",
+	debt: "border-l-4 border-l-orange-600 bg-orange-100 dark:bg-orange-950",
 	overpaid:
 		"border-l-4 border-l-emerald-600 bg-emerald-100 dark:bg-emerald-950",
 	underpaid: "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-950",
@@ -369,6 +384,7 @@ export const FLAG_LEGEND: {
 }[] = [
 	{ type: "stopped", label: "Stopped", className: "bg-red-600" },
 	{ type: "free", label: "Free", className: "bg-blue-600" },
+	{ type: "debt", label: "Debt", className: "bg-orange-600" },
 	{ type: "overpaid", label: "Overpaid", className: "bg-emerald-600" },
 	{ type: "underpaid", label: "Underpaid", className: "bg-amber-500" },
 	{ type: "noted", label: "Noted", className: "bg-violet-600" },

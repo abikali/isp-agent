@@ -46,6 +46,7 @@ export const createPayment = protectedProcedure
 			discount: z.number().finite().min(0).default(0),
 			freeAccount: z.boolean().default(false),
 			stoppedAccount: z.boolean().default(false),
+			debtAccount: z.boolean().default(false),
 			workerId: z.string().optional(),
 			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
@@ -208,18 +209,44 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Reject "ghost" rows: paidAmount=0 with neither flag set. They satisfy
+		// Debt ("dein") is a zero-cash visit log: the customer still owes and
+		// promised to pay later. It must not combine with the settlement flags,
+		// must carry a note, and any cash actually collected belongs in a
+		// normal payment instead.
+		if (input.debtAccount) {
+			if (input.freeAccount || input.stoppedAccount) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"A debt cannot be combined with Free Account or Stopped",
+				});
+			}
+			if (input.paidAmount > 0) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Record collected cash as a normal payment — debt is for visits where nothing was collected",
+				});
+			}
+			if (!input.noteCategory && !input.notes?.trim()) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"A note category or note is required when recording a debt",
+				});
+			}
+		}
+
+		// Reject "ghost" rows: paidAmount=0 with no flag set. They satisfy
 		// the dedupe check but never count as settled (see SETTLED_PAYMENT in
 		// lib/filters.ts), so the customer reappears in the unpaid list every
 		// month yet can never be re-collected — they're stuck.
 		if (
 			input.paidAmount === 0 &&
 			!input.freeAccount &&
-			!input.stoppedAccount
+			!input.stoppedAccount &&
+			!input.debtAccount
 		) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
-					"Mark the payment as Free Account or Stopped if no cash was collected",
+					"Mark the payment as Free Account, Stopped, or Debt if no cash was collected",
 			});
 		}
 
@@ -334,6 +361,7 @@ export const createPayment = protectedProcedure
 					discount: input.discount,
 					freeAccount: input.freeAccount,
 					stoppedAccount: input.stoppedAccount,
+					debtAccount: input.debtAccount,
 					workerId: input.workerId ?? null,
 					// Normalize to null when blank/whitespace so a non-note never
 					// trips the `notes IS NOT NULL` needs-review predicate.
@@ -424,17 +452,21 @@ export const createPayment = protectedProcedure
 					// billable customer when the month opens; may be null for edge
 					// cases (customer added or activated mid-month outside the
 					// generator's eligibility, free-group customers collecting
-					// addons).
-					const invoice = await tx.customerInvoice.findFirst({
-						where: {
-							organizationId: input.organizationId,
-							customerId: input.customerId,
-							year: billingMonth.year,
-							month: billingMonth.month,
-							voidedAt: null,
-						},
-						select: { id: true },
-					});
+					// addons). A debt row must NOT claim the invoice: invoiceId is
+					// unique per payment, so linking it would block the later real
+					// collection with a permanent CONFLICT.
+					const invoice = input.debtAccount
+						? null
+						: await tx.customerInvoice.findFirst({
+								where: {
+									organizationId: input.organizationId,
+									customerId: input.customerId,
+									year: billingMonth.year,
+									month: billingMonth.month,
+									voidedAt: null,
+								},
+								select: { id: true },
+							});
 
 					created = [
 						await tx.payment.create({
@@ -505,8 +537,9 @@ export const createPayment = protectedProcedure
 				}),
 			);
 
-		// Queue WhatsApp receipt via background worker (skip for stopped accounts)
-		if (!input.stoppedAccount) {
+		// Queue WhatsApp receipt via background worker (skip for stopped
+		// accounts and debt visits — nothing was collected)
+		if (!input.stoppedAccount && !input.debtAccount) {
 			const phone = input.customerPhones
 				? getPrimaryPhone(input.customerPhones)
 				: (customer.mobile ?? customer.phone);

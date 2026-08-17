@@ -30,6 +30,7 @@ export const listPayments = protectedProcedure
 				collectorId: z.string().optional(),
 				stoppedAccount: z.boolean().optional(),
 				freeAccount: z.boolean().optional(),
+				debtAccount: z.boolean().optional(),
 				amountMismatch: z
 					.enum(["any", "overpaid", "underpaid"])
 					.optional(),
@@ -85,6 +86,9 @@ export const listPayments = protectedProcedure
 		}
 		if (input.freeAccount !== undefined) {
 			where["freeAccount"] = input.freeAccount;
+		}
+		if (input.debtAccount !== undefined) {
+			where["debtAccount"] = input.debtAccount;
 		}
 		if (input.unreviewedOnly) {
 			const mismatchIds = await findUnreviewedAmountMismatchPaymentIds({
@@ -168,6 +172,7 @@ export const listPayments = protectedProcedure
 				  AND c."dealerId" IS NOT DISTINCT FROM $2
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
+				  AND p."debtAccount" = false
 				  ${direction}`,
 				input.organizationId,
 				activeDealerId,
@@ -195,6 +200,7 @@ export const listPayments = protectedProcedure
 					discount: true,
 					freeAccount: true,
 					stoppedAccount: true,
+					debtAccount: true,
 					noteCategory: true,
 					notes: true,
 					receiptSent: true,

@@ -90,6 +90,8 @@ export function PaymentSheet({
 		username: string | null;
 	} | null>(null);
 	const [stoppedAccount, setStoppedAccount] = useState(false);
+	// "Dein": zero-cash visit — the customer still owes and promised to pay.
+	const [debtAccount, setDebtAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
 	const [phones, setPhones] = useState<
@@ -134,6 +136,7 @@ export function PaymentSheet({
 	const missingNote = !noteCategory && !notes.trim();
 	const stoppedMissingNote = stoppedAccount && missingNote;
 	const freeMissingNote = freeAccount && missingNote;
+	const debtMissingNote = debtAccount && missingNote;
 
 	const amountNum = parseAmount(paidAmount);
 	const isAmountMismatch =
@@ -142,7 +145,7 @@ export function PaymentSheet({
 		amountNum > 0;
 	const mismatchMissingNote = isAmountMismatch && missingNote;
 	const zeroAmountWithoutFlag =
-		amountNum === 0 && !freeAccount && !stoppedAccount;
+		amountNum === 0 && !freeAccount && !stoppedAccount && !debtAccount;
 
 	const hasValidPhone = phones.some((p) => isValidPhone(p.number));
 
@@ -210,6 +213,7 @@ export function PaymentSheet({
 				discount: discountAmount,
 				freeAccount,
 				stoppedAccount,
+				debtAccount,
 				noteCategory: noteCategory || undefined,
 				notes: notes || undefined,
 				customerPhones:
@@ -257,11 +261,19 @@ export function PaymentSheet({
 		confirm({
 			title: stoppedAccount
 				? "Stop account?"
-				: `Collect ${formatCurrency(amount)}?`,
+				: debtAccount
+					? "Record debt?"
+					: `Collect ${formatCurrency(amount)}?`,
 			message: stoppedAccount
 				? `Mark ${name} as stopped. This cannot be undone.`
-				: `From ${name}. This cannot be undone.`,
-			confirmLabel: stoppedAccount ? "Confirm Stop" : "Confirm Payment",
+				: debtAccount
+					? `Record that ${name} still owes — nothing collected. The month stays due.`
+					: `From ${name}. This cannot be undone.`,
+			confirmLabel: stoppedAccount
+				? "Confirm Stop"
+				: debtAccount
+					? "Confirm Debt"
+					: "Confirm Payment",
 			onConfirm: () => handleAfterConfirm(),
 		});
 	}
@@ -439,6 +451,7 @@ export function PaymentSheet({
 									min="0"
 									inputMode="decimal"
 									value={paidAmount}
+									disabled={debtAccount}
 									onChange={(e) =>
 										setPaidAmount(e.target.value)
 									}
@@ -453,7 +466,7 @@ export function PaymentSheet({
 									<Switch
 										id="sheet-freeAccount"
 										checked={freeAccount}
-										disabled={stoppedAccount}
+										disabled={stoppedAccount || debtAccount}
 										onCheckedChange={(checked) => {
 											setFreeAccount(checked);
 											if (!checked) {
@@ -483,7 +496,7 @@ export function PaymentSheet({
 									<Switch
 										id="sheet-stoppedAccount"
 										checked={stoppedAccount}
-										disabled={freeAccount}
+										disabled={freeAccount || debtAccount}
 										onCheckedChange={(checked) => {
 											setStoppedAccount(checked);
 											if (checked) {
@@ -503,6 +516,34 @@ export function PaymentSheet({
 										}}
 									/>
 									<span className="text-sm">Stopped</span>
+								</label>
+								<label
+									htmlFor="sheet-debtAccount"
+									className="flex items-center gap-2 cursor-pointer"
+								>
+									<Switch
+										id="sheet-debtAccount"
+										checked={debtAccount}
+										disabled={freeAccount || stoppedAccount}
+										onCheckedChange={(checked) => {
+											setDebtAccount(checked);
+											if (checked) {
+												setPaidAmount("0");
+											} else if (customer) {
+												setPaidAmount(
+													String(
+														calculateTotalDue(
+															customer,
+															{
+																freeAccount,
+															},
+														),
+													),
+												);
+											}
+										}}
+									/>
+									<span className="text-sm">Debt</span>
 								</label>
 							</div>
 							{freeAccount && (
@@ -663,6 +704,12 @@ export function PaymentSheet({
 							</p>
 						)}
 
+						{debtMissingNote && (
+							<p className="text-xs font-medium text-destructive">
+								Note required when recording a debt
+							</p>
+						)}
+
 						{mismatchMissingNote && (
 							<p className="text-xs font-medium text-destructive">
 								Note required when amount differs from total due
@@ -671,8 +718,8 @@ export function PaymentSheet({
 
 						{zeroAmountWithoutFlag && (
 							<p className="text-xs font-medium text-destructive">
-								Mark the payment as Free or Stopped if no cash
-								was collected
+								Mark the payment as Free, Stopped, or Debt if no
+								cash was collected
 							</p>
 						)}
 
@@ -684,6 +731,7 @@ export function PaymentSheet({
 								createPayment.isPending ||
 								stoppedMissingNote ||
 								freeMissingNote ||
+								debtMissingNote ||
 								mismatchMissingNote ||
 								zeroAmountWithoutFlag ||
 								!hasValidPhone
@@ -691,7 +739,9 @@ export function PaymentSheet({
 						>
 							{createPayment.isPending
 								? "Recording..."
-								: `Record Payment — ${formatCurrency(parseAmount(paidAmount))}`}
+								: debtAccount
+									? "Record Debt"
+									: `Record Payment — ${formatCurrency(parseAmount(paidAmount))}`}
 						</Button>
 					</form>
 				</SheetContent>

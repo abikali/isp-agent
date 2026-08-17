@@ -80,6 +80,7 @@ import {
 	ExternalLinkIcon,
 	FilterIcon,
 	GiftIcon,
+	HandCoinsIcon,
 	ListIcon,
 	Loader2Icon,
 	MessageCircleIcon,
@@ -150,6 +151,7 @@ type PaymentTypeFilter =
 	| "collected"
 	| "stopped"
 	| "free"
+	| "debt"
 	| "overpaid"
 	| "underpaid"
 	| "mismatch"
@@ -251,6 +253,7 @@ interface PaymentRow {
 	discount: number;
 	freeAccount: boolean;
 	stoppedAccount: boolean;
+	debtAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
 	receiptSent: boolean;
@@ -310,6 +313,7 @@ const TYPE_FILTERS: {
 	{ key: "collected", label: "Collected", icon: CheckCircle2Icon },
 	{ key: "stopped", label: "Stopped", icon: CircleDotIcon },
 	{ key: "free", label: "Free" },
+	{ key: "debt", label: "Debt", icon: HandCoinsIcon },
 	{ key: "mismatch", label: "All Mismatch", icon: AlertTriangleIcon },
 	{ key: "overpaid", label: "Overpaid", icon: ArrowUpIcon },
 	{ key: "underpaid", label: "Underpaid", icon: ArrowDownIcon },
@@ -329,6 +333,7 @@ const NOTE_CATEGORIES = Object.entries(NOTE_CATEGORY_LABELS);
 function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 	stoppedAccount?: boolean;
 	freeAccount?: boolean;
+	debtAccount?: boolean;
 	unreviewedOnly?: boolean;
 	reviewedOnly?: boolean;
 	amountMismatch?: "any" | "overpaid" | "underpaid";
@@ -336,11 +341,17 @@ function deriveQueryFilters(typeFilter: PaymentTypeFilter): {
 } {
 	switch (typeFilter) {
 		case "collected":
-			return { stoppedAccount: false, freeAccount: false };
+			return {
+				stoppedAccount: false,
+				freeAccount: false,
+				debtAccount: false,
+			};
 		case "stopped":
 			return { stoppedAccount: true };
 		case "free":
 			return { freeAccount: true };
+		case "debt":
+			return { debtAccount: true };
 		case "mismatch":
 			return { amountMismatch: "any" };
 		case "overpaid":

@@ -2005,6 +2005,10 @@ model Payment {
   status          PaymentStatus @default(COLLECTED)
   freeAccount     Boolean       @default(false)
   stoppedAccount  Boolean       @default(false)
+  // Zero-cash "dein" visit: records that the collector came by and the
+  // customer still owes, with a mandatory note. Never settles an invoice
+  // (invoiceId stays null) and never blocks a later real collection.
+  debtAccount     Boolean       @default(false)
   workerId        String?
   noteCategory    String?
   notes           String?       @db.Text

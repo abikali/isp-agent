@@ -97,7 +97,13 @@ export const getPaymentStats = protectedProcedure
 							}
 						: dealerViaCustomer;
 
-				const collectedWhere = { ...baseWhere, ...EXCLUDE_STOPPED };
+				// Debt rows are zero-cash visit logs, not collections — keep them
+				// out of the collected counts (their sum is 0 either way).
+				const collectedWhere = {
+					...baseWhere,
+					...EXCLUDE_STOPPED,
+					debtAccount: false,
+				};
 
 				const [
 					collectedPayments,

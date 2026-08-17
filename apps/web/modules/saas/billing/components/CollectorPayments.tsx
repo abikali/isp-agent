@@ -14,6 +14,7 @@ import { Skeleton } from "@ui/components/skeleton";
 import {
 	CheckCircleIcon,
 	GiftIcon,
+	HandCoinsIcon,
 	Loader2Icon,
 	MapPinIcon,
 	PhoneIcon,
@@ -183,6 +184,7 @@ interface PaymentRowProps {
 		paidAt: string | Date;
 		freeAccount: boolean;
 		stoppedAccount: boolean;
+		debtAccount?: boolean;
 		customer?: {
 			firstName?: string | null;
 			lastName?: string | null;
@@ -204,13 +206,16 @@ function PaymentRow({ payment }: PaymentRowProps) {
 
 	const isStopped = payment.stoppedAccount;
 	const isFree = payment.freeAccount;
+	const isDebt = payment.debtAccount ?? false;
 	const phone = payment.customer?.mobile || payment.customer?.phone;
 
 	const rowClassName = isStopped
 		? "border-l-4 border-l-red-600 bg-red-100 dark:bg-red-950"
 		: isFree
 			? "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950"
-			: "";
+			: isDebt
+				? "border-l-4 border-l-orange-600 bg-orange-100 dark:bg-orange-950"
+				: "";
 
 	return (
 		<div
@@ -225,6 +230,10 @@ function PaymentRow({ payment }: PaymentRowProps) {
 				) : isFree ? (
 					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-500/10 mt-0.5">
 						<GiftIcon className="size-4 text-blue-500" />
+					</div>
+				) : isDebt ? (
+					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-orange-500/10 mt-0.5">
+						<HandCoinsIcon className="size-4 text-orange-500" />
 					</div>
 				) : (
 					<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-success/10 mt-0.5">
