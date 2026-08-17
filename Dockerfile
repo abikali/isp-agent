@@ -73,7 +73,22 @@ WORKDIR /app
 # Carry the entire installed workspace from deps (root + per-package node_modules,
 # whatever layout pnpm chose), then overlay source on top (source has no node_modules).
 COPY --from=deps /app ./
-COPY . .
+
+# Everything EXCEPT apps/web's source, which lands in `builder` instead. This was
+# a blanket `COPY . .`, which meant editing a single web route invalidated this
+# layer and made worker-deploy re-run its ~480-package `pnpm deploy` for a
+# byte-identical result. apps/web's MANIFEST still has to be here: pnpm-workspace
+# globs apps/*, and the lockfile lists apps/web as an importer, so `pnpm deploy`
+# needs it to resolve the workspace graph.
+COPY package.json pnpm-workspace.yaml turbo.json tsconfig.json ./
+COPY biome.json knip.json doctor.config.json Makefile ./
+COPY config/ ./config/
+COPY tooling/ ./tooling/
+COPY packages/ ./packages/
+COPY scripts/ ./scripts/
+COPY infra/ ./infra/
+COPY apps/worker/ ./apps/worker/
+COPY apps/web/package.json ./apps/web/
 
 # Prisma client (no real DB needed for generate)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
@@ -85,6 +100,11 @@ RUN pnpm --filter @repo/database generate
 FROM source AS builder
 
 WORKDIR /app
+
+# The web app's source lands here rather than in `source`, so touching a route
+# or a component leaves the worker's cached layers intact. Its node_modules
+# already arrived with the `COPY --from=deps /app ./` in source.
+COPY apps/web/ ./apps/web/
 
 ENV NODE_ENV=production
 
