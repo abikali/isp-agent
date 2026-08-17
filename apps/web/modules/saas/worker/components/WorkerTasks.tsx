@@ -66,7 +66,6 @@ import {
 	type TaskStatusValue,
 	useMyEmployeeId,
 	useMyStatsQuery,
-	useMyStockQuery,
 	useMyTasksList,
 	useMyTrendQuery,
 	useUninstallItemsQuery,
@@ -913,11 +912,16 @@ function MaintenanceSubmitSheet({
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 	// Items/add-ons used during the visit are recorded but never required.
 	const [lines, setLines] = useInstallLines(task);
+	// Equipment removed during the visit (optional — most maintenance visits
+	// recover nothing, but removals often happen on non-UNINSTALL tasks too).
+	const [recovered, setRecovered] = useState<RecoveredItem[]>([]);
 
 	const installedItems = linesToPayload(lines);
+	const recoveredOk =
+		recovered.length === 0 || recoveredItemsValid(recovered);
 
 	async function handleSubmit() {
-		if (!organizationId) {
+		if (!organizationId || !recoveredOk) {
 			return;
 		}
 		if (resolutionCode === CUSTOM_RESOLUTION_VALUE && !note.trim()) {
@@ -932,6 +936,9 @@ function MaintenanceSubmitSheet({
 				resolutionNote: note.trim() || undefined,
 				photoUrl: photoUrl ?? undefined,
 				...(installedItems.length > 0 ? { installedItems } : {}),
+				...(recovered.length > 0
+					? { recoveredItems: recoveredItemsPayload(recovered) }
+					: {}),
 			});
 			toast.success("Task completed");
 			onClose();
@@ -947,6 +954,7 @@ function MaintenanceSubmitSheet({
 			title={`Complete — ${task.title}`}
 			submitLabel="Complete task"
 			pending={complete.isPending}
+			disabled={!recoveredOk}
 			onClose={onClose}
 			onSubmit={handleSubmit}
 		>
@@ -981,6 +989,14 @@ function MaintenanceSubmitSheet({
 					lines={lines}
 					onChange={setLines}
 					allowAddons={Boolean(task.customer)}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label>Recovered equipment (optional)</Label>
+				<RecoveredItemsEditor
+					items={recovered}
+					onChange={setRecovered}
+					getUploadUrl={getUploadUrl}
 				/>
 			</div>
 			<div className="space-y-1.5">
@@ -1186,7 +1202,6 @@ function UninstallSubmitSheet({
 				items={items}
 				onChange={setItems}
 				getUploadUrl={getUploadUrl}
-				source="uninstall"
 			/>
 		</SubmitSheet>
 	);
@@ -1270,7 +1285,6 @@ function RecoveredItemsEditor({
 	items,
 	onChange,
 	getUploadUrl,
-	source = "my-stock",
 }: {
 	items: RecoveredItem[];
 	onChange: (items: RecoveredItem[]) => void;
@@ -1278,20 +1292,15 @@ function RecoveredItemsEditor({
 		uploadUrl: string;
 		publicUrl: string;
 	}>;
-	// "my-stock": the worker's own allocations (replacement-task recovery).
-	// "uninstall": the admin-curated `showInUninstall` item list.
-	source?: "my-stock" | "uninstall";
 }) {
-	const { allocations } = useMyStockQuery();
+	// Recovered gear is the customer's old equipment, so the options are the
+	// admin-curated `showInUninstall` list — never the worker's own stock.
 	const { items: uninstallItems } = useUninstallItemsQuery();
 
-	const stockOptions =
-		source === "uninstall"
-			? uninstallItems.map((i) => ({ value: i.id, label: i.name }))
-			: allocations.map((alloc) => ({
-					value: alloc.stockItem.id,
-					label: alloc.stockItem.name,
-				}));
+	const stockOptions = uninstallItems.map((i) => ({
+		value: i.id,
+		label: i.name,
+	}));
 
 	function updateItem(key: number, patch: Partial<RecoveredItem>) {
 		onChange(
@@ -1328,11 +1337,7 @@ function RecoveredItemsEditor({
 						<Combobox
 							value={item.stockItemId ?? ""}
 							placeholder="Select an item…"
-							searchPlaceholder={
-								source === "uninstall"
-									? "Search items…"
-									: "Search my stock…"
-							}
+							searchPlaceholder="Search items…"
 							onChange={(v) =>
 								updateItem(item.key, { stockItemId: v })
 							}
@@ -1378,7 +1383,7 @@ function RecoveredItemsEditor({
 				}
 			>
 				<PlusIcon className="mr-2 size-4" />
-				Add another item
+				{items.length === 0 ? "Add recovered item" : "Add another item"}
 			</Button>
 		</div>
 	);
