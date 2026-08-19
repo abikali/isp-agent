@@ -185,6 +185,9 @@ export const listTasks = protectedProcedure
 							accountNumber: true,
 							mobile: true,
 							phone: true,
+							// Full list so the field card can offer every
+							// number to call / WhatsApp, not just the primary.
+							phones: true,
 							address: true,
 							// Drives the worker card's Directions link.
 							latitude: true,

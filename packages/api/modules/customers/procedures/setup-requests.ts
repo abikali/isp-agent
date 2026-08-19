@@ -825,6 +825,9 @@ export const approveSetupRequest = protectedProcedure
 		const shouldCreateInIRadius =
 			!iradiusDisabled && !request.customer.externalId;
 		let newExternalId: string | null = null;
+		// Kept so the approval notification can hand the worker the credentials
+		// they need on site. Null when the account already existed in iRadius.
+		let createdPassword: string | null = null;
 		if (shouldCreateInIRadius) {
 			if (!input.iradiusPassword?.trim()) {
 				throw new ORPCError("BAD_REQUEST", {
@@ -832,10 +835,11 @@ export const approveSetupRequest = protectedProcedure
 						"A PPPoE password is required to create this customer in iRadius",
 				});
 			}
+			createdPassword = input.iradiusPassword.trim();
 			const { userId } = await createCustomerInIRadius({
 				organizationId: input.organizationId,
 				customerId: request.customerId,
-				password: input.iradiusPassword.trim(),
+				password: createdPassword,
 			});
 			newExternalId = String(userId);
 		}
@@ -973,6 +977,19 @@ export const approveSetupRequest = protectedProcedure
 								icon: "🆔",
 								label: "Username",
 								value: request.customer.username,
+								copyable: true,
+							}
+						: null,
+					// The PPPoE password the admin set during approval. The
+					// worker needs it on site to configure the router, and it
+					// exists nowhere else in the app (iRadius owns it), so the
+					// approval message is its only delivery channel. Only
+					// present when this approval created the iRadius account.
+					createdPassword
+						? {
+								icon: "🔑",
+								label: "Password",
+								value: createdPassword,
 								copyable: true,
 							}
 						: null,

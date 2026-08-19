@@ -2,6 +2,8 @@
 
 import { useWorkerOptions } from "@saas/worker-options/client";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
+import { PhoneActions } from "@shared/components/PhoneActions";
+import { customerPhoneNumbers } from "@shared/lib/customer-phones";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate, formatDateTime } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
@@ -75,7 +77,8 @@ export function TaskRowDetails({
 	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
 	const customer = task.customer;
-	const phone = customer?.mobile ?? customer?.phone ?? null;
+	// Every number on file, not just the primary — see PhoneActions.
+	const phoneNumbers = customerPhoneNumbers(customer);
 	const installs = task.installations ?? [];
 	const recovered = task.uninstalledItems ?? [];
 	const hasCompletion =
@@ -131,12 +134,15 @@ export function TaskRowDetails({
 											#{customer.accountNumber}
 										</div>
 									)}
-									{phone && (
-										<div className="flex items-center gap-1">
+									{phoneNumbers.map((number) => (
+										<div
+											key={number}
+											className="flex items-center gap-1"
+										>
 											<PhoneIcon className="size-3" />
-											{phone}
+											{number}
 										</div>
-									)}
+									))}
 									{customer.address && (
 										<div className="flex items-start gap-1">
 											<MapPinIcon className="mt-0.5 size-3 shrink-0" />
@@ -144,6 +150,14 @@ export function TaskRowDetails({
 										</div>
 									)}
 								</div>
+								{phoneNumbers.length > 0 && (
+									<div className="flex flex-wrap gap-2 pt-1">
+										<PhoneActions
+											numbers={phoneNumbers}
+											className="basis-24"
+										/>
+									</div>
+								)}
 							</>
 						) : (
 							<div className="space-y-0.5">

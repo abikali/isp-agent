@@ -45,6 +45,7 @@ import {
 	extractPriceComponents,
 	parseAmount,
 } from "../lib/billing-utils";
+import { LENIENCY_NOTICE, leniencyReason } from "../lib/leniency-warning";
 import type { UnpaidCustomer } from "./CustomerCard";
 import { LocationPromptDialog } from "./LocationPromptDialog";
 
@@ -258,22 +259,38 @@ export function PaymentSheet({
 	function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		const amount = parseAmount(paidAmount);
+
+		const leniency = leniencyReason({
+			name,
+			freeAccount,
+			stoppedAccount,
+			debtAccount,
+			paidAmount: amount,
+			totalDue,
+		});
+		const baseMessage = stoppedAccount
+			? `Mark ${name} as stopped. This cannot be undone.`
+			: debtAccount
+				? `Record that ${name} still owes — nothing collected. The month stays due.`
+				: `From ${name}. This cannot be undone.`;
+
 		confirm({
 			title: stoppedAccount
 				? "Stop account?"
 				: debtAccount
 					? "Record debt?"
-					: `Collect ${formatCurrency(amount)}?`,
-			message: stoppedAccount
-				? `Mark ${name} as stopped. This cannot be undone.`
-				: debtAccount
-					? `Record that ${name} still owes — nothing collected. The month stays due.`
-					: `From ${name}. This cannot be undone.`,
+					: freeAccount
+						? "Settle as free?"
+						: `Collect ${formatCurrency(amount)}?`,
+			message: leniency ? `${leniency} ${LENIENCY_NOTICE}` : baseMessage,
 			confirmLabel: stoppedAccount
 				? "Confirm Stop"
 				: debtAccount
 					? "Confirm Debt"
-					: "Confirm Payment",
+					: freeAccount
+						? "Confirm Free"
+						: "Confirm Payment",
+			destructive: leniency !== null,
 			onConfirm: () => handleAfterConfirm(),
 		});
 	}

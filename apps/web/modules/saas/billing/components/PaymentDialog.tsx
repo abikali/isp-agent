@@ -1,6 +1,7 @@
 "use client";
 
 import { useActiveOrganization } from "@saas/organizations/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { displayName as getDisplayName } from "@shared/lib/display-name";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -37,6 +38,7 @@ import {
 	extractPriceComponents,
 	parseAmount,
 } from "../lib/billing-utils";
+import { LENIENCY_NOTICE, leniencyReason } from "../lib/leniency-warning";
 
 interface PaymentDialogProps {
 	open: boolean;
@@ -67,6 +69,7 @@ export function PaymentDialog({
 }: PaymentDialogProps) {
 	const organizationId = useOrganizationId();
 	const { employee, isOrganizationAdmin } = useActiveOrganization();
+	const { confirm } = useConfirmationAlert();
 	const createPayment = useCreatePayment();
 	const { data: noteCategoriesData } = useNoteCategories();
 	const noteCategories = noteCategoriesData?.categories ?? [];
@@ -97,14 +100,36 @@ export function PaymentDialog({
 	const monthlyDue = customerMonthlyDue(customer);
 	const paidAmountNum = parseAmount(paidAmount);
 	const amountDiff = paidAmountNum - totalDue;
+	const leniency = leniencyReason({
+		name:
+			getDisplayName(customer.firstName, customer.lastName) ||
+			customer.username ||
+			"This customer",
+		freeAccount,
+		stoppedAccount,
+		paidAmount: paidAmountNum,
+		totalDue,
+	});
 
 	function handleFormSubmit(e: React.FormEvent) {
 		e.preventDefault();
 		if (isOrganizationAdmin) {
 			setShowConfirm(true);
-		} else {
-			submitPayment();
+			return;
 		}
+		// Collectors skip the admin confirm step, so the leniency warning is
+		// the one gate they see before a free/stopped/short month is recorded.
+		if (leniency) {
+			confirm({
+				title: "Nothing collected — are you sure?",
+				message: `${leniency} ${LENIENCY_NOTICE}`,
+				confirmLabel: "Record anyway",
+				destructive: true,
+				onConfirm: () => submitPayment(),
+			});
+			return;
+		}
+		submitPayment();
 	}
 
 	function submitPayment() {
@@ -179,6 +204,13 @@ export function PaymentDialog({
 					</DialogHeader>
 
 					<div className="space-y-4">
+						{/* Nothing (or not everything) is being collected —
+						    same notice the collector portal shows. */}
+						{leniency && (
+							<div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-900 text-sm dark:text-amber-200">
+								{leniency} {LENIENCY_NOTICE}
+							</div>
+						)}
 						{/* Payment summary */}
 						<div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
 							<div className="flex justify-between">

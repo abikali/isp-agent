@@ -117,6 +117,18 @@ export function AppSidebar() {
 	);
 	const pendingStockRefunds = stockStats?.pendingRefundCount ?? 0;
 
+	// Recovered equipment a worker submitted and nobody has reviewed. Only the
+	// approvers can act on it, so only they get the badge.
+	const canApproveInstallations = hasPermission("installations", "approve");
+	const { data: taskStats } = useQuery(
+		organizationId && hasPermission("tasks", "read")
+			? orpc.tasks.stats.queryOptions({ input: { organizationId } })
+			: disabledQuery(["tasks", "stats"]),
+	);
+	const pendingRecoveredItems = canApproveInstallations
+		? (taskStats?.pendingRecoveredItems ?? 0)
+		: 0;
+
 	const { data: setupRequests } = useQuery(
 		organizationId
 			? orpc.customers.setupRequests.list.queryOptions({
@@ -240,6 +252,7 @@ export function AppSidebar() {
 					label: "Tasks",
 					to: `${basePath}/tasks`,
 					icon: UsersIcon,
+					badge: pendingRecoveredItems,
 				});
 			}
 			if (canReadInventory) {
@@ -341,6 +354,7 @@ export function AppSidebar() {
 		pendingExpenses,
 		pendingNewCustomers,
 		pendingStockRefunds,
+		pendingRecoveredItems,
 	]);
 
 	const bottomItems = useMemo<NavItem[]>(() => {

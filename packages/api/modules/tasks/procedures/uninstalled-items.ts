@@ -14,7 +14,7 @@ import { protectedProcedure } from "../../../orpc/procedures";
  * Recovered items anchor to a task (→ customer) for dealer scope. Items with
  * no task or a customer-less task are org-level and stay visible everywhere.
  */
-function uninstalledItemDealerScope(activeDealerId: string | null) {
+export function uninstalledItemDealerScope(activeDealerId: string | null) {
 	return {
 		OR: [
 			{ taskId: null },

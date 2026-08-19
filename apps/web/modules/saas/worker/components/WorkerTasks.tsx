@@ -1,7 +1,6 @@
 "use client";
 
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
-import { formatWhatsAppLink } from "@saas/billing/lib/whatsapp";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import {
 	useCompleteTaskWithEvidence,
@@ -9,6 +8,8 @@ import {
 } from "@saas/tasks/client";
 import { useWorkerOptions } from "@saas/worker-options/client";
 import { CHART_TOKENS } from "@shared/components/charts/chart-utils";
+import { PhoneActions } from "@shared/components/PhoneActions";
+import { customerPhoneNumbers } from "@shared/lib/customer-phones";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -46,7 +47,6 @@ import {
 	ClipboardListIcon,
 	ClockIcon,
 	MapPinIcon,
-	MessageCircleIcon,
 	NavigationIcon,
 	PhoneIcon,
 	PlusIcon,
@@ -603,8 +603,9 @@ function TaskCard({
 		? displayName(task.customer.firstName, task.customer.lastName)
 		: null;
 	// Everything a worker reaches for on the way to a job: call, message, navigate.
-	const phone = task.customer?.mobile || task.customer?.phone || null;
-	const whatsAppUrl = formatWhatsAppLink(phone);
+	// Every number we hold, not just the primary — the one that answers (or is
+	// on WhatsApp) is often the second one.
+	const phoneNumbers = customerPhoneNumbers(task.customer);
 	// Coordinates when we have them (exact), else let Maps search the address.
 	const destination =
 		task.customer?.latitude != null && task.customer?.longitude != null
@@ -701,45 +702,19 @@ function TaskCard({
 									<span>{task.customer.address}</span>
 								</p>
 							) : null}
-							{phone ? (
-								<p className="flex items-center gap-1">
+							{phoneNumbers.map((number) => (
+								<p
+									key={number}
+									className="flex items-center gap-1"
+								>
 									<PhoneIcon className="size-3 shrink-0" />
-									{phone}
+									{number}
 								</p>
-							) : null}
+							))}
 						</div>
-						{phone || directionsUrl ? (
+						{phoneNumbers.length > 0 || directionsUrl ? (
 							<div className="flex flex-wrap gap-2">
-								{phone ? (
-									<Button
-										variant="outline"
-										size="sm"
-										className="h-8 flex-1 basis-20 text-xs"
-										asChild
-									>
-										<a href={`tel:${phone}`}>
-											<PhoneIcon />
-											Call
-										</a>
-									</Button>
-								) : null}
-								{whatsAppUrl ? (
-									<Button
-										variant="outline"
-										size="sm"
-										className="h-8 flex-1 basis-20 text-xs"
-										asChild
-									>
-										<a
-											href={whatsAppUrl}
-											target="_blank"
-											rel="noopener noreferrer"
-										>
-											<MessageCircleIcon />
-											WhatsApp
-										</a>
-									</Button>
-								) : null}
+								<PhoneActions numbers={phoneNumbers} />
 								{directionsUrl ? (
 									<Button
 										variant="outline"

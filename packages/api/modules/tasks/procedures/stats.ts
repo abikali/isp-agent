@@ -3,6 +3,7 @@ import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { uninstalledItemDealerScope } from "./uninstalled-items";
 
 export const getTaskStats = protectedProcedure
 	.route({
@@ -58,37 +59,52 @@ export const getTaskStats = protectedProcedure
 					base["id"] = { in: [] as string[] };
 				}
 
-				const [statusCounts, overdue, unassigned, returned] =
-					await Promise.all([
-						db.task.groupBy({
-							by: ["status"],
-							where: base,
-							_count: true,
-						}),
-						db.task.count({
-							where: {
-								...base,
-								dueDate: { lt: new Date() },
-								status: "OPEN",
-							},
-						}),
-						db.task.count({
-							where: {
-								...base,
-								assignments: { none: {} },
-								status: "OPEN",
-							},
-						}),
-						// Completions an approver sent back — see isReturned().
-						db.task.count({
-							where: {
-								...base,
-								status: "OPEN",
-								completedAt: null,
-								completedByEmployeeId: { not: null },
-							},
-						}),
-					]);
+				const [
+					statusCounts,
+					overdue,
+					unassigned,
+					returned,
+					pendingRecoveredItems,
+				] = await Promise.all([
+					db.task.groupBy({
+						by: ["status"],
+						where: base,
+						_count: true,
+					}),
+					db.task.count({
+						where: {
+							...base,
+							dueDate: { lt: new Date() },
+							status: "OPEN",
+						},
+					}),
+					db.task.count({
+						where: {
+							...base,
+							assignments: { none: {} },
+							status: "OPEN",
+						},
+					}),
+					// Completions an approver sent back — see isReturned().
+					db.task.count({
+						where: {
+							...base,
+							status: "OPEN",
+							completedAt: null,
+							completedByEmployeeId: { not: null },
+						},
+					}),
+					// Recovered equipment waiting on an approver. Drives the
+					// sidebar badge so the review card on the tasks page
+					// isn't the only place it surfaces.
+					db.uninstalledItem.count({
+						where: {
+							organizationId,
+							status: "PENDING",
+							AND: [uninstalledItemDealerScope(activeDealerId)],
+						},
+					}),
+				]);
 
 				const countByStatus = new Map(
 					statusCounts.map((s) => [s.status, s._count]),
@@ -108,6 +124,7 @@ export const getTaskStats = protectedProcedure
 					overdue,
 					unassigned,
 					returned,
+					pendingRecoveredItems,
 				};
 			},
 		);

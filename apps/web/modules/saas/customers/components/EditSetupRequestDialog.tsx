@@ -1,6 +1,6 @@
 "use client";
 
-import { useEmployeesQuery } from "@saas/employees/client";
+import { useCollectors } from "@saas/billing/client";
 import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -15,13 +15,6 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useIRadiusGroups } from "../hooks/use-customers";
@@ -51,7 +44,11 @@ export function EditSetupRequestDialog({
 	const organizationId = useOrganizationId();
 	const { groups } = useIRadiusGroups();
 	const { plans } = usePlansQuery();
-	const { employees } = useEmployeesQuery();
+	// Collectors only — `billing.collectors.list` is billing staff plus anyone
+	// already assigned customers. The employee list would also offer field
+	// techs, who can never be a customer's collector.
+	const { data: collectorsData } = useCollectors();
+	const collectors = collectorsData?.collectors ?? [];
 	const updateRequest = useUpdateSetupRequest();
 
 	const customer = request.customer;
@@ -270,48 +267,39 @@ export function EditSetupRequestDialog({
 						/>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
-						<div className="space-y-1.5">
+						<div className="min-w-0 space-y-1.5">
 							<Label>Plan</Label>
-							<Select value={planId} onValueChange={setPlanId}>
-								<SelectTrigger>
-									<SelectValue placeholder="Pick a plan" />
-								</SelectTrigger>
-								<SelectContent>
-									{plans.flatMap((p) =>
-										p.archived
-											? []
-											: [
-													<SelectItem
-														key={p.id}
-														value={p.id}
-													>
-														{p.name}
-													</SelectItem>,
-												],
-									)}
-								</SelectContent>
-							</Select>
+							<Combobox
+								value={planId}
+								onChange={setPlanId}
+								placeholder="Pick a plan"
+								searchPlaceholder="Search plans…"
+								emptyText="No plans found"
+								options={plans.flatMap((p) =>
+									p.archived
+										? []
+										: [{ value: p.id, label: p.name }],
+								)}
+							/>
 						</div>
-						<div className="space-y-1.5">
+						<div className="min-w-0 space-y-1.5">
 							<Label>Collector</Label>
-							<Select
+							<Combobox
 								value={collectorId || "none"}
-								onValueChange={(v) =>
+								onChange={(v) =>
 									setCollectorId(v === "none" ? "" : v)
 								}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="None" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="none">None</SelectItem>
-									{employees.map((emp) => (
-										<SelectItem key={emp.id} value={emp.id}>
-											{emp.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								placeholder="None"
+								searchPlaceholder="Search collectors…"
+								emptyText="No collectors found"
+								options={[
+									{ value: "none", label: "None" },
+									...collectors.map((c) => ({
+										value: c.id,
+										label: c.name,
+									})),
+								]}
+							/>
 						</div>
 					</div>
 					<div className="grid grid-cols-2 gap-3">
