@@ -73,8 +73,18 @@ export async function fetchRetailRevenue(
 export async function fetchWholesaleRevenue(
 	scope: FinanceScope,
 	period: Period,
-): Promise<{ charged: number; settled: number; chargeCount: number }> {
-	const [charges, settlements] = await Promise.all([
+): Promise<{
+	charged: number;
+	settled: number;
+	chargeCount: number;
+	/** True when this organization has NO dealer-charge history at all, i.e.
+	 *  the iRadius sync has never populated it. Distinguishes "wholesale earned
+	 *  nothing" from "we cannot see wholesale" — reporting the second as the
+	 *  first understates income by roughly half and recreates the exact
+	 *  false-loss this module exists to fix. */
+	neverSynced: boolean;
+}> {
+	const [charges, settlements, everSynced] = await Promise.all([
 		db.dealerCharge.aggregate({
 			where: {
 				organizationId: scope.organizationId,
@@ -92,12 +102,17 @@ export async function fetchWholesaleRevenue(
 			},
 			_sum: { credit: true },
 		}),
+		db.dealerCharge.findFirst({
+			where: { organizationId: scope.organizationId },
+			select: { id: true },
+		}),
 	]);
 
 	return {
 		charged: charges._sum.debit ?? 0,
 		settled: settlements._sum.credit ?? 0,
 		chargeCount: charges._count,
+		neverSynced: everSynced === null,
 	};
 }
 

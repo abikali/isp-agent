@@ -142,6 +142,16 @@ export const getFinanceSummary = protectedProcedure
 						other: current.byStream.OTHER,
 						wholesaleSettled: wholesale.settled,
 					},
+					/** Things that would make the headline misleading if the
+					 *  page stated it confidently. The UI must degrade to an
+					 *  honest "we can't tell yet" rather than publishing a
+					 *  number it knows is incomplete. */
+					gaps: {
+						/** iRadius has never populated dealer charges, so
+						 *  wholesale income — historically about half of all
+						 *  revenue — is invisible. */
+						wholesaleNeverSynced: wholesale.neverSynced,
+					},
 					moneyOut: {
 						total: current.cost,
 						/** Spend nobody has classified yet. When this is a

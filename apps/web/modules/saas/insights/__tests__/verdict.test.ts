@@ -76,6 +76,22 @@ describe("buildVerdict", () => {
 		).toBeNull();
 	});
 
+	it("refuses to publish a verdict when a whole income stream is invisible", () => {
+		// This is the exact failure the page replaced: wholesale income absent
+		// while every cost of serving it was counted, producing a confident
+		// monthly "loss" for a profitable business.
+		const v = buildVerdict({
+			...base,
+			moneyIn: 58189,
+			net: -22236,
+			incomeStreamMissing: true,
+		});
+		expect(v.tone).toBe("unknown");
+		expect(v.headline).not.toMatch(/\$/);
+		expect(v.detail).toContain("dealers");
+		expect(v.caveat).toContain("iRadius");
+	});
+
 	it("admits when there is nothing to show", () => {
 		const v = buildVerdict({ ...base, moneyIn: 0, moneyOut: 0, net: 0 });
 		expect(v.tone).toBe("unknown");

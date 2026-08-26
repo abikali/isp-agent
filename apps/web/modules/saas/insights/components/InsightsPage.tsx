@@ -79,6 +79,7 @@ export function InsightsPage() {
 		comparisonNet: summary.comparison.net,
 		comparisonMoneyIn: summary.comparison.moneyIn,
 		unclassifiedShare: summary.moneyOut.unclassifiedShare,
+		incomeStreamMissing: summary.gaps.wholesaleNeverSynced,
 	});
 
 	return (
@@ -118,23 +119,25 @@ export function InsightsPage() {
 				)}
 			/>
 
-			<MoneyFlow
-				moneyIn={summary.moneyIn.total}
-				moneyOut={summary.moneyOut.total}
-				kept={summary.net}
-				streams={[
-					{
-						label: "Your own subscribers",
-						amount: summary.moneyIn.retail,
-						color: "var(--chart-1)",
-					},
-					{
-						label: "Dealers reselling your service",
-						amount: summary.moneyIn.wholesale,
-						color: "var(--chart-3)",
-					},
-				].filter((s) => s.amount > 0)}
-			/>
+			{!summary.gaps.wholesaleNeverSynced && (
+				<MoneyFlow
+					moneyIn={summary.moneyIn.total}
+					moneyOut={summary.moneyOut.total}
+					kept={summary.net}
+					streams={[
+						{
+							label: "Your own subscribers",
+							amount: summary.moneyIn.retail,
+							color: "var(--chart-1)",
+						},
+						{
+							label: "Dealers reselling your service",
+							amount: summary.moneyIn.wholesale,
+							color: "var(--chart-3)",
+						},
+					].filter((s) => s.amount > 0)}
+				/>
+			)}
 
 			<div className="grid gap-4 md:grid-cols-2">
 				<OwedCard

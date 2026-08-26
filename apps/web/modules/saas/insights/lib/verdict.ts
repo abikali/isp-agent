@@ -31,6 +31,9 @@ export interface VerdictInput {
 	comparisonNet: number;
 	comparisonMoneyIn: number;
 	unclassifiedShare: number;
+	/** Set when a whole income stream is invisible (e.g. the dealer sync has
+	 *  never run). The page must not publish a verdict it knows is incomplete. */
+	incomeStreamMissing?: boolean;
 }
 
 export interface Verdict {
@@ -75,6 +78,19 @@ export function buildVerdict(input: VerdictInput): Verdict {
 		comparisonNet,
 		unclassifiedShare,
 	} = input;
+
+	// A whole income stream is missing. Any verdict here would be arithmetic on
+	// half the truth — which is precisely the failure this page replaced, where
+	// wholesale income was absent while every cost of serving it was counted.
+	// Say so instead of guessing.
+	if (input.incomeStreamMissing) {
+		return {
+			tone: "unknown",
+			headline: "We can't show your full picture yet.",
+			detail: "Income from dealers reselling your service hasn't been brought in yet, so anything we showed here would be missing about half of what you earn.",
+			caveat: "Run a sync from Settings → iRadius and this page will fill in.",
+		};
+	}
 
 	// Nothing to say yet. Better than a confident $0.
 	if (moneyIn === 0 && moneyOut === 0) {
