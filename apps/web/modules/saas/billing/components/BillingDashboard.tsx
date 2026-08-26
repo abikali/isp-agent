@@ -22,7 +22,6 @@ import { cn } from "@ui/lib";
 import {
 	BanknoteIcon,
 	CalculatorIcon,
-	HandCoinsIcon,
 	OctagonXIcon,
 	PercentIcon,
 	ReceiptIcon,
@@ -55,6 +54,9 @@ export function BillingDashboard() {
 	const { activeOrganization } = useActiveOrganization();
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}/billing`
+		: "/app";
+	const insightsPath = activeOrganization
+		? `/app/${activeOrganization.slug}/insights`
 		: "/app";
 
 	const paymentStatusSlices = [
@@ -157,18 +159,24 @@ export function BillingDashboard() {
 					href={`${basePath}/stopped`}
 				/>
 				<MetricCard
-					label="Handed off"
-					value={formatCurrency(reports.totalHandedOff)}
-					icon={HandCoinsIcon}
+					label="Expenses"
+					value={formatCurrency(reports.totalExpenses)}
+					icon={ReceiptIcon}
 					tone="default"
-					hint="Cash in office"
+					hint="Approved this period"
 				/>
+				{/* Profit deliberately does NOT live here. This page reports
+				    collection operations for one billing cycle; it has no view
+				    of wholesale revenue and its cash figures are positions, not
+				    income. The old "Net total" card mixed the two and reported a
+				    loss every month for a profitable business. */}
 				<MetricCard
-					label="Net total"
-					value={formatCurrency(reports.grandTotal)}
+					label="Profit"
+					value="See Money"
 					icon={TrendingUpIcon}
-					tone={reports.grandTotal >= 0 ? "success" : "danger"}
-					hint="Handed off − expenses"
+					tone="info"
+					hint="Full picture, all income"
+					href={insightsPath}
 				/>
 			</MetricStrip>
 
@@ -272,26 +280,22 @@ export function BillingDashboard() {
 								</div>
 							</div>
 						</div>
-						<div className="flex items-center gap-3">
-							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success">
+						<a
+							href={insightsPath}
+							className="flex items-center gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:border-info/40 hover:bg-info/5"
+						>
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-info/10 text-info">
 								<CalculatorIcon className="size-4" />
 							</div>
 							<div className="min-w-0 flex-1">
-								<div
-									className={cn(
-										"truncate text-xl font-medium tabular-nums leading-none tracking-tight",
-										reports.grandTotal >= 0
-											? "text-success"
-											: "text-destructive",
-									)}
-								>
-									{formatCurrency(reports.grandTotal)}
+								<div className="truncate text-sm font-medium leading-tight">
+									See what you actually kept
 								</div>
 								<div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-									Net
+									Includes dealer income
 								</div>
 							</div>
-						</div>
+						</a>
 					</div>
 				</ContentCard>
 			</div>

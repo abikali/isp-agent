@@ -38,6 +38,7 @@ import {
 	EyeIcon,
 	HardHatIcon,
 	HomeIcon,
+	LineChartIcon,
 	type LucideIcon,
 	MegaphoneIcon,
 	MessageSquareIcon,
@@ -177,6 +178,19 @@ export function AppSidebar() {
 						icon: HomeIcon,
 						exact: true,
 					},
+					// The owner's landing surface: one page answering whether
+					// the business made money. Sits above the operational
+					// billing tabs on purpose — it is the question that gets
+					// asked daily, and it used to have no page at all.
+					...(canViewBilling
+						? [
+								{
+									label: "Money",
+									to: `${basePath}/insights`,
+									icon: LineChartIcon,
+								},
+							]
+						: []),
 				],
 			},
 		];

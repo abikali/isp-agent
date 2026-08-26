@@ -325,6 +325,9 @@ model Organization {
   payments             Payment[]
   cashCollections      CashCollection[]
   expenses             Expense[]
+  financeCategories    FinanceCategory[]
+  financeRules         FinanceRule[]
+  dealerCharges        DealerCharge[]
   stockItems           StockItem[]
   stockLogs            StockLog[]
   installations        Installation[]
@@ -1521,6 +1524,7 @@ model IspDealer {
   servicePlans   ServicePlan[]
   bases          Base[]
   dealerAccounts         IspDealerAccount[]
+  charges                DealerCharge[]
   activeForOrganization  Organization?       @relation("ActiveDealer")
 
   @@unique([email])
@@ -2104,6 +2108,10 @@ model Expense {
   approvedAt        DateTime?
   rejectedReason    String?
   externalBillingId Int?          @map("external_billing_id")
+  /// Resolved bucket from the org's money map. Null = not yet classified;
+  /// those rows surface in the money-map wizard and land in "Uncategorised"
+  /// on the P&L rather than being silently treated as an operating cost.
+  financeCategoryId String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -2111,11 +2119,128 @@ model Expense {
   submittedBy  Employee        @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
   approvedBy   User?           @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   collection   CashCollection?
+  financeCategory FinanceCategory? @relation(fields: [financeCategoryId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, status])
   @@index([submittedById])
+  @@index([financeCategoryId])
   @@map("expense")
+}
+
+// ─── Finance (the money map) ───────────────────────────────────────
+//
+// One definition of what counts as income, cost, or the owner's own money.
+// See packages/api/modules/finance/lib/money-model.ts for the reasoning.
+
+/// What a bucket means for the profit-and-loss statement.
+enum FinanceKind {
+  /// Money the company earned.
+  REVENUE
+  /// Money spent to run the business. Reduces operating profit.
+  COST
+  /// Money taken out by an owner or partner. Real cash out, but not a cost of
+  /// operating — kept below operating profit so "is the business profitable?"
+  /// and "what did I pay myself?" stay separate questions.
+  DRAW
+  /// Cash moving between people inside the company. Never touches profit.
+  TRANSFER
+}
+
+/// An owner-facing spending bucket. Seeded per organization with plain-language
+/// defaults ("Network cost", "Staff pay", "My own pay"), then edited by the
+/// owner in the money-map wizard. Replaces the old free-text `expense.category`,
+/// where `toolkit` held upstream bandwidth, office rent and a pair of pliers.
+model FinanceCategory {
+  id             String      @id @default(cuid())
+  organizationId String
+  kind           FinanceKind
+  /// Plain words the owner chose. No accounting jargon.
+  label          String
+  labelAr        String?
+  /// Short "what belongs here" line shown under the label in the wizard.
+  hint           String?
+  sortOrder      Int         @default(0)
+  /// Seeded defaults cannot be deleted, only renamed — so a money map can
+  /// never end up with nowhere to put a cost.
+  isSystem       Boolean     @default(false)
+  archivedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rules        FinanceRule[]
+  expenses     Expense[]
+
+  @@unique([organizationId, label])
+  @@index([organizationId, kind])
+  @@map("finance_category")
+}
+
+/// "Anything described like this belongs in that bucket."
+///
+/// Written by the money-map wizard when the owner classifies a recurring line,
+/// then applied to every future expense at approval time so he never classifies
+/// the same thing twice. Highest `priority` wins; ties break on longest pattern.
+model FinanceRule {
+  id                String   @id @default(cuid())
+  organizationId    String
+  /// Matched case-insensitively against `expense.description`.
+  pattern           String
+  /// "contains" | "exact" | "startsWith"
+  matchType         String   @default("contains")
+  financeCategoryId String
+  priority          Int      @default(0)
+  /// Set when the wizard created this rule from a detected recurring line, so
+  /// we can show the owner which of his answers produced it.
+  createdFromLine   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  financeCategory FinanceCategory @relation(fields: [financeCategoryId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, priority])
+  @@index([financeCategoryId])
+  @@map("finance_rule")
+}
+
+/// One charge raised against a sub-dealer in iRadius — the wholesale half of
+/// the business, mirrored from `DealerBillingLog`.
+///
+/// Roughly $52k/month of real revenue that lived nowhere in this app until now,
+/// while every cost of serving those subscribers was already being reported.
+/// That asymmetry is what made a profitable company look like a failing one.
+///
+/// Rows for the master dealer are skipped at sync time: iRadius charges the
+/// operator for his own subscribers at an internal transfer price, which is
+/// bookkeeping inside one pocket.
+model DealerCharge {
+  id             String   @id @default(cuid())
+  organizationId String
+  dealerId       String
+  /// `DealerBillingLog.Id` — the idempotency key for re-runnable syncs.
+  externalId     String   @unique
+  /// RENEW | NEW USER | ADD EXTRA TIME | CREDIT | REFUND | …
+  type           String
+  /// Charged to the dealer (wholesale revenue for us).
+  debit          Float    @default(0)
+  /// Paid by the dealer / refunded to them.
+  credit         Float    @default(0)
+  commission     Float    @default(0)
+  /// iRadius `UserId` of the subscriber the charge was raised for, when set.
+  externalUserId String?
+  description    String?
+  operationDate  DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer       IspDealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, operationDate])
+  @@index([dealerId, operationDate])
+  @@index([type])
+  @@map("dealer_charge")
 }
 
 // ─── Inventory ─────────────────────────────────────────────────────

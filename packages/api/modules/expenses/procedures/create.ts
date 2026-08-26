@@ -5,6 +5,27 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { matchRule } from "../../finance/lib/classify";
+
+/** Apply the org's money map to a free-text description. Returns null when
+ *  nothing matches — an unclassified expense is reported as unclassified
+ *  rather than guessed into a bucket. */
+async function resolveCategoryFromRules(
+	organizationId: string,
+	description: string,
+): Promise<string | null> {
+	const rules = await db.financeRule.findMany({
+		where: { organizationId },
+		select: {
+			id: true,
+			pattern: true,
+			matchType: true,
+			financeCategoryId: true,
+			priority: true,
+		},
+	});
+	return matchRule(description, rules)?.financeCategoryId ?? null;
+}
 
 export const createExpense = protectedProcedure
 	.route({
@@ -19,6 +40,11 @@ export const createExpense = protectedProcedure
 			amount: z.number().positive(),
 			description: z.string().min(1).max(2000),
 			category: z.string().max(100).optional(),
+			/** FinanceCategory id — the bucket this spending belongs to.
+			 *  Preferred over the legacy free-text `category`, which ended up
+			 *  holding upstream bandwidth, office rent and pliers under the
+			 *  single value "toolkit". */
+			financeCategoryId: z.string().optional(),
 			receiptUrl: z.string().max(1000).optional(),
 		}),
 	)
@@ -40,6 +66,17 @@ export const createExpense = protectedProcedure
 			});
 		}
 
+		// Resolve the bucket now, at entry: explicit pick first, otherwise the
+		// org's money-map rules. Classifying here rather than at read time means
+		// the owner's answers keep working even if a rule is later edited, and
+		// the P&L never has to guess.
+		const financeCategoryId =
+			input.financeCategoryId ??
+			(await resolveCategoryFromRules(
+				input.organizationId,
+				input.description,
+			));
+
 		const expense = await db.expense.create({
 			data: {
 				organizationId: input.organizationId,
@@ -47,6 +84,7 @@ export const createExpense = protectedProcedure
 				amount: input.amount,
 				description: input.description,
 				category: input.category ?? null,
+				financeCategoryId: financeCategoryId ?? null,
 				receiptUrl: input.receiptUrl ?? null,
 			},
 			include: {

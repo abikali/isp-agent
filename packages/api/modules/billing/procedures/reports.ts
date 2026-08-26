@@ -21,7 +21,7 @@ export const getAccountingReports = protectedProcedure
 		path: "/billing/reports",
 		tags: ["Billing"],
 		summary:
-			"Accounting reports: collector breakdown, expenses, grand total",
+			"Per-collector cash breakdown and approved expenses for a period",
 	})
 	.input(
 		z
@@ -81,8 +81,7 @@ export const getAccountingReports = protectedProcedure
 		const collectionWhere: Record<string, unknown> = {
 			organizationId: input.organizationId,
 			collector: { dealerId: activeDealerId ?? null },
-			// Money-given rows are display-only — keep them out of handed-off
-			// so they don't cancel their own expense in `grandTotal`.
+			// Company-funded rows never move a collector's own balance.
 			...LEDGER_CASH,
 		};
 		const expenseWhere: Record<string, unknown> = {
@@ -150,10 +149,6 @@ export const getAccountingReports = protectedProcedure
 			(sum, c) => sum + c.totalCollected,
 			0,
 		);
-		const totalHandedOff = collectorBreakdown.reduce(
-			(sum, c) => sum + c.totalHandedOff,
-			0,
-		);
 
 		// Expenses
 		const expensesAgg = await db.expense.aggregate({
@@ -162,14 +157,27 @@ export const getAccountingReports = protectedProcedure
 		});
 		const totalExpenses = sumAmountOrZero(expensesAgg);
 
-		const grandTotal = totalHandedOff - totalExpenses;
-
+		// NOTE: this procedure deliberately returns no organization-wide
+		// "handed off" or profit figure.
+		//
+		// It used to return `grandTotal = totalHandedOff − totalExpenses`. That
+		// was wrong in two compounding ways. `totalHandedOff` summed every
+		// non-SALARY cash-ledger row, which includes `EXPENSE_DEDUCTION` — the
+		// mirror of each approved expense — as a POSITIVE amount. Subtracting
+		// the same expenses again cancelled them exactly, so expenses moved the
+		// headline by zero and what remained was real handoffs minus cash
+		// floats: a snapshot of where collectors' cash was sitting, displayed
+		// as profit. It reported −$34,199 for July 2026, a month that actually
+		// netted +$22,105.
+		//
+		// Profit now comes from `finance.summary`, which classifies every row
+		// as revenue, cost, draw, or transfer exactly once. Per-collector
+		// figures below remain valid — they are cash positions, and that is how
+		// they are labelled.
 		return {
 			scope: input.scope,
 			collectorBreakdown,
 			totalCollected,
-			totalHandedOff,
 			totalExpenses,
-			grandTotal,
 		};
 	});

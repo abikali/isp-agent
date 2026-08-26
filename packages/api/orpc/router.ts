@@ -12,6 +12,7 @@ import { dashboardRouter } from "../modules/dashboard/router";
 import { employeesRouter } from "../modules/employees/router";
 import { expensesRouter } from "../modules/expenses/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
+import { financeRouter } from "../modules/finance/router";
 import { followupsRouter } from "../modules/followups/router";
 import { installationsRouter } from "../modules/installations/router";
 import { integrationsRouter } from "../modules/integrations/router";
@@ -48,6 +49,7 @@ export const router = publicProcedure.router({
 	dashboard: dashboardRouter,
 	employees: employeesRouter,
 	expenses: expensesRouter,
+	finance: financeRouter,
 	newsletter: newsletterRouter,
 	installations: installationsRouter,
 	integrations: integrationsRouter,

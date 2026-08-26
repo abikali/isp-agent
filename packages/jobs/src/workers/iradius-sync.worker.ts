@@ -10,6 +10,7 @@ import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { IRADIUS_SYNC_QUEUE_NAME } from "../queues/iradius-sync.queue";
 import type { IRadiusSyncJobData, IRadiusSyncJobResult } from "../types";
+import { syncDealerCharges } from "./dealer-charges";
 import {
 	type ConflictField,
 	IRADIUS_DELETED_FIELD,
@@ -429,6 +430,7 @@ async function processIRadiusSync(
 					errors: 0,
 				},
 				dealerAccounts: { created: 0, skipped: 0, errors: 0 },
+				dealerCharges: { created: 0, skipped: 0, errors: 0 },
 				employees: {
 					created: 0,
 					updated: 0,
@@ -2574,6 +2576,37 @@ async function processIRadiusSync(
 			// list-transactions; invoices are generated locally by
 			// `openBillingMonth` at billing-month start. The iRadius
 			// invoice/transaction tables are no longer read.
+
+			// ================================================================
+			// Phase 11: Dealer charges (wholesale revenue)
+			//
+			// Runs on the NORMAL org sync, unlike the old dealer-account
+			// sub-phase which only fired on a manual "dealers-only" run and had
+			// therefore been stale since May 2026. This is roughly half the
+			// company's income; it cannot depend on someone remembering to
+			// press a button.
+			//
+			// Non-fatal by design: a failure here must never abort a customer
+			// sync that already succeeded.
+			// ================================================================
+			if (organizationId) {
+				await updateProgress(operationId, { phase: "dealerCharges" });
+				try {
+					result.dealerCharges = await syncDealerCharges(
+						conn,
+						organizationId,
+					);
+				} catch (error) {
+					result.dealerCharges.errors++;
+					result.errors.push({
+						phase: "dealerCharges",
+						detail:
+							error instanceof Error
+								? error.message
+								: "Unknown error",
+					});
+				}
+			}
 
 			return result;
 		});

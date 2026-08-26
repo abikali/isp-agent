@@ -69,6 +69,9 @@
 			"@saas/expenses/client": [
 				"./modules/saas/expenses/index.client.ts"
 			],
+			"@saas/insights/client": [
+				"./modules/saas/insights/index.client.ts"
+			],
 			"@saas/worker/client": ["./modules/saas/worker/index.client.ts"],
 			"@saas/worker-options/client": [
 				"./modules/saas/worker-options/index.client.ts"
