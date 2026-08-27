@@ -1,5 +1,6 @@
 "use client";
 
+import { useIsClient } from "@shared/hooks/use-is-client";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate, formatDateTime } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
@@ -133,6 +134,9 @@ function InitialsAvatar({
 }
 
 export function useTaskColumns(organizationSlug: string) {
+	// Open-task durations are measured against "now", which differs between
+	// the server render and hydration; only compute them once on the client.
+	const isClient = useIsClient();
 	return useMemo<ColumnDef<TaskListItem, unknown>[]>(
 		() => [
 			{
@@ -560,11 +564,12 @@ export function useTaskColumns(organizationSlug: string) {
 						);
 					}
 
-					if (task.status === "CANCELLED") {
+					if (task.status === "CANCELLED" || !isClient) {
 						return <span className="text-muted-foreground">—</span>;
 					}
 
-					const openMs = Date.now() - startedMs;
+					const now = Date.now();
+					const openMs = now - startedMs;
 					const openDays = openMs / 86_400_000;
 					return (
 						<Tooltip>
@@ -580,7 +585,7 @@ export function useTaskColumns(organizationSlug: string) {
 									)}
 								>
 									<TimerIcon className="size-3" />
-									{formatDuration(startedMs, Date.now())}
+									{formatDuration(startedMs, now)}
 								</span>
 							</TooltipTrigger>
 							<TooltipContent side="left" className="text-xs">
@@ -669,6 +674,6 @@ export function useTaskColumns(organizationSlug: string) {
 				},
 			},
 		],
-		[organizationSlug],
+		[organizationSlug, isClient],
 	);
 }

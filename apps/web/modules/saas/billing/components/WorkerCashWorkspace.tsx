@@ -1,6 +1,9 @@
 "use client";
 
-import { useActiveOrganization } from "@saas/organizations/client";
+import {
+	useActiveOrganization,
+	useCanAccess,
+} from "@saas/organizations/client";
 import {
 	ContentCard,
 	ContentCardSection,
@@ -12,9 +15,11 @@ import {
 	MetricCardSkeleton,
 	MetricStrip,
 } from "@shared/components/MetricCard";
+import { NoteCell } from "@shared/components/NoteCell";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
+import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDateTime } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -34,6 +39,7 @@ import {
 import { Avatar, AvatarFallback } from "@ui/components/avatar";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Checkbox } from "@ui/components/checkbox";
 import { DataTable } from "@ui/components/data-table";
 import { Input } from "@ui/components/input";
 import { Skeleton } from "@ui/components/skeleton";
@@ -625,6 +631,30 @@ interface CashRow {
 	externalBillingId: number | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
+	// Present on NEW_USER_SETUP rows: the subscriber this setup created.
+	setupRequest: {
+		customer: {
+			id: string;
+			firstName: string | null;
+			lastName: string | null;
+			username: string | null;
+			status: string;
+		};
+	} | null;
+}
+
+/** The still-active subscriber a NEW_USER_SETUP row created, if any. */
+function setupCustomerOf(row: CashRow | null) {
+	const customer = row?.setupRequest?.customer;
+	if (!customer || customer.status === "INACTIVE") {
+		return null;
+	}
+	return {
+		id: customer.id,
+		label: displayName(customer.firstName, customer.lastName, {
+			fallback: customer.username ?? "this customer",
+		}),
+	};
 }
 
 function CashHistoryPanel({
@@ -660,19 +690,31 @@ function CashHistoryPanel({
 
 	const deleteCollection = useDeleteCollection();
 	const [pendingDelete, setPendingDelete] = useState<CashRow | null>(null);
+	// New-user-setup reverts default to cutting the subscriber off — the
+	// admin unticks it in the dialog when he wants to keep him online.
+	const [deactivateCustomer, setDeactivateCustomer] = useState(true);
+	// The server refuses deactivation without customers:delete; don't offer it.
+	const canAccess = useCanAccess();
+	const pendingCustomer = canAccess("customers", "delete")
+		? setupCustomerOf(pendingDelete)
+		: null;
 
-	const handleDelete = (row: CashRow) => {
-		if (!organizationId) {
+	const handleDelete = () => {
+		if (!organizationId || !pendingDelete) {
 			return;
 		}
+		const alsoDeactivate = !!pendingCustomer && deactivateCustomer;
 		toast.promise(
 			deleteCollection.mutateAsync({
 				organizationId,
-				collectionId: row.id,
+				collectionId: pendingDelete.id,
+				deactivateCustomer: alsoDeactivate,
 			}),
 			{
 				loading: "Deleting…",
-				success: "Entry deleted",
+				success: alsoDeactivate
+					? "Entry deleted, customer deactivated"
+					: "Entry deleted",
 				error: (err: { message?: string }) =>
 					err?.message ?? "Failed to delete",
 			},
@@ -756,9 +798,15 @@ function CashHistoryPanel({
 			header: "Note",
 			enableSorting: false,
 			cell: ({ row }) => (
-				<span className="block max-w-[260px] truncate text-xs text-muted-foreground">
-					{row.original.notes ?? "—"}
-				</span>
+				<NoteCell
+					note={row.original.notes}
+					subtitle={[
+						formatDateTime(row.original.collectedAt),
+						row.original.receivedBy?.name,
+					]
+						.filter(Boolean)
+						.join(" · ")}
+				/>
 			),
 		},
 		{
@@ -808,33 +856,65 @@ function CashHistoryPanel({
 
 			<AlertDialog
 				open={!!pendingDelete}
-				onOpenChange={(o) => !o && setPendingDelete(null)}
+				onOpenChange={(o) => {
+					if (!o) {
+						setPendingDelete(null);
+						setDeactivateCustomer(true);
+					}
+				}}
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete entry?</AlertDialogTitle>
 						<AlertDialogDescription>
-							{pendingDelete?.type === "HANDOFF"
-								? "The worker's in-hand balance will jump back up by the handoff amount."
-								: pendingDelete?.type === "CASH_FLOAT"
-									? "This removes the float. His cash in hand goes back down by the amount."
-									: pendingDelete?.type === "SALARY"
-										? "This removes his pay and its expense. His cash in hand is unchanged."
-										: pendingDelete?.type ===
-												"STORE_PURCHASE"
-											? "This removes the purchase. His cash in hand goes back up by the amount."
-											: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
+							{pendingCustomer
+								? `The worker gets his money and the installed hardware back, and the install lines return to the pending queue. Decide below what happens to ${pendingCustomer.label}.`
+								: pendingDelete?.type === "HANDOFF"
+									? "The worker's in-hand balance will jump back up by the handoff amount."
+									: pendingDelete?.type === "CASH_FLOAT"
+										? "This removes the float. His cash in hand goes back down by the amount."
+										: pendingDelete?.type === "SALARY"
+											? "This removes his pay and its expense. His cash in hand is unchanged."
+											: pendingDelete?.type ===
+													"STORE_PURCHASE"
+												? "This removes the purchase. His cash in hand goes back up by the amount."
+												: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
+					{pendingCustomer && (
+						<label
+							htmlFor="deactivate-setup-customer"
+							className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-surface-subtle/50 p-3"
+						>
+							<Checkbox
+								id="deactivate-setup-customer"
+								checked={deactivateCustomer}
+								onCheckedChange={(checked) =>
+									setDeactivateCustomer(checked === true)
+								}
+								className="mt-0.5"
+							/>
+							<span className="space-y-1">
+								<span className="block text-sm font-medium">
+									Also deactivate {pendingCustomer.label}
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Sets him to inactive here and cuts him off
+									on iRadius. Leave it unticked to undo only
+									the money and the stock and keep him online.
+								</span>
+							</span>
+						</label>
+					)}
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
 						<AlertDialogAction
-							onClick={() =>
-								pendingDelete && handleDelete(pendingDelete)
-							}
+							onClick={handleDelete}
 							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 						>
-							Delete
+							{pendingCustomer && deactivateCustomer
+								? "Delete & deactivate"
+								: "Delete"}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

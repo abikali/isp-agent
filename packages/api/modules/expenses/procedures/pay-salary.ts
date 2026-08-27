@@ -14,6 +14,7 @@ import {
 	expenseDeductionAmount,
 	moneyGivenAmount,
 } from "../../billing/lib/cash-signs";
+import { bustExpenseStats } from "../lib/stats-cache";
 
 /**
  * Move money for a worker — pick where it's taken `from` and where it `to`.
@@ -154,5 +155,6 @@ export const paySalary = protectedProcedure
 			}),
 		);
 
+		bustExpenseStats();
 		return { success: true };
 	});

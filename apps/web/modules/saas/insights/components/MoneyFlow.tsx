@@ -2,7 +2,6 @@
 
 import { formatCurrency } from "@shared/lib/format";
 import { cn } from "@ui/lib";
-import { ArrowRightIcon } from "lucide-react";
 
 interface MoneyFlowProps {
 	moneyIn: number;
@@ -128,15 +127,5 @@ function Operator({ symbol }: { symbol: string }) {
 		>
 			{symbol}
 		</div>
-	);
-}
-
-/** Mobile-friendly divider used between stacked figures on narrow screens. */
-export function FlowArrow() {
-	return (
-		<ArrowRightIcon
-			aria-hidden
-			className="size-4 rotate-90 text-muted-foreground/40 sm:rotate-0"
-		/>
 	);
 }

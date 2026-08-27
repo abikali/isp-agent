@@ -67,13 +67,12 @@ export function MoneyMapWizard({ open, onOpenChange }: MoneyMapWizardProps) {
 	}
 
 	function handleSave() {
-		const assignments = queue
-			.filter((line) => picks[line.key])
-			.map((line) => ({
-				key: line.key,
-				label: line.label,
-				financeCategoryId: picks[line.key] as string,
-			}));
+		const assignments = queue.flatMap((line) => {
+			const financeCategoryId = picks[line.key];
+			return financeCategoryId
+				? [{ key: line.key, label: line.label, financeCategoryId }]
+				: [];
+		});
 
 		if (assignments.length === 0 || !organizationId) {
 			onOpenChange(false);

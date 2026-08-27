@@ -59,3 +59,14 @@ vi.mock("@saas/organizations/client", () => ({
 		isLoading: false,
 	}),
 }));
+
+// Radix popovers/menus and cmdk reach for browser APIs jsdom doesn't implement.
+Element.prototype.scrollIntoView = () => undefined;
+Element.prototype.hasPointerCapture = () => false;
+Element.prototype.releasePointerCapture = () => undefined;
+Element.prototype.setPointerCapture = () => undefined;
+globalThis.ResizeObserver = class {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+};

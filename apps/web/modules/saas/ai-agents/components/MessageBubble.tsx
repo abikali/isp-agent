@@ -1,22 +1,13 @@
 "use client";
 
-import { getStorageImageUrl } from "@shared/lib/image-utils";
 import { cn } from "@ui/lib";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import {
-	BotIcon,
-	CheckCheckIcon,
-	CheckIcon,
-	ChevronDownIcon,
-	WrenchIcon,
-} from "lucide-react";
-import { useState } from "react";
+import { BotIcon } from "lucide-react";
 import { formatMessageTime } from "../lib/chat-utils";
-import { AudioBubble } from "./AudioBubble";
-import { DocumentBubble } from "./DocumentBubble";
-import { ImageBubble } from "./ImageBubble";
-import { LocationBubble } from "./LocationBubble";
+import { AttachmentContent } from "./AttachmentContent";
+import { DeliveryTicks } from "./DeliveryTicks";
 import { MessageContextMenu } from "./MessageContextMenu";
+import { type ToolCallData, ToolCallPill } from "./ToolCallPill";
 
 interface ReplyTo {
 	id: string;
@@ -29,13 +20,6 @@ interface Reaction {
 	emoji: string;
 	userId: string | null;
 	contactId: string | null;
-}
-
-interface ToolCallData {
-	toolCallId: string;
-	toolName: string;
-	args: unknown;
-	result: unknown;
 }
 
 function partsToToolCalls(
@@ -311,211 +295,6 @@ export function MessageBubble({
 					</div>
 				)}
 			</div>
-		</div>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
-function AttachmentContent({
-	type,
-	url: rawUrl,
-	filename,
-	mimeType,
-	size,
-	meta,
-}: {
-	type: string;
-	url: string;
-	filename?: string | null | undefined;
-	mimeType?: string | null | undefined;
-	size?: number | null | undefined;
-	meta?: Record<string, unknown> | null | undefined;
-}) {
-	// Convert R2 storage paths to image-proxy URLs
-	const url = getStorageImageUrl(rawUrl) ?? rawUrl;
-
-	if (type === "image") {
-		return (
-			<ImageBubble
-				url={url}
-				caption={null}
-				meta={
-					meta
-						? {
-								width: meta.width as number | undefined,
-								height: meta.height as number | undefined,
-							}
-						: null
-				}
-			/>
-		);
-	}
-	if (type === "audio" || type === "voice") {
-		return (
-			<AudioBubble
-				url={url}
-				duration={meta?.duration as number | null | undefined}
-			/>
-		);
-	}
-	if (type === "document") {
-		return (
-			<DocumentBubble
-				url={url}
-				filename={filename}
-				size={size}
-				mimeType={mimeType}
-			/>
-		);
-	}
-	if (type === "location") {
-		return (
-			<LocationBubble
-				meta={
-					meta
-						? {
-								lat: meta.lat as number | undefined,
-								lng: meta.lng as number | undefined,
-							}
-						: null
-				}
-			/>
-		);
-	}
-	if (type === "video") {
-		return (
-			<video
-				src={url}
-				controls
-				aria-label="Video attachment"
-				className="max-h-64 max-w-full rounded-md"
-				preload="metadata"
-			>
-				<track kind="captions" />
-			</video>
-		);
-	}
-	// Sticker or unknown
-	if (type === "sticker") {
-		return (
-			<img
-				src={url}
-				alt="Sticker"
-				loading="lazy"
-				className="max-h-40 max-w-40"
-			/>
-		);
-	}
-	return null;
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
-function DeliveryTicks({ status }: { status: string | null | undefined }) {
-	if (!status || status === "sent") {
-		return <CheckIcon className="size-3 text-muted-foreground" />;
-	}
-	if (status === "delivered") {
-		return <CheckCheckIcon className="size-3 text-muted-foreground" />;
-	}
-	if (status === "read") {
-		return <CheckCheckIcon className="size-3 text-blue-500" />;
-	}
-	return null;
-}
-
-function formatToolResult(result: unknown): string {
-	if (typeof result === "string") {
-		return result;
-	}
-	return JSON.stringify(result, null, 2);
-}
-
-/** Collapsible pill showing a tool call with its input and result. */
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; private render helper of MessageBubble
-function ToolCallPill({ toolCall }: { toolCall: ToolCallData }) {
-	const [isOpen, setIsOpen] = useState(false);
-
-	const displayName = toolCall.toolName
-		.replace(/-/g, " ")
-		.replace(/\b\w/g, (c) => c.toUpperCase());
-
-	return (
-		<div className="min-w-0 overflow-hidden rounded-md border bg-background/50 text-xs">
-			<button
-				type="button"
-				onClick={() => setIsOpen(!isOpen)}
-				className="flex w-full items-center gap-1.5 px-2 py-1 text-left hover:bg-muted/50"
-			>
-				<WrenchIcon className="size-3 shrink-0 text-muted-foreground" />
-				<span className="flex-1 truncate font-medium">
-					{displayName}
-				</span>
-				<ChevronDownIcon
-					className={cn(
-						"size-3 shrink-0 text-muted-foreground transition-transform",
-						isOpen && "rotate-180",
-					)}
-				/>
-			</button>
-			{isOpen && (
-				<div className="space-y-1.5 border-t px-2 py-1.5">
-					{toolCall.args != null &&
-						Object.keys(toolCall.args as object).length > 0 && (
-							<div>
-								<span className="font-medium text-muted-foreground">
-									Input
-								</span>
-								<pre className="mt-0.5 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-[10px]">
-									{JSON.stringify(toolCall.args, null, 2)}
-								</pre>
-							</div>
-						)}
-					{toolCall.result != null && (
-						<div>
-							<span className="font-medium text-muted-foreground">
-								Result
-							</span>
-							<pre className="mt-0.5 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-1.5 text-[10px]">
-								{formatToolResult(toolCall.result)}
-							</pre>
-						</div>
-					)}
-				</div>
-			)}
-		</div>
-	);
-}
-
-/** Animated typing dots displayed while bot is composing. */
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; sibling render helper colocated with MessageBubble
-export function TypingBubble() {
-	return (
-		<div className="flex justify-end">
-			<div className="relative max-w-[85%] sm:max-w-[75%]">
-				<div className="absolute -right-1.5 top-0 size-3 overflow-hidden">
-					<div className="absolute left-0 top-0 size-3 origin-top-left -rotate-45 bg-primary/10" />
-				</div>
-				<div className="flex items-center gap-1 rounded-lg rounded-tr-none bg-primary/10 px-4 py-3">
-					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
-					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0ms]" />
-					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
-					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:150ms]" />
-					{/* react-doctor-disable-next-line react-doctor/no-inline-bounce-easing -- bouncing dots are the established typing-indicator idiom; the bounce is the intended affordance */}
-					<span className="size-2 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:300ms]" />
-				</div>
-			</div>
-		</div>
-	);
-}
-
-/** Centered date separator pill between message groups. */
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- cohesive chat-message feature file; sibling render helper colocated with MessageBubble
-export function DateSeparator({ date }: { date: string }) {
-	return (
-		<div className="flex items-center justify-center py-2">
-			<span className="rounded-full bg-muted px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-sm">
-				{date}
-			</span>
 		</div>
 	);
 }

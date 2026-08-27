@@ -2,13 +2,16 @@
 
 // Components
 export { ExpensesList } from "./components/ExpensesList";
-export { ExpensesListSkeleton } from "./components/ExpensesListSkeleton";
 // Hooks
 export {
+	type ExpenseFilters,
+	type ExpenseSortBy,
 	type ExpenseStatus,
 	useApproveExpense,
 	useCreateExpense,
 	useCreateReceiptUploadUrl,
+	useExpenseFilterOptions,
+	useExpenseSummary,
 	useExpenses,
 	useRejectExpense,
 } from "./hooks/use-expenses";

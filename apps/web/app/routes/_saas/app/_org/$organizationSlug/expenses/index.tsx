@@ -1,7 +1,5 @@
 import { config } from "@repo/config";
-import { ExpensesList, ExpensesListSkeleton } from "@saas/expenses/client";
-import { AsyncBoundary } from "@shared/components/AsyncBoundary";
-import { PageShellSkeleton } from "@shared/components/PageShellSkeleton";
+import { ExpensesList } from "@saas/expenses/client";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -17,15 +15,7 @@ export const Route = createFileRoute(
 function ExpensesPage() {
 	return (
 		<PermissionGate resource="expenses" action="read">
-			<AsyncBoundary
-				fallback={
-					<PageShellSkeleton>
-						<ExpensesListSkeleton />
-					</PageShellSkeleton>
-				}
-			>
-				<ExpensesList />
-			</AsyncBoundary>
+			<ExpensesList />
 		</PermissionGate>
 	);
 }

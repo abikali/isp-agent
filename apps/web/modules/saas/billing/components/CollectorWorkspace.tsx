@@ -12,6 +12,7 @@ import {
 	MetricCardSkeleton,
 	MetricStrip,
 } from "@shared/components/MetricCard";
+import { NoteCell } from "@shared/components/NoteCell";
 import { PageShell } from "@shared/components/PageShell";
 import { SearchInput } from "@shared/components/SearchInput";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
@@ -899,9 +900,15 @@ function HandoffsPanel({
 			header: "Note",
 			enableSorting: false,
 			cell: ({ row }) => (
-				<span className="block max-w-[260px] truncate text-xs text-muted-foreground">
-					{row.original.notes ?? "—"}
-				</span>
+				<NoteCell
+					note={row.original.notes}
+					subtitle={[
+						formatDateTime(row.original.collectedAt),
+						row.original.receivedBy?.name,
+					]
+						.filter(Boolean)
+						.join(" · ")}
+				/>
 			),
 		},
 		{

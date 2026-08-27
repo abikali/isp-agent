@@ -8,11 +8,8 @@ export {
 } from "./components/BillingDashboard";
 export { BillingNav } from "./components/BillingNav";
 export { BillingWorkbench } from "./components/BillingWorkbench";
-export {
-	CashCollectionPage,
-	CashCollectionPageSkeleton,
-	CollectorPickerPage,
-} from "./components/CashCollectionPage";
+export { CashCollectionPage } from "./components/CashCollectionPage";
+export { CashCollectionPageSkeleton } from "./components/CashCollectionPageSkeleton";
 export {
 	CollectorBreakdownCard,
 	type CollectorBreakdownEntry,
@@ -21,6 +18,7 @@ export {
 	CollectorPayments,
 	CollectorPaymentsSkeleton,
 } from "./components/CollectorPayments";
+export { CollectorPickerPage } from "./components/CollectorPickerPage";
 export {
 	CollectorPortal,
 	CollectorPortalSkeleton,

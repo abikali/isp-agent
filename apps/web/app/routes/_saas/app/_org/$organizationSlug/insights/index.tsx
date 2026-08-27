@@ -47,6 +47,7 @@ const getInsightsFn = createServerFn({ method: "GET" })
 		}
 
 		return {
+			// react-doctor-disable-next-line react-doctor/no-json-parse-stringify-clone -- intentional SSR serialization of dehydrated query cache (strips non-serializable values for the client payload); canonical pattern per CLAUDE.md
 			dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
 		};
 	});
@@ -54,11 +55,11 @@ const getInsightsFn = createServerFn({ method: "GET" })
 export const Route = createFileRoute(
 	"/_saas/app/_org/$organizationSlug/insights/",
 )({
+	loader: ({ params }) =>
+		getInsightsFn({ data: { organizationSlug: params.organizationSlug } }),
 	head: () => ({
 		meta: [{ title: `How the business is doing - ${config.appName}` }],
 	}),
-	loader: ({ params }) =>
-		getInsightsFn({ data: { organizationSlug: params.organizationSlug } }),
 	component: InsightsRoute,
 });
 

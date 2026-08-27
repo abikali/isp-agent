@@ -7,6 +7,7 @@ import {
 } from "@saas/customers/client";
 import { formatCurrency } from "@shared/lib/format";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -16,13 +17,6 @@ import {
 	DialogTitle,
 } from "@ui/components/dialog";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -205,27 +199,25 @@ export function ChangePlanDialog({
 				{!previewData && (
 					<div className="space-y-2">
 						<Label htmlFor="change-plan-select">New plan</Label>
-						<Select value={newPlanId} onValueChange={setNewPlanId}>
-							<SelectTrigger id="change-plan-select">
-								<SelectValue
-									placeholder={
-										plansLoading
-											? "Loading plans..."
-											: "Select a plan"
-									}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								{selectablePlans.map((p) => (
-									<SelectItem key={p.id} value={p.id}>
-										{p.name}
-										{p.monthlyPrice != null
-											? ` — ${formatCurrency(p.monthlyPrice)}`
-											: ""}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<Combobox
+							id="change-plan-select"
+							value={newPlanId}
+							onChange={setNewPlanId}
+							options={selectablePlans.map((p) => ({
+								value: p.id,
+								label:
+									p.monthlyPrice != null
+										? `${p.name} — ${formatCurrency(p.monthlyPrice)}`
+										: p.name,
+							}))}
+							placeholder={
+								plansLoading
+									? "Loading plans..."
+									: "Select a plan"
+							}
+							searchPlaceholder="Search plans…"
+							emptyText="No matching plans"
+						/>
 					</div>
 				)}
 

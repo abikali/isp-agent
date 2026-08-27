@@ -457,7 +457,7 @@ export function useDeleteCollection() {
 
 	return useMutation({
 		...orpc.billing.collections.delete.mutationOptions(),
-		onSuccess: () => {
+		onSuccess: (data) => {
 			// Deleting a money-given/expense row also removes its linked
 			// expense, so refresh the whole billing surface (reports + metric).
 			queryClient.invalidateQueries({
@@ -466,6 +466,18 @@ export function useDeleteCollection() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.expenses.key(),
 			});
+			// A new-user-setup revert can also flip the subscriber to inactive
+			// and re-pend the bundle's installations.
+			if (data.installationsReverted) {
+				queryClient.invalidateQueries({
+					queryKey: orpc.installations.key(),
+				});
+			}
+			if (data.customerDeactivated) {
+				queryClient.invalidateQueries({
+					queryKey: orpc.customers.key(),
+				});
+			}
 		},
 	});
 }

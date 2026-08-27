@@ -1,21 +1,16 @@
 /// <reference types="vite/client" />
 import { config } from "@repo/config";
+import { GlobalErrorComponent } from "@shared/components/GlobalErrorComponent";
 import { NavigationProgress } from "@shared/components/NavigationProgress";
+import { NotFoundComponent } from "@shared/components/NotFoundComponent";
+import { RootDocument } from "@shared/components/RootDocument";
 import { ThemeProvider } from "@shared/components/ThemeProvider";
-import { getBeirutDate } from "@shared/lib/format";
-import { themeScript } from "@shared/stores/theme-store";
 import {
 	keepPreviousData,
 	QueryClient,
 	QueryClientProvider,
 } from "@tanstack/react-query";
-import {
-	createRootRoute,
-	HeadContent,
-	Link,
-	Outlet,
-	Scripts,
-} from "@tanstack/react-router";
+import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { Toaster } from "@ui/components/toast";
 import { TooltipProvider } from "@ui/components/tooltip";
 import React, { Suspense, useState } from "react";
@@ -25,14 +20,6 @@ const ReactQueryDevtools = import.meta.env.DEV
 	? React.lazy(() =>
 			import("@tanstack/react-query-devtools").then((m) => ({
 				default: m.ReactQueryDevtools,
-			})),
-		)
-	: () => null;
-
-const TanStackRouterDevtools = import.meta.env.DEV
-	? React.lazy(() =>
-			import("@tanstack/react-router-devtools").then((m) => ({
-				default: m.TanStackRouterDevtools,
 			})),
 		)
 	: () => null;
@@ -126,205 +113,5 @@ function RootComponent() {
 				</Suspense>
 			</QueryClientProvider>
 		</RootDocument>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
-function RootDocument({ children }: { children: React.ReactNode }) {
-	return (
-		<html lang="en" suppressHydrationWarning>
-			<head>
-				<HeadContent />
-				{/* Theme script to prevent flash of wrong theme */}
-				{/* biome-ignore lint/security/noDangerouslySetInnerHtml: Required for theme initialization before hydration */}
-				<script dangerouslySetInnerHTML={{ __html: themeScript }} />
-			</head>
-			<body className="min-h-screen bg-background text-foreground antialiased">
-				{children}
-				<Suspense fallback={null}>
-					<TanStackRouterDevtools position="bottom-right" />
-				</Suspense>
-				<Scripts />
-			</body>
-		</html>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
-function GlobalErrorComponent({ error }: { error: Error }) {
-	return (
-		<RootDocument>
-			<div className="flex min-h-screen flex-col bg-gradient-to-br from-background to-muted">
-				<main className="flex flex-1 items-center justify-center p-4">
-					<div className="w-full max-w-md space-y-6 text-center">
-						<div className="mx-auto flex size-20 items-center justify-center rounded-full bg-destructive/10">
-							<svg
-								aria-hidden="true"
-								className="size-10 text-destructive"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								strokeWidth={1.5}
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-								/>
-							</svg>
-						</div>
-
-						<div className="space-y-2">
-							<h1 className="text-2xl font-semibold tracking-tight">
-								Something went wrong
-							</h1>
-							<p className="text-muted-foreground">
-								We encountered an unexpected error. Please try
-								again or contact support if the problem
-								persists.
-							</p>
-						</div>
-
-						{import.meta.env.DEV && error?.message && (
-							<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-left">
-								<p className="mb-1 text-xs font-medium text-destructive">
-									Error details (dev only)
-								</p>
-								<pre className="overflow-auto text-xs text-muted-foreground">
-									{error.message}
-								</pre>
-							</div>
-						)}
-
-						<div className="flex flex-col gap-3 pt-2">
-							<button
-								type="button"
-								onClick={() => window.location.reload()}
-								className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-							>
-								<svg
-									aria-hidden="true"
-									className="mr-2 size-4"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									strokeWidth={2}
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
-									/>
-								</svg>
-								Reload page
-							</button>
-							{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- error-boundary recovery: full reload intentionally resets crashed app/router state */}
-							<a
-								href="/"
-								className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-							>
-								Go to Homepage
-							</a>
-						</div>
-					</div>
-				</main>
-
-				<footer className="py-6 text-center text-xs text-muted-foreground">
-					<span>
-						© {getBeirutDate().year} {config.appName}
-					</span>
-					<span className="mx-2 opacity-50">|</span>
-					{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
-					<a href="/legal/privacy-policy">Privacy Policy</a>
-					<span className="mx-2 opacity-50">|</span>
-					{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
-					<a href="/legal/terms">Terms</a>
-				</footer>
-			</div>
-		</RootDocument>
-	);
-}
-
-// react-doctor-disable-next-line react-doctor/no-multi-comp -- root route co-locates its document shell, error, and notFound boundary components per TanStack Start convention
-function NotFoundComponent() {
-	return (
-		<div className="flex min-h-screen flex-col bg-gradient-to-br from-background to-muted">
-			<main className="flex flex-1 items-center justify-center p-4">
-				<div className="w-full max-w-md space-y-6 text-center">
-					<div className="mx-auto flex size-20 items-center justify-center rounded-full bg-muted">
-						<svg
-							aria-hidden="true"
-							className="size-10 text-muted-foreground"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-							strokeWidth={1.5}
-						>
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
-							/>
-						</svg>
-					</div>
-
-					<div className="space-y-2">
-						<p className="text-6xl font-bold text-muted-foreground/50">
-							404
-						</p>
-						<h1 className="text-2xl font-semibold tracking-tight">
-							Page not found
-						</h1>
-						<p className="text-muted-foreground">
-							The page you're looking for doesn't exist or has
-							been moved.
-						</p>
-					</div>
-
-					<div className="flex flex-col gap-3 pt-2">
-						<Link
-							to="/"
-							preload="intent"
-							className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-						>
-							Go to Homepage
-						</Link>
-						<button
-							type="button"
-							onClick={() => window.history.back()}
-							className="inline-flex h-10 items-center justify-center rounded-md border bg-background px-6 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-						>
-							<svg
-								aria-hidden="true"
-								className="mr-2 size-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								strokeWidth={2}
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
-								/>
-							</svg>
-							Go back
-						</button>
-					</div>
-				</div>
-			</main>
-
-			<footer className="py-6 text-center text-xs text-muted-foreground">
-				<span>
-					© {getBeirutDate().year} {config.appName}
-				</span>
-				<span className="mx-2 opacity-50">|</span>
-				{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
-				<a href="/legal/privacy-policy">Privacy Policy</a>
-				<span className="mx-2 opacity-50">|</span>
-				{/* react-doctor-disable-next-line react-doctor/tanstack-start-no-anchor-element -- /legal/* is served by a splat route (legal/$), not a typed Link target */}
-				<a href="/legal/terms">Terms</a>
-			</footer>
-		</div>
 	);
 }

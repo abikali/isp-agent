@@ -1,17 +1,20 @@
 "use client";
 
-import { useEmployeesQuery } from "@saas/employees/client";
-import { Pagination } from "@saas/shared/components/Pagination";
 import {
 	ContentCard,
 	ContentCardToolbar,
 } from "@shared/components/ContentCard";
 import { EmptyState } from "@shared/components/EmptyState";
+import { FilterBar } from "@shared/components/FilterBar";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
-import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
+import { StatCard, StatCardGroup } from "@shared/components/StatCard";
+import { useServerSorting } from "@shared/hooks/use-server-sorting";
+import { formatCurrency, formatDateTime } from "@shared/lib/format";
+import { buildMonthOptions, monthRange } from "@shared/lib/month-filter";
 import { useOrganizationId } from "@shared/lib/organization";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -32,17 +35,37 @@ import {
 } from "@ui/components/select";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
-import { CheckIcon, ImageIcon, ReceiptIcon, XIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	CameraOffIcon,
+	CheckIcon,
+	CoinsIcon,
+	ImageIcon,
+	LayersIcon,
+	ReceiptIcon,
+	UsersIcon,
+	XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
 	type ExpenseStatus,
 	useApproveExpense,
+	useExpenseFilterOptions,
+	useExpenseSummary,
 	useExpenses,
 	useRejectExpense,
 } from "../hooks/use-expenses";
 
 type Expense = ReturnType<typeof useExpenses>["expenses"][number];
+
+const PAGE_SIZE = 25;
+
+const SORT_BY_MAP = {
+	createdAt: "createdAt",
+	amount: "amount",
+	status: "status",
+} as const;
 
 const STATUS_BADGES: Record<
 	ExpenseStatus,
@@ -57,42 +80,67 @@ const STATUS_BADGES: Record<
 // react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/dialog state slices (status, employee, month, page, ...) read clearer as separate useState than a reducer
 export function ExpensesList() {
 	const organizationId = useOrganizationId();
+
 	const [status, setStatus] = useState<ExpenseStatus>("PENDING");
+	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [employeeId, setEmployeeId] = useState<string | undefined>();
+	const [bucketId, setBucketId] = useState<string | undefined>();
+	const [category, setCategory] = useState<string | undefined>();
+	const [receiptFilter, setReceiptFilter] = useState<"all" | "yes" | "no">(
+		"all",
+	);
 	const [monthFilter, setMonthFilter] = useState<string>("all");
 	const [page, setPage] = useState(1);
 
-	// monthFilter format: "YYYY-M"
-	const monthRange = (() => {
-		if (monthFilter === "all") {
-			return {};
-		}
-		const [year, month] = monthFilter.split("-").map(Number);
-		const from = new Date(year as number, (month as number) - 1, 1);
-		const to = new Date(year as number, month as number, 1);
-		return { from, to };
-	})();
+	const resetPage = () => setPage(1);
+	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
+		SORT_BY_MAP,
+		resetPage,
+	);
 
-	const monthOptions = (() => {
-		const options: Array<{ value: string; label: string }> = [];
-		const now = new Date();
-		for (let i = 0; i < 24; i++) {
-			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-			options.push({
-				value: `${d.getFullYear()}-${d.getMonth() + 1}`,
-				label: formatDate(d, { month: "long", year: "numeric" }),
-			});
-		}
-		return options;
-	})();
+	const monthOptions = useMemo(() => buildMonthOptions(), []);
 
-	const { employees } = useEmployeesQuery();
-	const { expenses, total, totalAmount, totalPages } = useExpenses({
+	const filters = {
 		status,
-		employeeId,
-		...monthRange,
+		...(debouncedSearch ? { search: debouncedSearch } : {}),
+		...(employeeId ? { employeeId } : {}),
+		...(bucketId ? { financeCategoryId: bucketId } : {}),
+		...(category ? { category } : {}),
+		...(receiptFilter !== "all"
+			? { hasReceipt: receiptFilter === "yes" }
+			: {}),
+		...monthRange(monthFilter),
+	};
+
+	const { workers, categories, buckets } = useExpenseFilterOptions(status);
+	const { summary } = useExpenseSummary(filters);
+	const { expenses, total, isLoading, isFetching, error } = useExpenses({
+		...filters,
 		page,
+		pageSize: PAGE_SIZE,
+		...(sortBy ? { sortBy } : {}),
+		...(sortOrder ? { sortOrder } : {}),
 	});
+
+	const activeFilterCount = [
+		debouncedSearch,
+		employeeId,
+		bucketId,
+		category,
+		receiptFilter !== "all" ? receiptFilter : undefined,
+		monthFilter !== "all" ? monthFilter : undefined,
+	].filter(Boolean).length;
+
+	const resetFilters = () => {
+		setSearch("");
+		setEmployeeId(undefined);
+		setBucketId(undefined);
+		setCategory(undefined);
+		setReceiptFilter("all");
+		setMonthFilter("all");
+		resetPage();
+	};
 
 	const approveExpense = useApproveExpense();
 	const rejectExpense = useRejectExpense();
@@ -118,6 +166,7 @@ export function ExpensesList() {
 			{
 				id: "worker",
 				header: "Worker",
+				enableSorting: false,
 				cell: ({ row }) => (
 					<span className="text-sm font-medium">
 						{row.original.submittedBy.name}
@@ -157,6 +206,22 @@ export function ExpensesList() {
 				),
 			},
 			{
+				id: "bucket",
+				header: "Bucket",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) =>
+					row.original.financeCategory ? (
+						<Badge variant="secondary" className="font-normal">
+							{row.original.financeCategory.label}
+						</Badge>
+					) : (
+						<span className="text-xs text-muted-foreground">
+							Uncategorised
+						</span>
+					),
+			},
+			{
 				id: "receipt",
 				header: "Receipt",
 				enableSorting: false,
@@ -179,9 +244,8 @@ export function ExpensesList() {
 					),
 			},
 			{
-				id: "status",
+				accessorKey: "status",
 				header: "Status",
-				enableSorting: false,
 				meta: { className: "hidden sm:table-cell" },
 				cell: ({ row }) => {
 					const cfg =
@@ -254,109 +318,221 @@ export function ExpensesList() {
 			title="Expenses"
 			description="Review worker expense claims — approve to deduct from their cash balance."
 		>
+			<Tabs
+				value={status}
+				onValueChange={(v) => {
+					setStatus(v as ExpenseStatus);
+					// The worker/bucket/type choices are derived per tab; a pick
+					// from the old tab may not exist in the new one.
+					setEmployeeId(undefined);
+					setBucketId(undefined);
+					setCategory(undefined);
+					resetPage();
+				}}
+			>
+				<TabsList>
+					<TabsTrigger value="PENDING">Pending</TabsTrigger>
+					<TabsTrigger value="APPROVED">Approved</TabsTrigger>
+					<TabsTrigger value="REJECTED">Rejected</TabsTrigger>
+				</TabsList>
+			</Tabs>
+
+			<StatCardGroup columns={5}>
+				<StatCard
+					title="Total"
+					icon={CoinsIcon}
+					value={formatCurrency(summary?.totalAmount ?? 0)}
+					color={status === "APPROVED" ? "emerald" : "blue"}
+					description={`${(summary?.count ?? 0).toLocaleString()} claims`}
+				/>
+				<StatCard
+					title="Workers"
+					icon={UsersIcon}
+					value={summary?.workerCount ?? 0}
+					description="submitted"
+				/>
+				<StatCard
+					title="Average claim"
+					value={formatCurrency(summary?.averageAmount ?? 0)}
+					description={`largest ${formatCurrency(summary?.largestAmount ?? 0)}`}
+				/>
+				<StatCard
+					title={summary?.topBucket?.label ?? "Top bucket"}
+					icon={LayersIcon}
+					value={formatCurrency(summary?.topBucket?.amount ?? 0)}
+					color="purple"
+					description={`${summary?.topBucket?.count ?? 0} claims · biggest bucket`}
+				/>
+				<StatCard
+					title="No receipt"
+					icon={CameraOffIcon}
+					value={summary?.missingReceipt ?? 0}
+					color={summary?.missingReceipt ? "amber" : "default"}
+					description="claims without a photo"
+					active={receiptFilter === "no"}
+					onClick={() => {
+						setReceiptFilter(receiptFilter === "no" ? "all" : "no");
+						resetPage();
+					}}
+				/>
+			</StatCardGroup>
+
 			<ContentCard>
 				<ContentCardToolbar>
-					<div className="flex flex-wrap items-center justify-between gap-2 w-full">
-						<Tabs
-							value={status}
+					<FilterBar
+						bare
+						searchPlaceholder="Search description, category or worker…"
+						searchValue={search}
+						onSearchChange={(v) => {
+							setSearch(v);
+							resetPage();
+						}}
+						activeFilterCount={activeFilterCount}
+						onReset={resetFilters}
+					>
+						<Select
+							value={monthFilter}
 							onValueChange={(v) => {
-								setStatus(v as ExpenseStatus);
-								setPage(1);
+								setMonthFilter(v);
+								resetPage();
 							}}
 						>
-							<TabsList>
-								<TabsTrigger value="PENDING">
-									Pending
-									{status === "PENDING" && total > 0 && (
-										<Badge
-											variant="info"
-											className="ml-1.5"
-										>
-											{formatCurrency(totalAmount)}
-										</Badge>
-									)}
-								</TabsTrigger>
-								<TabsTrigger value="APPROVED">
-									Approved
-								</TabsTrigger>
-								<TabsTrigger value="REJECTED">
-									Rejected
-								</TabsTrigger>
-							</TabsList>
-						</Tabs>
-						<div className="flex items-center gap-2">
+							<SelectTrigger className="w-40 shrink-0">
+								<SelectValue placeholder="All time" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All time</SelectItem>
+								{monthOptions.map((opt) => (
+									<SelectItem
+										key={opt.value}
+										value={opt.value}
+									>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						<Select
+							value={employeeId ?? "all"}
+							onValueChange={(v) => {
+								setEmployeeId(v === "all" ? undefined : v);
+								resetPage();
+							}}
+						>
+							<SelectTrigger className="w-40 shrink-0">
+								<SelectValue placeholder="All workers" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All workers</SelectItem>
+								{workers.map((w) => (
+									<SelectItem key={w.id} value={w.id}>
+										{w.name} ({w.count})
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						<Select
+							value={bucketId ?? "all"}
+							onValueChange={(v) => {
+								setBucketId(v === "all" ? undefined : v);
+								resetPage();
+							}}
+						>
+							<SelectTrigger className="w-40 shrink-0">
+								<SelectValue placeholder="All buckets" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All buckets</SelectItem>
+								{buckets.map((b) => (
+									<SelectItem key={b.id} value={b.id}>
+										{b.label} ({b.count})
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						{categories.length > 0 && (
 							<Select
-								value={monthFilter}
+								value={category ?? "all"}
 								onValueChange={(v) => {
-									setMonthFilter(v);
-									setPage(1);
+									setCategory(v === "all" ? undefined : v);
+									resetPage();
 								}}
 							>
-								<SelectTrigger className="w-44">
-									<SelectValue placeholder="All time" />
+								<SelectTrigger className="w-36 shrink-0">
+									<SelectValue placeholder="All types" />
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">
-										All time
+										All types
 									</SelectItem>
-									{monthOptions.map((opt) => (
+									{categories.map((c) => (
 										<SelectItem
-											key={opt.value}
-											value={opt.value}
+											key={c.value}
+											value={c.value}
 										>
-											{opt.label}
+											{c.value} ({c.count})
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
-							<Select
-								value={employeeId ?? "all"}
-								onValueChange={(v) => {
-									setEmployeeId(v === "all" ? undefined : v);
-									setPage(1);
-								}}
-							>
-								<SelectTrigger className="w-44">
-									<SelectValue placeholder="All workers" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">
-										All workers
-									</SelectItem>
-									{employees.map((emp) => (
-										<SelectItem key={emp.id} value={emp.id}>
-											{emp.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
+						)}
+
+						<Select
+							value={receiptFilter}
+							onValueChange={(v) => {
+								setReceiptFilter(v as "all" | "yes" | "no");
+								resetPage();
+							}}
+						>
+							<SelectTrigger className="w-36 shrink-0">
+								<SelectValue placeholder="Any receipt" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Any receipt</SelectItem>
+								<SelectItem value="yes">With photo</SelectItem>
+								<SelectItem value="no">No photo</SelectItem>
+							</SelectContent>
+						</Select>
+					</FilterBar>
 				</ContentCardToolbar>
 
 				<DataTable
 					columns={columns}
 					data={expenses}
-					pageSize={25}
+					isLoading={isLoading}
+					isFetching={isFetching}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					columnVisibilityKey="expenses-list"
+					pagination={{
+						totalItems: total,
+						currentPage: page,
+						itemsPerPage: PAGE_SIZE,
+						onPageChange: setPage,
+					}}
 					emptyState={
-						<EmptyState
-							icon={ReceiptIcon}
-							title={`No ${status.toLowerCase()} expenses`}
-							description="Worker expense claims will appear here."
-						/>
+						error ? (
+							<EmptyState
+								icon={AlertTriangleIcon}
+								title="Couldn't load expenses"
+								description={error.message}
+							/>
+						) : (
+							<EmptyState
+								icon={ReceiptIcon}
+								title={`No ${status.toLowerCase()} expenses`}
+								description={
+									activeFilterCount > 0
+										? "No claims match these filters."
+										: "Worker expense claims will appear here."
+								}
+							/>
+						)
 					}
 				/>
-
-				{totalPages > 1 && (
-					<div className="border-t px-4 py-3">
-						<Pagination
-							currentPage={page}
-							totalItems={total}
-							itemsPerPage={25}
-							onChangeCurrentPage={setPage}
-						/>
-					</div>
-				)}
 			</ContentCard>
 
 			{receiptUrl && (

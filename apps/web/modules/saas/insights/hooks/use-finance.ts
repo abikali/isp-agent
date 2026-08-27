@@ -94,20 +94,3 @@ export function useSaveMoneyMap() {
 		},
 	});
 }
-
-export function useFinanceCategories() {
-	const organizationId = useOrganizationId();
-
-	const query = useQuery(
-		organizationId
-			? orpc.finance.categories.list.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["finance", "categories"]),
-	);
-
-	return {
-		categories: query.data?.categories ?? [],
-		isLoading: query.isLoading,
-	};
-}

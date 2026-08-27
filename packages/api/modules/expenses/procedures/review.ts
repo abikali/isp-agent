@@ -10,6 +10,7 @@ import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { expenseDeductionAmount } from "../../billing/lib/cash-signs";
+import { bustExpenseStats } from "../lib/stats-cache";
 
 export const approveExpense = protectedProcedure
 	.route({
@@ -103,6 +104,7 @@ export const approveExpense = protectedProcedure
 			}),
 		);
 
+		bustExpenseStats();
 		return { expense: updated };
 	});
 
@@ -187,5 +189,6 @@ export const rejectExpense = protectedProcedure
 			}),
 		);
 
+		bustExpenseStats();
 		return { expense: updated };
 	});

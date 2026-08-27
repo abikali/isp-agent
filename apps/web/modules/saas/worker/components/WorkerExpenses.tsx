@@ -6,6 +6,11 @@ import {
 } from "@saas/expenses/client";
 import { useWorkerOptions } from "@saas/worker-options/client";
 import { formatCurrency, formatDate } from "@shared/lib/format";
+import {
+	buildMonthOptions,
+	currentMonthFilter,
+	monthRange,
+} from "@shared/lib/month-filter";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
@@ -24,7 +29,7 @@ import {
 import { Skeleton } from "@ui/components/skeleton";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, ReceiptIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useMyExpensesList, useMyStatsQuery } from "../hooks/use-worker";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
@@ -79,41 +84,17 @@ export function WorkerExpenses() {
 	const [sort, setSort] = useState("newest");
 	// Default to the current month so the list isn't flooded with old expenses;
 	// older months stay reachable through this filter. Value format: "YYYY-M".
-	const [monthFilter, setMonthFilter] = useState(() => {
-		const now = new Date();
-		return `${now.getFullYear()}-${now.getMonth() + 1}`;
-	});
+	const [monthFilter, setMonthFilter] = useState(currentMonthFilter);
 	const [page, setPage] = useState(1);
 
-	const monthOptions = (() => {
-		const options = [{ value: "all", label: "All time" }];
-		const now = new Date();
-		for (let i = 0; i < 24; i++) {
-			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-			options.push({
-				value: `${d.getFullYear()}-${d.getMonth() + 1}`,
-				label:
-					i === 0
-						? "This month"
-						: formatDate(d, {
-								month: "long",
-								year: "numeric",
-							}),
-			});
-		}
-		return options;
-	})();
-
-	const monthRange = (() => {
-		if (monthFilter === "all") {
-			return {};
-		}
-		const [year, month] = monthFilter.split("-").map(Number);
-		return {
-			from: new Date(year as number, (month as number) - 1, 1),
-			to: new Date(year as number, month as number, 1),
-		};
-	})();
+	const monthOptions = useMemo(
+		() => [
+			{ value: "all", label: "All time" },
+			...buildMonthOptions({ currentLabel: "This month" }),
+		],
+		[],
+	);
+	const range = monthRange(monthFilter);
 
 	const [showSubmit, setShowSubmit] = useState(false);
 	const [amount, setAmount] = useState("");
@@ -136,7 +117,7 @@ export function WorkerExpenses() {
 				: (statusFilter as "PENDING" | "APPROVED" | "REJECTED"),
 		sortBy: sortCfg.sortBy,
 		sortOrder: sortCfg.sortOrder,
-		...monthRange,
+		...range,
 		page,
 	});
 

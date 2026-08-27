@@ -6,6 +6,7 @@ import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { matchRule } from "../../finance/lib/classify";
+import { bustExpenseStats } from "../lib/stats-cache";
 
 /** Apply the org's money map to a free-text description. Returns null when
  *  nothing matches — an unclassified expense is reported as unclassified
@@ -108,5 +109,6 @@ export const createExpense = protectedProcedure
 			}),
 		);
 
+		bustExpenseStats();
 		return { expense };
 	});

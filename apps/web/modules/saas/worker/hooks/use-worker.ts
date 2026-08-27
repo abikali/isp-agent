@@ -264,7 +264,6 @@ export function useMyExpensesList(params: MyExpensesParams = {}) {
 	return {
 		expenses: query.data?.expenses ?? [],
 		total: query.data?.total ?? 0,
-		totalAmount: query.data?.totalAmount ?? 0,
 		totalPages: query.data?.totalPages ?? 0,
 		page: query.data?.page ?? params.page ?? 1,
 		isLoading: query.isLoading,

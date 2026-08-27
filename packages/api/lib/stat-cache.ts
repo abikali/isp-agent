@@ -61,6 +61,35 @@ export async function cachedStat<T>(
 }
 
 /**
+ * Drop every cached entry for a stat name, across all scopes. Call it from the
+ * mutations that change the underlying rows when the stat is read back on the
+ * same screen the mutation ran on (the sidebar badge next to the list the user
+ * just acted on) — TTL expiry alone would leave the number visibly stale.
+ * Best-effort and fire-and-forget like the rest of the cache.
+ */
+export async function invalidateStat(name: string): Promise<void> {
+	try {
+		const redis = getRedisConnection();
+		let cursor = "0";
+		do {
+			const [next, keys] = await redis.scan(
+				cursor,
+				"MATCH",
+				`${PREFIX}${name}|*`,
+				"COUNT",
+				100,
+			);
+			cursor = next;
+			if (keys.length > 0) {
+				await redis.del(...keys);
+			}
+		} while (cursor !== "0");
+	} catch {
+		// Cache unavailable — the entry expires on its own.
+	}
+}
+
+/**
  * Build a scope-stable cache key. Objects (e.g. the ownership filter) are
  * JSON-serialized so distinct scopes never collide.
  */

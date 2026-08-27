@@ -1,11 +1,8 @@
-import {
-	getDealerScopeFilter,
-	getOwnershipFilterAsync,
-	requirePermission,
-} from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { buildExpenseWhere, expenseFilterSchema } from "../lib/filters";
 
 export const listExpenses = protectedProcedure
 	.route({
@@ -15,17 +12,17 @@ export const listExpenses = protectedProcedure
 		summary: "List expense claims",
 	})
 	.input(
-		z.object({
-			organizationId: z.string(),
-			search: z.string().optional(),
-			status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
-			employeeId: z.string().optional(),
-			from: z.coerce.date().optional(),
-			to: z.coerce.date().optional(),
+		expenseFilterSchema.extend({
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
-				.enum(["createdAt", "amount", "status"])
+				.enum([
+					"createdAt",
+					"amount",
+					"status",
+					"approvedAt",
+					"category",
+				])
 				.default("createdAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 		}),
@@ -38,55 +35,28 @@ export const listExpenses = protectedProcedure
 			"read",
 		);
 
-		const ownershipFilter = await getOwnershipFilterAsync(
-			permCtx,
-			"expenses",
-			"read",
-		);
+		const where = await buildExpenseWhere(permCtx, activeDealerId, input);
 
-		const where: Record<string, unknown> = {
-			organizationId: input.organizationId,
-			submittedBy: getDealerScopeFilter(activeDealerId),
-			...ownershipFilter,
-		};
-		if (input.status) {
-			where["status"] = input.status;
-		}
-		if (input.employeeId) {
-			where["submittedById"] = input.employeeId;
-		}
-		if (input.from || input.to) {
-			where["createdAt"] = {
-				...(input.from ? { gte: input.from } : {}),
-				...(input.to ? { lte: input.to } : {}),
-			};
-		}
-		if (input.search) {
-			where["description"] = {
-				contains: input.search,
-				mode: "insensitive",
-			};
-		}
-
-		const [expenses, total, totalAmountAgg] = await Promise.all([
+		const [expenses, total] = await Promise.all([
 			db.expense.findMany({
 				where,
 				include: {
 					submittedBy: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
+					financeCategory: {
+						select: { id: true, label: true, kind: true },
+					},
 				},
 				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,
 				take: input.pageSize,
 			}),
 			db.expense.count({ where }),
-			db.expense.aggregate({ where, _sum: { amount: true } }),
 		]);
 
 		return {
 			expenses,
 			total,
-			totalAmount: totalAmountAgg._sum.amount ?? 0,
 			page: input.page,
 			pageSize: input.pageSize,
 			totalPages: Math.ceil(total / input.pageSize),

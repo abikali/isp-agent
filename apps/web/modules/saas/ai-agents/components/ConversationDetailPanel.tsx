@@ -47,7 +47,9 @@ import {
 import { AdminChatInput } from "./AdminChatInput";
 import { ContactPhone } from "./ContactPhone";
 import { ContactUsername } from "./ContactUsername";
-import { DateSeparator, MessageBubble, TypingBubble } from "./MessageBubble";
+import { DateSeparator } from "./DateSeparator";
+import { MessageBubble } from "./MessageBubble";
+import { TypingBubble } from "./TypingBubble";
 
 interface ReplyTarget {
 	id: string;

@@ -26,17 +26,15 @@ export { ConversationThread } from "./components/ConversationThread";
 export { ConversationThreadSkeleton } from "./components/ConversationThreadSkeleton";
 export { CreateAgentDialog } from "./components/CreateAgentDialog";
 export { CreateChannelDialog } from "./components/CreateChannelDialog";
+export { DateSeparator } from "./components/DateSeparator";
 export { DocumentBubble } from "./components/DocumentBubble";
 export { EmojiPicker } from "./components/EmojiPicker";
 export { ImageBubble } from "./components/ImageBubble";
 export { LocationBubble } from "./components/LocationBubble";
-export {
-	DateSeparator,
-	MessageBubble,
-	TypingBubble,
-} from "./components/MessageBubble";
+export { MessageBubble } from "./components/MessageBubble";
 export { MessageContextMenu } from "./components/MessageContextMenu";
 export { ToolConfigDialog } from "./components/ToolConfigDialog";
+export { TypingBubble } from "./components/TypingBubble";
 export { VoiceRecorder } from "./components/VoiceRecorder";
 export { WebChatSettings } from "./components/WebChatSettings";
 

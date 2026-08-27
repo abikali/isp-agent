@@ -53,6 +53,22 @@ export const listCollections = protectedProcedure
 				include: {
 					collector: { select: { id: true, name: true } },
 					receivedBy: { select: { id: true, name: true } },
+					// New-user-setup rows link to the subscriber the setup
+					// created. The delete dialog offers to cut him off along
+					// with the revert, so it needs his name and current status.
+					setupRequest: {
+						select: {
+							customer: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									username: true,
+									status: true,
+								},
+							},
+						},
+					},
 				},
 				orderBy: { [input.sortBy]: input.sortOrder },
 				skip: (input.page - 1) * input.pageSize,

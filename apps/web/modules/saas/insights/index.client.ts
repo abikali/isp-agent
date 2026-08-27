@@ -5,7 +5,6 @@ export { MoneyMapWizard } from "./components/MoneyMapWizard";
 export {
 	type FinancePeriod,
 	useFinanceBreakdown,
-	useFinanceCategories,
 	useFinanceSummary,
 	useFinanceTrend,
 	useMoneyMap,
