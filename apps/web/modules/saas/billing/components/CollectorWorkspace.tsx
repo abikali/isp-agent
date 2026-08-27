@@ -547,10 +547,14 @@ function PaymentsPanel({
 				<Badge
 					variant={getPaymentStatusVariant(
 						row.original.stoppedAccount,
+						row.original.debtAccount,
 					)}
 					className="text-[10px]"
 				>
-					{getPaymentStatusLabel(row.original.stoppedAccount)}
+					{getPaymentStatusLabel(
+						row.original.stoppedAccount,
+						row.original.debtAccount,
+					)}
 				</Badge>
 			),
 		},
@@ -750,6 +754,7 @@ interface PaymentRow {
 	id: string;
 	paidAmount: number;
 	stoppedAccount: boolean;
+	debtAccount?: boolean;
 	noteCategory: string | null;
 	notes: string | null;
 	paidAt: string | Date;

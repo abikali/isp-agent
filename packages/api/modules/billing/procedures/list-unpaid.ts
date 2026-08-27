@@ -262,6 +262,52 @@ export const listUnpaidCustomers = protectedProcedure
 			set.add(p.billingMonthId);
 		}
 
+		// Debt ("dein") rows are zero-cash visit logs. They deliberately fail
+		// SETTLED_PAYMENT above, so the customer correctly stays in this list —
+		// the money is still owed. But with nothing carried onto the row, a
+		// customer the collector already visited (and who promised to pay) is
+		// indistinguishable from one nobody has been to. That leaves the
+		// collector re-visiting blind, and — because a debt row claims no
+		// invoice and matches none of the branches in `createPayment`'s
+		// duplicate guard — stacking unlimited debt rows on the same month with
+		// no warning. Carry the count and the most recent note so the portal
+		// can show "already visited, here's what he said".
+		const debtPayments = await db.payment.findMany({
+			where: {
+				organizationId: input.organizationId,
+				customerId: { in: customerIds },
+				billingMonthId: { in: relevantMonthIds },
+				debtAccount: true,
+			},
+			select: {
+				customerId: true,
+				notes: true,
+				noteCategory: true,
+				paidAt: true,
+			},
+			orderBy: { paidAt: "desc" },
+		});
+		interface DebtSummary {
+			debtCount: number;
+			lastDebtNote: string | null;
+			lastDebtAt: Date;
+		}
+		const debtByCustomer = new Map<string, DebtSummary>();
+		for (const d of debtPayments) {
+			const existing = debtByCustomer.get(d.customerId);
+			if (existing) {
+				existing.debtCount++;
+				continue;
+			}
+			// Rows arrive newest-first, so the first one seen per customer is
+			// the most recent visit.
+			debtByCustomer.set(d.customerId, {
+				debtCount: 1,
+				lastDebtNote: d.notes?.trim() || d.noteCategory || null,
+				lastDebtAt: d.paidAt,
+			});
+		}
+
 		// Aggregate invoices per customer. We record every billed month (paid
 		// and unpaid) so the UI can show the admin exactly which months are
 		// settled vs still owed; only unpaid months count toward the dues.
@@ -393,20 +439,26 @@ export const listUnpaidCustomers = protectedProcedure
 		).length;
 
 		const skip = (input.page - 1) * input.pageSize;
-		const pageRows = rows.slice(skip, skip + input.pageSize).map((r) => ({
-			...r.customer,
-			monthlyDue: r.monthlyDue,
-			unpaidMonths: r.unpaidMonths,
-			accumulatedDue: r.accumulatedDue,
-			pastDueMonths: r.pastDueMonths,
-			pastDueAmount: r.pastDueAmount,
-			oldestUnpaidExpiry: r.oldestUnpaidExpiry,
-			months: [...r.months].sort(
-				(a, b) =>
-					yearMonthToNum(a.year, a.month) -
-					yearMonthToNum(b.year, b.month),
-			),
-		}));
+		const pageRows = rows.slice(skip, skip + input.pageSize).map((r) => {
+			const debt = debtByCustomer.get(r.customer.id);
+			return {
+				...r.customer,
+				monthlyDue: r.monthlyDue,
+				unpaidMonths: r.unpaidMonths,
+				accumulatedDue: r.accumulatedDue,
+				pastDueMonths: r.pastDueMonths,
+				pastDueAmount: r.pastDueAmount,
+				oldestUnpaidExpiry: r.oldestUnpaidExpiry,
+				debtCount: debt?.debtCount ?? 0,
+				lastDebtNote: debt?.lastDebtNote ?? null,
+				lastDebtAt: debt?.lastDebtAt ?? null,
+				months: [...r.months].sort(
+					(a, b) =>
+						yearMonthToNum(a.year, a.month) -
+						yearMonthToNum(b.year, b.month),
+				),
+			};
+		});
 
 		return {
 			customers: pageRows,

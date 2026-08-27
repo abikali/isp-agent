@@ -721,6 +721,7 @@ interface Payment {
 	accountPrice: number;
 	discount: number;
 	stoppedAccount: boolean;
+	debtAccount?: boolean;
 	noteCategory: string | null;
 	notes: string | null;
 	paidAt: string | Date;
@@ -781,10 +782,14 @@ function getPaymentColumns(actions: {
 				<Badge
 					variant={getPaymentStatusVariant(
 						row.original.stoppedAccount,
+						row.original.debtAccount,
 					)}
 					className="text-xs"
 				>
-					{getPaymentStatusLabel(row.original.stoppedAccount)}
+					{getPaymentStatusLabel(
+						row.original.stoppedAccount,
+						row.original.debtAccount,
+					)}
 				</Badge>
 			),
 		},

@@ -4,7 +4,7 @@ import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency } from "@shared/lib/format";
+import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
 import { Input } from "@ui/components/input";
@@ -30,7 +30,7 @@ import {
 } from "@ui/components/sheet";
 import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
-import { PlusIcon, XIcon } from "lucide-react";
+import { HandCoinsIcon, PlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -133,6 +133,10 @@ export function PaymentSheet({
 	const totalDue = customer
 		? calculateTotalDue(customer, { freeAccount })
 		: 0;
+	const debtCount = customer?.debtCount ?? 0;
+	const lastDebtLabel = customer?.lastDebtAt
+		? formatDate(customer.lastDebtAt)
+		: "";
 
 	const missingNote = !noteCategory && !notes.trim();
 	const stoppedMissingNote = stoppedAccount && missingNote;
@@ -454,6 +458,31 @@ export function PaymentSheet({
 								</div>
 							)}
 						</div>
+
+						{/* Debt already logged for these months. Surfaced before
+						    the collector records anything: a debt row claims no
+						    invoice and is not caught by the duplicate guard, so
+						    without this he can stack another one unknowingly. */}
+						{debtCount > 0 && (
+							<div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+								<p className="flex items-center gap-1.5 font-medium">
+									<HandCoinsIcon className="size-3.5 shrink-0" />
+									{debtCount > 1
+										? `${debtCount} debt visits already logged`
+										: "Debt already logged"}
+									{lastDebtLabel ? ` · ${lastDebtLabel}` : ""}
+								</p>
+								{customer?.lastDebtNote && (
+									<p className="mt-1 italic">
+										&ldquo;{customer.lastDebtNote}&rdquo;
+									</p>
+								)}
+								<p className="mt-1 opacity-80">
+									The month is still due — record the cash if
+									you are collecting now.
+								</p>
+							</div>
+						)}
 
 						{/* Amount paid + toggles */}
 						<div className="space-y-3">

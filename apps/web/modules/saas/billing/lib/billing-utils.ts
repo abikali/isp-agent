@@ -259,16 +259,30 @@ export function getPaymentFlagBadgeClassName(
 	return undefined;
 }
 
-/** Returns the badge variant based on whether the account was stopped. */
+/**
+ * Returns the badge variant for a payment's status. `debtAccount` is optional
+ * so the older two-state call sites keep working, but pass it wherever the row
+ * can be a debt: a debt visit collects nothing and must never read "Collected".
+ */
 export function getPaymentStatusVariant(
 	stoppedAccount: boolean,
-): "default" | "destructive" {
-	return stoppedAccount ? "destructive" : "default";
+	debtAccount?: boolean,
+): "default" | "destructive" | "warning" {
+	if (stoppedAccount) {
+		return "destructive";
+	}
+	return debtAccount ? "warning" : "default";
 }
 
-/** Returns the label for a payment based on stopped status. */
-export function getPaymentStatusLabel(stoppedAccount: boolean): string {
-	return stoppedAccount ? "Stopped" : "Collected";
+/** Returns the label for a payment based on stopped/debt status. */
+export function getPaymentStatusLabel(
+	stoppedAccount: boolean,
+	debtAccount?: boolean,
+): string {
+	if (stoppedAccount) {
+		return "Stopped";
+	}
+	return debtAccount ? "Debt" : "Collected";
 }
 
 // ─── Payment Flag Detection ──────────────────────────────────

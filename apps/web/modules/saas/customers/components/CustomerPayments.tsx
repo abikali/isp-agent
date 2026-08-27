@@ -28,6 +28,9 @@ interface PaymentRow {
 	paidAmount: number;
 	freeAccount: boolean;
 	stoppedAccount: boolean;
+	// A debt visit collects nothing; without this the row rendered as a bare
+	// $0.00 with no explanation.
+	debtAccount?: boolean;
 	notes: string | null;
 	collector: {
 		id: string;
@@ -108,6 +111,13 @@ export function CustomerPayments({
 						return (
 							<Badge variant="destructive" className="text-xs">
 								Stopped
+							</Badge>
+						);
+					}
+					if (p.debtAccount) {
+						return (
+							<Badge variant="warning" className="text-xs">
+								Debt
 							</Badge>
 						);
 					}

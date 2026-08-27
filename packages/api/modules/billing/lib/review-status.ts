@@ -11,8 +11,19 @@ const AMOUNT_EPSILON = 0.01;
  * A payment is "flagged for review" when ANY of these are true:
  *   1. freeAccount = true   (admin marked it free of charge)
  *   2. stoppedAccount = true (collected from a stopped/suspended account)
- *   3. paidAmount != accountPrice + iptv + realIp - discount (amount mismatch)
- *   4. the collector attached a note (`notes` or `noteCategory` is set)
+ *   3. debtAccount = true    (zero-cash visit; the collector carried the
+ *      customer, which `LENIENCY_NOTICE` promises the admin will review)
+ *   4. paidAmount != accountPrice + iptv + realIp - discount (amount mismatch)
+ *   5. the collector attached a note (`notes` or `noteCategory` is set)
+ *
+ * Debt is listed explicitly even though a debt row always carries a mandatory
+ * note and would therefore be caught by (5) anyway — relying on that coupling
+ * made a deliberate product decision look accidental, and it would silently
+ * break if the note ever became optional.
+ *
+ * Reviewing a debt means "seen, the carry is accepted"; it settles nothing and
+ * the customer stays on the unpaid list. Surfaces that show a reviewed payment
+ * must not imply the money arrived — see `getPaymentStatusLabel`.
  *
  * It is "unreviewed" when it is flagged AND `reviewedAt IS NULL`.
  *
@@ -35,8 +46,10 @@ const AMOUNT_EPSILON = 0.01;
 
 /**
  * Find IDs of unreviewed payments whose paid amount doesn't match the
- * expected total. Excludes free + stopped payments (those are flagged via
- * their own boolean columns and don't need the expensive math).
+ * expected total. Excludes free + stopped + debt payments (those are flagged
+ * via their own boolean columns and don't need the expensive math). Debt in
+ * particular is always paidAmount 0, which would otherwise read as a large
+ * underpayment — the same ordering `getPaymentFlagType` applies client-side.
  */
 export async function findUnreviewedAmountMismatchPaymentIds(args: {
 	organizationId: string;
@@ -53,6 +66,7 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 				  AND p."billingCycleId" = ${billingMonthId}
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
+				  AND p."debtAccount" = false
 				  AND p."reviewedAt" IS NULL
 				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > ${AMOUNT_EPSILON}
 			`
@@ -63,6 +77,7 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
+				  AND p."debtAccount" = false
 				  AND p."reviewedAt" IS NULL
 				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > ${AMOUNT_EPSILON}
 			`;
@@ -71,7 +86,7 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 
 /**
  * Prisma `where` fragment for "this payment needs admin review":
- *   reviewedAt IS NULL AND (freeAccount OR stoppedAccount
+ *   reviewedAt IS NULL AND (freeAccount OR stoppedAccount OR debtAccount
  *                           OR notes set OR noteCategory set
  *                           OR id IN mismatchIds)
  *
@@ -86,6 +101,7 @@ export function unreviewedPaymentsWhereFragment(
 	OR: Array<
 		| { freeAccount: true }
 		| { stoppedAccount: true }
+		| { debtAccount: true }
 		| { notes: { not: null } }
 		| { noteCategory: { not: null } }
 		| { id: { in: string[] } }
@@ -96,6 +112,7 @@ export function unreviewedPaymentsWhereFragment(
 		OR: [
 			{ freeAccount: true },
 			{ stoppedAccount: true },
+			{ debtAccount: true },
 			{ notes: { not: null } },
 			{ noteCategory: { not: null } },
 			...(mismatchIds.length > 0

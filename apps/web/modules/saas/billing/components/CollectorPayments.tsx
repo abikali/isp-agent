@@ -116,12 +116,19 @@ export function CollectorPayments() {
 											{group.label}
 										</h3>
 										<span className="text-xs text-muted-foreground">
-											{group.payments.length}{" "}
-											{group.payments.length === 1
+											{group.billCount}{" "}
+											{group.billCount === 1
 												? "bill"
 												: "bills"}{" "}
 											&middot;{" "}
 											{formatCurrency(group.total)}
+											{group.debtCount > 0 && (
+												<span className="text-orange-600">
+													{" "}
+													&middot; {group.debtCount}{" "}
+													debt
+												</span>
+											)}
 										</span>
 									</div>
 								</div>
@@ -185,6 +192,8 @@ interface PaymentRowProps {
 		freeAccount: boolean;
 		stoppedAccount: boolean;
 		debtAccount?: boolean;
+		notes?: string | null;
+		noteCategory?: string | null;
 		customer?: {
 			firstName?: string | null;
 			lastName?: string | null;
@@ -207,6 +216,7 @@ function PaymentRow({ payment }: PaymentRowProps) {
 	const isStopped = payment.stoppedAccount;
 	const isFree = payment.freeAccount;
 	const isDebt = payment.debtAccount ?? false;
+	const note = payment.notes?.trim() || payment.noteCategory || "";
 	const phone = payment.customer?.mobile || payment.customer?.phone;
 
 	const rowClassName = isStopped
@@ -275,7 +285,7 @@ function PaymentRow({ payment }: PaymentRowProps) {
 						</div>
 					)}
 
-					{(isStopped || isFree) && (
+					{(isStopped || isFree || isDebt) && (
 						<div className="flex gap-1 pt-0.5">
 							{isStopped && (
 								<span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
@@ -287,7 +297,21 @@ function PaymentRow({ payment }: PaymentRowProps) {
 									Free
 								</span>
 							)}
+							{isDebt && (
+								<span className="rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-600">
+									Debt
+								</span>
+							)}
 						</div>
+					)}
+
+					{/* The note is the entire payload of a debt visit and was
+					    already being returned by listPayments — render it so the
+					    collector can see what the customer promised. */}
+					{note && (
+						<p className="pt-0.5 text-[11px] italic text-muted-foreground">
+							&ldquo;{note}&rdquo;
+						</p>
 					)}
 				</div>
 			</div>
@@ -301,6 +325,10 @@ interface GroupedDay {
 	key: string;
 	label: string;
 	total: number;
+	// Debt visits collect nothing, so counting them as "bills" against a $0
+	// contribution reads as a bill collected for nothing. Counted separately.
+	billCount: number;
+	debtCount: number;
 	payments: PaymentRowProps["payment"][];
 }
 
@@ -322,11 +350,18 @@ function groupByDay(payments: PaymentRowProps["payment"][]): GroupedDay[] {
 				key,
 				label: formatDate(payment.paidAt, DAY_FORMAT),
 				total: 0,
+				billCount: 0,
+				debtCount: 0,
 				payments: [],
 			};
 			map.set(key, group);
 		}
 		group.total += payment.paidAmount;
+		if (payment.debtAccount) {
+			group.debtCount++;
+		} else {
+			group.billCount++;
+		}
 		group.payments.push(payment);
 	}
 

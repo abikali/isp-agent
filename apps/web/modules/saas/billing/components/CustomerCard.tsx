@@ -18,6 +18,7 @@ import {
 	ChevronDownIcon,
 	ChevronUpIcon,
 	CopyIcon,
+	HandCoinsIcon,
 	MapPinIcon,
 	MessageCircleIcon,
 	NavigationIcon,
@@ -57,6 +58,11 @@ export interface UnpaidCustomer {
 	accumulatedDue?: number;
 	pastDueMonths?: number;
 	pastDueAmount?: number;
+	// Debt ("dein") visits already logged against the unpaid months shown
+	// here. Optional so customer shapes fetched from other endpoints still fit.
+	debtCount?: number;
+	lastDebtNote?: string | null;
+	lastDebtAt?: string | Date | null;
 }
 
 interface CustomerCardProps {
@@ -101,6 +107,12 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const expiry = getExpiryInfo(customer.oldestUnpaidExpiry ?? null);
 	const expiryDateLabel = customer.oldestUnpaidExpiry
 		? formatDate(customer.oldestUnpaidExpiry)
+		: "";
+	// A debt visit settles nothing, so the customer stays on this list. The
+	// marker is what stops the collector calling on him a second time blind.
+	const debtCount = customer.debtCount ?? 0;
+	const lastDebtLabel = customer.lastDebtAt
+		? formatDate(customer.lastDebtAt)
 		: "";
 	// All of the customer's numbers, primary first — customers often carry
 	// several and the collector needs every one, not just the primary.
@@ -164,8 +176,8 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 					</div>
 				</div>
 
-				{/* Badges: past due + expiry warning */}
-				{(pastDueMonths > 0 || expiry.label) && (
+				{/* Badges: past due + expiry warning + already-logged debt */}
+				{(pastDueMonths > 0 || expiry.label || debtCount > 0) && (
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{pastDueMonths > 0 && (
 							<Badge variant="destructive" className="text-xs">
@@ -179,7 +191,30 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 								{expiry.label}
 							</Badge>
 						)}
+						{debtCount > 0 && (
+							<Badge
+								variant="warning"
+								className="gap-1 text-xs"
+								title="A debt visit was already logged — the money is still owed"
+							>
+								<HandCoinsIcon className="size-3" />
+								{debtCount > 1 ? `Debt ×${debtCount}` : "Debt"}
+								{lastDebtLabel ? ` · ${lastDebtLabel}` : ""}
+							</Badge>
+						)}
 					</div>
+				)}
+
+				{/* The note is the whole point of a debt visit — what the
+				    customer actually promised. Show it without needing to
+				    expand the card. */}
+				{customer.lastDebtNote && (
+					<p className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+						<HandCoinsIcon className="mt-0.5 size-3 shrink-0" />
+						<span className="italic">
+							&ldquo;{customer.lastDebtNote}&rdquo;
+						</span>
+					</p>
 				)}
 
 				{/* Expandable details */}
