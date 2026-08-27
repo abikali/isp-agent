@@ -998,6 +998,7 @@ function InstallSubmitSheet({
 	const getUploadUrl = useUploadUrlGetter(organizationId);
 	const [lines, setLines] = useInstallLines(task);
 	const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+	const [note, setNote] = useState("");
 
 	const installedItems = linesToPayload(lines);
 	const valid = installedItems.length > 0 && photoUrl !== null;
@@ -1012,6 +1013,7 @@ function InstallSubmitSheet({
 				taskId: task.id,
 				installedItems,
 				photoUrl: photoUrl as string,
+				resolutionNote: note.trim() || undefined,
 			});
 			toast.success("Installation submitted for approval");
 			onClose();
@@ -1045,6 +1047,16 @@ function InstallSubmitSheet({
 					value={photoUrl}
 					onChange={setPhotoUrl}
 					getUploadUrl={getUploadUrl}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label htmlFor="install-note">Note (optional)</Label>
+				<Textarea
+					id="install-note"
+					value={note}
+					onChange={(e) => setNote(e.target.value)}
+					rows={2}
+					placeholder="Anything worth noting?"
 				/>
 			</div>
 		</SubmitSheet>

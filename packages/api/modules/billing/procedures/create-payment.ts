@@ -351,8 +351,11 @@ export const createPayment = protectedProcedure
 		// several owed months is split into one settlement row per month (oldest
 		// first) so every owed invoice clears — not just the active month.
 		let payment: PaymentRow;
+		// Every row the lump settled — one per owed month. Each is receipted
+		// on its own; see the receipt block below.
+		let settledRows: PaymentRow[];
 		try {
-			payment = await db.$transaction(async (tx) => {
+			const result = await db.$transaction(async (tx) => {
 				const baseData = {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
@@ -499,8 +502,10 @@ export const createPayment = protectedProcedure
 						message: "Payment creation produced no rows",
 					});
 				}
-				return primary;
+				return { primary, created };
 			});
+			payment = result.primary;
+			settledRows = result.created;
 		} catch (err) {
 			// A racing double-submit trips the invoiceId unique constraint.
 			if (
@@ -515,11 +520,14 @@ export const createPayment = protectedProcedure
 			throw err;
 		}
 
-		// Log payment creation activity
+		// Log payment creation activity on every settled row. A lump that
+		// cleared three months produces three rows, and each one now carries
+		// its own receipt entry — a row whose log opened with a receipt and no
+		// creation entry would read as though it appeared from nowhere.
 		const collectorName = collector.name;
 		db.payment
-			.update({
-				where: { id: payment.id },
+			.updateMany({
+				where: { id: { in: settledRows.map((row) => row.id) } },
 				data: {
 					activityLog: [
 						{
@@ -537,19 +545,30 @@ export const createPayment = protectedProcedure
 				}),
 			);
 
-		// Queue WhatsApp receipt via background worker (skip for stopped
-		// accounts and debt visits — nothing was collected)
+		// Queue WhatsApp receipts via background worker (skip for stopped
+		// accounts and debt visits — nothing was collected).
+		//
+		// One receipt per settled month, not one per collection. A lump that
+		// clears several owed months creates a settlement row per month, and
+		// the public /invoice/$paymentId page renders exactly one row: its
+		// month, its invoice total, its allocated `paidAmount`. Receipting only
+		// the primary row therefore sent the customer a single message naming
+		// one month and a number smaller than what they actually handed over,
+		// with the other months getting no record at all.
 		if (!input.stoppedAccount && !input.debtAccount) {
 			const phone = input.customerPhones
 				? getPrimaryPhone(input.customerPhones)
 				: (customer.mobile ?? customer.phone);
 			if (phone) {
-				queueWhatsAppReceipt({ phone, paymentId: payment.id }).catch(
-					(err) =>
-						logger.warn("[WhatsApp Receipt] Failed to queue job", {
-							error: String(err),
-						}),
-				);
+				for (const row of settledRows) {
+					queueWhatsAppReceipt({ phone, paymentId: row.id }).catch(
+						(err) =>
+							logger.warn(
+								"[WhatsApp Receipt] Failed to queue job",
+								{ error: String(err), paymentId: row.id },
+							),
+					);
+				}
 			}
 		}
 
