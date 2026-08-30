@@ -354,6 +354,20 @@ model Organization {
   // their customers should never flow to/from the legacy iRadius system.
   iradiusDisabled Boolean @default(false)
 
+  // True for the ONE org that operates the iRadius admin account (Liban-Com).
+  //
+  // In iRadius the dealer hierarchy is effectively flat: ~30 dealers all sit
+  // at `User.ParentId = 1` (the admin), so "sub-dealer of Liban-Com" is not
+  // expressible as a parent link — johnnyh is a sibling of the resellers, not
+  // their parent. Wholesale revenue is therefore "charges against every
+  // top-level dealer except my own", which only makes sense for the operator.
+  // A reseller org (dotnet2, elie-mrad, …) is a leaf: its wholesale revenue is
+  // whatever it bills its OWN sub-dealers, which for most of them is nothing.
+  //
+  // Without this flag every org ingested every dealer's charges — see
+  // `syncDealerCharges`.
+  isWholesaleOperator Boolean @default(false)
+
   // Notification & automation toggles for the collector "stopped payment"
   // flow (see billing create-payment). Default true preserves existing
   // behavior: a "Review stopped payment" task + admin notification are
@@ -2220,7 +2234,11 @@ model DealerCharge {
   organizationId String
   dealerId       String
   /// `DealerBillingLog.Id` — the idempotency key for re-runnable syncs.
-  externalId     String   @unique
+  /// Unique per ORG, never globally: two orgs can legitimately hold the same
+  /// iRadius charge id. A global unique meant the first org to sync claimed
+  /// every row and every later org silently skipped them as duplicates —
+  /// which is how all 89,483 rows ended up owned by dotnet2 on 2026-08-28.
+  externalId     String
   /// RENEW | NEW USER | ADD EXTRA TIME | CREDIT | REFUND | …
   type           String
   /// Charged to the dealer (wholesale revenue for us).
@@ -2237,6 +2255,7 @@ model DealerCharge {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   dealer       IspDealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, externalId])
   @@index([organizationId, operationDate])
   @@index([dealerId, operationDate])
   @@index([type])

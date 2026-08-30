@@ -69,6 +69,14 @@ export async function fetchRetailRevenue(
  * dealer are excluded at sync time — iRadius bills the operator for his own
  * subscribers at an internal transfer price, and counting it here would double
  * the revenue of every subscriber he already collects from directly.
+ *
+ * NOTE on dealer scoping: unlike every other query in this file, `dealerId`
+ * here is the COUNTERPARTY being billed, not the owner of the row. Ownership
+ * is `organizationId` alone. Filtering to `dealerId = activeDealerId` — the
+ * shape used by `fetchRetailRevenue` and friends — would select exactly the
+ * master's own internal-transfer rows and report zero wholesale revenue. The
+ * master exclusion below is the correct guard, and it is belt-and-braces:
+ * `syncDealerCharges` already refuses to store those rows.
  */
 export async function fetchWholesaleRevenue(
 	scope: FinanceScope,
@@ -84,10 +92,18 @@ export async function fetchWholesaleRevenue(
 	 *  false-loss this module exists to fix. */
 	neverSynced: boolean;
 }> {
+	// The org's own dealer is the counterparty on its internal-transfer rows.
+	// `NOT` on a nullable column would also drop rows where `dealerId` is
+	// null, but `dealer_charge.dealerId` is non-nullable, so this is safe.
+	const notMaster = scope.activeDealerId
+		? { dealerId: { not: scope.activeDealerId } }
+		: {};
+
 	const [charges, settlements, everSynced] = await Promise.all([
 		db.dealerCharge.aggregate({
 			where: {
 				organizationId: scope.organizationId,
+				...notMaster,
 				type: { in: [...WHOLESALE_CHARGE_TYPES] },
 				operationDate: { gte: period.from, lt: period.to },
 			},
@@ -97,13 +113,14 @@ export async function fetchWholesaleRevenue(
 		db.dealerCharge.aggregate({
 			where: {
 				organizationId: scope.organizationId,
+				...notMaster,
 				type: { in: ["CREDIT", "REFUND", "TRANSFER COMMISSION"] },
 				operationDate: { gte: period.from, lt: period.to },
 			},
 			_sum: { credit: true },
 		}),
 		db.dealerCharge.findFirst({
-			where: { organizationId: scope.organizationId },
+			where: { organizationId: scope.organizationId, ...notMaster },
 			select: { id: true },
 		}),
 	]);

@@ -1968,6 +1968,11 @@ async function processIRadiusSync(
 			// sync, instead of lingering with a stale `dealerId`.
 			const seenCustomerExtIds = new Set<string>();
 
+			// iRadius dealers that own customers in our scope but have no local
+			// `IspDealer` row. Collected rather than guessed at, and reported as
+			// a sync error so the operator knows to run a dealers-only sync.
+			const unresolvedDealerExtIds = new Set<number>();
+
 			// Unlinked-by-username map: locally-created rows (externalId IS NULL)
 			// that we'll try to claim by matching iRadius UserName. Only single-
 			// occurrence usernames are eligible — ambiguous matches (the same
@@ -2067,24 +2072,43 @@ async function processIRadiusSync(
 				// Cross-dealer guard: if this iRadius customer is parented to
 				// a dealer outside our org's allowed subtree, skip the row
 				// entirely (no insert, no update). ParentId === 1 means the
-				// admin user — those flow through to the activeDealerId
-				// fallback like before. A null/0 ParentId, or one that maps
-				// to no IspDealer record (deleted dealer, etc.), also falls
-				// through to the legacy behaviour for backwards compat.
+				// admin user and null/0 means no parent at all; neither occurs
+				// for ProfileId = 4 in production, but both fall through to
+				// the activeDealerId fallback as they always have.
+				//
+				// The guard deliberately does NOT require the parent to be a
+				// dealer we already know locally. It used to, and that was the
+				// hole: a customer under a dealer with no `IspDealer` row fell
+				// straight through to `?? activeDealerId` and was claimed by
+				// whichever org happened to sync. `hayanetbh2` (iRadius 84313)
+				// was created upstream without a dealers-only sync since, so
+				// on 2026-08-28 its 26 subscribers were imported into dotnet2
+				// and shown to its owner as his own. An unknown parent is the
+				// case where we are LEAST entitled to claim a customer.
 				//
 				// NOTE: when this guard fires we deliberately do NOT add the
 				// extId to `seenCustomerExtIds`. End-of-phase cleanup will
 				// then soft-delete this row from our DB if it's currently
 				// here, which is what we want — the customer now belongs to a
 				// dealer outside this org's subtree.
-				if (
+				const hasRealParent =
 					custParentId !== null &&
 					custParentId !== 0 &&
-					custParentId !== 1 &&
-					dealerMap.has(custParentId) &&
+					custParentId !== 1;
+
+				if (
+					hasRealParent &&
 					allowedIRadiusDealerExtIds.size > 0 &&
 					!allowedIRadiusDealerExtIds.has(custParentId)
 				) {
+					continue;
+				}
+
+				// In scope, but we cannot name the dealer locally. Claiming it
+				// under `activeDealerId` would mis-attribute the customer, so
+				// skip and surface it — the fix is a dealers-only sync.
+				if (hasRealParent && !dealerMap.has(custParentId)) {
+					unresolvedDealerExtIds.add(custParentId);
 					continue;
 				}
 
@@ -2448,18 +2472,55 @@ async function processIRadiusSync(
 				}
 			}
 
+			// Which orphaned iRadius users THIS org actually has a financial
+			// back-reference to. An orphan has no `User` row and therefore no
+			// `ParentId`, so the cross-dealer guard above cannot classify it —
+			// this map is the dealer scope for orphans.
+			//
+			// Without it the loop created a stub for every orphan in every org:
+			// 7,230 orphaned ids in iRadius `Invoice`/`UserBalance` produced
+			// ~7,000 "Deleted user" rows in each of the six orgs, none of which
+			// anchored anything (billing-sync links by `username`, which a stub
+			// does not have, and nothing reads `externalUserId`).
+			const orphanBackRefs = new Map<string, string>();
+			for (const ref of await db.dealerCharge.findMany({
+				where: { organizationId, externalUserId: { not: null } },
+				select: { externalUserId: true, dealerId: true },
+				distinct: ["externalUserId"],
+			})) {
+				if (ref.externalUserId) {
+					orphanBackRefs.set(ref.externalUserId, ref.dealerId);
+				}
+			}
+
 			// Process orphaned users (iRadius IDs deleted from `User` but still
 			// referenced by `UserBalance`/`Invoice` financial records).
 			for (const orphan of orphanIds) {
 				const userId = orphan["Id"] as number;
 				const extId = String(userId);
-				// Orphans count as "seen" — they're real iRadius identities we
-				// keep around for financial reporting, so they must survive the
-				// end-of-phase cleanup.
-				seenCustomerExtIds.add(extId);
 
 				const existing = customerRecordByExtId.get(extId);
 				if (existing) {
+					// Does this org still have a reason to hold this row?
+					//
+					// A stub of our own is worth keeping only while a financial
+					// record still points at it. A REAL customer is kept when
+					// it sits under our own dealer — a row left over from a
+					// pre-guard import under someone else's dealer must be
+					// allowed to soft-delete like any other cross-dealer
+					// customer. Previously being an orphan made a customer
+					// permanently "seen" and so immune to cleanup, which is why
+					// 17 of sakonet's, vipernet's and georgesabboud's
+					// subscribers stayed live in dotnet2.
+					const keep =
+						existing.notes === ORPHAN_STUB_NOTES
+							? orphanBackRefs.has(extId)
+							: existing.dealerId === activeDealerId;
+					if (!keep) {
+						continue;
+					}
+					// Still ours — keep it through the end-of-phase cleanup.
+					seenCustomerExtIds.add(extId);
 					// Our own minimal stub, or already soft-deleted → nothing to
 					// do; it stays as-is.
 					if (
@@ -2524,8 +2585,19 @@ async function processIRadiusSync(
 					continue;
 				}
 
-				// No local row yet → create the minimal stub that anchors the
-				// financial back-references.
+				// No local row. Only anchor an orphan this org actually has a
+				// financial back-reference to — otherwise it is some other
+				// dealer's deleted subscriber and a stub here is pure noise.
+				const backRefDealerId = orphanBackRefs.get(extId);
+				if (backRefDealerId === undefined) {
+					continue;
+				}
+
+				seenCustomerExtIds.add(extId);
+
+				// Create the minimal stub that anchors the financial
+				// back-references, carrying the dealer from the charge that
+				// referenced it so cleanup can scope it on later runs.
 				try {
 					const accountNumber = nextAccountNumber();
 					const created = await db.customer.create({
@@ -2535,6 +2607,7 @@ async function processIRadiusSync(
 							firstName: "Deleted",
 							lastName: `User #${userId}`,
 							externalId: extId,
+							dealerId: backRefDealerId,
 							status: "INACTIVE",
 							notes: ORPHAN_STUB_NOTES,
 							lastSyncedAt: syncTimestamp,
@@ -2554,6 +2627,13 @@ async function processIRadiusSync(
 			// from a customer, which would wipe historical financial and
 			// install records. Soft delete keeps the customer reachable by id
 			// for those back-references while removing them from list views.
+			if (unresolvedDealerExtIds.size > 0) {
+				result.errors.push({
+					phase: "customers",
+					detail: `Skipped customers under ${unresolvedDealerExtIds.size} iRadius dealer(s) with no local record (${[...unresolvedDealerExtIds].join(", ")}). Run a dealers-only sync, then re-sync this organization.`,
+				});
+			}
+
 			result.customers.removed = await softDeleteStaleRecords({
 				delegate: db.customer,
 				existing: existingCustomersForCleanup,
