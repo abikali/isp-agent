@@ -195,6 +195,7 @@ export function useUnpaidCustomers(filters: {
 		total: query.data?.total ?? 0,
 		totalAmountDue: query.data?.totalAmountDue ?? 0,
 		expiredCount: query.data?.expiredCount ?? 0,
+		unassignedCount: query.data?.unassignedCount ?? 0,
 		isLoading: query.isLoading,
 		page: query.data?.page ?? 1,
 		pageSize: query.data?.pageSize ?? 25,

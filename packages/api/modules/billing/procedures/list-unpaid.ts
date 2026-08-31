@@ -89,6 +89,7 @@ export const listUnpaidCustomers = protectedProcedure
 				total: 0,
 				totalAmountDue: 0,
 				expiredCount: 0,
+				unassignedCount: 0,
 				page: input.page,
 				pageSize: input.pageSize,
 				totalPages: 0,
@@ -232,6 +233,7 @@ export const listUnpaidCustomers = protectedProcedure
 				total: 0,
 				totalAmountDue: 0,
 				expiredCount: 0,
+				unassignedCount: 0,
 				page: input.page,
 				pageSize: input.pageSize,
 				totalPages: 0,
@@ -438,6 +440,12 @@ export const listUnpaidCustomers = protectedProcedure
 		const expiredCount = rows.filter(
 			(r) => r.oldestUnpaidExpiry && r.oldestUnpaidExpiry < now,
 		).length;
+		// Customers nobody is assigned to collect from. They sit in the list
+		// forever unless an admin notices, so the count is surfaced even when
+		// the rows themselves are on a later page.
+		const unassignedCount = rows.filter(
+			(r) => !r.customer.collector,
+		).length;
 
 		const skip = (input.page - 1) * input.pageSize;
 		const pageRows = rows.slice(skip, skip + input.pageSize).map((r) => {
@@ -466,6 +474,7 @@ export const listUnpaidCustomers = protectedProcedure
 			total,
 			totalAmountDue,
 			expiredCount,
+			unassignedCount,
 			page: input.page,
 			pageSize: input.pageSize,
 			totalPages: Math.ceil(total / input.pageSize),

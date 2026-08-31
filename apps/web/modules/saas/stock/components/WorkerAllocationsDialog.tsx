@@ -5,6 +5,7 @@ import { SearchInput } from "@shared/components/SearchInput";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Dialog,
@@ -12,13 +13,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { BoxesIcon, ChevronRightIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useStockItemsQuery, useWorkerStockQuery } from "../hooks/use-stock";
@@ -60,6 +54,14 @@ export function WorkerAllocationsDialog({
 	const { items, isLoading: itemsLoading } = useStockItemsQuery();
 	const { allocations, totalValue, isLoading } = useWorkerStockQuery(
 		employeeId === "all" ? null : employeeId,
+	);
+
+	const employeeOptions = useMemo(
+		() => [
+			{ value: "all", label: "All workers (overview)" },
+			...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+		],
+		[employees],
 	);
 
 	const selectWorker = useCallback((id: string) => {
@@ -250,21 +252,14 @@ export function WorkerAllocationsDialog({
 				</DialogHeader>
 				<div className="space-y-3">
 					<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-						<Select value={employeeId} onValueChange={selectWorker}>
-							<SelectTrigger className="sm:w-56">
-								<SelectValue placeholder="Select worker" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">
-									All workers (overview)
-								</SelectItem>
-								{employees.map((emp) => (
-									<SelectItem key={emp.id} value={emp.id}>
-										{emp.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<Combobox
+							options={employeeOptions}
+							value={employeeId}
+							onChange={selectWorker}
+							searchPlaceholder="Search workers…"
+							emptyText="No workers found"
+							className="sm:w-56"
+						/>
 						<SearchInput
 							placeholder={
 								isAll ? "Search workers…" : "Search items…"

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -11,13 +12,6 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -434,9 +428,8 @@ interface BulkChangeCollectorDialogProps extends BulkDialogShellProps {
 	collectors: Array<{ id: string; name: string }>;
 }
 
-// Sentinel value used in the Select to represent "no collector" because
-// Radix's `<SelectItem value="">` is reserved for the placeholder slot.
-// We translate it back to `null` on submit.
+// Sentinel value used in the picker to represent "no collector" — an empty
+// string can't be an option value. We translate it back to `null` on submit.
 const NONE = "__none__";
 
 function BulkChangeCollectorBody({
@@ -484,21 +477,20 @@ function BulkChangeCollectorBody({
 			</DialogHeader>
 			<div>
 				<Label htmlFor="bulk-collector">Collector</Label>
-				<Select value={value} onValueChange={setValue}>
-					<SelectTrigger id="bulk-collector">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value={NONE}>
-							— Unassign collector —
-						</SelectItem>
-						{collectors.map((c) => (
-							<SelectItem key={c.id} value={c.id}>
-								{c.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<Combobox
+					id="bulk-collector"
+					options={[
+						{ value: NONE, label: "— Unassign collector —" },
+						...collectors.map((c) => ({
+							value: c.id,
+							label: c.name,
+						})),
+					]}
+					value={value}
+					onChange={setValue}
+					searchPlaceholder="Search collectors…"
+					emptyText="No collectors found"
+				/>
 			</div>
 			<DialogFooter>
 				<Button variant="outline" onClick={() => onOpenChange(false)}>

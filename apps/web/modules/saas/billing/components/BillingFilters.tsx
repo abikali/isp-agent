@@ -1,12 +1,7 @@
 "use client";
 
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
+import { Combobox } from "@ui/components/combobox";
+import { useMemo } from "react";
 
 interface CollectorSelectProps {
 	value: string;
@@ -27,26 +22,26 @@ export function CollectorSelect({
 	includeUnassigned,
 	className = "w-full sm:w-[160px]",
 }: CollectorSelectProps) {
+	const options = useMemo(
+		() => [
+			{ value: "all", label: "All collectors" },
+			...(includeUnassigned
+				? [{ value: "none", label: "Unassigned" }]
+				: []),
+			...collectors.map((c) => ({ value: c.id, label: c.name })),
+		],
+		[collectors, includeUnassigned],
+	);
+
 	return (
-		<Select
+		<Combobox
+			options={options}
 			value={value || "all"}
-			onValueChange={(val) => onChange(val === "all" ? "" : val)}
-		>
-			<SelectTrigger className={className}>
-				<SelectValue placeholder="All collectors" />
-			</SelectTrigger>
-			<SelectContent>
-				<SelectItem value="all">All collectors</SelectItem>
-				{includeUnassigned && (
-					<SelectItem value="none">Unassigned</SelectItem>
-				)}
-				{collectors.map((c) => (
-					<SelectItem key={c.id} value={c.id}>
-						{c.name}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+			onChange={(val) => onChange(val === "all" ? "" : val)}
+			searchPlaceholder="Search collectors…"
+			emptyText="No collectors found"
+			className={className}
+		/>
 	);
 }
 
@@ -66,27 +61,25 @@ export function GroupSelect({
 	excludeFree,
 	className = "w-full sm:w-[160px]",
 }: GroupSelectProps) {
-	const filteredGroups = excludeFree
-		? groups.filter((g) => g.toLowerCase() !== "free")
-		: groups;
+	const options = useMemo(
+		() => [
+			{ value: "all", label: "All areas" },
+			{ value: "none", label: "No area" },
+			...groups
+				.filter((g) => !excludeFree || g.toLowerCase() !== "free")
+				.map((g) => ({ value: g, label: g })),
+		],
+		[groups, excludeFree],
+	);
 
 	return (
-		<Select
+		<Combobox
+			options={options}
 			value={value || "all"}
-			onValueChange={(val) => onChange(val === "all" ? "" : val)}
-		>
-			<SelectTrigger className={className}>
-				<SelectValue placeholder="All areas" />
-			</SelectTrigger>
-			<SelectContent>
-				<SelectItem value="all">All areas</SelectItem>
-				<SelectItem value="none">No area</SelectItem>
-				{filteredGroups.map((g) => (
-					<SelectItem key={g} value={g}>
-						{g}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+			onChange={(val) => onChange(val === "all" ? "" : val)}
+			searchPlaceholder="Search areas…"
+			emptyText="No areas found"
+			className={className}
+		/>
 	);
 }

@@ -4,6 +4,7 @@ import { emailSchema } from "@repo/api/lib/validation";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -312,24 +313,17 @@ export function CreateCustomerDialog({
 								{(field) => (
 									<div className="space-y-2">
 										<Label>Plan</Label>
-										<Select
+										<Combobox
+											options={plans.map((p) => ({
+												value: p.id,
+												label: p.name,
+											}))}
 											value={field.state.value}
-											onValueChange={field.handleChange}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="Select plan" />
-											</SelectTrigger>
-											<SelectContent>
-												{plans.map((p) => (
-													<SelectItem
-														key={p.id}
-														value={p.id}
-													>
-														{p.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
+											onChange={field.handleChange}
+											placeholder="Select plan"
+											searchPlaceholder="Search plans…"
+											emptyText="No plans found"
+										/>
 									</div>
 								)}
 							</form.Field>
@@ -337,24 +331,17 @@ export function CreateCustomerDialog({
 								{(field) => (
 									<div className="space-y-2">
 										<Label>Station</Label>
-										<Select
+										<Combobox
+											options={stations.map((s) => ({
+												value: s.id,
+												label: s.name,
+											}))}
 											value={field.state.value}
-											onValueChange={field.handleChange}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="Select station" />
-											</SelectTrigger>
-											<SelectContent>
-												{stations.map((s) => (
-													<SelectItem
-														key={s.id}
-														value={s.id}
-													>
-														{s.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
+											onChange={field.handleChange}
+											placeholder="Select station"
+											searchPlaceholder="Search stations…"
+											emptyText="No stations found"
+										/>
 									</div>
 								)}
 							</form.Field>

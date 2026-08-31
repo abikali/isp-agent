@@ -5,16 +5,10 @@ import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { FieldError } from "@ui/components/field";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import {
 	Sheet,
 	SheetContent,
@@ -114,27 +108,23 @@ export function CreateDealerDialog({
 							{(field) => (
 								<div className="space-y-2">
 									<Label>Organization</Label>
-									<Select
+									<Combobox
+										options={[
+											{
+												value: "none",
+												label: "No organization (assign later)",
+											},
+											...organizations.map((org) => ({
+												value: org.id,
+												label: org.name,
+											})),
+										]}
 										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="No organization (assign later)" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="none">
-												No organization (assign later)
-											</SelectItem>
-											{organizations.map((org) => (
-												<SelectItem
-													key={org.id}
-													value={org.id}
-												>
-													{org.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										onChange={field.handleChange}
+										placeholder="No organization (assign later)"
+										searchPlaceholder="Search organizations…"
+										emptyText="No organizations found"
+									/>
 								</div>
 							)}
 						</form.Field>
@@ -315,27 +305,20 @@ export function CreateDealerDialog({
 							{(field) => (
 								<div className="space-y-2">
 									<Label>Parent Dealer</Label>
-									<Select
+									<Combobox
+										options={[
+											{ value: "none", label: "None" },
+											...parentDealers.map((d) => ({
+												value: d.id,
+												label: d.name,
+											})),
+										]}
 										value={field.state.value}
-										onValueChange={field.handleChange}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="None" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="none">
-												None
-											</SelectItem>
-											{parentDealers.map((d) => (
-												<SelectItem
-													key={d.id}
-													value={d.id}
-												>
-													{d.name}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										onChange={field.handleChange}
+										placeholder="None"
+										searchPlaceholder="Search dealers…"
+										emptyText="No dealers found"
+									/>
 								</div>
 							)}
 						</form.Field>

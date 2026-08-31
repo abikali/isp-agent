@@ -11,6 +11,7 @@ import { PageShell } from "@shared/components/PageShell";
 import { formatDateTime } from "@shared/lib/format";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
+import { Combobox } from "@ui/components/combobox";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Select,
@@ -53,6 +54,20 @@ export function StockLogList() {
 
 	const { items } = useStockItemsQuery();
 	const { employees } = useEmployeesQuery({ role: "worker" });
+	const itemOptions = useMemo(
+		() => [
+			{ value: "all", label: "All items" },
+			...items.map((item) => ({ value: item.id, label: item.name })),
+		],
+		[items],
+	);
+	const employeeOptions = useMemo(
+		() => [
+			{ value: "all", label: "All workers" },
+			...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+		],
+		[employees],
+	);
 	const { logs, total, totalPages } = useStockLogs({
 		stockItemId,
 		employeeId,
@@ -189,44 +204,28 @@ export function StockLogList() {
 			<ContentCard>
 				<ContentCardToolbar>
 					<div className="flex flex-wrap items-center gap-2">
-						<Select
+						<Combobox
+							options={itemOptions}
 							value={stockItemId ?? "all"}
-							onValueChange={(v) => {
+							onChange={(v) => {
 								setStockItemId(v === "all" ? undefined : v);
 								setPage(1);
 							}}
-						>
-							<SelectTrigger className="w-44">
-								<SelectValue placeholder="All items" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All items</SelectItem>
-								{items.map((item) => (
-									<SelectItem key={item.id} value={item.id}>
-										{item.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<Select
+							searchPlaceholder="Search items…"
+							emptyText="No items found"
+							className="w-44"
+						/>
+						<Combobox
+							options={employeeOptions}
 							value={employeeId ?? "all"}
-							onValueChange={(v) => {
+							onChange={(v) => {
 								setEmployeeId(v === "all" ? undefined : v);
 								setPage(1);
 							}}
-						>
-							<SelectTrigger className="w-44">
-								<SelectValue placeholder="All workers" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All workers</SelectItem>
-								{employees.map((emp) => (
-									<SelectItem key={emp.id} value={emp.id}>
-										{emp.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							searchPlaceholder="Search workers…"
+							emptyText="No workers found"
+							className="w-44"
+						/>
 						<Select
 							value={action ?? "all"}
 							onValueChange={(v) => {

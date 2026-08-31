@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -522,31 +523,23 @@ function EmployeeMappingModal({
 								</div>
 
 								{mapping.action === "map" && (
-									<Select
+									<Combobox
+										options={allEmployees.map((e) => ({
+											value: e.id,
+											label: e.department
+												? `${e.name} — ${e.department}`
+												: e.name,
+										}))}
 										value={mapping.targetEmployeeId ?? ""}
-										onValueChange={(val) => {
+										onChange={(val) => {
 											updateMapping(emp.username, {
 												targetEmployeeId: val,
 											});
 										}}
-									>
-										<SelectTrigger className="w-full">
-											<SelectValue placeholder="Select existing employee..." />
-										</SelectTrigger>
-										<SelectContent>
-											{allEmployees.map((e) => (
-												<SelectItem
-													key={e.id}
-													value={e.id}
-												>
-													{e.name}
-													{e.department
-														? ` — ${e.department}`
-														: ""}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										placeholder="Select existing employee..."
+										searchPlaceholder="Search employees…"
+										emptyText="No employees found"
+									/>
 								)}
 							</div>
 						);

@@ -9,6 +9,7 @@ import { FilterBar } from "@shared/components/FilterBar";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
+import { Combobox } from "@ui/components/combobox";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Select,
@@ -171,26 +172,22 @@ export function AccessPointsList() {
 					onReset={resetFilters}
 				>
 					{stations.length > 0 && (
-						<Select
+						<Combobox
 							value={stationFilter || "all"}
-							onValueChange={(val) =>
+							onChange={(val) =>
 								setStationFilter(val === "all" ? "" : val)
 							}
-						>
-							<SelectTrigger className="w-full sm:w-[170px]">
-								<SelectValue placeholder="All stations" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">
-									All stations
-								</SelectItem>
-								{stations.map((s) => (
-									<SelectItem key={s.id} value={s.id}>
-										{s.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							options={[
+								{ value: "all", label: "All stations" },
+								...stations.map((s) => ({
+									value: s.id,
+									label: s.name,
+								})),
+							]}
+							searchPlaceholder="Search stations…"
+							emptyText="No stations found"
+							className="w-full sm:w-[170px]"
+						/>
 					)}
 					<Select
 						value={onlineFilter || "all"}

@@ -18,6 +18,7 @@ import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Dialog,
@@ -114,6 +115,16 @@ export function ExpensesList() {
 	};
 
 	const { workers, categories, buckets } = useExpenseFilterOptions(status);
+	const workerOptions = useMemo(
+		() => [
+			{ value: "all", label: "All workers" },
+			...workers.map((w) => ({
+				value: w.id,
+				label: `${w.name} (${w.count})`,
+			})),
+		],
+		[workers],
+	);
 	const { summary } = useExpenseSummary(filters);
 	const { expenses, total, isLoading, isFetching, error } = useExpenses({
 		...filters,
@@ -413,25 +424,17 @@ export function ExpensesList() {
 							</SelectContent>
 						</Select>
 
-						<Select
+						<Combobox
+							options={workerOptions}
 							value={employeeId ?? "all"}
-							onValueChange={(v) => {
+							onChange={(v) => {
 								setEmployeeId(v === "all" ? undefined : v);
 								resetPage();
 							}}
-						>
-							<SelectTrigger className="w-40 shrink-0">
-								<SelectValue placeholder="All workers" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All workers</SelectItem>
-								{workers.map((w) => (
-									<SelectItem key={w.id} value={w.id}>
-										{w.name} ({w.count})
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							searchPlaceholder="Search workers…"
+							emptyText="No workers found"
+							className="w-40 shrink-0"
+						/>
 
 						<Select
 							value={bucketId ?? "all"}

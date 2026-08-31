@@ -3,6 +3,7 @@
 import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Label } from "@ui/components/label";
 import {
 	Popover,
@@ -18,7 +19,7 @@ import {
 } from "@ui/components/select";
 import { cn } from "@ui/lib";
 import { ListFilterIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePlansQuery } from "../hooks/use-plans";
 import { useStationsQuery } from "../hooks/use-stations";
 import {
@@ -55,6 +56,37 @@ export function CustomerFilters({
 	const { groups } = useCustomerGroups();
 	const { data: collectorsData } = useCollectors();
 	const collectors = collectorsData?.collectors ?? [];
+
+	const planOptions = useMemo(
+		() => [
+			{ value: "all", label: "All plans" },
+			...plans.map((p) => ({ value: p.id, label: p.name })),
+		],
+		[plans],
+	);
+	const stationOptions = useMemo(
+		() => [
+			{ value: "all", label: "All stations" },
+			...stations.map((s) => ({ value: s.id, label: s.name })),
+		],
+		[stations],
+	);
+	const groupOptions = useMemo(
+		() => [
+			{ value: "all", label: "All groups" },
+			{ value: "none", label: "No group" },
+			...groups.map((g) => ({ value: g, label: g })),
+		],
+		[groups],
+	);
+	const collectorOptions = useMemo(
+		() => [
+			{ value: "all", label: "All collectors" },
+			{ value: "none", label: "Unassigned" },
+			...collectors.map((c) => ({ value: c.id, label: c.name })),
+		],
+		[collectors],
+	);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -123,85 +155,43 @@ export function CustomerFilters({
 					</FilterField>
 
 					<FilterField label="Plan">
-						<Select
+						<Combobox
+							options={planOptions}
 							value={value.planId}
-							onValueChange={(v) => onChange({ planId: v })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Plan" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All plans</SelectItem>
-								{plans.map((p) => (
-									<SelectItem key={p.id} value={p.id}>
-										{p.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={(v) => onChange({ planId: v })}
+							searchPlaceholder="Search plans…"
+							emptyText="No plans found"
+						/>
 					</FilterField>
 
 					<FilterField label="Station">
-						<Select
+						<Combobox
+							options={stationOptions}
 							value={value.stationId}
-							onValueChange={(v) => onChange({ stationId: v })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Station" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">
-									All stations
-								</SelectItem>
-								{stations.map((s) => (
-									<SelectItem key={s.id} value={s.id}>
-										{s.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={(v) => onChange({ stationId: v })}
+							searchPlaceholder="Search stations…"
+							emptyText="No stations found"
+						/>
 					</FilterField>
 
 					<FilterField label="Group">
-						<Select
+						<Combobox
+							options={groupOptions}
 							value={value.groupName}
-							onValueChange={(v) => onChange({ groupName: v })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Group" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All groups</SelectItem>
-								<SelectItem value="none">No group</SelectItem>
-								{groups.map((g) => (
-									<SelectItem key={g} value={g}>
-										{g}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={(v) => onChange({ groupName: v })}
+							searchPlaceholder="Search groups…"
+							emptyText="No groups found"
+						/>
 					</FilterField>
 
 					<FilterField label="Collector">
-						<Select
+						<Combobox
+							options={collectorOptions}
 							value={value.collectorId}
-							onValueChange={(v) => onChange({ collectorId: v })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Collector" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">
-									All collectors
-								</SelectItem>
-								<SelectItem value="none">Unassigned</SelectItem>
-								{collectors.map((c) => (
-									<SelectItem key={c.id} value={c.id}>
-										{c.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={(v) => onChange({ collectorId: v })}
+							searchPlaceholder="Search collectors…"
+							emptyText="No collectors found"
+						/>
 					</FilterField>
 
 					<FilterField label="Connection">

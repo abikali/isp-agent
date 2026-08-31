@@ -2,6 +2,7 @@
 
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
@@ -18,7 +19,7 @@ import {
 } from "@ui/components/select";
 import { cn } from "@ui/lib";
 import { ListFilterIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 // react-doctor-disable-next-line react-doctor/only-export-components -- filter option constants co-located with the filter that renders them; imported by host pages, moving would churn imports for no gain
 export const INSTALLATION_TYPE_OPTIONS = [
@@ -67,6 +68,13 @@ export function InstallationFilters({
 	showStatus,
 }: InstallationFiltersProps) {
 	const [open, setOpen] = useState(false);
+	const employeeOptions = useMemo(
+		() => [
+			{ value: "all", label: "All workers" },
+			...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+		],
+		[employees],
+	);
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -133,22 +141,13 @@ export function InstallationFilters({
 					</FilterField>
 
 					<FilterField label="Worker">
-						<Select
+						<Combobox
+							options={employeeOptions}
 							value={value.employeeId}
-							onValueChange={(v) => onChange({ employeeId: v })}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Worker" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All workers</SelectItem>
-								{employees.map((emp) => (
-									<SelectItem key={emp.id} value={emp.id}>
-										{emp.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={(v) => onChange({ employeeId: v })}
+							searchPlaceholder="Search workers…"
+							emptyText="No workers found"
+						/>
 					</FilterField>
 
 					{showStatus && (

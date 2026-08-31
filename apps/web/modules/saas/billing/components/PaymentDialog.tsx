@@ -7,6 +7,7 @@ import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -371,21 +372,17 @@ export function PaymentDialog({
 					{isOrganizationAdmin && collectors.length > 0 && (
 						<div>
 							<Label>Collector</Label>
-							<Select
+							<Combobox
+								options={collectors.map((c) => ({
+									value: c.id,
+									label: c.name,
+								}))}
 								value={selectedCollectorId}
-								onValueChange={setSelectedCollectorId}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Select collector" />
-								</SelectTrigger>
-								<SelectContent>
-									{collectors.map((c) => (
-										<SelectItem key={c.id} value={c.id}>
-											{c.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								onChange={setSelectedCollectorId}
+								placeholder="Select collector"
+								searchPlaceholder="Search collectors…"
+								emptyText="No collectors found"
+							/>
 						</div>
 					)}
 

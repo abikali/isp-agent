@@ -3,6 +3,7 @@
 import { useEmployeesQuery } from "@saas/employees/client";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -11,13 +12,6 @@ import {
 	DialogTitle,
 } from "@ui/components/dialog";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useDeliverToWorker, useReturnFromWorker } from "../hooks/use-stock";
@@ -50,6 +44,20 @@ export function DeliverToWorkerDialog({
 	const selectable = isDeliver
 		? employees
 		: employees.filter((e) => holders.has(e.id));
+
+	// Returns label each worker with how many of this item they hold.
+	const workerOptions = selectable.map((emp) => {
+		const held = item.workerAllocations.find(
+			(a) => a.employee.id === emp.id,
+		)?.quantity;
+		return {
+			value: emp.id,
+			label:
+				!isDeliver && held !== undefined
+					? `${emp.name} (holds ${held})`
+					: emp.name,
+		};
+	});
 
 	const selectedAllocation = item.workerAllocations.find(
 		(a) => a.employee.id === employeeId,
@@ -93,33 +101,14 @@ export function DeliverToWorkerDialog({
 				<div className="space-y-4">
 					<div className="space-y-1.5">
 						<Label>Worker</Label>
-						<Select
+						<Combobox
+							options={workerOptions}
 							value={employeeId}
-							onValueChange={setEmployeeId}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Select worker" />
-							</SelectTrigger>
-							<SelectContent>
-								{selectable.map((emp) => (
-									<SelectItem key={emp.id} value={emp.id}>
-										{emp.name}
-										{!isDeliver &&
-											(() => {
-												const alloc =
-													item.workerAllocations.find(
-														(a) =>
-															a.employee.id ===
-															emp.id,
-													);
-												return alloc
-													? ` (holds ${alloc.quantity})`
-													: "";
-											})()}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+							onChange={setEmployeeId}
+							placeholder="Select worker"
+							searchPlaceholder="Search workers…"
+							emptyText="No workers found"
+						/>
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="deliver-qty">

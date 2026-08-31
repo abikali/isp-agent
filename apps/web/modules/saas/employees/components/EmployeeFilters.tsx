@@ -2,6 +2,7 @@
 
 import { useStationsQuery } from "@saas/customers/client";
 import { FilterBar } from "@shared/components/FilterBar";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Select,
 	SelectContent,
@@ -88,19 +89,17 @@ export function EmployeeFilters({
 				</SelectContent>
 			</Select>
 
-			<Select value={stationId} onValueChange={onStationIdChange}>
-				<SelectTrigger className="w-full sm:w-[140px]">
-					<SelectValue placeholder="Station" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="all">All Stations</SelectItem>
-					{stations.map((s) => (
-						<SelectItem key={s.id} value={s.id}>
-							{s.name}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+			<Combobox
+				options={[
+					{ value: "all", label: "All Stations" },
+					...stations.map((s) => ({ value: s.id, label: s.name })),
+				]}
+				value={stationId}
+				onChange={onStationIdChange}
+				searchPlaceholder="Search stations…"
+				emptyText="No stations found"
+				className="w-full sm:w-[140px]"
+			/>
 		</FilterBar>
 	);
 }

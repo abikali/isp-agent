@@ -1,6 +1,7 @@
 "use client";
 
 import { useEmployeesQuery } from "@saas/employees/client";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import {
 	Select,
@@ -10,6 +11,7 @@ import {
 	SelectValue,
 } from "@ui/components/select";
 import { SearchIcon } from "lucide-react";
+import { useMemo } from "react";
 import {
 	TASK_CATEGORY_OPTIONS,
 	TASK_PRIORITY_OPTIONS,
@@ -42,6 +44,13 @@ export function TaskFilters({
 	onEmployeeIdChange,
 }: TaskFiltersProps) {
 	const { employees } = useEmployeesQuery({ role: "worker" });
+	const employeeOptions = useMemo(
+		() => [
+			{ value: "all", label: "All Assignees" },
+			...employees.map((emp) => ({ value: emp.id, label: emp.name })),
+		],
+		[employees],
+	);
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">
@@ -97,19 +106,14 @@ export function TaskFilters({
 				</SelectContent>
 			</Select>
 
-			<Select value={employeeId} onValueChange={onEmployeeIdChange}>
-				<SelectTrigger className="w-full sm:w-[150px]">
-					<SelectValue placeholder="Assignee" />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value="all">All Assignees</SelectItem>
-					{employees.map((emp) => (
-						<SelectItem key={emp.id} value={emp.id}>
-							{emp.name}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+			<Combobox
+				options={employeeOptions}
+				value={employeeId}
+				onChange={onEmployeeIdChange}
+				searchPlaceholder="Search assignees…"
+				emptyText="No assignees found"
+				className="w-full sm:w-[150px]"
+			/>
 		</div>
 	);
 }

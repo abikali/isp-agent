@@ -13,15 +13,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
+import { Combobox } from "@ui/components/combobox";
 import { Field, FieldLabel } from "@ui/components/field";
 import { Input } from "@ui/components/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import { Switch } from "@ui/components/switch";
 import {
 	CheckCircleIcon,
@@ -346,37 +340,29 @@ export function OrganizationForm({
 							<Field>
 								<FieldLabel>Assign Dealer</FieldLabel>
 								{dealers.length > 0 ? (
-									<Select
+									<Combobox
+										options={[
+											{
+												value: "none",
+												label: "No dealer (block access)",
+											},
+											...dealers.map((d) => ({
+												value: d.id,
+												label:
+													d.status === "ACTIVE"
+														? d.name
+														: `${d.name} (${d.status.toLowerCase()})`,
+											})),
+										]}
 										value={activeDealer?.id ?? "none"}
-										onValueChange={handleDealerChange}
+										onChange={handleDealerChange}
 										disabled={
 											setActiveDealerMutation.isPending
 										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select a dealer..." />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="none">
-												No dealer (block access)
-											</SelectItem>
-											{dealers.map((d) => (
-												<SelectItem
-													key={d.id}
-													value={d.id}
-												>
-													{d.name}
-													{d.status !== "ACTIVE" && (
-														<span className="ml-1.5 text-muted-foreground">
-															(
-															{d.status.toLowerCase()}
-															)
-														</span>
-													)}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+										placeholder="Select a dealer..."
+										searchPlaceholder="Search dealers…"
+										emptyText="No dealers found"
+									/>
 								) : (
 									<p className="text-sm text-muted-foreground rounded-md border border-dashed p-4 text-center">
 										No dealers found. Sync from iRadius
