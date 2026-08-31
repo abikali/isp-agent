@@ -41,7 +41,7 @@ export function EditPlanDialog({
 }) {
 	const organizationId = useOrganizationId();
 	const updatePlan = useUpdatePlan();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 
 	// Current worker-visibility set, loaded fresh (the list query is cached).
 	// `null` ⇒ not yet edited; fall back to the loaded value for display.

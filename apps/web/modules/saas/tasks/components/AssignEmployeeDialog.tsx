@@ -28,7 +28,7 @@ export function AssignEmployeeDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Assign Employees</DialogTitle>
+					<DialogTitle>Assign Workers</DialogTitle>
 				</DialogHeader>
 				{/* Remount on prop change so the local selection resets without a
 				    mirror effect. */}
@@ -53,7 +53,7 @@ function AssignEmployeeForm({
 	onClose: () => void;
 }) {
 	const organizationId = useOrganizationId();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const assignEmployees = useAssignTaskEmployees();
 	const [selected, setSelected] = useState<string[]>(
 		() => currentEmployeeIds,
@@ -86,7 +86,7 @@ function AssignEmployeeForm({
 			<div className="max-h-60 space-y-2 overflow-y-auto">
 				{employees.length === 0 ? (
 					<p className="text-sm text-muted-foreground">
-						No active employees available.
+						No active workers available.
 					</p>
 				) : (
 					employees.map((emp) => (

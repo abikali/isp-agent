@@ -107,10 +107,12 @@ export function useEmployeeReport(employeeId: string, months: 3 | 6 | 12 = 6) {
 export function useEmployeesQuery(opts?: {
 	dealerId?: string | null;
 	role?: string;
+	department?: EmployeeListInput["department"];
 }) {
 	const organizationId = useOrganizationId();
 	const dealerId = opts?.dealerId ?? undefined;
 	const role = opts?.role;
+	const department = opts?.department;
 
 	const query = useQuery(
 		organizationId
@@ -118,8 +120,15 @@ export function useEmployeesQuery(opts?: {
 					input: {
 						organizationId,
 						status: "ACTIVE",
+						// Pickers show the whole list at once, so ask for the
+						// full page in name order rather than the paginated
+						// table's newest-25 default.
+						pageSize: 100,
+						sortBy: "name",
+						sortOrder: "asc",
 						...(dealerId ? { dealerId } : {}),
 						...(role ? { role } : {}),
+						...(department ? { department } : {}),
 					},
 				})
 			: disabledQuery(["employees", "list"]),

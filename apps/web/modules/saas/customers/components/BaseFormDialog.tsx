@@ -35,7 +35,7 @@ export function BaseFormDialog({
 	const organizationId = useOrganizationId();
 	const createBase = useCreateBase();
 	const updateBase = useUpdateBase();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 
 	const isEdit = Boolean(base);
 

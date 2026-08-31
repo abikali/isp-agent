@@ -41,7 +41,7 @@ export function TaskFilters({
 	employeeId,
 	onEmployeeIdChange,
 }: TaskFiltersProps) {
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 
 	return (
 		<div className="flex flex-wrap items-center gap-3">

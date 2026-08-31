@@ -28,7 +28,7 @@ export function CreatePlanDialog({
 }) {
 	const organizationId = useOrganizationId();
 	const createPlan = useCreatePlan();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const [visibleWorkerIds, setVisibleWorkerIds] = useState<string[]>([]);
 
 	const form = useForm({
