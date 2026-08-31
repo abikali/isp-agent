@@ -51,7 +51,7 @@ export function WorkerAllocationsDialog({
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const [employeeId, setEmployeeId] = useState<string>("all");
 	const [search, setSearch] = useState("");
 

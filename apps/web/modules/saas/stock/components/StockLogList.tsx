@@ -52,7 +52,7 @@ export function StockLogList() {
 	const [action, setAction] = useState<StockAction | undefined>();
 
 	const { items } = useStockItemsQuery();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const { logs, total, totalPages } = useStockLogs({
 		stockItemId,
 		employeeId,

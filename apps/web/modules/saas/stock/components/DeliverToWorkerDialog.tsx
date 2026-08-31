@@ -36,7 +36,7 @@ export function DeliverToWorkerDialog({
 	mode: "deliver" | "return";
 }) {
 	const organizationId = useOrganizationId();
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const deliver = useDeliverToWorker();
 	const returnStock = useReturnFromWorker();
 	const [employeeId, setEmployeeId] = useState("");

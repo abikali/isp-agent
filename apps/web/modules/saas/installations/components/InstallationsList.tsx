@@ -493,7 +493,7 @@ export function InstallationsList({
 	const [notesFor, setNotesFor] = useState<Installation | null>(null);
 	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
-	const { employees } = useEmployeesQuery();
+	const { employees } = useEmployeesQuery({ role: "worker" });
 	const { pendingValue } = useInstallationStatsQuery();
 
 	const updateFilters = useCallback(
