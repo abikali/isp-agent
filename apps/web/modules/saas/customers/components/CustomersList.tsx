@@ -447,7 +447,11 @@ export function CustomersList({
 		if (filterValues.groupName !== "all") {
 			out.push({
 				key: "groupName",
-				label: `Group: ${filterValues.groupName}`,
+				label: `Group: ${
+					filterValues.groupName === "none"
+						? "No group"
+						: filterValues.groupName
+				}`,
 				onRemove: () => updateFilters({ groupName: "all" }),
 			});
 		}

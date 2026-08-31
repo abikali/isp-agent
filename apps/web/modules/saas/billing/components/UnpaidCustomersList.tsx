@@ -22,6 +22,7 @@ import {
 } from "@shared/lib/format";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { Alert, AlertDescription, AlertTitle } from "@ui/components/alert";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
@@ -41,6 +42,7 @@ import {
 	DollarSignIcon,
 	MessageCircleIcon,
 	PhoneIcon,
+	UserRoundXIcon,
 	UsersIcon,
 	WalletIcon,
 } from "lucide-react";
@@ -502,22 +504,28 @@ export function UnpaidCustomersList() {
 	const collectors = collectorsData?.collectors ?? [];
 	const today = formatDateInput();
 
-	const { customers, total, totalAmountDue, expiredCount, isLoading } =
-		useUnpaidCustomers({
-			year: activeMonth?.year,
-			month: activeMonth?.month,
-			collectorId: isOrganizationAdmin
-				? collectorFilter || undefined
-				: employee?.id,
-			search: debouncedSearch || undefined,
-			groupName: groupFilter || undefined,
-			excludeGroupName: groupFilter ? undefined : "free",
-			expiryTo: expiredOnly ? today : undefined,
-			page,
-			pageSize: 25,
-			sortBy,
-			sortOrder,
-		});
+	const {
+		customers,
+		total,
+		totalAmountDue,
+		expiredCount,
+		unassignedCount,
+		isLoading,
+	} = useUnpaidCustomers({
+		year: activeMonth?.year,
+		month: activeMonth?.month,
+		collectorId: isOrganizationAdmin
+			? collectorFilter || undefined
+			: employee?.id,
+		search: debouncedSearch || undefined,
+		groupName: groupFilter || undefined,
+		excludeGroupName: groupFilter ? undefined : "free",
+		expiryTo: expiredOnly ? today : undefined,
+		page,
+		pageSize: 25,
+		sortBy,
+		sortOrder,
+	});
 
 	// Calculate total amount due across visible page (for the footer).
 	// Uses the full accumulated balance so it matches the per-row amounts.
@@ -596,6 +604,35 @@ export function UnpaidCustomersList() {
 				expiredCount={expiredCount}
 				isLoading={isLoading}
 			/>
+
+			{isOrganizationAdmin &&
+				unassignedCount > 0 &&
+				collectorFilter !== "none" && (
+					<Alert variant="warning">
+						<UserRoundXIcon />
+						<AlertTitle>
+							{unassignedCount} unpaid customer
+							{unassignedCount === 1 ? " has" : "s have"} no
+							collector
+						</AlertTitle>
+						<AlertDescription className="flex flex-wrap items-center gap-3">
+							<span className="text-muted-foreground">
+								Nobody is assigned to collect from them, so they
+								never show up on a collector's list.
+							</span>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => {
+									setCollectorFilter("none");
+									setPage(1);
+								}}
+							>
+								Show them
+							</Button>
+						</AlertDescription>
+					</Alert>
+				)}
 
 			{isOrganizationAdmin && organizationId && selectedCount > 0 && (
 				<CustomerBulkActionsBar
