@@ -103,7 +103,9 @@ export const listCustomers = protectedProcedure
 		if (input.connectionType) {
 			where["connectionType"] = input.connectionType;
 		}
-		if (input.groupName) {
+		if (input.groupName === "none") {
+			where["groupName"] = null;
+		} else if (input.groupName) {
 			where["groupName"] = input.groupName;
 		}
 		if (input.collectorId === "none") {

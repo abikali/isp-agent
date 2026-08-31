@@ -5,6 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { assignmentFilterValue } from "../lib/filters";
 
 /**
  * Org-wide invoice list with filters, search, sort, pagination.
@@ -61,7 +62,9 @@ export const listAllInvoices = protectedProcedure
 			...getDealerScopeFilter(activeDealerId),
 		};
 		if (input.groupName) {
-			customerFilter["groupName"] = input.groupName;
+			customerFilter["groupName"] = assignmentFilterValue(
+				input.groupName,
+			);
 		}
 		if (input.search) {
 			customerFilter["OR"] = [

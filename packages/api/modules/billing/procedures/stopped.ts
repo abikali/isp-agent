@@ -13,6 +13,7 @@ import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import {
 	APPROVED_STOPPED_PAYMENT,
+	assignmentFilterValue,
 	customerSearchFilter,
 	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
@@ -74,7 +75,7 @@ export const listStoppedAccounts = protectedProcedure
 			Object.assign(customerWhere, customerSearchFilter(input.search));
 		}
 		if (input.groupName) {
-			customerWhere["groupName"] = input.groupName;
+			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
 		}
 		if (Object.keys(customerWhere).length > 0) {
 			where["customer"] = customerWhere;
@@ -260,7 +261,7 @@ export const listPendingStoppedPayments = protectedProcedure
 			Object.assign(customerWhere, customerSearchFilter(input.search));
 		}
 		if (input.groupName) {
-			customerWhere["groupName"] = input.groupName;
+			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
 		}
 		if (Object.keys(customerWhere).length > 0) {
 			where["customer"] = customerWhere;

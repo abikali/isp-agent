@@ -7,6 +7,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
+	assignmentFilterValue,
 	BILLABLE_CUSTOMER_STATUSES,
 	excludeGroupFilter,
 	NOT_VOIDED,
@@ -117,7 +118,7 @@ export const listUnpaidCustomers = protectedProcedure
 			},
 		};
 		if (input.groupName) {
-			customerWhere["groupName"] = input.groupName;
+			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
 		}
 		if (input.excludeGroupName) {
 			customerWhere["AND"] = [

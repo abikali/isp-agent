@@ -5,7 +5,11 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { buildDateRangeFilter, customerSearchFilter } from "../lib/filters";
+import {
+	assignmentFilterValue,
+	buildDateRangeFilter,
+	customerSearchFilter,
+} from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
 import {
 	findUnreviewedAmountMismatchPaymentIds,
@@ -129,7 +133,7 @@ export const listPayments = protectedProcedure
 			where["activityLog"] = { equals: [] };
 		}
 		if (input.groupName) {
-			customerWhere["groupName"] = input.groupName;
+			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
 		}
 		const dateRange = buildDateRangeFilter(input.dateFrom, input.dateTo);
 		if (dateRange) {

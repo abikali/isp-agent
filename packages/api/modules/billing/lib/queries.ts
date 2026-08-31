@@ -16,6 +16,7 @@ import {
 	type UnpaidInvoiceRow,
 } from "./calculations";
 import {
+	assignmentFilterValue,
 	BILLABLE_CUSTOMER_STATUSES,
 	excludeGroupFilter,
 	LEDGER_CASH,
@@ -502,12 +503,14 @@ export async function applyCollectorScope(
 	if (!target) {
 		return;
 	}
+	// `"none"` filters for customers with no collector at all.
+	const value = assignmentFilterValue(target);
 	if (options?.via === "customer") {
 		const existing = (where["customer"] as Record<string, unknown>) ?? {};
-		where["customer"] = { ...existing, collectorId: target };
+		where["customer"] = { ...existing, collectorId: value };
 		return;
 	}
-	where["collectorId"] = target;
+	where["collectorId"] = value;
 }
 
 // ── Collector Name Resolution ───────────────────────────────────

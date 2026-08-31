@@ -172,6 +172,7 @@ export function CustomerFilters({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All groups</SelectItem>
+								<SelectItem value="none">No group</SelectItem>
 								{groups.map((g) => (
 									<SelectItem key={g} value={g}>
 										{g}

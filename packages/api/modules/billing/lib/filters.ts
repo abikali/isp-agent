@@ -126,3 +126,15 @@ export function customerSearchFilter(search: string) {
 		],
 	};
 }
+
+/**
+ * Sentinel the filter dropdowns send for "not assigned to anyone". Radix
+ * selects reserve the empty string, so `"none"` stands in for NULL and
+ * `assignmentFilterValue` turns it back into the Prisma value to match on.
+ */
+export const UNASSIGNED_FILTER = "none";
+
+/** Resolve a dropdown filter value to the value the column is matched against. */
+export function assignmentFilterValue(value: string): string | null {
+	return value === UNASSIGNED_FILTER ? null : value;
+}

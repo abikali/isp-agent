@@ -648,6 +648,7 @@ export function UnpaidCustomersList() {
 								setPage(1);
 							}}
 							collectors={collectors}
+							includeUnassigned
 							className="w-full sm:w-[180px]"
 						/>
 					)}
