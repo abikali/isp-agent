@@ -137,6 +137,23 @@ interface DiagnosisOutput {
 	severity: "ok" | "degraded" | "down" | "account-issue";
 	diagnosis: string;
 	actionNeeded: string;
+	/**
+	 * True when the report proves a fault the customer cannot fix themselves —
+	 * they are disconnected, or their line is unstable and a peer on the same
+	 * access point is degraded too (an area/infrastructure problem).
+	 *
+	 * The escalation guard treats this as a hard requirement: a turn that
+	 * produced it MUST end with a real escalate-telegram call, whatever the
+	 * model wrote. Self-service causes (FUP, saturated bandwidth, an expired
+	 * or blocked account) are deliberately excluded — they need a bill or a
+	 * plan change, not a technician.
+	 */
+	needsHumanFollowUp: boolean;
+}
+
+/** A peer ping line counts as evidence when it is not a clean "Healthy". */
+function peerIsDegraded(ping: string): boolean {
+	return ping.includes("Unreachable") || ping.includes("Unstable");
 }
 
 export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
@@ -147,6 +164,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			diagnosis: "Account is blocked — usually due to an unpaid balance.",
 			actionNeeded:
 				"Contact your ISP to resolve the block on your account.",
+			needsHumanFollowUp: false,
 		};
 	}
 	if (input.accountStatus === "EXPIRED") {
@@ -154,6 +172,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			severity: "account-issue",
 			diagnosis: "Account subscription has expired.",
 			actionNeeded: "Renew your subscription to restore service.",
+			needsHumanFollowUp: false,
 		};
 	}
 	if (input.accountStatus === "DISABLED") {
@@ -161,6 +180,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			severity: "account-issue",
 			diagnosis: "Account is disabled.",
 			actionNeeded: "Contact your ISP to reactivate your account.",
+			needsHumanFollowUp: false,
 		};
 	}
 
@@ -172,6 +192,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 				"Connection is active but speed is reduced due to Fair Usage Policy (data quota exceeded).",
 			actionNeeded:
 				"Wait for the quota to reset, or contact your ISP about upgrading your plan.",
+			needsHumanFollowUp: false,
 		};
 	}
 
@@ -226,6 +247,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			severity: "down",
 			diagnosis: issues.join(" "),
 			actionNeeded: action,
+			needsHumanFollowUp: true,
 		};
 	}
 
@@ -245,6 +267,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			diagnosis: issues.join(" "),
 			actionNeeded:
 				"Check for devices or applications using heavy bandwidth (updates, streaming, downloads). Disconnect other devices and retest.",
+			needsHumanFollowUp: false,
 		};
 	}
 
@@ -261,6 +284,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 				"Connection appears healthy. Ping is good and bandwidth is not saturated.",
 			actionNeeded:
 				"Run a speed test to verify actual throughput. If the result is lower than expected, contact your ISP with the screenshot.",
+			needsHumanFollowUp: false,
 		};
 	}
 
@@ -269,6 +293,11 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 		diagnosis: issues.join(" "),
 		actionNeeded:
 			"Run a speed test to verify actual throughput and share the result.",
+		// An unstable line on its own can be local Wi-Fi. An unstable line
+		// while a peer on the same access point is also degraded is ours.
+		needsHumanFollowUp:
+			input.pingStatus === "unstable" &&
+			input.neighborResults.some((n) => peerIsDegraded(n.ping)),
 	};
 }
 
@@ -746,6 +775,18 @@ Use the severity field to guide response urgency:
 - "degraded" → explain what's degraded (FUP, bandwidth, unstable ping) and suggest actions
 - "down" → prioritize getting them back online
 - "account-issue" → explain the account problem and how to resolve it
+
+### needsHumanFollowUp — this one is not optional
+
+When the report comes back with needsHumanFollowUp: true, the fault is on our side
+and the customer cannot fix it alone. You MUST call escalate-telegram in this same
+turn, before you tell the customer anything about the team. Explaining the fault is
+not the same as reporting it — nobody sees your explanation but the customer.
+
+Never tell a customer that the team knows, is watching, or is working on the problem
+unless you actually escalated it. "We are already aware" and "الشباب عم يتابعوا"
+are claims about a Telegram message that only exists if you sent one. If you have not
+escalated, say what you found and that you are reporting it now — then report it.
 
 The tool runs ALL diagnostics automatically. Do NOT manually re-run individual tools unless the customer asks for a specific follow-up.
 

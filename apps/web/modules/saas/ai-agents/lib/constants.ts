@@ -175,6 +175,19 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 			},
 		],
 	},
+	{
+		label: "Z.AI",
+		models: [
+			{
+				id: "glm-5.3-flash",
+				label: "GLM-5.3 Flash",
+				provider: "z-ai",
+				priceIn: 0.075,
+				priceOut: 0.25,
+				recommended: true,
+			},
+		],
+	},
 ];
 
 /** Flat list for backward compatibility */

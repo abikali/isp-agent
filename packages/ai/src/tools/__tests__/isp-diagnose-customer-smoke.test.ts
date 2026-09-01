@@ -513,3 +513,119 @@ describe("ping with 0% loss but null avg RTT", () => {
 		});
 	});
 });
+
+// ---------------------------------------------------------------------------
+// needsHumanFollowUp — the flag the escalation guard treats as mandatory.
+//
+// Regression cover for the production miss on 2026-09-01: charbelzyadeh was
+// diagnosed with 65% packet loss while a peer on the same AP was unreachable,
+// and the customer was told "the team is following up" with no task ever filed.
+// ---------------------------------------------------------------------------
+
+describe("needsHumanFollowUp", () => {
+	const online = {
+		accountStatus: "Active",
+		accountActive: true,
+		online: true,
+		fupMode: "0",
+		accessPointOnline: true,
+		stationOnline: true,
+		connectionType: "wireless" as const,
+		bandwidthStatus: "idle" as const,
+	};
+
+	it("is true for the charbelzyadeh case — unstable line, degraded peer", () => {
+		const diagnosis = buildDiagnosis({
+			...online,
+			pingStatus: "unstable",
+			neighborResults: [
+				{
+					userName: "jihadzhourate",
+					ping: "Unstable (65% packet loss)",
+				},
+				{
+					userName: "moufidhaddad",
+					ping: "Unreachable (100% packet loss)",
+				},
+			],
+		});
+
+		expect(diagnosis.severity).toBe("degraded");
+		expect(diagnosis.needsHumanFollowUp).toBe(true);
+	});
+
+	it("is false when the line is unstable but every peer is healthy", () => {
+		const diagnosis = buildDiagnosis({
+			...online,
+			pingStatus: "unstable",
+			neighborResults: [
+				{ userName: "peer1", ping: "Healthy (0% loss, low latency)" },
+				{
+					userName: "peer2",
+					ping: "Healthy (0% loss, moderate latency)",
+				},
+			],
+		});
+
+		expect(diagnosis.needsHumanFollowUp).toBe(false);
+	});
+
+	it("is true whenever the customer is disconnected", () => {
+		const diagnosis = buildDiagnosis({
+			...online,
+			online: false,
+			pingStatus: "unreachable",
+			bandwidthStatus: null,
+			neighborResults: [],
+		});
+
+		expect(diagnosis.severity).toBe("down");
+		expect(diagnosis.needsHumanFollowUp).toBe(true);
+	});
+
+	it("is false for self-service causes — FUP, saturation, account state", () => {
+		expect(
+			buildDiagnosis({
+				...online,
+				fupMode: "1",
+				pingStatus: "unknown",
+				bandwidthStatus: null,
+				neighborResults: [],
+			}).needsHumanFollowUp,
+		).toBe(false);
+
+		expect(
+			buildDiagnosis({
+				...online,
+				pingStatus: "unstable",
+				bandwidthStatus: "saturated",
+				neighborResults: [
+					{
+						userName: "peer1",
+						ping: "Unreachable (100% packet loss)",
+					},
+				],
+			}).needsHumanFollowUp,
+		).toBe(false);
+
+		expect(
+			buildDiagnosis({
+				...online,
+				accountStatus: "EXPIRED",
+				pingStatus: "unknown",
+				bandwidthStatus: null,
+				neighborResults: [],
+			}).needsHumanFollowUp,
+		).toBe(false);
+	});
+
+	it("is false for a healthy line", () => {
+		expect(
+			buildDiagnosis({
+				...online,
+				pingStatus: "healthy",
+				neighborResults: [],
+			}).needsHumanFollowUp,
+		).toBe(false);
+	});
+});

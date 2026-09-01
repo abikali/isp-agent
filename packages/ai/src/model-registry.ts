@@ -59,6 +59,13 @@ const modelMap: Record<string, string> = {
 	"gemini-2.5-pro": "google/gemini-2.5-pro",
 	"gemini-3-flash": "google/gemini-3-flash-preview",
 	"gemini-3.1-flash-lite": "google/gemini-3.1-flash-lite",
+	// Z.AI — GLM. Tool calling verified against the live endpoint on
+	// 2026-09-01: called isp-diagnose-customer on a Lebanese-Arabic fault
+	// report, and escalate-telegram on a needsHumanFollowUp diagnosis.
+	// Served by ~20 providers whose tool-call parsing differs; OpenRouter's
+	// Auto Exacto routing (on by default for tool-carrying requests) is what
+	// keeps that variance from showing up as dropped tool calls.
+	"glm-5.3-flash": "z-ai/glm-5.3-flash",
 	// Mistral
 	"mistral-large": "mistralai/mistral-large-2512",
 	"mistral-medium": "mistralai/mistral-medium-3.1",

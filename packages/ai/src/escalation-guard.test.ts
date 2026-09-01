@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
+	detectDiagnosedFault,
 	detectMissedEscalation,
 	executeEscalationGuard,
 } from "./escalation-guard";
@@ -978,5 +979,161 @@ describe("executeEscalationGuard", () => {
 
 		expect(result).toBeNull();
 		expect(mockExecute).not.toHaveBeenCalled();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// detectDiagnosedFault — the deterministic trigger.
+//
+// This is the one that does not depend on the model behaving: it reads the
+// diagnostic tool's own verdict rather than anything the model wrote.
+// ---------------------------------------------------------------------------
+
+describe("detectDiagnosedFault", () => {
+	function diagnoseResult(needsHumanFollowUp: boolean) {
+		return [
+			{
+				toolName: "isp-diagnose-customer",
+				args: { query: "charbelzyadeh" },
+				result: { severity: "degraded", needsHumanFollowUp },
+			},
+		];
+	}
+
+	it("fires when the diagnostic flags a fault", () => {
+		expect(detectDiagnosedFault(diagnoseResult(true))).toBe(true);
+	});
+
+	it("does not fire when the diagnostic clears the line", () => {
+		expect(detectDiagnosedFault(diagnoseResult(false))).toBe(false);
+	});
+
+	it("does not fire on other tools or on no tool results", () => {
+		expect(
+			detectDiagnosedFault([
+				{
+					toolName: "isp-search-customer",
+					args: {},
+					result: { needsHumanFollowUp: true },
+				},
+			]),
+		).toBe(false);
+		expect(detectDiagnosedFault([])).toBe(false);
+		expect(detectDiagnosedFault(undefined)).toBe(false);
+	});
+
+	it("tolerates a null or non-object tool result", () => {
+		expect(
+			detectDiagnosedFault([
+				{ toolName: "isp-diagnose-customer", args: {}, result: null },
+			]),
+		).toBe(false);
+		expect(
+			detectDiagnosedFault([
+				{
+					toolName: "isp-diagnose-customer",
+					args: {},
+					result: "error",
+				},
+			]),
+		).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The production regression: a confirmed fault, a reassuring reply, no tool
+// call. Before this fix nothing fired — the classifier read "the team is
+// following up" as a description of someone else's action.
+// ---------------------------------------------------------------------------
+
+describe("guard triggers on a diagnosed fault regardless of the reply", () => {
+	const baseTool = {
+		description: "Escalate to Telegram",
+		inputSchema: z.object({ reason: z.string() }),
+	};
+
+	const faultResults = [
+		{
+			toolName: "isp-diagnose-customer",
+			args: { query: "charbelzyadeh" },
+			result: { severity: "degraded", needsHumanFollowUp: true },
+		},
+	];
+
+	it("escalates when the model reassured the customer instead of escalating", async () => {
+		// The classifier would say "no escalation promised" here.
+		mockEscalation(false);
+		const execute = vi
+			.fn()
+			.mockResolvedValue({ success: true, message: "" });
+
+		const result = await executeEscalationGuard({
+			conversationId: "conv-baz",
+			customerName: "charbel zyade",
+			customerPhone: "96178957092",
+			conversationMessages: [{ role: "user", content: "ma fi internet" }],
+			tools: { "escalate-telegram": { ...baseTool, execute } },
+			responseText:
+				"نحنا صرنا على علم بالمشكلة والشباب عم يتابعوا الوضع. ما في داعي تعمل ريستارت للراوتر.",
+			toolResults: faultResults,
+		});
+
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(result?.toolName).toBe("escalate-telegram");
+		// Deterministic path — no LLM round-trip needed to reach the verdict.
+		expect(mockClassifyText).not.toHaveBeenCalled();
+	});
+
+	it("does not double-escalate when the model already called the tool", async () => {
+		const execute = vi.fn();
+		const result = await executeEscalationGuard({
+			conversationId: "conv-baz",
+			conversationMessages: [],
+			tools: { "escalate-telegram": { ...baseTool, execute } },
+			responseText: "بلغت الفريق التقني.",
+			toolResults: [
+				...faultResults,
+				{
+					toolName: "escalate-telegram",
+					args: {},
+					result: { success: true },
+				},
+			],
+		});
+
+		expect(execute).not.toHaveBeenCalled();
+		expect(result).toBeNull();
+	});
+
+	it("escalates when the model narrated the tool call instead of making it", async () => {
+		mockEscalation(false);
+		const execute = vi
+			.fn()
+			.mockResolvedValue({ success: true, message: "" });
+
+		const result = await executeEscalationGuard({
+			conversationId: "conv-peter",
+			conversationMessages: [{ role: "user", content: "mafi internet" }],
+			tools: { "escalate-telegram": { ...baseTool, execute } },
+			responseText:
+				'أهلاً بك. رح أعمل فحص هلق لخطك.\n\n[runs isp-diagnose-customer with "youssef kamal"]',
+			toolResults: [],
+		});
+
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(result?.toolName).toBe("escalate-telegram");
+	});
+
+	it("treats a claimed-team-aware reply as a missed escalation", async () => {
+		mockClassifyText.mockResolvedValue({
+			promisedEscalation: false,
+			claimedTeamAware: true,
+		});
+
+		expect(
+			await detectMissedEscalation(
+				"نحنا صرنا على علم بالمشكلة والشباب عم يتابعوا الوضع.",
+			),
+		).toBe(true);
 	});
 });
