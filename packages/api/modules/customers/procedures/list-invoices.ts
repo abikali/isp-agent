@@ -97,6 +97,7 @@ export const listCustomerInvoices = protectedProcedure
 					paidAmount: true,
 					discount: true,
 					freeAccount: true,
+					paidAt: true,
 					stoppedAccount: true,
 					debtAccount: true,
 				},

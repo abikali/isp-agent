@@ -216,6 +216,7 @@ export const getCustomerActivity = protectedProcedure
 						paidAmount: true,
 						discount: true,
 						freeAccount: true,
+						paidAt: true,
 					},
 				}),
 			]);

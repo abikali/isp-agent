@@ -169,8 +169,15 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						</p>
 						{unpaidMonths > 1 && (
 							<p className="text-xs text-muted-foreground tabular-nums">
-								{formatCurrency(monthlyDue)}/mo &times;{" "}
-								{unpaidMonths}
+								{/* Partially-paid months carry only their
+								    remainder, so rate × months can overstate
+								    the total — only show the multiplication
+								    when it actually adds up. */}
+								{Math.abs(
+									monthlyDue * unpaidMonths - totalDue,
+								) < 0.01
+									? `${formatCurrency(monthlyDue)}/mo × ${unpaidMonths}`
+									: `${unpaidMonths} months owed`}
 							</p>
 						)}
 					</div>

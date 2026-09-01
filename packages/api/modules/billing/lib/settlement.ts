@@ -35,6 +35,25 @@ import type { db } from "@repo/database";
 export const AMOUNT_EPSILON = 0.01;
 
 /**
+ * Months settled before this moment stay settled the way the old system
+ * left them ("grandfathered"), even when the amounts don't add up.
+ *
+ * Why: the day the amount comparison shipped, reliably-paying customers
+ * surfaced with months of "past due" — 65 customers pay a consistent
+ * informal price below their frozen invoice (e.g. Nadia Tabet, $20 every
+ * 1st against a $25 invoice) and the old row-existence logic had been
+ * absorbing the gap for months. Those histories were closed out by
+ * collectors under the old rules; reopening them retroactively floods the
+ * collect lists with money nobody considers owed.
+ *
+ * So: a month with real pre-cutoff coverage keeps its legacy settlement.
+ * The strict remainder rule applies as soon as ANY covering payment lands
+ * on or after the cutoff — which also means topping up a grandfathered
+ * month re-evaluates it strictly (covered so far + the new cash).
+ */
+export const LEGACY_SETTLEMENT_CUTOFF = new Date("2026-09-01T00:00:00Z");
+
+/**
  * Payment rows that count toward covering a month. Broader than
  * SETTLED_PAYMENT on purpose: a zero-cash free waiver covers its month, and a
  * summed zero contributes nothing, so no paidAmount floor is needed.
@@ -49,6 +68,8 @@ export interface MonthCoverage {
 	covered: number;
 	/** A freeAccount row waives the month regardless of amount. */
 	free: boolean;
+	/** Any covering row recorded on/after LEGACY_SETTLEMENT_CUTOFF. */
+	postCutoff: boolean;
 }
 
 export function coverageKey(customerId: string, billingMonthId: string) {
@@ -58,12 +79,28 @@ export function coverageKey(customerId: string, billingMonthId: string) {
 /** Fold one payment row into a coverage accumulator. */
 export function addCoverage(
 	existing: MonthCoverage | undefined,
-	row: { paidAmount: number; discount: number; freeAccount: boolean },
+	row: {
+		paidAmount: number;
+		discount: number;
+		freeAccount: boolean;
+		paidAt: Date;
+	},
 ): MonthCoverage {
 	return {
 		covered: (existing?.covered ?? 0) + row.paidAmount + row.discount,
 		free: (existing?.free ?? false) || row.freeAccount,
+		postCutoff:
+			(existing?.postCutoff ?? false) ||
+			row.paidAt >= LEGACY_SETTLEMENT_CUTOFF,
 	};
+}
+
+/**
+ * A month whose coverage predates the cutoff keeps the settlement the old
+ * system gave it — see LEGACY_SETTLEMENT_CUTOFF.
+ */
+function legacySettled(coverage: MonthCoverage): boolean {
+	return coverage.covered > 0 && !coverage.postCutoff;
 }
 
 /** Is a month with this invoice amount fully covered? */
@@ -74,7 +111,11 @@ export function monthSettled(
 	if (!coverage) {
 		return false;
 	}
-	return coverage.free || coverage.covered >= invoiceAmount - AMOUNT_EPSILON;
+	return (
+		coverage.free ||
+		legacySettled(coverage) ||
+		coverage.covered >= invoiceAmount - AMOUNT_EPSILON
+	);
 }
 
 /**
@@ -85,7 +126,7 @@ export function monthRemaining(
 	invoiceAmount: number,
 	coverage: MonthCoverage | undefined,
 ): number {
-	if (coverage?.free) {
+	if (coverage && (coverage.free || legacySettled(coverage))) {
 		return 0;
 	}
 	const remaining = invoiceAmount - (coverage?.covered ?? 0);
@@ -130,6 +171,7 @@ export async function fetchCoverageMap(
 			paidAmount: true,
 			discount: true,
 			freeAccount: true,
+			paidAt: true,
 		},
 	});
 	const map = new Map<string, MonthCoverage>();

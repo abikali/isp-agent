@@ -16,8 +16,14 @@ import {
  * duplicate. Settlement is now the amount comparison tested here.
  */
 
+/** Post-cutoff rows by default — the strict regime under test. */
 function cover(
-	rows: { paidAmount: number; discount?: number; freeAccount?: boolean }[],
+	rows: {
+		paidAmount: number;
+		discount?: number;
+		freeAccount?: boolean;
+		paidAt?: Date;
+	}[],
 ): MonthCoverage | undefined {
 	let acc: MonthCoverage | undefined;
 	for (const r of rows) {
@@ -25,10 +31,13 @@ function cover(
 			paidAmount: r.paidAmount,
 			discount: r.discount ?? 0,
 			freeAccount: r.freeAccount ?? false,
+			paidAt: r.paidAt ?? new Date("2026-09-02T00:00:00Z"),
 		});
 	}
 	return acc;
 }
+
+const LEGACY = new Date("2026-08-15T00:00:00Z");
 
 describe("monthSettled / monthRemaining", () => {
 	it("the jhonnytest case: $10 against a $50 invoice does NOT settle the month", () => {
@@ -137,6 +146,45 @@ describe("follow-up collection on a partially paid month", () => {
 		expect(rows).toHaveLength(2);
 		expect(rows[0]).toMatchObject({ invoiceId: "jul", amount: 40 });
 		expect(rows[1]).toMatchObject({ invoiceId: "aug", amount: 20 });
+	});
+});
+
+describe("legacy grandfather (LEGACY_SETTLEMENT_CUTOFF)", () => {
+	it("keeps a pre-cutoff informal-price month settled — the Nadia Tabet case", () => {
+		// $20 paid every month against a $25 invoice, all before the cutoff:
+		// the old system settled those months and they must stay settled.
+		const coverage = cover([{ paidAmount: 20, paidAt: LEGACY }]);
+		expect(monthSettled(25, coverage)).toBe(true);
+		expect(monthRemaining(25, coverage)).toBe(0);
+	});
+
+	it("a month with NO coverage stays unpaid regardless of era", () => {
+		expect(monthSettled(25, undefined)).toBe(false);
+	});
+
+	it("post-cutoff partials are strict — the jhonnytest case stays open", () => {
+		const coverage = cover([
+			{ paidAmount: 10, paidAt: new Date("2026-09-01T15:05:00Z") },
+		]);
+		expect(monthSettled(50, coverage)).toBe(false);
+		expect(monthRemaining(50, coverage)).toBe(40);
+	});
+
+	it("topping up a grandfathered month re-evaluates it strictly", () => {
+		// $20 legacy + $5 new = $25: settled on the merits now.
+		const coverage = cover([
+			{ paidAmount: 20, paidAt: LEGACY },
+			{ paidAmount: 5 },
+		]);
+		expect(monthSettled(25, coverage)).toBe(true);
+		// $20 legacy + $2 new = $22: the new payment reopens the month with
+		// the true remainder — collecting on it means finishing it.
+		const short = cover([
+			{ paidAmount: 20, paidAt: LEGACY },
+			{ paidAmount: 2 },
+		]);
+		expect(monthSettled(25, short)).toBe(false);
+		expect(monthRemaining(25, short)).toBe(3);
 	});
 });
 
