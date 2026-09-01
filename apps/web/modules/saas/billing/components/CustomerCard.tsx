@@ -7,11 +7,6 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@ui/components/tooltip";
-import {
 	BanknoteIcon,
 	CalendarIcon,
 	CheckIcon,
@@ -25,7 +20,11 @@ import {
 	PhoneIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { customerMonthlyDue, getExpiryInfo } from "../lib/billing-utils";
+import {
+	customerMonthlyDue,
+	formatCycleShort,
+	getExpiryInfo,
+} from "../lib/billing-utils";
 import { formatWhatsAppLink } from "../lib/whatsapp";
 
 export interface UnpaidCustomer {
@@ -63,6 +62,19 @@ export interface UnpaidCustomer {
 	debtCount?: number;
 	lastDebtNote?: string | null;
 	lastDebtAt?: string | Date | null;
+	// Per-month billing breakdown from list-unpaid: which cycles are settled,
+	// partially covered, or untouched. Lets the card answer "bas ana dafa3et!"
+	// at the door instead of showing an unexplained total.
+	months?: {
+		year: number;
+		month: number;
+		amount: number;
+		paid: boolean;
+		remaining?: number;
+	}[];
+	// Most recent real payment — the collector's strongest door-side fact.
+	lastPaymentAt?: string | Date | null;
+	lastPaymentAmount?: number | null;
 }
 
 interface CustomerCardProps {
@@ -137,6 +149,14 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						<p className="truncate text-lg font-semibold leading-tight">
 							{name}
 						</p>
+						{/* Username on the card face: display names collide (two
+						    subscriptions in one building under one name) and the
+						    username is the identifier that never does. */}
+						{customer.username && (
+							<p className="truncate font-mono text-xs text-muted-foreground">
+								{customer.username}
+							</p>
+						)}
 						<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
 							{customer.groupName && (
 								<span className="flex items-center gap-1">
@@ -144,15 +164,16 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 									{customer.groupName}
 								</span>
 							)}
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center gap-1 cursor-default">
-										<CalendarIcon className="size-3" />
-										{expiryDateLabel || "No billing expiry"}
-									</span>
-								</TooltipTrigger>
-								<TooltipContent>Billing Expiry</TooltipContent>
-							</Tooltip>
+							{/* Labeled, not a tooltip — tooltips barely exist on a
+							    phone, and an unlabeled date reads as anything. */}
+							{expiryDateLabel && (
+								<span className="flex items-center gap-1">
+									<CalendarIcon className="size-3" />
+									{expiry.diffDays < 0
+										? `Due since ${expiryDateLabel}`
+										: `Due ${expiryDateLabel}`}
+								</span>
+							)}
 						</div>
 						{customer.address && (
 							<p className="mt-1 truncate text-sm text-muted-foreground">
@@ -183,20 +204,31 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 					</div>
 				</div>
 
-				{/* Badges: past due + expiry warning + already-logged debt */}
+				{/* Badges: one severity chip + already-logged debt. "N months
+				    past due" and "Xd overdue" derive from the same oldest
+				    unpaid invoice — two red chips said one fact twice, so the
+				    days fold into the months chip. The expiry chip stands
+				    alone only when nothing is past due yet. */}
 				{(pastDueMonths > 0 || expiry.label || debtCount > 0) && (
 					<div className="mt-2 flex flex-wrap gap-1.5">
-						{pastDueMonths > 0 && (
+						{pastDueMonths > 0 ? (
 							<Badge variant="destructive" className="text-xs">
 								{pastDueMonths}{" "}
 								{pastDueMonths === 1 ? "month" : "months"} past
 								due
+								{expiry.diffDays < 0
+									? ` · ${Math.abs(expiry.diffDays)}d`
+									: ""}
 							</Badge>
-						)}
-						{expiry.label && (
-							<Badge variant={expiry.variant} className="text-xs">
-								{expiry.label}
-							</Badge>
+						) : (
+							expiry.label && (
+								<Badge
+									variant={expiry.variant}
+									className="text-xs"
+								>
+									{expiry.label}
+								</Badge>
+							)
 						)}
 						{debtCount > 0 && (
 							<Badge
@@ -227,7 +259,86 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 				{/* Expandable details */}
 				{expanded && (
 					<div className="mt-3 rounded-lg bg-muted/50 p-3">
+						{/* Month-by-month story first: this is what the
+						    collector needs when the customer says they already
+						    paid — which cycles are settled, which are partly
+						    covered, and what exactly is left on each. */}
+						{(customer.months?.length ?? 0) > 0 && (
+							<div className="mb-3 border-b border-border/60 pb-3">
+								<p className="mb-1.5 text-xs font-medium text-muted-foreground">
+									Months billed
+								</p>
+								<div className="space-y-1">
+									{customer.months?.map((m) => {
+										const remaining =
+											m.remaining ?? m.amount;
+										const partial =
+											!m.paid &&
+											remaining < m.amount - 0.009;
+										return (
+											<div
+												key={`${m.year}-${m.month}`}
+												className="flex items-center justify-between gap-3 text-sm"
+											>
+												<span className="flex items-center gap-1.5">
+													{m.paid ? (
+														<CheckIcon className="size-3.5 text-success" />
+													) : (
+														<span
+															className="size-2 shrink-0 rounded-full bg-destructive/70"
+															aria-hidden
+														/>
+													)}
+													{formatCycleShort(
+														m.year,
+														m.month,
+													)}
+												</span>
+												<span className="tabular-nums">
+													{m.paid ? (
+														<span className="text-muted-foreground">
+															Paid
+														</span>
+													) : partial ? (
+														<span className="font-medium">
+															{formatCurrency(
+																remaining,
+															)}{" "}
+															<span className="font-normal text-muted-foreground">
+																left of{" "}
+																{formatCurrency(
+																	m.amount,
+																)}
+															</span>
+														</span>
+													) : (
+														<span className="font-medium">
+															{formatCurrency(
+																m.amount,
+															)}
+														</span>
+													)}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+						)}
 						<div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+							{customer.lastPaymentAt && (
+								<div className="col-span-2">
+									<p className="text-xs font-medium text-muted-foreground">
+										Last payment
+									</p>
+									<p>
+										{formatCurrency(
+											customer.lastPaymentAmount ?? 0,
+										)}{" "}
+										· {formatDate(customer.lastPaymentAt)}
+									</p>
+								</div>
+							)}
 							{customer.address && (
 								<div className="col-span-2">
 									<p className="text-xs font-medium text-muted-foreground">

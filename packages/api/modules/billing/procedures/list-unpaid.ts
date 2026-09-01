@@ -452,8 +452,30 @@ export const listUnpaidCustomers = protectedProcedure
 		).length;
 
 		const skip = (input.page - 1) * input.pageSize;
-		const pageRows = rows.slice(skip, skip + input.pageSize).map((r) => {
+		const pagedRows = rows.slice(skip, skip + input.pageSize);
+
+		// Last real payment per page customer — the collector's strongest
+		// door-side fact ("you last paid $20 on Aug 1"). Page-scoped so the
+		// extra query stays at ≤ pageSize customers.
+		const lastPayments = await db.payment.findMany({
+			where: {
+				organizationId: input.organizationId,
+				customerId: { in: pagedRows.map((r) => r.customer.id) },
+				paidAmount: { gt: 0 },
+				stoppedAccount: false,
+				debtAccount: false,
+			},
+			orderBy: { paidAt: "desc" },
+			distinct: ["customerId"],
+			select: { customerId: true, paidAt: true, paidAmount: true },
+		});
+		const lastPaymentByCustomer = new Map(
+			lastPayments.map((p) => [p.customerId, p]),
+		);
+
+		const pageRows = pagedRows.map((r) => {
 			const debt = debtByCustomer.get(r.customer.id);
+			const lastPayment = lastPaymentByCustomer.get(r.customer.id);
 			return {
 				...r.customer,
 				monthlyDue: r.monthlyDue,
@@ -465,6 +487,8 @@ export const listUnpaidCustomers = protectedProcedure
 				debtCount: debt?.debtCount ?? 0,
 				lastDebtNote: debt?.lastDebtNote ?? null,
 				lastDebtAt: debt?.lastDebtAt ?? null,
+				lastPaymentAt: lastPayment?.paidAt ?? null,
+				lastPaymentAmount: lastPayment?.paidAmount ?? null,
 				months: [...r.months].sort(
 					(a, b) =>
 						yearMonthToNum(a.year, a.month) -
