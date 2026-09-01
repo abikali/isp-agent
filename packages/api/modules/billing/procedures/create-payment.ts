@@ -365,7 +365,10 @@ export const createPayment = protectedProcedure
 				// and this per-customer lock (transaction-scoped, auto-freed
 				// on commit/rollback) is what prevents a double submit from
 				// allocating the same remainder twice.
-				await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${input.customerId}`}, 0))`;
+				// Wrapped in a subselect: the lock function returns `void`,
+				// which Prisma's row deserializer rejects — surface an int
+				// column instead.
+				await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${input.customerId}`}, 0))) AS t`;
 
 				const baseData = {
 					organizationId: input.organizationId,
