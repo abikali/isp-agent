@@ -7,11 +7,13 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
-import { PENDING_STOPPED_PAYMENT, SETTLED_PAYMENT } from "../lib/filters";
+import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
 	fetchCollectorBalanceBatch,
+	fetchMonthSettlementStats,
 	fetchRelevantBillingMonths,
+	settlementStatsCustomerWhere,
 } from "../lib/queries";
 import {
 	getMonthDateRange,
@@ -106,24 +108,41 @@ export const listCollectors = protectedProcedure
 						input.organizationId,
 						collectorIds,
 					),
-					// Collected this month: distinct customers (currently assigned to
-					// this collector) with at least one settled payment for the month.
-					db.customer.groupBy({
-						by: ["collectorId"],
-						where: {
-							organizationId: input.organizationId,
-							collectorId: { in: collectorIds },
-							...dealerFilter,
-							payments: {
-								some: {
-									billingMonthId: activeMonth.id,
-									status: "COLLECTED",
-									...SETTLED_PAYMENT,
-								},
-							},
-						},
-						_count: true,
-					}),
+					// Collected this month: distinct customers (currently assigned
+					// to this collector) whose active month is fully covered —
+					// amount-aware, so a partial payment no longer counts the
+					// customer as collected.
+					fetchRelevantBillingMonths(
+						input.organizationId,
+						activeMonth.year,
+						activeMonth.month,
+					)
+						.then((relevantMonths) =>
+							fetchMonthSettlementStats({
+								organizationId: input.organizationId,
+								relevantMonths,
+								activeMonthId: activeMonth.id,
+								customerWhere: settlementStatsCustomerWhere({
+									relevantMonthIds: relevantMonths.map(
+										(m) => m.id,
+									),
+									dealerFilter,
+									collectorId: collectorIds,
+								}),
+							}),
+						)
+						.then((rows) => {
+							const map = new Map<string, number>();
+							for (const r of rows) {
+								if (r.activeSettled && r.collectorId) {
+									map.set(
+										r.collectorId,
+										(map.get(r.collectorId) ?? 0) + 1,
+									);
+								}
+							}
+							return map;
+						}),
 					// Customers due this month per collector (includes stopped-with-pay)
 					fetchRelevantBillingMonths(
 						input.organizationId,
@@ -192,7 +211,7 @@ export const listCollectors = protectedProcedure
 					return map;
 				};
 
-				const monthPaymentsMap = toMap(monthPaidByCollector);
+				const monthPaymentsMap = monthPaidByCollector;
 				const monthDueMap = toMap(monthDueByCollector);
 				const stoppedMap = toMap(stoppedByCollector);
 				const pendingStoppedMap = toMap(pendingStoppedByCollector);

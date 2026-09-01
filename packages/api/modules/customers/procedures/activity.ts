@@ -2,6 +2,13 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	addCoverage,
+	COVERING_PAYMENT,
+	invoiceAmount,
+	type MonthCoverage,
+	monthSettled,
+} from "../../billing/lib/settlement";
 
 /**
  * Unified activity timeline for the customer workspace.
@@ -100,8 +107,8 @@ export const getCustomerActivity = protectedProcedure
 								year: true,
 								month: true,
 								total: true,
+								totalWithTax: true,
 								voidedAt: true,
-								payment: { select: { id: true } },
 							},
 						})
 					: Promise.resolve([]),
@@ -188,9 +195,53 @@ export const getCustomerActivity = protectedProcedure
 			});
 		}
 
+		// Month-keyed settlement for the invoice entries (lib/settlement.ts):
+		// covers legacy payments with no invoice link, and keeps a partially
+		// paid month from reading as settled in the timeline.
+		const invoiceCoverage = new Map<string, MonthCoverage>();
+		if (invoices.length > 0) {
+			const [months, payRows] = await Promise.all([
+				db.billingMonth.findMany({
+					where: { organizationId: input.organizationId },
+					select: { id: true, year: true, month: true },
+				}),
+				db.payment.findMany({
+					where: {
+						organizationId: input.organizationId,
+						customerId: input.customerId,
+						...COVERING_PAYMENT,
+					},
+					select: {
+						billingMonthId: true,
+						paidAmount: true,
+						discount: true,
+						freeAccount: true,
+					},
+				}),
+			]);
+			const monthIdByYM = new Map(
+				months.map((m) => [`${m.year}-${m.month}`, m.id]),
+			);
+			const byMonthId = new Map<string, MonthCoverage>();
+			for (const row of payRows) {
+				byMonthId.set(
+					row.billingMonthId,
+					addCoverage(byMonthId.get(row.billingMonthId), row),
+				);
+			}
+			for (const inv of invoices) {
+				const monthId = monthIdByYM.get(`${inv.year}-${inv.month}`);
+				const cov = monthId ? byMonthId.get(monthId) : undefined;
+				if (cov) {
+					invoiceCoverage.set(inv.id, cov);
+				}
+			}
+		}
+
 		for (const inv of invoices) {
-			// Paid ⟺ a non-voided payment exists (single source of truth).
-			const isPaid = inv.payment !== null && inv.voidedAt === null;
+			const isPaid =
+				inv.voidedAt === null &&
+				monthSettled(invoiceAmount(inv), invoiceCoverage.get(inv.id));
 			items.push({
 				type: "invoice",
 				id: inv.id,

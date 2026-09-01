@@ -38,16 +38,20 @@ export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
 export const LEDGER_CASH = { type: { not: "SALARY" } } as const;
 
 /**
- * A payment that "settles" a customer for a billing month — either real cash
- * came in (`paidAmount > 0`) or the customer was marked free for the month
- * (`freeAccount = true`). Stopped payments are excluded; they go through the
- * separate review/approval flow.
+ * A payment row with real money or a free waiver on it. Stopped payments are
+ * excluded; they go through the separate review/approval flow.
  *
- * Use this anywhere we ask "did this customer get handled this month?" so
- * paid counts and unpaid lists stay aligned. Without it, free-account rows
- * fall into a gap: `paidAmount > 0` excludes them from "paid", but a payment
- * row exists so they're not "unpaid" either — they vanish from collector
- * stats while the admin total still counts their invoice.
+ * ⚠️ This is NOT "the month is paid off". Row existence used to mean exactly
+ * that, which let a $10 partial close a $50 invoice — the 2026-09-01 partial-
+ * payment bug. "Is the month settled?" is an amount comparison and lives in
+ * lib/settlement.ts (`monthSettled` / `monthRemaining`, keyed on customer +
+ * billing month).
+ *
+ * Keep using this fragment only where existence is the actual question:
+ *   - protection guards ("this invoice has cash recorded — refuse to
+ *     void/delete it", void-invoice.ts / delete-invoice.ts), and
+ *   - cash sums / cash-activity stats (worker-balance, list-workers), where
+ *     it filters which rows count as collected money.
  */
 export const SETTLED_PAYMENT = {
 	stoppedAccount: false,

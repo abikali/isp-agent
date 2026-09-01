@@ -55,6 +55,10 @@ interface InvoiceRow {
 	tax: number;
 	totalWithTax: number;
 	paid: boolean;
+	/** Σ(cash + doorstep discount) already collected against the month. */
+	paidTotal: number;
+	/** What is still owed on the month (0 when settled). */
+	remaining: number;
 	stopped: boolean;
 	hasPayment: boolean;
 	voidedAt: string | Date | null;
@@ -228,12 +232,25 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 						</Badge>
 					);
 				}
+				if (row.original.paid) {
+					return (
+						<Badge variant="success" className="text-xs">
+							Paid
+						</Badge>
+					);
+				}
+				// Money came in but the month still owes the remainder.
+				if ((row.original.paidTotal ?? 0) > 0) {
+					return (
+						<Badge variant="warning" className="text-xs">
+							Partial — {formatCurrency(row.original.remaining)}{" "}
+							left
+						</Badge>
+					);
+				}
 				return (
-					<Badge
-						variant={row.original.paid ? "success" : "destructive"}
-						className="text-xs"
-					>
-						{row.original.paid ? "Paid" : "Unpaid"}
+					<Badge variant="destructive" className="text-xs">
+						Unpaid
 					</Badge>
 				);
 			},

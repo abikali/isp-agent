@@ -39,12 +39,15 @@ export const deleteInvoice = protectedProcedure
 				organizationId: input.organizationId,
 				customer: getDealerScopeFilter(activeDealerId),
 			},
-			select: { id: true, payment: { select: { id: true } } },
+			select: {
+				id: true,
+				payments: { select: { id: true }, take: 1 },
+			},
 		});
 		if (!invoice) {
 			throw new ORPCError("NOT_FOUND", { message: "Invoice not found" });
 		}
-		if (invoice.payment) {
+		if (invoice.payments.length > 0) {
 			throw new ORPCError("CONFLICT", {
 				message:
 					"Cannot delete an invoice with a linked payment. Delete the payment first.",

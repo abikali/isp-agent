@@ -5,7 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { customerMonthlyDue, sumOrZero } from "../lib/calculations";
+import { customerMonthlyDue } from "../lib/calculations";
 import { SETTLED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
@@ -82,7 +82,11 @@ export const getCollectorBalance = protectedProcedure
 				// to this collector. Scoped via `customer.collectorId` so the
 				// numerator stays aligned with `monthCustomers` (the denominator
 				// — also keyed off `Customer.collectorId`) when admin reassigns.
-				db.payment.aggregate({
+				// Grouped by customer: with partial payments a month can carry
+				// several rows, and "bills collected" should count customers,
+				// not rows.
+				db.payment.groupBy({
+					by: ["customerId"],
 					where: {
 						organizationId: input.organizationId,
 						customer: {
@@ -94,7 +98,6 @@ export const getCollectorBalance = protectedProcedure
 						...SETTLED_PAYMENT,
 					},
 					_sum: { paidAmount: true },
-					_count: true,
 				}),
 			]);
 
@@ -103,8 +106,11 @@ export const getCollectorBalance = protectedProcedure
 			(sum, c) => sum + customerMonthlyDue(c),
 			0,
 		);
-		const monthPaidCount = monthPaymentsAgg._count;
-		const monthAmountCollected = sumOrZero(monthPaymentsAgg);
+		const monthPaidCount = monthPaymentsAgg.length;
+		const monthAmountCollected = monthPaymentsAgg.reduce(
+			(sum, g) => sum + (g._sum.paidAmount ?? 0),
+			0,
+		);
 
 		return {
 			totalCollected: balanceData.totalCollected,

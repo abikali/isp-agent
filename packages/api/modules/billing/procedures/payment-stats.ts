@@ -12,12 +12,12 @@ import { sumOrZero } from "../lib/calculations";
 import { EXCLUDE_STOPPED, PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	countDistinctCustomersWithPayments,
-	countPaidCustomers,
+	fetchMonthSettlementStats,
 	fetchRelevantBillingMonths,
 	resolveCollectorNames,
-	unpaidCustomersWhere,
+	settlementStatsCustomerWhere,
 } from "../lib/queries";
-import { getMonthDateRange, resolveYearMonth } from "../lib/resolve-month";
+import { resolveYearMonth } from "../lib/resolve-month";
 import { countUnreviewedPayments } from "../lib/review-status";
 import { monthSpecSchema } from "../lib/schemas";
 
@@ -53,8 +53,6 @@ export const getPaymentStats = protectedProcedure
 			input.year,
 			input.month,
 		);
-		const monthRange = getMonthDateRange(year, month);
-
 		const monthId = input.billingMonthId ?? resolvedMonthId;
 
 		const dealerViaCustomer = getDealerScopeViaCustomer(activeDealerId);
@@ -105,14 +103,42 @@ export const getPaymentStats = protectedProcedure
 					debtAccount: false,
 				};
 
+				// Paid/unpaid partition — amount-aware. A customer whose month
+				// is only partially covered stays "unpaid": they are still on
+				// the collect list carrying the remainder.
+				const settlementRows = monthId
+					? await fetchRelevantBillingMonths(
+							input.organizationId,
+							year,
+							month,
+						).then((relevantMonths) =>
+							fetchMonthSettlementStats({
+								organizationId: input.organizationId,
+								relevantMonths,
+								activeMonthId: monthId,
+								customerWhere: settlementStatsCustomerWhere({
+									relevantMonthIds: relevantMonths.map(
+										(m) => m.id,
+									),
+									dealerFilter,
+									collectorId: ownCollectorId ?? undefined,
+								}),
+							}),
+						)
+					: [];
+				const paidCustomers = settlementRows.filter(
+					(r) => r.activeSettled,
+				).length;
+				const unpaidCustomers = settlementRows.filter(
+					(r) => r.billable && r.hasRemaining,
+				).length;
+
 				const [
 					collectedPayments,
 					stoppedPayments,
 					pendingStoppedPayments,
 					totalCollected,
 					byCollector,
-					paidCustomers,
-					unpaidCustomers,
 					unreviewedCount,
 				] = await Promise.all([
 					db.payment.count({
@@ -137,40 +163,6 @@ export const getPaymentStats = protectedProcedure
 						_sum: { paidAmount: true },
 						_count: true,
 					}),
-					// Paid customers: distinct customers settled for the month
-					monthId
-						? countPaidCustomers(
-								input.organizationId,
-								monthId,
-								customerScopeViaCustomer,
-							)
-						: Promise.resolve(0),
-					// Unpaid customers: any customer with an unpaid invoice in relevant months
-					monthId
-						? fetchRelevantBillingMonths(
-								input.organizationId,
-								year,
-								month,
-							).then((relevantMonths) =>
-								db.customer.count({
-									where: unpaidCustomersWhere(
-										input.organizationId,
-										monthId,
-										monthRange,
-										{
-											dealerFilter,
-											relevantMonths,
-											...(ownCollectorId
-												? {
-														collectorId:
-															ownCollectorId,
-													}
-												: {}),
-										},
-									),
-								}),
-							)
-						: Promise.resolve(0),
 					// Flagged payments awaiting admin review (free, stopped, or amount mismatch)
 					countUnreviewedPayments({
 						organizationId: input.organizationId,

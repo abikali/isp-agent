@@ -6,6 +6,13 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	coverageKey,
+	fetchCoverageMap,
+	invoiceAmount,
+	monthRemaining,
+	monthSettled,
+} from "../lib/settlement";
 
 /**
  * Fetch one invoice by id with customer + payment info.
@@ -75,13 +82,18 @@ export const getInvoiceDetail = protectedProcedure
 						},
 					},
 				},
-				payment: {
+				payments: {
 					select: {
 						id: true,
 						paidAmount: true,
+						discount: true,
+						freeAccount: true,
+						stoppedAccount: true,
+						debtAccount: true,
 						paidAt: true,
 						collector: { select: { id: true, name: true } },
 					},
+					orderBy: { paidAt: "asc" },
 				},
 			},
 		});
@@ -90,11 +102,36 @@ export const getInvoiceDetail = protectedProcedure
 			throw new ORPCError("NOT_FOUND", { message: "Invoice not found" });
 		}
 
+		// Settlement is keyed on (customer, billing month) — see
+		// lib/settlement.ts — so legacy payments with no invoice link still
+		// count, and a stopped/debt row never paints the invoice paid.
+		const billingMonth = await db.billingMonth.findFirst({
+			where: {
+				organizationId: input.organizationId,
+				year: invoice.year,
+				month: invoice.month,
+			},
+			select: { id: true },
+		});
+		const coverage = billingMonth
+			? (
+					await fetchCoverageMap(
+						db,
+						input.organizationId,
+						[billingMonth.id],
+						[invoice.customer.id],
+					)
+				).get(coverageKey(invoice.customer.id, billingMonth.id))
+			: undefined;
+		const amount = invoiceAmount(invoice);
+
 		return {
 			invoice: {
 				...invoice,
-				// Paid ⟺ a non-voided payment exists (single source of truth).
-				paid: invoice.payment !== null && invoice.voidedAt === null,
+				paid:
+					monthSettled(amount, coverage) && invoice.voidedAt === null,
+				paidTotal: coverage?.covered ?? 0,
+				remaining: monthRemaining(amount, coverage),
 			},
 		};
 	});

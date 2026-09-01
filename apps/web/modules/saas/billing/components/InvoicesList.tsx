@@ -89,12 +89,27 @@ interface InvoiceRow {
 		mobile: string | null;
 		phone: string | null;
 	};
-	payment: {
+	payments: {
 		id: string;
 		paidAmount: number;
+		discount: number;
+		freeAccount: boolean;
+		stoppedAccount: boolean;
+		debtAccount: boolean;
 		paidAt: string | Date;
 		collector: { id: string; name: string } | null;
-	} | null;
+	}[];
+	/** Settlement-derived: the (customer, month) is fully covered. */
+	paid: boolean;
+	/** Σ(paidAmount + discount) already collected against this month. */
+	paidTotal: number;
+	/** What is still owed on this month (0 when settled). */
+	remaining: number;
+}
+
+/** Any recorded payment protects the invoice from void/delete. */
+function hasPayments(row: InvoiceRow) {
+	return row.payments.length > 0;
 }
 
 function rowSummary(row: InvoiceRow) {
@@ -329,18 +344,25 @@ export function InvoicesList() {
 		{
 			id: "status",
 			header: "Status",
-			accessorFn: (row) => !!row.payment,
+			accessorFn: (row) => row.paid,
 			enableSorting: true,
 			cell: ({ row }) => {
 				if (row.original.voidedAt) {
 					return <Badge variant="secondary">Voided</Badge>;
 				}
-				const paid = !!row.original.payment;
-				return (
-					<Badge variant={paid ? "success" : "destructive"}>
-						{paid ? "Paid" : "Unpaid"}
-					</Badge>
-				);
+				if (row.original.paid) {
+					return <Badge variant="success">Paid</Badge>;
+				}
+				// Partially covered: money came in but the month still owes.
+				if (row.original.paidTotal > 0) {
+					return (
+						<Badge variant="warning">
+							Partial — {formatCurrency(row.original.remaining)}{" "}
+							left
+						</Badge>
+					);
+				}
+				return <Badge variant="destructive">Unpaid</Badge>;
 			},
 		},
 		{
@@ -377,7 +399,7 @@ export function InvoicesList() {
 								</DropdownMenuItem>
 							) : (
 								<DropdownMenuItem
-									disabled={!!row.original.payment}
+									disabled={hasPayments(row.original)}
 									onClick={() => handleVoid(row.original)}
 								>
 									<BanIcon className="mr-2 size-4" />
@@ -387,7 +409,7 @@ export function InvoicesList() {
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
-								disabled={!!row.original.payment}
+								disabled={hasPayments(row.original)}
 								onClick={() => handleDelete(row.original)}
 							>
 								<TrashIcon className="mr-2 size-4" />
@@ -482,7 +504,7 @@ export function InvoicesList() {
 					}}
 					isLoading={isLoading}
 					enableRowSelection={(row) =>
-						!row.original.voidedAt && !row.original.payment
+						!row.original.voidedAt && !hasPayments(row.original)
 					}
 					rowSelection={rowSelection}
 					onRowSelectionChange={setRowSelection}

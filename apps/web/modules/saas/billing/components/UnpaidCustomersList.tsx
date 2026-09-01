@@ -212,6 +212,19 @@ function AmountDueCell({ customer }: { customer: UnpaidCustomer }) {
 											<span className="text-emerald-500">
 												Paid
 											</span>
+										) : (m.remaining ?? m.amount) <
+											m.amount ? (
+											// Partially collected: show what is
+											// still owed out of the invoice.
+											<span>
+												{formatCurrency(
+													m.remaining ?? m.amount,
+												)}{" "}
+												<span className="text-muted-foreground">
+													of{" "}
+													{formatCurrency(m.amount)}
+												</span>
+											</span>
 										) : (
 											formatCurrency(m.amount)
 										)}

@@ -38,7 +38,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 		}),
 	);
 
-	const { payment } = data;
+	const { payment, settlement } = data;
 	const customer = payment.customer;
 	const org = payment.organization;
 	const cycle = payment.billingMonth;
@@ -59,7 +59,10 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	});
 	const billingPeriod = `${monthName} ${cycle.year}`;
 
-	const statusConfig = getStatusConfig(payment.stoppedAccount);
+	// Partial when the month's combined coverage still leaves money owed —
+	// a topped-up month's second receipt correctly reads Paid.
+	const remainingDue = settlement?.remaining ?? 0;
+	const statusConfig = getStatusConfig(payment.stoppedAccount, remainingDue);
 
 	const customerName = [customer.firstName, customer.lastName]
 		.filter(Boolean)
@@ -217,6 +220,18 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 								{formatUSD(payment.paidAmount)}
 							</span>
 						</div>
+
+						{/* Remaining due — only when the month is not fully covered */}
+						{remainingDue > 0 && (
+							<div className="flex justify-between items-center pt-1">
+								<span className="text-sm font-medium text-amber-700">
+									Remaining Due
+								</span>
+								<span className="text-base font-semibold tabular-nums text-amber-700">
+									{formatUSD(remainingDue)}
+								</span>
+							</div>
+						)}
 					</div>
 
 					{/* Note */}
@@ -270,12 +285,19 @@ function formatUSD(value: number): string {
 	return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function getStatusConfig(stoppedAccount: boolean) {
+function getStatusConfig(stoppedAccount: boolean, remainingDue: number) {
 	if (stoppedAccount) {
 		return {
 			label: "Stopped",
 			icon: AlertCircleIcon,
 			className: "bg-red-100 text-red-700",
+		};
+	}
+	if (remainingDue > 0) {
+		return {
+			label: "Partial Payment",
+			icon: AlertCircleIcon,
+			className: "bg-amber-100 text-amber-700",
 		};
 	}
 	return {

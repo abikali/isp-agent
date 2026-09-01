@@ -25,6 +25,14 @@ import {
 	SETTLED_PAYMENT,
 } from "./filters";
 import { yearMonthToNum } from "./resolve-month";
+import {
+	COVERING_PAYMENT,
+	coverageKey,
+	fetchCoverageMap,
+	invoiceAmount,
+	monthRemaining,
+	monthSettled,
+} from "./settlement";
 
 // ── Collector Balance ────────────────────────────────────────────
 
@@ -210,18 +218,25 @@ export async function fetchRelevantBillingMonths(
 // ── Unpaid-invoice resolution (multi-month settlement) ───────────
 
 /**
- * Resolve a single customer's currently-unpaid invoices, oldest first, each
- * mapped to the billing month it settles. "Unpaid" mirrors the list-unpaid
- * derivation: an invoice is owed when its (customer, billingMonth) has no
- * SETTLED_PAYMENT. `billedMonthCount` is how many (non-voided) invoices the
- * customer has across the relevant window — used to tell "fully paid" (billed
- * but nothing unpaid → duplicate) from "never billed" (addon-only collection).
+ * Resolve a single customer's currently-owed invoices, oldest first, each
+ * mapped to the billing month it settles. Amount-aware: a partially-paid
+ * month stays in the list with `amount` = what is still owed (invoice total
+ * minus coverage), so the allocator tops months up instead of double-charging
+ * them. Fully-covered and free-waived months drop out. `billedMonthCount` is
+ * how many (non-voided) invoices the customer has across the relevant window
+ * — used to tell "fully paid" (billed but nothing owed → duplicate) from
+ * "never billed" (addon-only collection).
+ *
+ * Accepts a Prisma transaction client so `createPayment` can recompute the
+ * owed set under its per-customer advisory lock (the race guard that replaced
+ * the old `invoiceId @unique` constraint).
  */
 export async function fetchCustomerUnpaidInvoices(
 	organizationId: string,
 	customerId: string,
 	upToYear: number,
 	upToMonth: number,
+	client: Pick<typeof db, "customerInvoice" | "payment"> = db,
 ): Promise<{ unpaid: UnpaidInvoiceRow[]; billedMonthCount: number }> {
 	const relevantMonths = await fetchRelevantBillingMonths(
 		organizationId,
@@ -237,7 +252,7 @@ export async function fetchCustomerUnpaidInvoices(
 	}
 	const relevantMonthIds = relevantMonths.map((m) => m.id);
 
-	const invoices = await db.customerInvoice.findMany({
+	const invoices = await client.customerInvoice.findMany({
 		where: {
 			organizationId,
 			customerId,
@@ -256,23 +271,26 @@ export async function fetchCustomerUnpaidInvoices(
 		return { unpaid: [], billedMonthCount: 0 };
 	}
 
-	const settled = await db.payment.findMany({
-		where: {
-			organizationId,
-			customerId,
-			billingMonthId: { in: relevantMonthIds },
-			...SETTLED_PAYMENT,
-		},
-		select: { billingMonthId: true },
-	});
-	const settledMonthIds = new Set(settled.map((p) => p.billingMonthId));
+	const coverage = await fetchCoverageMap(
+		client,
+		organizationId,
+		relevantMonthIds,
+		[customerId],
+	);
 
 	const unpaid: UnpaidInvoiceRow[] = [];
 	for (const inv of invoices) {
 		const billingMonthId = billingMonthIdByYM.get(
 			`${inv.year}-${inv.month}`,
 		);
-		if (!billingMonthId || settledMonthIds.has(billingMonthId)) {
+		if (!billingMonthId) {
+			continue;
+		}
+		const remaining = monthRemaining(
+			invoiceAmount(inv),
+			coverage.get(coverageKey(customerId, billingMonthId)),
+		);
+		if (remaining <= 0) {
 			continue;
 		}
 		unpaid.push({
@@ -280,7 +298,7 @@ export async function fetchCustomerUnpaidInvoices(
 			billingMonthId,
 			year: inv.year,
 			month: inv.month,
-			amount: inv.totalWithTax > 0 ? inv.totalWithTax : inv.total,
+			amount: remaining,
 		});
 	}
 	unpaid.sort(
@@ -362,68 +380,184 @@ export function customersDueThisMonthWhere(
 	return where;
 }
 
-// ── Unpaid Customers ─────────────────────────────────────────────
+// ── Month Settlement Stats (paid / unpaid customer counts) ───────
+
+export interface CustomerSettlementRow {
+	customerId: string;
+	collectorId: string | null;
+	/** Customer is in a billable status (counts toward "unpaid" surfaces). */
+	billable: boolean;
+	/** The active billing month is fully covered (or free-waived). */
+	activeSettled: boolean;
+	/** Some relevant month still has money owed on its invoice. */
+	hasRemaining: boolean;
+}
 
 /**
- * Build a Prisma `where` clause for "customers with any unpaid invoice across
- * the relevant months." Each relevant month produces a sub-OR: customer has
- * an invoice for that month AND no payment for that month's billing_cycle.
- * A match in any month qualifies the customer as unpaid.
+ * Amount-aware paid/unpaid classification per customer, replacing the old
+ * `unpaidCustomersWhere` / `countPaidCustomers` pair. Those were row-existence
+ * Prisma filters, which is exactly the partial-payment bug: a $10 payment on
+ * a $50 invoice moved the customer from "unpaid" to "paid". Prisma cannot
+ * compare a payment sum against a related invoice total, so this fetches slim
+ * invoice + payment rows and settles the arithmetic in JS (same shape as
+ * list-unpaid, which stays the reference implementation).
+ *
+ * `customerWhere` carries the caller's scoping (dealer, collector,
+ * deletedAt, pending-stop exclusion, free-group exclusion) but NOT a status
+ * filter — "paid" deliberately counts any customer whose month is covered,
+ * while "unpaid" surfaces only billable ones; use the `billable` flag.
  */
-export function unpaidCustomersWhere(
-	organizationId: string,
-	_billingMonthId: string,
-	_monthRange: { gte: Date; lte: Date },
-	opts: {
-		collectorId?: string;
-		dealerFilter?: Record<string, unknown>;
-		/** Must include every month whose unpaid invoices should count. */
-		relevantMonths: readonly {
-			id: string;
-			year: number;
-			month: number;
-		}[];
-	},
-) {
-	const relevantMonthIds = opts.relevantMonths.map((m) => m.id);
-	const where: Record<string, unknown> = {
+export async function fetchMonthSettlementStats(opts: {
+	organizationId: string;
+	relevantMonths: readonly { id: string; year: number; month: number }[];
+	activeMonthId: string;
+	customerWhere: Record<string, unknown>;
+}): Promise<CustomerSettlementRow[]> {
+	const { organizationId, relevantMonths, activeMonthId, customerWhere } =
+		opts;
+	if (relevantMonths.length === 0) {
+		return [];
+	}
+	const billingMonthIdByYM = new Map<string, string>();
+	for (const m of relevantMonths) {
+		billingMonthIdByYM.set(`${m.year}-${m.month}`, m.id);
+	}
+	const relevantMonthIds = relevantMonths.map((m) => m.id);
+	const billableStatuses = new Set<string>([...BILLABLE_CUSTOMER_STATUSES]);
+
+	const INVOICE_FETCH_CAP = 50_000;
+	const invoices = await db.customerInvoice.findMany({
+		where: {
+			organizationId,
+			...NOT_VOIDED,
+			OR: relevantMonths.map((m) => ({ year: m.year, month: m.month })),
+			customer: customerWhere,
+		},
+		select: {
+			customerId: true,
+			year: true,
+			month: true,
+			total: true,
+			totalWithTax: true,
+			customer: { select: { collectorId: true, status: true } },
+		},
+		take: INVOICE_FETCH_CAP,
+	});
+
+	const customerIds = [...new Set(invoices.map((i) => i.customerId))];
+	const coverage = await fetchCoverageMap(
+		db,
 		organizationId,
-		status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
-		// Exclude soft-deleted customers (e.g. removed from iRadius or moved to
-		// another dealer's subtree) — they keep their invoice rows but must not
-		// surface in any collector-facing list.
+		relevantMonthIds,
+		customerIds,
+	);
+
+	const byCustomer = new Map<string, CustomerSettlementRow>();
+	for (const inv of invoices) {
+		const billingMonthId = billingMonthIdByYM.get(
+			`${inv.year}-${inv.month}`,
+		);
+		if (!billingMonthId) {
+			continue;
+		}
+		let row = byCustomer.get(inv.customerId);
+		if (!row) {
+			row = {
+				customerId: inv.customerId,
+				collectorId: inv.customer.collectorId,
+				billable: billableStatuses.has(inv.customer.status),
+				activeSettled: false,
+				hasRemaining: false,
+			};
+			byCustomer.set(inv.customerId, row);
+		}
+		const cov = coverage.get(coverageKey(inv.customerId, billingMonthId));
+		const amount = invoiceAmount(inv);
+		if (monthRemaining(amount, cov) > 0) {
+			row.hasRemaining = true;
+		}
+		if (billingMonthId === activeMonthId && monthSettled(amount, cov)) {
+			row.activeSettled = true;
+		}
+	}
+
+	// Customers who paid for the active month without ever being billed for
+	// it (addon-only collections, pre-invoice-era imports). Nothing frozen to
+	// compare against, so any real cash or a free waiver counts as settled —
+	// mirrors the old behavior for these edge rows.
+	const invoicelessPayments = await db.payment.findMany({
+		where: {
+			organizationId,
+			billingMonthId: activeMonthId,
+			...COVERING_PAYMENT,
+			OR: [{ paidAmount: { gt: 0 } }, { freeAccount: true }],
+			customer: customerWhere,
+		},
+		select: {
+			customerId: true,
+			customer: { select: { collectorId: true, status: true } },
+		},
+	});
+	const billedActiveCustomers = new Set(
+		invoices
+			.filter(
+				(i) =>
+					billingMonthIdByYM.get(`${i.year}-${i.month}`) ===
+					activeMonthId,
+			)
+			.map((i) => i.customerId),
+	);
+	for (const p of invoicelessPayments) {
+		if (billedActiveCustomers.has(p.customerId)) {
+			continue;
+		}
+		const existing = byCustomer.get(p.customerId);
+		if (existing) {
+			existing.activeSettled = true;
+		} else {
+			byCustomer.set(p.customerId, {
+				customerId: p.customerId,
+				collectorId: p.customer.collectorId,
+				billable: billableStatuses.has(p.customer.status),
+				activeSettled: true,
+				hasRemaining: false,
+			});
+		}
+	}
+
+	return [...byCustomer.values()];
+}
+
+/**
+ * The customer-side scoping shared by the settlement-stats callers: skip
+ * soft-deleted customers, the never-billed "free" group, and customers whose
+ * pending-stop review is in flight (admin limbo — neither paid nor unpaid).
+ */
+export function settlementStatsCustomerWhere(opts: {
+	relevantMonthIds: string[];
+	dealerFilter?: Record<string, unknown> | undefined;
+	collectorId?: string | string[] | undefined;
+}): Record<string, unknown> {
+	const where: Record<string, unknown> = {
 		deletedAt: null,
-		// Exclude the "free" group to match the collect list (which hides them
-		// via `excludeGroupName: "free"`) and `generate-invoices` (which never
-		// bills them). Stray migration-imported invoices must not surface them.
 		AND: [excludeGroupFilter("free")],
-		// Hide customers with a pending-stop payment in any relevant month —
-		// they're in admin review, not truly "unpaid".
 		NOT: {
 			payments: {
 				some: {
-					billingMonthId: { in: relevantMonthIds },
+					billingMonthId: { in: opts.relevantMonthIds },
 					...PENDING_STOPPED_PAYMENT,
 				},
 			},
 		},
-		OR: opts.relevantMonths.map((m) => ({
-			invoices: {
-				some: { year: m.year, month: m.month, ...NOT_VOIDED },
-			},
-			payments: {
-				none: { billingMonthId: m.id, ...SETTLED_PAYMENT },
-			},
-		})),
 	};
-
-	if (opts.collectorId) {
-		where["collectorId"] = opts.collectorId;
+	if (opts.collectorId !== undefined) {
+		where["collectorId"] = Array.isArray(opts.collectorId)
+			? { in: opts.collectorId }
+			: opts.collectorId;
 	}
 	if (opts.dealerFilter) {
 		Object.assign(where, opts.dealerFilter);
 	}
-
 	return where;
 }
 
@@ -442,27 +576,6 @@ export async function countDistinctCustomersWithPayments(
 		where,
 	});
 	return groups.length;
-}
-
-/**
- * Count distinct customers settled for a billing month.
- *
- * "Settled" = a COLLECTED, non-stopped payment with either real cash
- * (`paidAmount > 0`) or `freeAccount: true`. Bakes `SETTLED_PAYMENT` in so
- * every caller gets the same definition of "paid this month".
- */
-export async function countPaidCustomers(
-	organizationId: string,
-	billingMonthId: string,
-	extraWhere?: Record<string, unknown>,
-): Promise<number> {
-	return countDistinctCustomersWithPayments({
-		organizationId,
-		billingMonthId,
-		status: "COLLECTED",
-		...SETTLED_PAYMENT,
-		...extraWhere,
-	});
 }
 
 // ── Collector Name Resolution ────────────────────────────────────

@@ -235,9 +235,9 @@ export const createPayment = protectedProcedure
 		}
 
 		// Reject "ghost" rows: paidAmount=0 with no flag set. They satisfy
-		// the dedupe check but never count as settled (see SETTLED_PAYMENT in
-		// lib/filters.ts), so the customer reappears in the unpaid list every
-		// month yet can never be re-collected — they're stuck.
+		// the dedupe check but cover nothing (see lib/settlement.ts), so the
+		// customer reappears in the unpaid list every month yet can never be
+		// re-collected — they're stuck.
 		if (
 			input.paidAmount === 0 &&
 			!input.freeAccount &&
@@ -265,12 +265,14 @@ export const createPayment = protectedProcedure
 
 		// Duplicate guard (also gates the iRadius push below so a double submit
 		// never mirrors a phone/location change and then aborts). Cash and free
-		// settle every currently-unpaid invoice, so a *duplicate* is a customer
-		// who has invoices but nothing left unpaid. Old-debt cleanup — active
-		// month already settled yet an older month still owed — is NOT a
-		// duplicate and must be allowed. Stopped and no-invoice (addon-only)
-		// collections stay one row per active month, so the old "already
-		// handled this month" check still applies to them.
+		// settle every currently-owed invoice, so a *duplicate* is a customer
+		// who has invoices but nothing left owed. A partially-paid month is
+		// NOT settled — collecting its remainder later is a normal follow-up,
+		// not a duplicate. Stopped and no-invoice (addon-only) collections
+		// stay one row per active month, so the old "already handled this
+		// month" check still applies to them. This pre-transaction check is
+		// best-effort UX; the authoritative re-check runs inside the
+		// transaction under the advisory lock.
 		if (settlesAllOwedMonths && billedMonthCount > 0) {
 			if (unpaidInvoices.length === 0) {
 				throw new ORPCError("CONFLICT", {
@@ -356,6 +358,15 @@ export const createPayment = protectedProcedure
 		let settledRows: PaymentRow[];
 		try {
 			const result = await db.$transaction(async (tx) => {
+				// Serialize concurrent collections for the same customer. The
+				// old `invoiceId @unique` constraint used to make a racing
+				// double-submit fail atomically; with partial payments an
+				// invoice can carry several rows, so the constraint is gone
+				// and this per-customer lock (transaction-scoped, auto-freed
+				// on commit/rollback) is what prevents a double submit from
+				// allocating the same remainder twice.
+				await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${input.customerId}`}, 0))`;
+
 				const baseData = {
 					organizationId: input.organizationId,
 					customerId: input.customerId,
@@ -371,6 +382,30 @@ export const createPayment = protectedProcedure
 					noteCategory: input.noteCategory?.trim() || null,
 					notes: input.notes?.trim() || null,
 				};
+
+				// Authoritative owed set, read under the lock — the pre-
+				// transaction fetch only shaped validation and prefills.
+				const freshUnpaid = settlesAllOwedMonths
+					? (
+							await fetchCustomerUnpaidInvoices(
+								input.organizationId,
+								input.customerId,
+								billingMonth.year,
+								billingMonth.month,
+								tx,
+							)
+						).unpaid
+					: [];
+				if (
+					settlesAllOwedMonths &&
+					billedMonthCount > 0 &&
+					freshUnpaid.length === 0
+				) {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"This customer is already settled for all billed months",
+					});
+				}
 
 				let created: PaymentRow[];
 
@@ -396,33 +431,38 @@ export const createPayment = protectedProcedure
 						? input.referredCustomerId
 						: null;
 
-				if (settlesAllOwedMonths && unpaidInvoices.length > 0) {
-					// FIFO-allocate the lump across owed invoices, oldest first.
-					// A free settlement emits a row for every owed invoice (the
-					// freeAccount row is what waives the month); cash only where
-					// the money reaches. The invoiceId unique constraint makes a
-					// racing double-submit fail atomically (caught below as a
-					// CONFLICT).
+				if (settlesAllOwedMonths && freshUnpaid.length > 0) {
+					// FIFO-allocate the lump across owed amounts, oldest first.
+					// Each row's `amount` is the REMAINDER still owed on that
+					// month, so a follow-up collection tops a partially-paid
+					// invoice up instead of double-charging it. A free
+					// settlement emits a row for every owed invoice (the
+					// freeAccount row is what waives the month); cash only
+					// where the money reaches.
 					const allocation = allocatePaymentAcrossInvoices(
 						input.paidAmount,
-						unpaidInvoices,
+						freshUnpaid,
 						{ coverAllInvoices: input.freeAccount },
 					);
 					created = [];
 					for (const [i, a] of allocation.entries()) {
+						const isLast = i === allocation.length - 1;
 						created.push(
 							await tx.payment.create({
 								data: {
 									...baseData,
+									// The doorstep discount waives money ONCE —
+									// stamping it on every split row would
+									// multiply it in the coverage sums.
+									discount: isLast ? input.discount : 0,
 									billingMonthId: a.billingMonthId,
 									invoiceId: a.invoiceId,
 									paidAmount: a.amount,
 									// Referral credit rides the newest settled
 									// month, once.
-									referredCustomerId:
-										i === allocation.length - 1
-											? referredId
-											: null,
+									referredCustomerId: isLast
+										? referredId
+										: null,
 								},
 							}),
 						);
@@ -507,7 +547,10 @@ export const createPayment = protectedProcedure
 			payment = result.primary;
 			settledRows = result.created;
 		} catch (err) {
-			// A racing double-submit trips the invoiceId unique constraint.
+			// Belt-and-braces: the advisory lock serializes double-submits, and
+			// the invoiceId unique constraint is dropped (partial payments), but
+			// keep translating a stray P2002 into a friendly CONFLICT for the
+			// deploy window where new code runs against the pre-migration schema.
 			if (
 				err instanceof Prisma.PrismaClientKnownRequestError &&
 				err.code === "P2002"

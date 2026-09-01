@@ -12,7 +12,6 @@ import {
 	excludeGroupFilter,
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
-	SETTLED_PAYMENT,
 } from "../lib/filters";
 import {
 	applyCollectorScope,
@@ -20,12 +19,20 @@ import {
 } from "../lib/queries";
 import { resolveYearMonth, yearMonthToNum } from "../lib/resolve-month";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
+import {
+	coverageKey,
+	fetchCoverageMap,
+	invoiceAmount,
+	monthRemaining,
+} from "../lib/settlement";
 
 /**
  * List customers with unpaid invoices, derived entirely from the
  * customer_invoice + payment tables. The invoice is the unit of truth:
  *   - existence of a row = customer was billed for that (year, month)
- *   - absence of a matching Payment = still owed
+ *   - a month is settled only when its payments (cash + doorstep discount,
+ *     or a free waiver) cover the invoice total — a partial payment keeps
+ *     the month here with the REMAINDER as its due (lib/settlement.ts)
  *
  * Each invoice carries its own frozen `expiryDate`, set at generation time
  * from the customer's live iRadius expiry. The fresh-sync guard on
@@ -240,30 +247,19 @@ export const listUnpaidCustomers = protectedProcedure
 			};
 		}
 
-		// Build a (customerId, billingMonthId) paid set from Payment rows.
+		// Coverage per (customerId, billingMonthId): how much cash + discount
+		// landed on each month, and whether a free waiver exists.
 		const billingMonthIdByYM = new Map<string, string>();
 		for (const bm of relevantMonths) {
 			billingMonthIdByYM.set(`${bm.year}-${bm.month}`, bm.id);
 		}
 		const customerIds = [...new Set(invoices.map((i) => i.customerId))];
-		const payments = await db.payment.findMany({
-			where: {
-				organizationId: input.organizationId,
-				customerId: { in: customerIds },
-				billingMonthId: { in: relevantMonthIds },
-				...SETTLED_PAYMENT,
-			},
-			select: { customerId: true, billingMonthId: true },
-		});
-		const paidSet = new Map<string, Set<string>>();
-		for (const p of payments) {
-			let set = paidSet.get(p.customerId);
-			if (!set) {
-				set = new Set();
-				paidSet.set(p.customerId, set);
-			}
-			set.add(p.billingMonthId);
-		}
+		const coverage = await fetchCoverageMap(
+			db,
+			input.organizationId,
+			relevantMonthIds,
+			customerIds,
+		);
 
 		// Debt ("dein") rows are zero-cash visit logs. They deliberately fail
 		// SETTLED_PAYMENT above, so the customer correctly stays in this list —
@@ -320,6 +316,8 @@ export const listUnpaidCustomers = protectedProcedure
 			month: number;
 			amount: number;
 			paid: boolean;
+			/** What is still owed on this month (0 when settled). */
+			remaining: number;
 		}
 		interface UnpaidRow {
 			customer: Customer;
@@ -339,9 +337,12 @@ export const listUnpaidCustomers = protectedProcedure
 			if (!billingMonthId) {
 				continue;
 			}
-			const paid =
-				paidSet.get(inv.customerId)?.has(billingMonthId) ?? false;
-			const amount = inv.totalWithTax > 0 ? inv.totalWithTax : inv.total;
+			const amount = invoiceAmount(inv);
+			const remaining = monthRemaining(
+				amount,
+				coverage.get(coverageKey(inv.customerId, billingMonthId)),
+			);
+			const paid = remaining <= 0;
 			let row = byCustomer.get(inv.customerId);
 			if (!row) {
 				row = {
@@ -361,16 +362,19 @@ export const listUnpaidCustomers = protectedProcedure
 				month: inv.month,
 				amount,
 				paid,
+				remaining,
 			});
 			if (paid) {
 				continue;
 			}
 			row.unpaidMonths++;
-			row.accumulatedDue += amount;
+			// Dues carry only what is still owed — a $50 month with $10
+			// already collected contributes $40, not $50.
+			row.accumulatedDue += remaining;
 			const invMonthNum = yearMonthToNum(inv.year, inv.month);
 			if (invMonthNum < currentMonthNum) {
 				row.pastDueMonths++;
-				row.pastDueAmount += amount;
+				row.pastDueAmount += remaining;
 			}
 			if (
 				inv.expiryDate &&

@@ -1407,7 +1407,11 @@ model CustomerInvoice {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  payment      Payment?
+  // To-many since 2026-09-01: a partial collection leaves the invoice open,
+  // and the remainder arrives later as another Payment row on the same
+  // invoice. Settlement is derived per (customer, billing month) by summing
+  // rows — see packages/api/modules/billing/lib/settlement.ts.
+  payments     Payment[]
 
   @@unique([organizationId, customerId, year, month])
   @@index([customerId])
@@ -2015,7 +2019,10 @@ model Payment {
   organizationId  String
   customerId      String
   billingMonthId  String        @map("billingCycleId")
-  invoiceId       String?       @unique
+  // NOT unique: several partial payments may settle one invoice. The old
+  // @unique doubled as the double-submit race guard; createPayment now takes
+  // a per-customer advisory lock instead.
+  invoiceId       String?
   collectorId     String
   accountPrice    Float
   paidAmount      Float
@@ -2050,6 +2057,7 @@ model Payment {
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, billingMonthId])
+  @@index([invoiceId])
   @@index([workerId])
   @@index([customerId])
   @@index([collectorId])

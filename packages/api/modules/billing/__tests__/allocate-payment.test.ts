@@ -62,6 +62,9 @@ describe("allocatePaymentAcrossInvoices", () => {
 		expect(sum(rows)).toBe(200);
 	});
 
+	// The partial row no longer settles its month by existing — settlement is
+	// an amount comparison (see settlement.test.ts), so the remainder stays
+	// owed and a follow-up collection tops it up.
 	it("records an underpayment as a single partial row on the oldest month", () => {
 		const rows = allocatePaymentAcrossInvoices(50, [inv(2026, 6, 80)]);
 		expect(rows).toHaveLength(1);

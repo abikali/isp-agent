@@ -12,6 +12,12 @@ import {
 	fetchCollectorBalanceBatch,
 	fetchWorkerBalanceBatch,
 } from "../../billing/lib/queries";
+import {
+	coverageKey,
+	fetchCoverageMap,
+	invoiceAmount,
+	monthRemaining,
+} from "../../billing/lib/settlement";
 import { UNCLASSIFIED_LABEL } from "./categories";
 import { matchRule } from "./classify";
 import type { MoneyLine } from "./money-model";
@@ -211,31 +217,68 @@ export async function fetchCostLines(
 /**
  * Money the company is still owed by subscribers.
  *
- * Reads each invoice's own frozen `expiryDate`/total rather than the customer's
- * live values — see the billing conventions in CLAUDE.md. An invoice with no
- * non-voided payment against it is unpaid.
+ * Reads each invoice's own frozen `expiryDate`/total rather than the
+ * customer's live values — see the billing conventions in CLAUDE.md. What a
+ * month still owes is settlement-derived (billing/lib/settlement.ts): a
+ * partially paid invoice contributes its REMAINDER, a fully covered or
+ * free-waived month contributes nothing, and a $0 stopped row no longer
+ * hides the whole invoice from receivables (the old `payment: null` filter
+ * dropped $11.9k of open invoices that only carried stop-flag rows).
  */
 export async function fetchReceivables(scope: FinanceScope) {
-	const rows = await db.customerInvoice.findMany({
-		where: {
-			organizationId: scope.organizationId,
-			voidedAt: null,
-			payment: null,
-			...(scope.activeDealerId
-				? { customer: { dealerId: scope.activeDealerId } }
-				: {}),
-		},
-		select: { total: true, year: true, month: true },
-	});
+	const [rows, billingMonths] = await Promise.all([
+		db.customerInvoice.findMany({
+			where: {
+				organizationId: scope.organizationId,
+				voidedAt: null,
+				...(scope.activeDealerId
+					? { customer: { dealerId: scope.activeDealerId } }
+					: {}),
+			},
+			select: {
+				customerId: true,
+				total: true,
+				totalWithTax: true,
+				year: true,
+				month: true,
+			},
+		}),
+		db.billingMonth.findMany({
+			where: { organizationId: scope.organizationId },
+			select: { id: true, year: true, month: true },
+		}),
+	]);
+	const monthIdByYM = new Map(
+		billingMonths.map((m) => [`${m.year}-${m.month}`, m.id]),
+	);
+	// Org-wide coverage in one query — the payment table is far smaller than
+	// a bind-parameter list of every open customer id.
+	const coverage = await fetchCoverageMap(
+		db,
+		scope.organizationId,
+		billingMonths.map((m) => m.id),
+	);
 
 	let total = 0;
+	let count = 0;
 	const byMonth = new Map<
 		string,
 		{ year: number; month: number; amount: number; count: number }
 	>();
 
 	for (const row of rows) {
-		total += row.total;
+		const monthId = monthIdByYM.get(`${row.year}-${row.month}`);
+		const remaining = monthRemaining(
+			invoiceAmount(row),
+			monthId
+				? coverage.get(coverageKey(row.customerId, monthId))
+				: undefined,
+		);
+		if (remaining <= 0) {
+			continue;
+		}
+		total += remaining;
+		count += 1;
 		const key = `${row.year}-${row.month}`;
 		const bucket = byMonth.get(key) ?? {
 			year: row.year,
@@ -243,14 +286,14 @@ export async function fetchReceivables(scope: FinanceScope) {
 			amount: 0,
 			count: 0,
 		};
-		bucket.amount += row.total;
+		bucket.amount += remaining;
 		bucket.count += 1;
 		byMonth.set(key, bucket);
 	}
 
 	return {
 		total,
-		count: rows.length,
+		count,
 		byMonth: [...byMonth.values()].sort(
 			(a, b) => a.year - b.year || a.month - b.month,
 		),
