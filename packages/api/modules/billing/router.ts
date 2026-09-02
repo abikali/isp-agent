@@ -1,3 +1,4 @@
+import { changePlanAndReviewPayment } from "./procedures/change-plan-review";
 import { getCollectorBalance } from "./procedures/collector-balance";
 import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
@@ -74,6 +75,7 @@ export const billingRouter = {
 		delete: deletePayment,
 		review: reviewPayment,
 		reviewMany: reviewPayments,
+		changePlanAndReview: changePlanAndReviewPayment,
 		resendReceipt: resendReceipt,
 		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,

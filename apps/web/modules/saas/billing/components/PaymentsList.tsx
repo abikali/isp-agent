@@ -745,6 +745,8 @@ export function PaymentsList() {
 	const [changePlanDialog, setChangePlanDialog] = useState<{
 		customerId: string;
 		currentPlanId: string | null;
+		/** Set from the review queue: reprice this payment to the new plan too. */
+		paymentId?: string;
 	} | null>(null);
 	// "Assign task" row action — carries the customer snapshot so the
 	// task dialog opens pre-linked to that customer.
@@ -1440,6 +1442,29 @@ export function PaymentsList() {
 												Set discount & review
 											</DropdownMenuItem>
 										)}
+										{needsReview &&
+											payment.customer.externalId &&
+											!payment.stoppedAccount &&
+											!payment.freeAccount &&
+											!payment.debtAccount && (
+												<DropdownMenuItem
+													onClick={() =>
+														setChangePlanDialog({
+															customerId:
+																payment.customer
+																	.id,
+															currentPlanId:
+																payment.customer
+																	.planId,
+															paymentId:
+																payment.id,
+														})
+													}
+												>
+													<ArrowUpDownIcon className="mr-2 size-3.5" />
+													Change plan & review
+												</DropdownMenuItem>
+											)}
 										{payment.customer.externalId && (
 											<>
 												<DropdownMenuSeparator />
@@ -1952,6 +1977,7 @@ export function PaymentsList() {
 					organizationId={organizationId}
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
+					paymentId={changePlanDialog.paymentId}
 				/>
 			)}
 

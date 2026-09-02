@@ -17,6 +17,7 @@ import {
 	previewAccountTypeChange,
 } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
+import { planMonthlyRate } from "../lib/plan-rate";
 
 const input = z.object({
 	organizationId: z.string(),
@@ -161,9 +162,7 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 
 		// Mirror what iRadius just set on User.AccountPrice so the local
 		// monthlyRate doesn't drift and trip the next sync's conflict queue.
-		// Prefer sellingPrice → rate → monthlyPrice.
-		const newMonthlyRate =
-			newPlan.sellingPrice ?? newPlan.rate ?? newPlan.monthlyPrice;
+		const newMonthlyRate = planMonthlyRate(newPlan);
 
 		let result!: AccountTypeChangeResult;
 		await mirrorToIRadius({

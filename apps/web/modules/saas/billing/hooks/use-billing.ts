@@ -528,6 +528,27 @@ export function useReviewPayment() {
 	});
 }
 
+/**
+ * "Change plan & review": moves the customer to the plan the collector
+ * charged for and reprices the payment + its month to it. Touches the
+ * customer row too, so both caches go stale.
+ */
+export function useChangePlanAndReview() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.changePlanAndReview.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 export function useReviewPayments() {
 	const queryClient = useQueryClient();
 
