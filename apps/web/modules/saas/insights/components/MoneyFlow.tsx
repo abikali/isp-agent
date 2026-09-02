@@ -2,17 +2,19 @@
 
 import { formatCurrency } from "@shared/lib/format";
 import { cn } from "@ui/lib";
-import { BuildingIcon } from "lucide-react";
+import { UsersIcon } from "lucide-react";
 
 interface MoneyFlowProps {
 	periodLabel: string;
-	moneyIn: number;
+	/** Cash handed in to the office in the period. */
+	moneyIn: { total: number; handoffs: number };
 	moneyOut: number;
 	kept: number;
-	/** Cash collectors physically handed to the office in the period. */
-	handedIn: { total: number; count: number };
-	/** Split of what came in. Rendered as a bar so the two businesses are
-	 *  visible at a glance rather than blended into one figure. */
+	/** What collectors recorded from subscribers in the period's cycles —
+	 *  not yet necessarily in the office. */
+	collected: number;
+	/** Split of what was collected. Rendered as a bar so the two businesses
+	 *  are visible at a glance rather than blended into one figure. */
 	streams?: Array<{ label: string; amount: number; color: string }>;
 }
 
@@ -28,7 +30,7 @@ export function MoneyFlow({
 	moneyIn,
 	moneyOut,
 	kept,
-	handedIn,
+	collected,
 	streams,
 }: MoneyFlowProps) {
 	const positive = kept >= 0;
@@ -43,9 +45,14 @@ export function MoneyFlow({
 			</div>
 			<div className="grid gap-5 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center sm:gap-4">
 				<Figure
-					label="Money in"
-					value={moneyIn}
+					label="Handed in to the office"
+					value={moneyIn.total}
 					tone="text-foreground"
+					hint={
+						moneyIn.handoffs === 0
+							? "No handoffs yet"
+							: `${moneyIn.handoffs} ${moneyIn.handoffs === 1 ? "handoff" : "handoffs"}`
+					}
 				/>
 				<Operator symbol="−" />
 				<Figure
@@ -65,20 +72,18 @@ export function MoneyFlow({
 			<div className="mt-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-t border-border pt-4">
 				<div className="min-w-0">
 					<div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-						<BuildingIcon className="size-3.5" />
-						Handed in to the office
+						<UsersIcon className="size-3.5" />
+						Collected by your team
 					</div>
 					<div className="mt-1 text-xl font-medium tabular-nums leading-none tracking-tight">
-						{formatCurrency(handedIn.total)}
+						{formatCurrency(collected)}
 					</div>
 				</div>
 				<p className="max-w-md text-pretty text-xs text-muted-foreground sm:text-right">
-					{handedIn.count === 0
-						? "No collector has handed cash in yet this period."
-						: `Received from your team in ${handedIn.count} ${handedIn.count === 1 ? "handoff" : "handoffs"}.`}{" "}
-					Money in counts a payment when a collector records it; this
-					counts the cash when it reaches you. One handoff can carry
-					money from several months, so the two don't subtract.
+					Payments your collectors recorded from subscribers for this
+					period. It becomes money in once they hand the cash to the
+					office, and one handoff can carry several months, so the two
+					won't match exactly.
 				</p>
 			</div>
 
@@ -126,11 +131,13 @@ function Figure({
 	value,
 	tone,
 	emphasis,
+	hint,
 }: {
 	label: string;
 	value: number;
 	tone: string;
 	emphasis?: boolean;
+	hint?: string;
 }) {
 	return (
 		<div className="min-w-0">
@@ -146,6 +153,9 @@ function Figure({
 			>
 				{formatCurrency(value)}
 			</div>
+			{hint && (
+				<div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+			)}
 		</div>
 	);
 }

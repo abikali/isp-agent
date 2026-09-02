@@ -21,6 +21,12 @@ const periodSchema = z.enum(["this-month", "last-month", "last-3", "last-12"]);
  * The four numbers an owner actually asks for, plus the comparison that makes
  * them mean something.
  *
+ * "Money in" is CASH BASIS: what collectors physically handed to the office in
+ * the period. A payment a collector records is not money the owner has yet —
+ * it sits in the collector's pocket until a handoff — so "you kept" is built
+ * from handoffs minus spending, and the recorded payments are reported
+ * separately as "collected", the field-side view of the same cash.
+ *
  * This replaces `billing.reports.grandTotal`, which computed
  * `totalHandedOff − totalExpenses` where `totalHandedOff` already contained the
  * expenses. They cancelled, so expenses moved the headline by exactly zero and
@@ -123,6 +129,10 @@ export const getFinanceSummary = protectedProcedure
 					.filter((l) => !l.categoryId)
 					.reduce((sum, l) => sum + l.amount, 0);
 
+				// Cash basis: what reached the office, minus what was spent.
+				const kept = handedIn.total - current.cost;
+				const priorKept = priorHandedIn.total - previous.cost;
+
 				return {
 					/** When these numbers were computed. They are served from
 					 *  a short cache, so the page shows this and offers a
@@ -140,26 +150,30 @@ export const getFinanceSummary = protectedProcedure
 					},
 					comparison: {
 						label: prior.label,
-						moneyIn: previous.revenue,
+						moneyIn: priorHandedIn.total,
+						collected: previous.revenue,
 						moneyOut: previous.cost,
-						net: previous.net,
-						operatingProfit: previous.operatingProfit,
-						handedIn: priorHandedIn.total,
+						operatingProfit: priorKept,
+						net: priorKept - previous.draws,
 					},
+					/** Cash that physically reached the office in the period:
+					 *  collectors' HANDOFF rows by handoff date. This is the
+					 *  "money in" of the headline equation. */
 					moneyIn: {
+						total: handedIn.total,
+						handoffs: handedIn.count,
+					},
+					/** What collectors RECORDED from subscribers and dealers
+					 *  for the period's cycles — the field-side view. Counted
+					 *  when the payment is entered, whether or not the cash has
+					 *  been handed in yet, so it does not subtract from
+					 *  moneyIn and must not be added to it. */
+					collected: {
 						total: current.revenue,
 						retail: current.byStream.RETAIL,
 						wholesale: current.byStream.WHOLESALE,
 						other: current.byStream.OTHER,
 						wholesaleSettled: wholesale.settled,
-					},
-					/** Cash collectors physically handed to the office during
-					 *  the period. A period figure like moneyIn, but a
-					 *  different event: moneyIn counts the collector recording
-					 *  a payment; this counts the office receiving the cash. */
-					handedIn: {
-						total: handedIn.total,
-						count: handedIn.count,
 					},
 					/** Things that would make the headline misleading if the
 					 *  page stated it confidently. The UI must degrade to an
@@ -181,8 +195,8 @@ export const getFinanceSummary = protectedProcedure
 							current.cost > 0 ? unclassified / current.cost : 0,
 					},
 					draws: current.draws,
-					operatingProfit: current.operatingProfit,
-					net: current.net,
+					operatingProfit: kept,
+					net: kept - current.draws,
 					owed: receivables,
 					held: cashHeld,
 				};

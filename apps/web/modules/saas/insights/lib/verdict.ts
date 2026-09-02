@@ -24,8 +24,11 @@ export interface VerdictInput {
 	periodLabel: string;
 	isPartial: boolean;
 	progress: number;
+	/** Cash handed in to the office. */
 	moneyIn: number;
 	moneyOut: number;
+	/** What collectors recorded but may not have handed in yet. */
+	collected?: number;
 	net: number;
 	comparisonLabel: string;
 	comparisonNet: number;
@@ -97,10 +100,17 @@ export function buildVerdict(input: VerdictInput): Verdict {
 
 	// Nothing to say yet. Better than a confident $0.
 	if (moneyIn === 0 && moneyOut === 0) {
+		const collected = input.collected ?? 0;
 		return {
 			tone: "unknown",
-			headline: `No money recorded for ${periodLabel} yet.`,
-			detail: null,
+			headline:
+				collected > 0
+					? `Nothing has reached the office for ${periodLabel} yet.`
+					: `No money recorded for ${periodLabel} yet.`,
+			detail:
+				collected > 0
+					? `Your team has collected ${money(collected)} so far, but none of it has been handed in.`
+					: null,
 			caveat: null,
 		};
 	}

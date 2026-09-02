@@ -106,6 +106,19 @@ describe("buildVerdict", () => {
 		expect(v.caveat).toContain("iRadius");
 	});
 
+	it("distinguishes 'nothing collected' from 'nothing handed in yet'", () => {
+		const v = buildVerdict({
+			...base,
+			moneyIn: 0,
+			moneyOut: 0,
+			net: 0,
+			collected: 9030,
+		});
+		expect(v.tone).toBe("unknown");
+		expect(v.headline).toContain("reached the office");
+		expect(v.detail).toContain("$9,030");
+	});
+
 	it("admits when there is nothing to show", () => {
 		const v = buildVerdict({ ...base, moneyIn: 0, moneyOut: 0, net: 0 });
 		expect(v.tone).toBe("unknown");

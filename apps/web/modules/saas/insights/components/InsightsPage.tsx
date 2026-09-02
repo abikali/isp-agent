@@ -92,6 +92,7 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 		progress: summary.period.progress,
 		moneyIn: summary.moneyIn.total,
 		moneyOut: summary.moneyOut.total,
+		collected: summary.collected.total,
 		net: summary.net,
 		comparisonLabel: summary.comparison.label,
 		comparisonNet: summary.comparison.net,
@@ -163,19 +164,19 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 			{!summary.gaps.wholesaleNeverSynced && (
 				<MoneyFlow
 					periodLabel={summary.period.label}
-					moneyIn={summary.moneyIn.total}
+					moneyIn={summary.moneyIn}
 					moneyOut={summary.moneyOut.total}
 					kept={summary.net}
-					handedIn={summary.handedIn}
+					collected={summary.collected.total}
 					streams={[
 						{
 							label: "Your own subscribers",
-							amount: summary.moneyIn.retail,
+							amount: summary.collected.retail,
 							color: "var(--chart-1)",
 						},
 						{
 							label: "Dealers reselling your service",
-							amount: summary.moneyIn.wholesale,
+							amount: summary.collected.wholesale,
 							color: "var(--chart-3)",
 						},
 					].filter((s) => s.amount > 0)}

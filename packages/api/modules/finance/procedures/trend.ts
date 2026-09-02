@@ -8,13 +8,15 @@ import { resolvePeriod, shortMonthLabel } from "../lib/period";
 import {
 	type FinanceScope,
 	fetchCostLines,
+	fetchHandedIn,
 	fetchRetailRevenue,
 	fetchWholesaleRevenue,
 } from "../lib/queries";
 
 /**
  * Month-by-month history, so "is this normal?" has an answer on the page
- * instead of in someone's head.
+ * instead of in someone's head. Same cash basis as the summary: kept =
+ * handed in − spent − draws.
  */
 export const getFinanceTrend = protectedProcedure
 	.route({
@@ -62,11 +64,13 @@ export const getFinanceTrend = protectedProcedure
 							months: [m],
 						};
 
-						const [retail, wholesale, costs] = await Promise.all([
-							fetchRetailRevenue(scope, single),
-							fetchWholesaleRevenue(scope, single),
-							fetchCostLines(scope, single),
-						]);
+						const [retail, wholesale, costs, handedIn] =
+							await Promise.all([
+								fetchRetailRevenue(scope, single),
+								fetchWholesaleRevenue(scope, single),
+								fetchCostLines(scope, single),
+								fetchHandedIn(scope, single),
+							]);
 
 						const folded = foldLines([
 							{
@@ -94,10 +98,14 @@ export const getFinanceTrend = protectedProcedure
 								m.month === current?.month,
 							retail: folded.byStream.RETAIL,
 							wholesale: folded.byStream.WHOLESALE,
-							moneyIn: folded.revenue,
+							/** Cash handed in to the office — same basis as
+							 *  the summary's moneyIn. */
+							moneyIn: handedIn.total,
+							/** What collectors recorded for the cycle. */
+							collected: folded.revenue,
 							moneyOut: folded.cost,
 							draws: folded.draws,
-							net: folded.net,
+							net: handedIn.total - folded.cost - folded.draws,
 						};
 					}),
 				);

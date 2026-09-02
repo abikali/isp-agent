@@ -128,7 +128,7 @@ export function HeldCard({ total, holders, collectorsPath }: HeldProps) {
 			<p className="mt-2 text-sm text-muted-foreground">
 				{total <= 0
 					? "Everything collected has reached the office."
-					: "Collected from subscribers, not handed in to the office yet. Built up over every month, not just the one selected above."}
+					: "Collected from subscribers, not handed in to the office yet. It becomes money in when they hand it over. Built up over every month, not just the one selected above."}
 			</p>
 
 			{top.length > 0 && (
