@@ -87,6 +87,11 @@ export const permissionStatement = {
 
 	// Billing & Collections
 	billing: ["view", "manage", "collect", "collect:own"],
+	// Dealer money: what resellers owe the operator and the prepaid credit
+	// they have left. `manage` adds/deducts credit and records payments —
+	// both are writes to iRadius. Granted to organization owners and admins
+	// only; no ISP role template (manager, dealer, collector, worker) gets it.
+	dealers: ["read", "manage"],
 
 	// Inventory & Installations
 	inventory: ["create", "read", "update", "delete"],

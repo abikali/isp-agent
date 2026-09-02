@@ -75,6 +75,7 @@ import { Route as SaasAppOrgOrganizationSlugInsightsIndexRouteImport } from "./r
 import { Route as SaasAppOrgOrganizationSlugExpensesIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/expenses/index"
 import { Route as SaasAppOrgOrganizationSlugEscalationsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/escalations/index"
 import { Route as SaasAppOrgOrganizationSlugEmployeesIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/employees/index"
+import { Route as SaasAppOrgOrganizationSlugDealersIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/dealers/index"
 import { Route as SaasAppOrgOrganizationSlugCustomersIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/index"
 import { Route as SaasAppOrgOrganizationSlugConversationsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/conversations/index"
 import { Route as SaasAppOrgOrganizationSlugBillingIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/billing/index"
@@ -98,6 +99,7 @@ import { Route as SaasAppOrgOrganizationSlugSettingsBillingRouteImport } from ".
 import { Route as SaasAppOrgOrganizationSlugSettingsAuditRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/audit"
 import { Route as SaasAppOrgOrganizationSlugSettingsApiKeysRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/api-keys"
 import { Route as SaasAppOrgOrganizationSlugMarketingNewRouteImport } from "./routes/_saas/app/_org/$organizationSlug/marketing/new"
+import { Route as SaasAppOrgOrganizationSlugDealersDealerIdRouteImport } from "./routes/_saas/app/_org/$organizationSlug/dealers/$dealerId"
 import { Route as SaasAppOrgOrganizationSlugCustomersPlansRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/plans"
 import { Route as SaasAppOrgOrganizationSlugCustomersNetworkRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/network"
 import { Route as SaasAppOrgOrganizationSlugCustomersApprovalsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/customers/approvals"
@@ -501,6 +503,12 @@ const SaasAppOrgOrganizationSlugEmployeesIndexRoute =
     path: "/employees/",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
+const SaasAppOrgOrganizationSlugDealersIndexRoute =
+  SaasAppOrgOrganizationSlugDealersIndexRouteImport.update({
+    id: "/dealers/",
+    path: "/dealers/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugCustomersIndexRoute =
   SaasAppOrgOrganizationSlugCustomersIndexRouteImport.update({
     id: "/customers/",
@@ -637,6 +645,12 @@ const SaasAppOrgOrganizationSlugMarketingNewRoute =
   SaasAppOrgOrganizationSlugMarketingNewRouteImport.update({
     id: "/marketing/new",
     path: "/marketing/new",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugDealersDealerIdRoute =
+  SaasAppOrgOrganizationSlugDealersDealerIdRouteImport.update({
+    id: "/dealers/$dealerId",
+    path: "/dealers/$dealerId",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
 const SaasAppOrgOrganizationSlugCustomersPlansRoute =
@@ -904,6 +918,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/customers/approvals": typeof SaasAppOrgOrganizationSlugCustomersApprovalsRoute
   "/app/$organizationSlug/customers/network": typeof SaasAppOrgOrganizationSlugCustomersNetworkRoute
   "/app/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/app/$organizationSlug/dealers/$dealerId": typeof SaasAppOrgOrganizationSlugDealersDealerIdRoute
   "/app/$organizationSlug/marketing/new": typeof SaasAppOrgOrganizationSlugMarketingNewRoute
   "/app/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/app/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
@@ -927,6 +942,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/billing": typeof SaasAppOrgOrganizationSlugBillingIndexRoute
   "/app/$organizationSlug/conversations": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
   "/app/$organizationSlug/customers": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/app/$organizationSlug/dealers": typeof SaasAppOrgOrganizationSlugDealersIndexRoute
   "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/escalations": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/app/$organizationSlug/expenses": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
@@ -1015,6 +1031,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/customers/approvals": typeof SaasAppOrgOrganizationSlugCustomersApprovalsRoute
   "/app/$organizationSlug/customers/network": typeof SaasAppOrgOrganizationSlugCustomersNetworkRoute
   "/app/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/app/$organizationSlug/dealers/$dealerId": typeof SaasAppOrgOrganizationSlugDealersDealerIdRoute
   "/app/$organizationSlug/marketing/new": typeof SaasAppOrgOrganizationSlugMarketingNewRoute
   "/app/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/app/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
@@ -1038,6 +1055,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/billing": typeof SaasAppOrgOrganizationSlugBillingIndexRoute
   "/app/$organizationSlug/conversations": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
   "/app/$organizationSlug/customers": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/app/$organizationSlug/dealers": typeof SaasAppOrgOrganizationSlugDealersIndexRoute
   "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/escalations": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/app/$organizationSlug/expenses": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
@@ -1141,6 +1159,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/customers/approvals": typeof SaasAppOrgOrganizationSlugCustomersApprovalsRoute
   "/_saas/app/_org/$organizationSlug/customers/network": typeof SaasAppOrgOrganizationSlugCustomersNetworkRoute
   "/_saas/app/_org/$organizationSlug/customers/plans": typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  "/_saas/app/_org/$organizationSlug/dealers/$dealerId": typeof SaasAppOrgOrganizationSlugDealersDealerIdRoute
   "/_saas/app/_org/$organizationSlug/marketing/new": typeof SaasAppOrgOrganizationSlugMarketingNewRoute
   "/_saas/app/_org/$organizationSlug/settings/api-keys": typeof SaasAppOrgOrganizationSlugSettingsApiKeysRoute
   "/_saas/app/_org/$organizationSlug/settings/audit": typeof SaasAppOrgOrganizationSlugSettingsAuditRoute
@@ -1164,6 +1183,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/billing/": typeof SaasAppOrgOrganizationSlugBillingIndexRoute
   "/_saas/app/_org/$organizationSlug/conversations/": typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
   "/_saas/app/_org/$organizationSlug/customers/": typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  "/_saas/app/_org/$organizationSlug/dealers/": typeof SaasAppOrgOrganizationSlugDealersIndexRoute
   "/_saas/app/_org/$organizationSlug/employees/": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/_saas/app/_org/$organizationSlug/escalations/": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/_saas/app/_org/$organizationSlug/expenses/": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
@@ -1261,6 +1281,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/customers/approvals"
     | "/app/$organizationSlug/customers/network"
     | "/app/$organizationSlug/customers/plans"
+    | "/app/$organizationSlug/dealers/$dealerId"
     | "/app/$organizationSlug/marketing/new"
     | "/app/$organizationSlug/settings/api-keys"
     | "/app/$organizationSlug/settings/audit"
@@ -1284,6 +1305,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/billing"
     | "/app/$organizationSlug/conversations"
     | "/app/$organizationSlug/customers"
+    | "/app/$organizationSlug/dealers"
     | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/escalations"
     | "/app/$organizationSlug/expenses"
@@ -1372,6 +1394,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/customers/approvals"
     | "/app/$organizationSlug/customers/network"
     | "/app/$organizationSlug/customers/plans"
+    | "/app/$organizationSlug/dealers/$dealerId"
     | "/app/$organizationSlug/marketing/new"
     | "/app/$organizationSlug/settings/api-keys"
     | "/app/$organizationSlug/settings/audit"
@@ -1395,6 +1418,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/billing"
     | "/app/$organizationSlug/conversations"
     | "/app/$organizationSlug/customers"
+    | "/app/$organizationSlug/dealers"
     | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/escalations"
     | "/app/$organizationSlug/expenses"
@@ -1497,6 +1521,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/customers/approvals"
     | "/_saas/app/_org/$organizationSlug/customers/network"
     | "/_saas/app/_org/$organizationSlug/customers/plans"
+    | "/_saas/app/_org/$organizationSlug/dealers/$dealerId"
     | "/_saas/app/_org/$organizationSlug/marketing/new"
     | "/_saas/app/_org/$organizationSlug/settings/api-keys"
     | "/_saas/app/_org/$organizationSlug/settings/audit"
@@ -1520,6 +1545,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/billing/"
     | "/_saas/app/_org/$organizationSlug/conversations/"
     | "/_saas/app/_org/$organizationSlug/customers/"
+    | "/_saas/app/_org/$organizationSlug/dealers/"
     | "/_saas/app/_org/$organizationSlug/employees/"
     | "/_saas/app/_org/$organizationSlug/escalations/"
     | "/_saas/app/_org/$organizationSlug/expenses/"
@@ -2044,6 +2070,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
+    "/_saas/app/_org/$organizationSlug/dealers/": {
+      id: "/_saas/app/_org/$organizationSlug/dealers/"
+      path: "/dealers"
+      fullPath: "/app/$organizationSlug/dealers"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugDealersIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
     "/_saas/app/_org/$organizationSlug/customers/": {
       id: "/_saas/app/_org/$organizationSlug/customers/"
       path: "/customers"
@@ -2203,6 +2236,13 @@ declare module "@tanstack/react-router" {
       path: "/marketing/new"
       fullPath: "/app/$organizationSlug/marketing/new"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugMarketingNewRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/dealers/$dealerId": {
+      id: "/_saas/app/_org/$organizationSlug/dealers/$dealerId"
+      path: "/dealers/$dealerId"
+      fullPath: "/app/$organizationSlug/dealers/$dealerId"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugDealersDealerIdRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/customers/plans": {
@@ -2650,12 +2690,14 @@ interface SaasAppOrgOrganizationSlugRouteChildren {
   SaasAppOrgOrganizationSlugCustomersApprovalsRoute: typeof SaasAppOrgOrganizationSlugCustomersApprovalsRoute
   SaasAppOrgOrganizationSlugCustomersNetworkRoute: typeof SaasAppOrgOrganizationSlugCustomersNetworkRoute
   SaasAppOrgOrganizationSlugCustomersPlansRoute: typeof SaasAppOrgOrganizationSlugCustomersPlansRoute
+  SaasAppOrgOrganizationSlugDealersDealerIdRoute: typeof SaasAppOrgOrganizationSlugDealersDealerIdRoute
   SaasAppOrgOrganizationSlugMarketingNewRoute: typeof SaasAppOrgOrganizationSlugMarketingNewRoute
   SaasAppOrgOrganizationSlugStockLogRoute: typeof SaasAppOrgOrganizationSlugStockLogRoute
   SaasAppOrgOrganizationSlugAiAgentsIndexRoute: typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
   SaasAppOrgOrganizationSlugBillingIndexRoute: typeof SaasAppOrgOrganizationSlugBillingIndexRoute
   SaasAppOrgOrganizationSlugConversationsIndexRoute: typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
   SaasAppOrgOrganizationSlugCustomersIndexRoute: typeof SaasAppOrgOrganizationSlugCustomersIndexRoute
+  SaasAppOrgOrganizationSlugDealersIndexRoute: typeof SaasAppOrgOrganizationSlugDealersIndexRoute
   SaasAppOrgOrganizationSlugEmployeesIndexRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   SaasAppOrgOrganizationSlugEscalationsIndexRoute: typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   SaasAppOrgOrganizationSlugExpensesIndexRoute: typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
@@ -2718,6 +2760,8 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
       SaasAppOrgOrganizationSlugCustomersNetworkRoute,
     SaasAppOrgOrganizationSlugCustomersPlansRoute:
       SaasAppOrgOrganizationSlugCustomersPlansRoute,
+    SaasAppOrgOrganizationSlugDealersDealerIdRoute:
+      SaasAppOrgOrganizationSlugDealersDealerIdRoute,
     SaasAppOrgOrganizationSlugMarketingNewRoute:
       SaasAppOrgOrganizationSlugMarketingNewRoute,
     SaasAppOrgOrganizationSlugStockLogRoute:
@@ -2730,6 +2774,8 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
       SaasAppOrgOrganizationSlugConversationsIndexRoute,
     SaasAppOrgOrganizationSlugCustomersIndexRoute:
       SaasAppOrgOrganizationSlugCustomersIndexRoute,
+    SaasAppOrgOrganizationSlugDealersIndexRoute:
+      SaasAppOrgOrganizationSlugDealersIndexRoute,
     SaasAppOrgOrganizationSlugEmployeesIndexRoute:
       SaasAppOrgOrganizationSlugEmployeesIndexRoute,
     SaasAppOrgOrganizationSlugEscalationsIndexRoute:

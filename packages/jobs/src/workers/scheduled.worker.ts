@@ -6,6 +6,7 @@ import {
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
+import { queueIRadiusSync } from "../jobs/iradius-sync.jobs";
 import { queueWatcherCheck } from "../jobs/watcher-check.jobs";
 import { SCHEDULED_QUEUE_NAME } from "../queues/scheduled.queue";
 import type { ScheduledJobData, ScheduledJobResult } from "../types";
@@ -256,6 +257,43 @@ async function cleanupOldExecutions(): Promise<number> {
 	return result.count;
 }
 
+/**
+ * Queue a global "dealers-only" iRadius sync unless one is already queued or
+ * running. Same shape as `admin.dealers.sync` / `dealers.syncNow`, minus the
+ * caller: the operation row has no organization because dealers are global.
+ */
+async function scheduleDealerSync(): Promise<number> {
+	const active = await db.iRadiusSyncOperation.findFirst({
+		where: {
+			organizationId: null,
+			status: { in: ["pending", "in_progress"] },
+		},
+		select: { id: true, createdAt: true },
+	});
+	if (active) {
+		// A sync stuck in "in_progress" for over an hour is a crashed worker,
+		// not a live one; let it be superseded rather than blocking forever.
+		const ageMs = Date.now() - active.createdAt.getTime();
+		if (ageMs < 60 * 60 * 1000) {
+			return 0;
+		}
+		await db.iRadiusSyncOperation.update({
+			where: { id: active.id },
+			data: { status: "failed", completedAt: new Date() },
+		});
+	}
+
+	const operation = await db.iRadiusSyncOperation.create({
+		data: { status: "pending" },
+		select: { id: true },
+	});
+	await queueIRadiusSync({
+		operationId: operation.id,
+		mode: "dealers-only",
+	});
+	return 1;
+}
+
 export function createScheduledWorker(): Worker<
 	ScheduledJobData,
 	ScheduledJobResult
@@ -295,6 +333,10 @@ export function createScheduledWorker(): Worker<
 				case "network-monitor-sync": {
 					const synced = await syncNetworkMonitor();
 					return { processedCount: synced };
+				}
+				case "dealer-sync": {
+					const queued = await scheduleDealerSync();
+					return { processedCount: queued };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

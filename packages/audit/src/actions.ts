@@ -153,6 +153,12 @@ export const AUDIT_ACTIONS = {
 		employeesAssigned: "task.employees_assigned",
 	},
 
+	// Dealer money (writes that also land in iRadius)
+	dealer: {
+		creditAdjusted: "dealer.credit_adjusted",
+		paymentRecorded: "dealer.payment_recorded",
+	},
+
 	// Data export/deletion
 	data: {
 		exported: "data.exported",
@@ -183,6 +189,7 @@ export const RESOURCE_TYPES = {
 	base: "base",
 	employee: "employee",
 	task: "task",
+	dealer: "dealer",
 } as const;
 
 // Type helper to extract all values from a nested const object

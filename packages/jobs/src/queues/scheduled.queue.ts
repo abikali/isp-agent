@@ -95,6 +95,21 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Dealers + their receivable ledgers from iRadius every 30 minutes. The
+	// owner's Dealers page reads the local mirror; before this the mirror only
+	// moved when a platform admin pressed "Sync dealers" (prod was four days
+	// and ~280 ledger rows behind on 2026-09-02).
+	await queue.upsertJobScheduler(
+		"dealer-sync",
+		{
+			pattern: "*/30 * * * *",
+		},
+		{
+			name: "dealer-sync",
+			data: { type: "dealer-sync" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

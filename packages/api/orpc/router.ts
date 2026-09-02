@@ -9,6 +9,7 @@ import { basesRouter } from "../modules/bases/router";
 import { billingRouter } from "../modules/billing/router";
 import { customersRouter } from "../modules/customers/router";
 import { dashboardRouter } from "../modules/dashboard/router";
+import { dealerFinanceRouter } from "../modules/dealers/router";
 import { employeesRouter } from "../modules/employees/router";
 import { expensesRouter } from "../modules/expenses/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
@@ -47,6 +48,7 @@ export const router = publicProcedure.router({
 	auth: authRouter,
 	customers: customersRouter,
 	dashboard: dashboardRouter,
+	dealers: dealerFinanceRouter,
 	employees: employeesRouter,
 	expenses: expensesRouter,
 	finance: financeRouter,

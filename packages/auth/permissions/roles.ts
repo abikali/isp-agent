@@ -44,6 +44,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		audit: ["view"],
 		// Billing
 		billing: ["view", "manage", "collect"],
+		dealers: ["read", "manage"],
 		// Marketing
 		marketing: ["read", "send", "manage"],
 	},
@@ -86,6 +87,7 @@ export const SYSTEM_ROLE_PERMISSIONS = {
 		audit: ["view"],
 		// Billing
 		billing: ["view", "manage", "collect"],
+		dealers: ["read", "manage"],
 		// Marketing
 		marketing: ["read", "send", "manage"],
 	},
@@ -187,6 +189,7 @@ export const owner = ac.newRole({
 	audit: ["view"],
 	// Billing
 	billing: ["view", "manage", "collect", "collect:own"],
+	dealers: ["read", "manage"],
 	// Marketing
 	marketing: ["read", "send", "manage"],
 });
@@ -269,6 +272,7 @@ export const admin = ac.newRole({
 	audit: ["view"],
 	// Billing
 	billing: ["view", "manage", "collect", "collect:own"],
+	dealers: ["read", "manage"],
 	// Marketing
 	marketing: ["read", "send", "manage"],
 });

@@ -1709,3 +1709,71 @@ export const dataAudit = {
 		);
 	},
 };
+
+/**
+ * Dealer money audit logging — every entry here is also a write to iRadius
+ * (Dealer.Credit / DealerAccount), so the trail must name who did it and why.
+ */
+export const dealerAudit = {
+	creditAdjusted: (
+		dealerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			dealerName: string;
+			direction: "add" | "deduct";
+			amount: number;
+			finalCredit: number;
+			note: string | null;
+			iradiusAccountEntryId: number;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.dealer.creditAdjusted,
+					resourceType: RESOURCE_TYPES.dealer,
+				},
+				{
+					resourceId: dealerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	paymentRecorded: (
+		dealerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			dealerName: string;
+			kind: string;
+			amount: number;
+			owedAfter: number;
+			note: string | null;
+			iradiusAccountEntryId: number;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.dealer.paymentRecorded,
+					resourceType: RESOURCE_TYPES.dealer,
+				},
+				{
+					resourceId: dealerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};

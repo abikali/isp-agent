@@ -1514,14 +1514,58 @@ async function processIRadiusSync(
 				const batchSize = 500;
 				let processedDealerAccounts = 0;
 
+				// Ledger rows whose dealer was deleted upstream still describe
+				// real money (4,075.75 across five dead dealer ids on prod,
+				// 2026-09-02). Give each unknown DealerId a soft-deleted stub so
+				// the rows import and the owner can see — and write off — the
+				// balance. The stub stays soft-deleted: the cleanup above only
+				// touches dealers it has seen in iRadius.
+				const stubDealerIds = new Map<number, string>();
+				for (const da of dealerAccountRows) {
+					const extDealerId = da["DealerId"] as number | null;
+					if (
+						extDealerId === null ||
+						extDealerId === undefined ||
+						dealerMap.has(extDealerId) ||
+						stubDealerIds.has(extDealerId)
+					) {
+						continue;
+					}
+					const extId = String(extDealerId);
+					const existingStub = dealerByExtId.get(extId);
+					if (existingStub) {
+						stubDealerIds.set(extDealerId, existingStub);
+						continue;
+					}
+					try {
+						const stub = await db.ispDealer.create({
+							data: {
+								name: `Deleted dealer #${extId}`,
+								externalId: extId,
+								status: "INACTIVE",
+								deletedAt: new Date(),
+								lastSyncedAt: new Date(),
+							},
+							select: { id: true },
+						});
+						stubDealerIds.set(extDealerId, stub.id);
+						dealerByExtId.set(extId, stub.id);
+					} catch (error) {
+						logger.warn(
+							"[iRadius Sync] Could not create stub for deleted dealer",
+							{ extId, error },
+						);
+					}
+				}
+
 				for (let i = 0; i < dealerAccountRows.length; i += batchSize) {
 					const batch = dealerAccountRows.slice(i, i + batchSize);
 					const createData = [];
 
 					for (const da of batch) {
-						const dealerId = dealerMap.get(
-							da["DealerId"] as number,
-						);
+						const dealerId =
+							dealerMap.get(da["DealerId"] as number) ??
+							stubDealerIds.get(da["DealerId"] as number);
 						if (!dealerId) {
 							result.dealerAccounts.skipped++;
 							continue;

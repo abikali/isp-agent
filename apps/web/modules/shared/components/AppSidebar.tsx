@@ -36,6 +36,7 @@ import {
 	BotIcon,
 	BoxesIcon,
 	EyeIcon,
+	HandshakeIcon,
 	HardHatIcon,
 	HomeIcon,
 	LineChartIcon,
@@ -161,6 +162,7 @@ export function AppSidebar() {
 		const canReadMarketing = hasPermission("marketing", "read");
 		const canViewBilling = hasPermission("billing", "view");
 		const canCollectBilling = hasPermission("billing", "collect");
+		const canReadDealers = hasPermission("dealers", "read");
 		const canReadInventory = hasPermission("inventory", "read");
 		const canReadInstallations = hasPermission("installations", "read");
 		const canReadExpenses = hasPermission("expenses", "read");
@@ -188,6 +190,17 @@ export function AppSidebar() {
 									label: "Money",
 									to: `${basePath}/insights`,
 									icon: LineChartIcon,
+								},
+							]
+						: []),
+					// Dealer money sits next to Money on purpose: "what do the
+					// dealers owe me" is the owner's second daily question.
+					...(canReadDealers
+						? [
+								{
+									label: "Dealers",
+									to: `${basePath}/dealers`,
+									icon: HandshakeIcon,
 								},
 							]
 						: []),
