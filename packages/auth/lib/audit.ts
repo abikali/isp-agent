@@ -1757,6 +1757,7 @@ export const dealerAudit = {
 			amount: number;
 			owedAfter: number;
 			note: string | null;
+			receivedByEmployeeId: string | null;
 			iradiusAccountEntryId: number;
 		},
 	) => {

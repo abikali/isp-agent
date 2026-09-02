@@ -158,6 +158,7 @@ export function DealerFinancePage() {
 						isDeleted: d.isDeleted,
 					}))}
 					initialKind={payment.kind}
+					staff={overview.staff}
 				/>
 			)}
 

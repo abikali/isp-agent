@@ -39,6 +39,12 @@ export const recordDealerPayment = protectedProcedure
 			/** When the money actually changed hands. Defaults to now. */
 			date: z.coerce.date().optional(),
 			note: z.string().trim().max(200).optional(),
+			/**
+			 * Who physically took the cash. Omitted = the office. An employee
+			 * id means a worker or collector is holding it until they hand it
+			 * in, so a cash-ledger row is written on them as well.
+			 */
+			receivedByEmployeeId: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -74,7 +80,49 @@ export const recordDealerPayment = protectedProcedure
 			});
 		}
 
-		const comment = buildLedgerComment(input.kind, input.note);
+		// Cash handed to a worker/collector: only a real payment can sit in
+		// someone's pocket. Write-offs and in-kind settlements never do.
+		let receivedBy: { id: string; name: string } | null = null;
+		if (input.receivedByEmployeeId) {
+			if (input.kind !== "payment") {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Only a cash payment can be received by an employee.",
+				});
+			}
+			receivedBy = await db.employee.findFirst({
+				where: {
+					id: input.receivedByEmployeeId,
+					organizationId: scope.organizationId,
+					status: "ACTIVE",
+					deletedAt: null,
+					...(scope.activeDealerId
+						? { dealerId: scope.activeDealerId }
+						: {}),
+				},
+				select: { id: true, name: true },
+			});
+			if (!receivedBy) {
+				throw new ORPCError("NOT_FOUND", {
+					message:
+						"That employee was not found in this organization.",
+				});
+			}
+		}
+
+		const trimmedNote = input.note?.trim() || null;
+		// The iRadius comment names the employee so the legacy grid shows
+		// where the cash went; the cash-ledger note names the dealer so the
+		// billing side classifies it as DEALER_PAYMENT, exactly like the rows
+		// the old billing system produced ("Dealer Mrad").
+		const comment = receivedBy
+			? buildLedgerComment(
+					"payment",
+					[`Received by ${receivedBy.name}`, trimmedNote]
+						.filter(Boolean)
+						.join(" — "),
+				)
+			: buildLedgerComment(input.kind, trimmedNote);
 
 		let remote: Awaited<ReturnType<typeof iradiusRecordDealerPayment>>;
 		try {
@@ -97,18 +145,46 @@ export const recordDealerPayment = protectedProcedure
 			});
 		}
 
-		await db.ispDealerAccount.create({
-			data: {
-				dealerId: dealer.id,
-				organizationId: scope.organizationId,
-				externalId: String(remote.accountEntryId),
-				credit: 0,
-				debit: input.amount,
-				balance: remote.owed,
-				comment,
-				operationDate,
-			},
-		});
+		await db.$transaction([
+			db.ispDealerAccount.create({
+				data: {
+					dealerId: dealer.id,
+					organizationId: scope.organizationId,
+					externalId: String(remote.accountEntryId),
+					credit: 0,
+					debit: input.amount,
+					balance: remote.owed,
+					comment,
+					operationDate,
+				},
+			}),
+			// Negative amount = cash INTO the employee's hands. The worker
+			// wallet is −Σ cash_collection and a collector's held cash is
+			// collected − Σ cash_collection, so this raises both, and the
+			// normal hand-in clears it. money-model classifies DEALER_PAYMENT
+			// as a TRANSFER, so it never counts as revenue.
+			...(receivedBy
+				? [
+						db.cashCollection.create({
+							data: {
+								organizationId: scope.organizationId,
+								collectorId: receivedBy.id,
+								amount: -input.amount,
+								type: "DEALER_PAYMENT",
+								notes: [
+									`Dealer ${dealer.name}`,
+									trimmedNote,
+									`iRadius ledger #${remote.accountEntryId}`,
+								]
+									.filter(Boolean)
+									.join(" — "),
+								receivedById: user.id,
+								collectedAt: operationDate,
+							},
+						}),
+					]
+				: []),
+		]);
 
 		dealerAudit.paymentRecorded(
 			dealer.id,
@@ -120,12 +196,13 @@ export const recordDealerPayment = protectedProcedure
 				kind: input.kind,
 				amount: input.amount,
 				owedAfter: remote.owed,
-				note: input.note?.trim() || null,
+				note: trimmedNote,
+				receivedByEmployeeId: receivedBy?.id ?? null,
 				iradiusAccountEntryId: remote.accountEntryId,
 			},
 		);
 
 		void invalidateStat(FINANCE_STAT_CACHE.summary, [scope.organizationId]);
 
-		return { owed: remote.owed };
+		return { owed: remote.owed, receivedBy };
 	});

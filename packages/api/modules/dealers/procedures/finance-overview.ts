@@ -53,6 +53,7 @@ export const getDealerFinanceOverview = protectedProcedure
 			chargedNow,
 			chargedPrior,
 			syncOp,
+			staff,
 		] = await Promise.all([
 			db.ispDealerAccount.groupBy({
 				by: ["dealerId"],
@@ -100,6 +101,21 @@ export const getDealerFinanceOverview = protectedProcedure
 					createdAt: true,
 				},
 			}),
+			// Who can take cash from a dealer on the operator's behalf.
+			scope.canManage
+				? db.employee.findMany({
+						where: {
+							organizationId: scope.organizationId,
+							status: "ACTIVE",
+							deletedAt: null,
+							...(scope.activeDealerId
+								? { dealerId: scope.activeDealerId }
+								: {}),
+						},
+						select: { id: true, name: true, department: true },
+						orderBy: { name: "asc" },
+					})
+				: Promise.resolve([]),
 		]);
 
 		const byDealer = <T extends { dealerId: string }>(rows: T[]) =>
@@ -199,5 +215,6 @@ export const getDealerFinanceOverview = protectedProcedure
 			totals,
 			dealers: live,
 			orphans,
+			staff,
 		};
 	});

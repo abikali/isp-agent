@@ -42,6 +42,12 @@ export interface PaymentTarget {
 	isDeleted?: boolean;
 }
 
+export interface PaymentStaff {
+	id: string;
+	name: string;
+	department: string | null;
+}
+
 interface RecordPaymentSheetProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -49,6 +55,8 @@ interface RecordPaymentSheetProps {
 	dealer: PaymentTarget | null;
 	dealers?: PaymentTarget[];
 	initialKind?: PaymentKind;
+	/** Employees who may have taken the cash; empty hides the choice. */
+	staff?: PaymentStaff[];
 }
 
 function parseAmount(value: string): number {
@@ -69,6 +77,7 @@ export function RecordPaymentSheet({
 	onOpenChange,
 	dealer,
 	dealers = [],
+	staff = [],
 	initialKind = "payment",
 }: RecordPaymentSheetProps) {
 	const organizationId = useOrganizationId();
@@ -82,6 +91,8 @@ export function RecordPaymentSheet({
 	);
 	const [date, setDate] = useState(() => formatDateTimeLocalInput());
 	const [note, setNote] = useState("");
+	/** "" = the office took the money. */
+	const [receivedById, setReceivedById] = useState("");
 
 	const target = dealer ?? dealers.find((d) => d.id === dealerId) ?? null;
 	const owed = target?.owed ?? 0;
@@ -90,6 +101,10 @@ export function RecordPaymentSheet({
 	const overpaying = parsed > 0 && parsed > owed;
 	const nothingOwed = owed <= 0;
 	const kindMeta = LEDGER_KINDS[kind];
+	const receiver =
+		kind === "payment" && receivedById
+			? (staff.find((s) => s.id === receivedById) ?? null)
+			: null;
 	// A dealer gone from iRadius can only be written off.
 	const kindOptions = target?.isDeleted
 		? PAYMENT_KIND_OPTIONS.filter((o) => o.value === "write_off")
@@ -129,6 +144,17 @@ export function RecordPaymentSheet({
 						? `They will still owe ${formatCurrency(after)}. This is written to iRadius and cannot be deleted afterwards.`
 						: `This is ${formatCurrency(-after)} more than they owe — they will be in credit with you by that amount. It is written to iRadius and cannot be deleted afterwards.`,
 			confirmLabel: "Record it",
+			...(receiver
+				? {
+						message: `${receiver.name} is holding this cash until they hand it in. ${
+							after === 0
+								? "This settles the dealer's account completely."
+								: after > 0
+									? `The dealer will still owe ${formatCurrency(after)}.`
+									: `That is ${formatCurrency(-after)} more than they owe.`
+						} Written to iRadius; cannot be deleted afterwards.`,
+					}
+				: {}),
 			destructive: kind === "write_off",
 			onConfirm: async () => {
 				try {
@@ -139,6 +165,9 @@ export function RecordPaymentSheet({
 						amount: parsed,
 						date: dateValue,
 						...(note.trim() ? { note: note.trim() } : {}),
+						...(receiver
+							? { receivedByEmployeeId: receiver.id }
+							: {}),
 					});
 					toast.success(
 						result.owed === 0
@@ -288,6 +317,44 @@ export function RecordPaymentSheet({
 						)}
 					</div>
 
+					{kind === "payment" && staff.length > 0 && (
+						<div className="space-y-1.5">
+							<Label htmlFor="payment-received-by">
+								Who took the cash?
+							</Label>
+							<Select
+								value={receivedById || "office"}
+								onValueChange={(v) =>
+									setReceivedById(v === "office" ? "" : v)
+								}
+							>
+								<SelectTrigger id="payment-received-by">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="office">
+										The office
+									</SelectItem>
+									{staff.map((s) => (
+										<SelectItem key={s.id} value={s.id}>
+											{s.name}
+											{s.department === "BILLING"
+												? " — collector"
+												: s.department
+													? " — worker"
+													: ""}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								{receiver
+									? `${receiver.name} holds this cash until they hand it in. It shows up in their balance right away.`
+									: "Pick an employee if a worker or collector took the money instead of the office."}
+							</p>
+						</div>
+					)}
+
 					<div className="space-y-1.5">
 						<Label htmlFor="payment-note">
 							Note{" "}
@@ -342,6 +409,15 @@ export function RecordPaymentSheet({
 									</span>{" "}
 									in credit with you.
 								</>
+							)}
+							{receiver && (
+								<span className="mt-1 block text-muted-foreground">
+									{receiver.name} will be holding{" "}
+									<span className="font-medium tabular-nums">
+										{formatCurrency(parsed)}
+									</span>{" "}
+									for you.
+								</span>
 							)}
 						</div>
 					)}

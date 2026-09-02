@@ -50,6 +50,7 @@ export const deleteCollection = protectedProcedure
 			},
 			select: {
 				id: true,
+				type: true,
 				externalBillingId: true,
 				expenseId: true,
 				installationId: true,
@@ -81,6 +82,16 @@ export const deleteCollection = protectedProcedure
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"This entry is synced from the billing system and can't be deleted here.",
+			});
+		}
+
+		// A dealer's cash payment has a twin row in iRadius that cannot be
+		// deleted, so this side must not vanish either — correct it with a
+		// reversing entry on both sides.
+		if (collection.type === "DEALER_PAYMENT") {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"This is a dealer payment recorded in iRadius as well. It can't be deleted — record a reversing entry instead.",
 			});
 		}
 

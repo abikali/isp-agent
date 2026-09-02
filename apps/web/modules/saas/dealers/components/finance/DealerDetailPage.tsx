@@ -118,6 +118,7 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 						isDeleted: dealer.isDeleted,
 					}}
 					initialKind={dealer.isDeleted ? "write_off" : "payment"}
+					staff={overview.staff}
 				/>
 			)}
 
