@@ -215,6 +215,42 @@ export async function fetchCostLines(
 }
 
 /**
+ * Cash that physically reached the office during the period.
+ *
+ * `fetchRetailRevenue` counts a payment the moment a collector records it —
+ * the cash may still be in his pocket. This is the other half of that story:
+ * HANDOFF ledger rows are the collector handing that cash in, so summing them
+ * over the period answers "how much did the office actually receive?".
+ *
+ * Read by `collectedAt` on the calendar period, not by billing month: a
+ * handoff is a physical event on a date, and one handoff routinely carries
+ * cash from several cycles. So this is NOT "money in minus what is still
+ * held" — that subtraction crosses cycles and would be wrong.
+ *
+ * Only HANDOFF counts. EXPENSE_DEDUCTION, STORE_PURCHASE and the rest lower a
+ * holder's balance without any cash arriving at the office.
+ */
+export async function fetchHandedIn(
+	scope: FinanceScope,
+	period: Period,
+): Promise<{ total: number; count: number }> {
+	const result = await db.cashCollection.aggregate({
+		where: {
+			organizationId: scope.organizationId,
+			type: "HANDOFF",
+			collectedAt: { gte: period.from, lt: period.to },
+			...(scope.activeDealerId
+				? { collector: { dealerId: scope.activeDealerId } }
+				: {}),
+		},
+		_sum: { amount: true },
+		_count: true,
+	});
+
+	return { total: result._sum.amount ?? 0, count: result._count };
+}
+
+/**
  * Money the company is still owed by subscribers.
  *
  * Reads each invoice's own frozen `expiryDate`/total rather than the

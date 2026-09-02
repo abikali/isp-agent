@@ -6,6 +6,9 @@ import {
 	ContentCardSection,
 } from "@shared/components/ContentCard";
 import { PageShell } from "@shared/components/PageShell";
+import { formatTime } from "@shared/lib/format";
+import { orpc } from "@shared/lib/orpc";
+import { useIsFetching } from "@tanstack/react-query";
 import { Button } from "@ui/components/button";
 import {
 	Select,
@@ -16,7 +19,12 @@ import {
 } from "@ui/components/select";
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
-import { ChevronDownIcon, SettingsIcon, SparklesIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	RefreshCwIcon,
+	SettingsIcon,
+	SparklesIcon,
+} from "lucide-react";
 import { useState } from "react";
 import {
 	type FinancePeriod,
@@ -24,6 +32,7 @@ import {
 	useFinanceSummary,
 	useFinanceTrend,
 	useMoneyMap,
+	useRefreshFinance,
 } from "../hooks/use-finance";
 import { buildVerdict, progressNote } from "../lib/verdict";
 import { DetailPanel } from "./DetailPanel";
@@ -51,8 +60,12 @@ const PERIODS: Array<{ value: FinancePeriod; label: string }> = [
  * balances, cycle locks, invoice counts. Those are operational questions and
  * they already have good pages under /billing.
  */
-export function InsightsPage() {
-	const [period, setPeriod] = useState<FinancePeriod>("this-month");
+interface InsightsPageProps {
+	period: FinancePeriod;
+	onPeriodChange: (period: FinancePeriod) => void;
+}
+
+export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 	const [showDetail, setShowDetail] = useState(false);
 	const [wizardOpen, setWizardOpen] = useState(false);
 
@@ -65,8 +78,13 @@ export function InsightsPage() {
 	const { needsSetup, coverage } = useMoneyMap(true);
 
 	const { activeOrganization } = useActiveOrganization();
+	const organizationId = activeOrganization?.id;
 	const slug = activeOrganization?.slug ?? "";
 	const billingBase = `/app/${slug}/billing`;
+
+	const refresh = useRefreshFinance();
+	const refetching = useIsFetching({ queryKey: orpc.finance.key() }) > 0;
+	const refreshing = refresh.isPending || refetching;
 
 	const verdict = buildVerdict({
 		periodLabel: summary.period.label,
@@ -87,21 +105,44 @@ export function InsightsPage() {
 			title="How the business is doing"
 			description="Everything you earned and spent, in one place."
 			actions={
-				<Select
-					value={period}
-					onValueChange={(v) => setPeriod(v as FinancePeriod)}
-				>
-					<SelectTrigger className="w-44">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{PERIODS.map((p) => (
-							<SelectItem key={p.value} value={p.value}>
-								{p.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<div className="flex items-center gap-2">
+					<Select
+						value={period}
+						onValueChange={(v) =>
+							onPeriodChange(v as FinancePeriod)
+						}
+					>
+						<SelectTrigger className="w-44">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{PERIODS.map((p) => (
+								<SelectItem key={p.value} value={p.value}>
+									{p.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Button
+						variant="outline"
+						size="icon"
+						aria-label="Refresh the numbers"
+						title={`Numbers as of ${formatTime(summary.computedAt, { hour: "2-digit", minute: "2-digit" })}. Click to recompute.`}
+						disabled={!organizationId || refreshing}
+						onClick={() => {
+							if (organizationId) {
+								refresh.mutate({ organizationId });
+							}
+						}}
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-4",
+								refreshing && "animate-spin",
+							)}
+						/>
+					</Button>
+				</div>
 			}
 		>
 			{needsSetup && (
@@ -121,9 +162,11 @@ export function InsightsPage() {
 
 			{!summary.gaps.wholesaleNeverSynced && (
 				<MoneyFlow
+					periodLabel={summary.period.label}
 					moneyIn={summary.moneyIn.total}
 					moneyOut={summary.moneyOut.total}
 					kept={summary.net}
+					handedIn={summary.handedIn}
 					streams={[
 						{
 							label: "Your own subscribers",
@@ -163,7 +206,8 @@ export function InsightsPage() {
 							<p className="mt-0.5 text-xs text-muted-foreground">
 								What you kept after everything was paid. Bars
 								below the line are months you spent more than
-								you earned.
+								you earned. The faded bar is the month still in
+								progress.
 							</p>
 						</div>
 					</div>
@@ -172,7 +216,12 @@ export function InsightsPage() {
 					{trendLoading ? (
 						<Skeleton className="h-[220px] rounded-md" />
 					) : (
-						<KeptTrendChart data={points} />
+						<KeptTrendChart
+							data={points}
+							partialLabel={
+								points.find((p) => p.partial)?.label ?? null
+							}
+						/>
 					)}
 				</ContentCardSection>
 			</ContentCard>

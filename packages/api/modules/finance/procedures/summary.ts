@@ -2,12 +2,14 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { FINANCE_STAT_CACHE } from "../lib/cache";
 import { foldLines } from "../lib/money-model";
 import { periodProgress, previousPeriod, resolvePeriod } from "../lib/period";
 import {
 	type FinanceScope,
 	fetchCashHeld,
 	fetchCostLines,
+	fetchHandedIn,
 	fetchReceivables,
 	fetchRetailRevenue,
 	fetchWholesaleRevenue,
@@ -52,7 +54,7 @@ export const getFinanceSummary = protectedProcedure
 		};
 
 		return cachedStat(
-			statCacheKey("finance/summary", [
+			statCacheKey(FINANCE_STAT_CACHE.summary, [
 				input.organizationId,
 				activeDealerId,
 				input.period,
@@ -67,18 +69,22 @@ export const getFinanceSummary = protectedProcedure
 					costLines,
 					receivables,
 					cashHeld,
+					handedIn,
 					priorRetail,
 					priorWholesale,
 					priorCostLines,
+					priorHandedIn,
 				] = await Promise.all([
 					fetchRetailRevenue(scope, period),
 					fetchWholesaleRevenue(scope, period),
 					fetchCostLines(scope, period),
 					fetchReceivables(scope),
 					fetchCashHeld(scope),
+					fetchHandedIn(scope, period),
 					fetchRetailRevenue(scope, prior),
 					fetchWholesaleRevenue(scope, prior),
 					fetchCostLines(scope, prior),
+					fetchHandedIn(scope, prior),
 				]);
 
 				const current = foldLines([
@@ -118,6 +124,10 @@ export const getFinanceSummary = protectedProcedure
 					.reduce((sum, l) => sum + l.amount, 0);
 
 				return {
+					/** When these numbers were computed. They are served from
+					 *  a short cache, so the page shows this and offers a
+					 *  refresh instead of pretending to be live. */
+					computedAt: new Date().toISOString(),
 					period: {
 						key: input.period,
 						label: period.label,
@@ -134,6 +144,7 @@ export const getFinanceSummary = protectedProcedure
 						moneyOut: previous.cost,
 						net: previous.net,
 						operatingProfit: previous.operatingProfit,
+						handedIn: priorHandedIn.total,
 					},
 					moneyIn: {
 						total: current.revenue,
@@ -141,6 +152,14 @@ export const getFinanceSummary = protectedProcedure
 						wholesale: current.byStream.WHOLESALE,
 						other: current.byStream.OTHER,
 						wholesaleSettled: wholesale.settled,
+					},
+					/** Cash collectors physically handed to the office during
+					 *  the period. A period figure like moneyIn, but a
+					 *  different event: moneyIn counts the collector recording
+					 *  a payment; this counts the office receiving the cash. */
+					handedIn: {
+						total: handedIn.total,
+						count: handedIn.count,
 					},
 					/** Things that would make the headline misleading if the
 					 *  page stated it confidently. The UI must degrade to an

@@ -66,6 +66,9 @@ function projected(value: number, progress: number): number {
 	return value / progress;
 }
 
+/** Below this share of the period, the pace comparison is withheld. */
+const EARLIEST_COMPARABLE_PROGRESS = 0.15;
+
 export function buildVerdict(input: VerdictInput): Verdict {
 	const {
 		periodLabel,
@@ -130,6 +133,14 @@ export function buildVerdict(input: VerdictInput): Verdict {
 
 	if (comparisonNet === 0 && net !== 0) {
 		detail = `There's nothing recorded for ${comparisonLabel} to compare against.`;
+	} else if (isPartial && progress < EARLIEST_COMPARABLE_PROGRESS) {
+		// Two days of collections scaled to a month is not a pace, it is a
+		// coin toss. Saying "$1,865 less than August" on the 2nd was read as a
+		// real drop. Wait until enough of the month exists to project from.
+		detail = `Too early to compare with ${comparisonLabel} — check back in a few days.`;
+		if (!losing) {
+			tone = "steady";
+		}
 	} else if (comparisonNet !== 0) {
 		// Compare like with like: a part-month is projected to a full month for
 		// the COMPARISON only, and the sentence says so.

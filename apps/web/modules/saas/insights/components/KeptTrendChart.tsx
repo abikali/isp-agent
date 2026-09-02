@@ -43,9 +43,13 @@ const config = {
 export function KeptTrendChart({
 	data,
 	height = 220,
+	partialLabel,
 }: {
 	data: KeptPoint[];
 	height?: number;
+	/** Label of a month still in progress. Drawn faded so a half-height bar
+	 *  reads as "not finished" rather than "bad month". */
+	partialLabel?: string | null;
 }) {
 	return (
 		<ChartContainer config={config} style={{ height }} className="w-full">
@@ -91,6 +95,7 @@ export function KeptTrendChart({
 									? "var(--success)"
 									: "var(--destructive)"
 							}
+							fillOpacity={point.label === partialLabel ? 0.4 : 1}
 						/>
 					))}
 				</Bar>

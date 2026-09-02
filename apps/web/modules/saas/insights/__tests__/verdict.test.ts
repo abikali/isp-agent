@@ -38,6 +38,20 @@ describe("buildVerdict", () => {
 		expect(v.detail).toContain("At this pace");
 	});
 
+	it("withholds the pace comparison in the first days of a month", () => {
+		// Day 2 of a month: $9k against a $59k August is not a $50k drop.
+		const v = buildVerdict({
+			...base,
+			isPartial: true,
+			progress: 0.04,
+			net: 9005,
+			comparisonNet: 59140,
+		});
+		expect(v.tone).toBe("steady");
+		expect(v.detail).toContain("Too early to compare");
+		expect(v.detail).not.toContain("less than");
+	});
+
 	it("does not read a half-finished month as a collapse", () => {
 		// Half a month at the same run-rate must not report a 50% drop.
 		const v = buildVerdict({

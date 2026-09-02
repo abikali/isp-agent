@@ -59,6 +59,7 @@ export function OwedCard({ total, count, byMonth, collectPath }: OwedProps) {
 					<div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
 						<HandCoinsIcon className="size-3.5" />
 						People still owe you
+						<RightNow />
 					</div>
 					<div className="mt-2 text-3xl font-medium tabular-nums leading-none tracking-tight">
 						{formatCurrency(total)}
@@ -119,6 +120,7 @@ export function HeldCard({ total, holders, collectorsPath }: HeldProps) {
 			<div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
 				<WalletIcon className="size-3.5" />
 				Cash your team is holding
+				<RightNow />
 			</div>
 			<div className="mt-2 text-3xl font-medium tabular-nums leading-none tracking-tight">
 				{formatCurrency(total)}
@@ -126,7 +128,7 @@ export function HeldCard({ total, holders, collectorsPath }: HeldProps) {
 			<p className="mt-2 text-sm text-muted-foreground">
 				{total <= 0
 					? "Everything collected has reached the office."
-					: "Collected from subscribers, not handed in to the office yet."}
+					: "Collected from subscribers, not handed in to the office yet. Built up over every month, not just the one selected above."}
 			</p>
 
 			{top.length > 0 && (
@@ -151,5 +153,21 @@ export function HeldCard({ total, holders, collectorsPath }: HeldProps) {
 				See everyone →
 			</div>
 		</Link>
+	);
+}
+
+/**
+ * The two position cards ignore the period filter — they are a balance, not a
+ * flow. Saying so on the card is what stops "why doesn't this change when I
+ * pick last month?".
+ */
+function RightNow() {
+	return (
+		<span
+			className="ml-auto rounded-full border border-border px-1.5 py-px text-[10px] font-medium normal-case tracking-normal"
+			title="A balance as of now. The period filter does not apply."
+		>
+			Right now
+		</span>
 	);
 }

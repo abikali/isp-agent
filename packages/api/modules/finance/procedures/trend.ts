@@ -2,6 +2,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { FINANCE_STAT_CACHE } from "../lib/cache";
 import { foldLines } from "../lib/money-model";
 import { resolvePeriod, shortMonthLabel } from "../lib/period";
 import {
@@ -42,7 +43,7 @@ export const getFinanceTrend = protectedProcedure
 		};
 
 		return cachedStat(
-			statCacheKey("finance/trend", [
+			statCacheKey(FINANCE_STAT_CACHE.trend, [
 				input.organizationId,
 				activeDealerId,
 				input.months,
@@ -50,6 +51,7 @@ export const getFinanceTrend = protectedProcedure
 			async () => {
 				const window = resolvePeriod("last-12");
 				const months = window.months.slice(-input.months);
+				const current = resolvePeriod("this-month").months[0];
 
 				const points = await Promise.all(
 					months.map(async (m) => {
@@ -86,6 +88,10 @@ export const getFinanceTrend = protectedProcedure
 							year: m.year,
 							month: m.month,
 							label: single.label,
+							/** Still in progress — the chart fades it. */
+							partial:
+								m.year === current?.year &&
+								m.month === current?.month,
 							retail: folded.byStream.RETAIL,
 							wholesale: folded.byStream.WHOLESALE,
 							moneyIn: folded.revenue,

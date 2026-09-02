@@ -11,6 +11,17 @@ import {
 
 export type FinancePeriod = "this-month" | "last-month" | "last-3" | "last-12";
 
+export const FINANCE_PERIODS: readonly FinancePeriod[] = [
+	"this-month",
+	"last-month",
+	"last-3",
+	"last-12",
+];
+
+export function isFinancePeriod(value: unknown): value is FinancePeriod {
+	return FINANCE_PERIODS.includes(value as FinancePeriod);
+}
+
 /** The four headline numbers. Suspense — this is the page's reason to exist,
  *  so there is nothing meaningful to render without it. */
 export function useFinanceSummary(period: FinancePeriod) {
@@ -90,6 +101,21 @@ export function useSaveMoneyMap() {
 		...orpc.finance.moneyMap.save.mutationOptions(),
 		onSuccess: () => {
 			// Classifying a line changes every downstream money figure.
+			queryClient.invalidateQueries({ queryKey: orpc.finance.key() });
+		},
+	});
+}
+
+/**
+ * Drop the server-side cache for this org's finance numbers, then refetch
+ * everything on the page. The button is only useful if it does both.
+ */
+export function useRefreshFinance() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.finance.refresh.mutationOptions(),
+		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: orpc.finance.key() });
 		},
 	});

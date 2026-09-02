@@ -61,13 +61,25 @@ export async function cachedStat<T>(
 }
 
 /**
- * Drop every cached entry for a stat name, across all scopes. Call it from the
- * mutations that change the underlying rows when the stat is read back on the
- * same screen the mutation ran on (the sidebar badge next to the list the user
- * just acted on) — TTL expiry alone would leave the number visibly stale.
+ * Drop every cached entry for a stat name. Call it from the mutations that
+ * change the underlying rows when the stat is read back on the same screen the
+ * mutation ran on (the sidebar badge next to the list the user just acted on)
+ * — TTL expiry alone would leave the number visibly stale.
+ *
+ * `scopePrefix` narrows the drop to entries whose key starts with those parts
+ * (typically `[organizationId]`), so one org's refresh does not evict every
+ * other org's cache. Omit it to drop across all scopes.
+ *
  * Best-effort and fire-and-forget like the rest of the cache.
  */
-export async function invalidateStat(name: string): Promise<void> {
+export async function invalidateStat(
+	name: string,
+	scopePrefix: unknown[] = [],
+): Promise<void> {
+	const prefix =
+		scopePrefix.length > 0
+			? `${statCacheKey(name, scopePrefix)}|`
+			: `${name}|`;
 	try {
 		const redis = getRedisConnection();
 		let cursor = "0";
@@ -75,7 +87,7 @@ export async function invalidateStat(name: string): Promise<void> {
 			const [next, keys] = await redis.scan(
 				cursor,
 				"MATCH",
-				`${PREFIX}${name}|*`,
+				`${PREFIX}${prefix}*`,
 				"COUNT",
 				100,
 			);

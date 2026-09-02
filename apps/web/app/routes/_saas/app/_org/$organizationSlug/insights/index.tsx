@@ -1,5 +1,10 @@
 import { config } from "@repo/config";
-import { InsightsPage, InsightsSkeleton } from "@saas/insights/client";
+import {
+	type FinancePeriod,
+	InsightsPage,
+	InsightsSkeleton,
+	isFinancePeriod,
+} from "@saas/insights/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { orpc } from "@shared/lib/orpc";
@@ -16,7 +21,9 @@ import { createServerFn } from "@tanstack/react-start";
  * never delays the sentence the owner actually came to read.
  */
 const getInsightsFn = createServerFn({ method: "GET" })
-	.inputValidator((data: { organizationSlug: string }) => data)
+	.inputValidator(
+		(data: { organizationSlug: string; period: FinancePeriod }) => data,
+	)
 	.handler(async ({ data }) => {
 		const { db } = await import("@repo/database");
 
@@ -36,7 +43,7 @@ const getInsightsFn = createServerFn({ method: "GET" })
 				orpc.finance.summary.queryOptions({
 					input: {
 						organizationId: organization.id,
-						period: "this-month",
+						period: data.period,
 					},
 				}),
 			);
@@ -55,16 +62,33 @@ const getInsightsFn = createServerFn({ method: "GET" })
 export const Route = createFileRoute(
 	"/_saas/app/_org/$organizationSlug/insights/",
 )({
-	loader: ({ params }) =>
-		getInsightsFn({ data: { organizationSlug: params.organizationSlug } }),
+	// The period is a URL parameter so a reload, the back button, or a shared
+	// link all land on the same view instead of snapping back to this month.
+	validateSearch: (search: Record<string, unknown>): InsightsSearch => ({
+		period: isFinancePeriod(search.period) ? search.period : "this-month",
+	}),
+	loaderDeps: ({ search }) => ({ period: search.period }),
+	loader: ({ params, deps }) =>
+		getInsightsFn({
+			data: {
+				organizationSlug: params.organizationSlug,
+				period: deps.period,
+			},
+		}),
 	head: () => ({
 		meta: [{ title: `How the business is doing - ${config.appName}` }],
 	}),
 	component: InsightsRoute,
 });
 
+interface InsightsSearch {
+	period: FinancePeriod;
+}
+
 function InsightsRoute() {
 	const loaderData = Route.useLoaderData();
+	const { period } = Route.useSearch();
+	const navigate = Route.useNavigate();
 
 	return (
 		<PermissionGate resource="billing" action="view">
@@ -72,7 +96,15 @@ function InsightsRoute() {
 				fallback={<InsightsSkeleton />}
 				dehydratedState={loaderData.dehydratedState}
 			>
-				<InsightsPage />
+				<InsightsPage
+					period={period}
+					onPeriodChange={(next) =>
+						navigate({
+							search: { period: next },
+							replace: true,
+						})
+					}
+				/>
 			</AsyncBoundary>
 		</PermissionGate>
 	);
