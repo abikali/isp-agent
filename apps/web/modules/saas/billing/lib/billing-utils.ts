@@ -367,6 +367,27 @@ export function isUnreviewed(payment: FlaggablePayment): boolean {
 	return getPaymentFlagType(payment) !== null && !payment.reviewedAt;
 }
 
+/** Note categories that mean "the customer is moving to another plan". */
+export const PLAN_CHANGE_CATEGORIES = new Set(["DOWNGRADE", "UPGRADE"]);
+
+/**
+ * A collection recorded at a different plan's price with a Downgrade /
+ * Upgrade note: the amount is not a shortfall, it is the price of the plan
+ * the customer asked for. Reviewing it means an admin picks that plan
+ * ("Change plan & review"), not a bare "mark reviewed".
+ */
+export function isPlanChangeRequest(payment: FlaggablePayment): boolean {
+	return (
+		isUnreviewed(payment) &&
+		!payment.stoppedAccount &&
+		!payment.freeAccount &&
+		!payment.debtAccount &&
+		!!payment.noteCategory &&
+		PLAN_CHANGE_CATEGORIES.has(payment.noteCategory) &&
+		isAmountMismatch(payment)
+	);
+}
+
 const FLAG_ROW_CLASSES: Record<PaymentFlagType, string> = {
 	stopped: "border-l-4 border-l-red-600 bg-red-100 dark:bg-red-950",
 	free: "border-l-4 border-l-blue-600 bg-blue-100 dark:bg-blue-950",

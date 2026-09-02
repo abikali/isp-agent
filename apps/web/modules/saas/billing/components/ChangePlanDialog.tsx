@@ -34,6 +34,14 @@ interface ChangePlanDialogProps {
 	 * new plan and marks it reviewed (see billing.payments.changePlanAndReview).
 	 */
 	paymentId?: string;
+	/** Review mode: what the collector recorded, shown above the plan picker. */
+	paymentContext?: {
+		customerName: string;
+		currentPlanName: string | null;
+		paidAmount: number;
+		expected: number;
+		noteCategory: string | null;
+	};
 }
 
 type PreviewData = Awaited<
@@ -48,6 +56,7 @@ export function ChangePlanDialog({
 	customerId,
 	currentPlanId,
 	paymentId,
+	paymentContext,
 }: ChangePlanDialogProps) {
 	const { plans, isLoading: plansLoading } = usePlansQuery();
 	const preview = usePreviewAccountTypeChange();
@@ -68,9 +77,16 @@ export function ChangePlanDialog({
 		repriced?: { accountPrice: number; remaining: number };
 	} | null>(null);
 
-	const selectablePlans = plans.filter(
-		(p) => p.externalId && p.id !== currentPlanId,
-	);
+	// Review mode: plans priced at exactly what the collector took go first —
+	// that is almost always the plan the customer asked for.
+	const paidAmount = paymentContext?.paidAmount;
+	const matchesPaid = (p: { monthlyPrice: number | null }) =>
+		paidAmount !== undefined &&
+		p.monthlyPrice != null &&
+		Math.abs(p.monthlyPrice - paidAmount) < 0.01;
+	const selectablePlans = plans
+		.filter((p) => p.externalId && p.id !== currentPlanId)
+		.sort((a, b) => Number(matchesPaid(b)) - Number(matchesPaid(a)));
 
 	function reset() {
 		setNewPlanId("");
@@ -258,6 +274,29 @@ export function ChangePlanDialog({
 					</DialogDescription>
 				</DialogHeader>
 
+				{!previewData && paymentContext && (
+					<div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+						<p className="font-medium">
+							{paymentContext.customerName} paid{" "}
+							{formatCurrency(paymentContext.paidAmount)} instead
+							of {formatCurrency(paymentContext.expected)}
+							{paymentContext.currentPlanName
+								? ` (${paymentContext.currentPlanName})`
+								: ""}
+							.
+						</p>
+						<p className="mt-1 text-muted-foreground">
+							The collector marked this as{" "}
+							{paymentContext.noteCategory
+								? paymentContext.noteCategory.toLowerCase()
+								: "a plan change"}
+							. Pick the plan the customer is moving to — the
+							payment and this month's invoice will be repriced to
+							it.
+						</p>
+					</div>
+				)}
+
 				{!previewData && (
 					<div className="space-y-2">
 						<Label htmlFor="change-plan-select">New plan</Label>
@@ -269,7 +308,7 @@ export function ChangePlanDialog({
 								value: p.id,
 								label:
 									p.monthlyPrice != null
-										? `${p.name} — ${formatCurrency(p.monthlyPrice)}`
+										? `${p.name} — ${formatCurrency(p.monthlyPrice)}${matchesPaid(p) ? " · matches amount paid" : ""}`
 										: p.name,
 							}))}
 							placeholder={

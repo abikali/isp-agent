@@ -131,6 +131,7 @@ import {
 	getPaymentFlagVariant,
 	getPaymentRowClassName,
 	isAmountMismatch,
+	isPlanChangeRequest,
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
@@ -747,6 +748,13 @@ export function PaymentsList() {
 		currentPlanId: string | null;
 		/** Set from the review queue: reprice this payment to the new plan too. */
 		paymentId?: string;
+		paymentContext?: {
+			customerName: string;
+			currentPlanName: string | null;
+			paidAmount: number;
+			expected: number;
+			noteCategory: string | null;
+		};
 	} | null>(null);
 	// "Assign task" row action — carries the customer snapshot so the
 	// task dialog opens pre-linked to that customer.
@@ -985,6 +993,7 @@ export function PaymentsList() {
 					const badgeClassName =
 						getPaymentFlagBadgeClassName(payment);
 					const needsReview = isUnreviewed(payment);
+					const planChange = isPlanChangeRequest(payment);
 					const referred = payment.referredCustomer;
 					return (
 						<div className="flex flex-col gap-0.5">
@@ -1009,6 +1018,12 @@ export function PaymentsList() {
 									</Tooltip>
 								)}
 							</div>
+							{planChange && (
+								<span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+									<ArrowUpDownIcon className="size-3" />
+									Waiting for admin to select the new plan
+								</span>
+							)}
 							{payment.freeAccount && referred && orgSlug && (
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -1107,6 +1122,28 @@ export function PaymentsList() {
 
 					const isPendingStopped =
 						payment.stoppedAccount && payment.reviewedAt === null;
+					const planChange = isPlanChangeRequest(payment);
+					const openPlanChangeReview = () =>
+						setChangePlanDialog({
+							customerId: payment.customer.id,
+							currentPlanId: payment.customer.planId,
+							paymentId: payment.id,
+							paymentContext: {
+								customerName: displayName(
+									payment.customer.firstName,
+									payment.customer.lastName,
+								),
+								currentPlanName:
+									payment.customer.plan?.name ?? null,
+								paidAmount: payment.paidAmount,
+								expected:
+									payment.accountPrice +
+									(payment.customer.iptvPrice ?? 0) +
+									(payment.customer.realIpPrice ?? 0) -
+									payment.discount,
+								noteCategory: payment.noteCategory,
+							},
+						});
 					const isDeclining =
 						declineStoppedPayment.isPending &&
 						declineStoppedPayment.variables?.paymentId ===
@@ -1114,8 +1151,23 @@ export function PaymentsList() {
 
 					return (
 						<div className="flex items-center gap-1">
+							{/* Plan-change request: the review IS picking the plan.
+							    The bare green check moves into the menu so a
+							    one-click review can't skip the plan selection. */}
+							{organizationId && planChange && (
+								<Button
+									size="sm"
+									variant="outline"
+									className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+									onClick={openPlanChangeReview}
+								>
+									<ArrowUpDownIcon className="mr-1.5 size-3.5" />
+									Select new plan
+								</Button>
+							)}
+
 							{/* Review button — always visible when needed */}
-							{organizationId && needsReview && (
+							{organizationId && needsReview && !planChange && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -1448,23 +1500,41 @@ export function PaymentsList() {
 											!payment.freeAccount &&
 											!payment.debtAccount && (
 												<DropdownMenuItem
-													onClick={() =>
-														setChangePlanDialog({
-															customerId:
-																payment.customer
-																	.id,
-															currentPlanId:
-																payment.customer
-																	.planId,
-															paymentId:
-																payment.id,
-														})
+													onClick={
+														openPlanChangeReview
 													}
 												>
 													<ArrowUpDownIcon className="mr-2 size-3.5" />
 													Change plan & review
 												</DropdownMenuItem>
 											)}
+										{planChange && (
+											<DropdownMenuItem
+												disabled={isReviewing}
+												onClick={() =>
+													reviewPayment.mutate(
+														{
+															organizationId,
+															paymentId:
+																payment.id,
+														},
+														{
+															onSuccess: () =>
+																toast.success(
+																	"Marked as reviewed — plan unchanged",
+																),
+															onError: (error) =>
+																toast.error(
+																	error.message,
+																),
+														},
+													)
+												}
+											>
+												<CheckIcon className="mr-2 size-3.5" />
+												Mark reviewed, keep current plan
+											</DropdownMenuItem>
+										)}
 										{payment.customer.externalId && (
 											<>
 												<DropdownMenuSeparator />
@@ -1978,6 +2048,7 @@ export function PaymentsList() {
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
 					paymentId={changePlanDialog.paymentId}
+					paymentContext={changePlanDialog.paymentContext}
 				/>
 			)}
 
