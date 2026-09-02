@@ -12,6 +12,10 @@ import {
 } from "../lib/iradius-dealer";
 import { buildLedgerComment } from "../lib/ledger";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
+import {
+	acquireDealerWriteLock,
+	releaseDealerWriteLock,
+} from "../lib/write-guard";
 
 /**
  * Add prepaid credit to a dealer, or take it back.
@@ -69,6 +73,12 @@ export const adjustDealerCredit = protectedProcedure
 				? note
 				: buildLedgerComment("deduction", note);
 
+		const lock = await acquireDealerWriteLock({
+			dealerId: dealer.id,
+			side: input.direction === "add" ? "credit" : "debit",
+			amount: input.amount,
+		});
+
 		let remote: Awaited<ReturnType<typeof iradiusAdjustDealerCredit>>;
 		try {
 			remote = await iradiusAdjustDealerCredit(dealer, {
@@ -78,6 +88,7 @@ export const adjustDealerCredit = protectedProcedure
 				ledgerComment,
 			});
 		} catch (error) {
+			await releaseDealerWriteLock(lock);
 			if (error instanceof DealerCreditError) {
 				throw new ORPCError("BAD_REQUEST", { message: error.message });
 			}

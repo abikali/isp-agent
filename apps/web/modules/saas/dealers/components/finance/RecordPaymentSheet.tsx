@@ -124,7 +124,7 @@ export function RecordPaymentSheet({
 		!record.isPending;
 
 	function submit() {
-		if (!organizationId || !target) {
+		if (!organizationId || !target || record.isPending) {
 			return;
 		}
 		const verb =

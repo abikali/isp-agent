@@ -93,7 +93,7 @@ export function AdjustCreditSheet({
 		!adjust.isPending;
 
 	function submit() {
-		if (!organizationId || !target) {
+		if (!organizationId || !target || adjust.isPending) {
 			return;
 		}
 		confirm({

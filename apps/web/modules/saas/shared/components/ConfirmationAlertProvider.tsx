@@ -36,6 +36,10 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 	const [confirmOptions, setConfirmOptions] = useState<ConfirmOptions | null>(
 		null,
 	);
+	// Locked from the first click on Confirm until onConfirm settles. A second
+	// click during that window used to fire onConfirm again — with a money
+	// action behind it, that wrote a dealer credit to iRadius twice.
+	const [pending, setPending] = useState(false);
 
 	const value = useMemo(
 		() => ({
@@ -52,9 +56,12 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 
 			<AlertDialog
 				open={!!confirmOptions}
-				onOpenChange={(open) =>
-					setConfirmOptions(open ? confirmOptions : null)
-				}
+				onOpenChange={(open) => {
+					if (pending) {
+						return;
+					}
+					setConfirmOptions(open ? confirmOptions : null);
+				}}
 			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
@@ -67,7 +74,7 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 					</AlertDialogDescription>
 
 					<AlertDialogFooter>
-						<AlertDialogCancel>
+						<AlertDialogCancel disabled={pending}>
 							{confirmOptions?.cancelLabel ?? "Cancel"}
 						</AlertDialogCancel>
 						<Button
@@ -76,9 +83,18 @@ export function ConfirmationAlertProvider({ children }: PropsWithChildren) {
 									? "destructive"
 									: "primary"
 							}
+							disabled={pending}
 							onClick={async () => {
-								await confirmOptions?.onConfirm();
-								setConfirmOptions(null);
+								if (pending) {
+									return;
+								}
+								setPending(true);
+								try {
+									await confirmOptions?.onConfirm();
+								} finally {
+									setPending(false);
+									setConfirmOptions(null);
+								}
 							}}
 						>
 							{confirmOptions?.confirmLabel ?? "Confirm"}

@@ -12,6 +12,10 @@ import {
 } from "../lib/iradius-dealer";
 import { buildLedgerComment } from "../lib/ledger";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
+import {
+	acquireDealerWriteLock,
+	releaseDealerWriteLock,
+} from "../lib/write-guard";
 
 /**
  * Money coming back from a dealer: cash handed over, a balance forgiven, or
@@ -124,6 +128,12 @@ export const recordDealerPayment = protectedProcedure
 				)
 			: buildLedgerComment(input.kind, trimmedNote);
 
+		const lock = await acquireDealerWriteLock({
+			dealerId: dealer.id,
+			side: "debit",
+			amount: input.amount,
+		});
+
 		let remote: Awaited<ReturnType<typeof iradiusRecordDealerPayment>>;
 		try {
 			remote = await iradiusRecordDealerPayment(dealer, {
@@ -132,6 +142,7 @@ export const recordDealerPayment = protectedProcedure
 				comment,
 			});
 		} catch (error) {
+			await releaseDealerWriteLock(lock);
 			if (error instanceof DealerCreditError) {
 				throw new ORPCError("BAD_REQUEST", { message: error.message });
 			}
