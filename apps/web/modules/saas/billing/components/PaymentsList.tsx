@@ -1151,9 +1151,9 @@ export function PaymentsList() {
 
 					return (
 						<div className="flex items-center gap-1">
-							{/* Plan-change request: the review IS picking the plan.
-							    The bare green check moves into the menu so a
-							    one-click review can't skip the plan selection. */}
+							{/* Plan-change request: the usual review is picking the
+							    plan. The green check stays next to it — an admin
+							    may approve as-is and leave the remainder owed. */}
 							{organizationId && planChange && (
 								<Button
 									size="sm"
@@ -1167,7 +1167,7 @@ export function PaymentsList() {
 							)}
 
 							{/* Review button — always visible when needed */}
-							{organizationId && needsReview && !planChange && (
+							{organizationId && needsReview && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -1217,7 +1217,9 @@ export function PaymentsList() {
 									<TooltipContent>
 										{payment.stoppedAccount
 											? "Approve & Deactivate"
-											: "Mark as reviewed"}
+											: planChange
+												? "Approve as-is — keep current plan, remainder stays owed"
+												: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
 							)}
@@ -1508,33 +1510,6 @@ export function PaymentsList() {
 													Change plan & review
 												</DropdownMenuItem>
 											)}
-										{planChange && (
-											<DropdownMenuItem
-												disabled={isReviewing}
-												onClick={() =>
-													reviewPayment.mutate(
-														{
-															organizationId,
-															paymentId:
-																payment.id,
-														},
-														{
-															onSuccess: () =>
-																toast.success(
-																	"Marked as reviewed — plan unchanged",
-																),
-															onError: (error) =>
-																toast.error(
-																	error.message,
-																),
-														},
-													)
-												}
-											>
-												<CheckIcon className="mr-2 size-3.5" />
-												Mark reviewed, keep current plan
-											</DropdownMenuItem>
-										)}
 										{payment.customer.externalId && (
 											<>
 												<DropdownMenuSeparator />
