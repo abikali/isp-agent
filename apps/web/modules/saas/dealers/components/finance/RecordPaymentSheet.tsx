@@ -8,15 +8,9 @@ import {
 } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import {
 	Sheet,
 	SheetContent,
@@ -201,26 +195,20 @@ export function RecordPaymentSheet({
 					{!dealer && (
 						<div className="space-y-1.5">
 							<Label htmlFor="payment-dealer">Dealer</Label>
-							<Select
+							<Combobox
+								id="payment-dealer"
 								value={dealerId}
-								onValueChange={setDealerId}
-							>
-								<SelectTrigger id="payment-dealer">
-									<SelectValue placeholder="Choose a dealer" />
-								</SelectTrigger>
-								<SelectContent>
-									{[...dealers]
-										.sort((a, b) => b.owed - a.owed)
-										.map((d) => (
-											<SelectItem key={d.id} value={d.id}>
-												{d.name}
-												{d.owed > 0
-													? ` — owes ${formatCurrency(d.owed)}`
-													: " — settled"}
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
+								onChange={setDealerId}
+								placeholder="Choose a dealer"
+								searchPlaceholder="Type a dealer name…"
+								emptyText="No dealer matches"
+								options={[...dealers]
+									.sort((a, b) => b.owed - a.owed)
+									.map((d) => ({
+										value: d.id,
+										label: `${d.name}${d.owed > 0 ? ` — owes ${formatCurrency(d.owed)}` : " — settled"}`,
+									}))}
+							/>
 						</div>
 					)}
 
@@ -322,31 +310,22 @@ export function RecordPaymentSheet({
 							<Label htmlFor="payment-received-by">
 								Who took the cash?
 							</Label>
-							<Select
+							<Combobox
+								id="payment-received-by"
 								value={receivedById || "office"}
-								onValueChange={(v) =>
+								onChange={(v) =>
 									setReceivedById(v === "office" ? "" : v)
 								}
-							>
-								<SelectTrigger id="payment-received-by">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="office">
-										The office
-									</SelectItem>
-									{staff.map((s) => (
-										<SelectItem key={s.id} value={s.id}>
-											{s.name}
-											{s.department === "BILLING"
-												? " — collector"
-												: s.department
-													? " — worker"
-													: ""}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+								searchPlaceholder="Type a name…"
+								emptyText="Nobody matches"
+								options={[
+									{ value: "office", label: "The office" },
+									...staff.map((s) => ({
+										value: s.id,
+										label: `${s.name}${s.department === "BILLING" ? " — collector" : s.department ? " — worker" : ""}`,
+									})),
+								]}
+							/>
 							<p className="text-xs text-muted-foreground">
 								{receiver
 									? `${receiver.name} holds this cash until they hand it in. It shows up in their balance right away.`

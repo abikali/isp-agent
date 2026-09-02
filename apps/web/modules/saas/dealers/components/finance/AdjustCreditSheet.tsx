@@ -4,15 +4,9 @@ import { useConfirmationAlert } from "@saas/shared/client";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select";
 import {
 	Sheet,
 	SheetContent,
@@ -148,26 +142,22 @@ export function AdjustCreditSheet({
 					{!dealer && (
 						<div className="space-y-1.5">
 							<Label htmlFor="credit-dealer">Dealer</Label>
-							<Select
+							<Combobox
+								id="credit-dealer"
 								value={dealerId}
-								onValueChange={setDealerId}
-							>
-								<SelectTrigger id="credit-dealer">
-									<SelectValue placeholder="Choose a dealer" />
-								</SelectTrigger>
-								<SelectContent>
-									{[...dealers]
-										.sort((a, b) =>
-											a.name.localeCompare(b.name),
-										)
-										.map((d) => (
-											<SelectItem key={d.id} value={d.id}>
-												{d.name} —{" "}
-												{formatCurrency(d.prepaid)} left
-											</SelectItem>
-										))}
-								</SelectContent>
-							</Select>
+								onChange={setDealerId}
+								placeholder="Choose a dealer"
+								searchPlaceholder="Type a dealer name…"
+								emptyText="No dealer matches"
+								options={[...dealers]
+									.sort((a, b) =>
+										a.name.localeCompare(b.name),
+									)
+									.map((d) => ({
+										value: d.id,
+										label: `${d.name} — ${formatCurrency(d.prepaid)} left`,
+									}))}
+							/>
 						</div>
 					)}
 
