@@ -8,6 +8,7 @@ import { resolvePeriod, shortMonthLabel } from "../lib/period";
 import {
 	type FinanceScope,
 	fetchCostLines,
+	fetchFieldCash,
 	fetchHandedIn,
 	fetchRetailRevenue,
 	fetchWholesaleRevenue,
@@ -64,12 +65,13 @@ export const getFinanceTrend = protectedProcedure
 							months: [m],
 						};
 
-						const [retail, wholesale, costs, handedIn] =
+						const [retail, wholesale, costs, handedIn, fieldCash] =
 							await Promise.all([
 								fetchRetailRevenue(scope, single),
 								fetchWholesaleRevenue(scope, single),
 								fetchCostLines(scope, single),
 								fetchHandedIn(scope, single),
+								fetchFieldCash(scope, single),
 							]);
 
 						const folded = foldLines([
@@ -84,6 +86,12 @@ export const getFinanceTrend = protectedProcedure
 								label: "Dealers",
 								amount: wholesale.charged,
 								stream: "WHOLESALE",
+							},
+							{
+								kind: "REVENUE",
+								label: "Setup & hardware",
+								amount: fieldCash,
+								stream: "FIELD",
 							},
 							...costs,
 						]);

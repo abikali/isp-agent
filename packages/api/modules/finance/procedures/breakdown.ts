@@ -5,6 +5,7 @@ import { previousPeriod, resolvePeriod } from "../lib/period";
 import {
 	type FinanceScope,
 	fetchCostLines,
+	fetchFieldCash,
 	fetchRetailRevenue,
 	fetchWholesaleRevenue,
 } from "../lib/queries";
@@ -51,16 +52,20 @@ export const getFinanceBreakdown = protectedProcedure
 		const [
 			retail,
 			wholesale,
+			fieldCash,
 			costLines,
 			priorRetail,
 			priorWholesale,
+			priorFieldCash,
 			priorCostLines,
 		] = await Promise.all([
 			fetchRetailRevenue(scope, period),
 			fetchWholesaleRevenue(scope, period),
+			fetchFieldCash(scope, period),
 			fetchCostLines(scope, period),
 			fetchRetailRevenue(scope, prior),
 			fetchWholesaleRevenue(scope, prior),
+			fetchFieldCash(scope, prior),
 			fetchCostLines(scope, prior),
 		]);
 
@@ -119,10 +124,17 @@ export const getFinanceBreakdown = protectedProcedure
 			revenue: [
 				{
 					key: "retail",
-					label: "Subscribers you bill directly",
+					label: "Monthly subscriptions",
 					amount: retail,
 					previous: priorRetail,
 					delta: retail - priorRetail,
+				},
+				{
+					key: "field",
+					label: "Setup fees & hardware",
+					amount: fieldCash,
+					previous: priorFieldCash,
+					delta: fieldCash - priorFieldCash,
 				},
 				{
 					key: "wholesale",

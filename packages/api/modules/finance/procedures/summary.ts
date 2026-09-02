@@ -9,6 +9,7 @@ import {
 	type FinanceScope,
 	fetchCashHeld,
 	fetchCostLines,
+	fetchFieldCash,
 	fetchHandedIn,
 	fetchReceivables,
 	fetchRetailRevenue,
@@ -76,10 +77,12 @@ export const getFinanceSummary = protectedProcedure
 					receivables,
 					cashHeld,
 					handedIn,
+					fieldCash,
 					priorRetail,
 					priorWholesale,
 					priorCostLines,
 					priorHandedIn,
+					priorFieldCash,
 				] = await Promise.all([
 					fetchRetailRevenue(scope, period),
 					fetchWholesaleRevenue(scope, period),
@@ -87,10 +90,12 @@ export const getFinanceSummary = protectedProcedure
 					fetchReceivables(scope),
 					fetchCashHeld(scope),
 					fetchHandedIn(scope, period),
+					fetchFieldCash(scope, period),
 					fetchRetailRevenue(scope, prior),
 					fetchWholesaleRevenue(scope, prior),
 					fetchCostLines(scope, prior),
 					fetchHandedIn(scope, prior),
+					fetchFieldCash(scope, prior),
 				]);
 
 				const current = foldLines([
@@ -105,6 +110,12 @@ export const getFinanceSummary = protectedProcedure
 						label: "Dealers",
 						amount: wholesale.charged,
 						stream: "WHOLESALE",
+					},
+					{
+						kind: "REVENUE",
+						label: "Setup & hardware",
+						amount: fieldCash,
+						stream: "FIELD",
 					},
 					...costLines,
 				]);
@@ -121,6 +132,12 @@ export const getFinanceSummary = protectedProcedure
 						label: "Dealers",
 						amount: priorWholesale.charged,
 						stream: "WHOLESALE",
+					},
+					{
+						kind: "REVENUE",
+						label: "Setup & hardware",
+						amount: priorFieldCash,
+						stream: "FIELD",
 					},
 					...priorCostLines,
 				]);
@@ -163,14 +180,15 @@ export const getFinanceSummary = protectedProcedure
 						total: handedIn.total,
 						handoffs: handedIn.count,
 					},
-					/** What collectors RECORDED from subscribers and dealers
-					 *  for the period's cycles — the field-side view. Counted
-					 *  when the payment is entered, whether or not the cash has
-					 *  been handed in yet, so it does not subtract from
+					/** Everything the team RECORDED taking from customers and
+					 *  dealers: subscriptions, one-off setup/hardware cash, and
+					 *  dealer charges. Counted when entered, whether or not the
+					 *  cash has been handed in yet, so it does not subtract from
 					 *  moneyIn and must not be added to it. */
 					collected: {
 						total: current.revenue,
 						retail: current.byStream.RETAIL,
+						field: current.byStream.FIELD,
 						wholesale: current.byStream.WHOLESALE,
 						other: current.byStream.OTHER,
 						wholesaleSettled: wholesale.settled,

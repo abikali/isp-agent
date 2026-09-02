@@ -170,12 +170,17 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 					collected={summary.collected.total}
 					streams={[
 						{
-							label: "Your own subscribers",
+							label: "Monthly subscriptions",
 							amount: summary.collected.retail,
 							color: "var(--chart-1)",
 						},
 						{
-							label: "Dealers reselling your service",
+							label: "Setup fees & hardware",
+							amount: summary.collected.field,
+							color: "var(--chart-2)",
+						},
+						{
+							label: "Dealers",
 							amount: summary.collected.wholesale,
 							color: "var(--chart-3)",
 						},

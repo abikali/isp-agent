@@ -51,8 +51,8 @@ export function DetailPanel({
 	return (
 		<div className="grid gap-6 pt-2 lg:grid-cols-2">
 			<Block
-				title="What your team collected"
-				note="Payments recorded in the field, by source. The money-in figure above is the part that has reached the office."
+				title="Collected from customers"
+				note="What your team took in, by source. Money in above is the part that has reached the office."
 				rows={revenue}
 				comparisonLabel={comparisonLabel}
 				goodWhenUp

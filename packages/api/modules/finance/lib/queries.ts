@@ -215,6 +215,65 @@ export async function fetchCostLines(
 }
 
 /**
+ * One-off cash workers take from customers in the field: setup fees and
+ * hardware on installs. The monthly subscription is NOT here — that is a
+ * Payment row and lives in `fetchRetailRevenue`.
+ *
+ * Source is the cash ledger, where these land as NEGATIVE rows (a worker
+ * pocketing cash raises what he owes — see billing/lib/cash-signs.ts), so the
+ * sign is flipped.
+ *
+ * A NEW_USER_SETUP row written by the app bundles the hardware AND, when the
+ * worker took it, the first subscription charge — which the same approval
+ * also records as a Payment. Counting the whole row would count that
+ * subscription twice, so for app-written rows only the linked request's
+ * hardware total is taken. Rows imported from the legacy billing system have
+ * no such link and are taken whole; legacy bundled the first month the same
+ * way, so a pre-app month can be slightly high. No new rows of that kind are
+ * created.
+ */
+export async function fetchFieldCash(
+	scope: FinanceScope,
+	period: Period,
+): Promise<number> {
+	const rows = await db.cashCollection.findMany({
+		where: {
+			organizationId: scope.organizationId,
+			type: { in: ["NEW_USER_SETUP", "INSTALLATION_COST"] },
+			collectedAt: { gte: period.from, lt: period.to },
+			...(scope.activeDealerId
+				? { collector: { dealerId: scope.activeDealerId } }
+				: {}),
+		},
+		select: {
+			amount: true,
+			setupRequest: {
+				select: {
+					installations: { select: { price: true, quantity: true } },
+				},
+			},
+		},
+	});
+
+	let total = 0;
+	for (const row of rows) {
+		const cash = -row.amount;
+		if (row.setupRequest) {
+			const hardware = row.setupRequest.installations.reduce(
+				(sum, i) => sum + i.price * i.quantity,
+				0,
+			);
+			// The row is never less than its hardware; the difference is the
+			// subscription already counted as a Payment.
+			total += Math.min(cash, hardware);
+		} else {
+			total += cash;
+		}
+	}
+	return total;
+}
+
+/**
  * Cash that physically reached the office during the period.
  *
  * `fetchRetailRevenue` counts a payment the moment a collector records it —

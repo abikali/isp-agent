@@ -41,8 +41,9 @@ export type MoneyKind = "REVENUE" | "COST" | "DRAW" | "TRANSFER";
 
 /** Where a unit of revenue came from. Retail and wholesale are different
  *  businesses with very different margins and must never be blended into one
- *  number on a report. */
-export type RevenueStream = "RETAIL" | "WHOLESALE" | "OTHER";
+ *  number on a report. FIELD is one-off cash workers take at a customer's
+ *  door — setup fees and hardware — as opposed to the monthly subscription. */
+export type RevenueStream = "RETAIL" | "WHOLESALE" | "FIELD" | "OTHER";
 
 /**
  * Every `CashCollectionType`, classified.
@@ -168,6 +169,7 @@ export function foldLines(lines: MoneyLine[]) {
 	const byStream: Record<RevenueStream, number> = {
 		RETAIL: 0,
 		WHOLESALE: 0,
+		FIELD: 0,
 		OTHER: 0,
 	};
 
