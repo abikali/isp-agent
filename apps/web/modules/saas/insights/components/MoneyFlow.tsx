@@ -8,7 +8,13 @@ interface MoneyFlowProps {
 	/** Cash handed in to the office in the period. */
 	moneyIn: { total: number; handoffs: number };
 	moneyOut: number;
+	/** moneyIn − moneyOut. What running the business itself left. */
 	kept: number;
+	/** Money an owner or partner took out. Real cash gone, but not a cost of
+	 *  operating — shown under the equation, never inside it. */
+	draws: number;
+	/** kept − draws: what actually stayed in the business. */
+	net: number;
 	/** Everything the team recorded taking from customers in the period —
 	 *  not yet necessarily in the office. */
 	collected: number;
@@ -34,10 +40,13 @@ export function MoneyFlow({
 	moneyIn,
 	moneyOut,
 	kept,
+	draws,
+	net,
 	collected,
 	streams,
 }: MoneyFlowProps) {
 	const positive = kept >= 0;
+	const netPositive = net >= 0;
 	const total = streams?.reduce((sum, s) => sum + s.amount, 0) ?? 0;
 	const handoffs =
 		moneyIn.handoffs === 0
@@ -71,10 +80,31 @@ export function MoneyFlow({
 					label={positive ? "You kept" : "You're short"}
 					value={Math.abs(kept)}
 					tone={positive ? "text-success" : "text-destructive"}
-					hint="Cash the business gained"
+					hint="What running the business left"
 					emphasis
 				/>
 			</div>
+
+			{draws > 0 && (
+				<div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg border border-dashed border-border px-4 py-3">
+					<div>
+						<div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+							You took out
+						</div>
+						<div className="mt-1 text-xs text-muted-foreground">
+							Money you or a partner took for yourselves. Not a
+							cost of running the business, so it sits outside the
+							sum above —{" "}
+							{netPositive
+								? `${formatCurrency(net)} stayed in.`
+								: `it left the business ${formatCurrency(Math.abs(net))} down.`}
+						</div>
+					</div>
+					<div className="text-xl font-medium tabular-nums leading-none tracking-tight">
+						−{formatCurrency(draws)}
+					</div>
+				</div>
+			)}
 
 			<div className="mt-5 border-t border-border pt-4">
 				<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">

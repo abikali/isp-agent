@@ -166,7 +166,9 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 					periodLabel={summary.period.label}
 					moneyIn={summary.moneyIn}
 					moneyOut={summary.moneyOut.total}
-					kept={summary.net}
+					kept={summary.operatingProfit}
+					draws={summary.draws}
+					net={summary.net}
 					collected={summary.collected.total}
 					streams={[
 						{

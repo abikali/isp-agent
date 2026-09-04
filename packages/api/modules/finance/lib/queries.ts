@@ -157,9 +157,18 @@ export async function fetchCostLines(
 				organizationId: scope.organizationId,
 				status: "APPROVED",
 				createdAt: { gte: period.from, lt: period.to },
-				...(scope.activeDealerId
-					? { submittedBy: { dealerId: scope.activeDealerId } }
-					: {}),
+				// A claim belongs to its worker's dealer. A direct row has no
+				// worker — it is the organization's own spending and is always
+				// in scope, so an owner-entered cost cannot vanish from the
+				// P&L just because the org has a master dealer account.
+				OR: [
+					{ submittedById: null },
+					{
+						submittedBy: {
+							dealerId: scope.activeDealerId ?? null,
+						},
+					},
+				],
 			},
 			select: {
 				id: true,
