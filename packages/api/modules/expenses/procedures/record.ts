@@ -31,17 +31,12 @@ export const recordExpense = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		await requirePermission(
 			input.organizationId,
 			user.id,
 			"expenses",
 			"approve",
 		);
-		if (activeDealerId) {
-			throw new ORPCError("FORBIDDEN", {
-				message: "Only the operator records company expenses",
-			});
-		}
 		if (input.financeCategoryId) {
 			const bucket = await db.financeCategory.findFirst({
 				where: {

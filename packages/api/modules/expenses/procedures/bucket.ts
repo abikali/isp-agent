@@ -111,22 +111,20 @@ export const getSpendingBucket = protectedProcedure
 						},
 					})
 				: [],
-			activeDealerId
-				? []
-				: db.recurringExpense.findMany({
-						where: {
-							organizationId: input.organizationId,
-							financeCategoryId,
-						},
-						orderBy: { amount: "desc" },
-						select: {
-							id: true,
-							amount: true,
-							description: true,
-							dayOfMonth: true,
-							active: true,
-						},
-					}),
+			db.recurringExpense.findMany({
+				where: {
+					organizationId: input.organizationId,
+					financeCategoryId,
+				},
+				orderBy: { amount: "desc" },
+				select: {
+					id: true,
+					amount: true,
+					description: true,
+					dayOfMonth: true,
+					active: true,
+				},
+			}),
 			db.expense.aggregate({
 				where: inBucket,
 				_sum: { amount: true },

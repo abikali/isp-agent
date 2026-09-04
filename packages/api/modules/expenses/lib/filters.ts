@@ -33,16 +33,18 @@ export type ExpenseFilterInput = z.infer<typeof expenseFilterSchema>;
 
 /**
  * Which rows a viewer with this dealer scope may see. A worker's claim belongs
- * to the worker's dealer; a direct row (no worker) belongs to the operator.
+ * to the worker's dealer (the org's `activeDealerId` — set for the operator
+ * too, it is the org's own master dealer account); a direct row (no worker)
+ * belongs to the organization itself and is always in scope.
  */
 export function expenseDealerScope(
 	activeDealerId: string | null,
 ): Record<string, unknown> {
-	if (activeDealerId) {
-		return { submittedBy: { dealerId: activeDealerId } };
-	}
 	return {
-		OR: [{ submittedById: null }, { submittedBy: { dealerId: null } }],
+		OR: [
+			{ submittedById: null },
+			{ submittedBy: { dealerId: activeDealerId ?? null } },
+		],
 	};
 }
 

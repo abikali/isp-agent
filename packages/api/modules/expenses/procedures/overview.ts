@@ -138,24 +138,22 @@ export const getSpendingOverview = protectedProcedure
 					submittedBy: { select: { id: true, name: true } },
 				},
 			}),
-			activeDealerId
-				? []
-				: db.recurringExpense.findMany({
-						where: { organizationId: input.organizationId },
-						orderBy: [{ active: "desc" }, { amount: "desc" }],
-						select: {
-							id: true,
-							amount: true,
-							description: true,
-							dayOfMonth: true,
-							active: true,
-							lastGeneratedMonth: true,
-							financeCategory: {
-								select: { id: true, label: true },
-							},
-							createdBy: { select: { name: true } },
-						},
-					}),
+			db.recurringExpense.findMany({
+				where: { organizationId: input.organizationId },
+				orderBy: [{ active: "desc" }, { amount: "desc" }],
+				select: {
+					id: true,
+					amount: true,
+					description: true,
+					dayOfMonth: true,
+					active: true,
+					lastGeneratedMonth: true,
+					financeCategory: {
+						select: { id: true, label: true },
+					},
+					createdBy: { select: { name: true } },
+				},
+			}),
 		]);
 
 		const thisByBucket = new Map(

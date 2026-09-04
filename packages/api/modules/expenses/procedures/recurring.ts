@@ -15,17 +15,7 @@ const lineFields = {
 };
 
 async function requireOperator(organizationId: string, userId: string) {
-	const { activeDealerId } = await requirePermission(
-		organizationId,
-		userId,
-		"expenses",
-		"approve",
-	);
-	if (activeDealerId) {
-		throw new ORPCError("FORBIDDEN", {
-			message: "Only the operator manages recurring expenses",
-		});
-	}
+	await requirePermission(organizationId, userId, "expenses", "approve");
 }
 
 async function assertBucket(organizationId: string, id: string | null) {
