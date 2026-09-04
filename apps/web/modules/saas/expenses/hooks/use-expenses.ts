@@ -14,6 +14,7 @@ export interface ExpenseFilters {
 	category?: string;
 	financeCategoryId?: string;
 	hasReceipt?: boolean;
+	source?: "claims" | "direct";
 	from?: Date;
 	to?: Date;
 }

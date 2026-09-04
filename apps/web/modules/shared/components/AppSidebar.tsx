@@ -204,6 +204,18 @@ export function AppSidebar() {
 								},
 							]
 						: []),
+					// And "what did we spend" is the third. Worker claims are
+					// one section of it, so the pending badge stays.
+					...(canReadExpenses
+						? [
+								{
+									label: "Spending",
+									to: `${basePath}/expenses`,
+									icon: ReceiptIcon,
+									badge: pendingExpenses,
+								},
+							]
+						: []),
 				],
 			},
 		];
@@ -296,14 +308,6 @@ export function AppSidebar() {
 					to: `${basePath}/installations`,
 					icon: WrenchIcon,
 					badge: pendingInstallations,
-				});
-			}
-			if (canReadExpenses) {
-				items.push({
-					label: "Expenses",
-					to: `${basePath}/expenses`,
-					icon: ReceiptIcon,
-					badge: pendingExpenses,
 				});
 			}
 			groups.push({ id: "operations", label: "Operations", items });

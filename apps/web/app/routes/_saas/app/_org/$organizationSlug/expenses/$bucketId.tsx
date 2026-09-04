@@ -1,5 +1,5 @@
 import { config } from "@repo/config";
-import { SpendingPage, SpendingPageSkeleton } from "@saas/expenses/client";
+import { BucketDetailPage, BucketDetailSkeleton } from "@saas/expenses/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { PermissionGate } from "@shared/components/PermissionGate";
 import { orpc } from "@shared/lib/orpc";
@@ -8,8 +8,10 @@ import { dehydrate } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
-const getSpendingFn = createServerFn({ method: "GET" })
-	.inputValidator((data: { organizationSlug: string }) => data)
+const getBucketFn = createServerFn({ method: "GET" })
+	.inputValidator(
+		(data: { organizationSlug: string; bucketId: string }) => data,
+	)
 	.handler(async ({ data }) => {
 		const { db } = await import("@repo/database");
 
@@ -23,13 +25,22 @@ const getSpendingFn = createServerFn({ method: "GET" })
 
 		const queryClient = getServerQueryClient();
 		try {
-			await queryClient.ensureQueryData(
-				orpc.expenses.overview.queryOptions({
-					input: { organizationId: organization.id },
-				}),
-			);
+			await Promise.all([
+				queryClient.ensureQueryData(
+					orpc.expenses.bucket.queryOptions({
+						input: {
+							organizationId: organization.id,
+							bucketId: data.bucketId,
+						},
+					}),
+				),
+				queryClient.ensureQueryData(
+					orpc.expenses.overview.queryOptions({
+						input: { organizationId: organization.id },
+					}),
+				),
+			]);
 		} catch {
-			// The client retries; AsyncBoundary shows the error if it persists.
 			return { dehydratedState: null };
 		}
 
@@ -40,26 +51,33 @@ const getSpendingFn = createServerFn({ method: "GET" })
 	});
 
 export const Route = createFileRoute(
-	"/_saas/app/_org/$organizationSlug/expenses/",
+	"/_saas/app/_org/$organizationSlug/expenses/$bucketId",
 )({
 	loader: ({ params }) =>
-		getSpendingFn({ data: { organizationSlug: params.organizationSlug } }),
+		getBucketFn({
+			data: {
+				organizationSlug: params.organizationSlug,
+				bucketId: params.bucketId,
+			},
+		}),
 	head: () => ({
-		meta: [{ title: `Spending - ${config.appName}` }],
+		meta: [{ title: `Spending bucket - ${config.appName}` }],
 	}),
-	component: ExpensesRoute,
+	component: BucketRoute,
 });
 
-function ExpensesRoute() {
+function BucketRoute() {
+	const { bucketId } = Route.useParams();
 	const loaderData = Route.useLoaderData();
 
 	return (
 		<PermissionGate resource="expenses" action="read">
 			<AsyncBoundary
-				fallback={<SpendingPageSkeleton />}
+				fallback={<BucketDetailSkeleton />}
 				dehydratedState={loaderData.dehydratedState}
+				resetKeys={[bucketId]}
 			>
-				<SpendingPage />
+				<BucketDetailPage bucketId={bucketId} />
 			</AsyncBoundary>
 		</PermissionGate>
 	);

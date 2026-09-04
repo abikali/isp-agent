@@ -14,6 +14,10 @@
 		"./sync-fields": {
 			"types": "./src/workers/iradius-sync-fields.ts",
 			"default": "./src/workers/iradius-sync-fields.ts"
+		},
+		"./recurring-expenses": {
+			"types": "./src/lib/recurring-expenses.ts",
+			"default": "./src/lib/recurring-expenses.ts"
 		}
 	},
 	"scripts": {

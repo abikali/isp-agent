@@ -1,5 +1,4 @@
 import {
-	getDealerScopeFilter,
 	getOwnershipFilterAsync,
 	type PermissionContext,
 } from "@repo/api/lib/permission";
@@ -23,11 +22,29 @@ export const expenseFilterSchema = z.object({
 	/** Money-map bucket id, or the literal "none" for rows nobody classified. */
 	financeCategoryId: z.string().optional(),
 	hasReceipt: z.boolean().optional(),
+	/** "claims" = a worker asking to be paid back; "direct" = entered by an
+	 *  owner or generated from a recurring line (no worker, no wallet). */
+	source: z.enum(["claims", "direct"]).optional(),
 	from: z.coerce.date().optional(),
 	to: z.coerce.date().optional(),
 });
 
 export type ExpenseFilterInput = z.infer<typeof expenseFilterSchema>;
+
+/**
+ * Which rows a viewer with this dealer scope may see. A worker's claim belongs
+ * to the worker's dealer; a direct row (no worker) belongs to the operator.
+ */
+export function expenseDealerScope(
+	activeDealerId: string | null,
+): Record<string, unknown> {
+	if (activeDealerId) {
+		return { submittedBy: { dealerId: activeDealerId } };
+	}
+	return {
+		OR: [{ submittedById: null }, { submittedBy: { dealerId: null } }],
+	};
+}
 
 export async function buildExpenseWhere(
 	permCtx: PermissionContext,
@@ -56,6 +73,13 @@ export async function buildExpenseWhere(
 			input.financeCategoryId === "none"
 				? { financeCategoryId: null }
 				: { financeCategoryId: input.financeCategoryId },
+		);
+	}
+	if (input.source) {
+		and.push(
+			input.source === "direct"
+				? { submittedById: null }
+				: { submittedById: { not: null } },
 		);
 	}
 	if (input.hasReceipt !== undefined) {
@@ -91,7 +115,7 @@ export async function buildExpenseWhere(
 
 	return {
 		organizationId: input.organizationId,
-		submittedBy: getDealerScopeFilter(activeDealerId),
+		...expenseDealerScope(activeDealerId),
 		...(and.length > 0 ? { AND: and } : {}),
 	};
 }

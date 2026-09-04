@@ -43,6 +43,8 @@ export const listExpenses = protectedProcedure
 				include: {
 					submittedBy: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
+					createdBy: { select: { id: true, name: true } },
+					recurring: { select: { id: true } },
 					financeCategory: {
 						select: { id: true, label: true, kind: true },
 					},

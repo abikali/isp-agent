@@ -9,7 +9,6 @@ import { FilterBar } from "@shared/components/FilterBar";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PageShell } from "@shared/components/PageShell";
 import { PermissionGate } from "@shared/components/PermissionGate";
-import { StatCard, StatCardGroup } from "@shared/components/StatCard";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { formatCurrency, formatDateTime } from "@shared/lib/format";
 import { buildMonthOptions, monthRange } from "@shared/lib/month-filter";
@@ -38,13 +37,10 @@ import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
 import {
 	AlertTriangleIcon,
-	CameraOffIcon,
 	CheckIcon,
-	CoinsIcon,
 	ImageIcon,
-	LayersIcon,
 	ReceiptIcon,
-	UsersIcon,
+	RepeatIcon,
 	XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -57,8 +53,33 @@ import {
 	useExpenses,
 	useRejectExpense,
 } from "../hooks/use-expenses";
+import {
+	useFinanceCategories,
+	useSetExpenseBucket,
+} from "../hooks/use-spending";
 
 type Expense = ReturnType<typeof useExpenses>["expenses"][number];
+type Source = "all" | "claims" | "direct";
+
+/** A pending claim about to be rejected — enough to write the dialog. */
+export interface RejectTarget {
+	id: string;
+	amount: number;
+	who: string;
+}
+
+/** What the page's tiles ask the table to start on. */
+export type ExpensesPreset = "all" | "pending" | "unclassified";
+
+interface ExpensesListProps {
+	/** Render without a PageShell — the Spending page provides the frame. */
+	embedded?: boolean;
+	/** Starting tab + filters; remount with `key` to apply a new one. */
+	preset?: ExpensesPreset;
+	/** Controlled reject dialog, so the attention strip can open it too. */
+	rejecting?: RejectTarget | null;
+	onRejectingChange?: (target: RejectTarget | null) => void;
+}
 
 const PAGE_SIZE = 25;
 
@@ -79,14 +100,24 @@ const STATUS_BADGES: Record<
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive expenses review page: filters, approval/reject dialog, and table column defs share local state; splitting would scatter tightly-coupled state
 // react-doctor-disable-next-line react-doctor/prefer-useReducer -- independent filter/dialog state slices (status, employee, month, page, ...) read clearer as separate useState than a reducer
-export function ExpensesList() {
+export function ExpensesList({
+	embedded = false,
+	preset = "pending",
+	rejecting: rejectingProp,
+	onRejectingChange,
+}: ExpensesListProps) {
 	const organizationId = useOrganizationId();
 
-	const [status, setStatus] = useState<ExpenseStatus>("PENDING");
+	const [status, setStatus] = useState<ExpenseStatus>(
+		preset === "pending" ? "PENDING" : "APPROVED",
+	);
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
 	const [employeeId, setEmployeeId] = useState<string | undefined>();
-	const [bucketId, setBucketId] = useState<string | undefined>();
+	const [bucketId, setBucketId] = useState<string | undefined>(
+		preset === "unclassified" ? "none" : undefined,
+	);
+	const [source, setSource] = useState<Source>("all");
 	const [category, setCategory] = useState<string | undefined>();
 	const [receiptFilter, setReceiptFilter] = useState<"all" | "yes" | "no">(
 		"all",
@@ -107,6 +138,7 @@ export function ExpensesList() {
 		...(debouncedSearch ? { search: debouncedSearch } : {}),
 		...(employeeId ? { employeeId } : {}),
 		...(bucketId ? { financeCategoryId: bucketId } : {}),
+		...(source !== "all" ? { source } : {}),
 		...(category ? { category } : {}),
 		...(receiptFilter !== "all"
 			? { hasReceipt: receiptFilter === "yes" }
@@ -115,6 +147,7 @@ export function ExpensesList() {
 	};
 
 	const { workers, categories, buckets } = useExpenseFilterOptions(status);
+	const { categories: allBuckets } = useFinanceCategories();
 	const workerOptions = useMemo(
 		() => [
 			{ value: "all", label: "All workers" },
@@ -138,6 +171,7 @@ export function ExpensesList() {
 		debouncedSearch,
 		employeeId,
 		bucketId,
+		source !== "all" ? source : undefined,
 		category,
 		receiptFilter !== "all" ? receiptFilter : undefined,
 		monthFilter !== "all" ? monthFilter : undefined,
@@ -147,6 +181,7 @@ export function ExpensesList() {
 		setSearch("");
 		setEmployeeId(undefined);
 		setBucketId(undefined);
+		setSource("all");
 		setCategory(undefined);
 		setReceiptFilter("all");
 		setMonthFilter("all");
@@ -155,9 +190,14 @@ export function ExpensesList() {
 
 	const approveExpense = useApproveExpense();
 	const rejectExpense = useRejectExpense();
+	const setBucket = useSetExpenseBucket();
 
 	const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
-	const [rejecting, setRejecting] = useState<Expense | null>(null);
+	const [rejectingLocal, setRejectingLocal] = useState<RejectTarget | null>(
+		null,
+	);
+	const rejecting = rejectingProp ?? rejectingLocal;
+	const setRejecting = onRejectingChange ?? setRejectingLocal;
 	const [rejectReason, setRejectReason] = useState("");
 
 	const columns = useMemo<ColumnDef<Expense, unknown>[]>(
@@ -175,14 +215,36 @@ export function ExpensesList() {
 				),
 			},
 			{
-				id: "worker",
-				header: "Worker",
+				id: "who",
+				header: "Who",
 				enableSorting: false,
-				cell: ({ row }) => (
-					<span className="text-sm font-medium">
-						{row.original.submittedBy.name}
-					</span>
-				),
+				cell: ({ row }) => {
+					const e = row.original;
+					if (e.submittedBy) {
+						return (
+							<span className="text-sm font-medium">
+								{e.submittedBy.name}
+							</span>
+						);
+					}
+					return (
+						<div className="text-sm">
+							<span className="font-medium">
+								{e.createdBy?.name ?? "Company"}
+							</span>
+							<div className="flex items-center gap-1 text-xs text-muted-foreground">
+								{e.recurring ? (
+									<>
+										<RepeatIcon className="size-3" />
+										every month
+									</>
+								) : (
+									"entered directly"
+								)}
+							</div>
+						</div>
+					);
+				},
 			},
 			{
 				accessorKey: "amount",
@@ -221,16 +283,66 @@ export function ExpensesList() {
 				header: "Bucket",
 				enableSorting: false,
 				meta: { className: "hidden lg:table-cell" },
-				cell: ({ row }) =>
-					row.original.financeCategory ? (
-						<Badge variant="secondary" className="font-normal">
-							{row.original.financeCategory.label}
-						</Badge>
-					) : (
-						<span className="text-xs text-muted-foreground">
-							Uncategorised
-						</span>
-					),
+				cell: ({ row }) => {
+					const e = row.original;
+					return (
+						<PermissionGate
+							resource="expenses"
+							action="approve"
+							fallback={
+								e.financeCategory ? (
+									<Badge
+										variant="secondary"
+										className="font-normal"
+									>
+										{e.financeCategory.label}
+									</Badge>
+								) : (
+									<span className="text-xs text-muted-foreground">
+										Needs a bucket
+									</span>
+								)
+							}
+						>
+							<Combobox
+								className={
+									e.financeCategory
+										? "h-8 w-44 text-xs"
+										: "h-8 w-44 border-warning/60 text-xs"
+								}
+								value={e.financeCategory?.id ?? ""}
+								onChange={async (v) => {
+									if (!organizationId) {
+										return;
+									}
+									try {
+										await setBucket.mutateAsync({
+											organizationId,
+											id: e.id,
+											financeCategoryId: v || null,
+										});
+									} catch (err) {
+										toast.error(
+											err instanceof Error
+												? err.message
+												: "Could not move it",
+										);
+									}
+								}}
+								options={[
+									{ value: "", label: "Needs a bucket" },
+									...allBuckets.map((c) => ({
+										value: c.id,
+										label: c.label,
+									})),
+								]}
+								placeholder="Needs a bucket"
+								searchPlaceholder="Search buckets…"
+								emptyText="No bucket matches"
+							/>
+						</PermissionGate>
+					);
+				},
 			},
 			{
 				id: "receipt",
@@ -270,7 +382,7 @@ export function ExpensesList() {
 				cell: ({ row }) => {
 					const expense = row.original;
 					if (expense.status !== "PENDING") {
-						return expense.approvedBy ? (
+						return expense.approvedBy && expense.submittedBy ? (
 							<span className="text-xs text-muted-foreground">
 								by {expense.approvedBy.name}
 							</span>
@@ -309,7 +421,13 @@ export function ExpensesList() {
 									variant="outline"
 									onClick={() => {
 										setRejectReason("");
-										setRejecting(expense);
+										setRejecting({
+											id: expense.id,
+											amount: expense.amount,
+											who:
+												expense.submittedBy?.name ??
+												"this",
+										});
 									}}
 								>
 									<XIcon className="mr-1 size-3.5" />
@@ -321,74 +439,40 @@ export function ExpensesList() {
 				},
 			},
 		],
-		[organizationId, approveExpense],
+		[organizationId, approveExpense, setBucket, allBuckets, setRejecting],
 	);
 
-	return (
-		<PageShell
-			title="Expenses"
-			description="Review worker expense claims — approve to deduct from their cash balance."
-		>
-			<Tabs
-				value={status}
-				onValueChange={(v) => {
-					setStatus(v as ExpenseStatus);
-					// The worker/bucket/type choices are derived per tab; a pick
-					// from the old tab may not exist in the new one.
-					setEmployeeId(undefined);
-					setBucketId(undefined);
-					setCategory(undefined);
-					resetPage();
-				}}
-			>
-				<TabsList>
-					<TabsTrigger value="PENDING">Pending</TabsTrigger>
-					<TabsTrigger value="APPROVED">Approved</TabsTrigger>
-					<TabsTrigger value="REJECTED">Rejected</TabsTrigger>
-				</TabsList>
-			</Tabs>
-
-			<StatCardGroup columns={5}>
-				<StatCard
-					title="Total"
-					icon={CoinsIcon}
-					value={formatCurrency(summary?.totalAmount ?? 0)}
-					color={status === "APPROVED" ? "emerald" : "blue"}
-					description={`${(summary?.count ?? 0).toLocaleString()} claims`}
-				/>
-				<StatCard
-					title="Workers"
-					icon={UsersIcon}
-					value={summary?.workerCount ?? 0}
-					description="submitted"
-				/>
-				<StatCard
-					title="Average claim"
-					value={formatCurrency(summary?.averageAmount ?? 0)}
-					description={`largest ${formatCurrency(summary?.largestAmount ?? 0)}`}
-				/>
-				<StatCard
-					title={summary?.topBucket?.label ?? "Top bucket"}
-					icon={LayersIcon}
-					value={formatCurrency(summary?.topBucket?.amount ?? 0)}
-					color="purple"
-					description={`${summary?.topBucket?.count ?? 0} claims · biggest bucket`}
-				/>
-				<StatCard
-					title="No receipt"
-					icon={CameraOffIcon}
-					value={summary?.missingReceipt ?? 0}
-					color={summary?.missingReceipt ? "amber" : "default"}
-					description="claims without a photo"
-					active={receiptFilter === "no"}
-					onClick={() => {
-						setReceiptFilter(receiptFilter === "no" ? "all" : "no");
-						resetPage();
-					}}
-				/>
-			</StatCardGroup>
-
+	const content = (
+		<>
 			<ContentCard>
+				<ContentCardToolbar
+					actions={
+						<span className="text-xs text-muted-foreground tabular-nums">
+							{(summary?.count ?? total).toLocaleString()}{" "}
+							{(summary?.count ?? total) === 1 ? "line" : "lines"}{" "}
+							· {formatCurrency(summary?.totalAmount ?? 0)}
+						</span>
+					}
+				>
+					<Tabs
+						value={status}
+						onValueChange={(v) => {
+							setStatus(v as ExpenseStatus);
+							// The worker/bucket/type choices are derived per tab; a
+							// pick from the old tab may not exist in the new one.
+							setEmployeeId(undefined);
+							setBucketId(undefined);
+							setCategory(undefined);
+							resetPage();
+						}}
+					>
+						<TabsList>
+							<TabsTrigger value="APPROVED">Approved</TabsTrigger>
+							<TabsTrigger value="PENDING">Pending</TabsTrigger>
+							<TabsTrigger value="REJECTED">Rejected</TabsTrigger>
+						</TabsList>
+					</Tabs>
+				</ContentCardToolbar>
 				<ContentCardToolbar>
 					<FilterBar
 						bare
@@ -421,6 +505,27 @@ export function ExpensesList() {
 										{opt.label}
 									</SelectItem>
 								))}
+							</SelectContent>
+						</Select>
+
+						<Select
+							value={source}
+							onValueChange={(v) => {
+								setSource(v as Source);
+								resetPage();
+							}}
+						>
+							<SelectTrigger className="w-40 shrink-0">
+								<SelectValue placeholder="All sources" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All sources</SelectItem>
+								<SelectItem value="claims">
+									Worker claims
+								</SelectItem>
+								<SelectItem value="direct">
+									Entered directly
+								</SelectItem>
 							</SelectContent>
 						</Select>
 
@@ -529,8 +634,10 @@ export function ExpensesList() {
 								title={`No ${status.toLowerCase()} expenses`}
 								description={
 									activeFilterCount > 0
-										? "No claims match these filters."
-										: "Worker expense claims will appear here."
+										? "No lines match these filters."
+										: status === "PENDING"
+											? "Worker claims land here when they are submitted."
+											: "Approved spending and worker claims appear here."
 								}
 							/>
 						)
@@ -565,7 +672,7 @@ export function ExpensesList() {
 							<DialogTitle>Reject Expense</DialogTitle>
 						</DialogHeader>
 						<p className="text-sm text-muted-foreground">
-							Rejecting {rejecting.submittedBy.name}'s{" "}
+							Rejecting {rejecting.who}'s{" "}
 							{formatCurrency(rejecting.amount)} expense.
 						</p>
 						<Textarea
@@ -611,6 +718,18 @@ export function ExpensesList() {
 					</DialogContent>
 				</Dialog>
 			)}
+		</>
+	);
+
+	if (embedded) {
+		return content;
+	}
+	return (
+		<PageShell
+			title="Expenses"
+			description="Worker expense claims and company spending."
+		>
+			{content}
 		</PageShell>
 	);
 }

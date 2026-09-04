@@ -8,6 +8,7 @@ import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { queueIRadiusSync } from "../jobs/iradius-sync.jobs";
 import { queueWatcherCheck } from "../jobs/watcher-check.jobs";
+import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
 import { SCHEDULED_QUEUE_NAME } from "../queues/scheduled.queue";
 import type { ScheduledJobData, ScheduledJobResult } from "../types";
 
@@ -337,6 +338,10 @@ export function createScheduledWorker(): Worker<
 				case "dealer-sync": {
 					const queued = await scheduleDealerSync();
 					return { processedCount: queued };
+				}
+				case "recurring-expenses": {
+					const generated = await generateDueRecurringExpenses();
+					return { processedCount: generated };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

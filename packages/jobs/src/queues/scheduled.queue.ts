@@ -110,6 +110,20 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Recurring costs (rent, upstream link, maintenance fees) become approved
+	// expenses once a month on their day. Daily so a line whose day has passed
+	// is never missed; the generator is idempotent per month.
+	await queue.upsertJobScheduler(
+		"recurring-expenses",
+		{
+			pattern: "15 3 * * *",
+		},
+		{
+			name: "recurring-expenses",
+			data: { type: "recurring-expenses" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

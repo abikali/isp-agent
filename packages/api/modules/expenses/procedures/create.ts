@@ -5,28 +5,8 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { matchRule } from "../../finance/lib/classify";
+import { resolveBucketFromRules } from "../lib/resolve-bucket";
 import { bustExpenseStats } from "../lib/stats-cache";
-
-/** Apply the org's money map to a free-text description. Returns null when
- *  nothing matches — an unclassified expense is reported as unclassified
- *  rather than guessed into a bucket. */
-async function resolveCategoryFromRules(
-	organizationId: string,
-	description: string,
-): Promise<string | null> {
-	const rules = await db.financeRule.findMany({
-		where: { organizationId },
-		select: {
-			id: true,
-			pattern: true,
-			matchType: true,
-			financeCategoryId: true,
-			priority: true,
-		},
-	});
-	return matchRule(description, rules)?.financeCategoryId ?? null;
-}
 
 export const createExpense = protectedProcedure
 	.route({
@@ -73,7 +53,7 @@ export const createExpense = protectedProcedure
 		// the P&L never has to guess.
 		const financeCategoryId =
 			input.financeCategoryId ??
-			(await resolveCategoryFromRules(
+			(await resolveBucketFromRules(
 				input.organizationId,
 				input.description,
 			));
@@ -100,7 +80,7 @@ export const createExpense = protectedProcedure
 		notifyOrgForReview({
 			organizationId: input.organizationId,
 			title: "New expense to approve",
-			message: `${expense.submittedBy.name} submitted a $${input.amount.toFixed(2)} expense`,
+			message: `${expense.submittedBy?.name ?? "A worker"} submitted a $${input.amount.toFixed(2)} expense`,
 			link: `/app/${org?.slug ?? ""}/expenses`,
 			excludeUserIds: [user.id],
 		}).catch((err: unknown) =>

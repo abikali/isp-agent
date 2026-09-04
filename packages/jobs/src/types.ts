@@ -31,7 +31,8 @@ export type ScheduledJobType =
 	| "watcher-cleanup"
 	| "online-status-sync"
 	| "network-monitor-sync"
-	| "dealer-sync";
+	| "dealer-sync"
+	| "recurring-expenses";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;

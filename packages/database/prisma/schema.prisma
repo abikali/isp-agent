@@ -325,6 +325,7 @@ model Organization {
   payments             Payment[]
   cashCollections      CashCollection[]
   expenses             Expense[]
+  recurringExpenses    RecurringExpense[]
   financeCategories    FinanceCategory[]
   financeRules         FinanceRule[]
   dealerCharges        DealerCharge[]
@@ -540,6 +541,8 @@ model User {
   dealer              IspDealer?         @relation("DealerUser")
   cashCollectionsReceived CashCollection[] @relation("CashReceiver")
   expensesApproved    Expense[]          @relation("ExpenseApprover")
+  expensesCreated     Expense[]          @relation("ExpenseCreator")
+  recurringExpenses   RecurringExpense[] @relation("RecurringExpenseCreator")
   stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
   installationsApproved Installation[]   @relation("InstallationApprover")
   uninstalledItemsReviewed UninstalledItem[] @relation("UninstalledItemReviewer")
@@ -2119,7 +2122,14 @@ model LocationRequest {
 model Expense {
   id                String        @id @default(cuid())
   organizationId    String
-  submittedById     String
+  /// The worker claiming the money back. Null for a row an owner entered
+  /// directly (or one a recurring line generated) — those are company
+  /// spending, not a reimbursement, and never touch a worker's wallet.
+  submittedById     String?
+  /// The user who entered a direct (no-worker) row.
+  createdById       String?
+  /// Set when a RecurringExpense generated this row.
+  recurringExpenseId String?
   amount            Float
   description       String        @db.Text
   category          String?       // toolkit | electricity | roof | other (free text allowed)
@@ -2138,8 +2148,10 @@ model Expense {
   updatedAt         DateTime      @updatedAt
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  submittedBy  Employee        @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  submittedBy  Employee?       @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
   approvedBy   User?           @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy    User?           @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  recurring    RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
   collection   CashCollection?
   financeCategory FinanceCategory? @relation(fields: [financeCategoryId], references: [id], onDelete: SetNull)
 
@@ -2148,6 +2160,34 @@ model Expense {
   @@index([submittedById])
   @@index([financeCategoryId])
   @@map("expense")
+}
+
+/// A cost that comes back every month at a known amount — rent, the upstream
+/// link, the app maintenance fee. A daily job turns each active line into an
+/// approved Expense once per month on `dayOfMonth`, so the P&L carries it
+/// without anyone re-typing it.
+model RecurringExpense {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  amount             Float
+  description        String   @db.Text
+  financeCategoryId  String?
+  dayOfMonth         Int      @default(1)
+  active             Boolean  @default(true)
+  createdById        String?
+  /// "YYYY-MM" of the last month a row was generated for. The generator is
+  /// idempotent on this.
+  lastGeneratedMonth String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  financeCategory FinanceCategory? @relation(fields: [financeCategoryId], references: [id], onDelete: SetNull)
+  createdBy       User?            @relation("RecurringExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  expenses        Expense[]
+
+  @@index([organizationId, active])
+  @@map("recurring_expense")
 }
 
 // ─── Finance (the money map) ───────────────────────────────────────
@@ -2193,6 +2233,7 @@ model FinanceCategory {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rules        FinanceRule[]
   expenses     Expense[]
+  recurring    RecurringExpense[]
 
   @@unique([organizationId, label])
   @@index([organizationId, kind])
