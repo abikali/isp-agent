@@ -24,15 +24,17 @@ export interface VerdictInput {
 	periodLabel: string;
 	isPartial: boolean;
 	progress: number;
-	/** Cash handed in to the office. */
-	moneyIn: number;
-	moneyOut: number;
-	/** What collectors recorded but may not have handed in yet. */
-	collected?: number;
+	/** Everything the business took in during the period. */
+	earned: number;
+	/** Approved costs in the period, whoever paid them. */
+	spent: number;
+	/** Cash position: how much of it physically reached the office. Never part
+	 *  of the verdict arithmetic — only used to explain a quiet period. */
+	reachedOffice?: number;
 	net: number;
 	comparisonLabel: string;
 	comparisonNet: number;
-	comparisonMoneyIn: number;
+	comparisonEarned: number;
 	unclassifiedShare: number;
 	/** Set when a whole income stream is invisible (e.g. the dealer sync has
 	 *  never run). The page must not publish a verdict it knows is incomplete. */
@@ -77,8 +79,8 @@ export function buildVerdict(input: VerdictInput): Verdict {
 		periodLabel,
 		isPartial,
 		progress,
-		moneyIn,
-		moneyOut,
+		earned,
+		spent,
 		net,
 		comparisonLabel,
 		comparisonNet,
@@ -99,18 +101,11 @@ export function buildVerdict(input: VerdictInput): Verdict {
 	}
 
 	// Nothing to say yet. Better than a confident $0.
-	if (moneyIn === 0 && moneyOut === 0) {
-		const collected = input.collected ?? 0;
+	if (earned === 0 && spent === 0) {
 		return {
 			tone: "unknown",
-			headline:
-				collected > 0
-					? `Nothing has reached the office for ${periodLabel} yet.`
-					: `No money recorded for ${periodLabel} yet.`,
-			detail:
-				collected > 0
-					? `Your team has collected ${money(collected)} so far, but none of it has been handed in.`
-					: null,
+			headline: `No money recorded for ${periodLabel} yet.`,
+			detail: null,
 			caveat: null,
 		};
 	}
@@ -128,7 +123,7 @@ export function buildVerdict(input: VerdictInput): Verdict {
 	let tone: VerdictTone;
 
 	if (losing) {
-		headline = `In ${timing} you spent ${money(Math.abs(net))} more than you took in.`;
+		headline = `In ${timing} you spent ${money(Math.abs(net))} more than you earned.`;
 		tone = "bad";
 	} else if (net === 0) {
 		headline = `In ${timing} you broke even.`;

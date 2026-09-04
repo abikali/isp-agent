@@ -16,15 +16,16 @@ import {
 
 /**
  * Month-by-month history, so "is this normal?" has an answer on the page
- * instead of in someone's head. Same cash basis as the summary: kept =
- * handed in − spent − draws.
+ * instead of in someone's head. Same earnings basis as the summary:
+ * kept = earned − spent − draws. Handoffs are cash position and are reported
+ * alongside, never inside the subtraction.
  */
 export const getFinanceTrend = protectedProcedure
 	.route({
 		method: "GET",
 		path: "/finance/trend",
 		tags: ["Finance"],
-		summary: "Monthly money in / out / kept",
+		summary: "Monthly earned / spent / kept",
 	})
 	.input(
 		z.object({
@@ -106,14 +107,15 @@ export const getFinanceTrend = protectedProcedure
 								m.month === current?.month,
 							retail: folded.byStream.RETAIL,
 							wholesale: folded.byStream.WHOLESALE,
-							/** Cash handed in to the office — same basis as
-							 *  the summary's moneyIn. */
-							moneyIn: handedIn.total,
-							/** What collectors recorded for the cycle. */
-							collected: folded.revenue,
-							moneyOut: folded.cost,
+							/** Cash position: what physically reached the
+							 *  office. Never an input to `net` — see the note
+							 *  at the top of finance/procedures/summary.ts. */
+							reachedOffice: handedIn.total,
+							/** Earnings basis, matching the summary. */
+							earned: folded.revenue,
+							spent: folded.cost,
 							draws: folded.draws,
-							net: handedIn.total - folded.cost - folded.draws,
+							net: folded.revenue - folded.cost - folded.draws,
 						};
 					}),
 				);

@@ -5,12 +5,12 @@ const base = {
 	periodLabel: "August 2026",
 	isPartial: false,
 	progress: 1,
-	moneyIn: 113602,
-	moneyOut: 91497,
+	earned: 113602,
+	spent: 91497,
 	net: 22105,
 	comparisonLabel: "July 2026",
 	comparisonNet: 23925,
-	comparisonMoneyIn: 114431,
+	comparisonEarned: 114431,
 	unclassifiedShare: 0,
 };
 
@@ -66,10 +66,10 @@ describe("buildVerdict", () => {
 	});
 
 	it("states a real loss plainly", () => {
-		const v = buildVerdict({ ...base, net: -4000, moneyOut: 117602 });
+		const v = buildVerdict({ ...base, net: -4000, spent: 117602 });
 		expect(v.tone).toBe("bad");
 		expect(v.headline).toBe(
-			"In August 2026 you spent $4,000 more than you took in.",
+			"In August 2026 you spent $4,000 more than you earned.",
 		);
 	});
 
@@ -96,7 +96,7 @@ describe("buildVerdict", () => {
 		// monthly "loss" for a profitable business.
 		const v = buildVerdict({
 			...base,
-			moneyIn: 58189,
+			earned: 58189,
 			net: -22236,
 			incomeStreamMissing: true,
 		});
@@ -106,23 +106,18 @@ describe("buildVerdict", () => {
 		expect(v.caveat).toContain("iRadius");
 	});
 
-	it("distinguishes 'nothing collected' from 'nothing handed in yet'", () => {
-		const v = buildVerdict({
-			...base,
-			moneyIn: 0,
-			moneyOut: 0,
-			net: 0,
-			collected: 9030,
-		});
-		expect(v.tone).toBe("unknown");
-		expect(v.headline).toContain("reached the office");
-		expect(v.detail).toContain("$9,030");
-	});
-
 	it("admits when there is nothing to show", () => {
-		const v = buildVerdict({ ...base, moneyIn: 0, moneyOut: 0, net: 0 });
+		const v = buildVerdict({ ...base, earned: 0, spent: 0, net: 0 });
 		expect(v.tone).toBe("unknown");
 		expect(v.headline).toContain("No money recorded");
+	});
+
+	it("never phrases the loss as taking in less, since earnings are the basis", () => {
+		// Cash reaching the office is a transfer, not income. Saying "took in"
+		// invited the old reading where a small handoff looked like a bad month.
+		const v = buildVerdict({ ...base, net: -942 });
+		expect(v.headline).toContain("more than you earned");
+		expect(v.headline).not.toContain("took in");
 	});
 
 	it("does not invent a comparison that does not exist", () => {

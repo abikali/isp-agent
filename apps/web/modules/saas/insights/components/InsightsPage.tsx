@@ -90,14 +90,14 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 		periodLabel: summary.period.label,
 		isPartial: summary.period.isPartial,
 		progress: summary.period.progress,
-		moneyIn: summary.moneyIn.total,
-		moneyOut: summary.moneyOut.total,
-		collected: summary.collected.total,
+		earned: summary.earned.total,
+		spent: summary.spent.total,
+		reachedOffice: summary.cash.reachedOffice,
 		net: summary.net,
 		comparisonLabel: summary.comparison.label,
 		comparisonNet: summary.comparison.net,
-		comparisonMoneyIn: summary.comparison.moneyIn,
-		unclassifiedShare: summary.moneyOut.unclassifiedShare,
+		comparisonEarned: summary.comparison.earned,
+		unclassifiedShare: summary.spent.unclassifiedShare,
 		incomeStreamMissing: summary.gaps.wholesaleNeverSynced,
 	});
 
@@ -164,26 +164,30 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 			{!summary.gaps.wholesaleNeverSynced && (
 				<MoneyFlow
 					periodLabel={summary.period.label}
-					moneyIn={summary.moneyIn}
-					moneyOut={summary.moneyOut.total}
+					earned={summary.earned.total}
+					spent={summary.spent.total}
 					kept={summary.operatingProfit}
 					draws={summary.draws}
 					net={summary.net}
-					collected={summary.collected.total}
+					cash={{
+						reachedOffice: summary.cash.reachedOffice,
+						handoffs: summary.cash.handoffs,
+						inTeamHands: summary.cash.inTeamHands.total,
+					}}
 					streams={[
 						{
 							label: "Monthly subscriptions",
-							amount: summary.collected.retail,
+							amount: summary.earned.retail,
 							color: "var(--chart-1)",
 						},
 						{
 							label: "Setup fees & hardware",
-							amount: summary.collected.field,
+							amount: summary.earned.field,
 							color: "var(--chart-2)",
 						},
 						{
 							label: "Dealers",
-							amount: summary.collected.wholesale,
+							amount: summary.earned.wholesale,
 							color: "var(--chart-3)",
 						},
 					].filter((s) => s.amount > 0)}
@@ -192,14 +196,14 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 
 			<div className="grid gap-4 md:grid-cols-2">
 				<OwedCard
-					total={summary.owed.total}
-					count={summary.owed.count}
-					byMonth={summary.owed.byMonth}
+					total={summary.cash.owedByCustomers.total}
+					count={summary.cash.owedByCustomers.count}
+					byMonth={summary.cash.owedByCustomers.byMonth}
 					collectPath={`${billingBase}/collect`}
 				/>
 				<HeldCard
-					total={summary.held.total}
-					holders={summary.held.holders}
+					total={summary.cash.inTeamHands.total}
+					holders={summary.cash.inTeamHands.holders}
 					collectorsPath={`${billingBase}/collectors`}
 				/>
 			</div>

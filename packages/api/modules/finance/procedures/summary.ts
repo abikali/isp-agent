@@ -19,16 +19,34 @@ import {
 const periodSchema = z.enum(["this-month", "last-month", "last-3", "last-12"]);
 
 /**
- * The four numbers an owner actually asks for, plus the comparison that makes
- * them mean something.
+ * Two separate statements, never mixed into one subtraction.
  *
- * "Money in" is CASH BASIS: what collectors physically handed to the office in
- * the period. A payment a collector records is not money the owner has yet —
- * it sits in the collector's pocket until a handoff — so "you kept" is built
- * from handoffs minus spending, and the recorded payments are reported
- * separately as "collected", the field-side view of the same cash.
+ *   EARNINGS — did the business make money?
+ *     earned (subscriptions + setup/hardware + dealers) − spent = operating
+ *     profit; minus owner draws = net.
  *
- * This replaces `billing.reports.grandTotal`, which computed
+ *   CASH — where is that money right now?
+ *     reached the office · still in the team's hands · still owed by
+ *     customers.
+ *
+ * ## Why they must not be mixed
+ *
+ * `money-model.ts` classifies HANDOFF as a TRANSFER: "cash changing hands
+ * between people inside the company … NEVER counts toward profit — it only
+ * moves a balance." The headline used to compute `handedIn − cost` anyway,
+ * putting a transfer on the income side of a profit statement. That
+ * double-charged every worker-funded expense: a worker who collects $1,000,
+ * spends $100 on parts and hands in $900 produced `900 − 100 = 800`, when the
+ * business had in fact kept $900. The $100 was removed once by never reaching
+ * the office and again as a cost. Measured on prod for September 2026, all
+ * seven approved worker claims ($3,977) were funded this way, so every one of
+ * them was counted twice.
+ *
+ * Earnings therefore run on what the team RECORDED taking in, which already
+ * includes the cash a worker spent before handing the rest over. Handoffs
+ * describe cash position only, and appear under `cash`.
+ *
+ * This also replaces `billing.reports.grandTotal`, which computed
  * `totalHandedOff − totalExpenses` where `totalHandedOff` already contained the
  * expenses. They cancelled, so expenses moved the headline by exactly zero and
  * what survived was a collector cash snapshot displayed as profit — reporting
@@ -39,7 +57,7 @@ export const getFinanceSummary = protectedProcedure
 		method: "GET",
 		path: "/finance/summary",
 		tags: ["Finance"],
-		summary: "Money in, money out, what you're owed, what staff hold",
+		summary: "What you earned and spent, and where the cash is",
 	})
 	.input(
 		z.object({
@@ -81,7 +99,6 @@ export const getFinanceSummary = protectedProcedure
 					priorRetail,
 					priorWholesale,
 					priorCostLines,
-					priorHandedIn,
 					priorFieldCash,
 				] = await Promise.all([
 					fetchRetailRevenue(scope, period),
@@ -94,7 +111,6 @@ export const getFinanceSummary = protectedProcedure
 					fetchRetailRevenue(scope, prior),
 					fetchWholesaleRevenue(scope, prior),
 					fetchCostLines(scope, prior),
-					fetchHandedIn(scope, prior),
 					fetchFieldCash(scope, prior),
 				]);
 
@@ -146,9 +162,10 @@ export const getFinanceSummary = protectedProcedure
 					.filter((l) => !l.categoryId)
 					.reduce((sum, l) => sum + l.amount, 0);
 
-				// Cash basis: what reached the office, minus what was spent.
-				const kept = handedIn.total - current.cost;
-				const priorKept = priorHandedIn.total - previous.cost;
+				// Earnings basis: what the business took in, minus what it
+				// spent. NOT handoffs — see the note at the top of this file.
+				const kept = current.revenue - current.cost;
+				const priorKept = previous.revenue - previous.cost;
 
 				return {
 					/** When these numbers were computed. They are served from
@@ -167,25 +184,18 @@ export const getFinanceSummary = protectedProcedure
 					},
 					comparison: {
 						label: prior.label,
-						moneyIn: priorHandedIn.total,
-						collected: previous.revenue,
-						moneyOut: previous.cost,
+						earned: previous.revenue,
+						spent: previous.cost,
 						operatingProfit: priorKept,
 						net: priorKept - previous.draws,
 					},
-					/** Cash that physically reached the office in the period:
-					 *  collectors' HANDOFF rows by handoff date. This is the
-					 *  "money in" of the headline equation. */
-					moneyIn: {
-						total: handedIn.total,
-						handoffs: handedIn.count,
-					},
-					/** Everything the team RECORDED taking from customers and
-					 *  dealers: subscriptions, one-off setup/hardware cash, and
-					 *  dealer charges. Counted when entered, whether or not the
-					 *  cash has been handed in yet, so it does not subtract from
-					 *  moneyIn and must not be added to it. */
-					collected: {
+					/** Everything the business took in during the period:
+					 *  subscriptions, one-off setup/hardware cash, and dealer
+					 *  charges. Counted when the team recorded it, which is the
+					 *  moment the customer paid — whether or not that cash has
+					 *  since reached the office. This is the income side of the
+					 *  earnings statement. */
+					earned: {
 						total: current.revenue,
 						retail: current.byStream.RETAIL,
 						field: current.byStream.FIELD,
@@ -203,7 +213,11 @@ export const getFinanceSummary = protectedProcedure
 						 *  revenue — is invisible. */
 						wholesaleNeverSynced: wholesale.neverSynced,
 					},
-					moneyOut: {
+					/** Every approved cost in the period, whoever's pocket it
+					 *  came out of. A worker who paid from collected cash is a
+					 *  cost exactly once: the money he spent is already inside
+					 *  `earned`. */
+					spent: {
 						total: current.cost,
 						/** Spend nobody has classified yet. When this is a
 						 *  meaningful share of the total, the headline deserves
@@ -215,8 +229,15 @@ export const getFinanceSummary = protectedProcedure
 					draws: current.draws,
 					operatingProfit: kept,
 					net: kept - current.draws,
-					owed: receivables,
-					held: cashHeld,
+					/** Cash POSITION — never an input to the arithmetic above.
+					 *  `reachedOffice` is this period's handoffs; the other two
+					 *  are balances as of now. */
+					cash: {
+						reachedOffice: handedIn.total,
+						handoffs: handedIn.count,
+						inTeamHands: cashHeld,
+						owedByCustomers: receivables,
+					},
 				};
 			},
 		);

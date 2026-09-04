@@ -24,8 +24,8 @@ import {
 
 export interface KeptPoint {
 	label: string;
-	moneyIn: number;
-	moneyOut: number;
+	earned: number;
+	spent: number;
 	net: number;
 }
 
