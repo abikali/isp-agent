@@ -371,20 +371,31 @@ export function isUnreviewed(payment: FlaggablePayment): boolean {
 export const PLAN_CHANGE_CATEGORIES = new Set(["DOWNGRADE", "UPGRADE"]);
 
 /**
- * A collection recorded at a different plan's price with a Downgrade /
- * Upgrade note: the amount is not a shortfall, it is the price of the plan
- * the customer asked for. Reviewing it means an admin picks that plan
- * ("Change plan & review"), not a bare "mark reviewed".
+ * An unreviewed cash collection whose amount differs from the frozen price.
+ * The amount is usually not a shortfall but the price agreed at the door — a
+ * plan move, a discount, a dropped add-on. Reviewing it means an admin
+ * applies that pricing ("Adjust pricing & review") so the month is repriced,
+ * not a bare "mark reviewed" that leaves the remainder owed.
  */
-export function isPlanChangeRequest(payment: FlaggablePayment): boolean {
+export function isRepriceCandidate(payment: FlaggablePayment): boolean {
 	return (
 		isUnreviewed(payment) &&
 		!payment.stoppedAccount &&
 		!payment.freeAccount &&
 		!payment.debtAccount &&
-		!!payment.noteCategory &&
-		PLAN_CHANGE_CATEGORIES.has(payment.noteCategory) &&
 		isAmountMismatch(payment)
+	);
+}
+
+/**
+ * A reprice candidate the collector explicitly tagged Downgrade / Upgrade:
+ * the admin's job is picking the plan the customer asked for.
+ */
+export function isPlanChangeRequest(payment: FlaggablePayment): boolean {
+	return (
+		isRepriceCandidate(payment) &&
+		!!payment.noteCategory &&
+		PLAN_CHANGE_CATEGORIES.has(payment.noteCategory)
 	);
 }
 

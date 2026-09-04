@@ -90,6 +90,7 @@ import {
 	ReceiptIcon,
 	RotateCcwIcon,
 	SendIcon,
+	SlidersHorizontalIcon,
 	TrashIcon,
 	UserCogIcon,
 	WifiOffIcon,
@@ -132,12 +133,17 @@ import {
 	getPaymentRowClassName,
 	isAmountMismatch,
 	isPlanChangeRequest,
+	isRepriceCandidate,
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 import { ChangePlanDialog } from "./ChangePlanDialog";
+import {
+	RepricePaymentDialog,
+	type RepricePaymentTarget,
+} from "./RepricePaymentDialog";
 
 const PAGE_SIZE = 25;
 
@@ -746,16 +752,11 @@ export function PaymentsList() {
 	const [changePlanDialog, setChangePlanDialog] = useState<{
 		customerId: string;
 		currentPlanId: string | null;
-		/** Set from the review queue: reprice this payment to the new plan too. */
-		paymentId?: string;
-		paymentContext?: {
-			customerName: string;
-			currentPlanName: string | null;
-			paidAmount: number;
-			expected: number;
-			noteCategory: string | null;
-		};
 	} | null>(null);
+	// "Adjust pricing & review": reprice a flagged collection's month to the
+	// price the customer agreed at the door.
+	const [repriceDialog, setRepriceDialog] =
+		useState<RepricePaymentTarget | null>(null);
 	// "Assign task" row action — carries the customer snapshot so the
 	// task dialog opens pre-linked to that customer.
 	const [taskDialogCustomer, setTaskDialogCustomer] = useState<{
@@ -1122,27 +1123,26 @@ export function PaymentsList() {
 
 					const isPendingStopped =
 						payment.stoppedAccount && payment.reviewedAt === null;
-					const planChange = isPlanChangeRequest(payment);
-					const openPlanChangeReview = () =>
-						setChangePlanDialog({
+					const canReprice = isRepriceCandidate(payment);
+					const openReprice = () =>
+						setRepriceDialog({
+							id: payment.id,
 							customerId: payment.customer.id,
+							customerName: displayName(
+								payment.customer.firstName,
+								payment.customer.lastName,
+							),
+							externalId: payment.customer.externalId,
 							currentPlanId: payment.customer.planId,
-							paymentId: payment.id,
-							paymentContext: {
-								customerName: displayName(
-									payment.customer.firstName,
-									payment.customer.lastName,
-								),
-								currentPlanName:
-									payment.customer.plan?.name ?? null,
-								paidAmount: payment.paidAmount,
-								expected:
-									payment.accountPrice +
-									(payment.customer.iptvPrice ?? 0) +
-									(payment.customer.realIpPrice ?? 0) -
-									payment.discount,
-								noteCategory: payment.noteCategory,
-							},
+							currentPlanName:
+								payment.customer.plan?.name ?? null,
+							accountPrice: payment.accountPrice,
+							recordedDiscount: payment.discount,
+							paidAmount: payment.paidAmount,
+							discount: payment.customer.discount ?? 0,
+							iptvPrice: payment.customer.iptvPrice ?? 0,
+							realIpPrice: payment.customer.realIpPrice ?? 0,
+							noteCategory: payment.noteCategory,
 						});
 					const isDeclining =
 						declineStoppedPayment.isPending &&
@@ -1151,18 +1151,20 @@ export function PaymentsList() {
 
 					return (
 						<div className="flex items-center gap-1">
-							{/* Plan-change request: the usual review is picking the
-							    plan. The green check stays next to it — an admin
-							    may approve as-is and leave the remainder owed. */}
-							{organizationId && planChange && (
+							{/* Amount mismatch: the usual review is applying the
+							    price the customer agreed to (plan, discount,
+							    add-ons). The green check stays next to it — an
+							    admin may approve as-is and leave the remainder
+							    owed. */}
+							{organizationId && canReprice && (
 								<Button
 									size="sm"
 									variant="outline"
 									className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
-									onClick={openPlanChangeReview}
+									onClick={openReprice}
 								>
-									<ArrowUpDownIcon className="mr-1.5 size-3.5" />
-									Select new plan
+									<SlidersHorizontalIcon className="mr-1.5 size-3.5" />
+									Adjust pricing
 								</Button>
 							)}
 
@@ -1217,8 +1219,8 @@ export function PaymentsList() {
 									<TooltipContent>
 										{payment.stoppedAccount
 											? "Approve & Deactivate"
-											: planChange
-												? "Approve as-is — keep current plan, remainder stays owed"
+											: canReprice
+												? "Approve as-is — keep current pricing, remainder stays owed"
 												: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
@@ -1496,20 +1498,14 @@ export function PaymentsList() {
 												Set discount & review
 											</DropdownMenuItem>
 										)}
-										{needsReview &&
-											payment.customer.externalId &&
-											!payment.stoppedAccount &&
-											!payment.freeAccount &&
-											!payment.debtAccount && (
-												<DropdownMenuItem
-													onClick={
-														openPlanChangeReview
-													}
-												>
-													<ArrowUpDownIcon className="mr-2 size-3.5" />
-													Change plan & review
-												</DropdownMenuItem>
-											)}
+										{canReprice && (
+											<DropdownMenuItem
+												onClick={openReprice}
+											>
+												<SlidersHorizontalIcon className="mr-2 size-3.5" />
+												Adjust pricing & review
+											</DropdownMenuItem>
+										)}
 										{payment.customer.externalId && (
 											<>
 												<DropdownMenuSeparator />
@@ -2022,8 +2018,16 @@ export function PaymentsList() {
 					organizationId={organizationId}
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
-					paymentId={changePlanDialog.paymentId}
-					paymentContext={changePlanDialog.paymentContext}
+				/>
+			)}
+
+			{organizationId && repriceDialog && (
+				<RepricePaymentDialog
+					key={repriceDialog.id}
+					open={!!repriceDialog}
+					onOpenChange={(o) => !o && setRepriceDialog(null)}
+					organizationId={organizationId}
+					payment={repriceDialog}
 				/>
 			)}
 

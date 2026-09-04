@@ -1,4 +1,3 @@
-import { changePlanAndReviewPayment } from "./procedures/change-plan-review";
 import { getCollectorBalance } from "./procedures/collector-balance";
 import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
@@ -31,6 +30,7 @@ import { notifyLocationNeeded } from "./procedures/notify-location-needed";
 import { getPaymentStats } from "./procedures/payment-stats";
 import { regenerateMonthInvoices } from "./procedures/regenerate-invoices";
 import { getAccountingReports } from "./procedures/reports";
+import { repriceAndReviewPayment } from "./procedures/reprice-review";
 import { requestLocation } from "./procedures/request-location";
 import { resendReceipt } from "./procedures/resend-receipt";
 import { resetMonth } from "./procedures/reset-month";
@@ -75,7 +75,7 @@ export const billingRouter = {
 		delete: deletePayment,
 		review: reviewPayment,
 		reviewMany: reviewPayments,
-		changePlanAndReview: changePlanAndReviewPayment,
+		repriceAndReview: repriceAndReviewPayment,
 		resendReceipt: resendReceipt,
 		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,

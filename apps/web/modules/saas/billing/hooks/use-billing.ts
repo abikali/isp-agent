@@ -529,15 +529,15 @@ export function useReviewPayment() {
 }
 
 /**
- * "Change plan & review": moves the customer to the plan the collector
- * charged for and reprices the payment + its month to it. Touches the
- * customer row too, so both caches go stale.
+ * "Adjust pricing & review": applies the plan / discount / add-on prices the
+ * collector charged for to the customer and reprices the payment + its month
+ * to them. Touches the customer row too, so both caches go stale.
  */
-export function useChangePlanAndReview() {
+export function useRepriceAndReview() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		...orpc.billing.payments.changePlanAndReview.mutationOptions(),
+		...orpc.billing.payments.repriceAndReview.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.key(),

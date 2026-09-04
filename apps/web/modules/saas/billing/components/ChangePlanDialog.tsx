@@ -20,7 +20,6 @@ import { Label } from "@ui/components/label";
 import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useChangePlanAndReview } from "../hooks/use-billing";
 
 interface ChangePlanDialogProps {
 	open: boolean;
@@ -28,20 +27,6 @@ interface ChangePlanDialogProps {
 	organizationId: string;
 	customerId: string;
 	currentPlanId?: string | null;
-	/**
-	 * Review mode: the flagged payment whose amount reflects this plan change.
-	 * When set, confirming also reprices that payment and its month to the
-	 * new plan and marks it reviewed (see billing.payments.changePlanAndReview).
-	 */
-	paymentId?: string;
-	/** Review mode: what the collector recorded, shown above the plan picker. */
-	paymentContext?: {
-		customerName: string;
-		currentPlanName: string | null;
-		paidAmount: number;
-		expected: number;
-		noteCategory: string | null;
-	};
 }
 
 type PreviewData = Awaited<
@@ -55,15 +40,11 @@ export function ChangePlanDialog({
 	organizationId,
 	customerId,
 	currentPlanId,
-	paymentId,
-	paymentContext,
 }: ChangePlanDialogProps) {
 	const { plans, isLoading: plansLoading } = usePlansQuery();
 	const preview = usePreviewAccountTypeChange();
 	const execute = useExecuteAccountTypeChange();
-	const changeAndReview = useChangePlanAndReview();
-	const reviewMode = paymentId !== undefined;
-	const isExecuting = execute.isPending || changeAndReview.isPending;
+	const isExecuting = execute.isPending;
 
 	const [newPlanId, setNewPlanId] = useState<string>("");
 	const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -73,20 +54,11 @@ export function ChangePlanDialog({
 		newPlanName: string;
 		disconnected?: boolean;
 		error?: string;
-		/** Review mode only: what the payment's month was repriced to. */
-		repriced?: { accountPrice: number; remaining: number };
 	} | null>(null);
 
-	// Review mode: plans priced at exactly what the collector took go first —
-	// that is almost always the plan the customer asked for.
-	const paidAmount = paymentContext?.paidAmount;
-	const matchesPaid = (p: { monthlyPrice: number | null }) =>
-		paidAmount !== undefined &&
-		p.monthlyPrice != null &&
-		Math.abs(p.monthlyPrice - paidAmount) < 0.01;
-	const selectablePlans = plans
-		.filter((p) => p.externalId && p.id !== currentPlanId)
-		.sort((a, b) => Number(matchesPaid(b)) - Number(matchesPaid(a)));
+	const selectablePlans = plans.filter(
+		(p) => p.externalId && p.id !== currentPlanId,
+	);
 
 	function reset() {
 		setNewPlanId("");
@@ -124,24 +96,6 @@ export function ChangePlanDialog({
 			return;
 		}
 		try {
-			if (paymentId !== undefined) {
-				const reviewed = await changeAndReview.mutateAsync({
-					organizationId,
-					paymentId,
-					newPlanId,
-				});
-				setResult({
-					success: true,
-					oldPlanName: previewData.oldAccountType.name,
-					newPlanName: previewData.newAccountType.name,
-					disconnected: reviewed.disconnected,
-					repriced: {
-						accountPrice: reviewed.accountPrice,
-						remaining: reviewed.remaining,
-					},
-				});
-				return;
-			}
 			const iRadiusResult = await execute.mutateAsync({
 				organizationId,
 				customerId,
@@ -177,9 +131,8 @@ export function ChangePlanDialog({
 									</DialogTitle>
 								</div>
 								<DialogDescription>
-									{result.repriced
-										? "The plan has been updated in iRadius, and this payment and its month were repriced to it and marked reviewed."
-										: "The plan has been updated in both iRadius and the local database."}
+									The plan has been updated in both iRadius
+									and the local database.
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
@@ -193,32 +146,6 @@ export function ChangePlanDialog({
 								<span className="font-medium">
 									{result.newPlanName}
 								</span>
-								{result.repriced && (
-									<>
-										<span className="text-muted-foreground">
-											Collected against:
-										</span>
-										<span>
-											{formatCurrency(
-												result.repriced.accountPrice,
-											)}
-										</span>
-										<span className="text-muted-foreground">
-											Still owed this month:
-										</span>
-										<span
-											className={
-												result.repriced.remaining > 0
-													? "text-destructive"
-													: "text-green-600"
-											}
-										>
-											{formatCurrency(
-												result.repriced.remaining,
-											)}
-										</span>
-									</>
-								)}
 								<span className="text-muted-foreground">
 									MikroTik:
 								</span>
@@ -262,40 +189,13 @@ export function ChangePlanDialog({
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>
-						{reviewMode ? "Change plan & review" : "Change Plan"}
-					</DialogTitle>
+					<DialogTitle>Change Plan</DialogTitle>
 					<DialogDescription>
 						{previewData
 							? "Review the billing impact before confirming."
 							: "Select a new plan to preview the billing impact."}
-						{reviewMode &&
-							" This payment and its month will be repriced to the new plan and marked reviewed."}
 					</DialogDescription>
 				</DialogHeader>
-
-				{!previewData && paymentContext && (
-					<div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-						<p className="font-medium">
-							{paymentContext.customerName} paid{" "}
-							{formatCurrency(paymentContext.paidAmount)} instead
-							of {formatCurrency(paymentContext.expected)}
-							{paymentContext.currentPlanName
-								? ` (${paymentContext.currentPlanName})`
-								: ""}
-							.
-						</p>
-						<p className="mt-1 text-muted-foreground">
-							The collector marked this as{" "}
-							{paymentContext.noteCategory
-								? paymentContext.noteCategory.toLowerCase()
-								: "a plan change"}
-							. Pick the plan the customer is moving to — the
-							payment and this month's invoice will be repriced to
-							it.
-						</p>
-					</div>
-				)}
 
 				{!previewData && (
 					<div className="space-y-2">
@@ -308,7 +208,7 @@ export function ChangePlanDialog({
 								value: p.id,
 								label:
 									p.monthlyPrice != null
-										? `${p.name} — ${formatCurrency(p.monthlyPrice)}${matchesPaid(p) ? " · matches amount paid" : ""}`
+										? `${p.name} — ${formatCurrency(p.monthlyPrice)}`
 										: p.name,
 							}))}
 							placeholder={
@@ -433,11 +333,7 @@ export function ChangePlanDialog({
 						</Button>
 					) : (
 						<Button onClick={handleConfirm} disabled={isExecuting}>
-							{isExecuting
-								? "Changing..."
-								: reviewMode
-									? "Change & mark reviewed"
-									: "Confirm Change"}
+							{isExecuting ? "Changing..." : "Confirm Change"}
 						</Button>
 					)}
 				</DialogFooter>
