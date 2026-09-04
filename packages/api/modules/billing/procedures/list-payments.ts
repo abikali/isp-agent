@@ -13,6 +13,8 @@ import {
 import { applyCollectorScope } from "../lib/queries";
 import {
 	findUnreviewedAmountMismatchPaymentIds,
+	PAYMENT_EXPECTED_TOTAL_SQL,
+	PAYMENT_INVOICE_JOIN_SQL,
 	unreviewedPaymentsWhereFragment,
 } from "../lib/review-status";
 import { paginationSchema } from "../lib/schemas";
@@ -164,14 +166,15 @@ export const listPayments = protectedProcedure
 		if (input.amountMismatch) {
 			const direction =
 				input.amountMismatch === "overpaid"
-					? `AND p."paidAmount" > (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount" + 0.01)`
+					? `AND p."paidAmount" > (${PAYMENT_EXPECTED_TOTAL_SQL} + 0.01)`
 					: input.amountMismatch === "underpaid"
-						? `AND p."paidAmount" < (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount" - 0.01)`
-						: `AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > 0.01`;
+						? `AND p."paidAmount" < (${PAYMENT_EXPECTED_TOTAL_SQL} - 0.01)`
+						: `AND ABS(p."paidAmount" - ${PAYMENT_EXPECTED_TOTAL_SQL}) > 0.01`;
 
 			const mismatchIds = await db.$queryRawUnsafe<{ id: string }[]>(
 				`SELECT p.id FROM "payment" p
 				JOIN "customer" c ON c.id = p."customerId"
+				${PAYMENT_INVOICE_JOIN_SQL}
 				WHERE p."organizationId" = $1
 				  AND c."dealerId" IS NOT DISTINCT FROM $2
 				  AND p."freeAccount" = false
@@ -211,6 +214,9 @@ export const listPayments = protectedProcedure
 					activityLog: true,
 					reviewedAt: true,
 					paidAt: true,
+					// Frozen month total — what the row was expected to collect.
+					// Drives the client's mismatch flag (see `expectedTotal`).
+					invoice: { select: { total: true, voidedAt: true } },
 					referredCustomer: {
 						select: {
 							id: true,
@@ -235,6 +241,7 @@ export const listPayments = protectedProcedure
 							iptvPrice: true,
 							realIpPrice: true,
 							discount: true,
+							monthlyRate: true,
 							planId: true,
 							plan: { select: { id: true, name: true } },
 						},

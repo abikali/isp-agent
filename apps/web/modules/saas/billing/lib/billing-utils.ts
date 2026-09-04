@@ -307,17 +307,38 @@ interface FlaggablePayment {
 	notes: string | null;
 	reviewedAt: string | Date | null;
 	customer?: { iptvPrice?: number; realIpPrice?: number };
+	invoice?: PaymentInvoiceRef;
 }
 
-/**
- * Compute the expected total for a payment.
- * Includes IPTV and Real IP prices from the customer when available.
- */
-function expectedTotal(payment: {
+/** The frozen invoice a payment row settles, when it has one. */
+type PaymentInvoiceRef = {
+	total: number;
+	voidedAt?: string | Date | null;
+} | null;
+
+interface ExpectedTotalInput {
 	accountPrice: number;
 	discount: number;
 	customer?: { iptvPrice?: number; realIpPrice?: number };
-}): number {
+	invoice?: PaymentInvoiceRef;
+}
+
+/**
+ * What a payment row was expected to collect: the month's frozen invoice
+ * total. The invoice is the unit of truth for collection — it holds what the
+ * customer owed when the month opened and stays put while the customer's
+ * live pricing moves (a plan or discount edited mid-month). The row's own
+ * `accountPrice` is the live price the sheet sent at collection, so
+ * comparing against it would hide exactly the case review exists for: a
+ * customer moved to a cheaper plan after the invoice froze pays the new
+ * price, the row reads as full, and the invoice stays short. Rows without an
+ * invoice (addon-only, free-group) fall back to the row's own price math.
+ * Mirrors `PAYMENT_EXPECTED_TOTAL_SQL` on the server.
+ */
+export function expectedTotal(payment: ExpectedTotalInput): number {
+	if (payment.invoice && !payment.invoice.voidedAt) {
+		return payment.invoice.total;
+	}
 	return (
 		payment.accountPrice +
 		(payment.customer?.iptvPrice ?? 0) +
@@ -327,12 +348,9 @@ function expectedTotal(payment: {
 }
 
 /** Whether the paid amount differs from the expected total. */
-export function isAmountMismatch(payment: {
-	paidAmount: number;
-	accountPrice: number;
-	discount: number;
-	customer?: { iptvPrice?: number; realIpPrice?: number };
-}): boolean {
+export function isAmountMismatch(
+	payment: ExpectedTotalInput & { paidAmount: number },
+): boolean {
 	return Math.abs(payment.paidAmount - expectedTotal(payment)) > 0.01;
 }
 

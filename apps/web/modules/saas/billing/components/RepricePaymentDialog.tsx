@@ -33,6 +33,14 @@ export interface RepricePaymentTarget {
 	/** Plan price and discount the collection was recorded against. */
 	accountPrice: number;
 	recordedDiscount: number;
+	/** The month's frozen invoice total — what the row was expected to collect. */
+	expectedTotal: number;
+	/**
+	 * The customer's current plan price. Can already differ from
+	 * `accountPrice` and from the invoice when the plan was edited mid-month;
+	 * the estimate starts from it, like the server does.
+	 */
+	currentMonthlyRate: number;
 	paidAmount: number;
 	/**
 	 * The customer's current standing prices — the form starts from these.
@@ -102,7 +110,7 @@ export function RepricePaymentDialog({
 
 	// Client-side estimate; the server prices a new plan from the dealer's
 	// selling price, so the confirmed figures come back from the mutation.
-	const basePrice = selectedPlan?.monthlyPrice ?? payment.accountPrice;
+	const basePrice = selectedPlan?.monthlyPrice ?? payment.currentMonthlyRate;
 	const discountNum = parseAmount(discount);
 	const iptvNum = parseAmount(iptvPrice);
 	const realIpNum = parseAmount(realIpPrice);
@@ -119,6 +127,11 @@ export function RepricePaymentDialog({
 		Math.abs(discountNum - payment.recordedDiscount) > 0.001 ||
 		Math.abs(iptvNum - payment.iptvPrice) > 0.001 ||
 		Math.abs(realIpNum - payment.realIpPrice) > 0.001;
+	// The customer may already be on the agreed pricing (plan edited after
+	// the invoice froze); then nothing changes on the customer and the
+	// invoice is the only thing left to reprice.
+	const invoiceStale = Math.abs(newTotal - payment.expectedTotal) > 0.01;
+	const canApply = changed || invoiceStale;
 	const invalid = [discount, iptvPrice, realIpPrice].some((v) => {
 		const n = Number.parseFloat(v);
 		return !Number.isFinite(n) || n < 0;
@@ -283,12 +296,7 @@ export function RepricePaymentDialog({
 					<p className="font-medium">
 						{payment.customerName} paid{" "}
 						{formatCurrency(payment.paidAmount)} instead of{" "}
-						{formatCurrency(
-							payment.accountPrice +
-								payment.iptvPrice +
-								payment.realIpPrice -
-								payment.recordedDiscount,
-						)}
+						{formatCurrency(payment.expectedTotal)}
 						{payment.currentPlanName
 							? ` (${payment.currentPlanName})`
 							: ""}
@@ -491,7 +499,7 @@ export function RepricePaymentDialog({
 					{!confirming ? (
 						<Button
 							onClick={handleContinue}
-							disabled={!changed || invalid || busy}
+							disabled={!canApply || invalid || busy}
 						>
 							{preview.isPending ? "Loading..." : "Continue"}
 						</Button>

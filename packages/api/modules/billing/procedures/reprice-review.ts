@@ -60,24 +60,20 @@ export const repriceAndReviewPayment = protectedProcedure
 		summary:
 			"Apply new pricing (plan, discount, add-ons) to the customer, reprice this payment's month to it, and mark the payment reviewed",
 	})
+	// Every pricing field is optional, and so is changing anything at all:
+	// when the customer was already moved to the agreed pricing before the
+	// collection (plan edited mid-month, after the invoice froze), the
+	// invoice is the only thing left to reprice, and that is what a call
+	// with no fields does — nothing is pushed to iRadius.
 	.input(
-		z
-			.object({
-				organizationId: z.string(),
-				paymentId: z.string(),
-				newPlanId: z.string().optional(),
-				discount: z.number().finite().min(0).optional(),
-				iptvPrice: z.number().finite().min(0).optional(),
-				realIpPrice: z.number().finite().min(0).optional(),
-			})
-			.refine(
-				(v) =>
-					v.newPlanId !== undefined ||
-					v.discount !== undefined ||
-					v.iptvPrice !== undefined ||
-					v.realIpPrice !== undefined,
-				{ message: "Nothing to change" },
-			),
+		z.object({
+			organizationId: z.string(),
+			paymentId: z.string(),
+			newPlanId: z.string().optional(),
+			discount: z.number().finite().min(0).optional(),
+			iptvPrice: z.number().finite().min(0).optional(),
+			realIpPrice: z.number().finite().min(0).optional(),
+		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
 		const { activeDealerId, iradiusDisabled } = await requirePermission(

@@ -126,6 +126,7 @@ import {
 	useReviewPayments,
 } from "../hooks/use-billing";
 import {
+	expectedTotal,
 	FLAG_LEGEND,
 	getPaymentFlagBadgeClassName,
 	getPaymentFlagLabel,
@@ -250,10 +251,13 @@ interface PaymentRow {
 		iptvPrice: number;
 		realIpPrice: number;
 		discount: number;
+		monthlyRate: number | null;
 		planId: string | null;
 		plan: { id: string; name: string } | null;
 	};
 	collector: { id: string; name: string };
+	/** Frozen month total the row settles; null for addon-only/free-group rows. */
+	invoice: { total: number; voidedAt: string | Date | null } | null;
 	paidAt: string | Date;
 	accountPrice: number;
 	paidAmount: number;
@@ -963,11 +967,7 @@ export function PaymentsList() {
 				cell: ({ row }) => {
 					const p = row.original;
 					const mismatch = isAmountMismatch(p);
-					const expected =
-						p.accountPrice +
-						(p.customer.iptvPrice ?? 0) +
-						(p.customer.realIpPrice ?? 0) -
-						p.discount;
+					const expected = expectedTotal(p);
 					return (
 						<div className="text-right">
 							<span className="font-semibold tabular-nums">
@@ -1138,6 +1138,10 @@ export function PaymentsList() {
 								payment.customer.plan?.name ?? null,
 							accountPrice: payment.accountPrice,
 							recordedDiscount: payment.discount,
+							expectedTotal: expectedTotal(payment),
+							currentMonthlyRate:
+								payment.customer.monthlyRate ??
+								payment.accountPrice,
 							paidAmount: payment.paidAmount,
 							discount: payment.customer.discount ?? 0,
 							iptvPrice: payment.customer.iptvPrice ?? 0,

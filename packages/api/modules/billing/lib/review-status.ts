@@ -1,4 +1,4 @@
-import { db } from "@repo/database";
+import { db, Prisma } from "@repo/database";
 
 /**
  * Tolerance for the "expected vs paid" amount comparison. Currency amounts
@@ -8,12 +8,31 @@ import { db } from "@repo/database";
 const AMOUNT_EPSILON = 0.01;
 
 /**
+ * SQL for what a payment row was expected to collect. Aliases: `p` payment,
+ * `c` customer, `inv` the payment's invoice (see `PAYMENT_INVOICE_JOIN_SQL`).
+ *
+ * The frozen invoice total is the unit of truth for collection: it is what
+ * the customer owed when the month opened, and it stays put while the
+ * customer's live pricing moves (a plan or discount edited mid-month, an
+ * iRadius sync). The row's own `accountPrice` is the LIVE price the sheet
+ * sent at collection, so comparing against it hides exactly the case the
+ * review exists for — a customer moved to a cheaper plan after the invoice
+ * froze pays the new price, the row reads as full, and the invoice stays
+ * short. Rows without an invoice (addon-only, free-group) fall back to the
+ * row math. Keep in step with the client `expectedTotal` in
+ * apps/web/modules/saas/billing/lib/billing-utils.ts.
+ */
+export const PAYMENT_EXPECTED_TOTAL_SQL = `COALESCE(inv."total", p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")`;
+export const PAYMENT_INVOICE_JOIN_SQL = `LEFT JOIN "customer_invoice" inv ON inv.id = p."invoiceId" AND inv."voidedAt" IS NULL`;
+
+/**
  * A payment is "flagged for review" when ANY of these are true:
  *   1. freeAccount = true   (admin marked it free of charge)
  *   2. stoppedAccount = true (collected from a stopped/suspended account)
  *   3. debtAccount = true    (zero-cash visit; the collector carried the
  *      customer, which `LENIENCY_NOTICE` promises the admin will review)
- *   4. paidAmount != accountPrice + iptv + realIp - discount (amount mismatch)
+ *   4. paidAmount != the month's frozen invoice total (amount mismatch; see
+ *      `PAYMENT_EXPECTED_TOTAL_SQL` for the no-invoice fallback)
  *   5. the collector attached a note (`notes` or `noteCategory` is set)
  *
  * Debt is listed explicitly even though a debt row always carries a mandatory
@@ -57,10 +76,13 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 	billingMonthId?: string | undefined;
 }): Promise<string[]> {
 	const { organizationId, activeDealerId, billingMonthId } = args;
+	const invoiceJoin = Prisma.raw(PAYMENT_INVOICE_JOIN_SQL);
+	const expected = Prisma.raw(PAYMENT_EXPECTED_TOTAL_SQL);
 	const rows = billingMonthId
 		? await db.$queryRaw<{ id: string }[]>`
 				SELECT p.id FROM "payment" p
 				JOIN "customer" c ON c.id = p."customerId"
+				${invoiceJoin}
 				WHERE p."organizationId" = ${organizationId}
 				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
 				  AND p."billingCycleId" = ${billingMonthId}
@@ -68,18 +90,19 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
 				  AND p."stoppedAccount" = false
 				  AND p."debtAccount" = false
 				  AND p."reviewedAt" IS NULL
-				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > ${AMOUNT_EPSILON}
+				  AND ABS(p."paidAmount" - ${expected}) > ${AMOUNT_EPSILON}
 			`
 		: await db.$queryRaw<{ id: string }[]>`
 				SELECT p.id FROM "payment" p
 				JOIN "customer" c ON c.id = p."customerId"
+				${invoiceJoin}
 				WHERE p."organizationId" = ${organizationId}
 				  AND c."dealerId" IS NOT DISTINCT FROM ${activeDealerId}
 				  AND p."freeAccount" = false
 				  AND p."stoppedAccount" = false
 				  AND p."debtAccount" = false
 				  AND p."reviewedAt" IS NULL
-				  AND ABS(p."paidAmount" - (p."accountPrice" + COALESCE(c."iptvPrice", 0) + COALESCE(c."realIpPrice", 0) - p."discount")) > ${AMOUNT_EPSILON}
+				  AND ABS(p."paidAmount" - ${expected}) > ${AMOUNT_EPSILON}
 			`;
 	return rows.map((r) => r.id);
 }
