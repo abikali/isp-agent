@@ -4,7 +4,12 @@ import {
 	matchRule,
 	normaliseDescription,
 } from "../lib/classify";
-import { foldLines, kindOfCashType } from "../lib/money-model";
+import {
+	DEALER_ADMIN_TRANSFER_TYPES,
+	foldLines,
+	kindOfCashType,
+	WHOLESALE_CHARGE_TYPES,
+} from "../lib/money-model";
 import { periodProgress, previousPeriod, resolvePeriod } from "../lib/period";
 
 describe("kindOfCashType", () => {
@@ -24,6 +29,25 @@ describe("kindOfCashType", () => {
 
 	it("defaults unknown types to transfer rather than inventing revenue", () => {
 		expect(kindOfCashType("SOMETHING_NEW")).toBe("TRANSFER");
+	});
+
+	it("treats a dealer payment as cash arriving, not as new revenue", () => {
+		// The sale was recognised from dealer_charge when the dealer was
+		// charged; the payment is the settlement. Counting it again would
+		// double every wholesale dollar that gets paid.
+		expect(kindOfCashType("DEALER_PAYMENT")).toBe("TRANSFER");
+	});
+});
+
+describe("wholesale charge types", () => {
+	it("never counts the operator moving prepaid credit as a sale", () => {
+		// adjust-credit writes DealerBillingLog CREDIT (add) / DEBIT (deduct).
+		// DEBIT used to be in the revenue list, so every credit correction
+		// became wholesale income once synced.
+		for (const type of DEALER_ADMIN_TRANSFER_TYPES) {
+			expect(WHOLESALE_CHARGE_TYPES).not.toContain(type);
+		}
+		expect(DEALER_ADMIN_TRANSFER_TYPES).toEqual(["CREDIT", "DEBIT"]);
 	});
 });
 

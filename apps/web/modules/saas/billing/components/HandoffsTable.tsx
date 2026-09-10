@@ -18,19 +18,10 @@ import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Card, CardContent } from "@ui/components/card";
 import { DataTable } from "@ui/components/data-table";
+import { cn } from "@ui/lib";
 import { HandCoinsIcon, TrashIcon } from "lucide-react";
 import { useMemo } from "react";
-
-const COLLECTION_TYPE_LABELS: Record<string, string> = {
-	HANDOFF: "Handoff",
-	EXPENSE_DEDUCTION: "Expense",
-	STOCK_RECEIVED: "Stock Received",
-	INSTALLATION_COST: "Installation",
-	DEALER_PAYMENT: "Dealer Payment",
-	ADMIN_TRANSFER: "Transfer",
-	NEW_USER_SETUP: "New User Setup",
-	OTHER: "Other",
-};
+import { cashTypeLabel, cashTypeTone } from "../lib/cash-types";
 
 interface Collection {
 	id: string;
@@ -70,9 +61,14 @@ export function HandoffsTable({
 				accessorFn: (row) => row.type,
 				enableSorting: true,
 				cell: ({ row }) => (
-					<Badge variant="outline" className="text-xs font-normal">
-						{COLLECTION_TYPE_LABELS[row.original.type] ??
-							row.original.type}
+					<Badge
+						variant="outline"
+						className={cn(
+							"text-xs font-normal",
+							cashTypeTone(row.original.type),
+						)}
+					>
+						{cashTypeLabel(row.original.type)}
 					</Badge>
 				),
 			},

@@ -18,7 +18,14 @@ interface MoneyFlowProps {
 	net: number;
 	/** Cash POSITION, not part of the arithmetic: how much of what was earned
 	 *  has physically reached the office, and how much is still elsewhere. */
-	cash: { reachedOffice: number; handoffs: number; inTeamHands: number };
+	cash: {
+		reachedOffice: number;
+		handoffs: number;
+		inTeamHands: number;
+		/** Cash dealers paid in this period. Already inside `earned` from the
+		 *  moment they were charged, so it is shown as position only. */
+		dealerPayments: { total: number; count: number };
+	};
 	/** Split of what was earned. Rendered as a bar so the parts are visible at
 	 *  a glance rather than blended into one figure. */
 	streams?: Array<{ label: string; amount: number; color: string }>;
@@ -62,6 +69,11 @@ export function MoneyFlow({
 		cash.handoffs === 0
 			? "no handoffs yet"
 			: `${cash.handoffs} ${cash.handoffs === 1 ? "handoff" : "handoffs"}`;
+	const dealerCount = cash.dealerPayments.count;
+	const dealerPayments =
+		dealerCount === 0
+			? "No dealer payments this period."
+			: `${dealerCount} ${dealerCount === 1 ? "payment" : "payments"} · already inside "You earned" from when the dealer was charged, so not added again.`;
 
 	return (
 		<section className="rounded-xl border border-border bg-card p-5 shadow-xs md:p-6">
@@ -160,11 +172,17 @@ export function MoneyFlow({
 					Earning it and holding it are different things. This does
 					not change the figures above.
 				</p>
-				<div className="mt-3 grid gap-3 sm:grid-cols-2">
+				<div className="mt-3 grid gap-3 sm:grid-cols-3">
 					<Position
 						label="Reached the office"
 						value={cash.reachedOffice}
 						hint={`Handed in by your team · ${handoffs}`}
+					/>
+					<Position
+						label="Dealer payments received"
+						value={cash.dealerPayments.total}
+						hint={dealerPayments}
+						muted={dealerCount === 0}
 					/>
 					<Position
 						label="Still out with the team"

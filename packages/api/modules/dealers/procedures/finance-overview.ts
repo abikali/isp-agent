@@ -1,6 +1,7 @@
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { DEALER_ADMIN_TRANSFER_TYPES } from "../../finance/lib/money-model";
 import { previousPeriod, resolvePeriod } from "../../finance/lib/period";
 import { netOwed, round2 } from "../lib/ledger";
 import {
@@ -9,8 +10,7 @@ import {
 	scopedDealerSelect,
 } from "../lib/scope";
 
-/** Billing-log rows that are the dealer SPENDING credit (not admin transfers). */
-const ADMIN_TRANSFER_TYPES = ["CREDIT", "DEBIT"];
+const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
 
 /**
  * The owner's dealer page in one call: what every dealer owes, how much

@@ -18,6 +18,7 @@ import {
 	invoiceAmount,
 	monthRemaining,
 } from "../../billing/lib/settlement";
+import { classifyLedgerRow, isLegacyCurrency } from "../../dealers/lib/ledger";
 import { UNCLASSIFIED_LABEL } from "./categories";
 import { matchRule } from "./classify";
 import type { MoneyLine } from "./money-model";
@@ -89,7 +90,6 @@ export async function fetchWholesaleRevenue(
 	period: Period,
 ): Promise<{
 	charged: number;
-	settled: number;
 	chargeCount: number;
 	/** True when this organization has NO dealer-charge history at all, i.e.
 	 *  the iRadius sync has never populated it. Distinguishes "wholesale earned
@@ -105,7 +105,7 @@ export async function fetchWholesaleRevenue(
 		? { dealerId: { not: scope.activeDealerId } }
 		: {};
 
-	const [charges, settlements, everSynced] = await Promise.all([
+	const [charges, everSynced] = await Promise.all([
 		db.dealerCharge.aggregate({
 			where: {
 				organizationId: scope.organizationId,
@@ -116,15 +116,6 @@ export async function fetchWholesaleRevenue(
 			_sum: { debit: true },
 			_count: true,
 		}),
-		db.dealerCharge.aggregate({
-			where: {
-				organizationId: scope.organizationId,
-				...notMaster,
-				type: { in: ["CREDIT", "REFUND", "TRANSFER COMMISSION"] },
-				operationDate: { gte: period.from, lt: period.to },
-			},
-			_sum: { credit: true },
-		}),
 		db.dealerCharge.findFirst({
 			where: { organizationId: scope.organizationId, ...notMaster },
 			select: { id: true },
@@ -133,10 +124,63 @@ export async function fetchWholesaleRevenue(
 
 	return {
 		charged: charges._sum.debit ?? 0,
-		settled: settlements._sum.credit ?? 0,
 		chargeCount: charges._count,
 		neverSynced: everSynced === null,
 	};
+}
+
+/**
+ * Cash that dealers actually paid in during the period. CASH POSITION, never
+ * revenue: the sale was recognised from `dealer_charge` when the dealer was
+ * charged; this is the dealer settling what he owed.
+ *
+ * Source is the dealer receivable ledger (`isp_dealer_account`), not
+ * `cash_collection`: a payment received at the office writes no cash-ledger
+ * row at all, only the ledger debit. Rows are matched by dealer, not by
+ * `organizationId` — dealers are global iRadius entities and the rows the
+ * sync mirrors carry no organization. Only the wholesale operator has a
+ * receivable ledger, so a reseller org sees zero.
+ *
+ * Bonuses, write-offs, in-kind settlements and credit deductions all lower
+ * what a dealer owes without any cash arriving; `classifyLedgerRow` keeps
+ * them out. 2023 rows are in Lebanese pounds and are skipped.
+ */
+export async function fetchDealerPayments(
+	scope: FinanceScope,
+	period: Period,
+): Promise<{ total: number; count: number }> {
+	const org = await db.organization.findUnique({
+		where: { id: scope.organizationId },
+		select: { isWholesaleOperator: true },
+	});
+	if (!org?.isWholesaleOperator) {
+		return { total: 0, count: 0 };
+	}
+
+	const rows = await db.ispDealerAccount.findMany({
+		where: {
+			debit: { gt: 0 },
+			operationDate: { gte: period.from, lt: period.to },
+			...(scope.activeDealerId
+				? { dealerId: { not: scope.activeDealerId } }
+				: {}),
+		},
+		select: { credit: true, debit: true, comment: true },
+	});
+
+	let total = 0;
+	let count = 0;
+	for (const row of rows) {
+		if (isLegacyCurrency(row.debit)) {
+			continue;
+		}
+		if (classifyLedgerRow(row) !== "payment") {
+			continue;
+		}
+		total += row.debit;
+		count++;
+	}
+	return { total: Math.round(total * 100) / 100, count };
 }
 
 /**

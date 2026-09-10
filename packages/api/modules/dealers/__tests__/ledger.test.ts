@@ -28,6 +28,33 @@ describe("classifyLedgerRow", () => {
 		).toBe("write_off");
 	});
 
+	it("reads the owner's 'bonus' convention as goodwill, never cash", () => {
+		// 8 rows in Aug–Sep 2026 typed straight into iRadius as Bonus/BONUS.
+		// They lower what the dealer owes; no money arrived.
+		expect(
+			classifyLedgerRow({ credit: 0, debit: 150, comment: "Bonus" }),
+		).toBe("bonus");
+		expect(
+			classifyLedgerRow({ credit: 0, debit: 200, comment: "BONUS " }),
+		).toBe("bonus");
+		const comment = buildLedgerComment("bonus", "loyal since 2021");
+		expect(comment).toBe("Bonus: loyal since 2021");
+		expect(classifyLedgerRow({ credit: 0, debit: 50, comment })).toBe(
+			"bonus",
+		);
+		expect(displayNote(comment)).toBe("loyal since 2021");
+	});
+
+	it("keeps a cash payment taken by an employee as a payment", () => {
+		expect(
+			classifyLedgerRow({
+				credit: 0,
+				debit: 7000,
+				comment: "Received by walewe",
+			}),
+		).toBe("payment");
+	});
+
 	it("classifies app-written prefixes and round-trips the note", () => {
 		const comment = buildLedgerComment("in_kind", "router ftth");
 		expect(comment).toBe("In kind: router ftth");

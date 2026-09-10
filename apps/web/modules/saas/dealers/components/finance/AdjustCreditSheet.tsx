@@ -4,6 +4,7 @@ import { useConfirmationAlert } from "@saas/shared/client";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Checkbox } from "@ui/components/checkbox";
 import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -66,6 +67,7 @@ export function AdjustCreditSheet({
 	);
 	const [amount, setAmount] = useState("");
 	const [note, setNote] = useState("");
+	const [notifyDealer, setNotifyDealer] = useState(true);
 
 	const target = dealer ?? dealers.find((d) => d.id === dealerId) ?? null;
 	const parsed = parseAmount(amount);
@@ -109,9 +111,10 @@ export function AdjustCreditSheet({
 						direction,
 						amount: parsed,
 						...(note.trim() ? { note: note.trim() } : {}),
+						notifyDealer,
 					});
 					toast.success(
-						`${target.name} now has ${formatCurrency(result.prepaid)} credit and owes ${formatCurrency(result.owed)}.`,
+						`${target.name} now has ${formatCurrency(result.prepaid)} credit and owes ${formatCurrency(result.owed)}.${notifyDealer ? (result.dealerNotified ? " WhatsApp sent." : " WhatsApp not sent (no phone or channel).") : ""}`,
 					);
 					onOpenChange(false);
 				} catch (error) {
@@ -228,6 +231,24 @@ export function AdjustCreditSheet({
 								of credit left.
 							</p>
 						)}
+					</div>
+
+					<div className="flex items-start gap-2">
+						<Checkbox
+							id="credit-notify-dealer"
+							checked={notifyDealer}
+							onCheckedChange={(v) => setNotifyDealer(v === true)}
+							className="mt-0.5"
+						/>
+						<Label
+							htmlFor="credit-notify-dealer"
+							className="text-sm font-normal"
+						>
+							WhatsApp the dealer a confirmation
+							<span className="block text-xs text-muted-foreground">
+								From the company number, with the new credit.
+							</span>
+						</Label>
 					</div>
 
 					<div className="space-y-1.5">

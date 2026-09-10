@@ -8,6 +8,7 @@ import {
 } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Checkbox } from "@ui/components/checkbox";
 import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
@@ -87,6 +88,7 @@ export function RecordPaymentSheet({
 	const [note, setNote] = useState("");
 	/** "" = the office took the money. */
 	const [receivedById, setReceivedById] = useState("");
+	const [notifyDealer, setNotifyDealer] = useState(true);
 
 	const target = dealer ?? dealers.find((d) => d.id === dealerId) ?? null;
 	const owed = target?.owed ?? 0;
@@ -128,7 +130,9 @@ export function RecordPaymentSheet({
 					? "written off for"
 					: kind === "in_kind"
 						? "accepted in kind from"
-						: "adjusted for";
+						: kind === "bonus"
+							? "granted as a bonus to"
+							: "adjusted for";
 		confirm({
 			title: `Record ${formatCurrency(parsed)} ${verb} ${target.name}?`,
 			message:
@@ -162,11 +166,14 @@ export function RecordPaymentSheet({
 						...(receiver
 							? { receivedByEmployeeId: receiver.id }
 							: {}),
+						notifyDealer,
 					});
 					toast.success(
-						result.owed === 0
-							? `${target.name} is settled.`
-							: `Recorded. ${target.name} now owes ${formatCurrency(result.owed)}.`,
+						`${
+							result.owed === 0
+								? `${target.name} is settled.`
+								: `Recorded. ${target.name} now owes ${formatCurrency(result.owed)}.`
+						}${notifyDealer ? (result.dealerNotified ? " WhatsApp sent." : " WhatsApp not sent (no phone or channel).") : ""}`,
 					);
 					onOpenChange(false);
 				} catch (error) {
@@ -334,6 +341,24 @@ export function RecordPaymentSheet({
 						</div>
 					)}
 
+					<div className="flex items-start gap-2">
+						<Checkbox
+							id="payment-notify-dealer"
+							checked={notifyDealer}
+							onCheckedChange={(v) => setNotifyDealer(v === true)}
+							className="mt-0.5"
+						/>
+						<Label
+							htmlFor="payment-notify-dealer"
+							className="text-sm font-normal"
+						>
+							WhatsApp the dealer a confirmation
+							<span className="block text-xs text-muted-foreground">
+								From the company number, with the new balance.
+							</span>
+						</Label>
+					</div>
+
 					<div className="space-y-1.5">
 						<Label htmlFor="payment-note">
 							Note{" "}
@@ -352,7 +377,9 @@ export function RecordPaymentSheet({
 									? "e.g. 2 routers, ftth"
 									: kind === "write_off"
 										? "Why it is forgiven"
-										: "Optional"
+										: kind === "bonus"
+											? "Why they earned it"
+											: "Optional"
 							}
 						/>
 					</div>

@@ -6,6 +6,7 @@ import {
 	MinusCircleIcon,
 	PackageIcon,
 	SlidersHorizontalIcon,
+	SparklesIcon,
 } from "lucide-react";
 
 export type LedgerKind =
@@ -14,7 +15,8 @@ export type LedgerKind =
 	| "payment"
 	| "write_off"
 	| "in_kind"
-	| "adjustment";
+	| "adjustment"
+	| "bonus";
 
 export type PaymentKind = Exclude<LedgerKind, "top_up" | "deduction">;
 
@@ -64,6 +66,13 @@ export const LEDGER_KINDS: Record<LedgerKind, KindMeta> = {
 		icon: SlidersHorizontalIcon,
 		chip: "bg-muted text-muted-foreground",
 	},
+	bonus: {
+		label: "Bonus",
+		meaning:
+			"Goodwill you granted. They owe you less; no cash changed hands.",
+		icon: SparklesIcon,
+		chip: "bg-warning/12 text-warning",
+	},
 };
 
 export const PAYMENT_KIND_OPTIONS: Array<{
@@ -75,6 +84,7 @@ export const PAYMENT_KIND_OPTIONS: Array<{
 	{ value: "write_off", label: "Write-off", hint: "You forgive it" },
 	{ value: "in_kind", label: "In kind", hint: "Goods instead of cash" },
 	{ value: "adjustment", label: "Adjustment", hint: "Fix a mistake" },
+	{ value: "bonus", label: "Bonus", hint: "Goodwill, no cash" },
 ];
 
 /** Days since a date, or null. */

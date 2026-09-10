@@ -1,8 +1,10 @@
 import { ORPCError } from "@orpc/server";
+import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
 import { invalidateStat } from "@repo/api/lib/stat-cache";
 import { dealerAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { FINANCE_STAT_CACHE } from "../../finance/lib/cache";
@@ -11,6 +13,7 @@ import {
 	iradiusRecordDealerPayment,
 } from "../lib/iradius-dealer";
 import { buildLedgerComment } from "../lib/ledger";
+import { dealerAmount, notifyDealerWhatsApp } from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 import {
 	acquireDealerWriteLock,
@@ -38,7 +41,13 @@ export const recordDealerPayment = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			dealerId: z.string(),
-			kind: z.enum(["payment", "write_off", "in_kind", "adjustment"]),
+			kind: z.enum([
+				"payment",
+				"write_off",
+				"in_kind",
+				"adjustment",
+				"bonus",
+			]),
 			amount: z.number().positive().max(1_000_000),
 			/** When the money actually changed hands. Defaults to now. */
 			date: z.coerce.date().optional(),
@@ -49,6 +58,8 @@ export const recordDealerPayment = protectedProcedure
 			 * in, so a cash-ledger row is written on them as well.
 			 */
 			receivedByEmployeeId: z.string().optional(),
+			/** WhatsApp the dealer a confirmation from the org's number. */
+			notifyDealer: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -85,7 +96,8 @@ export const recordDealerPayment = protectedProcedure
 		}
 
 		// Cash handed to a worker/collector: only a real payment can sit in
-		// someone's pocket. Write-offs and in-kind settlements never do.
+		// someone's pocket. Write-offs, bonuses and in-kind settlements never
+		// do.
 		let receivedBy: { id: string; name: string } | null = null;
 		if (input.receivedByEmployeeId) {
 			if (input.kind !== "payment") {
@@ -215,5 +227,65 @@ export const recordDealerPayment = protectedProcedure
 
 		void invalidateStat(FINANCE_STAT_CACHE.summary, [scope.organizationId]);
 
-		return { owed: remote.owed, receivedBy };
+		// The cash is now in this employee's pocket and on his wallet. Tell
+		// him — the owner's first question after recording it was why the
+		// worker got no Telegram.
+		if (receivedBy) {
+			const amountLabel = `$${input.amount.toFixed(2)}`;
+			notifyFieldEmployee({
+				organizationId: scope.organizationId,
+				employeeId: receivedBy.id,
+				title: "Dealer cash received",
+				message: `You took ${amountLabel} from dealer ${dealer.name}${trimmedNote ? ` — ${trimmedNote}` : ""}. It is in your cash in hand — hand it in with your next handoff.`,
+				type: "info",
+				telegramText: tgMessage({
+					icon: "🏪",
+					title: "Dealer cash received",
+					fields: [
+						{ icon: "🏷️", label: "Dealer", value: dealer.name },
+						{
+							icon: "💰",
+							label: "Amount",
+							value: amountLabel,
+							copyable: true,
+						},
+						{
+							icon: "📅",
+							label: "Date",
+							value: operationDate.toISOString().slice(0, 10),
+						},
+						trimmedNote
+							? { icon: "✍️", label: "Note", value: trimmedNote }
+							: null,
+					],
+				}),
+			}).catch((err: unknown) =>
+				logger.warn("[dealers] notify failed", { error: String(err) }),
+			);
+		}
+
+		let dealerNotified = false;
+		if (input.notifyDealer) {
+			const day = operationDate.toISOString().slice(0, 10);
+			const line =
+				input.kind === "payment"
+					? `تم تسجيل دفعة بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`
+					: input.kind === "bonus"
+						? `تمت إضافة بونص بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`
+						: `تم تسجيل تسوية بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`;
+			const balance =
+				remote.owed > 0
+					? `المتبقي عليك: ${dealerAmount(remote.owed)}.`
+					: remote.owed < 0
+						? `لديك رصيد لصالحك: ${dealerAmount(-remote.owed)}.`
+						: "حسابك مسدد بالكامل.";
+			const sent = await notifyDealerWhatsApp({
+				organizationId: scope.organizationId,
+				dealerId: dealer.id,
+				text: `${dealer.name}، ${line} ${balance}${trimmedNote ? ` (${trimmedNote})` : ""} — شكراً، LibanCom`,
+			});
+			dealerNotified = sent.sent;
+		}
+
+		return { owed: remote.owed, receivedBy, dealerNotified };
 	});

@@ -1622,6 +1622,36 @@ async function processIRadiusSync(
 					processedDealerAccounts: dealerAccountRows.length,
 				});
 
+				// Wholesale revenue (dealer_charge) used to refresh only inside
+				// a full org sync, which is a manual button: prod went from 31
+				// Aug to 10 Sep 2026 with no September charges, so the Money
+				// page showed no wholesale income at all. This global run fires
+				// every 30 minutes, so ingest charges here for every operator
+				// org. Non-fatal, like phase 11 — dealers stay synced even if
+				// the charge import trips.
+				await updateProgress(operationId, { phase: "dealerCharges" });
+				const operatorOrgs = await db.organization.findMany({
+					where: {
+						isWholesaleOperator: true,
+						iradiusDisabled: false,
+					},
+					select: { id: true },
+				});
+				for (const org of operatorOrgs) {
+					try {
+						const charges = await syncDealerCharges(conn, org.id);
+						result.dealerCharges.created += charges.created;
+						result.dealerCharges.skipped += charges.skipped;
+						result.dealerCharges.errors += charges.errors;
+					} catch (error) {
+						result.dealerCharges.errors++;
+						result.errors.push({
+							phase: "dealerCharges",
+							detail: `${org.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+						});
+					}
+				}
+
 				// In dealers-only mode, we're done — skip remaining phases
 				return result;
 			}

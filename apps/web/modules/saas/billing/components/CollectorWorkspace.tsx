@@ -80,6 +80,7 @@ import {
 	getPaymentStatusVariant,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
+import { cashTypeLabel, cashTypeTone } from "../lib/cash-types";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
 import { GiveMoneyCard } from "./GiveMoneyCard";
@@ -843,32 +844,12 @@ function HandoffsPanel({
 			enableSorting: true,
 			cell: ({ row }) => {
 				const t = row.original.type;
-				const tone =
-					t === "HANDOFF"
-						? "border-success/40 bg-success/10 text-success"
-						: t === "CASH_FLOAT"
-							? "border-primary/40 bg-primary/10 text-primary"
-							: t === "SALARY"
-								? "border-border bg-muted text-foreground"
-								: t === "STORE_PURCHASE"
-									? "border-warning/40 bg-warning/10 text-warning"
-									: "border-destructive/40 bg-destructive/10 text-destructive";
-				const label =
-					t === "HANDOFF"
-						? "Handoff"
-						: t === "CASH_FLOAT"
-							? "Float"
-							: t === "SALARY"
-								? "His pay"
-								: t === "STORE_PURCHASE"
-									? "Purchase"
-									: "Expense";
 				return (
 					<Badge
 						variant="outline"
-						className={cn("text-[10px]", tone)}
+						className={cn("text-[10px]", cashTypeTone(t))}
 					>
-						{label}
+						{cashTypeLabel(t)}
 					</Badge>
 				);
 			},

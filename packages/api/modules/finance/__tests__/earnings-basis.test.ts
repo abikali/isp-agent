@@ -71,4 +71,22 @@ describe("the earnings statement", () => {
 		expect(folded.cost).toBe(2308);
 		expect(operatingProfit(folded.revenue, folded.cost)).toBe(727);
 	});
+
+	it("recognises a dealer's money once — when charged, not again when paid", () => {
+		// A dealer is charged $7,000 for September renewals and later pays
+		// the $7,000 in cash to a worker. The business earned $7,000, not
+		// $14,000; the payment is a TRANSFER and folds to nothing.
+		const lines: MoneyLine[] = [
+			{
+				kind: "REVENUE",
+				label: "Dealers",
+				amount: 7000,
+				stream: "WHOLESALE",
+			},
+			{ kind: "TRANSFER", label: "Dealer payment", amount: 7000 },
+		];
+		const folded = foldLines(lines);
+		expect(folded.revenue).toBe(7000);
+		expect(folded.byStream.WHOLESALE).toBe(7000);
+	});
 });

@@ -172,6 +172,7 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 					cash={{
 						reachedOffice: summary.cash.reachedOffice,
 						handoffs: summary.cash.handoffs,
+						dealerPayments: summary.cash.dealerPayments,
 						inTeamHands: summary.cash.inTeamHands.total,
 					}}
 					streams={[

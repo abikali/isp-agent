@@ -109,11 +109,20 @@ export const WHOLESALE_CHARGE_TYPES = [
 	"NEW USER",
 	"ADD EXTRA TIME",
 	"CHANGE ACCOUNT",
-	"DEBIT",
 	"RESET FUP",
 	"SEND SMS",
 	"ADD EXTRA GB",
 ] as const;
+
+/**
+ * `DealerBillingLog.Type` values written by the operator moving PREPAID CREDIT
+ * on a dealer (`iradiusAdjustDealerCredit`: add = CREDIT, deduct = DEBIT).
+ * Moving credit is not a sale — a "deduct" used to sit in
+ * `WHOLESALE_CHARGE_TYPES` and every credit correction became wholesale
+ * revenue once synced. The dealers module already excluded both; this is the
+ * single definition for every reader.
+ */
+export const DEALER_ADMIN_TRANSFER_TYPES = ["CREDIT", "DEBIT"] as const;
 
 /**
  * The master dealer's own iRadius id.

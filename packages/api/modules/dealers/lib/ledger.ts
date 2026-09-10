@@ -27,7 +27,11 @@ export type LedgerKind =
 	| "payment"
 	| "write_off"
 	| "in_kind"
-	| "adjustment";
+	| "adjustment"
+	/** Goodwill the operator granted (a "bonus" on the dealer's balance).
+	 *  Lowers what the dealer owes like a write-off; no cash ever moved, so
+	 *  the Money page must not count it as a payment received. */
+	| "bonus";
 
 /**
  * Prefix written into the iRadius comment so the entry reads correctly in the
@@ -41,6 +45,7 @@ export const LEDGER_COMMENT_PREFIX: Record<
 	write_off: "Write-off:",
 	in_kind: "In kind:",
 	adjustment: "Adjustment:",
+	bonus: "Bonus:",
 };
 
 export interface LedgerRowInput {
@@ -63,6 +68,11 @@ export function classifyLedgerRow(row: LedgerRowInput): LedgerKind {
 	// Legacy convention: the owner typed "free" when forgiving a balance.
 	if (lower === "free" || lower.startsWith("free ")) {
 		return "write_off";
+	}
+	// Legacy convention: "bonus" / "BONUS" typed straight into iRadius — a
+	// goodwill discount, not cash (8 such rows in Aug–Sep 2026 alone).
+	if (lower === "bonus" || lower.startsWith("bonus ")) {
+		return "bonus";
 	}
 	return "payment";
 }

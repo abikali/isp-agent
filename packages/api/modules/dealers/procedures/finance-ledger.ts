@@ -1,6 +1,7 @@
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { DEALER_ADMIN_TRANSFER_TYPES } from "../../finance/lib/money-model";
 import { shortMonthLabel } from "../../finance/lib/period";
 import {
 	classifyLedgerRow,
@@ -13,7 +14,7 @@ import {
 } from "../lib/ledger";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 
-const ADMIN_TRANSFER_TYPES = ["CREDIT", "DEBIT"];
+const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
 const ACTIVITY_MONTHS = 6;
 
 function monthStart(date: Date, offsetMonths: number): Date {
@@ -51,6 +52,7 @@ export const getDealerFinanceLedger = protectedProcedure
 						"payment",
 						"write_off",
 						"in_kind",
+						"bonus",
 						"adjustment",
 					]),
 				)

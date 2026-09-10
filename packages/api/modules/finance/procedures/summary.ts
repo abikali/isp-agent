@@ -9,6 +9,7 @@ import {
 	type FinanceScope,
 	fetchCashHeld,
 	fetchCostLines,
+	fetchDealerPayments,
 	fetchFieldCash,
 	fetchHandedIn,
 	fetchReceivables,
@@ -27,7 +28,7 @@ const periodSchema = z.enum(["this-month", "last-month", "last-3", "last-12"]);
  *
  *   CASH — where is that money right now?
  *     reached the office · still in the team's hands · still owed by
- *     customers.
+ *     customers · paid in by dealers.
  *
  * ## Why they must not be mixed
  *
@@ -95,6 +96,7 @@ export const getFinanceSummary = protectedProcedure
 					receivables,
 					cashHeld,
 					handedIn,
+					dealerPayments,
 					fieldCash,
 					priorRetail,
 					priorWholesale,
@@ -107,6 +109,7 @@ export const getFinanceSummary = protectedProcedure
 					fetchReceivables(scope),
 					fetchCashHeld(scope),
 					fetchHandedIn(scope, period),
+					fetchDealerPayments(scope, period),
 					fetchFieldCash(scope, period),
 					fetchRetailRevenue(scope, prior),
 					fetchWholesaleRevenue(scope, prior),
@@ -201,7 +204,6 @@ export const getFinanceSummary = protectedProcedure
 						field: current.byStream.FIELD,
 						wholesale: current.byStream.WHOLESALE,
 						other: current.byStream.OTHER,
-						wholesaleSettled: wholesale.settled,
 					},
 					/** Things that would make the headline misleading if the
 					 *  page stated it confidently. The UI must degrade to an
@@ -230,11 +232,15 @@ export const getFinanceSummary = protectedProcedure
 					operatingProfit: kept,
 					net: kept - current.draws,
 					/** Cash POSITION — never an input to the arithmetic above.
-					 *  `reachedOffice` is this period's handoffs; the other two
-					 *  are balances as of now. */
+					 *  `reachedOffice` is this period's handoffs and
+					 *  `dealerPayments` is this period's cash from dealers (the
+					 *  wholesale twin of a handoff: income already counted in
+					 *  `earned.wholesale` when the dealer was charged, now
+					 *  arriving); the other two are balances as of now. */
 					cash: {
 						reachedOffice: handedIn.total,
 						handoffs: handedIn.count,
+						dealerPayments,
 						inTeamHands: cashHeld,
 						owedByCustomers: receivables,
 					},
