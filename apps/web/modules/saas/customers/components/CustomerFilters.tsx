@@ -35,6 +35,7 @@ export interface CustomerFiltersValue {
 	groupName: string;
 	collectorId: string;
 	hasLocation: "all" | "yes" | "no";
+	hasName: "all" | "missing";
 }
 
 interface CustomerFiltersProps {
@@ -216,6 +217,25 @@ export function CustomerFilters({
 										{opt.label}
 									</SelectItem>
 								))}
+							</SelectContent>
+						</Select>
+					</FilterField>
+
+					<FilterField label="Name">
+						<Select
+							value={value.hasName}
+							onValueChange={(v) =>
+								onChange({ hasName: v as "all" | "missing" })
+							}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Name" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">Any name</SelectItem>
+								<SelectItem value="missing">
+									Missing name
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</FilterField>

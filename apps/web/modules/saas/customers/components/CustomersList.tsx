@@ -172,6 +172,7 @@ const DEFAULT_FILTERS: CustomerFiltersValue = {
 	groupName: "all",
 	collectorId: "all",
 	hasLocation: "all",
+	hasName: "all",
 };
 
 interface CustomerRow {
@@ -395,6 +396,8 @@ export function CustomersList({
 			filterValues.hasLocation !== "all"
 				? filterValues.hasLocation
 				: undefined,
+		hasName:
+			filterValues.hasName !== "all" ? ("missing" as const) : undefined,
 		page,
 		sortBy,
 		sortOrder,
@@ -480,6 +483,13 @@ export function CustomersList({
 					onRemove: () => updateFilters({ connectionType: "all" }),
 				});
 			}
+		}
+		if (filterValues.hasName !== "all") {
+			out.push({
+				key: "hasName",
+				label: "Missing name",
+				onRemove: () => updateFilters({ hasName: "all" }),
+			});
 		}
 		if (filterValues.hasLocation !== "all") {
 			out.push({

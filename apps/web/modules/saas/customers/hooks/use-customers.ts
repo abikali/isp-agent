@@ -21,6 +21,7 @@ interface CustomerListInput {
 	groupName?: string | undefined;
 	collectorId?: string | undefined;
 	hasLocation?: "yes" | "no" | undefined;
+	hasName?: "missing" | undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
 	sortBy?:
@@ -65,6 +66,9 @@ export function useCustomers(filters: CustomerListInput = {}) {
 	}
 	if (filters.hasLocation) {
 		input["hasLocation"] = filters.hasLocation;
+	}
+	if (filters.hasName) {
+		input["hasName"] = filters.hasName;
 	}
 	if (filters.page) {
 		input["page"] = filters.page;

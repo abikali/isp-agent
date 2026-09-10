@@ -32,6 +32,8 @@ export const listCustomers = protectedProcedure
 			collectorId: z.string().optional(),
 			workerId: z.string().optional(),
 			hasLocation: z.enum(["yes", "no"]).optional(),
+			/** "missing" = neither a first nor a last name on file. */
+			hasName: z.enum(["missing"]).optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -117,6 +119,15 @@ export const listCustomers = protectedProcedure
 		}
 		if (input.workerId) {
 			where["workerId"] = input.workerId;
+		}
+		if (input.hasName === "missing") {
+			// Both columns are nullable AND may be "" (legacy imports), so a
+			// nameless customer is null-or-empty on both.
+			where["AND"] = [
+				...((where["AND"] as unknown[] | undefined) ?? []),
+				{ OR: [{ firstName: null }, { firstName: "" }] },
+				{ OR: [{ lastName: null }, { lastName: "" }] },
+			];
 		}
 		if (input.hasLocation === "yes") {
 			where["AND"] = [
