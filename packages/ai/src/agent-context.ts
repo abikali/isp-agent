@@ -7,6 +7,9 @@ import {
 	buildContextGapNote,
 	type DbMessageRow,
 	dbMessagesToModelMessages,
+	findLastHistoryGap,
+	formatContextGapNote,
+	STALE_HISTORY_MS,
 } from "./history";
 import { CACHE_BREAKPOINT_1H } from "./model-registry";
 
@@ -29,6 +32,8 @@ export interface BuildAgentMessagesInput {
 	lastMessageAt?: Date | null | undefined;
 	/** Threshold (minutes) above which the context-gap note is injected. */
 	contextGapThresholdMinutes?: number | undefined;
+	/** Clock for gap detection; defaults to the real time (tests / replays). */
+	now?: Date | undefined;
 }
 
 /**
@@ -70,30 +75,58 @@ export function buildAgentMessages(
 		messages.push({ role: "system", content: dynamicPrompt });
 	}
 
-	const historyMessages = dbMessagesToModelMessages(input.history);
-
-	// Inject context-gap note BEFORE the trailing run of user messages so the
-	// model treats the gap as preceding everything the user said after coming
-	// back.
-	if (input.lastMessageAt && input.contextGapThresholdMinutes !== undefined) {
-		const gapNote = buildContextGapNote(
-			input.lastMessageAt,
+	// Split the history at the last real pause. Rows before a pause of a
+	// week or more are dropped from the context entirely (they stay in the
+	// DB): a customer coming back after months is starting over, and old
+	// receipts/screenshots left in view get mistaken for new ones.
+	let historyRows = input.history;
+	let gapNote: string | null = null;
+	let gapNoteIdx = 0;
+	if (input.contextGapThresholdMinutes !== undefined) {
+		const split = findLastHistoryGap(
+			historyRows,
 			input.contextGapThresholdMinutes,
+			input.now,
 		);
-		if (gapNote && historyMessages.length > 0) {
-			let insertIdx = historyMessages.length;
-			while (
-				insertIdx > 0 &&
-				historyMessages[insertIdx - 1]?.role === "user"
-			) {
-				insertIdx--;
+		if (split) {
+			const dropped = split.gapMs >= STALE_HISTORY_MS;
+			gapNote = formatContextGapNote(
+				split.gapMs,
+				split.previousAt,
+				dropped,
+			);
+			if (dropped) {
+				historyRows = historyRows.slice(split.index);
+				gapNoteIdx = 0;
+			} else {
+				gapNoteIdx = split.index;
 			}
-			historyMessages.splice(insertIdx, 0, {
-				role: "user",
-				content: gapNote,
-			});
+		} else if (input.lastMessageAt) {
+			// Rows without timestamps (legacy callers): fall back to the
+			// conversation-level timestamp and put the note before the
+			// trailing run of user messages.
+			gapNote = buildContextGapNote(
+				input.lastMessageAt,
+				input.contextGapThresholdMinutes,
+				input.now,
+			);
+			gapNoteIdx = historyRows.length;
+			while (
+				gapNoteIdx > 0 &&
+				historyRows[gapNoteIdx - 1]?.role === "user"
+			) {
+				gapNoteIdx--;
+			}
 		}
 	}
+
+	const before = dbMessagesToModelMessages(historyRows.slice(0, gapNoteIdx));
+	const after = dbMessagesToModelMessages(historyRows.slice(gapNoteIdx));
+	const historyMessages: ModelMessage[] = [...before];
+	if (gapNote && (before.length > 0 || after.length > 0)) {
+		historyMessages.push({ role: "user", content: gapNote });
+	}
+	historyMessages.push(...after);
 
 	messages.push(...historyMessages);
 

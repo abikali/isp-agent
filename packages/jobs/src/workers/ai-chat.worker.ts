@@ -131,6 +131,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					toolCalls: true,
 					parts: true,
 					attachmentType: true,
+					createdAt: true,
 				},
 			});
 

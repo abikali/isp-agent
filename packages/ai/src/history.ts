@@ -1,6 +1,9 @@
 import type { ModelMessage, UIMessage } from "ai";
 import type { ToolResult } from "./types";
 
+/** Gaps at least this long drop the earlier exchange from the model context. */
+export const STALE_HISTORY_MS = 7 * 24 * 60 * 60_000;
+
 /**
  * Builds a context gap note to inject into message history when there's been
  * a significant time gap between messages. Returns null if no gap or below threshold.
@@ -8,20 +11,89 @@ import type { ToolResult } from "./types";
 export function buildContextGapNote(
 	lastMessageAt: Date | null,
 	thresholdMinutes: number,
+	now: Date = new Date(),
 ): string | null {
 	if (!lastMessageAt) {
 		return null;
 	}
 
-	const gapMs = Date.now() - lastMessageAt.getTime();
-	const gapMinutes = gapMs / 60_000;
-
-	if (gapMinutes < thresholdMinutes) {
+	const gapMs = now.getTime() - lastMessageAt.getTime();
+	if (gapMs < thresholdMinutes * 60_000) {
 		return null;
 	}
 
+	return formatContextGapNote(gapMs, lastMessageAt, false);
+}
+
+/**
+ * The note text. `historyDropped` = the earlier exchange was cut from the
+ * context (gap ≥ STALE_HISTORY_MS), so the model must not assume anything
+ * about it. Otherwise the earlier exchange is still visible above the note,
+ * and the note has to stop the model from treating its attachments as
+ * freshly sent — a two-month-old Whish receipt was once replayed to the
+ * customer as "I received your transfer picture" and escalated as proof of
+ * a new payment.
+ */
+export function formatContextGapNote(
+	gapMs: number,
+	previousAt: Date,
+	historyDropped: boolean,
+): string {
 	const duration = formatGapDuration(gapMs);
-	return `[Context Notice: ${duration} have passed since the last message. The customer may be following up or raising a new issue. Do not assume continuity — let their message guide you.]`;
+	const ended = previousAt.toISOString().slice(0, 10);
+	if (historyDropped) {
+		return `[Context Notice: ${duration} have passed since the last message. The previous exchange ended on ${ended} and is not shown. Treat this as a fresh request — nothing from before has been re-sent. If the customer refers to something earlier (a payment, a receipt, a ticket), ask them for the details again.]`;
+	}
+	return `[Context Notice: ${duration} have passed since the last message. Everything above this notice is an earlier exchange that ended on ${ended}. Images, receipts, transfer details and promises up there were sent back then — the customer has NOT re-sent them now, so never say you received them and never cite them as proof for the new message. Do not assume continuity — let their new message guide you.]`;
+}
+
+export interface HistoryGapSplit {
+	/** Index of the first row of the current exchange. */
+	index: number;
+	gapMs: number;
+	previousAt: Date;
+}
+
+/**
+ * Locate the most recent pause of at least `thresholdMinutes` between
+ * consecutive rows (or between the last row and `now`). Needs `createdAt` on
+ * the rows; returns null when any row lacks it so callers can fall back to
+ * the conversation-level timestamp.
+ *
+ * Splitting on real timestamps matters: the old heuristic put the gap before
+ * the trailing run of user messages, which mis-filed unanswered messages
+ * from the earlier exchange as part of the current one.
+ */
+export function findLastHistoryGap(
+	rows: DbMessageRow[],
+	thresholdMinutes: number,
+	now: Date = new Date(),
+): HistoryGapSplit | null {
+	const thresholdMs = thresholdMinutes * 60_000;
+	const last = rows[rows.length - 1];
+	if (!last?.createdAt) {
+		return null;
+	}
+	const tailGap = now.getTime() - last.createdAt.getTime();
+	if (tailGap >= thresholdMs) {
+		return {
+			index: rows.length,
+			gapMs: tailGap,
+			previousAt: last.createdAt,
+		};
+	}
+	for (let i = rows.length - 1; i >= 1; i--) {
+		const current = rows[i]?.createdAt;
+		const previous = rows[i - 1]?.createdAt;
+		if (!current || !previous) {
+			return null;
+		}
+		const gapMs = current.getTime() - previous.getTime();
+		if (gapMs >= thresholdMs) {
+			return { index: i, gapMs, previousAt: previous };
+		}
+	}
+	return null;
 }
 
 function formatGapDuration(ms: number): string {
@@ -50,6 +122,8 @@ export interface DbMessageRow {
 	toolCalls?: unknown; // Array<{ toolCallId?, toolName, args, result }>
 	parts?: unknown; // UIMessage parts array (forward-compat column)
 	attachmentType?: string | null; // "audio" | "image" | "video" | "document" | null
+	/** Needed to split the history at real pauses; optional for legacy callers. */
+	createdAt?: Date | null;
 }
 
 interface PersistedToolCall {

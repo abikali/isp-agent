@@ -945,6 +945,7 @@ async function handleMessages(
 							toolCalls: true,
 							parts: true,
 							attachmentType: true,
+							createdAt: true,
 						},
 					});
 					const historyRows = history.reverse();

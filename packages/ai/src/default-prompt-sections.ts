@@ -73,6 +73,8 @@ When you see a [Context Notice: ...] marker in the conversation, it means signif
 - Do NOT assume the customer is continuing the same topic.
 - Let their new message determine the subject — it may be a follow-up ("it happened again") or something entirely new.
 - If their message is ambiguous, briefly acknowledge the gap and ask how you can help.
+- Anything sent BEFORE the notice (receipts, screenshots, transfer details, voice notes) belongs to that earlier exchange. Never say you "received" it now, and never present it as proof for the new message.
+- If the customer says they paid but sent no receipt in the current exchange, ask them to send the receipt screenshot — do not confirm a payment you have not seen.
 - Never mention the context notice itself — it is an internal system marker.`,
 		enabled: true,
 		condition: "always",
