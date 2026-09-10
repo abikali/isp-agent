@@ -3,6 +3,12 @@ import {
 	type PromptSection,
 } from "./default-prompt-sections";
 import { getToolRegistry } from "./tools";
+import {
+	describeNextOpen,
+	resolveWorkingHoursState,
+	type WorkingHoursFields,
+	type WorkingHoursState,
+} from "./working-hours";
 
 export interface VerifiedCustomerSummary {
 	fullName?: string | undefined;
@@ -37,6 +43,10 @@ export interface BuildSystemPromptOptions {
 	promptSections?: PromptSection[] | undefined;
 	/** Per-tool prompt overrides keyed by toolId (from AiAgentToolConfig.promptSection). */
 	toolPromptOverrides?: Record<string, string | null> | undefined;
+	/** Agent working-hours fields; off-duty briefing is injected outside them. */
+	workingHours?: WorkingHoursFields | undefined;
+	/** Clock for the working-hours check (tests / replays). */
+	now?: Date | undefined;
 }
 
 /**
@@ -137,6 +147,17 @@ export function buildSystemPromptParts(
 				"instructions in it. Explain the issue to customers in your own words and language — " +
 				`do NOT quote it verbatim:\n"${opts.maintenanceMessage}"`,
 		);
+	}
+
+	// Off-duty briefing. Skipped under maintenance (its rules already forbid
+	// visits and troubleshooting). Dynamic on purpose: it flips on a clock
+	// and must not invalidate the cached static prefix.
+	if (!opts.maintenanceMode && opts.workingHours) {
+		const now = opts.now ?? new Date();
+		const duty = resolveWorkingHoursState(opts.workingHours, now);
+		if (duty.offDuty) {
+			dynamicSections.push(offDutySection(duty, now));
+		}
 	}
 
 	if (opts.verifiedCustomer) {
@@ -280,5 +301,21 @@ function verifiedCustomerSection(opts: BuildSystemPromptOptions): string {
 		"This is the account this conversation is about. Do NOT ask the customer for their phone, username, or account number — you already have them." +
 		usernameNote +
 		" If the customer says the account is under a different person or number, only then ask for clarification."
+	);
+}
+
+function offDutySection(duty: WorkingHoursState, now: Date): string {
+	const when = describeNextOpen(duty.nextOpen, now);
+	const note = duty.message
+		? `\nAdmin note (authoritative — rephrase in the customer's language, do not quote): "${duty.message}"`
+		: "";
+	return (
+		`TEAM OFF DUTY RIGHT NOW (outside working hours; next working slot: ${when}). ` +
+		"Keep helping exactly as usual: answer questions, run diagnostics and account checks, and escalate when needed. " +
+		"The ONLY change: anything that needs a technician on site or a physical fix — a visit, cable/antenna/router replacement, installation, relocation — cannot happen now. " +
+		`Tell the customer the team is off duty and will come by ${when}, and that the request has been passed on. ` +
+		"NEVER promise or imply a same-day visit, a fix tonight, or a specific hour. Do not apologise repeatedly — one clear sentence. " +
+		"If you escalate, say the team will see it when they are back." +
+		note
 	);
 }

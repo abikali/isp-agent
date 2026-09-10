@@ -123,6 +123,38 @@ export function useStockRefundRequests(filters?: {
 	};
 }
 
+export function useSuppliersQuery() {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery(
+		organizationId
+			? orpc.stock.suppliers.list.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["stock", "suppliers"]),
+	);
+
+	return {
+		suppliers: query.data?.suppliers ?? [],
+		isLoading: query.isLoading,
+	};
+}
+
+export const useCreateSupplier = createInvalidatingMutation(
+	() => orpc.stock.suppliers.create.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
+export const useUpdateSupplier = createInvalidatingMutation(
+	() => orpc.stock.suppliers.update.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
+export const useSetItemSuppliers = createInvalidatingMutation(
+	() => orpc.stock.setItemSuppliers.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
 export const useApproveStockRefund = createInvalidatingMutation(
 	() => orpc.stock.approveRefund.mutationOptions(),
 	() => orpc.stock.key(),

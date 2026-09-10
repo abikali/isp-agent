@@ -42,6 +42,28 @@ export const updateAgent = protectedProcedure
 				.max(48)
 				.nullable()
 				.optional(),
+			workingHoursEnabled: z.boolean().optional(),
+			workingDays: z
+				.array(z.number().int().min(0).max(6))
+				.max(7)
+				.optional(),
+			workingHoursStart: z
+				.string()
+				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+				.optional(),
+			workingHoursEnd: z
+				.string()
+				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+				.optional(),
+			offDutyMessage: z.string().max(2000).nullable().optional(),
+			followUpMinutes: z
+				.number()
+				.int()
+				.min(5)
+				.max(1440)
+				.nullable()
+				.optional(),
+			followUpMessage: z.string().max(1000).nullable().optional(),
 			promptSections: z
 				.array(
 					z.object({
@@ -93,6 +115,25 @@ export const updateAgent = protectedProcedure
 						"A maintenance message is required when enabling maintenance mode",
 				});
 			}
+		}
+
+		if (
+			input.workingHoursEnabled === true &&
+			input.workingHoursStart &&
+			input.workingHoursEnd &&
+			input.workingHoursStart >= input.workingHoursEnd
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Working hours must end after they start",
+			});
+		}
+		if (
+			input.workingHoursEnabled === true &&
+			input.workingDays?.length === 0
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Pick at least one working day",
+			});
 		}
 
 		const { agentId, organizationId, ...rest } = input;
@@ -153,6 +194,25 @@ export const updateAgent = protectedProcedure
 				JSON.stringify(rest.promptSections),
 			);
 		}
+		for (const key of [
+			"workingHoursEnabled",
+			"workingDays",
+			"workingHoursStart",
+			"workingHoursEnd",
+		] as const) {
+			if (rest[key] !== undefined) {
+				updateData[key] = rest[key];
+			}
+		}
+		if (rest.offDutyMessage !== undefined) {
+			updateData["offDutyMessage"] = rest.offDutyMessage ?? null;
+		}
+		if (rest.followUpMinutes !== undefined) {
+			updateData["followUpMinutes"] = rest.followUpMinutes ?? null;
+		}
+		if (rest.followUpMessage !== undefined) {
+			updateData["followUpMessage"] = rest.followUpMessage ?? null;
+		}
 
 		const agent = await db.aiAgent.update({
 			where: { id: agentId },
@@ -175,6 +235,13 @@ export const updateAgent = protectedProcedure
 				servicePlanIds: true,
 				contextGapThresholdMinutes: true,
 				humanTakeoverHours: true,
+				workingHoursEnabled: true,
+				workingDays: true,
+				workingHoursStart: true,
+				workingHoursEnd: true,
+				offDutyMessage: true,
+				followUpMinutes: true,
+				followUpMessage: true,
 				promptSections: true,
 				updatedAt: true,
 			},

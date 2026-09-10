@@ -139,6 +139,7 @@ export async function handleDebugChatStream(
 			contactName,
 			contactPhone,
 			servicePlans,
+			workingHours: agent,
 			promptSections: agent.promptSections as unknown as PromptSection[],
 			toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 		},

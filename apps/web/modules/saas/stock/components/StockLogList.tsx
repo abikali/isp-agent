@@ -172,6 +172,16 @@ export function StockLogList() {
 				},
 			},
 			{
+				id: "supplier",
+				header: "Supplier",
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => (
+					<span className="text-sm text-muted-foreground">
+						{row.original.supplier?.name ?? "—"}
+					</span>
+				),
+			},
+			{
 				id: "performedBy",
 				header: "By",
 				meta: { className: "hidden lg:table-cell" },

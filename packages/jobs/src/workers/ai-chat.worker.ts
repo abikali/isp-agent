@@ -9,6 +9,7 @@ import {
 	extractToolPromptOverrides,
 	generateAgentResponse,
 	isHumanTakeoverActive,
+	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
@@ -21,6 +22,7 @@ import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
+import { scheduleFollowUp } from "../jobs/ai-followup.jobs";
 import { AI_CHAT_QUEUE_NAME } from "../queues/ai-chat.queue";
 import type { AiChatJobData, AiChatJobResult } from "../types";
 
@@ -228,6 +230,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					maintenanceMessage: maintenance.message ?? undefined,
 					provider: conversation.channel?.provider ?? "messaging",
 					servicePlans,
+					workingHours: conversation.agent,
 					promptSections: conversation.agent
 						.promptSections as unknown as PromptSection[],
 					toolPromptOverrides:
@@ -324,62 +327,21 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					}
 				}
 
-				// Unknown-contact auto-escalation.
-				if (
-					tools &&
-					conversation.agent.enabledTools.includes(
-						"escalate-telegram",
-					) &&
-					!conversation.verifiedCustomerId &&
-					!conversation.unknownEscalatedAt
-				) {
-					const userMessageCount = messages.filter(
-						(m) => m.role === "user",
-					).length;
-					if (userMessageCount >= 3) {
-						const escalateTool = tools["escalate-telegram"];
-						if (escalateTool?.execute) {
-							try {
-								const recentUserExcerpts = messages
-									.filter((m) => m.role === "user")
-									.slice(-3)
-									.map((m) =>
-										typeof m.content === "string"
-											? m.content.slice(0, 200)
-											: "",
-									)
-									.join("\n");
-								const args = {
-									reason: "Unknown contact — could not be identified after multiple turns",
-									priority: "medium" as const,
-									category: "general" as const,
-									summary: `Unknown contact (${conversation.contactName ?? conversation.contactId ?? "no name"}) has sent ${userMessageCount} messages but the bot could not link them to a customer. Recent messages:\n${recentUserExcerpts}`,
-									customerName:
-										conversation.contactName ?? undefined,
-									actionRequired:
-										"Reach out to the contact and verify who they are.",
-								};
-								await escalateTool.execute(args, {
-									toolCallId: `unknown-${conversationId}`,
-									messages: [],
-									abortSignal: AbortSignal.timeout(30000),
-								});
-								await db.aiConversation.update({
-									where: { id: conversationId },
-									data: { unknownEscalatedAt: new Date() },
-								});
-								result.text = `${result.text}\n\nI've notified a team member who will join you shortly.`;
-							} catch (error) {
-								logger.error(
-									"Unknown contact auto-escalation failed",
-									{
-										conversationId,
-										error,
-									},
-								);
-							}
-						}
-					}
+				// Unknown-contact auto-escalation (shared with the webhook path).
+				const unknownNote = await maybeEscalateUnknownContact({
+					conversation: {
+						id: conversation.id,
+						contactName: conversation.contactName,
+						contactId: conversation.contactId,
+						verifiedCustomerId: conversation.verifiedCustomerId,
+						unknownEscalatedAt: conversation.unknownEscalatedAt,
+					},
+					enabledTools: conversation.agent.enabledTools,
+					tools,
+					messages,
+				});
+				if (unknownNote) {
+					result.text = `${result.text}\n\n${unknownNote}`;
 				}
 
 				const sendResult = await sendTextMessage(
@@ -427,13 +389,27 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					},
 				});
 
+				const repliedAt = new Date();
 				await db.aiConversation.update({
 					where: { id: conversationId },
 					data: {
 						messageCount: { increment: 1 },
-						lastMessageAt: new Date(),
+						lastMessageAt: repliedAt,
 					},
 				});
+				if (conversation.agent.followUpMinutes) {
+					scheduleFollowUp({
+						conversationId,
+						channelId: conversation.channelId ?? channelId,
+						repliedAt,
+						delayMinutes: conversation.agent.followUpMinutes,
+					}).catch((err) =>
+						logger.warn("[ai-followup] schedule failed", {
+							conversationId,
+							error: String(err),
+						}),
+					);
+				}
 
 				return { success: true };
 			} catch (error) {

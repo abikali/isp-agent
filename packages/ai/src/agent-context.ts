@@ -57,9 +57,10 @@ export interface BuildAgentMessagesInput {
 export function buildAgentMessages(
 	input: BuildAgentMessagesInput,
 ): ModelMessage[] {
-	const { staticPrompt, dynamicPrompt } = buildSystemPromptParts(
-		input.systemOptions,
-	);
+	const { staticPrompt, dynamicPrompt } = buildSystemPromptParts({
+		...input.systemOptions,
+		now: input.systemOptions.now ?? input.now,
+	});
 
 	const messages: ModelMessage[] = [];
 

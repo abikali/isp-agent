@@ -14,8 +14,13 @@ import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Switch } from "@ui/components/switch";
 import { toast } from "sonner";
-import { useCreateStockItem, useUpdateStockItem } from "../hooks/use-stock";
+import {
+	useCreateStockItem,
+	useSetItemSuppliers,
+	useUpdateStockItem,
+} from "../hooks/use-stock";
 import type { StockItem } from "./StockList";
+import { SupplierPicker } from "./SupplierPicker";
 
 export function StockItemDialog({
 	open,
@@ -29,7 +34,9 @@ export function StockItemDialog({
 	const organizationId = useOrganizationId();
 	const createItem = useCreateStockItem();
 	const updateItem = useUpdateStockItem();
+	const setItemSuppliers = useSetItemSuppliers();
 	const isEdit = item !== null;
+	const initialSupplierIds = item?.suppliers.map((s) => s.id) ?? [];
 
 	const form = useForm({
 		defaultValues: {
@@ -40,11 +47,17 @@ export function StockItemDialog({
 			alertThreshold: item?.alertThreshold ?? null,
 			alertEnabled: item?.alertEnabled ?? false,
 			showInUninstall: item?.showInUninstall ?? false,
+			supplierIds: initialSupplierIds,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
 				return;
 			}
+			const suppliersChanged =
+				value.supplierIds.length !== initialSupplierIds.length ||
+				value.supplierIds.some(
+					(id) => !initialSupplierIds.includes(id),
+				);
 			try {
 				if (isEdit) {
 					await updateItem.mutateAsync({
@@ -57,9 +70,16 @@ export function StockItemDialog({
 						alertEnabled: value.alertEnabled,
 						showInUninstall: value.showInUninstall,
 					});
+					if (suppliersChanged) {
+						await setItemSuppliers.mutateAsync({
+							organizationId,
+							id: item.id,
+							supplierIds: value.supplierIds,
+						});
+					}
 					toast.success("Item updated");
 				} else {
-					await createItem.mutateAsync({
+					const created = await createItem.mutateAsync({
 						organizationId,
 						name: value.name,
 						quantity: value.quantity,
@@ -71,6 +91,13 @@ export function StockItemDialog({
 						alertEnabled: value.alertEnabled,
 						showInUninstall: value.showInUninstall,
 					});
+					if (value.supplierIds.length > 0) {
+						await setItemSuppliers.mutateAsync({
+							organizationId,
+							id: created.item.id,
+							supplierIds: value.supplierIds,
+						});
+					}
 					toast.success("Item created");
 				}
 				onOpenChange(false);
@@ -241,6 +268,18 @@ export function StockItemDialog({
 							) : null
 						}
 					</form.Subscribe>
+
+					<form.Field name="supplierIds">
+						{(field) => (
+							<div className="space-y-1.5">
+								<Label>Suppliers</Label>
+								<SupplierPicker
+									value={field.state.value}
+									onChange={field.handleChange}
+								/>
+							</div>
+						)}
+					</form.Field>
 
 					<form.Field name="showInUninstall">
 						{(field) => (

@@ -2,6 +2,7 @@ import { initRateLimiter } from "@repo/ai";
 import {
 	closeConnection,
 	createAiChatWorker,
+	createAiFollowUpWorker,
 	createBillingSyncWorker,
 	createEmailWorker,
 	createIntegrationSyncWorker,
@@ -37,6 +38,7 @@ async function main() {
 
 	// Create workers
 	const aiChatWorker = createAiChatWorker();
+	const aiFollowUpWorker = createAiFollowUpWorker();
 	const billingSyncWorker = createBillingSyncWorker();
 	const emailWorker = createEmailWorker();
 	const webhookWorker = createWebhookWorker();
@@ -67,6 +69,7 @@ async function main() {
 	logger.info("All workers started successfully", {
 		workers: [
 			"ai-chat",
+			"ai-followup",
 			"billing-sync",
 			"email",
 			"iradius-sync",
@@ -90,6 +93,7 @@ async function main() {
 
 		await Promise.all([
 			aiChatWorker.close(),
+			aiFollowUpWorker.close(),
 			billingSyncWorker.close(),
 			emailWorker.close(),
 			iRadiusSyncWorker.close(),

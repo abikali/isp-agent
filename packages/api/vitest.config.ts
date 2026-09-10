@@ -25,6 +25,20 @@ export default defineConfig({
 		// otherwise rewrite `@repo/database/billing` to `index.ts/billing`.
 		alias: [
 			{
+				find: "@repo/database/worker-options",
+				replacement: resolve(
+					__dirname,
+					"../database/lib/worker-options.ts",
+				),
+			},
+			{
+				find: "@repo/database/settlement",
+				replacement: resolve(
+					__dirname,
+					"../database/lib/settlement.ts",
+				),
+			},
+			{
 				// @repo/mail re-exports React Email .tsx templates that vite
 				// can't parse (jsx: preserve). No api unit test renders email,
 				// so stub it to keep suites that transitively import it

@@ -99,6 +99,8 @@ vi.mock("@repo/logs", () => ({
 vi.mock("@repo/jobs", () => ({
 	getRedisConnection: vi.fn(() => mockRedis),
 	queueAiChatRetry: vi.fn().mockResolvedValue(undefined),
+	scheduleFollowUp: vi.fn().mockResolvedValue(undefined),
+	cancelFollowUp: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/database", () => ({
@@ -143,6 +145,7 @@ vi.mock("@repo/ai", () => ({
 	WHISH_MONEY_CONTEXT: "",
 	computeBotFingerprint: vi.fn().mockReturnValue("mock-fp"),
 	isHumanTakeoverActive: vi.fn().mockReturnValue(false),
+	maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),

@@ -140,6 +140,7 @@ export async function handleWebChatMessage(
 			maintenanceMessage: maintenance.message ?? undefined,
 			isWebChat: true,
 			servicePlans,
+			workingHours: agent,
 			promptSections: agent.promptSections as unknown as PromptSection[],
 			toolPromptOverrides: extractToolPromptOverrides(agentToolConfigs),
 		},

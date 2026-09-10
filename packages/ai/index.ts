@@ -23,6 +23,7 @@ export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
 export type { EscalationSummary } from "./src/escalation-summary";
 export { summarizeForEscalation } from "./src/escalation-summary";
+export { buildFollowUpInstruction, NO_FOLLOW_UP } from "./src/follow-up";
 export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
@@ -94,9 +95,16 @@ export type {
 	ToolRecord,
 	ToolResult,
 } from "./src/types";
+export { maybeEscalateUnknownContact } from "./src/unknown-contact";
 export {
 	isEmployeePhone,
 	isWhishMoneyMessage,
 	sendWhishPaymentEscalation,
 	WHISH_MONEY_CONTEXT,
 } from "./src/whish-money-guard";
+export {
+	describeNextOpen,
+	resolveWorkingHoursState,
+	type WorkingHoursFields,
+	type WorkingHoursState,
+} from "./src/working-hours";

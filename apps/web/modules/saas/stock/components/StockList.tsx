@@ -98,13 +98,31 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 				accessorKey: "name",
 				header: "Item",
 				cell: ({ row }) => (
-					<div className="flex items-center gap-2">
-						<p className="font-medium">{row.original.name}</p>
-						{row.original.isLowStock && (
-							<Badge variant="error" className="gap-1">
-								<AlertTriangleIcon className="size-3" />
-								Low
-							</Badge>
+					<div>
+						<div className="flex items-center gap-2">
+							<p className="font-medium">{row.original.name}</p>
+							{row.original.isLowStock && (
+								<Badge variant="error" className="gap-1">
+									<AlertTriangleIcon className="size-3" />
+									Low
+								</Badge>
+							)}
+						</div>
+						{row.original.suppliers.length > 0 && (
+							<p className="mt-0.5 text-xs text-muted-foreground">
+								{row.original.suppliers
+									.map((s) => s.name)
+									.join(", ")}
+								{row.original.lastDelivery?.supplierName && (
+									<>
+										{" "}
+										· last{" "}
+										{row.original.lastDelivery.quantity}{" "}
+										from{" "}
+										{row.original.lastDelivery.supplierName}
+									</>
+								)}
+							</p>
 						)}
 					</div>
 				),

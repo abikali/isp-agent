@@ -13,6 +13,12 @@ import {
 	rejectStockRefund,
 } from "./procedures/review-refund";
 import { getStockStats } from "./procedures/stats";
+import {
+	createSupplier,
+	listSuppliers,
+	setStockItemSuppliers,
+	updateSupplier,
+} from "./procedures/suppliers";
 import { updateStockItem } from "./procedures/update-item";
 import {
 	getMyStock,
@@ -36,4 +42,10 @@ export const stockRouter = {
 	listRefundRequests: listStockRefundRequests,
 	approveRefund: approveStockRefund,
 	rejectRefund: rejectStockRefund,
+	suppliers: {
+		list: listSuppliers,
+		create: createSupplier,
+		update: updateSupplier,
+	},
+	setItemSuppliers: setStockItemSuppliers,
 };

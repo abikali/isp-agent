@@ -2,6 +2,7 @@
 export { closeConnection, getRedisConnection } from "./src/connection";
 // Jobs
 export { queueAiChatRetry } from "./src/jobs/ai-chat.jobs";
+export { cancelFollowUp, scheduleFollowUp } from "./src/jobs/ai-followup.jobs";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,
@@ -44,6 +45,11 @@ export {
 	closeAiChatQueue,
 	getAiChatQueue,
 } from "./src/queues/ai-chat.queue";
+export {
+	AI_FOLLOWUP_QUEUE_NAME,
+	closeAiFollowUpQueue,
+	getAiFollowUpQueue,
+} from "./src/queues/ai-followup.queue";
 export {
 	BILLING_SYNC_QUEUE_NAME,
 	closeBillingSyncQueue,
@@ -119,6 +125,8 @@ export {
 export type {
 	AiChatJobData,
 	AiChatJobResult,
+	AiFollowUpJobData,
+	AiFollowUpJobResult,
 	BillingSyncJobData,
 	BillingSyncJobResult,
 	EmailJobData,
@@ -152,6 +160,7 @@ export type {
 } from "./src/types";
 // Workers (for worker process)
 export { createAiChatWorker } from "./src/workers/ai-chat.worker";
+export { createAiFollowUpWorker } from "./src/workers/ai-followup.worker";
 export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
@@ -191,6 +200,7 @@ export { createWhatsAppReceiptWorker } from "./src/workers/whatsapp-receipt.work
 // Cleanup utilities
 import { closeConnection } from "./src/connection";
 import { closeAiChatQueue } from "./src/queues/ai-chat.queue";
+import { closeAiFollowUpQueue } from "./src/queues/ai-followup.queue";
 import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
@@ -213,6 +223,7 @@ import { closeWhatsAppReceiptQueue } from "./src/queues/whatsapp-receipt.queue";
 export async function shutdownJobs(): Promise<void> {
 	await Promise.allSettled([
 		closeAiChatQueue(),
+		closeAiFollowUpQueue(),
 		closeBillingSyncQueue(),
 		closeEmailQueue(),
 		closeIRadiusPushQueue(),

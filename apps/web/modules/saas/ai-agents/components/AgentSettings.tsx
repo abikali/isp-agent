@@ -40,10 +40,12 @@ import {
 	AlertTriangleIcon,
 	BotIcon,
 	BrainIcon,
+	ClockIcon,
 	FileTextIcon,
 	HandIcon,
 	HelpCircleIcon,
 	Loader2Icon,
+	MessageCircleReplyIcon,
 	RotateCcwIcon,
 	SearchIcon,
 	SlidersHorizontalIcon,
@@ -381,6 +383,14 @@ export function AgentSettings({
 			contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
 			humanTakeoverEnabled: agent.humanTakeoverHours != null,
 			humanTakeoverHours: agent.humanTakeoverHours ?? 4,
+			workingHoursEnabled: agent.workingHoursEnabled,
+			workingDays: agent.workingDays as number[],
+			workingHoursStart: agent.workingHoursStart,
+			workingHoursEnd: agent.workingHoursEnd,
+			offDutyMessage: agent.offDutyMessage ?? "",
+			followUpEnabled: agent.followUpMinutes != null,
+			followUpMinutes: agent.followUpMinutes ?? 30,
+			followUpMessage: agent.followUpMessage ?? "",
 			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
@@ -407,6 +417,15 @@ export function AgentSettings({
 					humanTakeoverHours: value.humanTakeoverEnabled
 						? value.humanTakeoverHours
 						: null,
+					workingHoursEnabled: value.workingHoursEnabled,
+					workingDays: value.workingDays,
+					workingHoursStart: value.workingHoursStart,
+					workingHoursEnd: value.workingHoursEnd,
+					offDutyMessage: value.offDutyMessage || null,
+					followUpMinutes: value.followUpEnabled
+						? value.followUpMinutes
+						: null,
+					followUpMessage: value.followUpMessage || null,
 					promptSections: value.promptSections,
 				});
 				toast.success("Settings saved");
@@ -602,6 +621,257 @@ export function AgentSettings({
 										</Field>
 									)}
 								</form.Field>
+							)}
+						</ToggleCard>
+					)}
+				</form.Field>
+
+				{/* Working hours — off-duty briefing outside them. */}
+				<form.Field name="workingHoursEnabled">
+					{(enabledField) => (
+						<ToggleCard
+							icon={ClockIcon}
+							title="Working hours"
+							description={
+								enabledField.state.value
+									? "Outside these hours the bot says visits happen on the next working day"
+									: "Tell the bot when the team is off duty so it never promises a same-day visit"
+							}
+							active={enabledField.state.value}
+							activeTone="info"
+							badgeLabel={enabledField.state.value ? "On" : "Off"}
+							badgeVariant={
+								enabledField.state.value
+									? "default"
+									: "secondary"
+							}
+							checked={enabledField.state.value}
+							onCheckedChange={enabledField.handleChange}
+						>
+							{enabledField.state.value && (
+								<>
+									<form.Field name="workingDays">
+										{(daysField) => (
+											<Field>
+												<FieldLabel className="text-xs">
+													Working days
+												</FieldLabel>
+												<div className="flex flex-wrap gap-1.5">
+													{[1, 2, 3, 4, 5, 6, 0].map(
+														(d) => {
+															const on =
+																daysField.state.value.includes(
+																	d,
+																);
+															return (
+																<Button
+																	key={d}
+																	type="button"
+																	size="sm"
+																	variant={
+																		on
+																			? "primary"
+																			: "outline"
+																	}
+																	className="h-8 px-3"
+																	onClick={() =>
+																		daysField.handleChange(
+																			on
+																				? daysField.state.value.filter(
+																						(
+																							x,
+																						) =>
+																							x !==
+																							d,
+																					)
+																				: [
+																						...daysField
+																							.state
+																							.value,
+																						d,
+																					],
+																		)
+																	}
+																>
+																	{
+																		[
+																			"Sun",
+																			"Mon",
+																			"Tue",
+																			"Wed",
+																			"Thu",
+																			"Fri",
+																			"Sat",
+																		][d]
+																	}
+																</Button>
+															);
+														},
+													)}
+												</div>
+											</Field>
+										)}
+									</form.Field>
+									<div className="flex flex-wrap items-end gap-3">
+										<form.Field name="workingHoursStart">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="wh-start"
+														className="text-xs"
+													>
+														From (Beirut)
+													</FieldLabel>
+													<Input
+														id="wh-start"
+														type="time"
+														value={f.state.value}
+														onChange={(e) =>
+															f.handleChange(
+																e.target.value,
+															)
+														}
+														className="w-32"
+													/>
+												</Field>
+											)}
+										</form.Field>
+										<form.Field name="workingHoursEnd">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="wh-end"
+														className="text-xs"
+													>
+														To
+													</FieldLabel>
+													<Input
+														id="wh-end"
+														type="time"
+														value={f.state.value}
+														onChange={(e) =>
+															f.handleChange(
+																e.target.value,
+															)
+														}
+														className="w-32"
+													/>
+												</Field>
+											)}
+										</form.Field>
+									</div>
+									<form.Field name="offDutyMessage">
+										{(f) => (
+											<Field>
+												<FieldLabel
+													htmlFor="wh-note"
+													className="text-xs"
+												>
+													Off-duty note (optional)
+													<FieldHint text="Extra guidance for the bot outside working hours, e.g. an emergency number. It rephrases it; it never quotes it." />
+												</FieldLabel>
+												<Textarea
+													id="wh-note"
+													rows={2}
+													value={f.state.value}
+													onChange={(e) =>
+														f.handleChange(
+															e.target.value,
+														)
+													}
+												/>
+											</Field>
+										)}
+									</form.Field>
+								</>
+							)}
+						</ToggleCard>
+					)}
+				</form.Field>
+
+				{/* Follow-up after silence. */}
+				<form.Field name="followUpEnabled">
+					{(enabledField) => (
+						<ToggleCard
+							icon={MessageCircleReplyIcon}
+							title="Follow up after silence"
+							description={
+								enabledField.state.value
+									? "One nudge when the customer goes quiet after a bot question"
+									: "Nudge a customer once when they stop replying"
+							}
+							active={enabledField.state.value}
+							activeTone="info"
+							badgeLabel={enabledField.state.value ? "On" : "Off"}
+							badgeVariant={
+								enabledField.state.value
+									? "default"
+									: "secondary"
+							}
+							checked={enabledField.state.value}
+							onCheckedChange={enabledField.handleChange}
+						>
+							{enabledField.state.value && (
+								<>
+									<form.Field name="followUpMinutes">
+										{(f) => (
+											<Field>
+												<FieldLabel
+													htmlFor="fu-minutes"
+													className="text-xs"
+												>
+													After (minutes of silence)
+												</FieldLabel>
+												<div className="flex items-center gap-2">
+													<Input
+														id="fu-minutes"
+														type="number"
+														min={5}
+														max={1440}
+														step={5}
+														value={f.state.value}
+														onChange={(e) =>
+															f.handleChange(
+																Number.parseInt(
+																	e.target
+																		.value,
+																	10,
+																) || 30,
+															)
+														}
+														className="w-24"
+													/>
+													<span className="text-sm text-muted-foreground">
+														minutes
+													</span>
+												</div>
+											</Field>
+										)}
+									</form.Field>
+									<form.Field name="followUpMessage">
+										{(f) => (
+											<Field>
+												<FieldLabel
+													htmlFor="fu-guidance"
+													className="text-xs"
+												>
+													Guidance (optional)
+													<FieldHint text="What the follow-up should do, in your words. The bot writes the actual message in the customer's language and skips it when the conversation was already finished." />
+												</FieldLabel>
+												<Textarea
+													id="fu-guidance"
+													rows={2}
+													value={f.state.value}
+													onChange={(e) =>
+														f.handleChange(
+															e.target.value,
+														)
+													}
+												/>
+											</Field>
+										)}
+									</form.Field>
+								</>
 							)}
 						</ToggleCard>
 					)}

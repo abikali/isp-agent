@@ -66,6 +66,19 @@ export interface AiChatJobResult {
 	error?: string;
 }
 
+// AI follow-up (silence nudge) job types
+export interface AiFollowUpJobData {
+	conversationId: string;
+	channelId: string;
+	/** ISO timestamp of the bot reply this follow-up belongs to. */
+	repliedAt: string;
+}
+
+export interface AiFollowUpJobResult {
+	success: boolean;
+	skipped?: string;
+}
+
 // Integration sync job types
 export type IntegrationSyncOperationType =
 	| "push_single"

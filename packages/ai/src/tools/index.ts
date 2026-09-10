@@ -4,6 +4,7 @@ import { emailCheck } from "./email-check";
 import { escalateTelegram } from "./escalate-telegram";
 import { ispBandwidthStats } from "./isp-bandwidth-stats";
 import { ispDiagnoseCustomer } from "./isp-diagnose-customer";
+import { ispListInvoices } from "./isp-list-invoices";
 import { ispMikrotikUsers } from "./isp-mikrotik-users";
 import { ispPingCustomer } from "./isp-ping-customer";
 import { ispPingIp } from "./isp-ping-ip";
@@ -31,6 +32,7 @@ const TOOL_REGISTRY: Record<string, RegisteredTool> = {
 	"isp-mikrotik-users": ispMikrotikUsers,
 	"isp-ping-customer": ispPingCustomer,
 	"isp-ping-ip": ispPingIp,
+	"isp-list-invoices": ispListInvoices,
 	"escalate-telegram": escalateTelegram,
 };
 

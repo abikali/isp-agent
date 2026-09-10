@@ -15,6 +15,7 @@ import {
 	initRateLimiter,
 	isWhishMoneyMessage,
 	markAsRead,
+	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	parseWebhookPayload,
 	resolveAgentTools,
@@ -29,7 +30,12 @@ import {
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
-import { getRedisConnection, queueAiChatRetry } from "@repo/jobs";
+import {
+	cancelFollowUp,
+	getRedisConnection,
+	queueAiChatRetry,
+	scheduleFollowUp,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
 import { uploadBuffer } from "@repo/storage";
@@ -350,6 +356,8 @@ async function handleMessages(
 					}
 				}
 
+				// A human is replying — never nudge on top of them.
+				void cancelFollowUp(takeoverConversation.id);
 				// Update conversation: bump lastMessageAt, and activate
 				// takeover if the feature is enabled on the agent.
 				await db.aiConversation.update({
@@ -502,8 +510,11 @@ async function handleMessages(
 							? { contactName: msg.contactName }
 							: {}),
 						lastMessageAt: new Date(),
+						// The customer spoke: the silence is over.
+						followUpSentAt: null,
 					},
 				});
+				void cancelFollowUp(conversation.id);
 			} else {
 				conversation = await db.aiConversation.create({
 					data: {
@@ -781,6 +792,7 @@ async function handleMessages(
 				maintenanceMessage: maintenance.message ?? undefined,
 				provider,
 				servicePlans,
+				workingHours: channel.agent,
 				promptSections: channel.agent
 					.promptSections as unknown as PromptSection[],
 				toolPromptOverrides:
@@ -1096,6 +1108,27 @@ async function handleMessages(
 							break;
 						}
 
+						// Unknown-contact auto-escalation: the phone matched no
+						// active account and the customer has not identified
+						// themselves — hand it to a human once.
+						const unknownNote = await maybeEscalateUnknownContact({
+							conversation: {
+								id: conversation.id,
+								contactName: conversation.contactName,
+								contactId: conversation.contactId,
+								verifiedCustomerId:
+									conversation.verifiedCustomerId,
+								unknownEscalatedAt:
+									conversation.unknownEscalatedAt,
+							},
+							enabledTools: channel.agent.enabledTools,
+							tools,
+							messages: historyMessages,
+						});
+						if (unknownNote) {
+							result.text = `${result.text}\n\n${unknownNote}`;
+						}
+
 						// Send reply
 						const sendResult = await sendTextMessage(
 							provider,
@@ -1153,6 +1186,7 @@ async function handleMessages(
 							});
 
 							// Update conversation counters
+							const repliedAt = new Date();
 							await db.aiConversation.update({
 								where: {
 									id: conversation.id,
@@ -1161,9 +1195,25 @@ async function handleMessages(
 									messageCount: {
 										increment: bufferedTexts.length + 1,
 									},
-									lastMessageAt: new Date(),
+									lastMessageAt: repliedAt,
 								},
 							});
+							if (channel.agent.followUpMinutes) {
+								scheduleFollowUp({
+									conversationId: conversation.id,
+									channelId: channel.id,
+									repliedAt,
+									delayMinutes: channel.agent.followUpMinutes,
+								}).catch((error) =>
+									logger.warn(
+										"[ai-followup] schedule failed",
+										{
+											conversationId: conversation.id,
+											error: String(error),
+										},
+									),
+								);
+							}
 						}
 
 						// Greppable usage line — OpenRouter's `cost` is the

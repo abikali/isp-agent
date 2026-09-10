@@ -1,4 +1,5 @@
 export { createAiChatWorker } from "./ai-chat.worker";
+export { createAiFollowUpWorker } from "./ai-followup.worker";
 export { createBillingSyncWorker } from "./billing-sync.worker";
 export { createEmailWorker } from "./email.worker";
 export { createIntegrationSyncWorker } from "./integration-sync.worker";

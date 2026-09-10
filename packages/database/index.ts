@@ -10,4 +10,5 @@ export {
 	parsePhones,
 	splitPhoneString,
 } from "./lib/phones";
+export * from "./lib/settlement";
 export * from "./prisma";

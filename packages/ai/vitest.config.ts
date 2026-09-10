@@ -51,6 +51,11 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			// Subpath first: vitest matches alias prefixes in order.
+			"@repo/database/settlement": resolve(
+				__dirname,
+				"../database/lib/settlement.ts",
+			),
 			"@repo/database": resolve(__dirname, "../database/index.ts"),
 			"@repo/config": resolve(__dirname, "../../config/index.ts"),
 			"@repo/logs": resolve(__dirname, "../logs/index.ts"),

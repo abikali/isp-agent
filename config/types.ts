@@ -22,6 +22,7 @@ export type JobsConfig = {
 		webhook: { concurrency: number };
 		scheduled: { concurrency: number };
 		aiChat: { concurrency: number };
+		aiFollowup: { concurrency: number };
 		watcherCheck: { concurrency: number };
 		iradiusSync: { concurrency: number };
 		billingSync: { concurrency: number };

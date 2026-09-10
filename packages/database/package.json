@@ -11,6 +11,10 @@
 			"types": "./prisma/generated/enums.ts",
 			"default": "./prisma/generated/enums.ts"
 		},
+		"./settlement": {
+			"types": "./lib/settlement.ts",
+			"default": "./lib/settlement.ts"
+		},
 		"./phones": {
 			"types": "./lib/phones.ts",
 			"default": "./lib/phones.ts"

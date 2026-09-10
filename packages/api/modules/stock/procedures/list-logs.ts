@@ -77,6 +77,7 @@ export const listStockLogs = protectedProcedure
 				include: {
 					employee: { select: { id: true, name: true } },
 					performedBy: { select: { id: true, name: true } },
+					supplier: { select: { id: true, name: true } },
 				},
 				orderBy: { createdAt: "desc" },
 				skip: (input.page - 1) * input.pageSize,

@@ -2,6 +2,7 @@
 
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import {
 	Dialog,
 	DialogContent,
@@ -15,7 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { cn } from "@ui/lib";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useAddStockQuantity } from "../hooks/use-stock";
+import { useAddStockQuantity, useSuppliersQuery } from "../hooks/use-stock";
 import { QuantityInput } from "./QuantityInput";
 import type { StockItem } from "./StockList";
 
@@ -35,6 +36,15 @@ export function AddQuantityDialog({
 	const [mode, setMode] = useState<"add" | "remove">("add");
 	const [quantity, setQuantity] = useState(1);
 	const [notes, setNotes] = useState("");
+	const { suppliers } = useSuppliersQuery();
+	// Default to the item's only supplier; leave the choice open otherwise.
+	const [supplierId, setSupplierId] = useState(
+		item.suppliers.length === 1 ? (item.suppliers[0]?.id ?? "") : "",
+	);
+	const supplierOptions = [
+		{ value: "", label: "No supplier" },
+		...suppliers.map((s) => ({ value: s.id, label: s.name })),
+	];
 
 	const isRemove = mode === "remove";
 	const newQuantity = isRemove
@@ -54,6 +64,7 @@ export function AddQuantityDialog({
 				id: item.id,
 				quantity: isRemove ? -quantity : quantity,
 				notes: notes || undefined,
+				supplierId: !isRemove && supplierId ? supplierId : undefined,
 			});
 			toast.success(
 				isRemove
@@ -124,6 +135,22 @@ export function AddQuantityDialog({
 							{newQuantity}
 						</span>
 					</p>
+					{!isRemove && (
+						<div className="space-y-1.5">
+							<Label htmlFor="adjust-qty-supplier">
+								Supplier
+							</Label>
+							<Combobox
+								id="adjust-qty-supplier"
+								options={supplierOptions}
+								value={supplierId}
+								onChange={setSupplierId}
+								placeholder="No supplier"
+								searchPlaceholder="Search suppliers…"
+								emptyText="No suppliers yet — add one from the item's edit dialog"
+							/>
+						</div>
+					)}
 					<div className="space-y-1.5">
 						<Label htmlFor="adjust-qty-notes">Notes</Label>
 						<Input

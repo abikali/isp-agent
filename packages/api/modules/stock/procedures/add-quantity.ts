@@ -20,6 +20,8 @@ export const addStockQuantity = protectedProcedure
 				.int()
 				.refine((v) => v !== 0, "Quantity cannot be zero"),
 			notes: z.string().max(500).optional(),
+			/** Who delivered it (ADD only). */
+			supplierId: z.string().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -38,6 +40,21 @@ export const addStockQuantity = protectedProcedure
 			throw new ORPCError("NOT_FOUND", {
 				message: "Stock item not found",
 			});
+		}
+
+		if (input.supplierId) {
+			const supplier = await db.supplier.findFirst({
+				where: {
+					id: input.supplierId,
+					organizationId: input.organizationId,
+				},
+				select: { id: true },
+			});
+			if (!supplier) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Supplier not found",
+				});
+			}
 		}
 
 		const item = await db.$transaction(async (tx) => {
@@ -61,6 +78,8 @@ export const addStockQuantity = protectedProcedure
 					adminQtyBefore: updated.quantity - input.quantity,
 					adminQtyAfter: updated.quantity,
 					notes: input.notes ?? null,
+					supplierId:
+						input.quantity > 0 ? (input.supplierId ?? null) : null,
 				},
 			});
 			return updated;

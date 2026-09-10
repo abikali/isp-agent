@@ -44,6 +44,24 @@ export const listStockItems = protectedProcedure
 						employee: { select: { id: true, name: true } },
 					},
 				},
+				suppliers: {
+					select: {
+						supplier: {
+							select: { id: true, name: true, phones: true },
+						},
+					},
+				},
+				// Newest delivery, for "last received from X on …".
+				logs: {
+					where: { action: "ADD", supplierId: { not: null } },
+					orderBy: { createdAt: "desc" },
+					take: 1,
+					select: {
+						createdAt: true,
+						quantity: true,
+						supplier: { select: { name: true } },
+					},
+				},
 			},
 			orderBy: { name: "asc" },
 		});
@@ -58,6 +76,14 @@ export const listStockItems = protectedProcedure
 			alertEnabled: item.alertEnabled,
 			showInUninstall: item.showInUninstall,
 			createdAt: item.createdAt,
+			suppliers: item.suppliers.map((s) => s.supplier),
+			lastDelivery: item.logs[0]
+				? {
+						at: item.logs[0].createdAt,
+						quantity: item.logs[0].quantity,
+						supplierName: item.logs[0].supplier?.name ?? null,
+					}
+				: null,
 			workerQuantity: item.workerAllocations.reduce(
 				(sum, a) => sum + a.quantity,
 				0,

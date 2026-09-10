@@ -26,9 +26,9 @@ model Account {
   updatedAt             DateTime
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([providerId, accountId])
   @@unique([userId, providerId])
+  @@index([userId])
   @@map("account")
 }
 
@@ -91,22 +91,22 @@ model AuditLog {
 }
 
 model BulkOperation {
-  id             String       @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   userId         String
   type           String // import_csv, duplicate_template, bulk_edit, bulk_delete, bulk_publish, bulk_export, bulk_duplicate, bulk_assign
-  status         String       @default("pending") // pending, processing, completed, failed, cancelled
+  status         String    @default("pending") // pending, processing, completed, failed, cancelled
   totalItems     Int
-  processedItems Int          @default(0)
-  successCount   Int          @default(0)
-  errorCount     Int          @default(0)
+  processedItems Int       @default(0)
+  successCount   Int       @default(0)
+  errorCount     Int       @default(0)
   errors         Json?
   input          Json?
   result         Json?
   startedAt      DateTime?
   completedAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -202,7 +202,7 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   type      String
-  category  String?  // "leads" | "team" | "analytics" | "security"
+  category  String? // "leads" | "team" | "analytics" | "security"
   title     String
   message   String
   link      String?
@@ -217,8 +217,8 @@ model Notification {
 }
 
 model NotificationPreference {
-  id             String  @id @default(cuid())
-  userId         String  @unique
+  id     String @id @default(cuid())
+  userId String @unique
 
   // Per-category in-app toggles
   leadsInApp     Boolean @default(true)
@@ -283,66 +283,67 @@ model SavedView {
 }
 
 model Organization {
-  id                   String             @id @default(cuid())
-  name                 String
-  slug                 String?            @unique
-  logo                 String?
-  createdAt            DateTime
-  metadata             Json?
-  paymentsCustomerId   String?
-  aiDefaultPersona     String?            @db.Text
-  aiDefaultGreeting    String?
-  aiProfileLimit       Int?               // Max credits per profile per month (null = no limit)
-  aiAllowedModels      String[]           @default([]) // LLM models whitelisted by org admin
-  aiAgents             AiAgent[]
-  aiCapturedLeads      AiCapturedLead[]
-  apiKeys              ApiKey[]
-  auditLogs            AuditLog[]
-  bulkOperations       BulkOperation[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String?                 @unique
+  logo                   String?
+  createdAt              DateTime
+  metadata               Json?
+  paymentsCustomerId     String?
+  aiDefaultPersona       String?                 @db.Text
+  aiDefaultGreeting      String?
+  aiProfileLimit         Int? // Max credits per profile per month (null = no limit)
+  aiAllowedModels        String[]                @default([]) // LLM models whitelisted by org admin
+  aiAgents               AiAgent[]
+  aiCapturedLeads        AiCapturedLead[]
+  apiKeys                ApiKey[]
+  auditLogs              AuditLog[]
+  bulkOperations         BulkOperation[]
   integrationConnections IntegrationConnection[]
-  invitations          Invitation[]
-  members              Member[]
-  roles                OrganizationRole[]
-  purchases            Purchase[]
-  usageQuotas          UsageQuota[]
-  watchers             Watcher[]
-  webhooks             Webhook[]
-  customers            Customer[]
-  customerInvoices     CustomerInvoice[]
-  accessPoints         AccessPoint[]
-  ispNasServers        IspNas[]
-  ispRouters           IspRouter[]
-  ispDealers           IspDealer[]
-  ispDealerAccounts    IspDealerAccount[]
-  iRadiusSyncOps       IRadiusSyncOperation[]
-  iRadiusPushOps       IRadiusPushOperation[]
-  employees            Employee[]
-  servicePlans         ServicePlan[]
-  stations             Station[]
-  bases                Base[]
-  tasks                Task[]
-  billingMonths        BillingMonth[]
-  payments             Payment[]
-  cashCollections      CashCollection[]
-  expenses             Expense[]
-  recurringExpenses    RecurringExpense[]
-  financeCategories    FinanceCategory[]
-  financeRules         FinanceRule[]
-  dealerCharges        DealerCharge[]
-  stockItems           StockItem[]
-  stockLogs            StockLog[]
-  installations        Installation[]
-  followups            Followup[]
-  uninstalledItems     UninstalledItem[]
-  customerSetupRequests CustomerSetupRequest[]
-  stockRefundRequests  StockRefundRequest[]
-  billingSyncOps           BillingSyncOperation[]
-  noteCategories           NoteCategory[]
-  workerOptions            WorkerOption[]
-  syncConflicts            SyncConflict[]
-  saltiIntegration         SaltiIntegration?
-  marketingBroadcasts      MarketingBroadcast[]
-  savedViews               SavedView[]
+  invitations            Invitation[]
+  members                Member[]
+  roles                  OrganizationRole[]
+  purchases              Purchase[]
+  usageQuotas            UsageQuota[]
+  watchers               Watcher[]
+  webhooks               Webhook[]
+  customers              Customer[]
+  customerInvoices       CustomerInvoice[]
+  accessPoints           AccessPoint[]
+  ispNasServers          IspNas[]
+  ispRouters             IspRouter[]
+  ispDealers             IspDealer[]
+  ispDealerAccounts      IspDealerAccount[]
+  iRadiusSyncOps         IRadiusSyncOperation[]
+  iRadiusPushOps         IRadiusPushOperation[]
+  employees              Employee[]
+  servicePlans           ServicePlan[]
+  stations               Station[]
+  bases                  Base[]
+  tasks                  Task[]
+  billingMonths          BillingMonth[]
+  payments               Payment[]
+  cashCollections        CashCollection[]
+  expenses               Expense[]
+  recurringExpenses      RecurringExpense[]
+  financeCategories      FinanceCategory[]
+  financeRules           FinanceRule[]
+  dealerCharges          DealerCharge[]
+  stockItems             StockItem[]
+  suppliers              Supplier[]
+  stockLogs              StockLog[]
+  installations          Installation[]
+  followups              Followup[]
+  uninstalledItems       UninstalledItem[]
+  customerSetupRequests  CustomerSetupRequest[]
+  stockRefundRequests    StockRefundRequest[]
+  billingSyncOps         BillingSyncOperation[]
+  noteCategories         NoteCategory[]
+  workerOptions          WorkerOption[]
+  syncConflicts          SyncConflict[]
+  saltiIntegration       SaltiIntegration?
+  marketingBroadcasts    MarketingBroadcast[]
+  savedViews             SavedView[]
 
   // Dealer scope for queries through `getDealerScopeFilter` and friends.
   // When null, scoped queries match only orphan rows (`dealerId IS NULL`).
@@ -381,10 +382,10 @@ model Organization {
   // event below sends a Telegram message to that chat via the collector bot
   // (see notifyAdminTelegram in packages/api/lib/notify-employee.ts). All
   // default off so existing orgs stay silent until an admin opts in.
-  adminTelegramChatId        String?  @map("admin_telegram_chat_id")
-  alertOnWorkerRequest       Boolean  @default(false) @map("alert_on_worker_request")
-  alertOnPaymentCollected    Boolean  @default(false) @map("alert_on_payment_collected")
-  alertOnInstallationDone    Boolean  @default(false) @map("alert_on_installation_done")
+  adminTelegramChatId     String? @map("admin_telegram_chat_id")
+  alertOnWorkerRequest    Boolean @default(false) @map("alert_on_worker_request")
+  alertOnPaymentCollected Boolean @default(false) @map("alert_on_payment_collected")
+  alertOnInstallationDone Boolean @default(false) @map("alert_on_installation_done")
 
   // Worker task notifications. Each assigned worker is pinged in-app and on
   // Telegram (see notifyTaskWorkers in packages/api/modules/tasks/lib) for the
@@ -498,60 +499,60 @@ model UsageQuota {
 }
 
 model User {
-  id                  String          @id @default(cuid())
-  name                String
-  email               String          @unique
-  emailVerified       Boolean
-  image               String?
-  createdAt           DateTime
-  updatedAt           DateTime
-  username            String?         @unique
-  role                String?
-  banned              Boolean?
-  banReason           String?
-  banExpires          DateTime?
-  onboardingComplete  Boolean         @default(false)
-  paymentsCustomerId  String?
-  locale              String?
-  displayUsername     String?
-  twoFactorEnabled    Boolean?
-  deletionScheduledAt DateTime?
-  deletionReason      String?
-  accounts            Account[]
-  accountLockout      AccountLockout?
-  aiAgentsCreated     AiAgent[]      @relation("aiAgentCreator")
-  apiKeys             ApiKey[]
-  auditLogs           AuditLog[]
-  bulkOperations      BulkOperation[]
-  integrationConnections IntegrationConnection[]
-  invitations         Invitation[]
-  knownDevices        KnownDevice[]
-  loginAttempts       LoginAttempt[]
-  members             Member[]
-  notifications           Notification[]
-  notificationPreference  NotificationPreference?
-  passkeys                Passkey[]
-  purchases           Purchase[]
-  sessions            Session[]
-  twoFactors          TwoFactor[]
-  usageQuotas         UsageQuota[]
-  watchersCreated     Watcher[]          @relation("watcherCreator")
-  tasksCreated        Task[]             @relation("taskCreator")
-  employee            Employee?          @relation("EmployeeUser")
-  dealer              IspDealer?         @relation("DealerUser")
-  cashCollectionsReceived CashCollection[] @relation("CashReceiver")
-  expensesApproved    Expense[]          @relation("ExpenseApprover")
-  expensesCreated     Expense[]          @relation("ExpenseCreator")
-  recurringExpenses   RecurringExpense[] @relation("RecurringExpenseCreator")
-  stockLogsPerformed  StockLog[]         @relation("StockLogPerformer")
-  installationsApproved Installation[]   @relation("InstallationApprover")
-  uninstalledItemsReviewed UninstalledItem[] @relation("UninstalledItemReviewer")
-  setupRequestsReviewed CustomerSetupRequest[] @relation("SetupRequestReviewer")
-  stockRefundRequestsReviewed StockRefundRequest[] @relation("StockRefundReviewer")
-  resolvedConflicts     SyncConflict[]   @relation("ConflictResolver")
-  pushSubscriptions     PushSubscription[]
-  userPrefs             UserPref[]
-  savedViews            SavedView[]
+  id                          String                  @id @default(cuid())
+  name                        String
+  email                       String                  @unique
+  emailVerified               Boolean
+  image                       String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+  username                    String?                 @unique
+  role                        String?
+  banned                      Boolean?
+  banReason                   String?
+  banExpires                  DateTime?
+  onboardingComplete          Boolean                 @default(false)
+  paymentsCustomerId          String?
+  locale                      String?
+  displayUsername             String?
+  twoFactorEnabled            Boolean?
+  deletionScheduledAt         DateTime?
+  deletionReason              String?
+  accounts                    Account[]
+  accountLockout              AccountLockout?
+  aiAgentsCreated             AiAgent[]               @relation("aiAgentCreator")
+  apiKeys                     ApiKey[]
+  auditLogs                   AuditLog[]
+  bulkOperations              BulkOperation[]
+  integrationConnections      IntegrationConnection[]
+  invitations                 Invitation[]
+  knownDevices                KnownDevice[]
+  loginAttempts               LoginAttempt[]
+  members                     Member[]
+  notifications               Notification[]
+  notificationPreference      NotificationPreference?
+  passkeys                    Passkey[]
+  purchases                   Purchase[]
+  sessions                    Session[]
+  twoFactors                  TwoFactor[]
+  usageQuotas                 UsageQuota[]
+  watchersCreated             Watcher[]               @relation("watcherCreator")
+  tasksCreated                Task[]                  @relation("taskCreator")
+  employee                    Employee?               @relation("EmployeeUser")
+  dealer                      IspDealer?              @relation("DealerUser")
+  cashCollectionsReceived     CashCollection[]        @relation("CashReceiver")
+  expensesApproved            Expense[]               @relation("ExpenseApprover")
+  expensesCreated             Expense[]               @relation("ExpenseCreator")
+  recurringExpenses           RecurringExpense[]      @relation("RecurringExpenseCreator")
+  stockLogsPerformed          StockLog[]              @relation("StockLogPerformer")
+  installationsApproved       Installation[]          @relation("InstallationApprover")
+  uninstalledItemsReviewed    UninstalledItem[]       @relation("UninstalledItemReviewer")
+  setupRequestsReviewed       CustomerSetupRequest[]  @relation("SetupRequestReviewer")
+  stockRefundRequestsReviewed StockRefundRequest[]    @relation("StockRefundReviewer")
+  resolvedConflicts           SyncConflict[]          @relation("ConflictResolver")
+  pushSubscriptions           PushSubscription[]
+  userPrefs                   UserPref[]
+  savedViews                  SavedView[]
 
   @@map("user")
 }
@@ -620,33 +621,33 @@ model WebhookDelivery {
 // ============================================================================
 
 model IntegrationConnection {
-  id                String   @id @default(cuid())
-  organizationId    String
-  createdById       String
+  id             String @id @default(cuid())
+  organizationId String
+  createdById    String
 
   // Nango identifiers
-  providerConfigKey String   // "hubspot", "salesforce", "slack"
-  connectionId      String   // Nango's unique connection ID
+  providerConfigKey String // "hubspot", "salesforce", "slack"
+  connectionId      String // Nango's unique connection ID
 
   // Display
-  name              String?  // User-friendly name
-  providerName      String   // "HubSpot", "Salesforce"
+  name         String? // User-friendly name
+  providerName String // "HubSpot", "Salesforce"
 
   // Sync configuration (user-configurable)
-  syncMode          String   @default("manual") // "manual" | "auto"
-  autoSyncEvents    String[] @default([])       // ["contact.created", "contact.updated"]
+  syncMode       String   @default("manual") // "manual" | "auto"
+  autoSyncEvents String[] @default([]) // ["contact.created", "contact.updated"]
 
   // Status
-  status            String   @default("connected") // connected, error, disconnected
-  lastSyncAt        DateTime?
-  lastError         String?
+  status     String    @default("connected") // connected, error, disconnected
+  lastSyncAt DateTime?
+  lastError  String?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         User                    @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  syncOperations    ContactSyncOperation[]
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                   @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  syncOperations ContactSyncOperation[]
 
   @@unique([organizationId, providerConfigKey])
   @@index([organizationId])
@@ -656,29 +657,29 @@ model IntegrationConnection {
 }
 
 model ContactSyncOperation {
-  id            String   @id @default(cuid())
-  connectionId  String
+  id           String @id @default(cuid())
+  connectionId String
 
   // Operation details
-  type          String   // "push_single", "push_bulk", "sync_all"
-  status        String   @default("pending") // pending, processing, completed, failed
-  trigger       String?  // "manual", "contact.created", "contact.updated"
+  type    String // "push_single", "push_bulk", "sync_all"
+  status  String  @default("pending") // pending, processing, completed, failed
+  trigger String? // "manual", "contact.created", "contact.updated"
 
   // Counts
   totalContacts Int
-  successCount  Int      @default(0)
-  errorCount    Int      @default(0)
+  successCount  Int @default(0)
+  errorCount    Int @default(0)
 
   // Results
-  errors        Json?    // Array of {contactId, error} objects
-  result        Json?    // Provider response data
+  errors Json? // Array of {contactId, error} objects
+  result Json? // Provider response data
 
   // Timing
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
 
-  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@index([connectionId])
   @@index([status])
@@ -691,37 +692,48 @@ model ContactSyncOperation {
 // ============================================================================
 
 model AiAgent {
-  id               String           @id @default(cuid())
-  organizationId   String
-  name             String
-  description      String?
-  systemPrompt     String           @db.Text
-  greetingMessage  String?
-  model            String           @default("gpt-4o-mini")
-  knowledgeBase    String?          @db.Text
-  enabled             Boolean          @default(true)
-  maintenanceMode     Boolean          @default(false)
-  maintenanceMessage  String?          @db.Text
-  maxHistoryLength Int              @default(20)
-  temperature      Float            @default(0)
-  enabledTools     String[]         @default([])
-  promptSections   Json             @default("[]")
-  servicePlansEnabled        Boolean       @default(false)
-  servicePlanIds             String[]      @default([])
-  contextGapThresholdMinutes Int           @default(240)
-  humanTakeoverHours Float?          @map("human_takeover_hours")
-  webChatEnabled   Boolean          @default(false)
-  webChatToken     String?          @unique
-  createdById      String
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id                         String   @id @default(cuid())
+  organizationId             String
+  name                       String
+  description                String?
+  systemPrompt               String   @db.Text
+  greetingMessage            String?
+  model                      String   @default("gpt-4o-mini")
+  knowledgeBase              String?  @db.Text
+  enabled                    Boolean  @default(true)
+  maintenanceMode            Boolean  @default(false)
+  maintenanceMessage         String?  @db.Text
+  maxHistoryLength           Int      @default(20)
+  temperature                Float    @default(0)
+  enabledTools               String[] @default([])
+  promptSections             Json     @default("[]")
+  servicePlansEnabled        Boolean  @default(false)
+  servicePlanIds             String[] @default([])
+  contextGapThresholdMinutes Int      @default(240)
+  humanTakeoverHours         Float?   @map("human_takeover_hours")
+  // Working hours (Beirut wall clock). Outside them the bot still answers
+  // but never promises a same-day visit — see packages/ai/src/working-hours.ts.
+  workingHoursEnabled        Boolean  @default(false)
+  workingDays                Int[]    @default([1, 2, 3, 4, 5, 6])
+  workingHoursStart          String   @default("09:00")
+  workingHoursEnd            String   @default("18:00")
+  offDutyMessage             String?  @db.Text
+  // Follow up once when the customer goes quiet after a bot question.
+  // null = off. See packages/jobs/src/workers/ai-followup.worker.ts.
+  followUpMinutes            Int?
+  followUpMessage            String?  @db.Text
+  webChatEnabled             Boolean  @default(false)
+  webChatToken               String?  @unique
+  createdById                String
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User                  @relation("aiAgentCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  channels       AiAgentChannel[]
-  conversations  AiConversation[]
-  toolConfigs    AiAgentToolConfig[]
-  capturedLeads  AiCapturedLead[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User                  @relation("aiAgentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  channels           AiAgentChannel[]
+  conversations      AiConversation[]
+  toolConfigs        AiAgentToolConfig[]
+  capturedLeads      AiCapturedLead[]
   maintenanceWindows AiMaintenanceWindow[]
 
   @@index([organizationId])
@@ -731,10 +743,10 @@ model AiAgent {
 model AiAgentChannel {
   id                String    @id @default(cuid())
   agentId           String
-  provider          String    // "whatsapp" | "telegram"
+  provider          String // "whatsapp" | "telegram"
   name              String
   webhookToken      String    @unique
-  webhookSecret     String?   // For Telegram secret_token verification
+  webhookSecret     String? // For Telegram secret_token verification
   encryptedApiToken String    @db.Text
   providerMetadata  Json?
   enabled           Boolean   @default(true)
@@ -765,6 +777,9 @@ model AiConversation {
   pinLockedUntil     DateTime?
   humanTakeoverAt    DateTime? @map("human_takeover_at")
   unknownEscalatedAt DateTime? @map("unknown_escalated_at")
+  // One nudge per silence: set when the follow-up went out, cleared on the
+  // customer's next message.
+  followUpSentAt     DateTime? @map("follow_up_sent_at")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -786,33 +801,33 @@ model AiConversation {
 model AiMessage {
   id                 String    @id @default(cuid())
   conversationId     String
-  role               String    // "user" | "assistant" | "admin"
+  role               String // "user" | "assistant" | "admin"
   content            String    @db.Text
   externalMsgId      String?
   tokenCount         Int?
   latencyMs          Int?
   error              String?
-  toolCalls          Json?     // Legacy: Array of {toolName, args, result}. New writes use `parts`.
-  parts              Json?     // Canonical UIMessage parts array (text, tool-call, tool-result, reasoning). Source of truth for new messages.
+  toolCalls          Json? // Legacy: Array of {toolName, args, result}. New writes use `parts`.
+  parts              Json? // Canonical UIMessage parts array (text, tool-call, tool-result, reasoning). Source of truth for new messages.
   inputTokens        Int?
   outputTokens       Int?
   cacheReadTokens    Int?
   cacheWriteTokens   Int?
   replyToId          String?
-  deliveryStatus     String?   // "sent" | "delivered" | "read"
+  deliveryStatus     String? // "sent" | "delivered" | "read"
   editedAt           DateTime?
   deletedAt          DateTime?
-  attachmentType     String?   // "image" | "video" | "audio" | "document" | "location" | "sticker"
+  attachmentType     String? // "image" | "video" | "audio" | "document" | "location" | "sticker"
   attachmentUrl      String?
   attachmentFilename String?
   attachmentMimeType String?
   attachmentSize     Int?
-  attachmentMeta     Json?     // { width, height, duration, lat, lng, etc. }
+  attachmentMeta     Json? // { width, height, duration, lat, lng, etc. }
   createdAt          DateTime  @default(now())
 
-  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  replyTo      AiMessage?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies      AiMessage[]    @relation("MessageReplies")
+  conversation AiConversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo      AiMessage?          @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      AiMessage[]         @relation("MessageReplies")
   reactions    AiMessageReaction[]
 
   @@index([conversationId, createdAt])
@@ -900,26 +915,26 @@ model AiCapturedLead {
 // ============================================================================
 
 model Watcher {
-  id               String    @id @default(cuid())
-  organizationId   String
-  createdById      String
-  name             String
-  type             String    // "ping" | "http" | "port" | "dns"
-  target           String    // hostname, URL, or IP
-  config           Json?     // type-specific: { port, expectedStatus, method, recordType, etc. }
-  intervalSeconds  Int       // 60, 300, 900, 1800, 3600
-  enabled          Boolean   @default(true)
-  status           String    @default("unknown") // "up" | "down" | "unknown"
-  lastCheckedAt    DateTime?
-  lastStatusChange DateTime?
-  nextRunAt        DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  organizationId     String
+  createdById        String
+  name               String
+  type               String // "ping" | "http" | "port" | "dns"
+  target             String // hostname, URL, or IP
+  config             Json? // type-specific: { port, expectedStatus, method, recordType, etc. }
+  intervalSeconds    Int // 60, 300, 900, 1800, 3600
+  enabled            Boolean   @default(true)
+  status             String    @default("unknown") // "up" | "down" | "unknown"
+  lastCheckedAt      DateTime?
+  lastStatusChange   DateTime?
+  nextRunAt          DateTime  @default(now())
   notifiedDownAt     DateTime? // throttle: null = not notified yet for current incident
   notificationConfig Json?
   lastReminderAt     DateTime?
-  consecutiveFails Int       @default(0)
-  consecutiveOk    Int       @default(0)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  consecutiveFails   Int       @default(0)
+  consecutiveOk      Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy    User               @relation("watcherCreator", fields: [createdById], references: [id], onDelete: Cascade)
@@ -933,7 +948,7 @@ model Watcher {
 model WatcherExecution {
   id        String   @id @default(cuid())
   watcherId String
-  status    String   // "up" | "down"
+  status    String // "up" | "down"
   latencyMs Int?
   message   String?
   metadata  Json?
@@ -976,43 +991,43 @@ enum StationStatus {
 }
 
 model ServicePlan {
-  id              String   @id @default(cuid())
-  organizationId  String
-  externalId      String?
-  name            String
-  description     String?
-  downloadSpeed   Int // Mbps
-  uploadSpeed     Int // Mbps
-  monthlyPrice    Float
-  validityPeriod  Int?     // Days the plan is valid
-  monthlyQuota    Int?     // Combined monthly quota (GB)
-  dailyQuotaUp    Int?     // Separate daily upload limit
-  dailyQuotaDown  Int?     // Separate daily download limit
-  ipPoolName      String?  // RADIUS IP pool name
-  maxUsers        Int?     // Simultaneous connections allowed
-  visible          Boolean  @default(true) // Shown on customer-facing UI
-  commission       Float    @default(0)
-  parentCommission Float    @default(0)
-  dealerExternalId String?  // iRadius DealerId (legacy, use dealerId)
-  dealerId         String?
-  archived         Boolean  @default(false)
+  id                         String    @id @default(cuid())
+  organizationId             String
+  externalId                 String?
+  name                       String
+  description                String?
+  downloadSpeed              Int // Mbps
+  uploadSpeed                Int // Mbps
+  monthlyPrice               Float
+  validityPeriod             Int? // Days the plan is valid
+  monthlyQuota               Int? // Combined monthly quota (GB)
+  dailyQuotaUp               Int? // Separate daily upload limit
+  dailyQuotaDown             Int? // Separate daily download limit
+  ipPoolName                 String? // RADIUS IP pool name
+  maxUsers                   Int? // Simultaneous connections allowed
+  visible                    Boolean   @default(true) // Shown on customer-facing UI
+  commission                 Float     @default(0)
+  parentCommission           Float     @default(0)
+  dealerExternalId           String? // iRadius DealerId (legacy, use dealerId)
+  dealerId                   String?
+  archived                   Boolean   @default(false)
   // iRadius AccountType fields
-  rate                       Float?   // Wholesale rate (AccountType.Rate)
-  sellingPrice               Float?   // Dealer selling price (AccountType.SellingPrice)
-  autoBindAccToMac           Boolean  @default(false)
-  refundable                 Boolean  @default(false)
-  refundableByGb             Boolean  @default(false)
-  canChangeMac               Boolean  @default(false)
-  canChangeUserName          Boolean  @default(false)
-  immediateRecharge          Boolean  @default(false)
-  preventBeforeRecharge      Boolean  @default(false)
+  rate                       Float? // Wholesale rate (AccountType.Rate)
+  sellingPrice               Float? // Dealer selling price (AccountType.SellingPrice)
+  autoBindAccToMac           Boolean   @default(false)
+  refundable                 Boolean   @default(false)
+  refundableByGb             Boolean   @default(false)
+  canChangeMac               Boolean   @default(false)
+  canChangeUserName          Boolean   @default(false)
+  immediateRecharge          Boolean   @default(false)
+  preventBeforeRecharge      Boolean   @default(false)
   totalSession               Int?
   totalSessionPeriodTypeId   Int?
   validityPeriodTypeId       Int?
   separateMaxMonthlyUp       Int?
   separateMaxMonthlyDown     Int?
   monthlyPoolAfterMax        String?
-  ulDlForAutoFallBack        Boolean  @default(false)
+  ulDlForAutoFallBack        Boolean   @default(false)
   unlimitedTimeTo            String?
   unlimitedTimeFrom          String?
   newIpPoolAfterMax          String?
@@ -1026,28 +1041,28 @@ model ServicePlan {
   monthlyFallbackMb          Int?
   resetCounterTime           String?
   expiryAccountPool          String?
-  ulDlMonthlyForAutoFallBack Boolean  @default(false)
+  ulDlMonthlyForAutoFallBack Boolean   @default(false)
   disablePoolName            String?
   proceraId                  Int?
   expiryProceraId            Int?
   accountTypeCategory        Int?
   adminId                    Int?
-  canExcludeQuotaByIpAddress Boolean  @default(false)
+  canExcludeQuotaByIpAddress Boolean   @default(false)
   fupResetPrice              Float?
   addressListId              Int?
   defaultAddressListIds      Int?
-  queueTreeMode              Boolean  @default(false)
-  iRadiusNasId               Int?     // AccountType.NasId (iRadius FK, not our FK)
-  lastSyncedAt    DateTime?
+  queueTreeMode              Boolean   @default(false)
+  iRadiusNasId               Int? // AccountType.NasId (iRadius FK, not our FK)
+  lastSyncedAt               DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the corresponding
   // AccountType row is no longer present in iRadius. Cleared on restore.
-  deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  deletedAt                  DateTime?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  dealer       IspDealer?   @relation(fields: [dealerId], references: [id], onDelete: SetNull)
-  customers    Customer[]
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer         IspDealer?          @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  customers      Customer[]
   // Per-worker visibility for the worker custom portal. Empty = visible to
   // no one; non-empty restricts to the listed workers.
   visibleWorkers ServicePlanWorker[]
@@ -1084,18 +1099,18 @@ model Station {
   status         StationStatus @default(ACTIVE)
   capacity       Int?
   notes          String?
-  host           String?       // IP for API access
-  apiPort        Int?          // MikroTik API port
-  sshPort        Int?          // SSH port
-  vlanId         Int?          // VLAN assignment
-  version        String?       // Firmware version
-  uptime         String?       // Last known uptime
-  sshUsername    String?       // SSH login username
-  sshPassword   String?       // SSH login password
-  apUsername     String?       // Access point API username
-  apPassword     String?       // Access point API password
-  apApiPort      Int?          // Access point API port
-  apSshPort      Int?          // Access point SSH port
+  host           String? // IP for API access
+  apiPort        Int? // MikroTik API port
+  sshPort        Int? // SSH port
+  vlanId         Int? // VLAN assignment
+  version        String? // Firmware version
+  uptime         String? // Last known uptime
+  sshUsername    String? // SSH login username
+  sshPassword    String? // SSH login password
+  apUsername     String? // Access point API username
+  apPassword     String? // Access point API password
+  apApiPort      Int? // Access point API port
+  apSshPort      Int? // Access point SSH port
   // iRadius monitoring fields
   boardName      String?
   cpuLoad        String?
@@ -1134,10 +1149,10 @@ model Base {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  dealer       IspDealer?     @relation(fields: [dealerId], references: [id], onDelete: SetNull)
-  workers      BaseEmployee[]
-  tasks        Task[]
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealer        IspDealer?     @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  workers       BaseEmployee[]
+  tasks         Task[]
   installations Installation[]
 
   @@index([organizationId])
@@ -1161,28 +1176,28 @@ model BaseEmployee {
 }
 
 model AccessPoint {
-  id             String   @id @default(cuid())
-  organizationId String
-  stationId      String?
-  externalId     String?
-  name           String
-  macAddress     String?
-  ipAddress      String?
-  signal         String?
-  boardName      String?
-  version        String?
-  interface      String?  // Network interface name
-  uptime         String?  // Last known uptime
-  isUbiquiti      Boolean  @default(false) // Ubiquiti equipment
-  online          Boolean  @default(false)
-  autoNegotiation Boolean  @default(false)
-  fullDuplex      Boolean  @default(false)
-  scanStatus      Boolean  @default(false)
+  id              String    @id @default(cuid())
+  organizationId  String
+  stationId       String?
+  externalId      String?
+  name            String
+  macAddress      String?
+  ipAddress       String?
+  signal          String?
+  boardName       String?
+  version         String?
+  interface       String? // Network interface name
+  uptime          String? // Last known uptime
+  isUbiquiti      Boolean   @default(false) // Ubiquiti equipment
+  online          Boolean   @default(false)
+  autoNegotiation Boolean   @default(false)
+  fullDuplex      Boolean   @default(false)
+  scanStatus      Boolean   @default(false)
   lastSyncedAt    DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the row is no longer in iRadius.
   deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
@@ -1197,160 +1212,160 @@ model AccessPoint {
 }
 
 model Customer {
-  id                String          @id @default(cuid())
-  organizationId    String
-  accountNumber     String
-  firstName         String?
-  lastName          String?
-  email             String?
-  phone             String?         // iRadius User.Phone (legacy, kept for sync)
-  mobile            String?         // Cached primary phone (auto-set from phones array)
-  phones            Json            @default("[]") // [{ number: string, primary: boolean }]
-  address           String?
-  username          String?
-  planId            String?
-  stationId         String?
-  accessPointId     String?
-  status            CustomerStatus  @default(ACTIVE)
-  connectionType    ConnectionType?
-  ipAddress         String?
-  macAddress        String?
-  monthlyRate       Float?
-  balance           Float           @default(0)
-  notes             String?         @db.Text
-  pin               String?
-  pinHash           String?
-  externalId        String?
+  id                              String          @id @default(cuid())
+  organizationId                  String
+  accountNumber                   String
+  firstName                       String?
+  lastName                        String?
+  email                           String?
+  phone                           String? // iRadius User.Phone (legacy, kept for sync)
+  mobile                          String? // Cached primary phone (auto-set from phones array)
+  phones                          Json            @default("[]") // [{ number: string, primary: boolean }]
+  address                         String?
+  username                        String?
+  planId                          String?
+  stationId                       String?
+  accessPointId                   String?
+  status                          CustomerStatus  @default(ACTIVE)
+  connectionType                  ConnectionType?
+  ipAddress                       String?
+  macAddress                      String?
+  monthlyRate                     Float?
+  balance                         Float           @default(0)
+  notes                           String?         @db.Text
+  pin                             String?
+  pinHash                         String?
+  externalId                      String?
   // Subscription lifecycle
-  activatedAt       DateTime?
-  expiresAt         DateTime?
+  activatedAt                     DateTime?
+  expiresAt                       DateTime?
   // Network details
-  staticIp          String?
-  nasHost           String?
-  mikrotikUser      String?
-  mikrotikInterface String?
-  online            Boolean         @default(false)
+  staticIp                        String?
+  nasHost                         String?
+  mikrotikUser                    String?
+  mikrotikInterface               String?
+  online                          Boolean         @default(false)
   // Usage tracking
-  downloadBytes      BigInt          @default(0)
-  uploadBytes        BigInt          @default(0)
-  dailyDownloadBytes BigInt          @default(0)
-  dailyUploadBytes   BigInt          @default(0)
+  downloadBytes                   BigInt          @default(0)
+  uploadBytes                     BigInt          @default(0)
+  dailyDownloadBytes              BigInt          @default(0)
+  dailyUploadBytes                BigInt          @default(0)
   // Stamp from the 15s online + usage sync. Bumped on every tick that includes
   // this externalId in iRadius's snapshot, even when bytes don't change — so
   // the UI can tell "fresh sample" from "frozen value because iRadius dropped
   // this customer from un.Active = 1".
-  lastUsageSyncAt    DateTime?
+  lastUsageSyncAt                 DateTime?
   // Baseline snapshot of downloadBytes/uploadBytes at the start of the current
   // billing cycle (set on activation, re-stamped on renewal when iRadius's
   // ActivatedAccount bumps forward). Monthly usage = downloadBytes - this
   // baseline. Nullable until first activation event is observed.
-  cycleStartedAt          DateTime?
-  cycleStartDownloadBytes BigInt    @default(0)
-  cycleStartUploadBytes   BigInt    @default(0)
-  fupMode            String?
-  automaticRenew     Boolean         @default(false)
+  cycleStartedAt                  DateTime?
+  cycleStartDownloadBytes         BigInt          @default(0)
+  cycleStartUploadBytes           BigInt          @default(0)
+  fupMode                         String?
+  automaticRenew                  Boolean         @default(false)
   // Pricing
-  discount           Float           @default(0)
-  iptvPrice          Float           @default(0)
-  realIpPrice        Float           @default(0)
+  discount                        Float           @default(0)
+  iptvPrice                       Float           @default(0)
+  realIpPrice                     Float           @default(0)
   // Geo
-  latitude          Float?
-  longitude         Float?
+  latitude                        Float?
+  longitude                       Float?
   // Classification
-  categoryName      String?
-  groupName         String?
-  groupExternalId   Int?             // iRadius User.UserGroupId — names aren't unique, FK is needed for mirror writes
-  collectorName     String?
-  collectorPhone    String?
+  categoryName                    String?
+  groupName                       String?
+  groupExternalId                 Int? // iRadius User.UserGroupId — names aren't unique, FK is needed for mirror writes
+  collectorName                   String?
+  collectorPhone                  String?
   // Foreign keys (resolved from iRadius)
-  dealerId           String?
-  collectorId        String?
-  workerId           String?          @map("worker_id")
-  nasId              String?
-  originalCreatedAt  DateTime?
+  dealerId                        String?
+  collectorId                     String?
+  workerId                        String?         @map("worker_id")
+  nasId                           String?
+  originalCreatedAt               DateTime?
   // iRadius User fields
-  mof                    String?         // Tax registration (MOF)
-  lastLogin              DateTime?
-  lastLogOut             DateTime?
-  autoGenerateInvoice    Boolean         @default(false)
-  financialCategoryId    Int?
-  linkId                 Int?
-  canResetAccount        Boolean         @default(false)
-  collectorResetMac      Boolean         @default(false)
-  collectorCanShowLinks  Boolean         @default(false)
-  readOnly               Boolean         @default(false)
+  mof                             String? // Tax registration (MOF)
+  lastLogin                       DateTime?
+  lastLogOut                      DateTime?
+  autoGenerateInvoice             Boolean         @default(false)
+  financialCategoryId             Int?
+  linkId                          Int?
+  canResetAccount                 Boolean         @default(false)
+  collectorResetMac               Boolean         @default(false)
+  collectorCanShowLinks           Boolean         @default(false)
+  readOnly                        Boolean         @default(false)
   // iRadius UserNas fields
-  nasAccountId                  Int?            // UserNas.Id
-  freeDownloadBytes             BigInt          @default(0)
-  freeUploadBytes               BigInt          @default(0)
-  extraDaysToAddOnRefill        Int?
-  extraDaysToDeductOnRefill     Int?
-  addedHours                    Int?
-  extraUploadGb                 Float?
-  extraDownloadGb               Float?
-  canShowTrafficDetails         Boolean         @default(false)
-  oldAccountTypeId              Int?
-  forwardAccountTypeId          Int?
-  conditionAccountTypeId        Int?
-  deductMoney                   Float?
-  reachMaxQuota                 Boolean         @default(false)
-  tempUser                      Boolean         @default(false)
-  tempExpiryAccount             DateTime?
-  mikrotikQueue                 String?
-  wirelessInterface             String?
-  routerBrandPrefix             String?
-  overrideExpiryAccount         DateTime?
-  forceExpiryAfterDays          Int?
-  forceOverrideImmediateRecharge Boolean       @default(false)
-  overrideImmediateRecharge     Boolean         @default(false)
-  forceAutoBindAccToMac         Boolean         @default(false)
-  overrideAutoBindAccToMac      Boolean         @default(false)
-  simultaneous                  Boolean         @default(false)
-  apElectrical                  Boolean         @default(false)
-  excludeDailyDownloadBytes     BigInt          @default(0)
-  excludeDailyUploadBytes       BigInt          @default(0)
-  excludeMonthlyDownloadBytes   BigInt          @default(0)
-  excludeMonthlyUploadBytes     BigInt          @default(0)
-  freeDailyDownloadBytes        BigInt          @default(0)
-  freeDailyUploadBytes          BigInt          @default(0)
-  excludeFreeDailyDownloadBytes   BigInt        @default(0)
-  excludeFreeMonthlyDownloadBytes BigInt        @default(0)
-  excludeFreeDailyUploadBytes     BigInt        @default(0)
-  excludeFreeMonthlyUploadBytes   BigInt        @default(0)
-  nasLastLogOut                 DateTime?
-  mikrotikInterface1            String?
-  lastSyncedAt      DateTime?
+  nasAccountId                    Int? // UserNas.Id
+  freeDownloadBytes               BigInt          @default(0)
+  freeUploadBytes                 BigInt          @default(0)
+  extraDaysToAddOnRefill          Int?
+  extraDaysToDeductOnRefill       Int?
+  addedHours                      Int?
+  extraUploadGb                   Float?
+  extraDownloadGb                 Float?
+  canShowTrafficDetails           Boolean         @default(false)
+  oldAccountTypeId                Int?
+  forwardAccountTypeId            Int?
+  conditionAccountTypeId          Int?
+  deductMoney                     Float?
+  reachMaxQuota                   Boolean         @default(false)
+  tempUser                        Boolean         @default(false)
+  tempExpiryAccount               DateTime?
+  mikrotikQueue                   String?
+  wirelessInterface               String?
+  routerBrandPrefix               String?
+  overrideExpiryAccount           DateTime?
+  forceExpiryAfterDays            Int?
+  forceOverrideImmediateRecharge  Boolean         @default(false)
+  overrideImmediateRecharge       Boolean         @default(false)
+  forceAutoBindAccToMac           Boolean         @default(false)
+  overrideAutoBindAccToMac        Boolean         @default(false)
+  simultaneous                    Boolean         @default(false)
+  apElectrical                    Boolean         @default(false)
+  excludeDailyDownloadBytes       BigInt          @default(0)
+  excludeDailyUploadBytes         BigInt          @default(0)
+  excludeMonthlyDownloadBytes     BigInt          @default(0)
+  excludeMonthlyUploadBytes       BigInt          @default(0)
+  freeDailyDownloadBytes          BigInt          @default(0)
+  freeDailyUploadBytes            BigInt          @default(0)
+  excludeFreeDailyDownloadBytes   BigInt          @default(0)
+  excludeFreeMonthlyDownloadBytes BigInt          @default(0)
+  excludeFreeDailyUploadBytes     BigInt          @default(0)
+  excludeFreeMonthlyUploadBytes   BigInt          @default(0)
+  nasLastLogOut                   DateTime?
+  mikrotikInterface1              String?
+  lastSyncedAt                    DateTime?
   // Soft-delete marker. Set by the iRadius sync when the corresponding User
   // row (ProfileId=4) is no longer present in iRadius, or when the customer's
   // ParentId moves outside the org's allowed dealer subtree (cross-dealer
   // guard). Cleared on next sync if the row is seen again ("restored").
   // Hard-deleting customers would cascade-wipe payments and installations, so
   // soft-delete is the only safe option here.
-  deletedAt         DateTime?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  deletedAt                       DateTime?
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime        @updatedAt
 
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  plan           ServicePlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
-  station        Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
-  accessPoint    AccessPoint?     @relation(fields: [accessPointId], references: [id], onDelete: SetNull)
-  dealer         IspDealer?       @relation(fields: [dealerId], references: [id], onDelete: SetNull)
-  collector      Employee?        @relation("CustomerCollector", fields: [collectorId], references: [id], onDelete: SetNull)
-  worker         Employee?        @relation("CustomerWorker", fields: [workerId], references: [id], onDelete: SetNull)
-  nas            IspNas?          @relation(fields: [nasId], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         ServicePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  accessPoint  AccessPoint? @relation(fields: [accessPointId], references: [id], onDelete: SetNull)
+  dealer       IspDealer?   @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  collector    Employee?    @relation("CustomerCollector", fields: [collectorId], references: [id], onDelete: SetNull)
+  worker       Employee?    @relation("CustomerWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  nas          IspNas?      @relation(fields: [nasId], references: [id], onDelete: SetNull)
 
   locationRequestedAt DateTime?
 
-  tasks          Task[]
-  conversations  AiConversation[]
-  invoices       CustomerInvoice[]
-  payments       Payment[]
-  referredPayments Payment[] @relation("PaymentReferrer")
-  installations  Installation[]
-  followups      Followup[]
-  setupRequest   CustomerSetupRequest?
-  syncConflicts  SyncConflict[]
-  locationRequests LocationRequest[]
+  tasks             Task[]
+  conversations     AiConversation[]
+  invoices          CustomerInvoice[]
+  payments          Payment[]
+  referredPayments  Payment[]                     @relation("PaymentReferrer")
+  installations     Installation[]
+  followups         Followup[]
+  setupRequest      CustomerSetupRequest?
+  syncConflicts     SyncConflict[]
+  locationRequests  LocationRequest[]
   marketingMessages MarketingBroadcastRecipient[]
 
   @@unique([organizationId, accountNumber])
@@ -1424,33 +1439,33 @@ model CustomerInvoice {
 }
 
 model IspNas {
-  id             String   @id @default(cuid())
-  organizationId String
-  externalId     String?
-  name           String
-  host           String?
-  sharedSecret   String?
-  apiPort        Int?
-  active         Boolean  @default(true)
+  id                       String    @id @default(cuid())
+  organizationId           String
+  externalId               String?
+  name                     String
+  host                     String?
+  sharedSecret             String?
+  apiPort                  Int?
+  active                   Boolean   @default(true)
   // iRadius Nas fields
   description              String?
   apiUserName              String?
   apiPassword              String?
   onlineUsers              Int?
-  faultSession             Boolean  @default(false)
+  faultSession             Boolean   @default(false)
   countFaultSession        Int?
   minutesToRemoveNasFilter Int?
   nasTypeId                Int?
   adminId                  Int?
-  mikrotikNewVersion       Boolean  @default(false)
+  mikrotikNewVersion       Boolean   @default(false)
   sshPort                  Int?
   sshUserName              String?
   sshPassword              String?
-  lastSyncedAt   DateTime?
+  lastSyncedAt             DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the row is no longer in iRadius.
-  deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customers    Customer[]
@@ -1462,7 +1477,7 @@ model IspNas {
 }
 
 model IspRouter {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   externalId     String?
   name           String
@@ -1473,8 +1488,8 @@ model IspRouter {
   lastSyncedAt   DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the row is no longer in iRadius.
   deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
@@ -1487,34 +1502,34 @@ model IspRouter {
 }
 
 model IspDealer {
-  id                   String         @id @default(cuid())
-  organizationId       String?
-  externalId           String?        @unique
-  name                 String
-  username             String?
-  email                String?
-  phone                String?
-  companyName          String?
-  companyAddress       String?
-  companyPhone         String?
-  companyMobile        String?
-  companyVatNumber     String?
-  credit               Float          @default(0)
-  commission           Float          @default(0)
-  smsSenderId          String?
-  notificationAmount   Float?
-  fupResetPrice        Float?
-  extraOneGbPrice      Float?
-  extraOneGbCommission Float?
-  canShowRate          Boolean        @default(false)
-  canShowSpeed         Boolean        @default(false)
-  noCharge             Boolean        @default(false)
-  canSendMail          Boolean        @default(false)
-  canSendSms           Boolean        @default(false)
-  canExportToExcel     Boolean        @default(false)
-  canAddDealer         Boolean        @default(false)
-  canDeleteUser        Boolean        @default(false)
-  canChangeAccountType Boolean        @default(false)
+  id                      String         @id @default(cuid())
+  organizationId          String?
+  externalId              String?        @unique
+  name                    String
+  username                String?
+  email                   String?
+  phone                   String?
+  companyName             String?
+  companyAddress          String?
+  companyPhone            String?
+  companyMobile           String?
+  companyVatNumber        String?
+  credit                  Float          @default(0)
+  commission              Float          @default(0)
+  smsSenderId             String?
+  notificationAmount      Float?
+  fupResetPrice           Float?
+  extraOneGbPrice         Float?
+  extraOneGbCommission    Float?
+  canShowRate             Boolean        @default(false)
+  canShowSpeed            Boolean        @default(false)
+  noCharge                Boolean        @default(false)
+  canSendMail             Boolean        @default(false)
+  canSendSms              Boolean        @default(false)
+  canExportToExcel        Boolean        @default(false)
+  canAddDealer            Boolean        @default(false)
+  canDeleteUser           Boolean        @default(false)
+  canChangeAccountType    Boolean        @default(false)
   // iRadius Dealer extra fields
   notifyBefore3Days       Boolean        @default(false)
   notifyBefore2Days       Boolean        @default(false)
@@ -1524,29 +1539,29 @@ model IspDealer {
   userNotification        Boolean        @default(false)
   canMonitorLog           Boolean        @default(false)
   chargeIfNotExpiry       Boolean        @default(false)
-  parentDealerId       String?
-  userId               String?        @unique
-  status               CustomerStatus @default(ACTIVE)
-  lastSyncedAt         DateTime?
+  parentDealerId          String?
+  userId                  String?        @unique
+  status                  CustomerStatus @default(ACTIVE)
+  lastSyncedAt            DateTime?
   // Soft-delete marker set by the global dealer sync (dealers-only mode) when
   // the corresponding User row (ProfileId=2) is no longer present in iRadius.
   // Hard-delete is avoided because deleting a dealer would cascade-wipe its
   // IspDealerAccount rows (real financial history).
-  deletedAt            DateTime?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  deletedAt               DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
 
-  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  user           User?             @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
-  parentDealer   IspDealer?        @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
-  childDealers   IspDealer[]       @relation("DealerHierarchy")
-  customers      Customer[]
-  employees      Employee[]
-  servicePlans   ServicePlan[]
-  bases          Base[]
-  dealerAccounts         IspDealerAccount[]
-  charges                DealerCharge[]
-  activeForOrganization  Organization?       @relation("ActiveDealer")
+  organization          Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user                  User?              @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
+  parentDealer          IspDealer?         @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
+  childDealers          IspDealer[]        @relation("DealerHierarchy")
+  customers             Customer[]
+  employees             Employee[]
+  servicePlans          ServicePlan[]
+  bases                 Base[]
+  dealerAccounts        IspDealerAccount[]
+  charges               DealerCharge[]
+  activeForOrganization Organization?      @relation("ActiveDealer")
 
   @@unique([email])
   @@index([organizationId])
@@ -1609,7 +1624,7 @@ model IRadiusSyncOperation {
   completedAt             DateTime?
   createdAt               DateTime  @default(now())
 
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   conflicts    SyncConflict[]
 
   @@index([organizationId])
@@ -1617,19 +1632,19 @@ model IRadiusSyncOperation {
 }
 
 model IRadiusPushOperation {
-  id                  String    @id @default(cuid())
-  organizationId      String
-  status              String    @default("pending")
-  phase               String?
-  totalCustomers      Int       @default(0)
-  processedCustomers  Int       @default(0)
-  pushedCustomers     Int       @default(0)
-  skippedCustomers    Int       @default(0)
-  failedCustomers     Int       @default(0)
-  result              Json?
-  startedAt           DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  organizationId     String
+  status             String    @default("pending")
+  phase              String?
+  totalCustomers     Int       @default(0)
+  processedCustomers Int       @default(0)
+  pushedCustomers    Int       @default(0)
+  skippedCustomers   Int       @default(0)
+  failedCustomers    Int       @default(0)
+  result             Json?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1642,7 +1657,7 @@ model SyncConflict {
   organizationId  String
   syncOperationId String
   customerId      String
-  externalId      String    // iRadius User.Id as string
+  externalId      String // iRadius User.Id as string
   // JSON: Record<fieldName, { local: string | null, remote: string | null, resolution: "keep_local" | "keep_remote" | null }>
   fields          Json
   status          String    @default("pending") // "pending" | "resolved"
@@ -1650,10 +1665,10 @@ model SyncConflict {
   resolvedById    String?
   createdAt       DateTime  @default(now())
 
-  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  syncOperation  IRadiusSyncOperation @relation(fields: [syncOperationId], references: [id], onDelete: Cascade)
-  customer       Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  resolvedBy     User?                @relation("ConflictResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  syncOperation IRadiusSyncOperation @relation(fields: [syncOperationId], references: [id], onDelete: Cascade)
+  customer      Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  resolvedBy    User?                @relation("ConflictResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@unique([syncOperationId, customerId])
   @@index([organizationId, status])
@@ -1693,7 +1708,6 @@ model BillingSyncOperation {
   @@index([organizationId])
   @@map("billing_sync_operation")
 }
-
 
 // ============================================================================
 // EMPLOYEE & TASK MANAGEMENT MODELS
@@ -1753,55 +1767,55 @@ enum TaskSource {
 }
 
 model Employee {
-  id             String             @id @default(cuid())
-  organizationId String
-  employeeNumber String
-  name           String
-  email          String?
-  phone          String?
-  position       String?
-  department     EmployeeDepartment?
-  hireDate       DateTime?
-  status         EmployeeStatus     @default(ACTIVE)
-  notes          String?            @db.Text
-  externalId     String?
-  iRadiusProfile String?
-  username        String?
-  preferredLayout String            @default("standard") @map("preferred_layout")
-  telegramChatId  String?           @map("telegram_chat_id")
+  id                String              @id @default(cuid())
+  organizationId    String
+  employeeNumber    String
+  name              String
+  email             String?
+  phone             String?
+  position          String?
+  department        EmployeeDepartment?
+  hireDate          DateTime?
+  status            EmployeeStatus      @default(ACTIVE)
+  notes             String?             @db.Text
+  externalId        String?
+  iRadiusProfile    String?
+  username          String?
+  preferredLayout   String              @default("standard") @map("preferred_layout")
+  telegramChatId    String?             @map("telegram_chat_id")
   // One-time token minted by the "Connect Telegram" flow. The collector bot's
   // /start handler resolves it to this employee and writes telegramChatId.
-  telegramLinkToken String?         @unique @map("telegram_link_token")
-  userId          String?           @unique
-  dealerId        String?
-  lastSyncedAt   DateTime?
+  telegramLinkToken String?             @unique @map("telegram_link_token")
+  userId            String?             @unique
+  dealerId          String?
+  lastSyncedAt      DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the corresponding
   // User row (ProfileId IN 1,3,6,7,8) is no longer present in iRadius.
   // Hard-delete is avoided because Payment.collectorId / workerId references
   // may exist and the related User account often outlives the iRadius row.
-  deletedAt      DateTime?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  deletedAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user                  User?                 @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
-  dealer                IspDealer?            @relation(fields: [dealerId], references: [id], onDelete: SetNull)
-  stations              EmployeeStation[]
-  bases                 BaseEmployee[]
-  taskAssignments       TaskAssignment[]
-  customerCollections   Customer[]            @relation("CustomerCollector")
-  customerWorkerAssignments Customer[]        @relation("CustomerWorker")
-  paymentsCollected     Payment[]             @relation("PaymentCollector")
-  paymentsAsWorker      Payment[]             @relation("PaymentWorker")
-  cashCollections       CashCollection[]      @relation("CashCollector")
-  expensesSubmitted     Expense[]             @relation("ExpenseSubmitter")
-  workerStock           WorkerStock[]
-  stockLogs             StockLog[]
-  installationsDone     Installation[]        @relation("Installer")
-  tasksCompleted        Task[]                @relation("TaskCompleter")
-  setupRequests         CustomerSetupRequest[] @relation("SetupRequester")
-  stockRefundRequests   StockRefundRequest[]  @relation("StockRefundRequester")
-  visiblePlans          ServicePlanWorker[]
+  organization              Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                      User?                  @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  dealer                    IspDealer?             @relation(fields: [dealerId], references: [id], onDelete: SetNull)
+  stations                  EmployeeStation[]
+  bases                     BaseEmployee[]
+  taskAssignments           TaskAssignment[]
+  customerCollections       Customer[]             @relation("CustomerCollector")
+  customerWorkerAssignments Customer[]             @relation("CustomerWorker")
+  paymentsCollected         Payment[]              @relation("PaymentCollector")
+  paymentsAsWorker          Payment[]              @relation("PaymentWorker")
+  cashCollections           CashCollection[]       @relation("CashCollector")
+  expensesSubmitted         Expense[]              @relation("ExpenseSubmitter")
+  workerStock               WorkerStock[]
+  stockLogs                 StockLog[]
+  installationsDone         Installation[]         @relation("Installer")
+  tasksCompleted            Task[]                 @relation("TaskCompleter")
+  setupRequests             CustomerSetupRequest[] @relation("SetupRequester")
+  stockRefundRequests       StockRefundRequest[]   @relation("StockRefundRequester")
+  visiblePlans              ServicePlanWorker[]
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -1830,45 +1844,45 @@ model EmployeeStation {
 }
 
 model Task {
-  id             String       @id @default(cuid())
-  organizationId String
-  title          String
-  description    String?      @db.Text
-  priority       TaskPriority @default(MEDIUM)
-  status         TaskStatus   @default(OPEN)
-  category       TaskCategory @default(GENERAL)
-  source         TaskSource   @default(MANUAL)
-  dueDate        DateTime?
-  completedAt    DateTime?
-  notes          String?      @db.Text
-  createdById    String?
-  customerId     String?
-  stationId      String?
-  baseId         String?
-  conversationId String?
-  followUpStatus String?        // pending | contacted | promised | resolved | escalated
-  externalBillingId Int?        @map("external_billing_id")
+  id                    String       @id @default(cuid())
+  organizationId        String
+  title                 String
+  description           String?      @db.Text
+  priority              TaskPriority @default(MEDIUM)
+  status                TaskStatus   @default(OPEN)
+  category              TaskCategory @default(GENERAL)
+  source                TaskSource   @default(MANUAL)
+  dueDate               DateTime?
+  completedAt           DateTime?
+  notes                 String?      @db.Text
+  createdById           String?
+  customerId            String?
+  stationId             String?
+  baseId                String?
+  conversationId        String?
+  followUpStatus        String? // pending | contacted | promised | resolved | escalated
+  externalBillingId     Int?         @map("external_billing_id")
   // Add-ons (IPTV / Real IP) the worker should set up on this visit. Values are
   // AddonType strings ("IPTV", "REAL_IP"). Empty for tasks with no add-on work.
-  requestedAddons String[]      @default([]) @map("requested_addons")
+  requestedAddons       String[]     @default([]) @map("requested_addons")
   // Field-work completion evidence (worker portal)
-  resolutionCode        String?   // canned-reply key, see packages/api/modules/tasks/lib/resolutions.ts
-  resolutionNote        String?   @db.Text
+  resolutionCode        String? // canned-reply key, see packages/api/modules/tasks/lib/resolutions.ts
+  resolutionNote        String?      @db.Text
   completionPhotoUrl    String?
   completedByEmployeeId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User?            @relation("taskCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  customer     Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  station      Station?         @relation(fields: [stationId], references: [id], onDelete: SetNull)
-  base         Base?            @relation(fields: [baseId], references: [id], onDelete: SetNull)
-  conversation AiConversation?  @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  completedByEmployee Employee? @relation("TaskCompleter", fields: [completedByEmployeeId], references: [id], onDelete: SetNull)
-  assignments  TaskAssignment[]
-  uninstalledItems UninstalledItem[]
-  installations    Installation[]
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy           User?             @relation("taskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  customer            Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  station             Station?          @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  base                Base?             @relation(fields: [baseId], references: [id], onDelete: SetNull)
+  conversation        AiConversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  completedByEmployee Employee?         @relation("TaskCompleter", fields: [completedByEmployeeId], references: [id], onDelete: SetNull)
+  assignments         TaskAssignment[]
+  uninstalledItems    UninstalledItem[]
+  installations       Installation[]
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
@@ -1905,14 +1919,14 @@ enum PaymentStatus {
 }
 
 model NoteCategory {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
-  value          String       // Machine-readable key (e.g. "DOWNGRADE")
-  label          String       // Display label (e.g. "Downgrade")
-  labelAr        String?      // Arabic label (e.g. "تصغير")
-  sortOrder      Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  value          String // Machine-readable key (e.g. "DOWNGRADE")
+  label          String // Display label (e.g. "Downgrade")
+  labelAr        String? // Arabic label (e.g. "تصغير")
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1927,10 +1941,10 @@ model NoteCategory {
 model WorkerOption {
   id             String   @id @default(cuid())
   organizationId String
-  listKey        String   // e.g. "EXPENSE_CATEGORY" | "TASK_RESOLUTION"
-  value          String   // Machine-readable key stored on expense.category / task.resolutionCode
-  label          String   // Display label
-  labelAr        String?  // Arabic label (optional)
+  listKey        String // e.g. "EXPENSE_CATEGORY" | "TASK_RESOLUTION"
+  value          String // Machine-readable key stored on expense.category / task.resolutionCode
+  label          String // Display label
+  labelAr        String? // Arabic label (optional)
   sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -2018,45 +2032,45 @@ model BillingMonth {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  organizationId  String
-  customerId      String
-  billingMonthId  String        @map("billingCycleId")
+  id                 String        @id @default(cuid())
+  organizationId     String
+  customerId         String
+  billingMonthId     String        @map("billingCycleId")
   // NOT unique: several partial payments may settle one invoice. The old
   // @unique doubled as the double-submit race guard; createPayment now takes
   // a per-customer advisory lock instead.
-  invoiceId       String?
-  collectorId     String
-  accountPrice    Float
-  paidAmount      Float
-  discount        Float         @default(0)
-  status          PaymentStatus @default(COLLECTED)
-  freeAccount     Boolean       @default(false)
-  stoppedAccount  Boolean       @default(false)
+  invoiceId          String?
+  collectorId        String
+  accountPrice       Float
+  paidAmount         Float
+  discount           Float         @default(0)
+  status             PaymentStatus @default(COLLECTED)
+  freeAccount        Boolean       @default(false)
+  stoppedAccount     Boolean       @default(false)
   // Zero-cash "dein" visit: records that the collector came by and the
   // customer still owes, with a mandatory note. Never settles an invoice
   // (invoiceId stays null) and never blocks a later real collection.
-  debtAccount     Boolean       @default(false)
-  workerId        String?
-  noteCategory    String?
-  notes           String?       @db.Text
-  receiptSent     Boolean       @default(false)
-  receiptSentAt   DateTime?
-  activityLog     Json          @default("[]")
-  reviewedAt      DateTime?
-  paidAt          DateTime      @default(now())
-  externalBillingId Int?        @map("external_billing_id")
+  debtAccount        Boolean       @default(false)
+  workerId           String?
+  noteCategory       String?
+  notes              String?       @db.Text
+  receiptSent        Boolean       @default(false)
+  receiptSentAt      DateTime?
+  activityLog        Json          @default("[]")
+  reviewedAt         DateTime?
+  paidAt             DateTime      @default(now())
+  externalBillingId  Int?          @map("external_billing_id")
   referredCustomerId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  billingMonth BillingMonth @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
-  invoice      CustomerInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  collector    Employee     @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
-  worker       Employee?    @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
-  referredCustomer Customer? @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  billingMonth     BillingMonth     @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
+  invoice          CustomerInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  collector        Employee         @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
+  worker           Employee?        @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  referredCustomer Customer?        @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, billingMonthId])
@@ -2086,14 +2100,14 @@ model CashCollection {
   setupRequestId    String?            @unique
   receivedById      String?
   externalBillingId Int?               @map("external_billing_id")
-  collectedAt      DateTime           @default(now())
+  collectedAt       DateTime           @default(now())
   createdAt         DateTime           @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  collector    Employee     @relation("CashCollector", fields: [collectorId], references: [id], onDelete: Restrict)
-  receivedBy   User?        @relation("CashReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
-  expense      Expense?     @relation(fields: [expenseId], references: [id], onDelete: SetNull)
-  installation Installation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  collector    Employee              @relation("CashCollector", fields: [collectorId], references: [id], onDelete: Restrict)
+  receivedBy   User?                 @relation("CashReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
+  expense      Expense?              @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  installation Installation?         @relation(fields: [installationId], references: [id], onDelete: SetNull)
   setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
@@ -2112,7 +2126,7 @@ model LocationRequest {
   createdById    String?
   createdAt      DateTime  @default(now())
 
-  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, customerId])
   @@index([customerId])
@@ -2120,40 +2134,40 @@ model LocationRequest {
 }
 
 model Expense {
-  id                String        @id @default(cuid())
-  organizationId    String
+  id                 String        @id @default(cuid())
+  organizationId     String
   /// The worker claiming the money back. Null for a row an owner entered
   /// directly (or one a recurring line generated) — those are company
   /// spending, not a reimbursement, and never touch a worker's wallet.
-  submittedById     String?
+  submittedById      String?
   /// The user who entered a direct (no-worker) row.
-  createdById       String?
+  createdById        String?
   /// Set when a RecurringExpense generated this row.
   recurringExpenseId String?
-  amount            Float
-  description       String        @db.Text
-  category          String?       // toolkit | electricity | roof | other (free text allowed)
-  source            String?       // for money-given entries: where the funds came from (Company cash | Bank | Other)
-  receiptUrl        String?
-  status            ExpenseStatus @default(PENDING)
-  approvedById      String?
-  approvedAt        DateTime?
-  rejectedReason    String?
-  externalBillingId Int?          @map("external_billing_id")
+  amount             Float
+  description        String        @db.Text
+  category           String? // toolkit | electricity | roof | other (free text allowed)
+  source             String? // for money-given entries: where the funds came from (Company cash | Bank | Other)
+  receiptUrl         String?
+  status             ExpenseStatus @default(PENDING)
+  approvedById       String?
+  approvedAt         DateTime?
+  rejectedReason     String?
+  externalBillingId  Int?          @map("external_billing_id")
   /// Resolved bucket from the org's money map. Null = not yet classified;
   /// those rows surface in the money-map wizard and land in "Uncategorised"
   /// on the P&L rather than being silently treated as an operating cost.
-  financeCategoryId String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  financeCategoryId  String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  submittedBy  Employee?       @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
-  approvedBy   User?           @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  createdBy    User?           @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  recurring    RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
-  collection   CashCollection?
-  financeCategory FinanceCategory? @relation(fields: [financeCategoryId], references: [id], onDelete: SetNull)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submittedBy     Employee?         @relation("ExpenseSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  approvedBy      User?             @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  recurring       RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
+  collection      CashCollection?
+  financeCategory FinanceCategory?  @relation(fields: [financeCategoryId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, status])
@@ -2230,7 +2244,7 @@ model FinanceCategory {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rules        FinanceRule[]
   expenses     Expense[]
   recurring    RecurringExpense[]
@@ -2314,31 +2328,67 @@ model DealerCharge {
 // ─── Inventory ─────────────────────────────────────────────────────
 
 model StockItem {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  quantity       Int      @default(0)
-  costPrice      Float    @default(0)
-  sellPrice      Float    @default(0)
-  alertThreshold Int?
-  alertEnabled   Boolean  @default(false)
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String
+  quantity        Int      @default(0)
+  costPrice       Float    @default(0)
+  sellPrice       Float    @default(0)
+  alertThreshold  Int?
+  alertEnabled    Boolean  @default(false)
   // When true, this item appears in the worker uninstall task's recovered-item
   // dropdown (an admin-curated list of recoverable equipment), regardless of
   // whether the worker personally holds it in their own stock.
-  showInUninstall Boolean @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  showInUninstall Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workerAllocations WorkerStock[]
   logs              StockLog[]
   installations     Installation[]
   uninstalledItems  UninstalledItem[]
   refundRequests    StockRefundRequest[]
+  suppliers         StockItemSupplier[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
   @@map("stock_item")
+}
+
+/// Where stock is bought. An item can come from several suppliers; each
+/// delivery (ADD log) records which one, so "when did we last get cable
+/// from X" is answerable.
+model Supplier {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  /// Same shape as Customer.phones: [{ number, primary }]
+  phones         Json     @default("[]")
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items        StockItemSupplier[]
+  logs         StockLog[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("supplier")
+}
+
+model StockItemSupplier {
+  stockItemId String
+  supplierId  String
+  createdAt   DateTime @default(now())
+
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  supplier  Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@id([stockItemId, supplierId])
+  @@index([supplierId])
+  @@map("stock_item_supplier")
 }
 
 model WorkerStock {
@@ -2392,7 +2442,7 @@ model StockRefundRequest {
 }
 
 model StockLog {
-  id                String     @id @default(cuid())
+  id                String      @id @default(cuid())
   organizationId    String
   stockItemId       String
   employeeId        String?
@@ -2405,22 +2455,26 @@ model StockLog {
   workerQtyBefore   Int?
   workerQtyAfter    Int?
   notes             String?
-  externalBillingId Int?       @map("external_billing_id")
-  createdAt         DateTime   @default(now())
+  /// Who delivered this ADD (null for adjustments and transfers).
+  supplierId        String?
+  externalBillingId Int?        @map("external_billing_id")
+  createdAt         DateTime    @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stockItem    StockItem    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
   employee     Employee?    @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   performedBy  User         @relation("StockLogPerformer", fields: [performedById], references: [id], onDelete: Restrict)
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, stockItemId])
   @@index([employeeId])
+  @@index([supplierId])
   @@map("stock_log")
 }
 
 model Installation {
-  id                String    @id @default(cuid())
+  id                String             @id @default(cuid())
   organizationId    String
   // Target is exactly one of customerId / stationId / baseId (enforced at the API layer)
   customerId        String?
@@ -2431,9 +2485,9 @@ model Installation {
   // Set when the install was recorded by closing a field Task (INSTALLATION /
   // REPLACEMENT category). Null for direct worker-portal / prepared installs.
   taskId            String?
-  quantity          Int       @default(1)
-  price             Float     @default(0)
-  isAddOn           Boolean   @default(false)
+  quantity          Int                @default(1)
+  price             Float              @default(0)
+  isAddOn           Boolean            @default(false)
   status            InstallationStatus @default(PENDING)
   approvedById      String?
   approvedAt        DateTime?
@@ -2443,20 +2497,20 @@ model Installation {
   setupRequestId    String?
   externalBillingId Int?               @map("external_billing_id")
   installedAt       DateTime           @default(now())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  station      Station?     @relation(fields: [stationId], references: [id], onDelete: SetNull)
-  base         Base?        @relation(fields: [baseId], references: [id], onDelete: SetNull)
-  employee     Employee     @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
-  stockItem    StockItem?   @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
-  approvedBy   User?        @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  setupRequest CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
-  task         Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer         Customer?             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  station          Station?              @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  base             Base?                 @relation(fields: [baseId], references: [id], onDelete: SetNull)
+  employee         Employee              @relation("Installer", fields: [employeeId], references: [id], onDelete: Restrict)
+  stockItem        StockItem?            @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  approvedBy       User?                 @relation("InstallationApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  setupRequest     CustomerSetupRequest? @relation(fields: [setupRequestId], references: [id], onDelete: SetNull)
+  task             Task?                 @relation(fields: [taskId], references: [id], onDelete: SetNull)
   uninstalledItems UninstalledItem[]
-  cashEntry    CashCollection?
+  cashEntry        CashCollection?
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
@@ -2476,10 +2530,10 @@ model CustomerSetupRequest {
   id                String             @id @default(cuid())
   organizationId    String
   customerId        String             @unique
-  requestedById     String             // Employee (worker) who created the customer
-  durationType      String             // "month" | "days"
+  requestedById     String // Employee (worker) who created the customer
+  durationType      String // "month" | "days"
   durationDays      Int?
-  firstChargeAmount Float              // prorated first subscription charge (server-computed)
+  firstChargeAmount Float // prorated first subscription charge (server-computed)
   status            SetupRequestStatus @default(PENDING)
   reviewedById      String?
   reviewedAt        DateTime?
@@ -2488,10 +2542,10 @@ model CustomerSetupRequest {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer      Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  requestedBy   Employee     @relation("SetupRequester", fields: [requestedById], references: [id], onDelete: Restrict)
-  reviewedBy    User?        @relation("SetupRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer      Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requestedBy   Employee        @relation("SetupRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  reviewedBy    User?           @relation("SetupRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   installations Installation[]
   cashEntry     CashCollection?
 
@@ -2512,7 +2566,7 @@ model Followup {
   groupName         String?
   isDone            Boolean   @default(false)
   note              String?   @db.Text
-  status            String?   // new | stopped | contacted | etc.
+  status            String? // new | stopped | contacted | etc.
   collectorNote     String?
   externalBillingId Int?      @map("external_billing_id")
   doneAt            DateTime?
@@ -2551,9 +2605,9 @@ model UninstalledItem {
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   installation Installation? @relation(fields: [installationId], references: [id], onDelete: SetNull)
-  task         Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
-  stockItem    StockItem?     @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
-  reviewedBy   User?          @relation("UninstalledItemReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  task         Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  stockItem    StockItem?    @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  reviewedBy   User?         @relation("UninstalledItemReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
