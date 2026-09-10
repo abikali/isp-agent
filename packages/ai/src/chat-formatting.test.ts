@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	hasToolNarration,
+	stripInternalMarkers,
 	stripToolNarration,
 	toChatFormatting,
 } from "./chat-formatting";
@@ -59,6 +60,30 @@ describe("hasToolNarration", () => {
 
 	it("is false for a normal reply", () => {
 		expect(hasToolNarration("Your connection looks healthy.")).toBe(false);
+	});
+});
+
+describe("stripInternalMarkers", () => {
+	it("empties a reply that is only the echoed teammate marker", () => {
+		expect(
+			stripInternalMarkers(
+				"[Human teammate reply — voice sent by the human team. Content is not visible to you. Do not impersonate the customer or guess what was said; wait for the customer's next message.]",
+			),
+		).toBe("");
+	});
+
+	it("keeps the real reply after a copied marker prefix", () => {
+		expect(
+			stripInternalMarkers("[Human teammate reply]\nAhla w sahla ❤️"),
+		).toBe("Ahla w sahla ❤️");
+	});
+
+	it("drops an echoed context notice mid-text", () => {
+		expect(
+			stripInternalMarkers(
+				"صباح النور [Context Notice: 3 days have passed since the last message.] كيف فيني ساعدك؟",
+			),
+		).toBe("صباح النور  كيف فيني ساعدك؟");
 	});
 });
 

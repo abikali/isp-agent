@@ -31,6 +31,26 @@ export function stripToolNarration(text: string): string {
 }
 
 /**
+ * Internal history markers the model is never meant to repeat:
+ * `[Human teammate reply …]` (how a teammate's turn is labelled in the
+ * context) and `[Context Notice: …]` (the time-gap note). Models copy the
+ * last assistant-side turn when the customer only says "ok" — measured on
+ * prod: 8 replies since June that were nothing but the teammate marker,
+ * every one delivered to the customer verbatim.
+ */
+const INTERNAL_MARKER_RE = /\[(?:Human teammate reply|Context Notice)[^\]]*\]/g;
+
+/** Remove echoed internal markers; may leave an empty string. */
+export function stripInternalMarkers(text: string): string {
+	return text
+		.replace(INTERNAL_MARKER_RE, "")
+		.replace(/[ \t]+$/gm, "")
+		.replace(/^\n+/, "")
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+}
+
+/**
  * Normalize LLM markdown to WhatsApp/Telegram chat formatting.
  *
  * Models emit standard markdown (`**bold**`, `### Header`) despite prompt
@@ -40,7 +60,7 @@ export function stripToolNarration(text: string): string {
  * on the prompt.
  */
 export function toChatFormatting(text: string): string {
-	let out = stripToolNarration(text);
+	let out = stripToolNarration(stripInternalMarkers(text));
 	// **bold** → *bold* (no newlines inside — chat bold doesn't span lines)
 	out = out.replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
 	// __italic__ → _italic_

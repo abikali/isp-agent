@@ -30,10 +30,12 @@ export async function sendTextMessage(
 	text: string,
 	options?: SendMessageOptions,
 ): Promise<SendMessageResult> {
-	if (!text.trim()) {
+	// Format first: a reply that is nothing but an echoed internal marker
+	// strips to empty and must not reach the customer.
+	const formatted = toChatFormatting(text);
+	if (!formatted.trim()) {
 		return { success: true };
 	}
-	const formatted = toChatFormatting(text);
 	switch (provider) {
 		case "whatsapp":
 			return whatsapp.sendTextMessage(

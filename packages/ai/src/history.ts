@@ -434,6 +434,7 @@ function legacyToolCallsToAssistantMessages(
 function describeAdminMedia(attachmentType: string): string {
 	switch (attachmentType) {
 		case "audio":
+		case "voice":
 			return "voice note sent by the human team";
 		case "image":
 			return "image sent by the human team";
@@ -444,6 +445,18 @@ function describeAdminMedia(attachmentType: string): string {
 		default:
 			return `${attachmentType} sent by the human team`;
 	}
+}
+
+/**
+ * Admin media rows store either the transcript / image description (the
+ * usual case — 1,900+ voice rows on prod) or a bare placeholder written
+ * before transcription existed or when it failed.
+ */
+const MEDIA_PLACEHOLDER_RE =
+	/^\s*(?:\[(?:voice message|image|video|document|audio) received\]|voice note|image|video|document|audio)?\s*$/i;
+
+function isMediaPlaceholder(content: string): boolean {
+	return MEDIA_PLACEHOLDER_RE.test(content);
 }
 
 function rowToModelMessages(row: DbMessageRow, index: number): ModelMessage[] {
@@ -464,10 +477,20 @@ function rowToModelMessages(row: DbMessageRow, index: number): ModelMessage[] {
 		// anchor and it confabulates the customer's next line.
 		if (row.attachmentType) {
 			const mediaLabel = describeAdminMedia(row.attachmentType);
+			if (isMediaPlaceholder(row.content)) {
+				return [
+					{
+						role: "assistant",
+						content: `[Human teammate reply — ${mediaLabel}. Content is not visible to you. Do not impersonate the customer or guess what was said; wait for the customer's next message.]`,
+					},
+				];
+			}
+			// Transcribed voice note / described image: give the model what
+			// the teammate actually said, marked as theirs.
 			return [
 				{
 					role: "assistant",
-					content: `[Human teammate reply — ${mediaLabel}. Content is not visible to you. Do not impersonate the customer or guess what was said; wait for the customer's next message.]`,
+					content: `[Human teammate reply — ${mediaLabel}, transcribed]\n${row.content}`,
 				},
 			];
 		}

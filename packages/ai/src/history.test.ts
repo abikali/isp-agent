@@ -89,6 +89,32 @@ describe("dbMessagesToModelMessages", () => {
 		);
 	});
 
+	it("shows the model a transcribed admin voice note, labelled as the teammate's", () => {
+		const out = dbMessagesToModelMessages([
+			{
+				role: "admin",
+				content: "خلص تركها لبكرة، أنا بكرة نازل بآخدا",
+				attachmentType: "voice",
+			},
+		]);
+		expect(out).toEqual([
+			{
+				role: "assistant",
+				content:
+					"[Human teammate reply — voice note sent by the human team, transcribed]\nخلص تركها لبكرة، أنا بكرة نازل بآخدا",
+			},
+		]);
+	});
+
+	it("keeps the not-visible marker for admin media that was never transcribed", () => {
+		for (const content of ["Voice note", "[Voice message received]", ""]) {
+			const out = dbMessagesToModelMessages([
+				{ role: "admin", content, attachmentType: "audio" },
+			]);
+			expect(out[0]?.content).toContain("Content is not visible to you");
+		}
+	});
+
 	it("expands assistant rows with tool calls into structured assistant + tool messages", () => {
 		const out = dbMessagesToModelMessages([
 			{
