@@ -34,6 +34,48 @@ export async function iradiusUsernameExists(
 }
 
 /**
+ * Read-only: find an iRadius subscriber this app created but never linked.
+ *
+ * An approval that created the user in iRadius and then rolled back locally
+ * (any throw before `externalId` is stored) leaves the account behind, and the
+ * retry fails on "Username already exists". This resolves that orphan so the
+ * retry can adopt it instead. Guarded to accounts that are provably ours —
+ * matching name AND either our `LibanCom App` UserLog marker or created within
+ * the last day — so a genuinely pre-existing subscriber is never hijacked.
+ */
+export async function iradiusFindOrphanedAppUser(input: {
+	username: string;
+	firstName: string | null;
+	lastName: string | null;
+}): Promise<number | null> {
+	const username = input.username.trim();
+	if (!username) {
+		return null;
+	}
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			`SELECT u.Id
+			 FROM User u
+			 WHERE u.UserName = ?
+			   AND COALESCE(u.FirstName, '') = ?
+			   AND COALESCE(u.LastName, '') = ?
+			   AND (
+			     u.CreationDate > NOW() - INTERVAL 1 DAY
+			     OR EXISTS (
+			       SELECT 1 FROM UserLog l
+			       WHERE l.UserId = u.Id AND l.Description LIKE 'LibanCom App%'
+			     )
+			   )
+			 LIMIT 1`,
+			[username, input.firstName ?? "", input.lastName ?? ""],
+		);
+		const id = rows[0]?.["Id"];
+		return typeof id === "number" ? id : null;
+	});
+}
+
+/**
  * Thrown by `iradiusSetActive` when iRadius reports the user no longer
  * exists — typically because an admin deleted it directly in iRadius.
  * Callers catch this to offer a local-only fallback instead of failing

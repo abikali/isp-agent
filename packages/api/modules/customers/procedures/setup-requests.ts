@@ -22,7 +22,10 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import { addonNoteFor } from "../../installations/lib/addons";
-import { approveInstallationInTx } from "../../installations/procedures/review";
+import {
+	approveInstallationInTx,
+	assertWorkerHoldsStock,
+} from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
 import { iradiusUsernameExists } from "../lib/iradius-api";
 
@@ -817,6 +820,21 @@ export const approveSetupRequest = protectedProcedure
 			});
 		}
 
+		// Pre-flight everything the transaction below can fail on BEFORE the
+		// remote iRadius create. A throw after the subscriber exists in iRadius
+		// but before its User.Id is stored locally leaves an orphan that blocks
+		// every retry with "Username already exists" (hit on prod 2026-09-10:
+		// a worker-stock shortfall rolled back the approval mid-flight).
+		const pendingInstallations = request.installations.filter(
+			(i) => i.status === "PENDING",
+		);
+		for (const installation of pendingInstallations) {
+			await assertWorkerHoldsStock(db, installation);
+		}
+		const billingMonth = await resolveActiveBillingMonth(
+			input.organizationId,
+		);
+
 		// Create the subscriber in iRadius (remote-first) for app-created
 		// customers that aren't linked yet. On success we store the returned
 		// User.Id as externalId in the transaction below so the customer mirrors
@@ -844,10 +862,6 @@ export const approveSetupRequest = protectedProcedure
 			newExternalId = String(userId);
 		}
 
-		const billingMonth = await resolveActiveBillingMonth(
-			input.organizationId,
-		);
-
 		await db.$transaction(async (tx) => {
 			await tx.customer.update({
 				where: { id: request.customerId },
@@ -869,10 +883,7 @@ export const approveSetupRequest = protectedProcedure
 
 			// Approve the bundled installations. No per-line cash entries —
 			// the hardware money is logged once as NEW_USER_SETUP below.
-			for (const installation of request.installations) {
-				if (installation.status !== "PENDING") {
-					continue;
-				}
+			for (const installation of pendingInstallations) {
 				await approveInstallationInTx(tx, installation, user.id, {
 					createCashEntry: false,
 				});

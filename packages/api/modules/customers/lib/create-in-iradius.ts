@@ -4,6 +4,7 @@ import { logger } from "@repo/logs";
 import {
 	iradiusChargeNewUser,
 	iradiusCreateUser,
+	iradiusFindOrphanedAppUser,
 	iradiusLogExpiryAccount,
 	iradiusSetExpiryAccount,
 	iradiusUpdateUserAddress,
@@ -96,29 +97,69 @@ export async function createCustomerInIRadius(opts: {
 		v ? Number.parseInt(v, 10) : null;
 
 	const expiryAccount = toMysqlDateTimeUTC(customer.expiresAt);
+	const username = customer.username.trim();
 
-	const { userId } = await iradiusCreateUser({
-		userName: customer.username.trim(),
-		password: opts.password,
-		accountTypeId: Number.parseInt(customer.plan.externalId, 10),
-		parentId: num(customer.dealer?.externalId),
-		firstName: customer.firstName,
-		lastName: customer.lastName,
-		mobile: buildIRadiusMobile(customer.phones),
-		mailAddress: customer.email,
-		address: customer.address,
-		comment: customer.notes,
-		collectorId: num(customer.collector?.externalId),
-		userGroupId: customer.groupExternalId,
-		accountPrice: customer.monthlyRate ?? 0,
-		discount: customer.discount ?? 0,
-		expiryAccount,
-		iptvPrice: customer.iptvPrice ?? 0,
-		realIpPrice: customer.realIpPrice ?? 0,
-		gsmLat: customer.latitude,
-		gsmLng: customer.longitude,
-		stationId: num(customer.station?.externalId),
-	});
+	let userId: number;
+	try {
+		({ userId } = await iradiusCreateUser({
+			userName: username,
+			password: opts.password,
+			accountTypeId: Number.parseInt(customer.plan.externalId, 10),
+			parentId: num(customer.dealer?.externalId),
+			firstName: customer.firstName,
+			lastName: customer.lastName,
+			mobile: buildIRadiusMobile(customer.phones),
+			mailAddress: customer.email,
+			address: customer.address,
+			comment: customer.notes,
+			collectorId: num(customer.collector?.externalId),
+			userGroupId: customer.groupExternalId,
+			accountPrice: customer.monthlyRate ?? 0,
+			discount: customer.discount ?? 0,
+			expiryAccount,
+			iptvPrice: customer.iptvPrice ?? 0,
+			realIpPrice: customer.realIpPrice ?? 0,
+			gsmLat: customer.latitude,
+			gsmLng: customer.longitude,
+			stationId: num(customer.station?.externalId),
+		}));
+	} catch (error) {
+		if (!/already exists/i.test(String(error))) {
+			throw error;
+		}
+		// A previous approval created this subscriber and then rolled back
+		// before storing its id locally. Adopt the orphan (only when it is
+		// provably ours and no other local customer already claims it) so the
+		// retry completes instead of failing forever on the taken username.
+		const orphanId = await iradiusFindOrphanedAppUser({
+			username,
+			firstName: customer.firstName,
+			lastName: customer.lastName,
+		});
+		const claimedBy = orphanId
+			? await db.customer.findFirst({
+					where: {
+						organizationId: opts.organizationId,
+						externalId: String(orphanId),
+					},
+					select: { id: true },
+				})
+			: null;
+		if (!orphanId || claimedBy) {
+			throw new ORPCError("CONFLICT", {
+				message: `Username "${username}" already exists in iRadius — pick another username`,
+			});
+		}
+		logger.warn("[iRadius] adopting orphaned app-created subscriber", {
+			userId: orphanId,
+			customerId: opts.customerId,
+			username,
+		});
+		userId = orphanId;
+	}
+	// Everything below is safe to repeat for an adopted orphan: the UTF-8
+	// rewrites are idempotent, the charge skips when a UserBalance row exists,
+	// and the expiry re-assert writes the same value.
 
 	// The patched `/create-user` endpoint writes through a non-UTF-8 JDBC
 	// connection, so any non-ASCII text (Arabic names/address/notes) lands in

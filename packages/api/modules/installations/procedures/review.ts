@@ -94,6 +94,44 @@ export const updatePendingInstallation = protectedProcedure
  *
  * Stock rule: worker stock decrements HERE (at approval), never at create.
  */
+/**
+ * The worker-stock precondition for approving a physical installation line.
+ * Returns the allocation to decrement, or null when the line consumes no stock
+ * (add-on / no stock item). Throws CONFLICT when the worker holds too little.
+ *
+ * Exported so approval flows that do a remote write BEFORE their transaction
+ * (setup-request approval creates the iRadius subscriber first) can pre-flight
+ * it with `db` — otherwise the rollback leaves an orphan on the remote side.
+ */
+export async function assertWorkerHoldsStock(
+	client: Prisma.TransactionClient,
+	installation: {
+		employeeId: string;
+		stockItemId: string | null;
+		isAddOn: boolean;
+		quantity: number;
+	},
+): Promise<{ id: string; quantity: number } | null> {
+	if (!installation.stockItemId || installation.isAddOn) {
+		return null;
+	}
+	const allocation = await client.workerStock.findUnique({
+		where: {
+			stockItemId_employeeId: {
+				stockItemId: installation.stockItemId,
+				employeeId: installation.employeeId,
+			},
+		},
+		select: { id: true, quantity: true },
+	});
+	if (!allocation || allocation.quantity < installation.quantity) {
+		throw new ORPCError("CONFLICT", {
+			message: `Worker lacks stock for this item (holds ${allocation?.quantity ?? 0}, needs ${installation.quantity}) — deliver stock first or edit the quantity`,
+		});
+	}
+	return allocation;
+}
+
 export async function approveInstallationInTx(
 	tx: Prisma.TransactionClient,
 	installation: {
@@ -112,21 +150,8 @@ export async function approveInstallationInTx(
 ): Promise<void> {
 	// Consume worker stock for physical items
 	let stockItemName: string | null = null;
-	if (installation.stockItemId && !installation.isAddOn) {
-		const allocation = await tx.workerStock.findUnique({
-			where: {
-				stockItemId_employeeId: {
-					stockItemId: installation.stockItemId,
-					employeeId: installation.employeeId,
-				},
-			},
-			select: { id: true, quantity: true },
-		});
-		if (!allocation || allocation.quantity < installation.quantity) {
-			throw new ORPCError("CONFLICT", {
-				message: `Worker lacks stock for this item (holds ${allocation?.quantity ?? 0}, needs ${installation.quantity}) — deliver stock first or edit the quantity`,
-			});
-		}
+	const allocation = await assertWorkerHoldsStock(tx, installation);
+	if (installation.stockItemId && allocation) {
 		await tx.workerStock.update({
 			where: { id: allocation.id },
 			data: { quantity: { decrement: installation.quantity } },
