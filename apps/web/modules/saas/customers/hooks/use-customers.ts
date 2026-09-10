@@ -216,6 +216,31 @@ export const useBulkPushToIRadius = createInvalidatingMutation(
 );
 
 /**
+ * Live online/offline for a set of customers (task list, anything that shows
+ * a connectivity dot outside the customer list). Polls the bulk endpoint on
+ * the sync cadence; returns a map by customer id.
+ */
+export function useCustomersConnectivity(customerIds: string[]) {
+	const organizationId = useOrganizationId();
+	const ids = [...new Set(customerIds)].slice(0, 200);
+	const query = useQuery(
+		organizationId && ids.length > 0
+			? {
+					...orpc.customers.connectivityStatus.queryOptions({
+						input: { organizationId, customerIds: ids },
+					}),
+					refetchInterval: 15_000,
+					refetchIntervalInBackground: false,
+					placeholderData: (prev) => prev,
+				}
+			: disabledQuery(["customers", "connectivityStatus"]),
+	);
+	const rows =
+		query.data && "customers" in query.data ? query.data.customers : [];
+	return new Map(rows.map((row) => [row.id, row]));
+}
+
+/**
  * Live online status for a customer's station + access point.
  * Refetches every 15s so the badge tracks the monitor sync cadence.
  * Returns `disabledQuery` while the org context is still resolving so we

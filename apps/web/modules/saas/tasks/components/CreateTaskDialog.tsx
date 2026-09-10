@@ -1,12 +1,13 @@
 "use client";
 
 import { buildTaskTitle } from "@repo/api/modules/tasks/lib/task-title";
-import { useBasesQuery } from "@saas/customers/client";
+import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
 import { useEmployeesQuery } from "@saas/employees/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
@@ -47,6 +48,7 @@ import {
 	TASK_PRIORITY_OPTIONS,
 	type TaskCategoryValue,
 } from "../lib/constants";
+import { OpenTasksNotice } from "./OpenTasksNotice";
 
 type AddonType = "IPTV" | "REAL_IP";
 const ADDON_OPTIONS: { value: AddonType; label: string }[] = [
@@ -89,6 +91,7 @@ export function CreateTaskDialog({
 	const organizationId = useOrganizationId();
 	const createTask = useCreateTask();
 	const { bases } = useBasesQuery();
+	const { stations } = useStationsQuery();
 	const { employees } = useEmployeesQuery({ role: "worker" });
 	const [customer, setCustomer] = useState<{
 		id: string;
@@ -109,6 +112,7 @@ export function CreateTaskDialog({
 			category: defaultCategory as string,
 			dueDate: "",
 			baseId: "",
+			stationId: "",
 			notes: "",
 		},
 		onSubmit: async ({ value }) => {
@@ -121,6 +125,10 @@ export function CreateTaskDialog({
 				toast.error(
 					`${meta.label} tasks must target a customer or a base.`,
 				);
+				return;
+			}
+			if (assignedEmployeeIds.length === 0) {
+				toast.error("Assign at least one worker.");
 				return;
 			}
 			try {
@@ -147,6 +155,7 @@ export function CreateTaskDialog({
 						? new Date(value.dueDate)
 						: undefined,
 					baseId: value.baseId || undefined,
+					stationId: value.stationId || undefined,
 					requestedAddons:
 						customer && addonTypes.length ? addonTypes : undefined,
 					notes: value.notes || undefined,
@@ -262,6 +271,9 @@ export function CreateTaskDialog({
 									placeholder="Search a customer…"
 								/>
 							</div>
+							{customer && (
+								<OpenTasksNotice customerId={customer.id} />
+							)}
 							<form.Field name="baseId">
 								{(field) => (
 									<div className="space-y-2">
@@ -301,6 +313,33 @@ export function CreateTaskDialog({
 												)}
 											</SelectContent>
 										</Select>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="stationId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="task-station">
+											Station
+										</Label>
+										<Combobox
+											id="task-station"
+											value={field.state.value}
+											onChange={(v) =>
+												field.handleChange(
+													v === field.state.value
+														? ""
+														: v,
+												)
+											}
+											placeholder="No station"
+											searchPlaceholder="Search stations…"
+											emptyText="No station matches"
+											options={stations.map((s) => ({
+												value: s.id,
+												label: s.name,
+											}))}
+										/>
 									</div>
 								)}
 							</form.Field>
@@ -467,7 +506,16 @@ export function CreateTaskDialog({
 						</form.Field>
 
 						<div className="space-y-2">
-							<Label>Assign workers</Label>
+							<Label>
+								Assign workers{" "}
+								<span className="text-destructive">*</span>
+							</Label>
+							{assignedEmployeeIds.length === 0 && (
+								<p className="text-xs text-destructive">
+									Pick at least one worker — a task with
+									nobody on it never gets done.
+								</p>
+							)}
 							<div className="max-h-44 space-y-1.5 overflow-y-auto rounded-md border p-2">
 								{employees.length === 0 ? (
 									<p className="px-1 py-2 text-sm text-muted-foreground">
@@ -560,7 +608,11 @@ export function CreateTaskDialog({
 						</Button>
 						<Button
 							type="submit"
-							disabled={isSubmitting || missingTarget}
+							disabled={
+								isSubmitting ||
+								missingTarget ||
+								assignedEmployeeIds.length === 0
+							}
 						>
 							{isSubmitting ? "Creating..." : "Create Task"}
 						</Button>

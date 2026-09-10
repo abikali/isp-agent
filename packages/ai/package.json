@@ -7,6 +7,10 @@
 			"types": "./index.ts",
 			"default": "./index.ts"
 		},
+		"./isp-search-customer": {
+			"types": "./src/tools/isp-search-customer.ts",
+			"default": "./src/tools/isp-search-customer.ts"
+		},
 		"./isp-api-client": {
 			"types": "./src/tools/lib/isp-api-client.ts",
 			"default": "./src/tools/lib/isp-api-client.ts"

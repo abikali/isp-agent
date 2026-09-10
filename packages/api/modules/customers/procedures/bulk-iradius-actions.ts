@@ -11,6 +11,7 @@ import { buildIRadiusMobile, db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 import {
 	iradiusResetMacAddress,
 	iradiusSetExpiryAccount,
@@ -75,6 +76,9 @@ async function runBulkIradiusAction<T>(opts: {
 				where: { id: customer.id },
 				data: opts.localData,
 			});
+			if (opts.localData.status === "ACTIVE") {
+				void cancelOpenUninstallTasks(customer.id);
+			}
 			customerAudit.updated(
 				customer.id,
 				opts.userId,

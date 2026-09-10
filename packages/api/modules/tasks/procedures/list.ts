@@ -185,6 +185,10 @@ export const listTasks = protectedProcedure
 							accountNumber: true,
 							mobile: true,
 							phone: true,
+							// Live iRadius state for the online/offline dot.
+							status: true,
+							online: true,
+							lastLogin: true,
 							// Full list so the field card can offer every
 							// number to call / WhatsApp, not just the primary.
 							phones: true,

@@ -11,6 +11,7 @@ import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 import { iradiusSetActive } from "../lib/iradius-api";
 
 /**
@@ -103,6 +104,9 @@ export const bulkSetCustomerStatus = protectedProcedure
 					where: { id: customer.id },
 					data: { status: input.status },
 				});
+				if (input.status === "ACTIVE") {
+					void cancelOpenUninstallTasks(customer.id);
+				}
 				if (targetActive) {
 					customerAudit.updated(
 						customer.id,

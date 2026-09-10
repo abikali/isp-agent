@@ -8,6 +8,7 @@ export { BasesList } from "./components/BasesList";
 export { BasesListSkeleton } from "./components/BasesListSkeleton";
 export { BulkExportButton } from "./components/BulkExportButton";
 export { BulkImportDialog } from "./components/BulkImportDialog";
+export { ConnectivityCell } from "./components/ConnectivityCell";
 export { CreateCustomerDialog } from "./components/CreateCustomerDialog";
 export { CreatePlanDialog } from "./components/CreatePlanDialog";
 export { CustomerDetail } from "./components/CustomerDetail";
@@ -16,6 +17,7 @@ export { CustomerStats } from "./components/CustomerStats";
 export { CustomerStatsSkeleton } from "./components/CustomerStatsSkeleton";
 export { CustomersList } from "./components/CustomersList";
 export { CustomersListSkeleton } from "./components/CustomersListSkeleton";
+export { DiagnoseButton, DiagnoseSheet } from "./components/DiagnoseSheet";
 export { EditPlanDialog } from "./components/EditPlanDialog";
 export { LocationRequestPage } from "./components/LocationRequestPage";
 export { PendingCustomersList } from "./components/PendingCustomersList";
@@ -33,6 +35,7 @@ export {
 	useCustomerNetworkStatus,
 	useCustomerStats,
 	useCustomers,
+	useCustomersConnectivity,
 	useDeleteCustomer,
 	useExecuteAccountTypeChange,
 	useIRadiusGroups,

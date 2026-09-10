@@ -75,6 +75,8 @@ export const getTask = protectedProcedure
 						phone: true,
 						address: true,
 						status: true,
+						online: true,
+						lastLogin: true,
 						connectionType: true,
 						monthlyRate: true,
 						plan: {

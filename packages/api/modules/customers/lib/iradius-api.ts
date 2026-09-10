@@ -123,7 +123,7 @@ export interface AccountTypeChangeResult {
 	disconnected: boolean;
 }
 
-function getIspApiConfigFromEnv(): IspApiConfig | null {
+export function getIspApiConfigFromEnv(): IspApiConfig | null {
 	const baseUrl = process.env["ISP_API_BASE_URL"];
 	const userName = process.env["ISP_API_USERNAME"];
 	const password = process.env["ISP_API_PASSWORD"];

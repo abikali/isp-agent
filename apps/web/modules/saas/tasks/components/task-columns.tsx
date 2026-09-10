@@ -1,5 +1,6 @@
 "use client";
 
+import { ConnectivityCell } from "@saas/customers/client";
 import { useIsClient } from "@shared/hooks/use-is-client";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate, formatDateTime } from "@shared/lib/format";
@@ -25,7 +26,6 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { useMemo } from "react";
-
 import type { TaskListItem } from "../hooks/use-tasks";
 import {
 	FOLLOW_UP_STATUS_COLORS,
@@ -241,6 +241,11 @@ export function useTaskColumns(organizationSlug: string) {
 							task.customer.mobile ?? task.customer.phone;
 						return (
 							<div className="flex min-w-0 items-center gap-2">
+								<ConnectivityCell
+									status={task.customer.status}
+									online={task.customer.online}
+									lastLogin={task.customer.lastLogin}
+								/>
 								<InitialsAvatar name={name} />
 								<div className="min-w-0">
 									<Link

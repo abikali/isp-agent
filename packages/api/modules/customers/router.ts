@@ -17,6 +17,7 @@ import {
 import { getConnectivityStatus } from "./procedures/connectivity-status";
 import { createCustomer } from "./procedures/create";
 import { deleteCustomer } from "./procedures/delete";
+import { diagnoseCustomer } from "./procedures/diagnose";
 import { generateCustomerPin } from "./procedures/generate-pin";
 import { getCustomer } from "./procedures/get";
 import {
@@ -123,6 +124,7 @@ export const customersRouter = {
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 	resetMacAddress: resetCustomerMacAddress,
 	pullLocationFromIRadius: pullCustomerLocationFromIRadius,
+	diagnose: diagnoseCustomer,
 	updateNameInIRadius: updateCustomerNameInIRadius,
 	setDiscount: setCustomerRecurringDiscount,
 	setIptvPrice: setCustomerIptvPrice,

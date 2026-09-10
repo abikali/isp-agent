@@ -6,6 +6,10 @@ import {
 	useCompleteTaskWithEvidence,
 	useCreateEvidenceUploadUrl,
 } from "@saas/tasks/client";
+import {
+	TASK_CATEGORY_META,
+	TASK_CATEGORY_OPTIONS,
+} from "@saas/tasks/lib/constants";
 import { useWorkerOptions } from "@saas/worker-options/client";
 import { CHART_TOKENS } from "@shared/components/charts/chart-utils";
 import { PhoneActions } from "@shared/components/PhoneActions";
@@ -108,12 +112,17 @@ const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
 	all: undefined,
 };
 const CATEGORY_OPTIONS = [
-	{ value: "all", label: "All types" },
-	{ value: "INSTALLATION", label: "Installation" },
-	{ value: "MAINTENANCE", label: "Maintenance" },
-	{ value: "UNINSTALL", label: "Uninstall" },
-	{ value: "REPLACEMENT", label: "Replacement" },
+	{ value: "all", label: "All types · كل الأنواع" },
+	...TASK_CATEGORY_OPTIONS.map((o) => ({
+		value: o.value,
+		label: `${o.label} · ${TASK_CATEGORY_META[o.value].labelAr}`,
+	})),
 ];
+
+function categoryLabel(category: string): string {
+	const meta = TASK_CATEGORY_META[category as TaskCategoryValue];
+	return meta ? `${meta.label} · ${meta.labelAr}` : category.toLowerCase();
+}
 const SORT_OPTIONS = [
 	{ value: "newest", label: "Newest first" },
 	{ value: "oldest", label: "Oldest first" },
@@ -654,7 +663,7 @@ function TaskCard({
 									: "info"
 							}
 						>
-							{task.category.toLowerCase()}
+							{categoryLabel(task.category)}
 						</Badge>
 						{priorityBadge ? (
 							<Badge variant={priorityBadge.variant}>

@@ -9,6 +9,7 @@ import {
 } from "@repo/jobs/sync-fields";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -82,6 +83,9 @@ async function resolveByField(
 						where: { id: conflict.customerId },
 						data: { [key]: value },
 					});
+					if (key === "status" && value === "ACTIVE") {
+						void cancelOpenUninstallTasks(conflict.customerId);
+					}
 				}
 
 				await tx.syncConflict.update({
@@ -276,6 +280,9 @@ export const resolveSyncConflict = protectedProcedure
 					where: { id: conflict.customerId },
 					data: customerUpdate,
 				});
+				if (customerUpdate["status"] === "ACTIVE") {
+					void cancelOpenUninstallTasks(conflict.customerId);
+				}
 			}
 
 			// Update operation resolved count if fully resolved
@@ -398,6 +405,9 @@ export const bulkResolveSyncConflicts = protectedProcedure
 							where: { id: conflict.customerId },
 							data: customerUpdate,
 						});
+						if (customerUpdate["status"] === "ACTIVE") {
+							void cancelOpenUninstallTasks(conflict.customerId);
+						}
 					}
 				}
 			});

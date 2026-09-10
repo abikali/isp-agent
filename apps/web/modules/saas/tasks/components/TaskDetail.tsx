@@ -1,6 +1,6 @@
 "use client";
 
-import { useBasesQuery } from "@saas/customers/client";
+import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
 import { PageShell } from "@shared/components/PageShell";
 import { formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -10,6 +10,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
+import { Combobox } from "@ui/components/combobox";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
@@ -41,6 +42,7 @@ export function TaskDetail({
 	const { organizationSlug } = useParams({ strict: false });
 	const updateTask = useUpdateTask();
 	const { bases } = useBasesQuery();
+	const { stations } = useStationsQuery();
 
 	const { data } = useSuspenseQuery(
 		orpc.tasks.get.queryOptions({
@@ -62,6 +64,7 @@ export function TaskDetail({
 			category: task.category,
 			dueDate: task.dueDate ? formatDateInput(task.dueDate) : "",
 			baseId: task.baseId ?? "",
+			stationId: task.stationId ?? "",
 			notes: task.notes ?? "",
 		},
 		onSubmit: async ({ value }) => {
@@ -89,6 +92,7 @@ export function TaskDetail({
 						| "GENERAL",
 					dueDate: value.dueDate ? new Date(value.dueDate) : null,
 					baseId: value.baseId || null,
+					stationId: value.stationId || null,
 					notes: value.notes || null,
 				});
 				toast.success("Task updated");
@@ -314,6 +318,33 @@ export function TaskDetail({
 												)}
 											</SelectContent>
 										</Select>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="stationId">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="task-edit-station">
+											Station
+										</Label>
+										<Combobox
+											id="task-edit-station"
+											value={field.state.value}
+											onChange={(v) =>
+												field.handleChange(
+													v === field.state.value
+														? ""
+														: v,
+												)
+											}
+											placeholder="No station"
+											searchPlaceholder="Search stations…"
+											emptyText="No station matches"
+											options={stations.map((st) => ({
+												value: st.id,
+												label: st.name,
+											}))}
+										/>
 									</div>
 								)}
 							</form.Field>

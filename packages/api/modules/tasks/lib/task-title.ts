@@ -18,7 +18,7 @@ export type TaskTitleCategory =
 	| "GENERAL"
 	| "UNINSTALL";
 
-const CATEGORY_TITLES: Record<TaskTitleCategory, string> = {
+export const CATEGORY_TITLES: Record<TaskTitleCategory, string> = {
 	INSTALLATION: "Installation",
 	MAINTENANCE: "Maintenance",
 	REPLACEMENT: "Replacement",
@@ -40,6 +40,24 @@ export function taskTitleCode(taskId: string) {
  * "Installation — Ahmad Khoury #7K2M", or "Support #A1B2" with no target.
  * Omit `code` to render a preview before the task (and its id) exists.
  */
+/**
+ * Arabic labels for the field crew. The worker portal and the worker
+ * Telegram show them next to the English label — a replacement job was
+ * once worked as something else because the English word meant nothing on
+ * site.
+ */
+export const CATEGORY_LABELS_AR: Record<string, string> = {
+	INSTALLATION: "تركيب",
+	MAINTENANCE: "صيانة",
+	REPAIR: "تصليح",
+	REPLACEMENT: "استبدال",
+	UNINSTALL: "فكّ الاشتراك",
+	SUPPORT: "دعم",
+	BILLING: "تحصيل",
+	GENERAL: "مهمة",
+	FOLLOW_UP: "متابعة",
+};
+
 export function buildTaskTitle({
 	category,
 	target,

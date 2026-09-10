@@ -96,6 +96,7 @@ import { CustomerSaveBar } from "./CustomerSaveBar";
 import { CustomerSyncConflicts } from "./CustomerSyncConflicts";
 import { CustomerTasks } from "./CustomerTasks";
 import { CustomerTransactions } from "./CustomerTransactions";
+import { DiagnoseButton } from "./DiagnoseSheet";
 import { NetworkStatusField } from "./NetworkStatusField";
 
 // ─── Types ─────────────────────────────────────────────────────────────
@@ -481,6 +482,16 @@ export function CustomerDetail({
 			}
 			actions={
 				<div className="flex flex-wrap items-center gap-2">
+					{organizationId && customer.externalId && (
+						<DiagnoseButton
+							organizationId={organizationId}
+							customerId={customer.id}
+							customerName={displayName(
+								customer.firstName,
+								customer.lastName,
+							)}
+						/>
+					)}
 					{organizationId && (
 						<CustomerIradiusMenu
 							organizationId={organizationId}

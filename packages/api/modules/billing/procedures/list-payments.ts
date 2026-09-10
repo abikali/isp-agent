@@ -244,6 +244,24 @@ export const listPayments = protectedProcedure
 							monthlyRate: true,
 							planId: true,
 							plan: { select: { id: true, name: true } },
+							// Open field tasks, so the review queue can show
+							// "already has a task" instead of creating a second.
+							_count: {
+								select: {
+									tasks: {
+										where: {
+											status: {
+												in: [
+													"OPEN",
+													"IN_PROGRESS",
+													"ON_HOLD",
+													"PENDING_APPROVAL",
+												],
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 					collector: {

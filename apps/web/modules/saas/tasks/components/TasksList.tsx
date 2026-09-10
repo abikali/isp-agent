@@ -27,6 +27,7 @@ const TASK_SORT_BY_MAP = {
 	"title" | "createdAt" | "dueDate" | "priority" | "status"
 >;
 
+import { useCustomersConnectivity } from "@saas/customers/client";
 import { useTasks } from "../hooks/use-tasks";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { TaskFilters } from "./TaskFilters";
@@ -69,6 +70,24 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	});
 
 	const columns = useTaskColumns(organizationSlug);
+	// Live online/offline for the customers on this page — the row data is
+	// a snapshot, the dot should not be.
+	const live = useCustomersConnectivity(
+		tasks.flatMap((t) => (t.customer ? [t.customer.id] : [])),
+	);
+	const rows = tasks.map((t) => {
+		const fresh = t.customer ? live.get(t.customer.id) : undefined;
+		return fresh && t.customer
+			? {
+					...t,
+					customer: {
+						...t.customer,
+						online: fresh.online,
+						status: fresh.status,
+					},
+				}
+			: t;
+	});
 
 	return (
 		<PageShell
@@ -130,7 +149,7 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 				<TooltipProvider>
 					<DataTable
 						columns={columns}
-						data={tasks}
+						data={rows}
 						isLoading={isLoading}
 						isFetching={isFetching}
 						sorting={sorting}

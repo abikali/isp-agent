@@ -247,6 +247,7 @@ interface PaymentRow {
 		mobile: string | null;
 		phone: string | null;
 		phones: unknown;
+		_count: { tasks: number };
 		expiresAt: string | Date | null;
 		iptvPrice: number;
 		realIpPrice: number;
@@ -906,6 +907,20 @@ export function PaymentsList() {
 							<div className="text-xs text-muted-foreground">
 								{c.username}
 							</div>
+							{c._count.tasks > 0 && (
+								<a
+									href={href ? `${href}#tasks` : undefined}
+									className="mt-0.5 inline-block"
+								>
+									<Badge
+										variant="warning"
+										className="text-[10px]"
+									>
+										{c._count.tasks} open task
+										{c._count.tasks === 1 ? "" : "s"}
+									</Badge>
+								</a>
+							)}
 						</>
 					);
 				},
@@ -2164,7 +2179,7 @@ export function PaymentsList() {
 					open
 					onOpenChange={(o) => !o && setTaskDialogCustomer(null)}
 					defaultCustomer={taskDialogCustomer}
-					defaultCategory="BILLING"
+					defaultCategory="UNINSTALL"
 				/>
 			)}
 

@@ -11,6 +11,7 @@ import {
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 import { iradiusSetActive } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
 import {
@@ -269,6 +270,10 @@ export const updateCustomer = protectedProcedure
 			input.organizationId,
 			auditContext,
 		);
+
+		if (input.status === "ACTIVE" && existing.status !== "ACTIVE") {
+			void cancelOpenUninstallTasks(customer.id);
+		}
 
 		return { customer };
 	});

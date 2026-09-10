@@ -1,11 +1,13 @@
 "use client";
 
+import { ConnectivityCell, DiagnoseButton } from "@saas/customers/client";
 import { useWorkerOptions } from "@saas/worker-options/client";
 import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PhoneActions } from "@shared/components/PhoneActions";
 import { customerPhoneNumbers } from "@shared/lib/customer-phones";
 import { displayName } from "@shared/lib/display-name";
 import { formatDate, formatDateTime } from "@shared/lib/format";
+import { useOrganizationId } from "@shared/lib/organization";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -76,6 +78,7 @@ export function TaskRowDetails({
 	);
 	const { labelOf: resolutionLabel } = useWorkerOptions("TASK_RESOLUTION");
 
+	const organizationId = useOrganizationId();
 	const customer = task.customer;
 	// Every number on file, not just the primary — see PhoneActions.
 	const phoneNumbers = customerPhoneNumbers(customer);
@@ -114,20 +117,27 @@ export function TaskRowDetails({
 					>
 						{customer ? (
 							<>
-								<Link
-									to="/app/$organizationSlug/customers/$customerId"
-									params={{
-										organizationSlug,
-										customerId: customer.id,
-									}}
-									className="font-medium hover:underline"
-									preload="intent"
-								>
-									{displayName(
-										customer.firstName,
-										customer.lastName,
-									)}
-								</Link>
+								<div className="flex items-center gap-2">
+									<ConnectivityCell
+										status={customer.status}
+										online={customer.online}
+										lastLogin={customer.lastLogin}
+									/>
+									<Link
+										to="/app/$organizationSlug/customers/$customerId"
+										params={{
+											organizationSlug,
+											customerId: customer.id,
+										}}
+										className="font-medium hover:underline"
+										preload="intent"
+									>
+										{displayName(
+											customer.firstName,
+											customer.lastName,
+										)}
+									</Link>
+								</div>
 								<div className="space-y-0.5 text-xs text-muted-foreground">
 									{customer.accountNumber && (
 										<div className="font-mono">
@@ -150,14 +160,23 @@ export function TaskRowDetails({
 										</div>
 									)}
 								</div>
-								{phoneNumbers.length > 0 && (
-									<div className="flex flex-wrap gap-2 pt-1">
-										<PhoneActions
-											numbers={phoneNumbers}
-											className="basis-24"
+								<div className="flex flex-wrap gap-2 pt-1">
+									<PhoneActions
+										numbers={phoneNumbers}
+										className="basis-24"
+									/>
+									{organizationId && (
+										<DiagnoseButton
+											organizationId={organizationId}
+											customerId={customer.id}
+											customerName={displayName(
+												customer.firstName,
+												customer.lastName,
+											)}
+											className="h-8 basis-24 text-xs"
 										/>
-									</div>
-								)}
+									)}
+								</div>
 							</>
 						) : (
 							<div className="space-y-0.5">

@@ -139,6 +139,8 @@ export const TASK_CATEGORY_META: Record<
 	TaskCategoryValue,
 	{
 		label: string;
+		/** Arabic label shown to the field crew next to the English one. */
+		labelAr: string;
 		/** One-line meaning, shown under the dropdown when selected. */
 		summary: string;
 		/** What the worker does to complete this task. */
@@ -149,12 +151,14 @@ export const TASK_CATEGORY_META: Record<
 > = {
 	INSTALLATION: {
 		label: "Installation",
+		labelAr: "تركيب",
 		summary: "New service or equipment setup for a customer or base.",
 		completion: "Worker records the installed equipment and a photo.",
 		requiresTarget: true,
 	},
 	REPLACEMENT: {
 		label: "Replacement",
+		labelAr: "استبدال",
 		summary: "Swap out equipment in the field.",
 		completion:
 			"Worker records the new equipment, a photo, and the old equipment recovered.",
@@ -162,12 +166,14 @@ export const TASK_CATEGORY_META: Record<
 	},
 	UNINSTALL: {
 		label: "Uninstall",
+		labelAr: "فكّ الاشتراك",
 		summary: "Remove service and reclaim equipment.",
 		completion: "Worker records the recovered equipment.",
 		requiresTarget: true,
 	},
 	MAINTENANCE: {
 		label: "Maintenance",
+		labelAr: "صيانة",
 		summary: "Service or check-up visit.",
 		completion:
 			"Worker logs what they found; equipment used can be recorded but isn't required.",
@@ -175,6 +181,7 @@ export const TASK_CATEGORY_META: Record<
 	},
 	REPAIR: {
 		label: "Repair",
+		labelAr: "تصليح",
 		summary: "Fix a reported fault.",
 		completion:
 			"Worker logs what they found; equipment used can be recorded but isn't required.",
@@ -182,18 +189,21 @@ export const TASK_CATEGORY_META: Record<
 	},
 	SUPPORT: {
 		label: "Support",
+		labelAr: "دعم",
 		summary: "General customer support visit or call.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,
 	},
 	BILLING: {
 		label: "Billing",
+		labelAr: "تحصيل",
 		summary: "Billing or collection follow-up.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,
 	},
 	GENERAL: {
 		label: "General",
+		labelAr: "مهمة",
 		summary: "Any task that doesn't fit the other categories.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,

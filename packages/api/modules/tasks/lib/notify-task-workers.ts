@@ -1,6 +1,8 @@
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
-import { db } from "@repo/database";
+import { db, parsePhones } from "@repo/database";
 import { logger } from "@repo/logs";
+import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
+import { CATEGORY_LABELS_AR, CATEGORY_TITLES } from "./task-title";
 
 /** Worker-facing task events an org can opt out of notifying about. */
 export type TaskWorkerEvent = "assigned" | "updated" | "cancelled";
@@ -81,6 +83,112 @@ export async function notifyTaskWorkers(
 			: copy.message;
 		const link = `/app/${org.slug}/tasks/${input.taskId}`;
 
+		// The Telegram message is what the worker reads on site, so it
+		// carries the job itself: who, where, which numbers (tap-to-copy),
+		// the username he types into the router, and when it is due.
+		const task = await db.task.findUnique({
+			where: { id: input.taskId },
+			select: {
+				category: true,
+				dueDate: true,
+				notes: true,
+				customer: {
+					select: {
+						firstName: true,
+						lastName: true,
+						username: true,
+						accountNumber: true,
+						phones: true,
+						mobile: true,
+						phone: true,
+						address: true,
+					},
+				},
+				base: { select: { name: true, address: true } },
+				station: { select: { name: true } },
+			},
+		});
+		const customer = task?.customer ?? null;
+		const phones = customer
+			? [
+					...new Set(
+						[
+							...parsePhones(customer.phones).map(
+								(p) => p.number,
+							),
+							customer.mobile,
+							customer.phone,
+						].filter((n): n is string => Boolean(n)),
+					),
+				]
+			: [];
+		const categoryLabel = task
+			? `${(CATEGORY_TITLES as Record<string, string>)[task.category] ?? task.category} · ${CATEGORY_LABELS_AR[task.category] ?? ""}`.trim()
+			: null;
+		const icon =
+			input.event === "cancelled"
+				? "❌"
+				: input.event === "updated"
+					? "✏️"
+					: "🛠️";
+		const telegramText = tgMessage({
+			icon,
+			title: `${copy.title}${categoryLabel ? ` — ${categoryLabel}` : ""}`,
+			fields: [
+				customer
+					? {
+							icon: "👤",
+							value:
+								[customer.firstName, customer.lastName]
+									.filter(Boolean)
+									.join(" ") ||
+								customer.username ||
+								"Customer",
+						}
+					: task?.base
+						? { icon: "🏢", value: task.base.name }
+						: task?.station
+							? { icon: "📡", value: task.station.name }
+							: null,
+				customer?.username
+					? {
+							icon: "🔑",
+							label: "Username",
+							value: customer.username,
+							copyable: true,
+						}
+					: null,
+				customer?.accountNumber
+					? {
+							icon: "🔢",
+							label: "Account",
+							value: customer.accountNumber,
+							copyable: true,
+						}
+					: null,
+				...phones.map((number) => ({
+					icon: "📞",
+					value: number,
+					copyable: true,
+				})),
+				customer?.address
+					? { icon: "📍", value: customer.address }
+					: task?.base?.address
+						? { icon: "📍", value: task.base.address }
+						: null,
+				task?.dueDate
+					? {
+							icon: "📅",
+							label: "Due",
+							value: task.dueDate.toISOString().slice(0, 10),
+						}
+					: null,
+				input.detail ? { icon: "ℹ️", value: input.detail } : null,
+				task?.notes ? { icon: "📝", value: task.notes } : null,
+			],
+			footer: tgLink("Open task", `${getBaseUrl()}${link}`),
+		});
+
 		await Promise.all(
 			employeeIds.map((employeeId) =>
 				notifyFieldEmployee({
@@ -90,6 +198,7 @@ export async function notifyTaskWorkers(
 					message,
 					link,
 					type: copy.type,
+					telegramText,
 				}),
 			),
 		);

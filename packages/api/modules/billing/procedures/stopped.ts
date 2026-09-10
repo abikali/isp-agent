@@ -19,7 +19,10 @@ import {
 } from "../lib/filters";
 import { unvoidInvoice } from "../lib/invoice-void";
 import { resolveYearMonth } from "../lib/resolve-month";
-import { closeReviewTasksForCustomer } from "../lib/review-tasks";
+import {
+	cancelOpenUninstallTasks,
+	closeReviewTasksForCustomer,
+} from "../lib/review-tasks";
 import { monthSpecSchema, paginationSchema } from "../lib/schemas";
 
 export const listStoppedAccounts = protectedProcedure
@@ -201,6 +204,7 @@ export const reactivateAccount = protectedProcedure
 			input.organizationId,
 			payment.customerId,
 		);
+		void cancelOpenUninstallTasks(payment.customerId);
 		notifyBadgeForOrganization(input.organizationId);
 
 		return { success: true };

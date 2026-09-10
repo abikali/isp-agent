@@ -122,6 +122,15 @@ export const createTask = protectedProcedure
 			target ??= base.name;
 		}
 
+		// The dialog is the only caller of this procedure (ingest and system
+		// tasks write rows directly). A task nobody is assigned to is a task
+		// nobody does — the owner asked for this to be a hard rule.
+		if (!input.employeeIds?.length) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Assign at least one worker to the task.",
+			});
+		}
+
 		if (input.employeeIds?.length) {
 			const validCount = await db.employee.count({
 				where: {
