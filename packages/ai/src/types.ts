@@ -7,6 +7,12 @@ import type {
 	ToolSet,
 } from "ai";
 
+/** A contact card the customer shared: who, and which numbers. */
+export interface SharedContact {
+	name: string;
+	numbers: string[];
+}
+
 export interface ParsedMessage {
 	chatId: string;
 	messageId: string;
@@ -30,6 +36,8 @@ export interface ParsedMessage {
 	latitude?: number | undefined;
 	/** Longitude for location messages */
 	longitude?: number | undefined;
+	/** Shared contact card(s), when `mediaType` is "contact" */
+	contacts?: SharedContact[] | undefined;
 }
 
 export interface SendMessageResult {

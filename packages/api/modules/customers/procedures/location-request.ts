@@ -84,6 +84,10 @@ export const createLocationRequest = protectedProcedure
 			logger.warn("Location request: WhatsApp send failed", {
 				customerId: input.customerId,
 			});
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"The WhatsApp message could not be sent. Check the customer's number and try again.",
+			});
 		}
 		return {
 			success: true,

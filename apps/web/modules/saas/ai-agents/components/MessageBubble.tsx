@@ -218,10 +218,10 @@ export function MessageBubble({
 					)}
 
 					{/* Attachment */}
-					{attachmentType && attachmentUrl && (
+					{attachmentType && (attachmentUrl || attachmentMeta) && (
 						<AttachmentContent
 							type={attachmentType}
-							url={attachmentUrl}
+							url={attachmentUrl ?? ""}
 							filename={attachmentFilename}
 							mimeType={attachmentMimeType}
 							size={attachmentSize}

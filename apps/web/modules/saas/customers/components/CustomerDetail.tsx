@@ -708,6 +708,61 @@ export function CustomerDetail({
 								</div>
 							</div>
 
+							{(accountTypePreview.previewData.carriesOver
+								.discount > 0 ||
+								accountTypePreview.previewData.carriesOver
+									.iptvPrice > 0 ||
+								accountTypePreview.previewData.carriesOver
+									.realIpPrice > 0) && (
+								<div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+									<p className="font-medium text-warning">
+										Carries over unchanged
+									</p>
+									<p className="mt-1 text-xs text-muted-foreground">
+										The plan change does not touch these —
+										adjust them separately if they should
+										change.
+									</p>
+									<ul className="mt-2 space-y-0.5 text-xs">
+										{accountTypePreview.previewData
+											.carriesOver.discount > 0 && (
+											<li>
+												Recurring discount −
+												{formatCurrency(
+													accountTypePreview
+														.previewData.carriesOver
+														.discount,
+												)}
+											</li>
+										)}
+										{accountTypePreview.previewData
+											.carriesOver.iptvPrice > 0 && (
+											<li>
+												IPTV{" "}
+												{formatCurrency(
+													accountTypePreview
+														.previewData.carriesOver
+														.iptvPrice,
+												)}
+												/month
+											</li>
+										)}
+										{accountTypePreview.previewData
+											.carriesOver.realIpPrice > 0 && (
+											<li>
+												Real IP{" "}
+												{formatCurrency(
+													accountTypePreview
+														.previewData.carriesOver
+														.realIpPrice,
+												)}
+												/month
+											</li>
+										)}
+									</ul>
+								</div>
+							)}
+
 							<div className="rounded-lg border border-border p-3">
 								<p className="mb-2 text-sm font-medium">
 									Billing impact

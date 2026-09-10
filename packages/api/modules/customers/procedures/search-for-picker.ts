@@ -2,9 +2,11 @@ import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
+
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { phoneSearchClauses } from "../lib/phone-search";
 
 export const searchCustomersForPicker = protectedProcedure
 	.route({
@@ -87,6 +89,7 @@ export const searchCustomersForPicker = protectedProcedure
 						];
 			where.OR = [
 				...nameClauses,
+				...phoneSearchClauses(input.search),
 				{ username: { contains: input.search, mode: "insensitive" } },
 				{
 					accountNumber: {

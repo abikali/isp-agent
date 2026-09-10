@@ -39,6 +39,7 @@ import {
 	updateCustomerLocation,
 } from "./procedures/location-request";
 import { getCustomerNetworkStatus } from "./procedures/network-status";
+import { pullCustomerLocationFromIRadius } from "./procedures/pull-location-from-iradius";
 import {
 	cancelIRadiusPush,
 	getIRadiusPushStatus,
@@ -121,6 +122,7 @@ export const customersRouter = {
 	previewAccountTypeChange: previewAccountTypeChangeProcedure,
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 	resetMacAddress: resetCustomerMacAddress,
+	pullLocationFromIRadius: pullCustomerLocationFromIRadius,
 	updateNameInIRadius: updateCustomerNameInIRadius,
 	setDiscount: setCustomerRecurringDiscount,
 	setIptvPrice: setCustomerIptvPrice,

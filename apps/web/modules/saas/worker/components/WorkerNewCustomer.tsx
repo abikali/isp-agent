@@ -19,7 +19,7 @@ import {
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,
 } from "../hooks/use-worker";
-import { InstallItemRows } from "./InstallItemRows";
+import { InstallItemRows, useOverStockLines } from "./InstallItemRows";
 import {
 	type InstallLine,
 	installLinesTotal,
@@ -160,6 +160,7 @@ export function WorkerNewCustomer() {
 			: (plan.monthlyPrice / 30) * Number(durationDays || 0)
 		: 0;
 	const itemsTotal = installLinesTotal(lines);
+	const overStock = useOverStockLines(lines);
 
 	const nextBilling = (() => {
 		const d = new Date();
@@ -179,6 +180,7 @@ export function WorkerNewCustomer() {
 		hasValidPhone &&
 		address.trim() &&
 		planId &&
+		overStock.size === 0 &&
 		(durationType === "month" || Number(durationDays) >= 1);
 
 	function reset() {

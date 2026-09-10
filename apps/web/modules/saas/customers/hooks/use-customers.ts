@@ -145,6 +145,11 @@ export const useResetMacAddress = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+export const usePullLocationFromIRadius = createInvalidatingMutation(
+	() => orpc.customers.pullLocationFromIRadius.mutationOptions(),
+	invalidateCustomers,
+);
+
 export const useUpdateNameInIRadius = createInvalidatingMutation(
 	() => orpc.customers.updateNameInIRadius.mutationOptions(),
 	invalidateCustomers,

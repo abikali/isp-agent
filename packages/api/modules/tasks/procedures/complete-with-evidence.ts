@@ -15,6 +15,7 @@ import {
 	addonNoteFor,
 	classifyAddonNote,
 } from "../../installations/lib/addons";
+import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
@@ -175,29 +176,10 @@ export const completeTaskWithEvidence = protectedProcedure
 				Boolean(i.addonType),
 		);
 
-		// Soft stock check — advisory only; the hard guard runs at approval.
-		// Add-on lines carry no stock, so they're excluded.
+		// Submission-time stock check naming the item; the hard guard still
+		// runs at approval. Add-on lines carry no stock, so they're excluded.
 		if (stockLines.length > 0 && employeeId) {
-			const allocations = await db.workerStock.findMany({
-				where: {
-					employeeId,
-					stockItemId: {
-						in: stockLines.map((i) => i.stockItemId),
-					},
-				},
-				select: { stockItemId: true, quantity: true },
-			});
-			const holdings = new Map(
-				allocations.map((a) => [a.stockItemId, a.quantity]),
-			);
-			for (const line of stockLines) {
-				if ((holdings.get(line.stockItemId) ?? 0) < line.quantity) {
-					throw new ORPCError("CONFLICT", {
-						message:
-							"You don't hold enough stock for one of the installed items — ask for a delivery first",
-					});
-				}
-			}
+			await assertWorkerHoldsStockLines(db, employeeId, stockLines);
 		}
 
 		// Add-ons attach to a customer and are capped at one IPTV + one Real IP.

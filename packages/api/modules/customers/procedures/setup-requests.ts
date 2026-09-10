@@ -22,6 +22,7 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import { addonNoteFor } from "../../installations/lib/addons";
+import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import {
 	approveInstallationInTx,
 	assertWorkerHoldsStock,
@@ -230,6 +231,11 @@ export const workerCreateCustomer = protectedProcedure
 				}
 			}
 		}
+
+		// The worker can only install what he is holding. Checked here, at
+		// submission, so he can fix the line on the spot — the approval-time
+		// guard would otherwise reject the whole setup days later.
+		await assertWorkerHoldsStockLines(db, employeeId, input.items);
 
 		if (input.durationType === "days" && !input.durationDays) {
 			throw new ORPCError("BAD_REQUEST", {

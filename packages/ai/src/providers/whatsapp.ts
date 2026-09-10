@@ -7,6 +7,7 @@ import type {
 	SendMediaOptions,
 	SendMessageOptions,
 	SendMessageResult,
+	SharedContact,
 } from "../types";
 import { acquireSendSlot, tryTypingSlot } from "./rate-limiter";
 
@@ -41,6 +42,49 @@ interface WaSenderMediaMessage {
 	fileName?: string | undefined;
 }
 
+interface WaSenderContactMessage {
+	displayName?: string | undefined;
+	vcard?: string | undefined;
+}
+
+/**
+ * Pull the name and phone numbers out of a vCard. WhatsApp writes one `TEL`
+ * line per number, usually with `waid=` in the parameters — the number
+ * itself is what follows the colon.
+ */
+function parseVcardContact(
+	card: WaSenderContactMessage | undefined,
+): SharedContact | null {
+	if (!card) {
+		return null;
+	}
+	const vcard = card.vcard ?? "";
+	const numbers: string[] = [];
+	for (const match of vcard.matchAll(
+		/^(?:[\w-]+\.)?TEL(?:;[^:\n]*)?:([^\n\r]+)/gim,
+	)) {
+		const number = (match[1] ?? "").trim();
+		if (number && !numbers.includes(number)) {
+			numbers.push(number);
+		}
+	}
+	const fnMatch = vcard.match(/^(?:[\w-]+\.)?FN:([^\n\r]+)/im);
+	const name = (card.displayName ?? fnMatch?.[1] ?? "").trim();
+	if (!name && numbers.length === 0) {
+		return null;
+	}
+	return { name: name || "Contact", numbers };
+}
+
+function formatSharedContacts(contacts: SharedContact[]): string {
+	return contacts
+		.map(
+			(c) =>
+				`[Contact] ${c.name}${c.numbers.length ? ` — ${c.numbers.join(", ")}` : ""}`,
+		)
+		.join("\n");
+}
+
 interface WaSenderMessageContent {
 	conversation?: string | undefined;
 	imageMessage?: WaSenderMediaMessage | undefined;
@@ -48,7 +92,13 @@ interface WaSenderMessageContent {
 	videoMessage?: WaSenderMediaMessage | undefined;
 	documentMessage?: WaSenderMediaMessage | undefined;
 	stickerMessage?: WaSenderMediaMessage | undefined;
-	contactMessage?: unknown | undefined;
+	contactMessage?: WaSenderContactMessage | undefined;
+	contactsArrayMessage?:
+		| {
+				displayName?: string | undefined;
+				contacts?: WaSenderContactMessage[] | undefined;
+		  }
+		| undefined;
 	locationMessage?:
 		| {
 				degreesLatitude?: number | undefined;
@@ -115,6 +165,7 @@ interface ExtractedMessage {
 	mediaFileName?: string | undefined;
 	latitude?: number | undefined;
 	longitude?: number | undefined;
+	contacts?: SharedContact[] | undefined;
 }
 
 function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
@@ -228,9 +279,24 @@ function extractMessage(msg: WaSenderMessage): ExtractedMessage | null {
 		return { text: "[Location received]" };
 	}
 
-	// Contact
-	if (content?.contactMessage) {
-		return { text: "[Contact shared]" };
+	// Contact(s). Customers share the number of a neighbour, a relative who
+	// pays, or the previous tenant — the model and the dashboard both need
+	// the digits, not a "[Contact shared]" placeholder.
+	if (content?.contactMessage || content?.contactsArrayMessage) {
+		const cards = content.contactsArrayMessage?.contacts ?? [
+			content.contactMessage,
+		];
+		const contacts = cards
+			.map((card) => parseVcardContact(card))
+			.filter((c): c is SharedContact => c !== null);
+		if (contacts.length === 0) {
+			return { text: "[Contact shared]" };
+		}
+		return {
+			text: formatSharedContacts(contacts),
+			mediaType: "contact",
+			contacts,
+		};
 	}
 
 	return null;
@@ -305,6 +371,7 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				mediaFileName: extracted.mediaFileName,
 				latitude: extracted.latitude,
 				longitude: extracted.longitude,
+				contacts: extracted.contacts,
 			});
 		}
 	}

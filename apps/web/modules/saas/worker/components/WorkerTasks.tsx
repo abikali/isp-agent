@@ -70,7 +70,7 @@ import {
 	useMyTrendQuery,
 	useUninstallItemsQuery,
 } from "../hooks/use-worker";
-import { InstallItemRows } from "./InstallItemRows";
+import { InstallItemRows, useOverStockLines } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
 import {
@@ -892,8 +892,10 @@ function MaintenanceSubmitSheet({
 	const [recovered, setRecovered] = useState<RecoveredItem[]>([]);
 
 	const installedItems = linesToPayload(lines);
+	const overStock = useOverStockLines(lines);
 	const recoveredOk =
-		recovered.length === 0 || recoveredItemsValid(recovered);
+		(recovered.length === 0 || recoveredItemsValid(recovered)) &&
+		overStock.size === 0;
 
 	async function handleSubmit() {
 		if (!organizationId || !recoveredOk) {
@@ -1001,7 +1003,9 @@ function InstallSubmitSheet({
 	const [note, setNote] = useState("");
 
 	const installedItems = linesToPayload(lines);
-	const valid = installedItems.length > 0 && photoUrl !== null;
+	const overStock = useOverStockLines(lines);
+	const valid =
+		installedItems.length > 0 && photoUrl !== null && overStock.size === 0;
 
 	async function handleSubmit() {
 		if (!organizationId || !valid) {
@@ -1080,9 +1084,11 @@ function ReplacementSubmitSheet({
 	]);
 
 	const installedItems = linesToPayload(lines);
+	const overStock = useOverStockLines(lines);
 	const valid =
 		installedItems.length > 0 &&
 		photoUrl !== null &&
+		overStock.size === 0 &&
 		recoveredItemsValid(recovered);
 
 	async function handleSubmit() {

@@ -546,6 +546,11 @@ async function handleMessages(
 					attachmentType: "location",
 					attachmentMeta: { lat: msg.latitude, lng: msg.longitude },
 				};
+			} else if (msg.mediaType === "contact" && msg.contacts?.length) {
+				attachmentData = {
+					attachmentType: "contact",
+					attachmentMeta: { contacts: msg.contacts },
+				};
 			} else if (msg.mediaId && msg.mediaType) {
 				try {
 					const media =

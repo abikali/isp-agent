@@ -1,6 +1,7 @@
 "use client";
 
 import { parsePhones } from "@repo/database/phones";
+import { PhoneActions } from "@shared/components/PhoneActions";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { Badge } from "@ui/components/badge";
@@ -15,9 +16,7 @@ import {
 	CopyIcon,
 	HandCoinsIcon,
 	MapPinIcon,
-	MessageCircleIcon,
 	NavigationIcon,
-	PhoneIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import {
@@ -25,7 +24,6 @@ import {
 	formatCycleShort,
 	getExpiryInfo,
 } from "../lib/billing-utils";
-import { formatWhatsAppLink } from "../lib/whatsapp";
 
 export interface UnpaidCustomer {
 	id: string;
@@ -136,8 +134,6 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 		: [customer.mobile ?? customer.phone].filter((n): n is string =>
 				Boolean(n),
 			);
-	const phoneNumber = phoneNumbers[0] ?? null;
-	const waLink = formatWhatsAppLink(phoneNumber);
 	const hasLocation = customer.latitude && customer.longitude;
 
 	return (
@@ -456,41 +452,12 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						Pay
 					</Button>
 
-					{phoneNumber && (
-						<Button
-							variant="outline"
-							size="icon"
-							className="size-11 shrink-0"
-							asChild
-						>
-							<a
-								href={`tel:${phoneNumber}`}
-								aria-label="Call customer"
-								title="Call"
-							>
-								<PhoneIcon className="size-4" />
-							</a>
-						</Button>
-					)}
-
-					{waLink && (
-						<Button
-							variant="outline"
-							size="icon"
-							className="size-11 shrink-0 text-success"
-							asChild
-						>
-							<a
-								href={waLink}
-								target="_blank"
-								rel="noopener noreferrer"
-								aria-label="Message on WhatsApp"
-								title="WhatsApp"
-							>
-								<MessageCircleIcon className="size-4" />
-							</a>
-						</Button>
-					)}
+					{/* One number → direct link; several → a picker, because the
+					    collector must choose which line to call or message. */}
+					<PhoneActions
+						numbers={phoneNumbers}
+						className="h-11 flex-none basis-auto px-3 text-sm"
+					/>
 
 					<Button
 						variant="ghost"

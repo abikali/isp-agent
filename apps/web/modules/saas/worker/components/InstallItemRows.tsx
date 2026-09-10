@@ -11,6 +11,39 @@ import { useMyStockQuery } from "../hooks/use-worker";
 import { type InstallLine, installLinesTotal } from "./install-lines";
 
 /**
+ * Which item lines ask for more than the worker holds. The server refuses
+ * these at submission; surfacing them here keeps the worker from hitting
+ * that wall after filling the whole form.
+ */
+export function useOverStockLines(lines: InstallLine[]): Set<number> {
+	const { allocations } = useMyStockQuery();
+	const held = new Map(
+		allocations.map((a) => [a.stockItem.id, a.quantity] as const),
+	);
+	const needed = new Map<string, number>();
+	for (const line of lines) {
+		if (line.kind === "item" && line.stockItemId) {
+			needed.set(
+				line.stockItemId,
+				(needed.get(line.stockItemId) ?? 0) + line.quantity,
+			);
+		}
+	}
+	const over = new Set<number>();
+	for (const line of lines) {
+		if (
+			line.kind === "item" &&
+			line.stockItemId &&
+			(needed.get(line.stockItemId) ?? 0) >
+				(held.get(line.stockItemId) ?? 0)
+		) {
+			over.add(line.key);
+		}
+	}
+	return over;
+}
+
+/**
  * Multi-row builder for installation lines: stock items from the worker's
  * own inventory plus add-ons (max one IPTV + one Real IP). Shared between
  * the Install page and the new-customer wizard.
@@ -26,6 +59,7 @@ export function InstallItemRows({
 }) {
 	const { allocations } = useMyStockQuery();
 	const addonDefaults = useAddonDefaultsQuery();
+	const overStock = useOverStockLines(lines);
 
 	const hasIptv = lines.some((l) => l.addonType === "IPTV");
 	const hasRealIp = lines.some((l) => l.addonType === "REAL_IP");
@@ -145,13 +179,35 @@ export function InstallItemRows({
 									type="number"
 									inputMode="numeric"
 									min={1}
+									max={
+										allocations.find(
+											(a) =>
+												a.stockItem.id ===
+												line.stockItemId,
+										)?.quantity
+									}
 									value={line.quantity}
+									aria-invalid={
+										overStock.has(line.key) || undefined
+									}
 									onChange={(e) =>
 										update(line.key, {
 											quantity: Number(e.target.value),
 										})
 									}
 								/>
+								{overStock.has(line.key) && (
+									<p className="text-xs text-destructive">
+										You hold{" "}
+										{allocations.find(
+											(a) =>
+												a.stockItem.id ===
+												line.stockItemId,
+										)?.quantity ?? 0}{" "}
+										— lower the quantity or ask for a
+										delivery.
+									</p>
+								)}
 							</div>
 						)}
 						<div className="space-y-1">

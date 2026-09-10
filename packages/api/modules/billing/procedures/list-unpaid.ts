@@ -2,9 +2,11 @@ import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
+
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { phoneSearchClauses } from "../../customers/lib/phone-search";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	assignmentFilterValue,
@@ -169,6 +171,7 @@ export const listUnpaidCustomers = protectedProcedure
 								mode: "insensitive" as const,
 							},
 						},
+						...phoneSearchClauses(input.search),
 					],
 				},
 			];

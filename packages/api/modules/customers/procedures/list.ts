@@ -3,10 +3,12 @@ import {
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
+
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../lib/needs-review";
+import { phoneSearchClauses } from "../lib/phone-search";
 import { CUSTOMER_LIST_STATUSES } from "../lib/statuses";
 
 export const listCustomers = protectedProcedure
@@ -172,6 +174,7 @@ export const listCustomers = protectedProcedure
 						];
 			where["OR"] = [
 				...nameClauses,
+				...phoneSearchClauses(input.search),
 				{ email: { contains: input.search, mode: "insensitive" } },
 				{ phone: { contains: input.search, mode: "insensitive" } },
 				{ mobile: { contains: input.search, mode: "insensitive" } },

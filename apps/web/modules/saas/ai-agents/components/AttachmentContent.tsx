@@ -2,6 +2,7 @@
 
 import { getStorageImageUrl } from "@shared/lib/image-utils";
 import { AudioBubble } from "./AudioBubble";
+import { ContactBubble } from "./ContactBubble";
 import { DocumentBubble } from "./DocumentBubble";
 import { ImageBubble } from "./ImageBubble";
 import { LocationBubble } from "./LocationBubble";
@@ -57,6 +58,9 @@ export function AttachmentContent({
 				mimeType={mimeType}
 			/>
 		);
+	}
+	if (type === "contact") {
+		return <ContactBubble meta={meta} />;
 	}
 	if (type === "location") {
 		return (

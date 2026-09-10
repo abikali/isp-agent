@@ -53,7 +53,13 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true, username: true },
+			select: {
+				externalId: true,
+				username: true,
+				discount: true,
+				iptvPrice: true,
+				realIpPrice: true,
+			},
 		});
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
@@ -81,10 +87,21 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 		}
 
 		try {
-			return await previewAccountTypeChange(
+			const preview = await previewAccountTypeChange(
 				customer,
 				Number.parseInt(newPlan.externalId, 10),
 			);
+			// A plan change leaves the recurring discount and add-on prices
+			// exactly as they are. Surface them so the admin sees what carries
+			// over instead of discovering it on next month's invoice.
+			return {
+				...preview,
+				carriesOver: {
+					discount: customer.discount ?? 0,
+					iptvPrice: customer.iptvPrice ?? 0,
+					realIpPrice: customer.realIpPrice ?? 0,
+				},
+			};
 		} catch (err) {
 			const message =
 				err instanceof Error ? err.message : "iRadius preview failed";

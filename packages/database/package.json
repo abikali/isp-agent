@@ -40,6 +40,7 @@
 		"type-check": "tsc --noEmit",
 		"seed": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed.ts",
 		"seed:products": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-products.ts",
+		"backfill:geo": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-geo-from-iradius.ts",
 		"seed:worker-options": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-worker-options.ts",
 		"backfill:shortcodes": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-shortcodes.ts",
 		"import:bases": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/import-bases.ts"

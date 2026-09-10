@@ -22,6 +22,7 @@ import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import {
 	CalendarClockIcon,
+	MapPinIcon,
 	MonitorIcon,
 	PercentIcon,
 	RadioTowerIcon,
@@ -32,6 +33,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import {
+	usePullLocationFromIRadius,
 	useResetMacAddress,
 	useSetCustomerExpiryDate,
 	useSetDiscount,
@@ -93,12 +95,14 @@ export function CustomerIradiusMenu({
 	const setDiscount = useSetDiscount();
 	const setIptvPrice = useSetIptvPrice();
 	const setExpiryDate = useSetCustomerExpiryDate();
+	const pullLocation = usePullLocationFromIRadius();
 
 	if (!customer.externalId) {
 		return null;
 	}
 
 	const anyPending =
+		pullLocation.isPending ||
 		resetMac.isPending ||
 		updateName.isPending ||
 		setDiscount.isPending ||
@@ -123,6 +127,30 @@ export function CustomerIradiusMenu({
 					<DropdownMenuItem onClick={() => setShowSyncPreview(true)}>
 						<RefreshCwIcon className="mr-2 size-4" />
 						Sync data from iRadius
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						onClick={() =>
+							pullLocation
+								.mutateAsync({
+									organizationId,
+									customerId: customer.id,
+								})
+								.then(() =>
+									toast.success(
+										"Location copied from iRadius",
+									),
+								)
+								.catch((err: unknown) =>
+									toast.error(
+										err instanceof Error
+											? err.message
+											: "Could not pull the location",
+									),
+								)
+						}
+					>
+						<MapPinIcon className="mr-2 size-4" />
+						Pull location from iRadius
 					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuLabel>Apply in iRadius</DropdownMenuLabel>

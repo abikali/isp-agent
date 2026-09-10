@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { db } from "@repo/database";
+import { db, getPrimaryPhone } from "@repo/database";
 import type { LocationRequestJobData } from "../types";
 import { sendWhatsAppLocationRequest } from "./wpbox";
 
@@ -48,6 +48,7 @@ export async function runCreateLocationRequest(
 			firstName: true,
 			mobile: true,
 			phone: true,
+			phones: true,
 			locationRequests: {
 				where: {
 					completedAt: null,
@@ -63,7 +64,10 @@ export async function runCreateLocationRequest(
 	if (!customer || customer.organizationId !== organizationId) {
 		return { ok: false, reason: "customer_not_found" };
 	}
-	const phone = customer.mobile ?? customer.phone;
+	// The phones array is the source of truth; `mobile` is only its cached
+	// primary and can lag behind an edit.
+	const phone =
+		getPrimaryPhone(customer.phones) ?? customer.mobile ?? customer.phone;
 	if (!phone) {
 		return { ok: false, reason: "no_phone" };
 	}
@@ -86,16 +90,21 @@ export async function runCreateLocationRequest(
 		});
 	}
 
-	await db.customer.update({
-		where: { id: customerId },
-		data: { locationRequestedAt: new Date() },
-	});
-
 	const whatsappSent = await sendWhatsAppLocationRequest({
 		phone,
 		token,
 		customerName: customer.firstName,
 	});
+
+	// Stamp "last requested" only when the customer actually got the message.
+	// Stamping before the send made the UI say "requested 2 min ago" (and
+	// throttle the retry) for a WhatsApp that never went out.
+	if (whatsappSent) {
+		await db.customer.update({
+			where: { id: customerId },
+			data: { locationRequestedAt: new Date() },
+		});
+	}
 
 	return { ok: true, whatsappSent, token, expiresAt };
 }
