@@ -246,6 +246,8 @@ export const listPayments = protectedProcedure
 							plan: { select: { id: true, name: true } },
 							// Open field tasks, so the review queue can show
 							// "already has a task" instead of creating a second.
+							// Only the sources the Tasks page shows: AI
+							// escalations and system reviews are not visits.
 							_count: {
 								select: {
 									tasks: {
@@ -257,6 +259,9 @@ export const listPayments = protectedProcedure
 													"ON_HOLD",
 													"PENDING_APPROVAL",
 												],
+											},
+											source: {
+												in: ["MANUAL", "LEGACY"],
 											},
 										},
 									},

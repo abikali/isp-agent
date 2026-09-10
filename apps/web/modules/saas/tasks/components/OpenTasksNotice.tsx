@@ -20,6 +20,11 @@ export function OpenTasksNotice({ customerId }: { customerId: string }) {
 						organizationId,
 						customerId,
 						statuses: ["OPEN", "PENDING_APPROVAL"],
+						// Same sources as the Tasks page. AI escalations and
+						// system reviews are not field work and are hidden
+						// there, so counting them here says "1 open task" for
+						// a customer whose task list looks empty.
+						sources: ["MANUAL", "LEGACY"],
 						page: 1,
 						pageSize: 10,
 					},
