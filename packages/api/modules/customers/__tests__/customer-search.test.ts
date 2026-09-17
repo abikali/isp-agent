@@ -10,6 +10,7 @@ import {
 	customerSearchWhere,
 	customerTokenWhere,
 	looksLikePhone,
+	memoizedPhoneIdLookup,
 	phoneSearchDigits,
 } from "../lib/customer-search";
 
@@ -116,5 +117,36 @@ describe("customerSearchWhere", () => {
 		expect(where).toEqual({
 			AND: [customerTokenWhere("michell"), customerTokenWhere("takla")],
 		});
+	});
+
+	it("also matches a phone token of a mixed search on any of the customer's numbers", async () => {
+		mockQueryRaw.mockResolvedValue([{ id: "c97" }] as never);
+
+		const where = await customerSearchWhere("org-1", "takla 81394966");
+
+		expect(mockQueryRaw).toHaveBeenCalledTimes(1);
+		expect(where).toEqual({
+			AND: [
+				customerTokenWhere("takla"),
+				customerTokenWhere("81394966", ["c97"]),
+			],
+		});
+		expect(customerTokenWhere("81394966", ["c97"]).OR).toContainEqual({
+			id: { in: ["c97"] },
+		});
+	});
+});
+
+describe("memoizedPhoneIdLookup", () => {
+	it("runs each distinct phone scan once per request", async () => {
+		mockQueryRaw.mockResolvedValue([{ id: "c97" }] as never);
+		const lookup = memoizedPhoneIdLookup("org-1");
+
+		await Promise.all([
+			customerSearchWhere("org-1", "81394966", lookup),
+			customerSearchWhere("org-1", "81394966", lookup),
+		]);
+
+		expect(mockQueryRaw).toHaveBeenCalledTimes(1);
 	});
 });

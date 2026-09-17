@@ -5,7 +5,11 @@ vi.mock("@repo/database", () => ({
 }));
 
 import { db } from "@repo/database";
-import { customerTokenWhere } from "../../customers/lib/customer-search";
+import {
+	customerSearchWhere,
+	customerTokenWhere,
+	memoizedPhoneIdLookup,
+} from "../../customers/lib/customer-search";
 import { taskSearchWhere, taskTokenWhere } from "../lib/task-search";
 
 const mockQueryRaw = vi.mocked(db.$queryRaw);
@@ -116,5 +120,31 @@ describe("taskSearchWhere", () => {
 				},
 			],
 		});
+	});
+
+	it("matches a phone token of a mixed search through the customer's numbers", async () => {
+		mockQueryRaw.mockResolvedValue([{ id: "c97" }] as never);
+
+		const where = await taskSearchWhere("org-1", "takla 81394966");
+
+		expect(mockQueryRaw).toHaveBeenCalledTimes(1);
+		expect(where).toEqual({
+			AND: [taskTokenWhere("takla"), taskTokenWhere("81394966", ["c97"])],
+		});
+		expect(taskTokenWhere("81394966", ["c97"]).OR).toContainEqual({
+			customer: customerTokenWhere("81394966", ["c97"]),
+		});
+	});
+
+	it("shares one phone scan with the customer search in the palette", async () => {
+		mockQueryRaw.mockResolvedValue([{ id: "c97" }] as never);
+		const lookup = memoizedPhoneIdLookup("org-1");
+
+		await Promise.all([
+			customerSearchWhere("org-1", "+961 81 394 966", lookup),
+			taskSearchWhere("org-1", "+961 81 394 966", lookup),
+		]);
+
+		expect(mockQueryRaw).toHaveBeenCalledTimes(1);
 	});
 });

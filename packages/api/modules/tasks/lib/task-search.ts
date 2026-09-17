@@ -1,8 +1,11 @@
 import type { Prisma } from "@repo/database";
 import {
+	customerIdsByPhone,
 	customerSearchWhere,
 	customerTokenWhere,
 	looksLikePhone,
+	type PhoneIdLookup,
+	tokensWithPhoneIds,
 } from "../../customers/lib/customer-search";
 
 /** Tokens beyond this are ignored — each one adds a join-heavy OR. */
@@ -22,7 +25,9 @@ const MAX_TOKENS = 10;
  *   must match one of: title, description, notes, the customer's name /
  *   username / account / phone, base, station, an assigned worker, or the
  *   worker who completed it. A 4-character token also matches the task code
- *   (last 4 of the id) for tasks whose title predates the code suffix.
+ *   (last 4 of the id) for tasks whose title predates the code suffix, and
+ *   a phone-shaped token also matches any of the customer's numbers
+ *   ("takla 81394966").
  *
  * Soft-deleted customers are deliberately NOT excluded — they still own their
  * old tasks. Returns null for an empty query. Callers AND the result into
@@ -31,6 +36,7 @@ const MAX_TOKENS = 10;
 export async function taskSearchWhere(
 	organizationId: string,
 	query: string,
+	lookup: PhoneIdLookup = (q) => customerIdsByPhone(organizationId, q),
 ): Promise<Prisma.TaskWhereInput | null> {
 	const trimmed = query.trim();
 	if (trimmed.length === 0) {
@@ -45,6 +51,7 @@ export async function taskSearchWhere(
 					customer: await customerSearchWhere(
 						organizationId,
 						trimmed,
+						lookup,
 					),
 				},
 			],
@@ -59,18 +66,26 @@ export async function taskSearchWhere(
 	if (tokens.length === 0) {
 		return null;
 	}
-	return { AND: tokens.map(taskTokenWhere) };
+	const resolved = await tokensWithPhoneIds(tokens, lookup);
+	return {
+		AND: resolved.map(({ token, phoneIds }) =>
+			taskTokenWhere(token, phoneIds),
+		),
+	};
 }
 
 /** One search token against a task's own text and everything it points at. */
-export function taskTokenWhere(token: string): Prisma.TaskWhereInput {
+export function taskTokenWhere(
+	token: string,
+	phoneIds?: string[],
+): Prisma.TaskWhereInput {
 	const contains = { contains: token, mode: "insensitive" } as const;
 	const or: Prisma.TaskWhereInput[] = [...textWhere(token)];
 	// Single characters would match nearly every related row — keep them to
 	// the task's own text.
 	if (token.length >= 2) {
 		or.push(
-			{ customer: customerTokenWhere(token) },
+			{ customer: customerTokenWhere(token, phoneIds) },
 			{ base: { name: contains } },
 			{ station: { name: contains } },
 			{ assignments: { some: { employee: { name: contains } } } },

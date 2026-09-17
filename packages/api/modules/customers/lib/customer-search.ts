@@ -43,8 +43,15 @@ export function phoneSearchDigits(query: string): string {
 	return toNationalDigits(query.trim());
 }
 
-/** One search token against the customer's identifying fields. */
-export function customerTokenWhere(token: string): Prisma.CustomerWhereInput {
+/**
+ * One search token against the customer's identifying fields. `phoneIds` are
+ * the customers a phone-shaped token resolved to (see `customerIdsByPhone`),
+ * so "takla 81394966" also finds a number kept only in `phones`.
+ */
+export function customerTokenWhere(
+	token: string,
+	phoneIds?: string[],
+): Prisma.CustomerWhereInput {
 	return {
 		OR: [
 			{ firstName: { contains: token, mode: "insensitive" } },
@@ -53,8 +60,45 @@ export function customerTokenWhere(token: string): Prisma.CustomerWhereInput {
 			{ accountNumber: { contains: token, mode: "insensitive" } },
 			{ mobile: { contains: token, mode: "insensitive" } },
 			{ phone: { contains: token, mode: "insensitive" } },
+			...(phoneIds ? [{ id: { in: phoneIds } }] : []),
 		],
 	};
+}
+
+/**
+ * Resolves a phone query to customer ids. Searches that build more than one
+ * clause from the same query (the command palette's customer + task
+ * sections) pass one memoised lookup so the digits scan runs once.
+ */
+export type PhoneIdLookup = (query: string) => Promise<string[]>;
+
+/** A per-request lookup that runs each distinct phone scan only once. */
+export function memoizedPhoneIdLookup(organizationId: string): PhoneIdLookup {
+	const cache = new Map<string, Promise<string[]>>();
+	return (query) => {
+		let ids = cache.get(query);
+		if (!ids) {
+			ids = customerIdsByPhone(organizationId, query);
+			cache.set(query, ids);
+		}
+		return ids;
+	};
+}
+
+/**
+ * Tokens of a free-text query, each paired with the customer ids its digits
+ * resolve to when the token is itself phone-shaped (undefined otherwise).
+ */
+export async function tokensWithPhoneIds(
+	tokens: string[],
+	lookup: PhoneIdLookup,
+): Promise<{ token: string; phoneIds: string[] | undefined }[]> {
+	return Promise.all(
+		tokens.map(async (token) => ({
+			token,
+			phoneIds: looksLikePhone(token) ? await lookup(token) : undefined,
+		})),
+	);
 }
 
 /**
@@ -97,7 +141,9 @@ export async function customerIdsByPhone(
  *   stored shape, any of their numbers), or whose username / account number
  *   contains the query (numeric usernames).
  * - Otherwise → every whitespace token must match one of name, username,
- *   account number or phone, so "michell takla" finds first + last name.
+ *   account number or phone, so "michell takla" finds first + last name. A
+ *   phone-shaped token also matches any of the customer's numbers, so
+ *   "takla 81394966" finds a secondary number.
  *
  * Callers AND this into their own where (never assign it over an existing
  * `OR`).
@@ -105,10 +151,11 @@ export async function customerIdsByPhone(
 export async function customerSearchWhere(
 	organizationId: string,
 	query: string,
+	lookup: PhoneIdLookup = (q) => customerIdsByPhone(organizationId, q),
 ): Promise<Prisma.CustomerWhereInput> {
 	const trimmed = query.trim();
 	if (looksLikePhone(trimmed)) {
-		const ids = await customerIdsByPhone(organizationId, trimmed);
+		const ids = await lookup(trimmed);
 		return {
 			OR: [
 				{ id: { in: ids } },
@@ -118,5 +165,10 @@ export async function customerSearchWhere(
 		};
 	}
 	const tokens = trimmed.split(/\s+/).filter(Boolean).slice(0, 10);
-	return { AND: tokens.map(customerTokenWhere) };
+	const resolved = await tokensWithPhoneIds(tokens, lookup);
+	return {
+		AND: resolved.map(({ token, phoneIds }) =>
+			customerTokenWhere(token, phoneIds),
+		),
+	};
 }

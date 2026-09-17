@@ -8,7 +8,10 @@ import {
 	getPermissionContext,
 } from "../../lib/permission";
 import { protectedProcedure, publicProcedure } from "../../orpc/procedures";
-import { customerSearchWhere } from "../customers/lib/customer-search";
+import {
+	customerSearchWhere,
+	memoizedPhoneIdLookup,
+} from "../customers/lib/customer-search";
 import { taskDealerScopeWhere } from "../tasks/lib/dealer-scope";
 import { taskOwnScopeWhere } from "../tasks/lib/read-scope";
 import { taskSearchWhere } from "../tasks/lib/task-search";
@@ -93,17 +96,19 @@ const find = protectedProcedure
 		const orgPath = `/app/${slug}`;
 
 		// Name / username / account / any phone — resolved up front because a
-		// phone-shaped query needs a digits-only lookup first.
+		// phone-shaped query needs a digits-only lookup first. Customers and
+		// tasks share one lookup so that scan runs once, not per section.
+		const phoneIds = memoizedPhoneIdLookup(input.organizationId);
 		const [customerSearch, customerOwnScope, taskSearch, taskOwnScope] =
 			await Promise.all([
 				types.has("customer")
-					? customerSearchWhere(input.organizationId, q)
+					? customerSearchWhere(input.organizationId, q, phoneIds)
 					: null,
 				types.has("customer")
 					? getOwnershipFilterAsync(permCtx, "customers", "read")
 					: undefined,
 				types.has("task")
-					? taskSearchWhere(input.organizationId, q)
+					? taskSearchWhere(input.organizationId, q, phoneIds)
 					: null,
 				types.has("task") ? taskOwnScopeWhere(permCtx) : null,
 			]);
