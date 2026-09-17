@@ -46,55 +46,15 @@ export const closeEscalations = protectedProcedure
 			),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx, activeDealerId } = await requirePermission(
-			input.organizationId,
-			user.id,
-			"tasks",
-			"update",
-		);
-		if (!hasPermission(permCtx, "tasks", "approve")) {
-			throw new ORPCError("FORBIDDEN", {
-				message:
-					"Closing escalations requires task approval permission",
-			});
-		}
-
-		const andClauses: Record<string, unknown>[] = [
-			taskDealerScopeWhere(activeDealerId),
-		];
-		if (getActionScope(permCtx, "tasks", "update") === "own") {
-			const empId = await getUserEmployeeId(
-				input.organizationId,
-				user.id,
-			);
-			andClauses.push({
-				OR: [
-					{ createdById: user.id },
-					...(empId
-						? [{ assignments: { some: { employeeId: empId } } }]
-						: []),
-				],
-			});
-		}
-
 		const closedAt = new Date();
 		const candidates = await db.task.findMany({
-			where: {
+			where: await closableEscalationsWhere({
 				organizationId: input.organizationId,
-				source: "AI_ESCALATION",
-				status: "OPEN",
-				...(input.taskIds
-					? { id: { in: input.taskIds } }
-					: {
-							createdAt: {
-								lt: new Date(
-									closedAt.getTime() -
-										(input.olderThanDays ?? 0) * DAY_MS,
-								),
-							},
-						}),
-				AND: andClauses,
-			},
+				userId: user.id,
+				taskIds: input.taskIds,
+				olderThanDays: input.olderThanDays,
+				now: closedAt,
+			}),
 			select: { id: true, notes: true },
 		});
 
@@ -124,5 +84,93 @@ export const closeEscalations = protectedProcedure
 			count += results.reduce((sum, r) => sum + r.count, 0);
 		}
 
+		return { count };
+	});
+
+/**
+ * OPEN AI escalations the caller may close: the picked ids, or every one
+ * created more than `olderThanDays` ago. Checks the same permissions as
+ * completing a task (update + approve) and applies dealer / own scope.
+ */
+async function closableEscalationsWhere({
+	organizationId,
+	userId,
+	taskIds,
+	olderThanDays,
+	now,
+}: {
+	organizationId: string;
+	userId: string;
+	taskIds?: string[] | undefined;
+	olderThanDays?: number | undefined;
+	now: Date;
+}) {
+	const { permCtx, activeDealerId } = await requirePermission(
+		organizationId,
+		userId,
+		"tasks",
+		"update",
+	);
+	if (!hasPermission(permCtx, "tasks", "approve")) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Closing escalations requires task approval permission",
+		});
+	}
+
+	const andClauses: Record<string, unknown>[] = [
+		taskDealerScopeWhere(activeDealerId),
+	];
+	if (getActionScope(permCtx, "tasks", "update") === "own") {
+		const empId = await getUserEmployeeId(organizationId, userId);
+		andClauses.push({
+			OR: [
+				{ createdById: userId },
+				...(empId
+					? [{ assignments: { some: { employeeId: empId } } }]
+					: []),
+			],
+		});
+	}
+
+	return {
+		organizationId,
+		source: "AI_ESCALATION" as const,
+		status: "OPEN" as const,
+		...(taskIds
+			? { id: { in: taskIds } }
+			: {
+					createdAt: {
+						lt: new Date(
+							now.getTime() - (olderThanDays ?? 0) * DAY_MS,
+						),
+					},
+				}),
+		AND: andClauses,
+	};
+}
+
+/** How many escalations "Close old…" would close, shown before confirming. */
+export const countClosableEscalations = protectedProcedure
+	.route({
+		method: "GET",
+		path: "/tasks/escalations/closable-count",
+		tags: ["Tasks"],
+		summary: "Count open AI escalations older than N days",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			olderThanDays: z.number().int().min(1).max(365),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		const count = await db.task.count({
+			where: await closableEscalationsWhere({
+				organizationId: input.organizationId,
+				userId: user.id,
+				olderThanDays: input.olderThanDays,
+				now: new Date(),
+			}),
+		});
 		return { count };
 	});

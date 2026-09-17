@@ -97,6 +97,25 @@ export function useDeleteTask() {
 	});
 }
 
+/** How many open escalations "Close old…" would close; `days` null = off. */
+export function useClosableEscalationsCount(days: number | null) {
+	const organizationId = useOrganizationId();
+
+	const query = useQuery({
+		...orpc.tasks.countClosableEscalations.queryOptions({
+			input: {
+				organizationId: organizationId ?? "",
+				olderThanDays: days ?? 1,
+			},
+		}),
+		enabled: Boolean(organizationId) && days !== null,
+	});
+
+	return {
+		count: query.isPlaceholderData ? undefined : query.data?.count,
+	};
+}
+
 export function useCloseEscalations() {
 	const queryClient = useQueryClient();
 

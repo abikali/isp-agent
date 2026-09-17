@@ -1,5 +1,8 @@
 import { assignEmployees } from "./procedures/assign-employees";
-import { closeEscalations } from "./procedures/close-escalations";
+import {
+	closeEscalations,
+	countClosableEscalations,
+} from "./procedures/close-escalations";
 import { completeTaskWithEvidence } from "./procedures/complete-with-evidence";
 import { createTask } from "./procedures/create";
 import { deleteTask } from "./procedures/delete";
@@ -23,6 +26,7 @@ export const tasksRouter = {
 	delete: deleteTask,
 	assignEmployees: assignEmployees,
 	closeEscalations,
+	countClosableEscalations,
 	stats: getTaskStats,
 	completeWithEvidence: completeTaskWithEvidence,
 	reviewCompletion: reviewTaskCompletion,

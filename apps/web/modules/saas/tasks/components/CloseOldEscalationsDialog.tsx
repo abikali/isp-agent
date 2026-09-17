@@ -17,7 +17,10 @@ import { Label } from "@ui/components/label";
 import { ArchiveIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useCloseEscalations } from "../hooks/use-tasks";
+import {
+	useClosableEscalationsCount,
+	useCloseEscalations,
+} from "../hooks/use-tasks";
 
 const DEFAULT_DAYS = "14";
 
@@ -30,6 +33,9 @@ export function CloseOldEscalationsDialog() {
 	const parsedDays = Number(days);
 	const validDays =
 		Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 365;
+	const { count: closableCount } = useClosableEscalationsCount(
+		open && validDays ? parsedDays : null,
+	);
 
 	function handleOpenChange(next: boolean) {
 		if (closeEscalations.isPending) {
@@ -98,6 +104,13 @@ export function CloseOldEscalationsDialog() {
 						onChange={(e) => setDays(e.target.value)}
 						className="w-32"
 					/>
+					{validDays && closableCount !== undefined && (
+						<p className="text-muted-foreground text-sm">
+							{closableCount === 0
+								? "No open escalations that old."
+								: `${closableCount} open escalation${closableCount === 1 ? "" : "s"} will be closed.`}
+						</p>
+					)}
 				</div>
 
 				<AlertDialogFooter>
@@ -105,13 +118,17 @@ export function CloseOldEscalationsDialog() {
 						Cancel
 					</AlertDialogCancel>
 					<Button
-						disabled={!validDays || closeEscalations.isPending}
+						disabled={
+							!validDays ||
+							closeEscalations.isPending ||
+							closableCount === 0
+						}
 						onClick={handleConfirm}
 					>
 						{closeEscalations.isPending
 							? "Closing…"
-							: validDays
-								? `Close older than ${parsedDays} day${parsedDays === 1 ? "" : "s"}`
+							: validDays && closableCount !== undefined
+								? `Close ${closableCount} escalation${closableCount === 1 ? "" : "s"}`
 								: "Close"}
 					</Button>
 				</AlertDialogFooter>
