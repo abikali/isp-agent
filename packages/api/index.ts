@@ -11,6 +11,7 @@ import {
 	telegramWebhookHandler,
 	whatsappWebhookHandler,
 } from "./modules/ai-agents/lib/webhook-handlers";
+import { customerSearchHandler } from "./modules/customers/lib/search-handler";
 import { collectorBotWebhookHandler } from "./modules/employees/lib/collector-bot-handler";
 import { taskIngestHandler } from "./modules/tasks/lib/ingest-handler";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -51,6 +52,10 @@ export const app = new Hono()
 	// Task ingest endpoint for the Telegram ISP bot (API-key authenticated)
 	.post("/task-ingest/:organizationSlug", (c) =>
 		taskIngestHandler(c.req.raw, c.req.param("organizationSlug")),
+	)
+	// Customer directory search for the Telegram ISP bot (API-key authenticated)
+	.get("/customer-search/:organizationSlug", (c) =>
+		customerSearchHandler(c.req.raw, c.req.param("organizationSlug")),
 	)
 	// Collector/worker bot inbound webhook (powers the "Connect Telegram" flow)
 	.post("/webhooks/collector-bot", (c) =>

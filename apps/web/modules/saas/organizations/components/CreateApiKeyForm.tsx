@@ -1,6 +1,7 @@
 "use client";
 
 import { nameSchema } from "@repo/api/lib/validation";
+import type { ApiKeyPermission } from "@repo/api/modules/api-keys/types";
 import { SettingsItem } from "@saas/shared/client";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -21,25 +22,17 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useActiveOrganization } from "../hooks/use-active-organization";
 
-type Permission =
-	| "*"
-	| "read:*"
-	| "write:*"
-	| "read:users"
-	| "read:members"
-	| "read:organization"
-	| "write:members"
-	| "write:organization";
-
-const permissionOptions: { value: Permission; labelKey: string }[] = [
-	{ value: "*", labelKey: "all" },
-	{ value: "read:*", labelKey: "readAll" },
-	{ value: "write:*", labelKey: "writeAll" },
-	{ value: "read:users", labelKey: "readUsers" },
-	{ value: "read:members", labelKey: "readMembers" },
-	{ value: "read:organization", labelKey: "readOrganization" },
-	{ value: "write:members", labelKey: "writeMembers" },
-	{ value: "write:organization", labelKey: "writeOrganization" },
+const permissionOptions: { value: ApiKeyPermission; label: string }[] = [
+	{ value: "*", label: "All Permissions" },
+	{ value: "read:*", label: "Read All" },
+	{ value: "write:*", label: "Write All" },
+	{ value: "read:users", label: "Read Users" },
+	{ value: "read:members", label: "Read Members" },
+	{ value: "read:organization", label: "Read Organization" },
+	{ value: "write:members", label: "Write Members" },
+	{ value: "write:organization", label: "Write Organization" },
+	{ value: "read:customers", label: "Read Customers" },
+	{ value: "write:tasks", label: "Write Tasks" },
 ];
 
 export function CreateApiKeyForm() {
@@ -53,7 +46,7 @@ export function CreateApiKeyForm() {
 	const form = useForm({
 		defaultValues: {
 			name: "",
-			permission: "*" as Permission,
+			permission: "*" as ApiKeyPermission,
 		},
 		onSubmit: async ({ value }) => {
 			if (!activeOrganization) {
@@ -182,7 +175,9 @@ export function CreateApiKeyForm() {
 								<Select
 									value={field.state.value}
 									onValueChange={(value) =>
-										field.handleChange(value as Permission)
+										field.handleChange(
+											value as ApiKeyPermission,
+										)
 									}
 								>
 									<SelectTrigger id="permission">
@@ -194,27 +189,7 @@ export function CreateApiKeyForm() {
 												key={option.value}
 												value={option.value}
 											>
-												{option.labelKey === "all"
-													? "All Permissions"
-													: option.labelKey ===
-															"readAll"
-														? "Read All"
-														: option.labelKey ===
-																"writeAll"
-															? "Write All"
-															: option.labelKey ===
-																	"readUsers"
-																? "Read Users"
-																: option.labelKey ===
-																		"readMembers"
-																	? "Read Members"
-																	: option.labelKey ===
-																			"readOrganization"
-																		? "Read Organization"
-																		: option.labelKey ===
-																				"writeMembers"
-																			? "Write Members"
-																			: "Write Organization"}
+												{option.label}
 											</SelectItem>
 										))}
 									</SelectContent>
