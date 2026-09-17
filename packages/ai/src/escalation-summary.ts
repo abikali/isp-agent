@@ -11,7 +11,7 @@ export const escalationSummarySchema = z.object({
 	priority: z
 		.enum(["low", "medium", "high"])
 		.describe(
-			"low = general inquiry or info request. medium = sales lead, unresolved tech issue, plan change. high = outage, service down, angry customer, explicit transfer request.",
+			"low = general inquiry or info request. medium = the default: sales lead, one customer offline or slow, unresolved tech issue, plan change, cancellation, transfer request. high = RESERVED for an outage hitting many customers or a safety issue.",
 		),
 	category: z
 		.enum([
@@ -34,11 +34,11 @@ export const escalationSummarySchema = z.object({
 
 export type EscalationSummary = z.infer<typeof escalationSummarySchema>;
 
-const SYSTEM_PROMPT = `You are a triage assistant for an ISP support team. Given a conversation between a customer and an AI agent, produce a structured escalation summary.
+const SYSTEM_PROMPT = `You are a triage assistant for an ISP support team. Given a conversation between a customer and an AI agent (lines marked "Team" are a human teammate), produce a structured escalation summary.
 
 Rules:
 - "summary": 2-3 sentences max. State what the customer reported, what the agent found (diagnostics, lookups), and why this needs human attention.
-- "priority": high = service outage, customer offline, customer explicitly asked for human, critical issue. medium = sales inquiry, unresolved technical issue, plan change, cancellation request. low = general question, information request.
+- "priority": medium is the default — sales inquiry, a single customer offline or slow, unresolved technical issue, plan change, cancellation request, customer asked for a human. high is RESERVED for an outage affecting many customers (an area or a station) or a safety issue; one customer's connection being down is NOT high. low = general question, information request.
 - "category": pick the single best fit.
 - "actionRequired": one specific instruction for the team. Be concrete.
 - Write everything in English regardless of the conversation language.
@@ -78,7 +78,7 @@ export async function summarizeForEscalation(
 		const transcript = recent
 			.map(
 				(m) =>
-					`${m.role === "user" ? "Customer" : "Agent"}: ${m.content}`,
+					`${m.role === "user" ? "Customer" : m.role === "admin" ? "Team" : "Agent"}: ${m.content}`,
 			)
 			.join("\n");
 

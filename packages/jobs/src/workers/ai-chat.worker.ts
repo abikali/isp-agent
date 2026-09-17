@@ -7,8 +7,10 @@ import {
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	generateAgentResponse,
 	isHumanTakeoverActive,
+	loadHistoryRows,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	type PromptSection,
@@ -16,6 +18,7 @@ import {
 	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
+	shouldDeferToTeammate,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
@@ -87,6 +90,20 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				return { success: true, error: "Human takeover active" };
 			}
 
+			// Same gate as the webhook: without it, reconcile-orphaned-chats
+			// re-queues a deferred customer message on the next deploy and the
+			// bot answers it anyway.
+			if (await shouldDeferToTeammate({ conversationId })) {
+				logger.info("ai-teammate-reply-deferred", {
+					conversationId,
+					path: "retry-worker",
+				});
+				return {
+					success: true,
+					error: "Customer is answering a teammate",
+				};
+			}
+
 			const apiToken = decryptToken(
 				conversation.channel.encryptedApiToken,
 			);
@@ -123,21 +140,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			// crash before reaching it.
 			let lockRenewal: ReturnType<typeof setInterval> | undefined;
 
-			const history = await db.aiMessage.findMany({
-				where: { conversationId },
-				orderBy: { createdAt: "desc" },
-				take: conversation.agent.maxHistoryLength,
-				select: {
-					role: true,
-					content: true,
-					toolCalls: true,
-					parts: true,
-					attachmentType: true,
-					createdAt: true,
-				},
-			});
-
-			const historyRows = history.reverse();
+			const historyRows = await loadHistoryRows(
+				conversationId,
+				conversation.agent.maxHistoryLength,
+			);
 
 			const maintenance = resolveMaintenanceState(
 				conversation.agent,
@@ -153,48 +159,11 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				contactPhone: conversation.contactId ?? undefined,
 			});
 
-			// Service plans section (if enabled)
-			let servicePlans: string | undefined;
-			if (conversation.agent.servicePlansEnabled) {
-				const hasFilter = conversation.agent.servicePlanIds.length > 0;
-				const plans = await db.servicePlan.findMany({
-					where: {
-						organizationId: conversation.agent.organizationId,
-						archived: false,
-						...(hasFilter
-							? { id: { in: conversation.agent.servicePlanIds } }
-							: {}),
-					},
-					orderBy: { monthlyPrice: "asc" },
-					select: {
-						name: true,
-						description: true,
-						downloadSpeed: true,
-						uploadSpeed: true,
-						monthlyPrice: true,
-					},
-				});
-				if (plans.length > 0) {
-					const planLines = plans.map((plan, i) => {
-						const lines = [
-							`${i + 1}. ${plan.name}`,
-							`   Download: ${plan.downloadSpeed} Mbps | Upload: ${plan.uploadSpeed} Mbps`,
-							`   Price: ${plan.monthlyPrice}/month`,
-						];
-						if (plan.description) {
-							lines.push(`   ${plan.description}`);
-						}
-						return lines.join("\n");
-					});
-					servicePlans = [
-						"SERVICE PLANS (use this to answer customer questions about plans, pricing, and speeds):",
-						"",
-						...planLines,
-						"",
-						"When discussing plans, use ONLY the information above. Do not invent details.",
-					].join("\n");
-				}
-			}
+			const servicePlans = await fetchServicePlansSection(
+				conversation.agent.organizationId,
+				conversation.agent.servicePlansEnabled,
+				conversation.agent.servicePlanIds,
+			);
 
 			const verifiedCustomer = conversation.verifiedCustomer
 				? {
@@ -218,6 +187,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				: undefined;
 
 			const messages = buildAgentMessages({
+				conversationId,
 				systemOptions: {
 					basePrompt: conversation.agent.systemPrompt,
 					enabledTools: conversation.agent.enabledTools,
@@ -328,9 +298,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				}
 
 				// Unknown-contact auto-escalation (shared with the webhook path).
-				const unknownNote = await maybeEscalateUnknownContact({
+				const unknown = await maybeEscalateUnknownContact({
 					conversation: {
 						id: conversation.id,
+						organizationId: conversation.agent.organizationId,
 						contactName: conversation.contactName,
 						contactId: conversation.contactId,
 						verifiedCustomerId: conversation.verifiedCustomerId,
@@ -338,10 +309,17 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					},
 					enabledTools: conversation.agent.enabledTools,
 					tools,
-					messages,
+					history: historyRows,
+					contextGapThresholdMinutes:
+						conversation.agent.contextGapThresholdMinutes,
+					replyText: result.text,
 				});
-				if (unknownNote) {
-					result.text = `${result.text}\n\n${unknownNote}`;
+				if (unknown) {
+					result.text = `${result.text}\n\n${unknown.note}`;
+					result.toolResults = [
+						...(result.toolResults ?? []),
+						unknown.toolResult,
+					];
 				}
 
 				const sendResult = await sendTextMessage(

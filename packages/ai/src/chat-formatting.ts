@@ -33,12 +33,14 @@ export function stripToolNarration(text: string): string {
 /**
  * Internal history markers the model is never meant to repeat:
  * `[Human teammate reply …]` (how a teammate's turn is labelled in the
- * context) and `[Context Notice: …]` (the time-gap note). Models copy the
+ * context), `[Context Notice: …]` (the time-gap note) and `[Follow-up check: …]`
+ * (the silence follow-up instruction). Models copy the
  * last assistant-side turn when the customer only says "ok" — measured on
  * prod: 8 replies since June that were nothing but the teammate marker,
  * every one delivered to the customer verbatim.
  */
-const INTERNAL_MARKER_RE = /\[(?:Human teammate reply|Context Notice)[^\]]*\]/g;
+const INTERNAL_MARKER_RE =
+	/\[(?:Human teammate reply|Context Notice|Follow-up check)[^\]]*\]/g;
 
 /** Remove echoed internal markers; may leave an empty string. */
 export function stripInternalMarkers(text: string): string {

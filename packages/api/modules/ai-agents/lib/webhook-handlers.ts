@@ -11,9 +11,11 @@ import {
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	generateAgentResponse,
 	initRateLimiter,
 	isWhishMoneyMessage,
+	loadHistoryRows,
 	markAsRead,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
@@ -23,6 +25,7 @@ import {
 	sendTextMessage,
 	sendTypingIndicator,
 	sendWhishPaymentEscalation,
+	shouldDeferToTeammate,
 	telegram,
 	transcribeMessageMedia,
 	triageBufferedMessages,
@@ -42,10 +45,11 @@ import { uploadBuffer } from "@repo/storage";
 import {
 	computeBotFingerprint,
 	isHumanTakeoverActive,
+	isSentCardEcho,
+	sentCardKeys,
 	trackBotMessage,
 } from "./bot-fingerprint";
 import { resolveVerifiedCustomerId } from "./resolve-verified-customer";
-import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
@@ -217,6 +221,24 @@ async function handleMessages(
 					}
 				}
 
+				// Contact cards / location pins sent from the dashboard echo
+				// back with text rebuilt from the card, so match those on the
+				// card itself.
+				if (
+					(msg.mediaType === "contact" ||
+						msg.mediaType === "location") &&
+					(await isSentCardEcho(
+						getRedisConnection(),
+						sentCardKeys({
+							numbers: msg.contacts?.flatMap((c) => c.numbers),
+							latitude: msg.latitude,
+							longitude: msg.longitude,
+						}),
+					))
+				) {
+					continue;
+				}
+
 				// No text (voice/image/sticker from phone) or text not matching
 				// any bot fingerprint → this is a human-sent message.
 				// The bot only ever sends text via sendTextMessage(), so any
@@ -287,6 +309,14 @@ async function handleMessages(
 									lat: msg.latitude,
 									lng: msg.longitude,
 								},
+							};
+						} else if (
+							msg.mediaType === "contact" &&
+							msg.contacts?.length
+						) {
+							attachmentData = {
+								attachmentType: "contact",
+								attachmentMeta: { contacts: msg.contacts },
 							};
 						} else if (msg.mediaId && msg.mediaType) {
 							try {
@@ -680,6 +710,19 @@ async function handleMessages(
 				continue;
 			}
 
+			// Takeover expired, but the customer may still be answering the
+			// teammate who wrote last — leave that to the team. The message is
+			// stored; humanTakeoverAt is deliberately left alone.
+			if (
+				await shouldDeferToTeammate({ conversationId: conversation.id })
+			) {
+				logger.info("ai-teammate-reply-deferred", {
+					conversationId: conversation.id,
+					path: "webhook",
+				});
+				continue;
+			}
+
 			// Send typing indicator immediately so user sees activity
 			sendTypingIndicator(provider, apiToken, msg.chatId).catch(() => {});
 
@@ -949,25 +992,14 @@ async function handleMessages(
 						break;
 					}
 
-					// Load full conversation history (includes all stored messages)
-					const history = await db.aiMessage.findMany({
-						where: {
-							conversationId: conversation.id,
-						},
-						orderBy: { createdAt: "desc" },
-						take: channel.agent.maxHistoryLength,
-						select: {
-							role: true,
-							content: true,
-							toolCalls: true,
-							parts: true,
-							attachmentType: true,
-							createdAt: true,
-						},
-					});
-					const historyRows = history.reverse();
+					// Recent history (includes the messages just stored)
+					const historyRows = await loadHistoryRows(
+						conversation.id,
+						channel.agent.maxHistoryLength,
+					);
 
 					const historyMessages = buildAgentMessages({
+						conversationId: conversation.id,
 						systemOptions,
 						history: historyRows,
 						lastMessageAt: previousLastMessageAt,
@@ -1108,12 +1140,13 @@ async function handleMessages(
 							break;
 						}
 
-						// Unknown-contact auto-escalation: the phone matched no
-						// active account and the customer has not identified
-						// themselves — hand it to a human once.
-						const unknownNote = await maybeEscalateUnknownContact({
+						// Unknown-contact auto-escalation: the phone matches no
+						// customer and the customer has not identified
+						// themselves — hand it to a human once per exchange.
+						const unknown = await maybeEscalateUnknownContact({
 							conversation: {
 								id: conversation.id,
+								organizationId: channel.agent.organizationId,
 								contactName: conversation.contactName,
 								contactId: conversation.contactId,
 								verifiedCustomerId:
@@ -1123,10 +1156,17 @@ async function handleMessages(
 							},
 							enabledTools: channel.agent.enabledTools,
 							tools,
-							messages: historyMessages,
+							history: historyRows,
+							contextGapThresholdMinutes:
+								channel.agent.contextGapThresholdMinutes,
+							replyText: result.text,
 						});
-						if (unknownNote) {
-							result.text = `${result.text}\n\n${unknownNote}`;
+						if (unknown) {
+							result.text = `${result.text}\n\n${unknown.note}`;
+							result.toolResults = [
+								...(result.toolResults ?? []),
+								unknown.toolResult,
+							];
 						}
 
 						// Send reply
@@ -1510,14 +1550,22 @@ export async function whatsappWebhookHandler(
  * we want the model to see them as a single thought.
  *
  * Only flattens user messages whose content is a plain `string`; structured
- * messages (with tool-call/tool-result parts) are left as-is.
+ * messages (with tool-call/tool-result parts) are left as-is. Injected
+ * `[Context Notice …]` notes stop the run: they must stay their own turn, or
+ * the note gets glued onto the customer's text and anything that filters
+ * notes out (the escalation summary) loses what the customer is asking now.
  */
 function mergeTrailingUserTextMessages(messages: ModelMessage[]): void {
 	let i = messages.length - 1;
 	const trailingParts: string[] = [];
 	while (i >= 0) {
 		const m = messages[i];
-		if (!m || m.role !== "user" || typeof m.content !== "string") {
+		if (
+			!m ||
+			m.role !== "user" ||
+			typeof m.content !== "string" ||
+			m.content.startsWith("[Context Notice")
+		) {
 			break;
 		}
 		trailingParts.unshift(m.content);

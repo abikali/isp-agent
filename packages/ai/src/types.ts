@@ -119,12 +119,15 @@ export interface SendMediaOptions {
 		| "audio"
 		| "document"
 		| "sticker"
-		| "location";
+		| "location"
+		| "contact";
 	mediaUrl?: string | undefined;
 	caption?: string | undefined;
 	filename?: string | undefined;
 	latitude?: number | undefined;
 	longitude?: number | undefined;
+	/** The card to send when `mediaType` is "contact": one name, one number. */
+	contact?: { name: string; phone: string } | undefined;
 }
 
 export type { ModelMessage };

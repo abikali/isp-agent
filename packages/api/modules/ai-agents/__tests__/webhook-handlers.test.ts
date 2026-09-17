@@ -6,6 +6,7 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 	vi.hoisted(() => {
 		// Track multi() call count so the buffer drains on second call
 		let multiCallCount = 0;
+		let firstDrain: string[] = ["Hello"];
 		const mockRedis = {
 			set: vi.fn(),
 			get: vi.fn(),
@@ -24,7 +25,7 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 					exec: vi.fn().mockResolvedValue(
 						multiCallCount === 1
 							? [
-									[null, ["Hello"]],
+									[null, firstDrain],
 									[null, 1],
 								]
 							: [
@@ -36,6 +37,10 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 			}),
 			resetMultiCount: () => {
 				multiCallCount = 0;
+				firstDrain = ["Hello"];
+			},
+			setFirstDrain: (texts: string[]) => {
+				firstDrain = texts;
 			},
 		};
 
@@ -116,6 +121,7 @@ vi.mock("@repo/storage", () => ({
 }));
 
 vi.mock("@repo/ai", () => ({
+	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 	parseWebhookPayload: vi.fn(),
 	initRateLimiter: vi.fn(),
 	sendTextMessage: mockSendTextMessage,
@@ -123,6 +129,9 @@ vi.mock("@repo/ai", () => ({
 	markAsRead: vi.fn().mockResolvedValue(undefined),
 	decryptToken: vi.fn().mockReturnValue("decrypted-token"),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
+	loadHistoryRows: vi
+		.fn()
+		.mockResolvedValue([{ role: "user", content: "Hello" }]),
 	buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: true }),
 	dbMessagesToModelMessages: vi.fn().mockReturnValue([]),
 	generateAgentResponse: mockGenerateAgentResponse,
@@ -146,6 +155,7 @@ vi.mock("@repo/ai", () => ({
 	computeBotFingerprint: vi.fn().mockReturnValue("mock-fp"),
 	isHumanTakeoverActive: vi.fn().mockReturnValue(false),
 	maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
+	shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),
@@ -155,10 +165,6 @@ vi.mock("@repo/ai", () => ({
 	telegram: {
 		isStartCommand: vi.fn().mockReturnValue(false),
 	},
-}));
-
-vi.mock("../lib/service-plans-context", () => ({
-	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/config", () => ({
@@ -172,7 +178,13 @@ vi.mock("@repo/config", () => ({
 
 // ── Imports (after mocks) ─────────────────────────────────────────────
 
-import { parseWebhookPayload } from "@repo/ai";
+import {
+	buildAgentMessages,
+	executeEscalationGuard,
+	loadHistoryRows,
+	modelMessagesToRoleContent,
+	parseWebhookPayload,
+} from "@repo/ai";
 import { queueAiChatRetry } from "@repo/jobs";
 import { whatsappWebhookHandler } from "../lib/webhook-handlers";
 
@@ -584,5 +596,87 @@ describe("Webhook Handlers - Normal Flow", () => {
 
 		// Should NOT generate (another processor will handle it)
 		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+	});
+});
+
+describe("Webhook Handlers - Escalation safety net context", () => {
+	it("keeps every rapid-fire customer text after a pause notice", async () => {
+		// Real history shaping: the 5h pause puts a [Context Notice] turn
+		// right before the two new customer messages.
+		const { buildAgentMessages: realBuildAgentMessages } =
+			await vi.importActual<{
+				buildAgentMessages: typeof buildAgentMessages;
+			}>("../../../../ai/src/agent-context");
+		const { modelMessagesToRoleContent: realModelMessagesToRoleContent } =
+			await vi.importActual<{
+				modelMessagesToRoleContent: typeof modelMessagesToRoleContent;
+			}>("../../../../ai/src/history");
+		vi.mocked(buildAgentMessages).mockImplementation(
+			realBuildAgentMessages,
+		);
+		vi.mocked(modelMessagesToRoleContent).mockImplementation(
+			realModelMessagesToRoleContent,
+		);
+
+		const now = Date.now();
+		const hours5 = 5 * 60 * 60_000;
+		vi.mocked(loadHistoryRows).mockResolvedValue([
+			{
+				role: "user",
+				content: "how much is the 10GB plan?",
+				createdAt: new Date(now - hours5 - 60_000),
+			},
+			{
+				role: "assistant",
+				content: "It is $20 a month.",
+				createdAt: new Date(now - hours5),
+			},
+			{
+				role: "user",
+				content: "is my line down?",
+				createdAt: new Date(now - 2000),
+			},
+			{
+				role: "user",
+				content: "nothing loads since morning",
+				createdAt: new Date(now - 1000),
+			},
+		]);
+		mockRedis.setFirstDrain([
+			"is my line down?",
+			"nothing loads since morning",
+		]);
+		mockDb.aiAgentChannel.findUnique.mockResolvedValue({
+			...CHANNEL_FIXTURE,
+			agent: {
+				...CHANNEL_FIXTURE.agent,
+				enabledTools: ["escalate-telegram"],
+			},
+		});
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		// The model gets the notice as its own turn, then one merged turn.
+		const modelMessages = mockGenerateAgentResponse.mock.calls[0]?.[0]
+			?.messages as Array<{ role: string; content: unknown }>;
+		expect(modelMessages.at(-1)).toEqual({
+			role: "user",
+			content: "is my line down? nothing loads since morning",
+		});
+		expect(String(modelMessages.at(-2)?.content)).toMatch(
+			/^\[Context Notice: /,
+		);
+
+		const guardInput = vi.mocked(executeEscalationGuard).mock.calls[0]?.[0];
+		const userTexts = (guardInput?.conversationMessages ?? [])
+			.filter((m) => m.role === "user")
+			.map((m) => m.content);
+		expect(userTexts).toContain(
+			"is my line down? nothing loads since morning",
+		);
+		expect(userTexts.some((t) => t.includes("[Context Notice"))).toBe(
+			false,
+		);
 	});
 });

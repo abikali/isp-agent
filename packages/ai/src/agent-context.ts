@@ -1,3 +1,4 @@
+import { logger } from "@repo/logs";
 import type { ModelMessage } from "ai";
 import {
 	type BuildSystemPromptOptions,
@@ -7,9 +8,9 @@ import {
 	buildContextGapNote,
 	type DbMessageRow,
 	dbMessagesToModelMessages,
-	findLastHistoryGap,
 	formatContextGapNote,
-	STALE_HISTORY_MS,
+	formatDroppedHistoryNote,
+	selectHistoryWindow,
 } from "./history";
 import { CACHE_BREAKPOINT_1H } from "./model-registry";
 
@@ -34,6 +35,8 @@ export interface BuildAgentMessagesInput {
 	contextGapThresholdMinutes?: number | undefined;
 	/** Clock for gap detection; defaults to the real time (tests / replays). */
 	now?: Date | undefined;
+	/** When set, the chosen history window is logged as `ai-history-window`. */
+	conversationId?: string | undefined;
 }
 
 /**
@@ -42,8 +45,9 @@ export interface BuildAgentMessagesInput {
  *   [
  *     { role: 'system', content: STATIC, providerOptions: CACHE_BREAKPOINT_1H },
  *     { role: 'system', content: DYNAMIC }?,        // only when present
+ *     { role: 'user', content: headNote }?,           // only when old rows were cut
  *     ...convertedHistory,                            // structured tool-call/tool-result
- *     { role: 'user', content: gapNote }?,            // only when gap threshold exceeded
+ *     { role: 'user', content: gapNote }?,            // at the latest pause ≥ threshold
  *     { role: 'user', content: newUserMessage }?,     // only when caller passes one
  *   ]
  *
@@ -76,31 +80,47 @@ export function buildAgentMessages(
 		messages.push({ role: "system", content: dynamicPrompt });
 	}
 
-	// Split the history at the last real pause. Rows before a pause of a
-	// week or more are dropped from the context entirely (they stay in the
-	// DB): a customer coming back after months is starting over, and old
-	// receipts/screenshots left in view get mistaken for new ones.
+	// Rows before a pause of a week or more, and rows two weeks old or more,
+	// are dropped from the context entirely (they stay in the DB): a customer
+	// coming back after a long silence is starting over, and old receipts,
+	// screenshots and names left in view get mistaken for current ones. The
+	// latest ordinary pause in what is left gets a notice.
 	let historyRows = input.history;
+	let headNote: string | null = null;
 	let gapNote: string | null = null;
 	let gapNoteIdx = 0;
 	if (input.contextGapThresholdMinutes !== undefined) {
-		const split = findLastHistoryGap(
-			historyRows,
-			input.contextGapThresholdMinutes,
-			input.now,
-		);
-		if (split) {
-			const dropped = split.gapMs >= STALE_HISTORY_MS;
-			gapNote = formatContextGapNote(
-				split.gapMs,
-				split.previousAt,
-				dropped,
-			);
-			if (dropped) {
-				historyRows = historyRows.slice(split.index);
-				gapNoteIdx = 0;
-			} else {
-				gapNoteIdx = split.index;
+		const now = input.now ?? new Date();
+		const window = selectHistoryWindow(historyRows, {
+			thresholdMinutes: input.contextGapThresholdMinutes,
+			now,
+		});
+		if (window) {
+			historyRows = window.rows;
+			if (window.lastDroppedAt) {
+				headNote = formatDroppedHistoryNote(
+					window.lastDroppedAt,
+					historyRows[0]?.createdAt ?? now,
+				);
+			}
+			if (window.pause) {
+				gapNote = formatContextGapNote(
+					window.pause.gapMs,
+					window.pause.previousAt,
+					window.pauseAfterTeammate,
+				);
+				gapNoteIdx = window.pause.index;
+			}
+			if (input.conversationId) {
+				logger.info("ai-history-window", {
+					conversationId: input.conversationId,
+					loaded: input.history.length,
+					kept: window.rows.length,
+					droppedStale: window.droppedStale,
+					droppedAge: window.droppedAge,
+					pauseNote: window.pause !== null,
+					teammateNote: window.pauseAfterTeammate,
+				});
 			}
 		} else if (input.lastMessageAt) {
 			// Rows without timestamps (legacy callers): fall back to the
@@ -121,9 +141,14 @@ export function buildAgentMessages(
 		}
 	}
 
+	const newUserMessage = input.newUserMessage || null;
 	const before = dbMessagesToModelMessages(historyRows.slice(0, gapNoteIdx));
 	const after = dbMessagesToModelMessages(historyRows.slice(gapNoteIdx));
-	const historyMessages: ModelMessage[] = [...before];
+	const historyMessages: ModelMessage[] = [];
+	if (headNote && (historyRows.length > 0 || newUserMessage)) {
+		historyMessages.push({ role: "user", content: headNote });
+	}
+	historyMessages.push(...before);
 	if (gapNote && (before.length > 0 || after.length > 0)) {
 		historyMessages.push({ role: "user", content: gapNote });
 	}
@@ -131,8 +156,8 @@ export function buildAgentMessages(
 
 	messages.push(...historyMessages);
 
-	if (input.newUserMessage !== undefined && input.newUserMessage !== "") {
-		messages.push({ role: "user", content: input.newUserMessage });
+	if (newUserMessage) {
+		messages.push({ role: "user", content: newUserMessage });
 	}
 
 	return messages;

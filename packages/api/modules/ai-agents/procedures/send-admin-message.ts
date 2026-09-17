@@ -6,15 +6,21 @@ import {
 	remuxWebmToOgg,
 	sendMediaMessage,
 	sendTextMessage,
+	whatsapp,
 } from "@repo/ai";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { getSignedUrl, uploadBuffer } from "@repo/storage";
+import { toE164 } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { trackBotMessage } from "../lib/bot-fingerprint";
+import {
+	sentCardKeys,
+	trackBotMessage,
+	trackSentCard,
+} from "../lib/bot-fingerprint";
 
 export const sendAdminMessage = protectedProcedure
 	.route({
@@ -37,12 +43,27 @@ export const sendAdminMessage = protectedProcedure
 					"document",
 					"location",
 					"sticker",
+					"contact",
 				])
 				.optional(),
 			attachmentUrl: z.string().optional(),
 			attachmentFilename: z.string().optional(),
 			attachmentMimeType: z.string().optional(),
 			attachmentSize: z.number().optional(),
+			/** Required when attachmentType is "contact". */
+			contact: z
+				.object({
+					name: z.string().trim().min(1).max(100),
+					phone: z.string().trim().min(3).max(40),
+				})
+				.optional(),
+			/** Required when attachmentType is "location". */
+			location: z
+				.object({
+					latitude: z.number().min(-90).max(90),
+					longitude: z.number().min(-180).max(180),
+				})
+				.optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -75,16 +96,47 @@ export const sendAdminMessage = protectedProcedure
 			});
 		}
 
+		// Contact cards and location pins carry no caption on WhatsApp: the
+		// stored content is the card itself, in the same shape a card from
+		// the phone is stored in, so history and the dashboard read it alike.
+		const contact = input.contact
+			? { name: input.contact.name, phone: toE164(input.contact.phone) }
+			: undefined;
+		let content = input.message;
+		let attachmentMeta: Record<string, unknown> | null = null;
+		if (input.attachmentType === "contact") {
+			if (!contact) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "A contact card needs a name and a phone number",
+				});
+			}
+			const contacts = [{ name: contact.name, numbers: [contact.phone] }];
+			content = whatsapp.formatSharedContacts(contacts);
+			attachmentMeta = { contacts };
+		} else if (input.attachmentType === "location") {
+			if (!input.location) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "A location pin needs a latitude and a longitude",
+				});
+			}
+			content = `[Location: ${input.location.latitude}, ${input.location.longitude}]`;
+			attachmentMeta = {
+				lat: input.location.latitude,
+				lng: input.location.longitude,
+			};
+		}
+
 		const messageData: Record<string, unknown> = {
 			conversationId: conversation.id,
 			role: "admin",
-			content: input.message,
+			content,
 			replyToId: input.replyToId ?? null,
 			attachmentType: input.attachmentType ?? null,
 			attachmentUrl: input.attachmentUrl ?? null,
 			attachmentFilename: input.attachmentFilename ?? null,
 			attachmentMimeType: input.attachmentMimeType ?? null,
 			attachmentSize: input.attachmentSize ?? null,
+			...(attachmentMeta ? { attachmentMeta } : {}),
 		};
 
 		// For channel conversations (WhatsApp/Telegram), send the message externally
@@ -101,6 +153,7 @@ export const sendAdminMessage = protectedProcedure
 				};
 
 				// Send media if attachment is present
+				const redis = getRedisConnection();
 				const mediaTypes = [
 					"image",
 					"video",
@@ -108,7 +161,33 @@ export const sendAdminMessage = protectedProcedure
 					"document",
 					"sticker",
 				] as const;
-				if (
+				if (input.attachmentType === "contact" && contact) {
+					trackSentCard(
+						redis,
+						sentCardKeys({ numbers: [contact.phone] }),
+					);
+					sendResult = await sendMediaMessage(
+						provider,
+						apiToken,
+						conversation.externalChatId,
+						{ mediaType: "contact", contact },
+					);
+				} else if (
+					input.attachmentType === "location" &&
+					input.location
+				) {
+					trackSentCard(redis, sentCardKeys(input.location));
+					sendResult = await sendMediaMessage(
+						provider,
+						apiToken,
+						conversation.externalChatId,
+						{
+							mediaType: "location",
+							latitude: input.location.latitude,
+							longitude: input.location.longitude,
+						},
+					);
+				} else if (
 					input.attachmentType &&
 					input.attachmentUrl &&
 					mediaTypes.includes(
@@ -204,10 +283,18 @@ export const sendAdminMessage = protectedProcedure
 					sendResult = { success: true };
 				}
 
+				if (
+					!sendResult.success &&
+					(input.attachmentType === "contact" ||
+						input.attachmentType === "location")
+				) {
+					throw new Error(`${input.attachmentType} send failed`);
+				}
+
 				messageData["externalMsgId"] = sendResult.messageId ?? null;
 
 				// Track sent message by content fingerprint so we don't mistake the echo for human activity
-				trackBotMessage(getRedisConnection(), input.message);
+				trackBotMessage(redis, content);
 			} catch (error) {
 				logger.error("Failed to send admin message to channel", {
 					error,

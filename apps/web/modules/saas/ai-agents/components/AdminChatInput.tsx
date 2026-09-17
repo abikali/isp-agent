@@ -12,9 +12,11 @@ import {
 	FileTextIcon,
 	ImageIcon,
 	LoaderIcon,
+	MapPinIcon,
 	MicIcon,
 	PaperclipIcon,
 	SendIcon,
+	UserRoundIcon,
 	XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -22,6 +24,8 @@ import { useSendAdminMessage } from "../hooks/use-all-conversations";
 import { useAttachmentUpload } from "../hooks/use-attachment-upload";
 import { EmojiPicker } from "./EmojiPicker";
 import { MediaPreviewDialog } from "./MediaPreviewDialog";
+import { ShareContactDialog } from "./ShareContactDialog";
+import { ShareLocationDialog } from "./ShareLocationDialog";
 import { VoiceRecorder } from "./VoiceRecorder";
 
 interface ReplyTarget {
@@ -72,6 +76,8 @@ export function AdminChatInput({
 	const [isRecording, setIsRecording] = useState(false);
 	const [attachPopoverOpen, setAttachPopoverOpen] = useState(false);
 	const [previewFile, setPreviewFile] = useState<File | null>(null);
+	const [contactDialogOpen, setContactDialogOpen] = useState(false);
+	const [locationDialogOpen, setLocationDialogOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const imageInputRef = useRef<HTMLInputElement>(null);
 	const docInputRef = useRef<HTMLInputElement>(null);
@@ -191,6 +197,35 @@ export function AdminChatInput({
 		} catch {
 			// Upload failed
 		}
+	}
+
+	function handleContactSend(contact: { name: string; phone: string }) {
+		mutation.mutate(
+			{
+				conversationId,
+				organizationId,
+				message: "",
+				attachmentType: "contact",
+				contact,
+			},
+			{ onSuccess: () => setContactDialogOpen(false) },
+		);
+	}
+
+	function handleLocationSend(location: {
+		latitude: number;
+		longitude: number;
+	}) {
+		mutation.mutate(
+			{
+				conversationId,
+				organizationId,
+				message: "",
+				attachmentType: "location",
+				location,
+			},
+			{ onSuccess: () => setLocationDialogOpen(false) },
+		);
 	}
 
 	function handleCancel() {
@@ -334,6 +369,28 @@ export function AdminChatInput({
 										<FileTextIcon className="size-4" />
 										Document
 									</button>
+									<button
+										type="button"
+										className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+										onClick={() => {
+											setAttachPopoverOpen(false);
+											setContactDialogOpen(true);
+										}}
+									>
+										<UserRoundIcon className="size-4" />
+										Contact
+									</button>
+									<button
+										type="button"
+										className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+										onClick={() => {
+											setAttachPopoverOpen(false);
+											setLocationDialogOpen(true);
+										}}
+									>
+										<MapPinIcon className="size-4" />
+										Location
+									</button>
 								</PopoverContent>
 							</Popover>
 						)}
@@ -451,6 +508,22 @@ export function AdminChatInput({
 				onSend={handleMediaSend}
 				onClose={() => setPreviewFile(null)}
 			/>
+
+			{contactDialogOpen && (
+				<ShareContactDialog
+					onSend={handleContactSend}
+					onClose={() => setContactDialogOpen(false)}
+					isSending={mutation.isPending}
+				/>
+			)}
+
+			{locationDialogOpen && (
+				<ShareLocationDialog
+					onSend={handleLocationSend}
+					onClose={() => setLocationDialogOpen(false)}
+					isSending={mutation.isPending}
+				/>
+			)}
 		</div>
 	);
 }

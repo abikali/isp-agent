@@ -12,9 +12,9 @@
 
 import {
 	buildAgentMessages,
-	type DbMessageRow,
 	extractToolPromptOverrides,
 	generateAgentResponse,
+	loadHistoryRows,
 	type PromptSection,
 } from "@repo/ai";
 import { db } from "@repo/database";
@@ -46,11 +46,11 @@ async function main() {
 		throw new Error(`conversation ${conversationId} not found`);
 	}
 
-	const history = await db.aiMessage.findMany({
-		where: { conversationId, deletedAt: null },
-		orderBy: { createdAt: "asc" },
-		take: conversation.agent.maxHistoryLength,
-	});
+	// Same loader as the live reply path — the newest rows, not the oldest.
+	const historyRows = await loadHistoryRows(
+		conversationId,
+		conversation.agent.maxHistoryLength,
+	);
 
 	console.log("=".repeat(80));
 	console.log("AGENT");
@@ -85,7 +85,7 @@ async function main() {
 		"  verifiedCustomer:",
 		conversation.verifiedCustomerId ?? "(none)",
 	);
-	console.log("  history rows    :", history.length);
+	console.log("  history rows    :", historyRows.length);
 
 	const verifiedCustomer = conversation.verifiedCustomer
 		? {
@@ -104,19 +104,8 @@ async function main() {
 			}
 		: undefined;
 
-	const historyRows: DbMessageRow[] = history.map((h) => ({
-		role: h.role,
-		content: h.content,
-		parts: h.parts as DbMessageRow["parts"],
-		toolCalls: h.toolCalls as DbMessageRow["toolCalls"],
-		createdAt: h.createdAt,
-		deliveryStatus: h.deliveryStatus,
-		attachmentType: h.attachmentType,
-		attachmentUrl: h.attachmentUrl,
-		attachmentMimeType: h.attachmentMimeType,
-	}));
-
 	const messages = buildAgentMessages({
+		conversationId,
 		systemOptions: {
 			basePrompt: conversation.agent.systemPrompt,
 			enabledTools: conversation.agent.enabledTools,

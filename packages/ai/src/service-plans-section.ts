@@ -8,6 +8,10 @@ import { db } from "@repo/database";
  * When empty, all active (non-archived) plans are included.
  *
  * Returns `undefined` if disabled, or if no active plans exist.
+ *
+ * Shared by every path that builds an agent prompt (webhook, web chat, debug
+ * replay, the retry worker and the silence follow-up) so none of them quotes
+ * prices from memory.
  */
 export async function fetchServicePlansSection(
 	organizationId: string,

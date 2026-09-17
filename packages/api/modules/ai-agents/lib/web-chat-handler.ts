@@ -5,7 +5,9 @@ import {
 	buildAgentTelemetry,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	generateAgentResponse,
+	loadHistoryRows,
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
@@ -15,7 +17,6 @@ import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
-import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";
@@ -103,20 +104,10 @@ export async function handleWebChatMessage(
 	});
 
 	// Load history (already includes the user message we just stored)
-	const history = await db.aiMessage.findMany({
-		where: { conversationId: conversation.id },
-		orderBy: { createdAt: "desc" },
-		take: agent.maxHistoryLength,
-		select: {
-			role: true,
-			content: true,
-			toolCalls: true,
-			parts: true,
-			attachmentType: true,
-		},
-	});
-
-	const historyRows = history.reverse();
+	const historyRows = await loadHistoryRows(
+		conversation.id,
+		agent.maxHistoryLength,
+	);
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
 		agent,
@@ -132,6 +123,7 @@ export async function handleWebChatMessage(
 	);
 
 	const messages = buildAgentMessages({
+		conversationId: conversation.id,
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,

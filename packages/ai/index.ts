@@ -16,6 +16,7 @@ export {
 	buildSystemPromptParts,
 	extractToolPromptOverrides,
 } from "./src/build-system-prompt";
+export { stripInternalMarkers } from "./src/chat-formatting";
 export { classifyText } from "./src/classify";
 export type { PromptSection } from "./src/default-prompt-sections";
 export { DEFAULT_PROMPT_SECTIONS } from "./src/default-prompt-sections";
@@ -23,7 +24,13 @@ export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
 export type { EscalationSummary } from "./src/escalation-summary";
 export { summarizeForEscalation } from "./src/escalation-summary";
-export { buildFollowUpInstruction, NO_FOLLOW_UP } from "./src/follow-up";
+export {
+	buildFollowUpInstruction,
+	isNoFollowUpReply,
+	isWithinFollowUpHours,
+	NO_FOLLOW_UP,
+	resolveFollowUpFireAt,
+} from "./src/follow-up";
 export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
@@ -36,6 +43,7 @@ export {
 	legacyRowToParts,
 	modelMessagesToRoleContent,
 } from "./src/history";
+export { loadHistoryRows } from "./src/history-loader";
 export type { MaintenanceState } from "./src/maintenance";
 export { resolveMaintenanceState } from "./src/maintenance";
 export {
@@ -69,6 +77,8 @@ export type {
 	ResolveAgentToolsResult,
 } from "./src/resolve-agent-tools";
 export { resolveAgentTools } from "./src/resolve-agent-tools";
+export { fetchServicePlansSection } from "./src/service-plans-section";
+export { shouldDeferToTeammate } from "./src/teammate-reply";
 export {
 	getAvailableTools,
 	getToolRegistry,

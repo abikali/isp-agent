@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildContextGapNote, dbMessagesToModelMessages } from "./history";
+import {
+	buildContextGapNote,
+	type DbMessageRow,
+	dbMessagesToModelMessages,
+	modelMessagesToRoleContent,
+	selectHistoryWindow,
+} from "./history";
 
 describe("buildContextGapNote", () => {
 	it("returns null when lastMessageAt is null", () => {
@@ -63,6 +69,113 @@ describe("buildContextGapNote", () => {
 	});
 });
 
+describe("selectHistoryWindow", () => {
+	const DAY = 24 * 60 * 60_000;
+	const now = new Date("2026-09-14T15:00:00Z");
+	const row = (
+		msAgo: number,
+		content: string,
+		role = "user",
+	): DbMessageRow => ({
+		role,
+		content,
+		createdAt: new Date(now.getTime() - msAgo),
+	});
+	const contents = (rows: DbMessageRow[]) => rows.map((r) => r.content);
+
+	it("returns null when a row has no timestamp", () => {
+		expect(
+			selectHistoryWindow([{ role: "user", content: "hi" }], { now }),
+		).toBeNull();
+	});
+
+	it("cuts at the 10-day gap when later pauses are 2 days and 5 hours", () => {
+		const HOUR = 60 * 60_000;
+		const rows = [
+			row(12 * DAY + 5 * HOUR + 60_000, "a"),
+			row(2 * DAY + 5 * HOUR + 60_000, "b"),
+			row(5 * HOUR + 60_000, "c"),
+			row(60_000, "d"),
+		];
+		const window = selectHistoryWindow(rows, {
+			thresholdMinutes: 240,
+			now,
+		});
+		expect(contents(window?.rows ?? [])).toEqual(["b", "c", "d"]);
+		expect(window?.droppedStale).toBe(1);
+		expect(window?.droppedAge).toBe(0);
+		expect(window?.lastDroppedAt).toEqual(rows[0]?.createdAt);
+		expect(window?.pause?.index).toBe(2);
+		expect(window?.pause?.gapMs).toBe(5 * HOUR);
+	});
+
+	it("uses the most recent of two stale gaps", () => {
+		const rows = [
+			row(60 * DAY, "a"),
+			row(12 * DAY, "b"),
+			row(3 * DAY, "c"),
+			row(60_000, "d"),
+		];
+		const window = selectHistoryWindow(rows, { now });
+		expect(contents(window?.rows ?? [])).toEqual(["c", "d"]);
+		expect(window?.droppedStale).toBe(2);
+		expect(window?.pause).toBeNull();
+	});
+
+	it("drops everything when the newest row is a week old", () => {
+		const rows = [row(9 * DAY, "a"), row(8 * DAY, "b")];
+		const window = selectHistoryWindow(rows, {
+			thresholdMinutes: 240,
+			now,
+		});
+		expect(window?.rows).toEqual([]);
+		expect(window?.droppedStale).toBe(2);
+		expect(window?.pause).toBeNull();
+	});
+
+	it("applies the 14-day backstop to a 3-day cadence", () => {
+		const rows = [20, 17, 14, 11, 8, 5, 2].map((d) =>
+			row(d * DAY, `d${d}`),
+		);
+		const window = selectHistoryWindow(rows, { now });
+		expect(contents(window?.rows ?? [])).toEqual(["d11", "d8", "d5", "d2"]);
+		expect(window?.droppedStale).toBe(0);
+		expect(window?.droppedAge).toBe(3);
+	});
+
+	it("cuts at a gap of exactly seven days", () => {
+		const rows = [row(7 * DAY + 60_000, "a"), row(60_000, "b")];
+		expect(
+			contents(selectHistoryWindow(rows, { now })?.rows ?? []),
+		).toEqual(["b"]);
+	});
+
+	it("flags a pause that follows a teammate's message", () => {
+		const rows = [
+			row(6 * 60 * 60_000, "is the money ready?", "admin"),
+			row(60_000, "yes"),
+		];
+		const window = selectHistoryWindow(rows, {
+			thresholdMinutes: 240,
+			now,
+		});
+		expect(window?.pause?.index).toBe(1);
+		expect(window?.pauseAfterTeammate).toBe(true);
+	});
+
+	it("does not flag a pause that follows the bot", () => {
+		const rows = [
+			row(6 * 60 * 60_000, "anything else?", "assistant"),
+			row(60_000, "yes"),
+		];
+		const window = selectHistoryWindow(rows, {
+			thresholdMinutes: 240,
+			now,
+		});
+		expect(window?.pauseAfterTeammate).toBe(false);
+	});
+});
+
 describe("dbMessagesToModelMessages", () => {
 	it("maps a user row to a single user ModelMessage", () => {
 		const out = dbMessagesToModelMessages([
@@ -102,6 +215,33 @@ describe("dbMessagesToModelMessages", () => {
 				role: "assistant",
 				content:
 					"[Human teammate reply — voice note sent by the human team, transcribed]\nخلص تركها لبكرة، أنا بكرة نازل بآخدا",
+			},
+		]);
+	});
+
+	it("labels a teammate's contact card and location pin without calling them transcribed", () => {
+		const out = dbMessagesToModelMessages([
+			{
+				role: "admin",
+				content: "[Contact] Walid technician — +961 70 123 456",
+				attachmentType: "contact",
+			},
+			{
+				role: "admin",
+				content: "[Location: 33.8938, 35.5018]",
+				attachmentType: "location",
+			},
+		]);
+		expect(out).toEqual([
+			{
+				role: "assistant",
+				content:
+					"[Human teammate reply — shared a contact card]\n[Contact] Walid technician — +961 70 123 456",
+			},
+			{
+				role: "assistant",
+				content:
+					"[Human teammate reply — shared a location pin]\n[Location: 33.8938, 35.5018]",
 			},
 		]);
 	});
@@ -308,5 +448,49 @@ describe("dbMessagesToModelMessages", () => {
 		expect(out[2]?.role).toBe("tool");
 		expect(out[3]?.role).toBe("assistant");
 		expect(out[4]?.role).toBe("user");
+	});
+});
+
+describe("modelMessagesToRoleContent", () => {
+	it("skips context notices and labels teammate replies as admin", () => {
+		expect(
+			modelMessagesToRoleContent([
+				{
+					role: "user",
+					content:
+						"[Context Notice: 5 hours have passed since the last message.]",
+				},
+				{
+					role: "assistant",
+					content: "[Human teammate reply]\nis the money ready?",
+				},
+				{
+					role: "assistant",
+					content:
+						"[Human teammate reply — voice note sent by the human team. Content is not visible to you.]",
+				},
+				{ role: "user", content: "yes" },
+				{ role: "assistant", content: "Thanks" },
+			]),
+		).toEqual([
+			{ role: "admin", content: "is the money ready?" },
+			{ role: "admin", content: "[media sent by the team]" },
+			{ role: "user", content: "yes" },
+			{ role: "assistant", content: "Thanks" },
+		]);
+	});
+
+	it("keeps customer text that follows a context notice", () => {
+		expect(
+			modelMessagesToRoleContent([
+				{
+					role: "user",
+					content:
+						"[Context Notice: 5 hours have passed since the last message.] is my line down? nothing loads",
+				},
+			]),
+		).toEqual([
+			{ role: "user", content: "is my line down? nothing loads" },
+		]);
 	});
 });

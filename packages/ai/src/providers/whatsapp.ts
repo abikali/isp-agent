@@ -76,7 +76,7 @@ function parseVcardContact(
 	return { name: name || "Contact", numbers };
 }
 
-function formatSharedContacts(contacts: SharedContact[]): string {
+export function formatSharedContacts(contacts: SharedContact[]): string {
 	return contacts
 		.map(
 			(c) =>
@@ -346,6 +346,9 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 				mediaType: extracted?.mediaType,
 				mediaCaption: extracted?.mediaCaption,
 				mediaFileName: extracted?.mediaFileName,
+				latitude: extracted?.latitude,
+				longitude: extracted?.longitude,
+				contacts: extracted?.contacts,
 				fromMe: true,
 			});
 			continue;
@@ -464,7 +467,8 @@ function get429RetryAfter(error: unknown): number {
 }
 
 /**
- * Send a media message (image, video, audio, document, sticker, location) via WaSender.
+ * Send a media message (image, video, audio, document, sticker, location,
+ * contact card) via WaSender.
  */
 export async function sendMediaMessage(
 	apiToken: string,
@@ -510,6 +514,15 @@ export async function sendMediaMessage(
 				result = await client.sendSticker({
 					to: chatId,
 					stickerUrl: options.mediaUrl ?? "",
+				});
+				break;
+			case "contact":
+				if (!options.contact) {
+					return { success: false };
+				}
+				result = await client.sendContact({
+					to: chatId,
+					contact: options.contact,
 				});
 				break;
 			case "location":

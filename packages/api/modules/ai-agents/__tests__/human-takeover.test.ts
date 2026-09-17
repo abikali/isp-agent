@@ -8,6 +8,7 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 		const mockRedis = {
 			set: vi.fn(),
 			get: vi.fn(),
+			mget: vi.fn(),
 			del: vi.fn(),
 			rpush: vi.fn(),
 			expire: vi.fn(),
@@ -141,6 +142,7 @@ const { computeBotFingerprint, isHumanTakeoverActive } = vi.hoisted(() => {
 });
 
 vi.mock("@repo/ai", () => ({
+	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 	parseWebhookPayload: vi.fn(),
 	initRateLimiter: vi.fn(),
 	sendTextMessage: mockSendTextMessage,
@@ -148,6 +150,9 @@ vi.mock("@repo/ai", () => ({
 	markAsRead: vi.fn().mockResolvedValue(undefined),
 	decryptToken: vi.fn().mockReturnValue("decrypted-token"),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
+	loadHistoryRows: vi
+		.fn()
+		.mockResolvedValue([{ role: "user", content: "Hello" }]),
 	buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: true }),
 	dbMessagesToModelMessages: vi.fn().mockReturnValue([]),
 	generateAgentResponse: mockGenerateAgentResponse,
@@ -171,6 +176,7 @@ vi.mock("@repo/ai", () => ({
 	computeBotFingerprint,
 	isHumanTakeoverActive,
 	maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
+	shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),
@@ -180,10 +186,6 @@ vi.mock("@repo/ai", () => ({
 	telegram: {
 		isStartCommand: vi.fn().mockReturnValue(false),
 	},
-}));
-
-vi.mock("../lib/service-plans-context", () => ({
-	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/config", () => ({
@@ -197,10 +199,11 @@ vi.mock("@repo/config", () => ({
 
 // ── Imports (after mocks) ────────────────────────────────────────────
 
-import { parseWebhookPayload } from "@repo/ai";
+import { parseWebhookPayload, shouldDeferToTeammate } from "@repo/ai";
 import { whatsappWebhookHandler } from "../lib/webhook-handlers";
 
 const mockParseWebhookPayload = vi.mocked(parseWebhookPayload);
+const mockShouldDeferToTeammate = vi.mocked(shouldDeferToTeammate);
 
 // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -262,6 +265,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.useFakeTimers({ shouldAdvanceTime: true });
 	mockRedis.resetMultiCount();
+	mockShouldDeferToTeammate.mockResolvedValue(false);
 
 	mockSendTextMessage.mockResolvedValue({ messageId: "msg-1" });
 	mockGenerateAgentResponse.mockResolvedValue({
@@ -289,6 +293,9 @@ beforeEach(() => {
 	mockRedis.del.mockResolvedValue(1);
 	mockRedis.eval.mockResolvedValue(1);
 	mockRedis.get.mockResolvedValue(null);
+	mockRedis.mget.mockImplementation((...keys: string[]) =>
+		Promise.resolve(keys.map(() => null)),
+	);
 	mockRedis.expire.mockResolvedValue(1);
 });
 
@@ -613,6 +620,160 @@ describe("Human Takeover - AI Blocking During Takeover", () => {
 
 		// Should attempt AI generation (takeover expired, AI resumes)
 		expect(mockGenerateAgentResponse).toHaveBeenCalled();
+	});
+});
+
+describe("Human Takeover - Customer Answering A Teammate", () => {
+	const expiredTakeover = {
+		...CONVERSATION_FIXTURE,
+		// Teammate wrote 5 hours ago, takeover window is 4 hours
+		humanTakeoverAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+	};
+
+	beforeEach(() => {
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "142378635661318@lid",
+				messageId: "wa-msg-teammate-reply",
+				text: "tamem ba3tak bokra",
+				contactName: "Customer",
+				contactId: "+961123456",
+			},
+		]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(expiredTakeover);
+		mockDb.aiConversation.update.mockResolvedValue(expiredTakeover);
+	});
+
+	it("stores the message but does not reply when the gate defers", async () => {
+		mockShouldDeferToTeammate.mockResolvedValue(true);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+		});
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					role: "user",
+					content: "tamem ba3tak bokra",
+				}),
+			}),
+		);
+		expect(mockRedis.rpush).not.toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+		expect(mockSendTextMessage).not.toHaveBeenCalled();
+
+		// The deferral must not re-arm the takeover window
+		const rearmed = mockDb.aiConversation.update.mock.calls.filter(
+			(c: unknown[]) =>
+				(
+					(c[0] as Record<string, unknown>).data as Record<
+						string,
+						unknown
+					>
+				).humanTakeoverAt instanceof Date,
+		);
+		expect(rearmed).toHaveLength(0);
+	});
+
+	it("replies as usual when the gate does not defer", async () => {
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).toHaveBeenCalled();
+	});
+
+	it("does not consult the gate while takeover is still active", async () => {
+		const activeTakeover = {
+			...CONVERSATION_FIXTURE,
+			humanTakeoverAt: new Date(Date.now() - 30 * 60 * 1000),
+		};
+		mockDb.aiConversation.findFirst.mockResolvedValue(activeTakeover);
+		mockDb.aiConversation.update.mockResolvedValue(activeTakeover);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).not.toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+	});
+});
+
+describe("Human Takeover - Contact Cards And Location Pins From Phone", () => {
+	const CONTACT_MSG = {
+		chatId: "96176538947@s.whatsapp.net",
+		messageId: "3EB0CARD123456",
+		text: "[Contact] Walid technician — +961 70 123 456",
+		mediaType: "contact",
+		contacts: [{ name: "Walid technician", numbers: ["+961 70 123 456"] }],
+		fromMe: true,
+	};
+
+	it("stores a phone-sent contact card as a contact attachment", async () => {
+		mockParseWebhookPayload.mockReturnValue([CONTACT_MSG]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+		mockDb.aiMessage.findFirst.mockResolvedValue(null);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				role: "admin",
+				content: CONTACT_MSG.text,
+				attachmentType: "contact",
+				attachmentMeta: { contacts: CONTACT_MSG.contacts },
+			}),
+		});
+	});
+
+	it("stores a phone-sent location pin with its coordinates", async () => {
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "96176538947@s.whatsapp.net",
+				messageId: "3EB0PIN123456",
+				text: "[Location: 33.8938, 35.5018]",
+				mediaType: "location",
+				latitude: 33.8938,
+				longitude: 35.5018,
+				fromMe: true,
+			},
+		]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+		mockDb.aiMessage.findFirst.mockResolvedValue(null);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				role: "admin",
+				attachmentType: "location",
+				attachmentMeta: { lat: 33.8938, lng: 35.5018 },
+			}),
+		});
+	});
+
+	it("skips the echo of a contact card the dashboard just sent", async () => {
+		// Dashboard sent "96170123456"; WaSender's vCard echoes it formatted.
+		mockRedis.mget.mockImplementation((...keys: string[]) =>
+			Promise.resolve(
+				keys.map((k) =>
+					k === "ai:bot-card:contact:70123456" ? "1" : null,
+				),
+			),
+		);
+		mockParseWebhookPayload.mockReturnValue([CONTACT_MSG]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).not.toHaveBeenCalled();
+		expect(mockDb.aiConversation.update).not.toHaveBeenCalled();
 	});
 });
 

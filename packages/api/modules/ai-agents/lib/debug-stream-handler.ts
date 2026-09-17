@@ -4,6 +4,7 @@ import {
 	createAgentStream,
 	type DbMessageRow,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	type PromptSection,
 	resolveAgentTools,
 	resolveMaintenanceState,
@@ -14,7 +15,6 @@ import { auth } from "@repo/auth";
 import { config } from "@repo/config";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";

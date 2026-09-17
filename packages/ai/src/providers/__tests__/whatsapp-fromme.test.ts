@@ -299,6 +299,62 @@ describe("WhatsApp fromMe Parsing — Foundation for Human Takeover", () => {
 		});
 	});
 
+	describe("Contact cards and location pins from phone", () => {
+		function fromMePayload(message: Record<string, unknown>) {
+			return {
+				event: "messages.upsert",
+				timestamp: 1711000800,
+				data: {
+					messages: [
+						{
+							key: {
+								id: "3EB0CARD1234567890ABCD",
+								fromMe: true,
+								remoteJid: "96176538947@s.whatsapp.net",
+							},
+							message,
+							messageTimestamp: 1711000800,
+						},
+					],
+				},
+			};
+		}
+
+		it("keeps the contact card data on a fromMe contact", () => {
+			const [msg] = parseWebhookPayload(
+				fromMePayload({
+					contactMessage: {
+						displayName: "Walid technician",
+						vcard: "BEGIN:VCARD\nVERSION:3.0\nFN:Walid technician\nitem1.TEL;waid=96170123456:+961 70 123 456\nEND:VCARD",
+					},
+				}),
+			);
+			expect(msg?.fromMe).toBe(true);
+			expect(msg?.mediaType).toBe("contact");
+			expect(msg?.contacts).toEqual([
+				{ name: "Walid technician", numbers: ["+961 70 123 456"] },
+			]);
+			expect(msg?.text).toBe(
+				"[Contact] Walid technician — +961 70 123 456",
+			);
+		});
+
+		it("keeps the coordinates on a fromMe location pin", () => {
+			const [msg] = parseWebhookPayload(
+				fromMePayload({
+					locationMessage: {
+						degreesLatitude: 33.8938,
+						degreesLongitude: 35.5018,
+					},
+				}),
+			);
+			expect(msg?.fromMe).toBe(true);
+			expect(msg?.mediaType).toBe("location");
+			expect(msg?.latitude).toBe(33.8938);
+			expect(msg?.longitude).toBe(35.5018);
+		});
+	});
+
 	describe("Non-fromMe messages (normal customer flow)", () => {
 		it("parses incoming customer message correctly", () => {
 			const messages = parseWebhookPayload(CUSTOMER_MESSAGE_PAYLOAD);
