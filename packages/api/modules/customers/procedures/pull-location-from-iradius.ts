@@ -5,6 +5,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
+import { isUsablePin } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -65,11 +66,9 @@ export const pullCustomerLocationFromIRadius = protectedProcedure
 		);
 		const lat = Number(rows[0]?.["GSMLat"]);
 		const lng = Number(rows[0]?.["GSMLng"]);
-		if (
-			!Number.isFinite(lat) ||
-			!Number.isFinite(lng) ||
-			(lat === 0 && lng === 0)
-		) {
+		// iRadius stores "no pin" as 0 and some rows carry near-zero noise
+		// (lng 0.000008) — neither is a real place.
+		if (!isUsablePin(lat, lng)) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "iRadius has no location for this customer.",
 			});

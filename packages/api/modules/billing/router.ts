@@ -36,6 +36,7 @@ import { resendReceipt } from "./procedures/resend-receipt";
 import { resetMonth } from "./procedures/reset-month";
 import { reviewPayment } from "./procedures/review-payment";
 import { reviewPayments } from "./procedures/review-payments";
+import { saveLocation } from "./procedures/save-location";
 import {
 	declineStoppedPayment,
 	listPendingStoppedPayments,
@@ -124,6 +125,7 @@ export const billingRouter = {
 		request: requestLocation,
 		notifyNeeded: notifyLocationNeeded,
 		createRequest: createLocationRequest,
+		save: saveLocation,
 	},
 	noteCategories: {
 		list: listNoteCategories,

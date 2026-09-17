@@ -1,5 +1,6 @@
 "use client";
 
+import { isUsablePin } from "@repo/utils";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
@@ -194,7 +195,9 @@ export function PaymentSheet({
 
 	const [showLocationPrompt, setShowLocationPrompt] = useState(false);
 
-	const hasLocation = customer?.latitude && customer?.longitude;
+	// A near-zero noise pin (lng 0.000008) is as good as none — prompt for a
+	// real one so the confirm overwrites it.
+	const hasLocation = isUsablePin(customer?.latitude, customer?.longitude);
 
 	function doSubmit(location?: { latitude: number; longitude: number }) {
 		const collectorId = employee?.id ?? customer?.collector?.id;

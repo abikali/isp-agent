@@ -1,6 +1,7 @@
 "use client";
 
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
+import { directionsUrl, isUsablePin } from "@repo/utils";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import {
 	useCompleteTaskWithEvidence,
@@ -615,14 +616,14 @@ function TaskCard({
 	// Every number we hold, not just the primary — the one that answers (or is
 	// on WhatsApp) is often the second one.
 	const phoneNumbers = customerPhoneNumbers(task.customer);
-	// Coordinates when we have them (exact), else let Maps search the address.
+	// Coordinates when we have a usable pin (exact), else let Maps search the
+	// address.
 	const destination =
-		task.customer?.latitude != null && task.customer?.longitude != null
+		task.customer &&
+		isUsablePin(task.customer.latitude, task.customer.longitude)
 			? `${task.customer.latitude},${task.customer.longitude}`
 			: task.customer?.address || null;
-	const directionsUrl = destination
-		? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
-		: null;
+	const directionsLink = destination ? directionsUrl(destination) : null;
 	const isUninstall = task.category === "UNINSTALL";
 	const isReplacement = task.category === "REPLACEMENT";
 	const isOpen = OPEN_STATUSES.has(task.status);
@@ -721,10 +722,10 @@ function TaskCard({
 								</p>
 							))}
 						</div>
-						{phoneNumbers.length > 0 || directionsUrl ? (
+						{phoneNumbers.length > 0 || directionsLink ? (
 							<div className="flex flex-wrap gap-2">
 								<PhoneActions numbers={phoneNumbers} />
-								{directionsUrl ? (
+								{directionsLink ? (
 									<Button
 										variant="outline"
 										size="sm"
@@ -732,7 +733,7 @@ function TaskCard({
 										asChild
 									>
 										<a
-											href={directionsUrl}
+											href={directionsLink}
 											target="_blank"
 											rel="noopener noreferrer"
 										>

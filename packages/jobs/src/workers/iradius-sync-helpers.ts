@@ -11,6 +11,7 @@ import {
 	extractPhoneNumbers,
 } from "@repo/database";
 import { toBooleanFromBit } from "@repo/database/iradius";
+import { isUsablePin } from "@repo/utils";
 
 export { toBooleanFromBit };
 
@@ -32,6 +33,22 @@ export interface SyncLookupMaps {
 // ---------------------------------------------------------------------------
 // Primitive helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * iRadius `UserNas.GSMLat/GSMLng` → local pin. iRadius stores "no pin" as 0
+ * and some rows carry near-zero float noise (lng 0.000008), which would send
+ * a collector abroad — both become null rather than a bogus pin.
+ */
+export function syncPin(u: Record<string, unknown>): {
+	latitude: number | null;
+	longitude: number | null;
+} {
+	const latitude = Number(u["GSMLat"]);
+	const longitude = Number(u["GSMLng"]);
+	return isUsablePin(latitude, longitude)
+		? { latitude, longitude }
+		: { latitude: null, longitude: null };
+}
 
 export function deriveStatus(
 	archived?: unknown,
@@ -212,8 +229,7 @@ export function buildCustomerDataFromRow(
 		iptvPrice: (u["IPTVPRICE"] as number) ?? 0,
 		realIpPrice: (u["REALIPPRICE"] as number) ?? 0,
 		discount: (u["Discount"] as number) ?? 0,
-		latitude: (u["GSMLat"] as number) || null,
-		longitude: (u["GSMLng"] as number) || null,
+		...syncPin(u),
 		categoryName: (u["CategoryName"] as string) || null,
 		groupName: (u["GroupName"] as string) || null,
 		groupExternalId: (u["UserGroupId"] as number) ?? null,

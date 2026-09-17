@@ -29,6 +29,7 @@ import {
 	PROFILE_DEPARTMENT_MAP,
 	PROFILE_POSITION_MAP,
 	safeDate,
+	syncPin,
 	toBigInt,
 	toBooleanFromBit,
 } from "./iradius-sync-helpers";
@@ -2272,8 +2273,7 @@ async function processIRadiusSync(
 					iptvPrice: (u["IPTVPRICE"] as number) ?? 0,
 					realIpPrice: (u["REALIPPRICE"] as number) ?? 0,
 					discount: (u["Discount"] as number) ?? 0,
-					latitude: (u["GSMLat"] as number) || null,
-					longitude: (u["GSMLng"] as number) || null,
+					...syncPin(u),
 					categoryName: (u["CategoryName"] as string) || null,
 					groupName: (u["GroupName"] as string) || null,
 					groupExternalId: (u["UserGroupId"] as number) ?? null,

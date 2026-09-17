@@ -1,5 +1,6 @@
 "use client";
 
+import { directionsUrl, isUsablePin } from "@repo/utils";
 import { DetailSection } from "@shared/components/DetailPanel";
 import {
 	AlertDialog,
@@ -78,6 +79,9 @@ export function CustomerLocationSection({
 
 	const hasLocation =
 		typeof latitude === "number" && typeof longitude === "number";
+	// iRadius near-zero noise pins (lng 0.000008) are stored but point
+	// nowhere near the customer: show them so they can be fixed, no Directions.
+	const pinUsable = isUsablePin(latitude, longitude);
 	const requestedLabel = formatLocationRequestAge(locationRequestedAt);
 
 	function openEdit() {
@@ -123,6 +127,10 @@ export function CustomerLocationSection({
 			toast.error("Longitude must be between -180 and 180");
 			return;
 		}
+		if (!isUsablePin(lat, lng)) {
+			toast.error("Coordinates near 0 are not a real location");
+			return;
+		}
 		updateLocation.mutate(
 			{ organizationId, customerId, latitude: lat, longitude: lng },
 			{
@@ -153,7 +161,9 @@ export function CustomerLocationSection({
 			title="Location"
 			description={
 				hasLocation
-					? "GPS coordinates from last known location"
+					? pinUsable
+						? "GPS coordinates from last known location"
+						: "These coordinates are near 0 and not a real location — edit or re-request them"
 					: "No GPS coordinates on file"
 			}
 		>
@@ -173,16 +183,20 @@ export function CustomerLocationSection({
 						)}
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						<Button variant="outline" size="sm" asChild>
-							<a
-								href={`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`}
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								<NavigationIcon className="mr-1.5 size-3.5" />
-								Directions
-							</a>
-						</Button>
+						{pinUsable && (
+							<Button variant="outline" size="sm" asChild>
+								<a
+									href={directionsUrl(
+										`${latitude},${longitude}`,
+									)}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									<NavigationIcon className="mr-1.5 size-3.5" />
+									Directions
+								</a>
+							</Button>
+						)}
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button

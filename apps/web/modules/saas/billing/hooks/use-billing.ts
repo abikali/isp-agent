@@ -623,6 +623,22 @@ export function useCreateBillingLocationRequest() {
 	});
 }
 
+export function useSaveBillingLocation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.location.save.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.unpaid.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
 // ─── Mark Receipt As Sent ──────────────────────────────────────
 
 export function useMarkReceiptSent() {
