@@ -97,6 +97,19 @@ export function useDeleteTask() {
 	});
 }
 
+export function useCloseEscalations() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.tasks.closeEscalations.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.tasks.key(),
+			});
+		},
+	});
+}
+
 export function useReviewTaskCompletion() {
 	const queryClient = useQueryClient();
 

@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	useActiveOrganization,
+	useCanAccess,
+} from "@saas/organizations/client";
+import { useConfirmationAlert } from "@saas/shared/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import {
 	ContentCard,
@@ -9,9 +14,11 @@ import { PageShell } from "@shared/components/PageShell";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { displayName } from "@shared/lib/display-name";
 import { formatDateTime } from "@shared/lib/format";
+import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import {
 	Tooltip,
@@ -23,11 +30,13 @@ import { cn } from "@ui/lib";
 import {
 	AlertTriangleIcon,
 	BotIcon,
+	CheckIcon,
 	ClockIcon,
 	MessageSquareIcon,
 	UserIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const ESCALATION_SORT_BY_MAP = {
 	status: "status",
@@ -38,7 +47,7 @@ const ESCALATION_SORT_BY_MAP = {
 	"title" | "createdAt" | "dueDate" | "priority" | "status"
 >;
 
-import { useTasks } from "../hooks/use-tasks";
+import { useCloseEscalations, useTasks } from "../hooks/use-tasks";
 import {
 	FOLLOW_UP_STATUS_COLORS,
 	FOLLOW_UP_STATUS_LABELS,
@@ -49,6 +58,7 @@ import {
 	TASK_STATUS_LABELS,
 } from "../lib/constants";
 import { isOverdue, timeAgo } from "../lib/task-utils";
+import { CloseOldEscalationsDialog } from "./CloseOldEscalationsDialog";
 import { EscalationFilters } from "./EscalationFilters";
 import { TaskStats } from "./TaskStats";
 import { TaskStatsSkeleton } from "./TaskStatsSkeleton";
@@ -270,8 +280,22 @@ export function EscalationsList({
 	const [priority, setPriority] = useState("all");
 	const [followUp, setFollowUp] = useState("all");
 	const [page, setPage] = useState(1);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-	const resetPage = () => setPage(1);
+	const organizationId = useOrganizationId();
+	const { confirm } = useConfirmationAlert();
+	const closeEscalations = useCloseEscalations();
+	// Closing marks the task completed, which the API gates on tasks:approve.
+	const { isOrganizationAdmin } = useActiveOrganization();
+	const canAccess = useCanAccess();
+	const canClose = isOrganizationAdmin || canAccess("tasks", "approve");
+
+	// Selection is per page: a filter or page change drops it so a close never
+	// acts on rows the user can no longer see.
+	const resetPage = () => {
+		setPage(1);
+		setRowSelection({});
+	};
 	const { sorting, sortBy, sortOrder, onSortingChange } = useServerSorting(
 		ESCALATION_SORT_BY_MAP,
 		resetPage,
@@ -290,6 +314,39 @@ export function EscalationsList({
 
 	const columns = useEscalationColumns(organizationSlug);
 
+	const selectedIds = Object.keys(rowSelection);
+	const selectedCount = selectedIds.length;
+
+	function handleCloseSelected() {
+		if (!organizationId || selectedCount === 0) {
+			return;
+		}
+		confirm({
+			title: `Close ${selectedCount} escalation${selectedCount === 1 ? "" : "s"}?`,
+			message:
+				"They are marked completed, with a note saying you closed them. You can reopen one from its edit page.",
+			confirmLabel: "Close",
+			onConfirm: async () => {
+				try {
+					const { count } = await closeEscalations.mutateAsync({
+						organizationId,
+						taskIds: selectedIds,
+					});
+					setRowSelection({});
+					toast.success(
+						`Closed ${count} escalation${count === 1 ? "" : "s"}`,
+					);
+				} catch (err) {
+					toast.error(
+						err instanceof Error
+							? err.message
+							: "Failed to close escalations",
+					);
+				}
+			},
+		});
+	}
+
 	return (
 		<PageShell
 			title="AI Escalations"
@@ -299,8 +356,36 @@ export function EscalationsList({
 				<TaskStats sources={["AI_ESCALATION"]} />
 			</AsyncBoundary>
 
+			{selectedCount > 0 && (
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+					<span className="text-sm text-muted-foreground">
+						{selectedCount} selected
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={closeEscalations.isPending}
+						onClick={handleCloseSelected}
+					>
+						<CheckIcon className="size-3.5" />
+						Close selected ({selectedCount})
+					</Button>
+					<Button
+						size="sm"
+						variant="ghost"
+						onClick={() => setRowSelection({})}
+					>
+						Clear
+					</Button>
+				</div>
+			)}
+
 			<ContentCard>
-				<ContentCardToolbar>
+				<ContentCardToolbar
+					actions={
+						canClose ? <CloseOldEscalationsDialog /> : undefined
+					}
+				>
 					<EscalationFilters
 						search={search}
 						onSearchChange={(v) => {
@@ -337,8 +422,19 @@ export function EscalationsList({
 							totalItems: total,
 							currentPage: page,
 							itemsPerPage: 25,
-							onPageChange: setPage,
+							onPageChange: (p) => {
+								setPage(p);
+								setRowSelection({});
+							},
 						}}
+						enableRowSelection={
+							canClose
+								? (row) => row.original.status === "OPEN"
+								: undefined
+						}
+						rowSelection={rowSelection}
+						onRowSelectionChange={setRowSelection}
+						getRowId={(row) => row.id}
 						emptyState={
 							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
 								<BotIcon className="mb-3 size-10 text-muted-foreground/50" />
