@@ -1,6 +1,12 @@
 "use client";
 
 import { isValidEmail } from "@repo/api/lib/validation";
+import {
+	CASH_ROLE_LABELS,
+	CASH_ROLES,
+	resolveCashRole,
+	usesCollectorWallet,
+} from "@repo/api/modules/employees/lib/cash-role";
 import { CUSTOMER_STATUS_LABELS } from "@saas/customers";
 import { useOrganizationRolesQuery } from "@saas/organizations/client";
 import { TASK_PRIORITY_LABELS, TASK_STATUS_LABELS } from "@saas/tasks";
@@ -123,6 +129,8 @@ function getEmployeeFormDefaults(employee: EmployeeData) {
 		phone: employee.phone ?? "",
 		position: employee.position ?? "",
 		department: employee.department ?? "",
+		// "auto" = no explicit field role (Select items can't carry "").
+		cashRole: (employee.cashRole ?? "auto") as string,
 		hireDate: employee.hireDate ? formatDateInput(employee.hireDate) : "",
 		status: employee.status,
 		preferredLayout: employee.preferredLayout ?? "standard",
@@ -202,6 +210,10 @@ export function EmployeeDetail({
 						| "MANAGEMENT"
 						| "FIELD_OPS"
 						| null,
+					cashRole:
+						value.cashRole === "auto"
+							? null
+							: (value.cashRole as (typeof CASH_ROLES)[number]),
 					hireDate: value.hireDate ? new Date(value.hireDate) : null,
 					status: value.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE",
 					preferredLayout: value.preferredLayout as
@@ -605,13 +617,28 @@ function OverviewTab({
 	const organizationId = useOrganizationId();
 	const connectTelegram = useConnectTelegram();
 	const testTelegram = useTestTelegram();
-	const { data: balanceData } = useQuery(
-		organizationId
+	// Cash balance on the formula of the employee's saved field role:
+	// collectors (and collector & worker) count the payments they collected,
+	// workers settle on the cash ledger alone.
+	const cashRole = resolveCashRole(employee);
+	const collectorWallet = usesCollectorWallet(cashRole);
+	const { data: collectorBalanceData } = useQuery(
+		organizationId && collectorWallet
 			? orpc.billing.collectors.balance.queryOptions({
 					input: { organizationId, collectorId: employee.id },
 				})
 			: disabledQuery(["billing", "collectorBalance"]),
 	);
+	const { data: workerBalanceData } = useQuery(
+		organizationId && !collectorWallet
+			? orpc.billing.workers.balance.queryOptions({
+					input: { organizationId, workerId: employee.id },
+				})
+			: disabledQuery(["billing", "workerBalance"]),
+	);
+	const balanceData = collectorWallet
+		? collectorBalanceData
+		: workerBalanceData;
 
 	async function handleConnectTelegram() {
 		if (!organizationId) {
@@ -796,6 +823,46 @@ function OverviewTab({
 											)}
 										</SelectContent>
 									</Select>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="cashRole">
+							{(field) => (
+								<Field>
+									<FieldLabel>Field role</FieldLabel>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="auto">
+												Not set — counted as{" "}
+												{CASH_ROLE_LABELS[
+													resolveCashRole({
+														cashRole: null,
+														department:
+															employee.department,
+													})
+												].toLowerCase()}
+											</SelectItem>
+											{CASH_ROLES.map((role) => (
+												<SelectItem
+													key={role}
+													value={role}
+												>
+													{CASH_ROLE_LABELS[role]}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									<FieldDescription>
+										Decides the collector and worker
+										pickers, the role label, and how the
+										cash balance is counted.
+									</FieldDescription>
 								</Field>
 							)}
 						</form.Field>
@@ -1016,7 +1083,7 @@ function OverviewTab({
 							label="Cash Balance"
 							value={balanceData?.balance ?? 0}
 							format="currency"
-							secondary="Owed to office"
+							secondary={`Owed to office · ${CASH_ROLE_LABELS[cashRole].toLowerCase()} wallet`}
 						/>
 					</div>
 				</DetailSection>

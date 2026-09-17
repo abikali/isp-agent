@@ -108,11 +108,13 @@ export function useEmployeesQuery(opts?: {
 	dealerId?: string | null;
 	role?: string;
 	department?: EmployeeListInput["department"];
+	cashRole?: "COLLECTOR" | "WORKER";
 }) {
 	const organizationId = useOrganizationId();
 	const dealerId = opts?.dealerId ?? undefined;
 	const role = opts?.role;
 	const department = opts?.department;
+	const cashRole = opts?.cashRole;
 
 	const query = useQuery(
 		organizationId
@@ -129,6 +131,7 @@ export function useEmployeesQuery(opts?: {
 						...(dealerId ? { dealerId } : {}),
 						...(role ? { role } : {}),
 						...(department ? { department } : {}),
+						...(cashRole ? { cashRole } : {}),
 					},
 				})
 			: disabledQuery(["employees", "list"]),

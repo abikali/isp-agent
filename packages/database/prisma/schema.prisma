@@ -1727,6 +1727,17 @@ enum EmployeeDepartment {
   FIELD_OPS
 }
 
+// What an employee does with cash in the field, set explicitly per employee.
+// Drives the collector/worker pickers, role labels and which wallet formula
+// his cash balance uses (collector: collected payments − ledger; worker:
+// −ledger). NULL = not set yet; code falls back to the legacy derivation
+// (department BILLING → collector, otherwise worker/portal signals).
+enum EmployeeCashRole {
+  COLLECTOR
+  WORKER
+  BOTH
+}
+
 enum TaskPriority {
   LOW
   MEDIUM
@@ -1775,6 +1786,9 @@ model Employee {
   phone             String?
   position          String?
   department        EmployeeDepartment?
+  // Explicit field role. iRadius sync only seeds it on create (profile 6 →
+  // COLLECTOR) and never overwrites it, unlike `department`.
+  cashRole          EmployeeCashRole?   @map("cash_role")
   hireDate          DateTime?
   status            EmployeeStatus      @default(ACTIVE)
   notes             String?             @db.Text

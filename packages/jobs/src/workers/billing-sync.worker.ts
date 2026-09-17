@@ -175,6 +175,15 @@ async function processBillingSync(
 						};
 						const department =
 							departmentMap[mapping.role ?? ""] ?? null;
+						const cashRoleMap: Record<
+							string,
+							Prisma.EmployeeCreateInput["cashRole"]
+						> = {
+							worker: "WORKER",
+							collector: "COLLECTOR",
+						};
+						const cashRole =
+							cashRoleMap[mapping.role ?? ""] ?? null;
 						const position = mapping.role ?? null;
 
 						const telegram =
@@ -193,6 +202,7 @@ async function processBillingSync(
 								username: legacyName,
 								dealerId: org?.activeDealerId ?? null,
 								department,
+								cashRole,
 								position,
 								phone: mapping.phone ?? null,
 								telegramChatId: telegram,

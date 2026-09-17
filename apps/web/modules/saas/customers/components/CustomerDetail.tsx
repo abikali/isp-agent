@@ -211,11 +211,11 @@ export function CustomerDetail({
 	);
 
 	const customer = data.customer;
-	// Only the collector picker consumes this list, so scope it to billing
-	// staff — field workers are never a customer's collector.
+	// Only the collector picker consumes this list, so scope it to staff
+	// with a collector field role — workers are never a customer's collector.
 	const { employees } = useEmployeesQuery({
 		dealerId: customer.dealerId,
-		department: "BILLING",
+		cashRole: "COLLECTOR",
 	});
 	const { groups: iradiusGroups } = useIRadiusGroups(customer.dealerId);
 

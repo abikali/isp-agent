@@ -1853,6 +1853,10 @@ async function processIRadiusSync(
 								organizationId,
 								employeeNumber,
 								preferredLayout: "collector",
+								// Field role is seeded once and then owned by
+								// the admin — never part of employeeData, so
+								// later syncs don't overwrite it.
+								cashRole: profileId === 6 ? "COLLECTOR" : null,
 								lastSyncedAt: new Date(),
 								...employeeData,
 							},

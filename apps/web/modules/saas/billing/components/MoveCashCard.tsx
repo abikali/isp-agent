@@ -246,8 +246,8 @@ export function MoveCashCard({
 /**
  * Everyone cash can move to: collectors and workers merged into one list,
  * with the cash each holds. Someone in both lists keeps the balance his page
- * shows — the collector formula for the billing department, the worker
- * formula otherwise (same rule as the Money page's "cash held").
+ * shows — the collector formula for collectors (and collector & worker),
+ * the worker formula for workers (same rule as the Money page's "cash held").
  */
 function useStaffWithCash(excludeId: string): Person[] {
 	const { data: collectorsData } = useCollectors();
@@ -259,7 +259,7 @@ function useStaffWithCash(excludeId: string): Person[] {
 			byId.set(w.id, w);
 		}
 		for (const c of collectorsData?.collectors ?? []) {
-			if (!byId.has(c.id) || c.department === "BILLING") {
+			if (!byId.has(c.id) || c.cashRole !== "WORKER") {
 				byId.set(c.id, c);
 			}
 		}

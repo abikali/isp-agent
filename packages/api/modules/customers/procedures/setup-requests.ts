@@ -21,6 +21,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import { collectorRoleWhere } from "../../employees/lib/cash-role";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import {
@@ -102,7 +103,7 @@ export const workerCreateOptions = protectedProcedure
 						orderBy: { name: "asc" },
 					})
 				: Promise.resolve([]),
-			// Collectors only — billing-department staff or anyone already
+			// Collectors only — collector-role staff or anyone already
 			// assigned customers as a collector. Mirrors billing.listCollectors
 			// so the field form doesn't list techs/other roles.
 			db.employee.findMany({
@@ -111,7 +112,7 @@ export const workerCreateOptions = protectedProcedure
 					status: "ACTIVE",
 					deletedAt: null,
 					OR: [
-						{ ...dealerScope, department: "BILLING" },
+						collectorRoleWhere(dealerScope),
 						{ customerCollections: { some: dealerScope } },
 					],
 				},

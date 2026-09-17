@@ -41,6 +41,7 @@ export const getMyEmployeeIdentity = protectedProcedure
 					employeeNumber: true,
 					position: true,
 					department: true,
+					cashRole: true,
 					email: true,
 					phone: true,
 					preferredLayout: true,

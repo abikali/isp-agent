@@ -47,6 +47,10 @@
 			"types": "./modules/customers/lib/mirror-fields.ts",
 			"default": "./modules/customers/lib/mirror-fields.ts"
 		},
+		"./modules/employees/lib/cash-role": {
+			"types": "./modules/employees/lib/cash-role.ts",
+			"default": "./modules/employees/lib/cash-role.ts"
+		},
 		"./modules/tasks/lib/task-title": {
 			"types": "./modules/tasks/lib/task-title.ts",
 			"default": "./modules/tasks/lib/task-title.ts"

@@ -10,6 +10,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { bustCashStats } from "../../billing/lib/cash-cache";
+import { CASH_ROLES } from "../lib/cash-role";
 
 export const updateEmployee = protectedProcedure
 	.route({
@@ -36,6 +38,8 @@ export const updateEmployee = protectedProcedure
 				])
 				.nullable()
 				.optional(),
+			// Field role; null clears it back to the department-based fallback.
+			cashRole: z.enum(CASH_ROLES).nullable().optional(),
 			hireDate: z.coerce.date().nullable().optional(),
 			status: z.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"]).optional(),
 			notes: z.string().max(5000).nullable().optional(),
@@ -106,6 +110,9 @@ export const updateEmployee = protectedProcedure
 		if (input.department !== undefined) {
 			updateData["department"] = input.department ?? null;
 		}
+		if (input.cashRole !== undefined) {
+			updateData["cashRole"] = input.cashRole ?? null;
+		}
 		if (input.hireDate !== undefined) {
 			updateData["hireDate"] = input.hireDate ?? null;
 		}
@@ -134,6 +141,15 @@ export const updateEmployee = protectedProcedure
 				createdAt: true,
 			},
 		});
+
+		// The role decides who the collectors/workers hubs list and which
+		// wallet formula the Money page uses — drop their cached numbers.
+		if (
+			input.cashRole !== undefined &&
+			input.cashRole !== existing.cashRole
+		) {
+			bustCashStats(input.organizationId);
+		}
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		employeeAudit.updated(
