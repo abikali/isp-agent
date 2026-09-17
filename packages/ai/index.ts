@@ -77,6 +77,7 @@ export type {
 	ResolveAgentToolsResult,
 } from "./src/resolve-agent-tools";
 export { resolveAgentTools } from "./src/resolve-agent-tools";
+export { fetchServicePlansSection } from "./src/service-plans-section";
 export { shouldDeferToTeammate } from "./src/teammate-reply";
 export {
 	getAvailableTools,

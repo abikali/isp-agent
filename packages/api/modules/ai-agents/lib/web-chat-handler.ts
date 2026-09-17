@@ -5,6 +5,7 @@ import {
 	buildAgentTelemetry,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	generateAgentResponse,
 	loadHistoryRows,
 	modelMessagesToRoleContent,
@@ -16,7 +17,6 @@ import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
-import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";

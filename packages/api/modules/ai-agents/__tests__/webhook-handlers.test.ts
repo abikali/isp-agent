@@ -116,6 +116,7 @@ vi.mock("@repo/storage", () => ({
 }));
 
 vi.mock("@repo/ai", () => ({
+	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 	parseWebhookPayload: vi.fn(),
 	initRateLimiter: vi.fn(),
 	sendTextMessage: mockSendTextMessage,
@@ -159,10 +160,6 @@ vi.mock("@repo/ai", () => ({
 	telegram: {
 		isStartCommand: vi.fn().mockReturnValue(false),
 	},
-}));
-
-vi.mock("../lib/service-plans-context", () => ({
-	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/config", () => ({

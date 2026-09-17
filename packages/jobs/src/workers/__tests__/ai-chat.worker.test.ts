@@ -22,6 +22,7 @@ const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
 		decryptToken: vi.fn().mockReturnValue("token"),
 		executeEscalationGuard: vi.fn().mockResolvedValue(null),
 		extractToolPromptOverrides: vi.fn().mockReturnValue({}),
+		fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 		generateAgentResponse: vi.fn().mockResolvedValue({
 			text: "AI response",
 			toolResults: null,

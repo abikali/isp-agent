@@ -11,6 +11,7 @@ import {
 	decryptToken,
 	executeEscalationGuard,
 	extractToolPromptOverrides,
+	fetchServicePlansSection,
 	generateAgentResponse,
 	initRateLimiter,
 	isWhishMoneyMessage,
@@ -49,7 +50,6 @@ import {
 	trackBotMessage,
 } from "./bot-fingerprint";
 import { resolveVerifiedCustomerId } from "./resolve-verified-customer";
-import { fetchServicePlansSection } from "./service-plans-context";
 
 const FALLBACK_MESSAGE =
 	"I'm having trouble right now. Please try again shortly.";

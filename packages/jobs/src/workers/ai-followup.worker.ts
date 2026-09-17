@@ -6,6 +6,7 @@ import {
 	type ChannelProvider,
 	computeBotFingerprint,
 	decryptToken,
+	fetchServicePlansSection,
 	generateAgentResponse,
 	isHumanTakeoverActive,
 	isNoFollowUpReply,
@@ -156,6 +157,13 @@ export function createAiFollowUpWorker(): Worker<
 					conversationId,
 					agent.maxHistoryLength,
 				);
+				// A sales nudge ("still interested in the 10 Mbps plan?") must
+				// quote the real prices, not remember them.
+				const servicePlans = await fetchServicePlansSection(
+					agent.organizationId,
+					agent.servicePlansEnabled,
+					agent.servicePlanIds,
+				);
 				const verified = conversation.verifiedCustomer;
 				const messages = buildAgentMessages({
 					conversationId,
@@ -180,6 +188,7 @@ export function createAiFollowUpWorker(): Worker<
 								}
 							: undefined,
 						provider,
+						servicePlans,
 						promptSections:
 							agent.promptSections as unknown as PromptSection[],
 						workingHours: agent,
