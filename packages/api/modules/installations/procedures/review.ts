@@ -141,9 +141,14 @@ export const updatePendingInstallation = protectedProcedure
  * customer setup-request approval (which approves the bundle without
  * per-line cash entries).
  *
+ * The line is claimed first (PENDING → APPROVED, conditional on the status),
+ * so two concurrent approvals of the same line — or a setup approval racing
+ * a line that changed state since it was read — cannot both consume stock
+ * and log cash: the loser throws CONFLICT and its transaction rolls back.
+ *
  * Stock rule: worker stock decrements HERE (at approval), never at create.
  * The decrement is atomic (conditional update), so concurrent approvals of
- * the same worker's lines cannot overdraw him.
+ * the same worker's different lines cannot overdraw him.
  */
 export async function approveInstallationInTx(
 	tx: Prisma.TransactionClient,
@@ -161,6 +166,21 @@ export async function approveInstallationInTx(
 	userId: string,
 	options: { createCashEntry: boolean },
 ): Promise<void> {
+	const claimed = await tx.installation.updateMany({
+		where: { id: installation.id, status: "PENDING" },
+		data: {
+			status: "APPROVED",
+			approvedById: userId,
+			approvedAt: new Date(),
+		},
+	});
+	if (claimed.count !== 1) {
+		throw new ORPCError("CONFLICT", {
+			message:
+				"This installation was already reviewed — refresh the list",
+		});
+	}
+
 	// Consume worker stock for physical items
 	let stockItemName: string | null = null;
 	if (installation.stockItemId && !installation.isAddOn) {
@@ -254,15 +274,6 @@ export async function approveInstallationInTx(
 			},
 		});
 	}
-
-	await tx.installation.update({
-		where: { id: installation.id },
-		data: {
-			status: "APPROVED",
-			approvedById: userId,
-			approvedAt: new Date(),
-		},
-	});
 }
 
 /**
@@ -381,6 +392,7 @@ export const approveInstallations = protectedProcedure
 						isAddOn: true,
 						notes: true,
 						price: true,
+						setupRequest: { select: { status: true } },
 						customer: {
 							select: {
 								externalId: true,
@@ -393,6 +405,17 @@ export const approveInstallations = protectedProcedure
 				if (!target) {
 					throw new ORPCError("NOT_FOUND", {
 						message: "Installation not found or not pending",
+					});
+				}
+				// A pending setup request approves its lines together and logs
+				// their money once as NEW_USER_SETUP. Approving one here first
+				// would take the worker's stock even if the customer is then
+				// rejected. Lines of an already-approved request (put back to
+				// pending when its cash entry was deleted) approve normally.
+				if (target.setupRequest?.status === "PENDING") {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"Part of a pending new-customer setup — approve or reject it from New Customers",
 					});
 				}
 				// An add-on line sets the customer's IPTV / Real IP price, which

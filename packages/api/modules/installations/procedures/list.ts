@@ -180,6 +180,9 @@ export const listInstallations = protectedProcedure
 					employee: { select: { id: true, name: true } },
 					stockItem: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
+					// A line of a still-pending setup request is approved with the
+					// request (New Customers), never on its own.
+					setupRequest: { select: { status: true } },
 					// Completion evidence (photo + worker's resolution note) lives
 					// on the task, not the installation row itself.
 					task: {

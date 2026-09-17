@@ -34,6 +34,27 @@ export async function iradiusUsernameExists(
 }
 
 /**
+ * Read-only check: does the iRadius subscriber with this User.Id still exist?
+ * SELECT only — never mutates iRadius.
+ */
+export async function iradiusUserIdExists(
+	externalId: string,
+): Promise<boolean> {
+	const id = Number.parseInt(externalId, 10);
+	if (!Number.isFinite(id)) {
+		return false;
+	}
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			"SELECT Id FROM User WHERE Id = ? LIMIT 1",
+			[id],
+		);
+		return rows.length > 0;
+	});
+}
+
+/**
  * Read-only: find an iRadius subscriber this app created but never linked.
  *
  * An approval that created the user in iRadius and then rolled back locally

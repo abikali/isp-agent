@@ -26,7 +26,7 @@ import { addonNoteFor } from "../../installations/lib/addons";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
-import { iradiusUsernameExists } from "../lib/iradius-api";
+import { iradiusUserIdExists, iradiusUsernameExists } from "../lib/iradius-api";
 
 const setupItemSchema = z
 	.object({
@@ -599,12 +599,35 @@ export const updateSetupRequest = protectedProcedure
 			select: {
 				id: true,
 				customerId: true,
-				customer: { select: { username: true, planId: true } },
+				customer: {
+					select: { username: true, planId: true, externalId: true },
+				},
 			},
 		});
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Setup request not found or already reviewed",
+			});
+		}
+
+		// An earlier approval attempt already created (and charged) this
+		// subscriber in iRadius, then failed before finishing. Every customer
+		// field below is mirrored in iRadius, and a retried approval skips the
+		// create, so a local-only edit here would never reach iRadius. Only the
+		// first charge (local, read at approval) stays editable; the rest is
+		// edited on the customer's page after the approval, which mirrors.
+		const {
+			organizationId: _organizationId,
+			id: _id,
+			firstChargeAmount: _firstChargeAmount,
+			...customerFields
+		} = input;
+		if (
+			request.customer.externalId &&
+			Object.values(customerFields).some((v) => v !== undefined)
+		) {
+			throw new ORPCError("CONFLICT", {
+				message: `This customer already exists in iRadius (User ${request.customer.externalId}). Only the first charge can change here — retry the approval, then edit the customer from their page`,
 			});
 		}
 
@@ -1083,7 +1106,7 @@ export const rejectSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -1099,13 +1122,33 @@ export const rejectSetupRequest = protectedProcedure
 			},
 			include: {
 				customer: {
-					select: { id: true, firstName: true, lastName: true },
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						externalId: true,
+					},
 				},
 			},
 		});
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Setup request not found or already reviewed",
+			});
+		}
+
+		// A linked pending request means an earlier approval attempt created
+		// (and charged) the subscriber in iRadius, then failed before
+		// finishing. Rejecting now would soft-delete the only local row of a
+		// live, billed iRadius account. Allowed only once the subscriber is
+		// gone from iRadius (read-only check).
+		const linkedExternalId = request.customer.externalId;
+		if (
+			linkedExternalId &&
+			(iradiusDisabled || (await iradiusUserIdExists(linkedExternalId)))
+		) {
+			throw new ORPCError("CONFLICT", {
+				message: `This customer already exists in iRadius (User ${linkedExternalId}). Retry the approval, or remove the subscriber in iRadius first`,
 			});
 		}
 
@@ -1121,11 +1164,17 @@ export const rejectSetupRequest = protectedProcedure
 			});
 			// Keep the customer row for audit/back-references, but soft-delete it
 			// so it drops out of the default customers list (which filters on
-			// `deletedAt: null`). It was never approved into iRadius, so there is
-			// nothing remote to clean up.
+			// `deletedAt: null`). There is nothing remote to clean up: either it
+			// was never created in iRadius, or (checked above) the subscriber an
+			// earlier approval attempt created has since been removed there, so
+			// the dead link is cleared too.
 			await tx.customer.update({
 				where: { id: request.customerId },
-				data: { status: "INACTIVE", deletedAt: new Date() },
+				data: {
+					status: "INACTIVE",
+					deletedAt: new Date(),
+					...(linkedExternalId ? { externalId: null } : {}),
+				},
 			});
 			await tx.installation.updateMany({
 				where: { setupRequestId: request.id, status: "PENDING" },

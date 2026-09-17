@@ -1049,10 +1049,11 @@ export function InstallationsList({
 							},
 							cell: ({ row }) => {
 								const inst = row.original;
-								const problem = stockProblem(
-									inst,
-									getEdit(inst),
-								);
+								// Setup lines are approved with their request.
+								const problem =
+									inst.setupRequest?.status === "PENDING"
+										? "Part of a pending new-customer setup — approve it from New Customers"
+										: stockProblem(inst, getEdit(inst));
 								return (
 									<PermissionGate
 										resource="installations"

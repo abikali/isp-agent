@@ -52,6 +52,10 @@ export function EditSetupRequestDialog({
 	const updateRequest = useUpdateSetupRequest();
 
 	const customer = request.customer;
+	// Already created in iRadius by an earlier approval attempt that failed
+	// before finishing: customer fields are mirrored there, so only the
+	// (local) first charge can change until the approval is retried.
+	const linked = !!customer.externalId;
 	const [firstName, setFirstName] = useState(customer.firstName ?? "");
 	const [lastName, setLastName] = useState(customer.lastName ?? "");
 	const [username, setUsername] = useState(customer.username ?? "");
@@ -141,6 +145,16 @@ export function EditSetupRequestDialog({
 			cleanedPhones[0].primary = true;
 		}
 		try {
+			if (linked) {
+				await updateRequest.mutateAsync({
+					organizationId,
+					id: request.id,
+					firstChargeAmount: Number(firstCharge) || 0,
+				});
+				toast.success("Request updated");
+				onClose();
+				return;
+			}
 			await updateRequest.mutateAsync({
 				organizationId,
 				id: request.id,
@@ -183,126 +197,15 @@ export function EditSetupRequestDialog({
 				<DialogHeader>
 					<DialogTitle>Edit Before Approval</DialogTitle>
 				</DialogHeader>
-				<div className="space-y-4">
-					<div className="grid grid-cols-2 gap-3">
-						<div className="space-y-1.5">
-							<Label htmlFor="esr-first">First name *</Label>
-							<Input
-								id="esr-first"
-								value={firstName}
-								onChange={(e) => setFirstName(e.target.value)}
-							/>
-						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="esr-last">Last name</Label>
-							<Input
-								id="esr-last"
-								value={lastName}
-								onChange={(e) => setLastName(e.target.value)}
-							/>
-						</div>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="esr-username">
-							Username (iRadius) *
-						</Label>
-						<Input
-							id="esr-username"
-							value={username}
-							onChange={(e) => setUsername(e.target.value)}
-							onBlur={() => setUsernameToCheck(username.trim())}
-							aria-invalid={usernameTaken || undefined}
-							placeholder="iRadius login username"
-						/>
-						{usernameChecking && (
-							<p className="text-muted-foreground text-xs">
-								Checking availability on iRadius…
-							</p>
-						)}
-						{usernameTaken && (
-							<p className="text-destructive text-xs">
-								Already exists on iRadius — pick another
-								username
-							</p>
-						)}
-						{usernameAvailable && (
-							<p className="text-xs text-emerald-600">
-								Available on iRadius
-							</p>
-						)}
-					</div>
-					<div className="space-y-1.5">
-						<Label>Phone numbers</Label>
-						<PhoneRows phones={phones} onChange={setPhones} />
-					</div>
-					<div className="space-y-1.5">
-						<Label>Group</Label>
-						{/* Combobox (not Radix Select) so the trigger label
-						    resolves from `options` on every render — iRadius
-						    groups load slowly over SSH and a Select would latch
-						    its label empty before the matching item arrives. */}
-						<Combobox
-							value={groupExternalId || "none"}
-							onChange={(v) =>
-								setGroupExternalId(v === "none" ? "" : v)
-							}
-							placeholder="None"
-							searchPlaceholder="Search groups…"
-							emptyText="No groups found"
-							options={[
-								{ value: "none", label: "None" },
-								...groups.map((group) => ({
-									value: String(group.id),
-									label: group.name,
-								})),
-							]}
-						/>
-					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="esr-address">Address</Label>
-						<Input
-							id="esr-address"
-							value={address}
-							onChange={(e) => setAddress(e.target.value)}
-						/>
-					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<div className="min-w-0 space-y-1.5">
-							<Label>Plan</Label>
-							<Combobox
-								value={planId}
-								onChange={setPlanId}
-								placeholder="Pick a plan"
-								searchPlaceholder="Search plans…"
-								emptyText="No plans found"
-								options={plans.flatMap((p) =>
-									p.archived
-										? []
-										: [{ value: p.id, label: p.name }],
-								)}
-							/>
-						</div>
-						<div className="min-w-0 space-y-1.5">
-							<Label>Collector</Label>
-							<Combobox
-								value={collectorId || "none"}
-								onChange={(v) =>
-									setCollectorId(v === "none" ? "" : v)
-								}
-								placeholder="None"
-								searchPlaceholder="Search collectors…"
-								emptyText="No collectors found"
-								options={[
-									{ value: "none", label: "None" },
-									...collectors.map((c) => ({
-										value: c.id,
-										label: c.name,
-									})),
-								]}
-							/>
-						</div>
-					</div>
-					<div className="grid grid-cols-2 gap-3">
+				{linked ? (
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							This customer already exists in iRadius (User{" "}
+							{customer.externalId}) from an earlier approval
+							attempt. Only the first charge can change here —
+							approve, then edit the customer from their page so
+							the changes reach iRadius.
+						</p>
 						<div className="space-y-1.5">
 							<Label htmlFor="esr-charge">First charge ($)</Label>
 							<Input
@@ -314,57 +217,209 @@ export function EditSetupRequestDialog({
 								onChange={(e) => setFirstCharge(e.target.value)}
 							/>
 						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="esr-discount">Discount ($)</Label>
-							<Input
-								id="esr-discount"
-								type="number"
-								min={0}
-								step="0.01"
-								value={discount}
-								onChange={(e) => setDiscount(e.target.value)}
-								placeholder="Keep current"
-							/>
-						</div>
 					</div>
-					<div className="grid grid-cols-2 gap-3">
-						<div className="space-y-1.5">
-							<Label htmlFor="esr-iptv">IPTV price ($)</Label>
-							<Input
-								id="esr-iptv"
-								type="number"
-								min={0}
-								step="0.01"
-								value={iptvPrice}
-								onChange={(e) => setIptvPrice(e.target.value)}
-								placeholder="Keep current"
-							/>
+				) : (
+					<div className="space-y-4">
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-first">First name *</Label>
+								<Input
+									id="esr-first"
+									value={firstName}
+									onChange={(e) =>
+										setFirstName(e.target.value)
+									}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-last">Last name</Label>
+								<Input
+									id="esr-last"
+									value={lastName}
+									onChange={(e) =>
+										setLastName(e.target.value)
+									}
+								/>
+							</div>
 						</div>
 						<div className="space-y-1.5">
-							<Label htmlFor="esr-realip">
-								Real IP price ($)
+							<Label htmlFor="esr-username">
+								Username (iRadius) *
 							</Label>
 							<Input
-								id="esr-realip"
-								type="number"
-								min={0}
-								step="0.01"
-								value={realIpPrice}
-								onChange={(e) => setRealIpPrice(e.target.value)}
-								placeholder="Keep current"
+								id="esr-username"
+								value={username}
+								onChange={(e) => setUsername(e.target.value)}
+								onBlur={() =>
+									setUsernameToCheck(username.trim())
+								}
+								aria-invalid={usernameTaken || undefined}
+								placeholder="iRadius login username"
+							/>
+							{usernameChecking && (
+								<p className="text-muted-foreground text-xs">
+									Checking availability on iRadius…
+								</p>
+							)}
+							{usernameTaken && (
+								<p className="text-destructive text-xs">
+									Already exists on iRadius — pick another
+									username
+								</p>
+							)}
+							{usernameAvailable && (
+								<p className="text-xs text-emerald-600">
+									Available on iRadius
+								</p>
+							)}
+						</div>
+						<div className="space-y-1.5">
+							<Label>Phone numbers</Label>
+							<PhoneRows phones={phones} onChange={setPhones} />
+						</div>
+						<div className="space-y-1.5">
+							<Label>Group</Label>
+							{/* Combobox (not Radix Select) so the trigger label
+						    resolves from `options` on every render — iRadius
+						    groups load slowly over SSH and a Select would latch
+						    its label empty before the matching item arrives. */}
+							<Combobox
+								value={groupExternalId || "none"}
+								onChange={(v) =>
+									setGroupExternalId(v === "none" ? "" : v)
+								}
+								placeholder="None"
+								searchPlaceholder="Search groups…"
+								emptyText="No groups found"
+								options={[
+									{ value: "none", label: "None" },
+									...groups.map((group) => ({
+										value: String(group.id),
+										label: group.name,
+									})),
+								]}
+							/>
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="esr-address">Address</Label>
+							<Input
+								id="esr-address"
+								value={address}
+								onChange={(e) => setAddress(e.target.value)}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="min-w-0 space-y-1.5">
+								<Label>Plan</Label>
+								<Combobox
+									value={planId}
+									onChange={setPlanId}
+									placeholder="Pick a plan"
+									searchPlaceholder="Search plans…"
+									emptyText="No plans found"
+									options={plans.flatMap((p) =>
+										p.archived
+											? []
+											: [{ value: p.id, label: p.name }],
+									)}
+								/>
+							</div>
+							<div className="min-w-0 space-y-1.5">
+								<Label>Collector</Label>
+								<Combobox
+									value={collectorId || "none"}
+									onChange={(v) =>
+										setCollectorId(v === "none" ? "" : v)
+									}
+									placeholder="None"
+									searchPlaceholder="Search collectors…"
+									emptyText="No collectors found"
+									options={[
+										{ value: "none", label: "None" },
+										...collectors.map((c) => ({
+											value: c.id,
+											label: c.name,
+										})),
+									]}
+								/>
+							</div>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-charge">
+									First charge ($)
+								</Label>
+								<Input
+									id="esr-charge"
+									type="number"
+									min={0}
+									step="0.01"
+									value={firstCharge}
+									onChange={(e) =>
+										setFirstCharge(e.target.value)
+									}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-discount">
+									Discount ($)
+								</Label>
+								<Input
+									id="esr-discount"
+									type="number"
+									min={0}
+									step="0.01"
+									value={discount}
+									onChange={(e) =>
+										setDiscount(e.target.value)
+									}
+									placeholder="Keep current"
+								/>
+							</div>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-iptv">IPTV price ($)</Label>
+								<Input
+									id="esr-iptv"
+									type="number"
+									min={0}
+									step="0.01"
+									value={iptvPrice}
+									onChange={(e) =>
+										setIptvPrice(e.target.value)
+									}
+									placeholder="Keep current"
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="esr-realip">
+									Real IP price ($)
+								</Label>
+								<Input
+									id="esr-realip"
+									type="number"
+									min={0}
+									step="0.01"
+									value={realIpPrice}
+									onChange={(e) =>
+										setRealIpPrice(e.target.value)
+									}
+									placeholder="Keep current"
+								/>
+							</div>
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="esr-expiry">Expiry date</Label>
+							<Input
+								id="esr-expiry"
+								type="date"
+								value={expiresAt}
+								onChange={(e) => setExpiresAt(e.target.value)}
 							/>
 						</div>
 					</div>
-					<div className="space-y-1.5">
-						<Label htmlFor="esr-expiry">Expiry date</Label>
-						<Input
-							id="esr-expiry"
-							type="date"
-							value={expiresAt}
-							onChange={(e) => setExpiresAt(e.target.value)}
-						/>
-					</div>
-				</div>
+				)}
 				<DialogFooter>
 					<Button variant="outline" onClick={onClose}>
 						Cancel
