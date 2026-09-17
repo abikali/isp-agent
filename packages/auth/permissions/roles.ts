@@ -405,8 +405,11 @@ export const ISP_ROLE_TEMPLATES = {
 			customers: ["read", "create"],
 			servicePlans: ["read"],
 			tasks: ["create", "read:own", "update:own"],
-			inventory: ["read", "update"],
-			installations: ["create", "read:own", "update"],
+			// Read-only: inventory:update covers deliverToWorker / addQuantity /
+			// returnFromWorker / updateItem (prices), and installations:update edits
+			// any pending line org-wide — admin actions, never a field worker's.
+			inventory: ["read"],
+			installations: ["create", "read:own"],
 			expenses: ["create", "read:own"],
 			stations: ["read"],
 			bases: ["read"],
