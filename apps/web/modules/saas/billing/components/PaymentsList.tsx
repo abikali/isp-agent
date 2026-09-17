@@ -74,6 +74,7 @@ import {
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import {
+	ActivityIcon,
 	AlertTriangleIcon,
 	ArrowDownIcon,
 	ArrowUpDownIcon,
@@ -115,6 +116,7 @@ import {
 	SetExpiryDialog,
 	SetIptvPriceDialog,
 } from "../../customers/components/CustomerIradiusDialogs";
+import { DiagnoseSheet } from "../../customers/components/DiagnoseSheet";
 import {
 	useCustomersConnectivity,
 	usePushToIRadius,
@@ -856,6 +858,12 @@ export function PaymentsList() {
 	// price the customer agreed at the door.
 	const [repriceDialog, setRepriceDialog] =
 		useState<RepricePaymentTarget | null>(null);
+	// "Diagnose" row action — the live iRadius report the Telegram bot gives.
+	// One sheet for the page; the row only picks the customer.
+	const [diagnoseTarget, setDiagnoseTarget] = useState<{
+		customerId: string;
+		customerName: string;
+	} | null>(null);
 	// "Assign task" row action — carries the customer snapshot so the
 	// task dialog opens pre-linked to that customer.
 	const [taskDialogCustomer, setTaskDialogCustomer] = useState<{
@@ -1336,6 +1344,14 @@ export function PaymentsList() {
 							realIpPrice: payment.customer.realIpPrice ?? 0,
 							noteCategory: payment.noteCategory,
 						});
+					const openDiagnose = () =>
+						setDiagnoseTarget({
+							customerId: payment.customer.id,
+							customerName: displayName(
+								payment.customer.firstName,
+								payment.customer.lastName,
+							),
+						});
 					const isDeclining =
 						declineStoppedPayment.isPending &&
 						declineStoppedPayment.variables?.paymentId ===
@@ -1359,6 +1375,27 @@ export function PaymentsList() {
 									Adjust pricing
 								</Button>
 							)}
+
+							{/* Diagnose — check the line before approving */}
+							{organizationId &&
+								needsReview &&
+								payment.customer.externalId && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="sm"
+												variant="ghost"
+												aria-label="Diagnose"
+												onClick={openDiagnose}
+											>
+												<ActivityIcon className="size-3.5" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											Diagnose
+										</TooltipContent>
+									</Tooltip>
+								)}
 
 							{/* Review button — always visible when needed */}
 							{organizationId && needsReview && (
@@ -1509,6 +1546,14 @@ export function PaymentsList() {
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
+										{payment.customer.externalId && (
+											<DropdownMenuItem
+												onClick={openDiagnose}
+											>
+												<ActivityIcon className="mr-2 size-3.5" />
+												Diagnose
+											</DropdownMenuItem>
+										)}
 										<DropdownMenuItem asChild>
 											<a
 												href={`/invoice/${payment.id}`}
@@ -2312,6 +2357,16 @@ export function PaymentsList() {
 					organizationId={organizationId}
 					customerId={changePlanDialog.customerId}
 					currentPlanId={changePlanDialog.currentPlanId}
+				/>
+			)}
+
+			{organizationId && diagnoseTarget && (
+				<DiagnoseSheet
+					organizationId={organizationId}
+					customerId={diagnoseTarget.customerId}
+					customerName={diagnoseTarget.customerName}
+					open={!!diagnoseTarget}
+					onOpenChange={(o) => !o && setDiagnoseTarget(null)}
 				/>
 			)}
 
