@@ -11,7 +11,9 @@ import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
-import { classifyAddonNote } from "../lib/addons";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { pushAddonPricesToIRadius } from "../lib/addon-price-mirror";
+import { addonPriceFields } from "../lib/addons";
 import { assertStockAvailable, decrementWorkerStock } from "../lib/stock-guard";
 
 export const updatePendingInstallation = protectedProcedure
@@ -202,20 +204,16 @@ export async function approveInstallationInTx(
 		});
 	}
 
-	// Add-on approval updates the customer's recurring add-on price
-	if (installation.isAddOn && installation.customerId) {
-		const addonType = classifyAddonNote(installation.notes);
-		if (addonType === "IPTV") {
-			await tx.customer.update({
-				where: { id: installation.customerId },
-				data: { iptvPrice: installation.price },
-			});
-		} else if (addonType === "REAL_IP") {
-			await tx.customer.update({
-				where: { id: installation.customerId },
-				data: { realIpPrice: installation.price },
-			});
-		}
+	// Add-on approval updates the customer's recurring add-on price. iptvPrice
+	// / realIpPrice are iRadius-mirrored: every caller must push the same
+	// prices with `pushAddonPricesToIRadius` BEFORE opening this transaction
+	// (remote-first), so this local write never runs after a failed push.
+	const addonPrices = addonPriceFields([installation]);
+	if (installation.customerId && Object.keys(addonPrices).length > 0) {
+		await tx.customer.update({
+			where: { id: installation.customerId },
+			data: addonPrices,
+		});
 	}
 
 	// Cash ledger: hardware/add-on money the worker collected
@@ -355,7 +353,7 @@ export const approveInstallations = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -371,24 +369,62 @@ export const approveInstallations = protectedProcedure
 
 		for (const id of input.ids) {
 			try {
-				await db.$transaction(async (tx) => {
-					const installation = await tx.installation.findFirst({
-						where: {
-							id,
-							organizationId: input.organizationId,
-							status: "PENDING",
-							employee: getDealerScopeFilter(activeDealerId),
+				const pendingWhere = {
+					id,
+					organizationId: input.organizationId,
+					status: "PENDING" as const,
+					employee: getDealerScopeFilter(activeDealerId),
+				};
+				const target = await db.installation.findFirst({
+					where: pendingWhere,
+					select: {
+						isAddOn: true,
+						notes: true,
+						price: true,
+						customer: {
+							select: {
+								externalId: true,
+								firstName: true,
+								lastName: true,
+							},
 						},
+					},
+				});
+				if (!target) {
+					throw new ORPCError("NOT_FOUND", {
+						message: "Installation not found or not pending",
 					});
-					if (!installation) {
-						throw new ORPCError("NOT_FOUND", {
-							message: "Installation not found or not pending",
-						});
-					}
-					await approveInstallationInTx(tx, installation, user.id, {
-						createCashEntry: true,
-					});
-					notifiedEmployees.add(installation.employeeId);
+				}
+				// An add-on line sets the customer's IPTV / Real IP price, which
+				// is iRadius-mirrored: push it remote-first, approve locally only
+				// once iRadius accepted it.
+				await mirrorToIRadius({
+					iradiusDisabled,
+					logTag: "[Installation Approve] iRadius add-on price",
+					failureMessage:
+						"Failed to set the add-on price in iRadius — not approved",
+					remote: () =>
+						pushAddonPricesToIRadius(target.customer, [target]),
+					local: () =>
+						db.$transaction(async (tx) => {
+							const installation =
+								await tx.installation.findFirst({
+									where: pendingWhere,
+								});
+							if (!installation) {
+								throw new ORPCError("NOT_FOUND", {
+									message:
+										"Installation not found or not pending",
+								});
+							}
+							await approveInstallationInTx(
+								tx,
+								installation,
+								user.id,
+								{ createCashEntry: true },
+							);
+							notifiedEmployees.add(installation.employeeId);
+						}),
 				});
 				results.push({ id, ok: true });
 			} catch (error) {

@@ -21,6 +21,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { approveInstallationInTx } from "../../installations/procedures/review";
@@ -875,6 +876,7 @@ export const approveSetupRequest = protectedProcedure
 		// Kept so the approval notification can hand the worker the credentials
 		// they need on site. Null when the account already existed in iRadius.
 		let createdPassword: string | null = null;
+		let externalId = request.customer.externalId;
 		if (shouldCreateInIRadius) {
 			if (!input.iradiusPassword?.trim()) {
 				throw new ORPCError("BAD_REQUEST", {
@@ -892,10 +894,23 @@ export const approveSetupRequest = protectedProcedure
 			// below throws, the retry sees the customer as already linked and
 			// skips the create instead of tripping on "Username already exists"
 			// with an orphaned (and already charged) subscriber.
+			externalId = String(userId);
 			await db.customer.update({
 				where: { id: request.customerId },
-				data: { externalId: String(userId) },
+				data: { externalId },
 			});
+		}
+
+		// Approving the bundled add-on lines sets the customer's IPTV / Real IP
+		// price locally (approveInstallationInTx below); push the same prices
+		// to iRadius first, before the transaction opens. A failure throws
+		// before any local approval write, and the subscriber is already
+		// linked above, so a retry is clean.
+		if (!iradiusDisabled) {
+			await pushAddonPricesToIRadius(
+				{ ...request.customer, externalId },
+				pendingInstallations,
+			);
 		}
 
 		await db.$transaction(async (tx) => {
