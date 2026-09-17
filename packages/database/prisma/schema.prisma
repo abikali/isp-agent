@@ -2098,6 +2098,10 @@ model CashCollection {
   // Set on NEW_USER_SETUP entries created by setup-request approval — same
   // revert semantics, applied to every installation in the bundle.
   setupRequestId    String?            @unique
+  // Set on the two ADMIN_TRANSFER legs written by `billing.collections.transfer`
+  // (cash moved from one staff member to another). Both legs share the id so
+  // deleting either one removes the pair.
+  transferId        String?            @map("transfer_id")
   receivedById      String?
   externalBillingId Int?               @map("external_billing_id")
   collectedAt       DateTime           @default(now())
@@ -2112,6 +2116,7 @@ model CashCollection {
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, collectorId])
+  @@index([organizationId, transferId])
   @@index([collectedAt])
   @@map("cash_collection")
 }

@@ -57,3 +57,20 @@ export function moneyGivenAmount(total: number): number {
 export function cashFloatAmount(total: number): number {
 	return -Math.abs(total);
 }
+
+/**
+ * Cash moved between two staff members (`billing.collections.transfer`).
+ * Written as a pair of ADMIN_TRANSFER rows sharing a `transferId`: the
+ * sender's leg is POSITIVE (cash leaves his pocket, like a handoff) and the
+ * receiver's leg is NEGATIVE (cash enters his pocket, like a float). The pair
+ * sums to zero, so the company's total cash held never changes — only who
+ * holds it.
+ */
+export function transferOutAmount(total: number): number {
+	return Math.abs(total);
+}
+
+/** Receiver's leg of a staff-to-staff cash move. See `transferOutAmount`. */
+export function transferInAmount(total: number): number {
+	return -Math.abs(total);
+}

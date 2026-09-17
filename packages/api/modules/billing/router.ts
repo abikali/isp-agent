@@ -49,6 +49,7 @@ import {
 	testBilling,
 } from "./procedures/sync-billing";
 import { toggleMonthLock } from "./procedures/toggle-month-lock";
+import { transferCash } from "./procedures/transfer-cash";
 import { updateInvoice } from "./procedures/update-invoice";
 import { updatePayment } from "./procedures/update-payment";
 import {
@@ -112,6 +113,7 @@ export const billingRouter = {
 	collections: {
 		list: listCollections,
 		create: createCollection,
+		transfer: transferCash,
 		delete: deleteCollection,
 	},
 	workers: {

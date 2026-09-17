@@ -7,6 +7,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
+import { BILLING_STAT_CACHE } from "../lib/cash-cache";
 import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
@@ -43,7 +44,7 @@ export const listCollectors = protectedProcedure
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		return cachedStat(
-			statCacheKey("billing/collectors/list", [
+			statCacheKey(BILLING_STAT_CACHE.collectorsList, [
 				input.organizationId,
 				activeDealerId,
 			]),

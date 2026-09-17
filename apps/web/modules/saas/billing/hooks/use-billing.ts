@@ -337,6 +337,19 @@ export function useWorkers() {
 	);
 }
 
+/** Non-suspense workers list, for pickers. */
+export function useWorkersQuery() {
+	const organizationId = useOrganizationId();
+
+	return useQuery(
+		organizationId
+			? orpc.billing.workers.list.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "workers", "list"]),
+	);
+}
+
 export function useWorkerBalance(workerId: string | null) {
 	const organizationId = useOrganizationId();
 
@@ -453,6 +466,23 @@ export function useCreateCollection() {
 	});
 }
 
+/** Move cash between two staff members (a pair of ADMIN_TRANSFER legs). */
+export function useTransferCash() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.collections.transfer.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.finance.key(),
+			});
+		},
+	});
+}
+
 export function useDeleteCollection() {
 	const queryClient = useQueryClient();
 
@@ -477,6 +507,11 @@ export function useDeleteCollection() {
 			if (data.customerDeactivated) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.customers.key(),
+				});
+			}
+			if (data.transferReverted) {
+				queryClient.invalidateQueries({
+					queryKey: orpc.finance.key(),
 				});
 			}
 		},

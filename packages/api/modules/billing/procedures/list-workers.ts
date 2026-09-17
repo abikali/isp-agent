@@ -7,6 +7,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { collectorBalance } from "../lib/calculations";
+import { BILLING_STAT_CACHE } from "../lib/cash-cache";
 import { SETTLED_PAYMENT } from "../lib/filters";
 import { fetchWorkerBalanceBatch } from "../lib/queries";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
@@ -34,7 +35,7 @@ export const listWorkers = protectedProcedure
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		return cachedStat(
-			statCacheKey("billing/workers/list", [
+			statCacheKey(BILLING_STAT_CACHE.workersList, [
 				input.organizationId,
 				activeDealerId,
 			]),

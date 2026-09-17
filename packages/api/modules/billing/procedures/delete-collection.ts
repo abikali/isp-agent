@@ -15,6 +15,7 @@ import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { bustExpenseStats } from "../../expenses/lib/stats-cache";
 import { revertApprovedInstallation } from "../../installations/procedures/review";
+import { bustCashStats } from "../lib/cash-cache";
 
 export const deleteCollection = protectedProcedure
 	.route({
@@ -55,6 +56,7 @@ export const deleteCollection = protectedProcedure
 				expenseId: true,
 				installationId: true,
 				setupRequestId: true,
+				transferId: true,
 				setupRequest: {
 					select: {
 						customer: {
@@ -124,6 +126,17 @@ export const deleteCollection = protectedProcedure
 				await tx.cashCollection.delete({
 					where: { id: collection.id },
 				});
+				// A staff-to-staff cash move is a pair of legs; undoing one
+				// undoes both, or the moved cash would appear or vanish.
+				if (collection.transferId) {
+					await tx.cashCollection.deleteMany({
+						where: {
+							organizationId: input.organizationId,
+							transferId: collection.transferId,
+							externalBillingId: null,
+						},
+					});
+				}
 				// Money-given / approved-expense rows own a linked expense; remove it
 				// too so the entry stops counting in the accounting reports + metric.
 				if (collection.expenseId) {
@@ -199,6 +212,7 @@ export const deleteCollection = protectedProcedure
 		if (collection.expenseId) {
 			bustExpenseStats();
 		}
+		bustCashStats(input.organizationId);
 
 		return {
 			success: true,
@@ -206,5 +220,6 @@ export const deleteCollection = protectedProcedure
 				collection.installationId !== null ||
 				collection.setupRequestId !== null,
 			customerDeactivated: customerToDeactivate !== null,
+			transferReverted: collection.transferId !== null,
 		};
 	});

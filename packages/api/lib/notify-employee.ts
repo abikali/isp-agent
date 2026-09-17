@@ -21,6 +21,12 @@ interface NotifyFieldEmployeeInput {
 	 * receives the plain `title`/`message` text.
 	 */
 	telegramText?: string;
+	/**
+	 * In-app only. For when one person runs two employee records on the same
+	 * Telegram chat (e.g. a collector and a worker account) and the event
+	 * touches both — the other record's message already covers the chat.
+	 */
+	skipTelegram?: boolean;
 }
 
 /**
@@ -57,7 +63,7 @@ export async function notifyFieldEmployee(
 			notifyBadgeForOrganization(input.organizationId);
 		}
 
-		if (employee.telegramChatId) {
+		if (employee.telegramChatId && !input.skipTelegram) {
 			await queueTelegramNotify({
 				organizationId: input.organizationId,
 				employeeId: input.employeeId,
