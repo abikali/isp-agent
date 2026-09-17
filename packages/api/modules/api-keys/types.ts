@@ -9,6 +9,8 @@ export const ApiKeyPermissionSchema = z.enum([
 	"read:organization",
 	"write:members",
 	"write:organization",
+	"read:customers",
+	"write:tasks",
 ]);
 
 export type ApiKeyPermission = z.infer<typeof ApiKeyPermissionSchema>;
