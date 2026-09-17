@@ -8,6 +8,7 @@ import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
+import { bustTaskStats } from "../lib/stats-cache";
 
 export const reviewTaskCompletion = protectedProcedure
 	.route({
@@ -73,6 +74,8 @@ export const reviewTaskCompletion = protectedProcedure
 					},
 			select: { id: true, status: true, completedAt: true },
 		});
+
+		bustTaskStats(input.organizationId);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.updated(task.id, user.id, input.organizationId, auditContext);

@@ -21,12 +21,27 @@ const STATUS_COLORS: Record<string, string> = {
 	Cancelled: "var(--muted-foreground)",
 };
 
+type TaskStatus = "OPEN" | "PENDING_APPROVAL" | "COMPLETED" | "CANCELLED";
+
 export function TaskStats({
 	sources,
+	selectedStatus,
+	onSelectStatus,
 }: {
 	sources?: ("MANUAL" | "AI_ESCALATION" | "LEGACY")[];
+	/** Status the list below is filtered to — highlights its card. */
+	selectedStatus?: TaskStatus;
+	/** Makes the status cards filter the list below when clicked. */
+	onSelectStatus?: (status: TaskStatus) => void;
 } = {}) {
 	const stats = useTaskStats({ sources });
+	const statusCardProps = (status: TaskStatus) =>
+		onSelectStatus
+			? {
+					onClick: () => onSelectStatus(status),
+					active: selectedStatus === status,
+				}
+			: {};
 
 	const statusSlices = [
 		{
@@ -62,12 +77,14 @@ export function TaskStats({
 					value={stats.open}
 					icon={ClockIcon}
 					tone={stats.open > 0 ? "info" : "default"}
+					{...statusCardProps("OPEN")}
 				/>
 				<MetricCard
 					label="To approve"
 					value={stats.pendingApproval}
 					icon={BadgeCheckIcon}
 					tone={stats.pendingApproval > 0 ? "warning" : "default"}
+					{...statusCardProps("PENDING_APPROVAL")}
 				/>
 				<MetricCard
 					label="Overdue"
@@ -93,6 +110,7 @@ export function TaskStats({
 					value={stats.completed}
 					icon={CheckCircleIcon}
 					tone="success"
+					{...statusCardProps("COMPLETED")}
 				/>
 				<MetricCard
 					label="Completion rate"

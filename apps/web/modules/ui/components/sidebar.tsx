@@ -703,20 +703,28 @@ function SidebarMenuBadge({
 	}
 	const display = count > 99 ? "99+" : String(count);
 	return (
-		<div
-			ref={ref}
-			data-sidebar="menu-badge"
-			className={cn(
-				"pointer-events-none absolute right-2 flex h-5 min-w-5 select-none items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold leading-none tabular-nums text-destructive-foreground shadow-sm ring-1 ring-destructive/20",
-				"peer-data-[size=sm]/menu-button:top-1.5",
-				"peer-data-[size=default]/menu-button:top-2",
-				"peer-data-[size=lg]/menu-button:top-3",
-				"group-data-[collapsible=icon]:hidden",
-				className,
-			)}
-		>
-			{display}
-		</div>
+		<>
+			<div
+				ref={ref}
+				data-sidebar="menu-badge"
+				className={cn(
+					"pointer-events-none absolute right-2 flex h-5 min-w-5 select-none items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-semibold leading-none tabular-nums text-destructive-foreground shadow-sm ring-1 ring-destructive/20",
+					"peer-data-[size=sm]/menu-button:top-1.5",
+					"peer-data-[size=default]/menu-button:top-2",
+					"peer-data-[size=lg]/menu-button:top-3",
+					"group-data-[collapsible=icon]:hidden",
+					className,
+				)}
+			>
+				{display}
+			</div>
+			{/* The icon rail has no room for the count — show a dot on the
+			    icon instead so waiting items don't disappear on collapse. */}
+			<span
+				aria-hidden
+				className="pointer-events-none absolute top-1 left-5 hidden size-2 rounded-full bg-destructive ring-2 ring-sidebar group-data-[collapsible=icon]:block"
+			/>
+		</>
 	);
 }
 SidebarMenuBadge.displayName = "SidebarMenuBadge";

@@ -3,6 +3,7 @@ import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { hasPermission, verifyApiKey } from "../../api-keys/lib/verify";
 import { notifyTaskWorkers } from "./notify-task-workers";
+import { bustTaskStats } from "./stats-cache";
 
 /**
  * Task ingest handler for the Telegram ISP bot.
@@ -171,6 +172,8 @@ export async function taskIngestHandler(
 		},
 		select: { id: true },
 	});
+
+	bustTaskStats(organizationId);
 
 	logger.info("[Task Ingest] task created", {
 		organizationSlug,

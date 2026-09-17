@@ -1,5 +1,6 @@
 "use client";
 
+import { AppSidebarTrigger } from "@shared/components/AppSidebarTrigger";
 import { Link } from "@tanstack/react-router";
 import {
 	Breadcrumb,
@@ -10,7 +11,6 @@ import {
 	BreadcrumbSeparator,
 } from "@ui/components/breadcrumb";
 import { Button } from "@ui/components/button";
-import { SidebarTrigger } from "@ui/components/sidebar";
 import { cn } from "@ui/lib";
 import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -85,7 +85,7 @@ export function PageShell({
 			>
 				{hasNavRow && (
 					<div className="flex min-h-7 items-center gap-2 text-sm text-muted-foreground">
-						<SidebarTrigger className="-ml-1 md:hidden" />
+						<AppSidebarTrigger className="-ml-1 md:hidden" />
 						{backTo && (
 							<Button
 								asChild
@@ -138,7 +138,7 @@ export function PageShell({
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
 					<div className="flex min-w-0 items-start gap-3">
 						{!hasNavRow && (
-							<SidebarTrigger className="mt-1 -ml-1 md:hidden" />
+							<AppSidebarTrigger className="mt-1 -ml-1 md:hidden" />
 						)}
 						<div className="min-w-0 space-y-1.5">
 							<div className="flex flex-wrap items-center gap-2.5">

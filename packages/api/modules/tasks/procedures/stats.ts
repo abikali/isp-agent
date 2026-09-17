@@ -3,6 +3,7 @@ import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { TASK_STATS_CACHE } from "../lib/stats-cache";
 import { uninstalledItemDealerScope } from "./uninstalled-items";
 
 export const getTaskStats = protectedProcedure
@@ -30,7 +31,7 @@ export const getTaskStats = protectedProcedure
 		);
 
 		return cachedStat(
-			statCacheKey("tasks/stats", [
+			statCacheKey(TASK_STATS_CACHE, [
 				organizationId,
 				activeDealerId,
 				input.sources,

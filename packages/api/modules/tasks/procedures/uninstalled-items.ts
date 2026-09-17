@@ -9,6 +9,7 @@ import { logger } from "@repo/logs";
 import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { bustTaskStats } from "../lib/stats-cache";
 
 /**
  * Recovered items anchor to a task (→ customer) for dealer scope. Items with
@@ -159,6 +160,7 @@ export const reviewUninstalledItem = protectedProcedure
 					reviewedAt: new Date(),
 				},
 			});
+			bustTaskStats(input.organizationId);
 			if (item.employeeId) {
 				notifyFieldEmployee({
 					organizationId: input.organizationId,
@@ -309,6 +311,7 @@ export const reviewUninstalledItem = protectedProcedure
 				},
 			});
 		});
+		bustTaskStats(input.organizationId);
 
 		if (item.employeeId) {
 			notifyFieldEmployee({

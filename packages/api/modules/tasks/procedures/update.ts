@@ -11,6 +11,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
+import { bustTaskStats } from "../lib/stats-cache";
 
 export const updateTask = protectedProcedure
 	.route({
@@ -182,6 +183,8 @@ export const updateTask = protectedProcedure
 				createdAt: true,
 			},
 		});
+
+		bustTaskStats(input.organizationId);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.updated(task.id, user.id, input.organizationId, auditContext);
