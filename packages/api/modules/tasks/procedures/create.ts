@@ -5,7 +5,7 @@ import {
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
-import { db } from "@repo/database";
+import { db, getPrimaryPhone } from "@repo/database";
 import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
@@ -224,7 +224,7 @@ export const createTask = protectedProcedure
 				const [customer, worker] = await Promise.all([
 					db.customer.findFirst({
 						where: { id: input.customerId as string },
-						select: { firstName: true, mobile: true },
+						select: { firstName: true, mobile: true, phones: true },
 					}),
 					input.employeeIds?.[0]
 						? db.employee.findFirst({
@@ -233,9 +233,14 @@ export const createTask = protectedProcedure
 							})
 						: Promise.resolve(null),
 				]);
-				if (customer?.mobile) {
+				// `phones` is the source of truth; `mobile` is only its cached
+				// primary and can lag behind an edit.
+				const phone = customer
+					? (getPrimaryPhone(customer.phones) ?? customer.mobile)
+					: null;
+				if (customer && phone) {
 					await sendWhatsAppMaintenanceVisit({
-						phone: customer.mobile,
+						phone,
 						customerName: customer.firstName,
 						workerName: worker?.name ?? null,
 						workerPhone: worker?.phone ?? null,
