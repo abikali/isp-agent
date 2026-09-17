@@ -343,6 +343,7 @@ model Organization {
   syncConflicts          SyncConflict[]
   saltiIntegration       SaltiIntegration?
   marketingBroadcasts    MarketingBroadcast[]
+  marketingSuppressions  MarketingSuppression[]
   savedViews             SavedView[]
 
   // Dealer scope for queries through `getDealerScopeFilter` and friends.
@@ -2657,6 +2658,8 @@ model MarketingBroadcast {
   sentCount       Int       @default(0)
   failedCount     Int       @default(0)
   status          String    @default("pending")
+  /// When set, the send job is queued with a BullMQ delay and fires at this time.
+  scheduledAt     DateTime?
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime  @default(now())
@@ -2688,4 +2691,24 @@ model MarketingBroadcastRecipient {
   @@index([broadcastId, status])
   @@index([customerId])
   @@map("marketing_broadcast_recipient")
+}
+
+/// Opt-out list: phones that never receive marketing broadcasts. `phone` uses
+/// the same digits-with-country-code shape as recipient rows so audience
+/// materialisation and the send worker can exclude by equality.
+model MarketingSuppression {
+  id             String   @id @default(cuid())
+  organizationId String
+  phone          String
+  reason         String?
+  /// Where the opt-out came from ("manual" for staff entries).
+  source         String   @default("manual")
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, phone])
+  @@index([organizationId, createdAt])
+  @@map("marketing_suppression")
 }

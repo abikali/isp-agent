@@ -10,6 +10,11 @@ import { listGroups } from "./procedures/list-groups";
 import { listTemplates } from "./procedures/list-templates";
 import { previewAudience } from "./procedures/preview-audience";
 import { resendBroadcast } from "./procedures/resend-broadcast";
+import {
+	addSuppressions,
+	listSuppressions,
+	removeSuppression,
+} from "./procedures/suppressions";
 import { testConnection } from "./procedures/test-connection";
 import { updateBroadcast } from "./procedures/update-broadcast";
 import { upsertIntegration } from "./procedures/upsert-integration";
@@ -30,4 +35,7 @@ export const marketingRouter = {
 	getBroadcast,
 	cancelBroadcast,
 	createAssetUploadUrl,
+	listSuppressions,
+	addSuppressions,
+	removeSuppression,
 };

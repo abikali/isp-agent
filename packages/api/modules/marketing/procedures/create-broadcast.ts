@@ -6,6 +6,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { audienceSchema, materializeAudience } from "../lib/audience";
 import { resolveSaltiCredentials } from "../lib/salti-client";
+import { scheduledAtSchema } from "../lib/schedule";
 import { templateVariablesSchema } from "../lib/template-variables";
 
 export const createBroadcast = protectedProcedure
@@ -23,6 +24,8 @@ export const createBroadcast = protectedProcedure
 			templateLang: z.string().min(2),
 			variables: templateVariablesSchema,
 			audience: audienceSchema,
+			// Omit (or null) to send right away.
+			scheduledAt: scheduledAtSchema.nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -41,20 +44,17 @@ export const createBroadcast = protectedProcedure
 			});
 		}
 
-		const recipients =
-			input.audience.type === "salti_group"
-				? []
-				: await materializeAudience({
-						organizationId: input.organizationId,
-						permCtx,
-						activeDealerId,
-						audience: input.audience,
-					});
+		const { recipients } = await materializeAudience({
+			organizationId: input.organizationId,
+			permCtx,
+			activeDealerId,
+			audience: input.audience,
+		});
 
 		if (input.audience.type !== "salti_group" && recipients.length === 0) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
-					"No recipients matched the selected audience. Adjust filters or upload phones.",
+					"No recipients matched the selected audience (after removing duplicate phones and opt-outs). Adjust filters or upload phones.",
 			});
 		}
 
@@ -70,12 +70,14 @@ export const createBroadcast = protectedProcedure
 				audienceConfig: input.audience as never,
 				totalRecipients: recipients.length,
 				status: "pending",
+				scheduledAt: input.scheduledAt ?? null,
 			},
 			select: {
 				id: true,
 				status: true,
 				totalRecipients: true,
 				audienceType: true,
+				scheduledAt: true,
 			},
 		});
 
@@ -97,7 +99,10 @@ export const createBroadcast = protectedProcedure
 			});
 		}
 
-		await queueMarketingSend({ broadcastId: broadcast.id });
+		await queueMarketingSend(
+			{ broadcastId: broadcast.id },
+			{ scheduledAt: broadcast.scheduledAt },
+		);
 
 		return { broadcast };
 	});

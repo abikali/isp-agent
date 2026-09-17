@@ -16,7 +16,10 @@ export {
 	queueLocationRequest,
 	queueLocationRequestsBulk,
 } from "./src/jobs/location-request.jobs";
-export { queueMarketingSend } from "./src/jobs/marketing-send.jobs";
+export {
+	queueMarketingSend,
+	rescheduleMarketingSend,
+} from "./src/jobs/marketing-send.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueTelegramNotify } from "./src/jobs/telegram-notify.jobs";
