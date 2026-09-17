@@ -19,7 +19,10 @@
  * subscribers at an internal transfer price (~$30k/month for Liban-Com). That
  * is one pocket paying another: it is neither revenue nor cost, and the retail
  * revenue for those same subscribers is already recognised from `Payment`.
- * Including it would roughly double the company's apparent income.
+ * Including it would roughly double the company's apparent income. The same
+ * holds for the org's INTERNAL LINES (`IspDealer.internalLineOfOrganizationId`,
+ * LIBANCOM-FIBER beside johnnyh): they are the org's own subscribers billed to
+ * a second dealer account, not a reseller.
  *
  * Charges against dealers OUTSIDE this org's scope. Until 2026-08-30 this
  * module read the whole `DealerBillingLog` for every org and excluded only the
@@ -95,13 +98,15 @@ export async function syncDealerCharges(
 		return result;
 	}
 
-	// The master dealer is the one this org operates as. Its own charges are
+	// The master dealer is the one this org operates as, and its internal
+	// lines are further accounts it runs itself. Their own charges are
 	// internal bookkeeping (see the file header) and must not become revenue.
 	const org = await db.organization.findUnique({
 		where: { id: organizationId },
 		select: {
 			isWholesaleOperator: true,
 			activeDealer: { select: { externalId: true } },
+			internalDealerLines: { select: { externalId: true } },
 		},
 	});
 	const masterExternalId = org?.activeDealer?.externalId ?? null;
@@ -111,6 +116,9 @@ export async function syncDealerCharges(
 	// would be booking another org's money.
 	const inScope = await resolveWholesaleScope(conn, {
 		masterExternalId,
+		lineExternalIds: (org?.internalDealerLines ?? []).flatMap((line) =>
+			line.externalId ? [line.externalId] : [],
+		),
 		isOperator: org?.isWholesaleOperator ?? false,
 	});
 
@@ -152,9 +160,10 @@ export async function syncDealerCharges(
 				continue;
 			}
 
-			// Another org's dealer, or the master's own internal transfer
-			// price. `resolveWholesaleScope` has already removed the master
-			// from the set, so this one check covers both.
+			// Another org's dealer, or the internal transfer price of the
+			// master or one of its internal lines. `resolveWholesaleScope` has
+			// already removed those from the set, so this one check covers
+			// all of them.
 			if (!inScope.has(externalDealerId)) {
 				result.skipped++;
 				continue;
@@ -216,23 +225,31 @@ export async function syncDealerCharges(
  * A charge is raised against the dealer being billed, so it is revenue for
  * whoever SELLS to that dealer — its parent. Hence:
  *
- *   - Dealers whose `User.ParentId` is the org's master are its resellers.
- *     This is the general case and the only one a reseller org ever hits.
+ *   - Dealers whose `User.ParentId` is the org's master, or one of its
+ *     internal lines, are its resellers. This is the general case and the
+ *     only one a reseller org ever hits.
  *   - The operator org additionally owns every top-level dealer
  *     (`ParentId = 1`, the iRadius admin account). iRadius models Liban-Com's
  *     resellers as siblings of its own `johnnyh` dealer rather than children
  *     of it, so there is no parent link to walk — `isWholesaleOperator` is
  *     what says "the admin level is mine". See the Organization model.
- *   - The master itself is always removed: iRadius bills it for its own
- *     subscribers at an internal transfer price (~$29.5k/month, verified
- *     against production 2026-08-30), which is not revenue.
+ *   - The master and the internal lines are always removed: iRadius bills
+ *     them for the org's own subscribers at an internal transfer price
+ *     (~$29.5k/month on the master, verified against production 2026-08-30),
+ *     which is not revenue. A line (LIBANCOM-FIBER) is a top-level sibling
+ *     exactly like a reseller, so without this it would come back from the
+ *     operator query and its fiber renewals would book as dealer income.
  *
  * A dealer two levels down (bernardd under bernardk) is deliberately absent:
  * that charge is bernardk's revenue, not the operator's.
  */
-async function resolveWholesaleScope(
+export async function resolveWholesaleScope(
 	conn: IRadiusConnection,
-	opts: { masterExternalId: string | null; isOperator: boolean },
+	opts: {
+		masterExternalId: string | null;
+		lineExternalIds: string[];
+		isOperator: boolean;
+	},
 ): Promise<Set<string>> {
 	const scope = new Set<string>();
 
@@ -240,10 +257,12 @@ async function resolveWholesaleScope(
 		return scope;
 	}
 
+	const ownExternalIds = [opts.masterExternalId, ...opts.lineExternalIds];
+
 	const resellers = await queryIRadius(
 		conn,
-		"SELECT Id FROM User WHERE ProfileId = 2 AND ParentId = ?",
-		[opts.masterExternalId],
+		`SELECT Id FROM User WHERE ProfileId = 2 AND ParentId IN (${ownExternalIds.map(() => "?").join(", ")})`,
+		ownExternalIds,
 	);
 	for (const row of resellers) {
 		scope.add(String(row["Id"]));
@@ -259,9 +278,11 @@ async function resolveWholesaleScope(
 		}
 	}
 
-	// Never the master's own charges, even if it sits at the admin level and
-	// therefore came back in the operator query above.
-	scope.delete(String(opts.masterExternalId));
+	// Never the org's own accounts' charges, even though they sit at the admin
+	// level and therefore came back in the operator query above.
+	for (const externalId of ownExternalIds) {
+		scope.delete(String(externalId));
+	}
 
 	return scope;
 }

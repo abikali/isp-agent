@@ -33,6 +33,34 @@ export interface FinanceScope {
 }
 
 /**
+ * The org's own iRadius dealer accounts: the master it operates as and its
+ * internal lines (`IspDealer.internalLineOfOrganizationId`, LIBANCOM-FIBER
+ * beside johnnyh). iRadius bills them for the org's OWN subscribers at an
+ * internal transfer price — the retail money for those subscribers is already
+ * in `fetchRetailRevenue` — so neither their charges nor their ledger rows are
+ * dealer money.
+ */
+async function fetchOwnDealerIds(scope: FinanceScope): Promise<string[]> {
+	const lines = await db.ispDealer.findMany({
+		where: { internalLineOfOrganizationId: scope.organizationId },
+		select: { id: true },
+	});
+	return [
+		...(scope.activeDealerId ? [scope.activeDealerId] : []),
+		...lines.map((line) => line.id),
+	];
+}
+
+/**
+ * Prisma fragment excluding the org's own dealer accounts. `NOT`/`notIn` on a
+ * nullable column would also drop null rows, but `dealerId` is non-nullable on
+ * both `dealer_charge` and `isp_dealer_account`, so this is safe.
+ */
+function excludeDealers(ids: string[]): { dealerId?: { notIn: string[] } } {
+	return ids.length > 0 ? { dealerId: { notIn: ids } } : {};
+}
+
+/**
  * Retail revenue: what collectors actually took from subscribers.
  *
  * Read through the billing month rather than `paidAt`, because a payment
@@ -83,7 +111,9 @@ export async function fetchRetailRevenue(
  * shape used by `fetchRetailRevenue` and friends — would select exactly the
  * master's own internal-transfer rows and report zero wholesale revenue. The
  * master exclusion below is the correct guard, and it is belt-and-braces:
- * `syncDealerCharges` already refuses to store those rows.
+ * `syncDealerCharges` already refuses to store those rows. Internal lines are
+ * excluded the same way — rows booked against a line before it was linked
+ * would otherwise count the org's own fiber renewals as dealer income.
  */
 export async function fetchWholesaleRevenue(
 	scope: FinanceScope,
@@ -98,18 +128,14 @@ export async function fetchWholesaleRevenue(
 	 *  false-loss this module exists to fix. */
 	neverSynced: boolean;
 }> {
-	// The org's own dealer is the counterparty on its internal-transfer rows.
-	// `NOT` on a nullable column would also drop rows where `dealerId` is
-	// null, but `dealer_charge.dealerId` is non-nullable, so this is safe.
-	const notMaster = scope.activeDealerId
-		? { dealerId: { not: scope.activeDealerId } }
-		: {};
+	// The org's own dealers are the counterparty on its internal-transfer rows.
+	const notOwn = excludeDealers(await fetchOwnDealerIds(scope));
 
 	const [charges, everSynced] = await Promise.all([
 		db.dealerCharge.aggregate({
 			where: {
 				organizationId: scope.organizationId,
-				...notMaster,
+				...notOwn,
 				type: { in: [...WHOLESALE_CHARGE_TYPES] },
 				operationDate: { gte: period.from, lt: period.to },
 			},
@@ -117,7 +143,7 @@ export async function fetchWholesaleRevenue(
 			_count: true,
 		}),
 		db.dealerCharge.findFirst({
-			where: { organizationId: scope.organizationId, ...notMaster },
+			where: { organizationId: scope.organizationId, ...notOwn },
 			select: { id: true },
 		}),
 	]);
@@ -143,7 +169,8 @@ export async function fetchWholesaleRevenue(
  *
  * Bonuses, write-offs, in-kind settlements and credit deductions all lower
  * what a dealer owes without any cash arriving; `classifyLedgerRow` keeps
- * them out. 2023 rows are in Lebanese pounds and are skipped.
+ * them out. 2023 rows are in Lebanese pounds and are skipped. The org's own
+ * accounts (master and internal lines) are not dealers paying in.
  */
 export async function fetchDealerPayments(
 	scope: FinanceScope,
@@ -161,9 +188,7 @@ export async function fetchDealerPayments(
 		where: {
 			debit: { gt: 0 },
 			operationDate: { gte: period.from, lt: period.to },
-			...(scope.activeDealerId
-				? { dealerId: { not: scope.activeDealerId } }
-				: {}),
+			...excludeDealers(await fetchOwnDealerIds(scope)),
 		},
 		select: { credit: true, debit: true, comment: true },
 	});
