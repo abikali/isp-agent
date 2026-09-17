@@ -293,31 +293,30 @@ export function TaskDetail({
 							<form.Field name="baseId">
 								{(field) => (
 									<div className="space-y-2">
-										<Label>Base</Label>
-										<Select
-											value={field.state.value}
-											onValueChange={field.handleChange}
-										>
-											<SelectTrigger>
-												<SelectValue placeholder="No base" />
-											</SelectTrigger>
-											<SelectContent>
-												{bases.length === 0 ? (
-													<div className="px-2 py-1.5 text-muted-foreground text-sm">
-														No bases yet
-													</div>
-												) : (
-													bases.map((b) => (
-														<SelectItem
-															key={b.id}
-															value={b.id}
-														>
-															{b.name}
-														</SelectItem>
-													))
-												)}
-											</SelectContent>
-										</Select>
+										<Label htmlFor="task-edit-base">
+											Base
+										</Label>
+										<Combobox
+											id="task-edit-base"
+											value={field.state.value || "none"}
+											onChange={(v) =>
+												field.handleChange(
+													v === "none" ? "" : v,
+												)
+											}
+											searchPlaceholder="Search bases…"
+											emptyText="No base matches"
+											options={[
+												{
+													value: "none",
+													label: "No base",
+												},
+												...bases.map((b) => ({
+													value: b.id,
+													label: b.name,
+												})),
+											]}
+										/>
 									</div>
 								)}
 							</form.Field>
@@ -329,21 +328,24 @@ export function TaskDetail({
 										</Label>
 										<Combobox
 											id="task-edit-station"
-											value={field.state.value}
+											value={field.state.value || "none"}
 											onChange={(v) =>
 												field.handleChange(
-													v === field.state.value
-														? ""
-														: v,
+													v === "none" ? "" : v,
 												)
 											}
-											placeholder="No station"
 											searchPlaceholder="Search stations…"
 											emptyText="No station matches"
-											options={stations.map((st) => ({
-												value: st.id,
-												label: st.name,
-											}))}
+											options={[
+												{
+													value: "none",
+													label: "No station",
+												},
+												...stations.map((st) => ({
+													value: st.id,
+													label: st.name,
+												})),
+											]}
 										/>
 									</div>
 								)}
