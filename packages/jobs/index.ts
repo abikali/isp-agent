@@ -27,6 +27,7 @@ export {
 	type WebhookPayload,
 } from "./src/jobs/webhook.jobs";
 export { queueWhatsAppReceipt } from "./src/jobs/whatsapp-receipt.jobs";
+export { queueWhatsAppTemplateRetry } from "./src/jobs/whatsapp-template.jobs";
 // Shared helper re-exported for the API layer (single-customer inline sends)
 export {
 	type CreateLocationRequestResult,
@@ -35,6 +36,7 @@ export {
 export { reconcileOrphanedAiChats } from "./src/lib/reconcile-orphaned-chats";
 // WPBox template senders (shared; API layer imports via @repo/jobs)
 export {
+	sendWhatsAppDealerAccountUpdate,
 	sendWhatsAppLocationRequest,
 	sendWhatsAppMaintenanceVisit,
 	sendWhatsAppReceipt,
@@ -121,6 +123,11 @@ export {
 	getWhatsAppReceiptQueue,
 	WHATSAPP_RECEIPT_QUEUE_NAME,
 } from "./src/queues/whatsapp-receipt.queue";
+export {
+	closeWhatsAppTemplateQueue,
+	getWhatsAppTemplateQueue,
+	WHATSAPP_TEMPLATE_QUEUE_NAME,
+} from "./src/queues/whatsapp-template.queue";
 // Types
 export type {
 	AiChatJobData,
@@ -129,6 +136,8 @@ export type {
 	AiFollowUpJobResult,
 	BillingSyncJobData,
 	BillingSyncJobResult,
+	DealerNoticeStatus,
+	DealerWhatsAppNotice,
 	EmailJobData,
 	EmailJobResult,
 	IntegrationSyncJobData,
@@ -157,6 +166,8 @@ export type {
 	WebhookJobResult,
 	WhatsAppReceiptJobData,
 	WhatsAppReceiptJobResult,
+	WhatsAppTemplateJobData,
+	WhatsAppTemplateJobResult,
 } from "./src/types";
 // Workers (for worker process)
 export { createAiChatWorker } from "./src/workers/ai-chat.worker";
@@ -196,6 +207,7 @@ export {
 } from "./src/workers/watcher-check.worker";
 export { createWebhookWorker } from "./src/workers/webhook.worker";
 export { createWhatsAppReceiptWorker } from "./src/workers/whatsapp-receipt.worker";
+export { createWhatsAppTemplateWorker } from "./src/workers/whatsapp-template.worker";
 
 // Cleanup utilities
 import { closeConnection } from "./src/connection";
@@ -215,6 +227,7 @@ import { closeTelegramNotifyQueue } from "./src/queues/telegram-notify.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
 import { closeWebhookQueue } from "./src/queues/webhook.queue";
 import { closeWhatsAppReceiptQueue } from "./src/queues/whatsapp-receipt.queue";
+import { closeWhatsAppTemplateQueue } from "./src/queues/whatsapp-template.queue";
 
 /**
  * Gracefully shutdown all job queues and connections.
@@ -237,6 +250,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeTelegramLocationQueue(),
 		closeTelegramNotifyQueue(),
 		closeWhatsAppReceiptQueue(),
+		closeWhatsAppTemplateQueue(),
 		closeWebhookQueue(),
 	]);
 

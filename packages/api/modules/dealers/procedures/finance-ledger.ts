@@ -12,6 +12,7 @@ import {
 	round2,
 	withRunningBalance,
 } from "../lib/ledger";
+import { readDealerNotice } from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 
 const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
@@ -83,6 +84,7 @@ export const getDealerFinanceLedger = protectedProcedure
 					debit: true,
 					comment: true,
 					operationDate: true,
+					whatsappNotice: true,
 				},
 			}),
 			db.dealerCharge.findMany({
@@ -122,6 +124,7 @@ export const getDealerFinanceLedger = protectedProcedure
 				const kind = classifyLedgerRow(row);
 				const amount = row.credit > 0 ? row.credit : row.debit;
 				const legacyCurrency = isLegacyCurrency(amount);
+				const notice = readDealerNotice(row.whatsappNotice);
 				if (!legacyCurrency && row.operationDate >= twelveMonthsAgo) {
 					if (kind === "top_up") {
 						last12.topUps += row.credit;
@@ -147,6 +150,15 @@ export const getDealerFinanceLedger = protectedProcedure
 					operationDate: row.operationDate,
 					balanceAfter,
 					legacyCurrency,
+					/** WhatsApp confirmation; null for rows synced from iRadius. */
+					whatsappNotice: notice
+						? {
+								status: notice.status,
+								phone: notice.phone,
+								error: notice.error,
+								updatedAt: notice.updatedAt,
+							}
+						: null,
 				};
 			})
 			.filter((entry) => {

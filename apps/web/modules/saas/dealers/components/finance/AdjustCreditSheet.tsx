@@ -21,6 +21,7 @@ import { ArrowRightIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAdjustDealerCredit } from "../../hooks/use-dealer-finance";
+import { toastDealerNotice } from "../../lib/dealer-notice";
 
 export interface CreditTarget {
 	id: string;
@@ -114,8 +115,9 @@ export function AdjustCreditSheet({
 						notifyDealer,
 					});
 					toast.success(
-						`${target.name} now has ${formatCurrency(result.prepaid)} credit and owes ${formatCurrency(result.owed)}.${notifyDealer ? (result.dealerNotified ? " WhatsApp sent." : " WhatsApp not sent (no phone or channel).") : ""}`,
+						`${target.name} now has ${formatCurrency(result.prepaid)} credit and owes ${formatCurrency(result.owed)}.`,
 					);
+					toastDealerNotice(result.dealerNotice);
 					onOpenChange(false);
 				} catch (error) {
 					toast.error(
@@ -246,7 +248,8 @@ export function AdjustCreditSheet({
 						>
 							WhatsApp the dealer a confirmation
 							<span className="block text-xs text-muted-foreground">
-								From the company number, with the new credit.
+								From the official LibanCom number, with the new
+								credit.
 							</span>
 						</Label>
 					</div>

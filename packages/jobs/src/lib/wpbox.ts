@@ -280,3 +280,33 @@ export async function sendWhatsAppMaintenanceVisit(params: {
 	});
 	return result.ok;
 }
+
+/**
+ * Confirm money recorded on a dealer's account — `dealer_account_update`
+ * (UTILITY, Arabic) from the official number. Seven body params, in order:
+ * name, operation, amount, date, owed, prepaid credit, note. Dealer
+ * confirmations used to go out from the support bot's WaSender number, which
+ * risks a ban for business-initiated sends; they must stay on WPBox.
+ */
+export async function sendWhatsAppDealerAccountUpdate(params: {
+	phone: string;
+	params: string[];
+	dealerAccountId: string;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "dealer_account_update",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: params.params.map((text) => ({
+					type: "text",
+					text,
+				})),
+			},
+		],
+		logContext: { dealerAccountId: params.dealerAccountId },
+		logTag: "[WhatsApp Dealer Update]",
+	});
+}

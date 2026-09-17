@@ -4,7 +4,11 @@ vi.mock("@repo/logs", () => ({
 	logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { sendWhatsAppMaintenanceVisit, sendWPBoxTemplate } from "../wpbox";
+import {
+	sendWhatsAppDealerAccountUpdate,
+	sendWhatsAppMaintenanceVisit,
+	sendWPBoxTemplate,
+} from "../wpbox";
 
 const mockFetch = vi.fn();
 
@@ -230,6 +234,53 @@ describe("sendWhatsAppMaintenanceVisit", () => {
 						{ type: "text", text: "Walid" },
 						{ type: "text", text: "70123456" },
 					],
+				},
+			],
+		});
+	});
+});
+
+describe("sendWhatsAppDealerAccountUpdate", () => {
+	beforeEach(() => {
+		vi.stubEnv("WPBOX_TOKEN", "test-token");
+		vi.stubGlobal("fetch", mockFetch);
+		mockFetch.mockReset();
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+	});
+
+	it("sends the Arabic template with the params as body text", async () => {
+		mockFetch.mockResolvedValue(
+			jsonResponse({ status: "success", message_id: "wamid-9" }),
+		);
+		const params = [
+			"MATAR NET",
+			"دفعة",
+			"$100.00",
+			"2026-09-17",
+			"$50.00",
+			"$0.00",
+			"-",
+		];
+
+		const result = await sendWhatsAppDealerAccountUpdate({
+			phone: "70123456",
+			params,
+			dealerAccountId: "entry-1",
+		});
+
+		expect(result).toMatchObject({ ok: true, messageId: "wamid-9" });
+		expect(sentPayload()).toMatchObject({
+			phone: "96170123456",
+			template_name: "dealer_account_update",
+			template_language: "ar",
+			components: [
+				{
+					type: "body",
+					parameters: params.map((text) => ({ type: "text", text })),
 				},
 			],
 		});

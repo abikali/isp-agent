@@ -17,6 +17,7 @@ import {
 	createWatcherCheckWorker,
 	createWebhookWorker,
 	createWhatsAppReceiptWorker,
+	createWhatsAppTemplateWorker,
 	getRedisConnection,
 	reconcileOrphanedAiChats,
 	setupScheduledJobs,
@@ -52,6 +53,7 @@ async function main() {
 	const locationRequestWorker = createLocationRequestWorker();
 	const marketingSendWorker = createMarketingSendWorker();
 	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
+	const whatsAppTemplateWorker = createWhatsAppTemplateWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -84,6 +86,7 @@ async function main() {
 			"location-request",
 			"marketing-send",
 			"whatsapp-receipt",
+			"whatsapp-template",
 		],
 	});
 
@@ -108,6 +111,7 @@ async function main() {
 			locationRequestWorker.close(),
 			marketingSendWorker.close(),
 			whatsAppReceiptWorker.close(),
+			whatsAppTemplateWorker.close(),
 		]);
 
 		healthServer.close();

@@ -24,6 +24,7 @@ import { cn } from "@ui/lib";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRecordDealerPayment } from "../../hooks/use-dealer-finance";
+import { toastDealerNotice } from "../../lib/dealer-notice";
 import {
 	LEDGER_KINDS,
 	PAYMENT_KIND_OPTIONS,
@@ -173,8 +174,9 @@ export function RecordPaymentSheet({
 							result.owed === 0
 								? `${target.name} is settled.`
 								: `Recorded. ${target.name} now owes ${formatCurrency(result.owed)}.`
-						}${notifyDealer ? (result.dealerNotified ? " WhatsApp sent." : " WhatsApp not sent (no phone or channel).") : ""}`,
+						}`,
 					);
+					toastDealerNotice(result.dealerNotice);
 					onOpenChange(false);
 				} catch (error) {
 					toast.error(
@@ -354,7 +356,8 @@ export function RecordPaymentSheet({
 						>
 							WhatsApp the dealer a confirmation
 							<span className="block text-xs text-muted-foreground">
-								From the company number, with the new balance.
+								From the official LibanCom number, with the new
+								balance.
 							</span>
 						</Label>
 					</div>

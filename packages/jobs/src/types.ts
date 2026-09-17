@@ -162,6 +162,44 @@ export interface WhatsAppReceiptJobResult {
 	success: boolean;
 }
 
+// WhatsApp template retry job types (official WPBox number)
+
+/** Outcome of a dealer money confirmation, as shown to staff. */
+export type DealerNoticeStatus =
+	| "sent"
+	/** First send hit a transient error; the whatsapp-template worker retries. */
+	| "retrying"
+	| "failed"
+	| "no_phone"
+	| "invalid_phone"
+	/** WPBOX_TOKEN missing — the official number is not set up. */
+	| "not_configured"
+	/** Staff unticked "WhatsApp the dealer"; can still be sent later. */
+	| "skipped";
+
+/** Stored on `IspDealerAccount.whatsappNotice`. */
+export interface DealerWhatsAppNotice {
+	status: DealerNoticeStatus;
+	/** Digits sent to, or the raw value that did not parse. */
+	phone: string | null;
+	/** `dealer_account_update` body params, reused verbatim on resend. */
+	params: string[];
+	error: string | null;
+	messageId: string | null;
+	updatedAt: string;
+}
+
+export interface WhatsAppTemplateJobData {
+	kind: "dealer_account_update";
+	dealerAccountId: string;
+	phone: string;
+	params: string[];
+}
+
+export interface WhatsAppTemplateJobResult {
+	success: boolean;
+}
+
 // Marketing send job types (Salti broadcasts)
 export interface MarketingSendJobData {
 	broadcastId: string;

@@ -96,7 +96,9 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 				<div className="lg:col-span-2">
 					<DealerLedgerTimeline
 						entries={ledger.entries}
+						dealerId={dealer.id}
 						dealerName={dealer.name}
+						canManage={canManage}
 					/>
 				</div>
 				<DealerActivity

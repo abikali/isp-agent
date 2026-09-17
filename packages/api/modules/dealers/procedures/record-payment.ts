@@ -13,7 +13,10 @@ import {
 	iradiusRecordDealerPayment,
 } from "../lib/iradius-dealer";
 import { buildLedgerComment } from "../lib/ledger";
-import { dealerAmount, notifyDealerWhatsApp } from "../lib/notify-dealer";
+import {
+	buildDealerNoticeParams,
+	notifyDealerWhatsApp,
+} from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 import {
 	acquireDealerWriteLock,
@@ -58,7 +61,7 @@ export const recordDealerPayment = protectedProcedure
 			 * in, so a cash-ledger row is written on them as well.
 			 */
 			receivedByEmployeeId: z.string().optional(),
-			/** WhatsApp the dealer a confirmation from the org's number. */
+			/** WhatsApp the dealer a confirmation from the official number. */
 			notifyDealer: z.boolean().optional(),
 		}),
 	)
@@ -168,8 +171,9 @@ export const recordDealerPayment = protectedProcedure
 			});
 		}
 
-		await db.$transaction([
+		const [ledgerEntry] = await db.$transaction([
 			db.ispDealerAccount.create({
+				select: { id: true },
 				data: {
 					dealerId: dealer.id,
 					organizationId: scope.organizationId,
@@ -264,28 +268,22 @@ export const recordDealerPayment = protectedProcedure
 			);
 		}
 
-		let dealerNotified = false;
-		if (input.notifyDealer) {
-			const day = operationDate.toISOString().slice(0, 10);
-			const line =
-				input.kind === "payment"
-					? `تم تسجيل دفعة بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`
-					: input.kind === "bonus"
-						? `تمت إضافة بونص بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`
-						: `تم تسجيل تسوية بقيمة ${dealerAmount(input.amount)} على حسابك بتاريخ ${day}.`;
-			const balance =
-				remote.owed > 0
-					? `المتبقي عليك: ${dealerAmount(remote.owed)}.`
-					: remote.owed < 0
-						? `لديك رصيد لصالحك: ${dealerAmount(-remote.owed)}.`
-						: "حسابك مسدد بالكامل.";
-			const sent = await notifyDealerWhatsApp({
-				organizationId: scope.organizationId,
-				dealerId: dealer.id,
-				text: `${dealer.name}، ${line} ${balance}${trimmedNote ? ` (${trimmedNote})` : ""} — شكراً، LibanCom`,
-			});
-			dealerNotified = sent.sent;
-		}
+		// One message per ledger entry, always recorded on the row — a skipped
+		// one can still be sent later from the ledger.
+		const dealerNotice = await notifyDealerWhatsApp({
+			dealerId: dealer.id,
+			dealerAccountId: ledgerEntry.id,
+			send: input.notifyDealer === true,
+			params: buildDealerNoticeParams({
+				dealer,
+				kind: input.kind,
+				amount: input.amount,
+				operationDate,
+				owed: remote.owed,
+				prepaid: dealer.credit,
+				note: trimmedNote,
+			}),
+		});
 
-		return { owed: remote.owed, receivedBy, dealerNotified };
+		return { owed: remote.owed, receivedBy, dealerNotice };
 	});

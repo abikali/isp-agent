@@ -62,6 +62,18 @@ export function useRecordDealerPayment() {
 	});
 }
 
+/** Resend (or send a skipped) WhatsApp confirmation for one ledger entry. */
+export function useResendDealerNotice() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.dealers.resendNotice.mutationOptions(),
+		onSettled: () =>
+			queryClient.invalidateQueries({
+				queryKey: orpc.dealers.ledger.key(),
+			}),
+	});
+}
+
 export function useSyncDealerFinance() {
 	return useMutation(orpc.dealers.syncNow.mutationOptions());
 }

@@ -14,10 +14,14 @@ import { ReceiptTextIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { DealerLedgerEntry } from "../../hooks/use-dealer-finance";
 import { LEDGER_KINDS, type LedgerKind } from "../../lib/finance-labels";
+import { DealerNoticeChip } from "./DealerNoticeChip";
 
 interface DealerLedgerTimelineProps {
 	entries: DealerLedgerEntry[];
+	dealerId: string;
 	dealerName: string;
+	/** Operator with `dealers:manage` — may resend WhatsApp confirmations. */
+	canManage: boolean;
 }
 
 type Filter = "all" | "given" | "received";
@@ -44,7 +48,9 @@ function inFilter(entry: DealerLedgerEntry, filter: Filter): boolean {
  */
 export function DealerLedgerTimeline({
 	entries,
+	dealerId,
 	dealerName,
+	canManage,
 }: DealerLedgerTimelineProps) {
 	const [filter, setFilter] = useState<Filter>("all");
 
@@ -93,7 +99,12 @@ export function DealerLedgerTimeline({
 			) : (
 				<ul>
 					{visible.map((entry) => (
-						<TimelineRow key={entry.id} entry={entry} />
+						<TimelineRow
+							key={entry.id}
+							entry={entry}
+							dealerId={dealerId}
+							canManage={canManage}
+						/>
 					))}
 				</ul>
 			)}
@@ -109,7 +120,15 @@ export function DealerLedgerTimeline({
 	);
 }
 
-function TimelineRow({ entry }: { entry: DealerLedgerEntry }) {
+function TimelineRow({
+	entry,
+	dealerId,
+	canManage,
+}: {
+	entry: DealerLedgerEntry;
+	dealerId: string;
+	canManage: boolean;
+}) {
 	const meta = LEDGER_KINDS[entry.kind as LedgerKind];
 	const Icon = meta.icon;
 	const up = entry.direction === "up";
@@ -143,6 +162,16 @@ function TimelineRow({ entry }: { entry: DealerLedgerEntry }) {
 				<p className="truncate text-sm text-muted-foreground">
 					{entry.note ?? meta.meaning}
 				</p>
+				{entry.whatsappNotice && (
+					<div className="mt-1">
+						<DealerNoticeChip
+							notice={entry.whatsappNotice}
+							dealerId={dealerId}
+							entryId={entry.id}
+							canManage={canManage}
+						/>
+					</div>
+				)}
 			</div>
 			<div className="shrink-0 text-right">
 				<div

@@ -1581,6 +1581,11 @@ model IspDealerAccount {
   comment        String?  @db.Text
   operationDate  DateTime
   createdAt      DateTime @default(now())
+  /// WhatsApp confirmation sent to the dealer for this entry (official WPBox
+  /// number, template `dealer_account_update`): status, phone, template params
+  /// (reused on resend), error, messageId, updatedAt. Null for rows synced
+  /// from iRadius or recorded before confirmations were tracked.
+  whatsappNotice Json?
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   dealer       IspDealer     @relation(fields: [dealerId], references: [id], onDelete: Cascade)
