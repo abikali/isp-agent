@@ -74,17 +74,26 @@ export function createWhatsAppReceiptWorker(): Worker<
 				paymentId,
 			});
 
-			await appendPaymentActivityLog(
-				[paymentId],
-				{
-					action: actionLabel,
-					status: "success",
-					statusCode: result.status,
-					detail: result.phone,
-					timestamp: new Date().toISOString(),
-				},
-				{ markReceiptSent: true },
-			);
+			// The message is out: a failed log write must not fail the job,
+			// or BullMQ would retry it and send the receipt again.
+			try {
+				await appendPaymentActivityLog(
+					[paymentId],
+					{
+						action: actionLabel,
+						status: "success",
+						statusCode: result.status,
+						detail: result.phone,
+						timestamp: new Date().toISOString(),
+					},
+					{ markReceiptSent: true },
+				);
+			} catch (error) {
+				logger.error("[WhatsApp Receipt] Sent but failed to log", {
+					paymentId,
+					error: String(error),
+				});
+			}
 
 			return { success: true };
 		},

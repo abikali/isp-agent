@@ -34,6 +34,7 @@ import { repriceAndReviewPayment } from "./procedures/reprice-review";
 import { requestLocation } from "./procedures/request-location";
 import { resendReceipt } from "./procedures/resend-receipt";
 import { resendReceipts } from "./procedures/resend-receipts";
+import { resendReferralReward } from "./procedures/resend-referral-reward";
 import { resetMonth } from "./procedures/reset-month";
 import { reviewPayment } from "./procedures/review-payment";
 import { reviewPayments } from "./procedures/review-payments";
@@ -79,6 +80,7 @@ export const billingRouter = {
 		repriceAndReview: repriceAndReviewPayment,
 		resendReceipt: resendReceipt,
 		resendReceipts: resendReceipts,
+		resendReferralReward: resendReferralReward,
 		markReceiptSent: markReceiptSent,
 		reactivate: reactivateAccount,
 		stats: getPaymentStats,

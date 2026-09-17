@@ -1,4 +1,5 @@
 import { appendPaymentActivityLog, db, getPrimaryPhone } from "@repo/database";
+import { logger } from "@repo/logs";
 import type { Job } from "bullmq";
 import { sendWhatsAppReferralReward } from "../lib/wpbox";
 import { WHATSAPP_RECEIPT_MAX_ATTEMPTS } from "../queues/whatsapp-receipt.queue";
@@ -80,13 +81,22 @@ export async function processReferralRewardJob(
 	});
 
 	if (result.ok) {
-		await appendPaymentActivityLog([paymentId], {
-			action: ACTION,
-			status: "success",
-			statusCode: result.status,
-			detail: result.phone,
-			timestamp: new Date().toISOString(),
-		});
+		// Sent: a failed log write must not fail the job and trigger a
+		// retry that messages the referrer again.
+		try {
+			await appendPaymentActivityLog([paymentId], {
+				action: ACTION,
+				status: "success",
+				statusCode: result.status,
+				detail: result.phone,
+				timestamp: new Date().toISOString(),
+			});
+		} catch (error) {
+			logger.error("[WhatsApp Referral Reward] Sent but failed to log", {
+				paymentId,
+				error: String(error),
+			});
+		}
 		return { success: true };
 	}
 

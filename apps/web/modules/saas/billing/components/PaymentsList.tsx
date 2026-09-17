@@ -7,6 +7,7 @@ import {
 	RECEIPT_RESEND_SKIP_LABELS,
 	type ReceiptResendSkipReason,
 } from "@repo/api/modules/billing/lib/receipt-status";
+import { lastReferralRewardEntry } from "@repo/api/modules/billing/lib/referral-reward";
 import { parsePhones } from "@repo/database/phones";
 import { useActiveOrganization } from "@saas/organizations/client";
 import {
@@ -134,6 +135,7 @@ import {
 	usePaymentsQuery,
 	useResendReceipt,
 	useResendReceipts,
+	useResendReferralReward,
 	useReviewPayment,
 	useReviewPayments,
 } from "../hooks/use-billing";
@@ -831,18 +833,19 @@ export function PaymentsList() {
 	const { data: parentStats } = usePaymentStatsQuery(activeMonthId);
 	const unreviewedCount = parentStats?.unreviewedCount ?? 0;
 
-	const { payments, total, isLoading, isFetching } = usePaymentsQuery({
-		search: debouncedSearch || undefined,
-		...queryTypeFilters,
-		noteCategory: noteCategoryFilter,
-		collectorId: collectorFilter,
-		groupName: groupFilter,
-		billingMonthId: activeMonthId,
-		page,
-		pageSize: PAGE_SIZE,
-		sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
-		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
-	});
+	const { payments, total, isLoading, isFetching, referralRewardMessaging } =
+		usePaymentsQuery({
+			search: debouncedSearch || undefined,
+			...queryTypeFilters,
+			noteCategory: noteCategoryFilter,
+			collectorId: collectorFilter,
+			groupName: groupFilter,
+			billingMonthId: activeMonthId,
+			page,
+			pageSize: PAGE_SIZE,
+			sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
+			sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
+		});
 
 	// Live online/offline for the page's customers and the new customers
 	// their referral free months point at — the row data is a snapshot.
@@ -873,6 +876,7 @@ export function PaymentsList() {
 	const reviewPayments = useReviewPayments();
 	const declineStoppedPayment = useDeclineStoppedPayment();
 	const markReceiptSent = useMarkReceiptSent();
+	const resendReferralReward = useResendReferralReward();
 	const setDiscount = useSetDiscount();
 	const pushToIRadius = usePushToIRadius();
 	const [discountDialog, setDiscountDialog] = useState<{
@@ -1094,7 +1098,7 @@ export function PaymentsList() {
 		setGroupFilter(undefined);
 		setNoteCategoryFilter(undefined);
 		setMonthFilter("");
-		setPage(1);
+		resetPage();
 	};
 
 	const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(
@@ -1359,6 +1363,10 @@ export function PaymentsList() {
 					const isMarkingReceipt =
 						markReceiptSent.isPending &&
 						markReceiptSent.variables?.paymentId === payment.id;
+					const isSendingReferralReward =
+						resendReferralReward.isPending &&
+						resendReferralReward.variables?.paymentId ===
+							payment.id;
 					const isDeleting =
 						deletePayment.isPending &&
 						deletePayment.variables?.paymentId === payment.id;
@@ -1543,9 +1551,12 @@ export function PaymentsList() {
 											? "Approve & Deactivate"
 											: canReprice
 												? "Approve as-is — keep current pricing, remainder stays owed"
-												: referralReward
+												: referralReward &&
+														referralRewardMessaging
 													? `Approve — sends free-month WhatsApp to ${referrerName}${referralWarning ? ` (new customer ${referralWarning})` : ""}`
-													: "Mark as reviewed"}
+													: referralWarning
+														? `Mark as reviewed (new customer ${referralWarning})`
+														: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
 							)}
@@ -1755,6 +1766,50 @@ export function PaymentsList() {
 														<CheckCircle2Icon className="mr-2 size-3.5" />
 													)}
 													Mark receipt as sent
+												</DropdownMenuItem>
+											)}
+										{referralRewardMessaging &&
+											referralReward &&
+											payment.reviewedAt && (
+												<DropdownMenuItem
+													disabled={
+														isSendingReferralReward
+													}
+													onClick={() => {
+														if (!organizationId) {
+															return;
+														}
+														resendReferralReward.mutate(
+															{
+																organizationId,
+																paymentId:
+																	payment.id,
+															},
+															{
+																onSuccess: () =>
+																	toast.success(
+																		`Free-month WhatsApp queued for ${referrerName}`,
+																	),
+																onError: (
+																	error,
+																) =>
+																	toast.error(
+																		error.message,
+																	),
+															},
+														);
+													}}
+												>
+													{isSendingReferralReward ? (
+														<Loader2Icon className="mr-2 size-3.5 animate-spin" />
+													) : (
+														<GiftIcon className="mr-2 size-3.5" />
+													)}
+													{lastReferralRewardEntry(
+														payment.activityLog,
+													)?.status === "success"
+														? "Resend free-month WhatsApp"
+														: "Send free-month WhatsApp"}
 												</DropdownMenuItem>
 											)}
 										{whatsappNumbers.length > 0 && (
@@ -2018,6 +2073,8 @@ export function PaymentsList() {
 			declineStoppedPayment,
 			orgSlug,
 			markReceiptSent,
+			resendReferralReward,
+			referralRewardMessaging,
 			pushToIRadius,
 		],
 	);
@@ -2033,7 +2090,7 @@ export function PaymentsList() {
 						value={search}
 						onChange={(v) => {
 							setSearch(v);
-							setPage(1);
+							resetPage();
 						}}
 						placeholder="Search customer or invoice..."
 						className="w-full sm:max-w-xs"
@@ -2250,7 +2307,12 @@ export function PaymentsList() {
 											</AlertDialogFooter>
 										</AlertDialogContent>
 									</AlertDialog>
-								) : undefined
+								) : (
+									<span className="text-muted-foreground text-xs">
+										Nothing to resend:{" "}
+										{formatSkipped(resendSelection.skipped)}
+									</span>
+								)
 							}
 						/>
 					)}
@@ -2298,18 +2360,22 @@ export function PaymentsList() {
 													? `${selectedStoppedCount} of these ${selectedStoppedCount === 1 ? "is a stopped account" : "are stopped accounts"} — approving will deactivate ${selectedStoppedCount === 1 ? "that customer" : "those customers"} in iRadius and void the matching invoice. Already-reviewed payments are skipped.`
 													: "The selected flagged payments will be marked as reviewed and leave the Needs Review queue. Already-reviewed payments are skipped."}
 											</AlertDialogDescription>
-											{selectedReferrals.length > 0 && (
-												<p className="text-sm text-muted-foreground">
-													{selectedReferrals.length}{" "}
-													referral reward
-													{selectedReferrals.length ===
-													1
-														? ""
-														: "s"}{" "}
-													will be messaged on
-													WhatsApp.
-												</p>
-											)}
+											{referralRewardMessaging &&
+												selectedReferrals.length >
+													0 && (
+													<p className="text-sm text-muted-foreground">
+														{
+															selectedReferrals.length
+														}{" "}
+														referral reward
+														{selectedReferrals.length ===
+														1
+															? ""
+															: "s"}{" "}
+														will be messaged on
+														WhatsApp.
+													</p>
+												)}
 											{selectedDoubtfulReferralCount >
 												0 && (
 												<p className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400">
@@ -2368,7 +2434,12 @@ export function PaymentsList() {
 							totalItems: total,
 							currentPage: page,
 							itemsPerPage: PAGE_SIZE,
-							onPageChange: setPage,
+							// Selection is per page: a bulk action must only
+							// touch rows the operator can see.
+							onPageChange: (next) => {
+								setPage(next);
+								setRowSelection({});
+							},
 						}}
 						emptyState={
 							<EmptyState
@@ -2605,9 +2676,9 @@ export function PaymentsList() {
 									referral is real before approving.
 									<br />
 									<br />
-									Approving keeps the free month and sends{" "}
-									{referralConfirm.referrerName} the
-									free-month WhatsApp.
+									{referralRewardMessaging
+										? `Approving keeps the free month and sends ${referralConfirm.referrerName} the free-month WhatsApp.`
+										: "Approving keeps the free month."}
 								</>
 							)}
 						</AlertDialogDescription>

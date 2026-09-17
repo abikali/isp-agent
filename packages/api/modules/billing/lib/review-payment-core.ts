@@ -122,8 +122,20 @@ export async function reviewOnePayment(args: {
 }
 
 /**
+ * Referral free-month WhatsApps stay off until the `referral_free_month`
+ * template is approved in Salti — a send to an unapproved template fails and
+ * would still use up the payment's one automatic message. Set
+ * `WHATSAPP_REFERRAL_REWARD_ENABLED=true` once it is approved.
+ */
+export function isReferralRewardMessagingEnabled(): boolean {
+	return process.env["WHATSAPP_REFERRAL_REWARD_ENABLED"] === "true";
+}
+
+/**
  * Queue the referrer's "free month" WhatsApp for a just-approved payment.
- * Never throws — a messaging problem must not fail the approval.
+ * Never throws — a messaging problem must not fail the approval. Does
+ * nothing while messaging is switched off; a payment approved then can be
+ * messaged later from the row's "Send free-month WhatsApp" action.
  *
  * `payment` is the state loaded before the review, so a row that was already
  * reviewed never messages. The claim on `referralRewardNotifiedAt` is atomic
@@ -134,7 +146,10 @@ export async function reviewOnePayment(args: {
 async function claimReferralReward(
 	payment: ReviewablePayment,
 ): Promise<boolean> {
-	if (!isReferralRewardEligible(payment)) {
+	if (
+		!isReferralRewardMessagingEnabled() ||
+		!isReferralRewardEligible(payment)
+	) {
 		return false;
 	}
 	try {

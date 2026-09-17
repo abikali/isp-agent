@@ -1,4 +1,5 @@
 import { db } from "../client";
+import type { Prisma } from "../generated/client";
 
 export interface PaymentActivityEntry {
 	action: string;
@@ -14,13 +15,17 @@ export interface PaymentActivityEntry {
  * (`jsonb || jsonb`), so concurrent writers — createPayment's creation entry
  * and the WhatsApp receipt worker — can't drop each other's entries the way a
  * read-modify-write does. `markReceiptSent` flips the receipt flags in the
- * same statement.
+ * same statement. Pass `client` to write inside a caller's transaction.
  */
 export async function appendPaymentActivityLog(
 	paymentIds: string[],
 	entries: PaymentActivityEntry | PaymentActivityEntry[],
-	options: { markReceiptSent?: boolean } = {},
+	options: {
+		markReceiptSent?: boolean | undefined;
+		client?: Prisma.TransactionClient | undefined;
+	} = {},
 ): Promise<number> {
+	const client = options.client ?? db;
 	if (paymentIds.length === 0) {
 		return 0;
 	}
@@ -28,7 +33,7 @@ export async function appendPaymentActivityLog(
 		Array.isArray(entries) ? entries : [entries],
 	);
 	if (options.markReceiptSent) {
-		return db.$executeRaw`
+		return client.$executeRaw`
 			UPDATE "payment" SET
 				"activityLog" = COALESCE("activityLog", '[]'::jsonb) || ${payload}::jsonb,
 				"receiptSent" = true,
@@ -37,7 +42,7 @@ export async function appendPaymentActivityLog(
 			WHERE "id" = ANY(${paymentIds}::text[])
 		`;
 	}
-	return db.$executeRaw`
+	return client.$executeRaw`
 		UPDATE "payment" SET
 			"activityLog" = COALESCE("activityLog", '[]'::jsonb) || ${payload}::jsonb,
 			"updatedAt" = NOW()

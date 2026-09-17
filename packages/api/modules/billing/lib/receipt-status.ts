@@ -128,7 +128,8 @@ export const RECEIPT_RESEND_SKIP_LABELS: Record<
 	debt: "debt visit",
 	already_sent: "already sent",
 	legacy: "legacy billing record",
-	too_old: `older than ${RECEIPT_RESEND_MAX_AGE_DAYS} days`,
+	// Bulk only — the row's "Send Receipt" still works for these.
+	too_old: `older than ${RECEIPT_RESEND_MAX_AGE_DAYS} days (send from the row menu)`,
 	no_phone: "no phone on file",
 	rate_limited: "sent under a minute ago",
 };

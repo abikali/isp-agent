@@ -12,6 +12,7 @@ import {
 } from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
 import { receiptStatusWhere } from "../lib/receipt-status";
+import { isReferralRewardMessagingEnabled } from "../lib/review-payment-core";
 import {
 	findUnreviewedAmountMismatchPaymentIds,
 	PAYMENT_EXPECTED_TOTAL_SQL,
@@ -184,6 +185,7 @@ export const listPayments = protectedProcedure
 					page: input.page,
 					pageSize: input.pageSize,
 					totalPages: 0,
+					referralRewardMessaging: isReferralRewardMessagingEnabled(),
 				};
 			}
 			where["id"] = { in: ids };
@@ -292,5 +294,7 @@ export const listPayments = protectedProcedure
 			page: input.page,
 			pageSize: input.pageSize,
 			totalPages: Math.ceil(total / input.pageSize),
+			// Whether approving a referral free month WhatsApps the referrer.
+			referralRewardMessaging: isReferralRewardMessagingEnabled(),
 		};
 	});
