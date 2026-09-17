@@ -10,8 +10,10 @@ import {
 } from "../../hooks/use-dealer-finance";
 import { AdjustCreditSheet } from "./AdjustCreditSheet";
 import { DealerActivity } from "./DealerActivity";
+import { DealerContactCard } from "./DealerContactCard";
 import { DealerHero } from "./DealerHero";
 import { DealerLedgerTimeline } from "./DealerLedgerTimeline";
+import { EditDealerContactSheet } from "./EditDealerContactSheet";
 import { RecordPaymentSheet } from "./RecordPaymentSheet";
 
 interface DealerDetailPageProps {
@@ -31,6 +33,7 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 
 	const [paymentOpen, setPaymentOpen] = useState(false);
 	const [credit, setCredit] = useState<"add" | "deduct" | null>(null);
+	const [contactOpen, setContactOpen] = useState(false);
 
 	const { dealer, summary, canManage } = ledger;
 	const row =
@@ -96,14 +99,23 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 				<div className="lg:col-span-2">
 					<DealerLedgerTimeline
 						entries={ledger.entries}
+						dealerId={dealer.id}
 						dealerName={dealer.name}
+						canManage={canManage}
 					/>
 				</div>
-				<DealerActivity
-					activity={ledger.activity}
-					summary={summary}
-					customersCount={dealer.customersCount}
-				/>
+				<div className="space-y-4">
+					<DealerContactCard
+						dealer={dealer}
+						canEdit={canManage}
+						onEdit={() => setContactOpen(true)}
+					/>
+					<DealerActivity
+						activity={ledger.activity}
+						summary={summary}
+						customersCount={dealer.customersCount}
+					/>
+				</div>
 			</div>
 
 			{paymentOpen && (
@@ -116,6 +128,7 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 						name: dealer.name,
 						owed: summary.owed,
 						isDeleted: dealer.isDeleted,
+						whatsappPhone: dealer.contact.whatsappPhone,
 					}}
 					initialKind={dealer.isDeleted ? "write_off" : "payment"}
 					staff={overview.staff}
@@ -136,8 +149,18 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 						name: dealer.name,
 						owed: summary.owed,
 						prepaid: summary.prepaid,
+						whatsappPhone: dealer.contact.whatsappPhone,
 					}}
 					initialDirection={credit}
+				/>
+			)}
+
+			{contactOpen && (
+				<EditDealerContactSheet
+					key={dealer.id}
+					open
+					onOpenChange={setContactOpen}
+					dealer={dealer}
 				/>
 			)}
 		</PageShell>

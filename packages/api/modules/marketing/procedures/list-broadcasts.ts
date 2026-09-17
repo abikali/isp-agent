@@ -76,6 +76,7 @@ export const listBroadcasts = protectedProcedure
 					sentCount: true,
 					failedCount: true,
 					status: true,
+					scheduledAt: true,
 					startedAt: true,
 					completedAt: true,
 					createdAt: true,

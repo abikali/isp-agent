@@ -148,6 +148,7 @@ export function DealerFinancePage() {
 									name: payment.dealer.name,
 									owed: payment.dealer.owed,
 									isDeleted: payment.dealer.isDeleted,
+									whatsappPhone: payment.dealer.whatsappPhone,
 								}
 							: null
 					}
@@ -156,6 +157,7 @@ export function DealerFinancePage() {
 						name: d.name,
 						owed: d.owed,
 						isDeleted: d.isDeleted,
+						whatsappPhone: d.whatsappPhone,
 					}))}
 					initialKind={payment.kind}
 					staff={overview.staff}
@@ -178,6 +180,7 @@ export function DealerFinancePage() {
 									name: credit.dealer.name,
 									owed: credit.dealer.owed,
 									prepaid: credit.dealer.prepaid,
+									whatsappPhone: credit.dealer.whatsappPhone,
 								}
 							: null
 					}
@@ -186,6 +189,7 @@ export function DealerFinancePage() {
 						name: d.name,
 						owed: d.owed,
 						prepaid: d.prepaid,
+						whatsappPhone: d.whatsappPhone,
 					}))}
 				/>
 			)}

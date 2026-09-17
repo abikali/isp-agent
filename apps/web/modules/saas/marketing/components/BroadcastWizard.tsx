@@ -12,7 +12,11 @@ import {
 	CUSTOMER_STATUS_LABELS,
 } from "@saas/customers/lib/constants";
 import { PageShell } from "@shared/components/PageShell";
-import { formatDate } from "@shared/lib/format";
+import {
+	beirutWallClockToUtc,
+	formatDate,
+	formatDateTimeLocalInput,
+} from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate } from "@tanstack/react-router";
@@ -32,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
 import { cn } from "@ui/lib";
 import {
+	CalendarClockIcon,
 	CheckIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -78,6 +83,7 @@ type ConnectionType = "FIBER" | "WIRELESS" | "DSL" | "CABLE" | "ETHERNET";
 interface CustomerFilters {
 	statuses: string[];
 	planIds: string[];
+	excludePlanIds: string[];
 	stationIds: string[];
 	collectorIds: string[];
 	groupNames: string[];
@@ -92,6 +98,7 @@ interface CustomerFilters {
 const EMPTY_FILTERS: CustomerFilters = {
 	statuses: [],
 	planIds: [],
+	excludePlanIds: [],
 	stationIds: [],
 	collectorIds: [],
 	groupNames: [],
@@ -104,6 +111,7 @@ export interface BroadcastWizardInitialState {
 	templateName?: string;
 	templateLang?: string;
 	audience?: AudienceInput | unknown;
+	scheduledAt?: Date | string | null;
 	variables?: {
 		header?: VariableMapping[];
 		body?: VariableMapping[];
@@ -183,6 +191,11 @@ export function BroadcastWizard({
 	const [broadcastName, setBroadcastName] = useState<string>(
 		initial?.name ?? "",
 	);
+	// Beirut wall-clock `YYYY-MM-DDTHH:mm`; empty = send immediately.
+	const initialSendAt = initial?.scheduledAt
+		? formatDateTimeLocalInput(initial.scheduledAt)
+		: "";
+	const [sendAt, setSendAt] = useState<string>(initialSendAt);
 
 	const [headerMappings, setHeaderMappings] = useState<VariableMapping[]>(
 		(initial?.variables?.header as VariableMapping[]) ?? [],
@@ -256,6 +269,7 @@ export function BroadcastWizard({
 				type: "isp_customers",
 				statuses: customerFilters.statuses as never,
 				planIds: customerFilters.planIds,
+				excludePlanIds: customerFilters.excludePlanIds,
 				stationIds: customerFilters.stationIds,
 				collectorIds: customerFilters.collectorIds,
 				groupNames: customerFilters.groupNames,
@@ -387,6 +401,7 @@ export function BroadcastWizard({
 		const name =
 			broadcastName.trim() ||
 			`${selectedTemplate.name} – ${new Date().toLocaleDateString()}`;
+		const scheduledAt = sendAt ? beirutWallClockToUtc(sendAt) : null;
 		try {
 			if (mode === "edit" && initial?.broadcastId) {
 				await update.mutateAsync({
@@ -399,6 +414,9 @@ export function BroadcastWizard({
 					audience: audienceInput as Parameters<
 						typeof update.mutateAsync
 					>[0]["audience"],
+					// Only send the schedule when it changed, so re-saving a
+					// broadcast whose time just passed doesn't trip validation.
+					...(sendAt !== initialSendAt && { scheduledAt }),
 				});
 				toast.success("Broadcast updated");
 				await navigate({
@@ -418,8 +436,11 @@ export function BroadcastWizard({
 					audience: audienceInput as Parameters<
 						typeof create.mutateAsync
 					>[0]["audience"],
+					scheduledAt,
 				});
-				toast.success("Broadcast launched");
+				toast.success(
+					scheduledAt ? "Broadcast scheduled" : "Broadcast launched",
+				);
 				await navigate({
 					to: "/app/$organizationSlug/marketing/$broadcastId",
 					params: {
@@ -439,6 +460,10 @@ export function BroadcastWizard({
 	const mediaReady = !needsMediaUrl || hasValidMediaUrl;
 
 	const isPending = create.isPending || update.isPending;
+	const sendAtInvalid =
+		sendAt !== "" &&
+		sendAt !== initialSendAt &&
+		!(beirutWallClockToUtc(sendAt).getTime() > Date.now());
 
 	const canAdvance = () => {
 		if (step === "audience") {
@@ -574,6 +599,9 @@ export function BroadcastWizard({
 							headerMediaKind={headerMediaKind}
 							headerMediaUrl={headerMediaUrl}
 							audienceInput={audienceInput}
+							sendAt={sendAt}
+							setSendAt={setSendAt}
+							sendAtInvalid={sendAtInvalid}
 						/>
 					)}
 				</div>
@@ -615,14 +643,19 @@ export function BroadcastWizard({
 						<Button
 							onClick={onSubmit}
 							disabled={
-								isPending || !selectedTemplate || !mediaReady
+								isPending ||
+								!selectedTemplate ||
+								!mediaReady ||
+								sendAtInvalid
 							}
 						>
 							{isPending
 								? "Saving…"
 								: mode === "edit"
 									? "Save changes"
-									: "Launch broadcast"}
+									: sendAt
+										? "Schedule broadcast"
+										: "Launch broadcast"}
 							<CheckIcon className="size-4" />
 						</Button>
 					) : (
@@ -791,6 +824,20 @@ function AudienceStep(props: AudienceStepProps) {
 									})
 								}
 								placeholder="Any plan"
+							/>
+						</Field>
+						<Field>
+							<FieldLabel>Exclude plans</FieldLabel>
+							<MultiSelectFilter
+								options={props.planOptions}
+								value={props.customerFilters.excludePlanIds}
+								onChange={(v) =>
+									props.setCustomerFilters({
+										...props.customerFilters,
+										excludePlanIds: v,
+									})
+								}
+								placeholder="No plans excluded"
 							/>
 						</Field>
 						<Field>
@@ -970,7 +1017,16 @@ function AudiencePreviewPanel({
 }: {
 	preview: ReturnType<typeof useAudiencePreviewQuery>;
 }) {
-	const { total, sample, note, isLoading, isFetching, error } = preview;
+	const {
+		total,
+		sample,
+		note,
+		duplicateCount,
+		suppressedCount,
+		isLoading,
+		isFetching,
+		error,
+	} = preview;
 
 	if (error) {
 		return (
@@ -1028,6 +1084,19 @@ function AudiencePreviewPanel({
 
 			{note ? (
 				<p className="mt-3 text-xs text-muted-foreground">{note}</p>
+			) : null}
+
+			{duplicateCount > 0 || suppressedCount > 0 ? (
+				<p className="mt-3 text-xs text-muted-foreground">
+					{[
+						duplicateCount > 0 &&
+							`${duplicateCount.toLocaleString()} duplicate ${duplicateCount === 1 ? "phone" : "phones"} merged`,
+						suppressedCount > 0 &&
+							`${suppressedCount.toLocaleString()} opted out`,
+					]
+						.filter(Boolean)
+						.join(" · ")}
+				</p>
 			) : null}
 
 			{hasData && total === 0 ? (
@@ -1463,6 +1532,9 @@ interface ReviewStepProps {
 	headerMediaKind: "image" | "video" | "document" | null;
 	headerMediaUrl: string;
 	audienceInput: AudienceInput;
+	sendAt: string;
+	setSendAt: (v: string) => void;
+	sendAtInvalid: boolean;
 }
 
 function ReviewStep({
@@ -1474,6 +1546,9 @@ function ReviewStep({
 	headerMediaKind,
 	headerMediaUrl,
 	audienceInput,
+	sendAt,
+	setSendAt,
+	sendAtInvalid,
 }: ReviewStepProps) {
 	if (!template) {
 		return <p>Select a template first.</p>;
@@ -1508,6 +1583,12 @@ function ReviewStep({
 					rows={summarizeAudience(audienceInput)}
 				/>
 			</div>
+
+			<SendTimeCard
+				sendAt={sendAt}
+				setSendAt={setSendAt}
+				sendAtInvalid={sendAtInvalid}
+			/>
 
 			{headerMediaKind && (
 				<div className="rounded-lg border bg-card p-4 text-sm">
@@ -1567,6 +1648,76 @@ function ReviewStep({
 			)}
 
 			<AudiencePreviewPanel preview={preview} />
+		</div>
+	);
+}
+
+function SendTimeCard({
+	sendAt,
+	setSendAt,
+	sendAtInvalid,
+}: {
+	sendAt: string;
+	setSendAt: (v: string) => void;
+	sendAtInvalid: boolean;
+}) {
+	const scheduled = sendAt !== "";
+	return (
+		<div className="rounded-lg border bg-card p-4 text-sm">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="font-medium">When to send</div>
+				<div className="flex gap-1">
+					<Button
+						type="button"
+						size="sm"
+						variant={scheduled ? "outline" : "primary"}
+						onClick={() => setSendAt("")}
+					>
+						Now
+					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant={scheduled ? "primary" : "outline"}
+						onClick={() => {
+							if (!scheduled) {
+								// Default to the next full hour.
+								const next = new Date();
+								next.setMinutes(0, 0, 0);
+								next.setHours(next.getHours() + 1);
+								setSendAt(formatDateTimeLocalInput(next));
+							}
+						}}
+					>
+						<CalendarClockIcon className="size-3.5" />
+						Schedule
+					</Button>
+				</div>
+			</div>
+			{scheduled && (
+				<Field className="mt-3">
+					<FieldLabel htmlFor="broadcast-send-at">
+						Send at (Beirut time)
+					</FieldLabel>
+					<Input
+						id="broadcast-send-at"
+						type="datetime-local"
+						value={sendAt}
+						min={formatDateTimeLocalInput()}
+						onChange={(e) => setSendAt(e.target.value)}
+						aria-invalid={sendAtInvalid || undefined}
+					/>
+					{sendAtInvalid ? (
+						<p className="text-xs text-destructive">
+							Pick a time in the future.
+						</p>
+					) : (
+						<p className="text-xs text-muted-foreground">
+							Anyone who opts out before then is skipped.
+						</p>
+					)}
+				</Field>
+			)}
 		</div>
 	);
 }
@@ -1665,6 +1816,12 @@ function summarizeAudience(
 				value: `${a.planIds.length} selected`,
 			});
 		}
+		if (a.excludePlanIds.length > 0) {
+			rows.push({
+				label: "Excluded plans",
+				value: `${a.excludePlanIds.length} excluded`,
+			});
+		}
 		if (a.stationIds.length > 0) {
 			rows.push({
 				label: "Stations",
@@ -1750,6 +1907,7 @@ function coerceCustomerFilters(audience: unknown): CustomerFilters {
 		return {
 			statuses: toArray(a["statuses"] ?? a["status"]),
 			planIds: toArray(a["planIds"] ?? a["planId"]),
+			excludePlanIds: toArray(a["excludePlanIds"]),
 			stationIds: toArray(a["stationIds"] ?? a["stationId"]),
 			collectorIds: toArray(a["collectorIds"] ?? a["collectorId"]),
 			groupNames: toArray(a["groupNames"] ?? a["groupName"]),

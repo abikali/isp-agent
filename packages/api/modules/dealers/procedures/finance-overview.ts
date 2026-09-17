@@ -4,6 +4,7 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { DEALER_ADMIN_TRANSFER_TYPES } from "../../finance/lib/money-model";
 import { previousPeriod, resolvePeriod } from "../../finance/lib/period";
 import { netOwed, round2 } from "../lib/ledger";
+import { resolveDealerWhatsApp } from "../lib/notify-dealer";
 import {
 	dealerWhereForScope,
 	resolveDealerScope,
@@ -148,6 +149,7 @@ export const getDealerFinanceOverview = protectedProcedure
 				chargedLastMonth * 0.25,
 			);
 			const lowCredit = warnAt > 0 && prepaid < warnAt;
+			const whatsapp = resolveDealerWhatsApp(dealer);
 
 			return {
 				id: dealer.id,
@@ -160,6 +162,9 @@ export const getDealerFinanceOverview = protectedProcedure
 				isDeleted: dealer.deletedAt !== null,
 				isLinked: dealer.externalId !== null,
 				customersCount: dealer._count.customers,
+				/** Where money confirmations go (E.164); null = they cannot be sent. */
+				whatsappPhone:
+					whatsapp.status === "ok" ? `+${whatsapp.phone}` : null,
 				prepaid,
 				owed,
 				chargedThisMonth,

@@ -23,6 +23,9 @@ export const ispCustomersAudienceSchema = z.object({
 	// supplied for the same dimension, they're OR'd together.
 	statuses: z.array(z.enum(CUSTOMER_LIST_STATUSES)).default([]),
 	planIds: z.array(z.string()).default([]),
+	// Customers on these plans are left out (e.g. don't offer an upgrade to
+	// people already on the top plan). Customers with no plan stay in.
+	excludePlanIds: z.array(z.string()).default([]),
 	stationIds: z.array(z.string()).default([]),
 	collectorIds: z.array(z.string()).default([]),
 	groupNames: z.array(z.string()).default([]),
@@ -82,7 +85,12 @@ export interface MaterializedRecipient {
 	variables: Record<string, string>;
 }
 
-function normalizePhone(raw: string): string | null {
+/**
+ * Canonical recipient phone (digits with country code), or null when the
+ * input is too short to be a number. Recipient rows and suppression rows both
+ * go through this so dedupe and opt-out exclusion can compare by equality.
+ */
+export function normalizeMarketingPhone(raw: string): string | null {
 	const digits = raw.replace(/\D/g, "");
 	if (digits.length < 6) {
 		return null;
@@ -96,7 +104,7 @@ function pickCustomerPhone(c: {
 	phones: unknown;
 }): string | null {
 	if (c.mobile) {
-		return normalizePhone(c.mobile);
+		return normalizeMarketingPhone(c.mobile);
 	}
 	if (Array.isArray(c.phones)) {
 		for (const entry of c.phones as Array<{ number?: string }>) {
@@ -105,7 +113,7 @@ function pickCustomerPhone(c: {
 				typeof entry === "object" &&
 				typeof entry.number === "string"
 			) {
-				const n = normalizePhone(entry.number);
+				const n = normalizeMarketingPhone(entry.number);
 				if (n) {
 					return n;
 				}
@@ -113,7 +121,7 @@ function pickCustomerPhone(c: {
 		}
 	}
 	if (c.phone) {
-		return normalizePhone(c.phone);
+		return normalizeMarketingPhone(c.phone);
 	}
 	return null;
 }
@@ -209,6 +217,16 @@ async function buildIspCustomerWhere(opts: {
 	if (f.planIds.length > 0) {
 		where["planId"] = { in: f.planIds };
 	}
+	if (f.excludePlanIds.length > 0) {
+		// `notIn` alone would also drop customers with no plan (SQL NOT IN
+		// excludes NULL), so keep those explicitly.
+		where["AND"] = [
+			...((where["AND"] as Array<Record<string, unknown>>) ?? []),
+			{
+				OR: [{ planId: null }, { planId: { notIn: f.excludePlanIds } }],
+			},
+		];
+	}
 	if (f.stationIds.length > 0) {
 		where["stationId"] = { in: f.stationIds };
 	}
@@ -259,16 +277,60 @@ const CUSTOMER_RECIPIENT_SELECT = {
 	phones: true,
 } as const;
 
+export interface AudienceResolution {
+	/** One row per distinct phone, opt-outs removed — exactly what gets queued. */
+	recipients: MaterializedRecipient[];
+	/** Rows dropped because an earlier row already had the same phone. */
+	duplicateCount: number;
+	/** Distinct phones dropped because they are on the opt-out list. */
+	suppressedCount: number;
+}
+
 /**
- * Materialize ALL ISP-customer recipients for the actual send. Loads every
- * matching customer into memory — only call this from create-broadcast,
- * never from the live preview hot path.
- *
- * For "salti_group" audiences the recipients are fetched lazily by the
- * worker (we just record the groupIds) because the membership list can be
- * large.
+ * Collapse candidates to one row per phone (first occurrence wins, so the
+ * caller's ordering decides whose name/variables are used) and drop phones on
+ * the opt-out list. Several customer accounts often share one owner's mobile;
+ * without this the same person received the same promo two or three times.
  */
-export async function materializeIspCustomerRecipients(opts: {
+export function finalizeRecipients(
+	candidates: MaterializedRecipient[],
+	suppressedPhones: ReadonlySet<string>,
+): AudienceResolution {
+	const seen = new Set<string>();
+	const recipients: MaterializedRecipient[] = [];
+	let duplicateCount = 0;
+	let suppressedCount = 0;
+	for (const candidate of candidates) {
+		if (seen.has(candidate.phone)) {
+			duplicateCount += 1;
+			continue;
+		}
+		seen.add(candidate.phone);
+		if (suppressedPhones.has(candidate.phone)) {
+			suppressedCount += 1;
+			continue;
+		}
+		recipients.push(candidate);
+	}
+	return { recipients, duplicateCount, suppressedCount };
+}
+
+export async function loadSuppressedPhones(
+	organizationId: string,
+): Promise<Set<string>> {
+	const rows = await db.marketingSuppression.findMany({
+		where: { organizationId },
+		select: { phone: true },
+	});
+	return new Set(rows.map((r) => r.phone));
+}
+
+/**
+ * Every ISP customer matching the filters that has a usable phone, before
+ * dedupe/opt-out. Oldest account first so a shared phone is addressed with
+ * the original account holder's name.
+ */
+async function materializeIspCustomerRecipients(opts: {
 	organizationId: string;
 	permCtx: PermissionContext;
 	activeDealerId: string | null;
@@ -279,6 +341,7 @@ export async function materializeIspCustomerRecipients(opts: {
 	const customers = await db.customer.findMany({
 		where: where as never,
 		select: CUSTOMER_RECIPIENT_SELECT,
+		orderBy: [{ createdAt: "asc" }, { id: "asc" }],
 	});
 
 	const out: MaterializedRecipient[] = [];
@@ -298,64 +361,12 @@ export async function materializeIspCustomerRecipients(opts: {
 	return out;
 }
 
-/**
- * Fast preview for the ISP-customer audience: returns the exact deliverable
- * count + first `sampleSize` recipients without loading the full set into
- * memory. The count uses a phone-availability filter so it matches what
- * actually gets queued.
- */
-export async function previewIspCustomerRecipients(opts: {
-	organizationId: string;
-	permCtx: PermissionContext;
-	activeDealerId: string | null;
-	filters: IspCustomersAudience;
-	sampleSize?: number;
-}): Promise<{ total: number; sample: MaterializedRecipient[] }> {
-	const sampleSize = opts.sampleSize ?? 10;
-	const baseWhere = await buildIspCustomerWhere(opts);
-	const phoneAvailability = {
-		OR: [{ mobile: { not: null } }, { phone: { not: null } }],
-	};
-	const countableWhere = { ...baseWhere, ...phoneAvailability };
-
-	const [total, candidates] = await Promise.all([
-		db.customer.count({ where: countableWhere as never }),
-		// Over-fetch slightly so JSON-only-phones customers don't leave us
-		// with an empty sample when `mobile`/`phone` are both null on the
-		// first few rows.
-		db.customer.findMany({
-			where: baseWhere as never,
-			select: CUSTOMER_RECIPIENT_SELECT,
-			take: sampleSize * 3,
-		}),
-	]);
-
-	const sample: MaterializedRecipient[] = [];
-	for (const c of candidates) {
-		const phone = pickCustomerPhone(c);
-		if (!phone) {
-			continue;
-		}
-		sample.push({
-			customerId: c.id,
-			phone,
-			contactName:
-				[c.firstName, c.lastName].filter(Boolean).join(" ") || null,
-			variables: customerVariables(c),
-		});
-		if (sample.length >= sampleSize) {
-			break;
-		}
-	}
-	return { total, sample };
-}
-
 export function materializeCsvRecipients(
 	rows: z.infer<typeof csvAudienceSchema>["rows"],
 ): MaterializedRecipient[] {
 	const out: MaterializedRecipient[] = [];
 	for (const row of rows) {
-		const phone = normalizePhone(row.phone);
+		const phone = normalizeMarketingPhone(row.phone);
 		if (!phone) {
 			continue;
 		}
@@ -373,13 +384,11 @@ export function materializeManualRecipients(
 	phones: string[],
 ): MaterializedRecipient[] {
 	const out: MaterializedRecipient[] = [];
-	const seen = new Set<string>();
 	for (const raw of phones) {
-		const phone = normalizePhone(raw);
-		if (!phone || seen.has(phone)) {
+		const phone = normalizeMarketingPhone(raw);
+		if (!phone) {
 			continue;
 		}
-		seen.add(phone);
 		out.push({
 			customerId: null,
 			phone,
@@ -391,26 +400,34 @@ export function materializeManualRecipients(
 }
 
 /**
- * Materialize recipients for the supported audience types.
- * For salti_group, returns an empty array (worker will fetch group members).
+ * Resolve the recipients for an audience: materialise candidates, then dedupe
+ * by phone and drop opt-outs. Used by the live preview and by every send path
+ * so the previewed count is the queued count.
+ *
+ * For salti_group this is empty (Salti expands the group on its side).
  */
 export async function materializeAudience(
 	opts: MaterializeOpts,
-): Promise<MaterializedRecipient[]> {
+): Promise<AudienceResolution> {
 	const a = opts.audience;
+	let candidates: MaterializedRecipient[] = [];
 	if (a.type === "isp_customers") {
-		return materializeIspCustomerRecipients({
+		candidates = await materializeIspCustomerRecipients({
 			organizationId: opts.organizationId,
 			permCtx: opts.permCtx,
 			activeDealerId: opts.activeDealerId,
 			filters: a,
 		});
+	} else if (a.type === "csv") {
+		candidates = materializeCsvRecipients(a.rows);
+	} else if (a.type === "manual") {
+		candidates = materializeManualRecipients(a.phones);
 	}
-	if (a.type === "csv") {
-		return materializeCsvRecipients(a.rows);
+	if (candidates.length === 0) {
+		return { recipients: [], duplicateCount: 0, suppressedCount: 0 };
 	}
-	if (a.type === "manual") {
-		return materializeManualRecipients(a.phones);
-	}
-	return [];
+	return finalizeRecipients(
+		candidates,
+		await loadSuppressedPhones(opts.organizationId),
+	);
 }

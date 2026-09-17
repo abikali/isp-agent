@@ -1,4 +1,4 @@
-import { db } from "@repo/database";
+import { db, getPrimaryPhone } from "@repo/database";
 import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { hasPermission, verifyApiKey } from "../../api-keys/lib/verify";
@@ -127,7 +127,7 @@ export async function taskIngestHandler(
 	const [customer, worker] = await Promise.all([
 		db.customer.findFirst({
 			where: { organizationId, username: customerUsername },
-			select: { id: true, firstName: true, mobile: true },
+			select: { id: true, firstName: true, mobile: true, phones: true },
 		}),
 		db.employee.findFirst({
 			where: { organizationId, username: wid, deletedAt: null },
@@ -191,9 +191,10 @@ export async function taskIngestHandler(
 	});
 
 	// 6. Fire-and-forget: tell the customer a maintenance visit is coming
-	if (sendWhatsApp && customer.mobile) {
+	const customerPhone = getPrimaryPhone(customer.phones) ?? customer.mobile;
+	if (sendWhatsApp && customerPhone) {
 		sendWhatsAppMaintenanceVisit({
-			phone: customer.mobile,
+			phone: customerPhone,
 			customerName: customer.firstName,
 			workerName: worker.name,
 			workerPhone: worker.phone,

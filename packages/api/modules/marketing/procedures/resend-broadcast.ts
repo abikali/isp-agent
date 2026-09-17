@@ -7,6 +7,8 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import {
 	type AudienceInput,
 	audienceSchema,
+	finalizeRecipients,
+	loadSuppressedPhones,
 	type MaterializedRecipient,
 	materializeAudience,
 } from "../lib/audience";
@@ -99,21 +101,31 @@ export const resendBroadcast = protectedProcedure
 						"Source broadcast has no failed recipients to retry.",
 				});
 			}
-			recipients = failed.map((r) => ({
-				customerId: r.customerId,
-				phone: r.phone,
-				contactName: r.contactName,
-				variables: (r.variables ?? {}) as Record<string, string>,
-			}));
+			// Anyone who opted out since the original send is dropped.
+			recipients = finalizeRecipients(
+				failed.map((r) => ({
+					customerId: r.customerId,
+					phone: r.phone,
+					contactName: r.contactName,
+					variables: (r.variables ?? {}) as Record<string, string>,
+				})),
+				await loadSuppressedPhones(input.organizationId),
+			).recipients;
+			if (recipients.length === 0) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Every failed recipient has since opted out of marketing messages.",
+				});
+			}
 		} else if (audience.type === "salti_group") {
 			recipients = [];
 		} else {
-			recipients = await materializeAudience({
+			({ recipients } = await materializeAudience({
 				organizationId: input.organizationId,
 				permCtx,
 				activeDealerId,
 				audience: parsed.success ? parsed.data : audience,
-			});
+			}));
 			if (recipients.length === 0) {
 				throw new ORPCError("BAD_REQUEST", {
 					message:

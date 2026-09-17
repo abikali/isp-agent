@@ -26,6 +26,7 @@ export function BroadcastEditLoader({
 				templateName: broadcast.templateName,
 				templateLang: broadcast.templateLang,
 				audience: broadcast.audienceConfig,
+				scheduledAt: broadcast.scheduledAt,
 				variables: broadcast.variables as never,
 			}}
 		/>

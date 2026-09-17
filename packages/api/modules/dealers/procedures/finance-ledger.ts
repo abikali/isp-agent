@@ -12,6 +12,7 @@ import {
 	round2,
 	withRunningBalance,
 } from "../lib/ledger";
+import { readDealerNotice, resolveDealerWhatsApp } from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 
 const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
@@ -83,6 +84,7 @@ export const getDealerFinanceLedger = protectedProcedure
 					debit: true,
 					comment: true,
 					operationDate: true,
+					whatsappNotice: true,
 				},
 			}),
 			db.dealerCharge.findMany({
@@ -122,6 +124,7 @@ export const getDealerFinanceLedger = protectedProcedure
 				const kind = classifyLedgerRow(row);
 				const amount = row.credit > 0 ? row.credit : row.debit;
 				const legacyCurrency = isLegacyCurrency(amount);
+				const notice = readDealerNotice(row.whatsappNotice);
 				if (!legacyCurrency && row.operationDate >= twelveMonthsAgo) {
 					if (kind === "top_up") {
 						last12.topUps += row.credit;
@@ -147,6 +150,15 @@ export const getDealerFinanceLedger = protectedProcedure
 					operationDate: row.operationDate,
 					balanceAfter,
 					legacyCurrency,
+					/** WhatsApp confirmation; null for rows synced from iRadius. */
+					whatsappNotice: notice
+						? {
+								status: notice.status,
+								phone: notice.phone,
+								error: notice.error,
+								updatedAt: notice.updatedAt,
+							}
+						: null,
 				};
 			})
 			.filter((entry) => {
@@ -209,6 +221,8 @@ export const getDealerFinanceLedger = protectedProcedure
 				operationDate: c.operationDate,
 			}));
 
+		const whatsapp = resolveDealerWhatsApp(dealer);
+
 		return {
 			dealer: {
 				id: dealer.id,
@@ -221,6 +235,20 @@ export const getDealerFinanceLedger = protectedProcedure
 				isLinked: dealer.externalId !== null,
 				customersCount: dealer._count.customers,
 				lastSyncedAt: dealer.lastSyncedAt,
+				contact: {
+					/** iRadius Mobile, else Phone — as typed there. */
+					phone: dealer.phone,
+					companyMobile: dealer.companyMobile,
+					companyPhone: dealer.companyPhone,
+					contactName: dealer.contactName,
+					/** The number staff set for WhatsApp, if any (E.164). */
+					whatsappOverride: dealer.whatsappPhone,
+					/** Where confirmations actually go (E.164), or null. */
+					whatsappPhone:
+						whatsapp.status === "ok" ? `+${whatsapp.phone}` : null,
+					whatsappIssue:
+						whatsapp.status === "ok" ? null : whatsapp.status,
+				},
 			},
 			canManage: scope.canManage,
 			summary: {

@@ -11,9 +11,11 @@ import { getDealer } from "./procedures/get";
 import { getDealerLedger } from "./procedures/ledger";
 import { listDealers } from "./procedures/list";
 import { recordDealerPayment } from "./procedures/record-payment";
+import { resendDealerNotice } from "./procedures/resend-notice";
 import { setActiveDealer } from "./procedures/set-active";
 import { getDealerStats } from "./procedures/stats";
 import { updateDealer } from "./procedures/update";
+import { updateDealerContact } from "./procedures/update-contact";
 
 export const dealersRouter = {
 	list: listDealers,
@@ -36,6 +38,8 @@ export const dealerFinanceRouter = {
 	ledger: getDealerFinanceLedger,
 	adjustCredit: adjustDealerCredit,
 	recordPayment: recordDealerPayment,
+	resendNotice: resendDealerNotice,
+	updateContact: updateDealerContact,
 	syncNow: syncDealerFinanceNow,
 	syncStatus: getDealerFinanceSyncStatus,
 };

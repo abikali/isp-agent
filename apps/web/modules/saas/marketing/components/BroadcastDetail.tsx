@@ -71,6 +71,7 @@ import {
 } from "../hooks/use-marketing";
 import {
 	BROADCAST_STATUS_VARIANTS,
+	broadcastStatusLabel,
 	RECIPIENT_STATUS_VARIANTS,
 } from "../lib/status-variants";
 import { WhatsAppPreview } from "./WhatsAppPreview";
@@ -245,6 +246,14 @@ export function BroadcastDetail({
 						<span className="text-muted-foreground">Created:</span>{" "}
 						{formatDateTime(broadcast.createdAt)}
 					</span>
+					{broadcast.scheduledAt && (
+						<span>
+							<span className="text-muted-foreground">
+								Scheduled:
+							</span>{" "}
+							{formatDateTime(broadcast.scheduledAt)}
+						</span>
+					)}
 					{broadcast.startedAt && (
 						<span>
 							<span className="text-muted-foreground">
@@ -270,7 +279,7 @@ export function BroadcastDetail({
 						BROADCAST_STATUS_VARIANTS[broadcast.status] ?? "outline"
 					}
 				>
-					{broadcast.status}
+					{broadcastStatusLabel(broadcast)}
 				</Badge>
 			}
 			actions={
@@ -692,6 +701,13 @@ function AudienceSummary({
 			rows.push({
 				label: "Plans",
 				value: `${planIds.length} selected`,
+			});
+		}
+		const excludePlanIds = asArray(config["excludePlanIds"]);
+		if (excludePlanIds.length > 0) {
+			rows.push({
+				label: "Excluded plans",
+				value: `${excludePlanIds.length} excluded`,
 			});
 		}
 		const stationIds = asArray(config["stationIds"] ?? config["stationId"]);

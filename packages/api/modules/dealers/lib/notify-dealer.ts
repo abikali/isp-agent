@@ -1,81 +1,279 @@
-import { type ChannelProvider, decryptToken, sendTextMessage } from "@repo/ai";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
+import { extractPhoneNumbers } from "@repo/database/phones";
+import {
+	type DealerWhatsAppNotice,
+	queueWhatsAppTemplateRetry,
+	sendWhatsAppDealerAccountUpdate,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { beirutParts, parsePhone } from "@repo/utils";
+import type { LedgerKind } from "./ledger";
 
 /**
  * WhatsApp a dealer about money recorded on his account.
  *
- * Dealers are not employees (no Telegram, no app login), so the only channel
- * we have is the organization's WhatsApp number — the same WaSender session
- * the support agent replies from. There is no approved WPBox template for
- * dealer money, so this is a plain session message; it reaches any dealer
- * who has ever chatted with the number and most who have not.
+ * Sent from the OFFICIAL number (Salti/WPBox, template
+ * `dealer_account_update`), never from the support bot's WaSender number:
+ * business-initiated sends from the bot risk getting it banned, and the bot's
+ * own echo used to flip the dealer's chat into human takeover.
  *
- * Best-effort by design: the ledger write already succeeded, and a dealer
- * without a phone or an org without a WhatsApp channel must not turn a
- * recorded payment into an error. The caller gets `sent` so the UI can say
- * whether the dealer heard about it.
+ * Best-effort by design: the ledger write already succeeded, so nothing here
+ * throws. The outcome is stored on the ledger row (`whatsappNotice`) and
+ * returned so staff see whether the dealer heard about it — and can resend.
+ */
+
+export type DealerNotice = Pick<
+	DealerWhatsAppNotice,
+	"status" | "phone" | "error"
+>;
+
+const OPERATION_LABELS: Record<LedgerKind, string> = {
+	payment: "دفعة",
+	bonus: "بونص",
+	write_off: "شطب دين",
+	in_kind: "تسوية عينية",
+	adjustment: "تسوية",
+	top_up: "إضافة رصيد",
+	deduction: "خصم رصيد",
+};
+
+/** WhatsApp caps note-like params; the ledger note is ≤200 anyway. */
+const MAX_PARAM_LENGTH = 200;
+
+/**
+ * Template params may not contain newlines, tabs or runs of spaces, and may
+ * not be empty — Meta rejects the whole send otherwise.
+ */
+function templateText(value: string | null | undefined): string {
+	const clean = (value ?? "").replace(/\s+/g, " ").trim();
+	return clean ? clean.slice(0, MAX_PARAM_LENGTH) : "-";
+}
+
+function usd(amount: number): string {
+	return `$${amount.toLocaleString("en-US", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})}`;
+}
+
+function beirutDate(date: Date): string {
+	const { year, month, day } = beirutParts(date);
+	return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+interface DealerNameFields {
+	name: string;
+	companyName: string | null;
+	username: string | null;
+	/** Local override set from the dealer page; wins when present. */
+	contactName?: string | null | undefined;
+}
+
+/**
+ * Who the message greets: the contact person staff entered, else the iRadius
+ * name — skipping "Unknown", which older syncs wrote for dealers with no
+ * first/last name.
+ */
+function greetingName(dealer: DealerNameFields): string {
+	const contact = dealer.contactName?.trim();
+	if (contact) {
+		return contact;
+	}
+	const name = dealer.name.trim();
+	if (name && name.toLowerCase() !== "unknown") {
+		return name;
+	}
+	return dealer.companyName?.trim() || dealer.username?.trim() || name;
+}
+
+/**
+ * The seven `dealer_account_update` body params, in template order: name,
+ * operation, amount, date (Beirut), what is still owed, prepaid credit, note.
+ */
+export function buildDealerNoticeParams(input: {
+	dealer: DealerNameFields;
+	kind: LedgerKind;
+	amount: number;
+	operationDate: Date;
+	owed: number;
+	prepaid: number;
+	note: string | null;
+}): string[] {
+	const owed =
+		input.owed >= 0.005
+			? usd(input.owed)
+			: input.owed <= -0.005
+				? `لا شيء — لديك ${usd(-input.owed)} لصالحك`
+				: "لا شيء — حسابك مسدد";
+	return [
+		templateText(greetingName(input.dealer)),
+		OPERATION_LABELS[input.kind],
+		usd(input.amount),
+		beirutDate(input.operationDate),
+		owed,
+		usd(input.prepaid),
+		templateText(input.note),
+	];
+}
+
+export type DealerPhoneResolution =
+	| { status: "ok"; phone: string }
+	| { status: "no_phone"; phone: null }
+	| { status: "invalid_phone"; phone: string };
+
+/**
+ * First valid WhatsApp number among the dealer's phone fields, in priority
+ * order. iRadius phone columns are dirty ("70123456-71234567", names, a digit
+ * too many), so each field is split into numbers and only one libphonenumber
+ * validates is used — the same check the WPBox sender applies.
+ */
+export function resolveDealerWhatsAppPhone(
+	candidates: Array<string | null | undefined>,
+): DealerPhoneResolution {
+	let firstRaw: string | null = null;
+	for (const raw of candidates) {
+		const trimmed = raw?.trim();
+		if (!trimmed) {
+			continue;
+		}
+		firstRaw ??= trimmed;
+		for (const number of extractPhoneNumbers(trimmed)) {
+			const digits = parsePhone(number)?.digits;
+			if (digits) {
+				return { status: "ok", phone: digits };
+			}
+		}
+	}
+	return firstRaw
+		? { status: "invalid_phone", phone: firstRaw }
+		: { status: "no_phone", phone: null };
+}
+
+export interface DealerPhoneFields {
+	whatsappPhone: string | null;
+	phone: string | null;
+	companyMobile: string | null;
+	companyPhone: string | null;
+}
+
+/**
+ * Where a dealer's confirmations go: the WhatsApp number staff set on the
+ * dealer page first (validated on save), then the iRadius phone fields.
+ */
+export function resolveDealerWhatsApp(
+	dealer: DealerPhoneFields,
+): DealerPhoneResolution {
+	return resolveDealerWhatsAppPhone([
+		dealer.whatsappPhone,
+		dealer.phone,
+		dealer.companyMobile,
+		dealer.companyPhone,
+	]);
+}
+
+async function saveNotice(
+	dealerAccountId: string,
+	notice: DealerWhatsAppNotice,
+): Promise<void> {
+	await db.ispDealerAccount.update({
+		where: { id: dealerAccountId },
+		data: { whatsappNotice: notice as unknown as Prisma.InputJsonValue },
+	});
+}
+
+/**
+ * Send (or, with `send: false`, just record as skipped) the confirmation for
+ * one ledger row, store the outcome on it, and queue a retry when WPBox
+ * failed transiently.
  */
 export async function notifyDealerWhatsApp(input: {
-	organizationId: string;
 	dealerId: string;
-	text: string;
-}): Promise<{ sent: boolean; reason?: string }> {
+	dealerAccountId: string;
+	params: string[];
+	send: boolean;
+}): Promise<DealerNotice> {
+	const notice: DealerWhatsAppNotice = {
+		status: "skipped",
+		phone: null,
+		params: input.params,
+		error: null,
+		messageId: null,
+		updatedAt: new Date().toISOString(),
+	};
 	try {
-		const [dealer, channel] = await Promise.all([
-			db.ispDealer.findUnique({
+		if (input.send) {
+			const dealer = await db.ispDealer.findUnique({
 				where: { id: input.dealerId },
 				select: {
+					whatsappPhone: true,
 					phone: true,
 					companyMobile: true,
 					companyPhone: true,
 				},
-			}),
-			db.aiAgentChannel.findFirst({
-				where: {
-					provider: "whatsapp",
-					enabled: true,
-					agent: {
-						organizationId: input.organizationId,
-						enabled: true,
-					},
-				},
-				select: { encryptedApiToken: true, provider: true },
-			}),
-		]);
-		const phone = [
-			dealer?.phone,
-			dealer?.companyMobile,
-			dealer?.companyPhone,
-		]
-			.map((p) => (p ?? "").replace(/\D/g, ""))
-			.find((digits) => digits.length >= 8);
-		if (!phone) {
-			return { sent: false, reason: "no_phone" };
+			});
+			const resolved = dealer
+				? resolveDealerWhatsApp(dealer)
+				: ({ status: "no_phone", phone: null } as const);
+			notice.phone = resolved.phone;
+			if (resolved.status !== "ok") {
+				notice.status = resolved.status;
+			} else if (!process.env["WPBOX_TOKEN"]) {
+				notice.status = "not_configured";
+			} else {
+				const result = await sendWhatsAppDealerAccountUpdate({
+					phone: resolved.phone,
+					params: input.params,
+					dealerAccountId: input.dealerAccountId,
+				});
+				if (result.ok) {
+					notice.status = "sent";
+					notice.messageId = result.messageId;
+				} else if (result.retriable) {
+					notice.error = result.error;
+					await queueWhatsAppTemplateRetry({
+						kind: "dealer_account_update",
+						dealerAccountId: input.dealerAccountId,
+						phone: resolved.phone,
+						params: input.params,
+					});
+					notice.status = "retrying";
+				} else {
+					notice.status = "failed";
+					notice.error = result.error;
+				}
+			}
 		}
-		if (!channel) {
-			return { sent: false, reason: "no_channel" };
-		}
-		const chatId = `${phone.startsWith("961") || phone.length > 8 ? phone : `961${phone}`}@s.whatsapp.net`;
-		const result = await sendTextMessage(
-			channel.provider as ChannelProvider,
-			decryptToken(channel.encryptedApiToken),
-			chatId,
-			input.text,
-		);
-		return result.success
-			? { sent: true }
-			: { sent: false, reason: "send_failed" };
 	} catch (error) {
 		logger.warn("[dealers] dealer WhatsApp notify failed", {
 			dealerId: input.dealerId,
+			dealerAccountId: input.dealerAccountId,
 			error: String(error),
 		});
-		return { sent: false, reason: "error" };
+		notice.status = "failed";
+		notice.error = error instanceof Error ? error.message : String(error);
 	}
+	// Report what happened to the message even if remembering it fails.
+	await saveNotice(input.dealerAccountId, notice).catch((error: unknown) =>
+		logger.warn("[dealers] could not store dealer WhatsApp outcome", {
+			dealerAccountId: input.dealerAccountId,
+			status: notice.status,
+			error: String(error),
+		}),
+	);
+	return { status: notice.status, phone: notice.phone, error: notice.error };
 }
 
-/** Money formatting shared by the two dealer messages. */
-export function dealerAmount(amount: number): string {
-	return `$${amount.toFixed(2)}`;
+/** Read a stored notice defensively — it is a Json column. */
+export function readDealerNotice(
+	value: Prisma.JsonValue | null,
+): DealerWhatsAppNotice | null {
+	if (
+		value === null ||
+		typeof value !== "object" ||
+		Array.isArray(value) ||
+		typeof value["status"] !== "string"
+	) {
+		return null;
+	}
+	return value as unknown as DealerWhatsAppNotice;
 }

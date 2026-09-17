@@ -47,6 +47,7 @@ import {
 } from "@ui/components/table";
 import { cn } from "@ui/lib";
 import {
+	BellOffIcon,
 	CheckCircleIcon,
 	CopyIcon,
 	MegaphoneIcon,
@@ -73,6 +74,8 @@ import {
 import {
 	AUDIENCE_LABELS,
 	BROADCAST_STATUS_VARIANTS,
+	broadcastStatusLabel,
+	isScheduled,
 } from "../lib/status-variants";
 
 interface BroadcastsListProps {
@@ -148,15 +151,26 @@ export function BroadcastsList({ organizationSlug }: BroadcastsListProps) {
 			title="Marketing"
 			description="WhatsApp broadcasts via Salti. Send template messages to ISP customers, contact groups, or custom lists."
 			actions={
-				<Button asChild>
-					<Link
-						to="/app/$organizationSlug/marketing/new"
-						params={{ organizationSlug }}
-					>
-						<PlusIcon className="size-4" />
-						New broadcast
-					</Link>
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button variant="outline" asChild>
+						<Link
+							to="/app/$organizationSlug/marketing/opt-outs"
+							params={{ organizationSlug }}
+						>
+							<BellOffIcon className="size-4" />
+							Opt-outs
+						</Link>
+					</Button>
+					<Button asChild>
+						<Link
+							to="/app/$organizationSlug/marketing/new"
+							params={{ organizationSlug }}
+						>
+							<PlusIcon className="size-4" />
+							New broadcast
+						</Link>
+					</Button>
+				</div>
 			}
 		>
 			{total > 0 && (
@@ -444,8 +458,13 @@ function BroadcastRow({
 				<Badge
 					variant={BROADCAST_STATUS_VARIANTS[b.status] ?? "outline"}
 				>
-					{b.status}
+					{broadcastStatusLabel(b)}
 				</Badge>
+				{isScheduled(b) && b.scheduledAt && (
+					<div className="mt-0.5 text-[10px] text-muted-foreground">
+						{formatDateTime(new Date(b.scheduledAt))}
+					</div>
+				)}
 			</TableCell>
 			<TableCell>
 				<div className="text-xs">{formatRelative(b.createdAt)}</div>
@@ -504,7 +523,7 @@ function BroadcastCard({
 				<Badge
 					variant={BROADCAST_STATUS_VARIANTS[b.status] ?? "outline"}
 				>
-					{b.status}
+					{broadcastStatusLabel(b)}
 				</Badge>
 				<Badge variant="outline" className="font-normal">
 					{AUDIENCE_LABELS[b.audienceType] ?? b.audienceType}
@@ -539,7 +558,11 @@ function BroadcastCard({
 				<Progress value={progressPct} className="h-1.5" />
 				<div className="flex items-center justify-between text-[10px] text-muted-foreground">
 					<span>{progressPct}% processed</span>
-					<span>{formatRelative(b.createdAt)}</span>
+					<span>
+						{isScheduled(b) && b.scheduledAt
+							? `Sends ${formatDateTime(new Date(b.scheduledAt))}`
+							: formatRelative(b.createdAt)}
+					</span>
 				</div>
 			</div>
 		</div>

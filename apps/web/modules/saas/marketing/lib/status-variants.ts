@@ -20,3 +20,21 @@ export const AUDIENCE_LABELS: Record<string, string> = {
 	csv: "CSV upload",
 	manual: "Manual list",
 };
+
+interface BroadcastScheduleFields {
+	status: string;
+	scheduledAt: Date | string | null;
+}
+
+/** A pending broadcast whose send time is still ahead. */
+export function isScheduled(b: BroadcastScheduleFields): boolean {
+	return (
+		b.status === "pending" &&
+		b.scheduledAt !== null &&
+		new Date(b.scheduledAt).getTime() > Date.now()
+	);
+}
+
+export function broadcastStatusLabel(b: BroadcastScheduleFields): string {
+	return isScheduled(b) ? "scheduled" : b.status;
+}

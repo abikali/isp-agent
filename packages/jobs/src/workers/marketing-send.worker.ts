@@ -208,11 +208,37 @@ export function createMarketingSendWorker(): Worker<
 
 			const client = createSaltiClient({ endpoint, token });
 
+			// Recipients were filtered against the opt-out list when the
+			// broadcast was built, but a scheduled send can fire days later.
+			// Drop anyone who opted out in between before sending.
+			const suppressed = await db.marketingSuppression.findMany({
+				where: { organizationId: broadcast.organizationId },
+				select: { phone: true },
+			});
+			let totalRecipients = broadcast.totalRecipients;
+			if (suppressed.length > 0) {
+				const { count } =
+					await db.marketingBroadcastRecipient.deleteMany({
+						where: {
+							broadcastId: broadcast.id,
+							status: "queued",
+							phone: { in: suppressed.map((s) => s.phone) },
+						},
+					});
+				if (count > 0) {
+					totalRecipients = Math.max(0, totalRecipients - count);
+					logger.info(
+						`[Marketing] broadcast ${broadcastId}: skipped ${count} opted-out recipient(s)`,
+					);
+				}
+			}
+
 			await db.marketingBroadcast.update({
 				where: { id: broadcast.id },
 				data: {
 					status: "running",
 					startedAt: broadcast.startedAt ?? new Date(),
+					totalRecipients,
 				},
 			});
 
@@ -329,7 +355,7 @@ export function createMarketingSendWorker(): Worker<
 
 					if (
 						(sentCount + failedCount) % 10 === 0 ||
-						sentCount + failedCount === broadcast.totalRecipients
+						sentCount + failedCount === totalRecipients
 					) {
 						await db.marketingBroadcast.update({
 							where: { id: broadcast.id },
@@ -347,7 +373,7 @@ export function createMarketingSendWorker(): Worker<
 					data: { sentCount, failedCount },
 				});
 				logger.info(
-					`[Marketing] broadcast ${broadcastId} cancelled mid-run after ${sentCount + failedCount}/${broadcast.totalRecipients}`,
+					`[Marketing] broadcast ${broadcastId} cancelled mid-run after ${sentCount + failedCount}/${totalRecipients}`,
 				);
 				return { success: true, sentCount, failedCount };
 			}

@@ -1,5 +1,6 @@
+import type { SaltiSendResult } from "@repo/integrations";
 import { logger } from "@repo/logs";
-import { normalizePhone } from "@repo/utils";
+import { parsePhone } from "@repo/utils";
 
 interface TemplateComponent {
 	type: string;
@@ -26,11 +27,12 @@ function getWpboxTimeoutMs(): number {
  * need a yes/no signal should use the `sendWhatsApp*` convenience wrappers
  * below, which extract `.ok` for backward-compat boolean returns. The
  * `whatsapp-receipt` worker needs the full shape so it can distinguish
- * transient (5xx — retriable) from permanent (4xx — skip) failures and
- * log the status code into the payment's activity log.
+ * transient (5xx / network — retriable) from permanent (4xx, rejected
+ * template, bad phone — skip) failures and log the status code into the
+ * payment's activity log.
  */
 export type WPBoxSendResult =
-	| { ok: true; phone: string; status: number }
+	| { ok: true; phone: string; status: number; messageId: string | null }
 	| {
 			ok: false;
 			phone: string;
@@ -38,6 +40,40 @@ export type WPBoxSendResult =
 			error: string;
 			retriable: boolean;
 	  };
+
+/**
+ * WPBox answers HTTP 200 for rejected sends too (`{status:"error",
+ * message:"Invalid template"}`, or `wa_error_code` + `error_message` when
+ * WhatsApp itself refuses), so the body — not the HTTP status — decides
+ * success. Prefer the WhatsApp-level reason over Salti's generic `message`.
+ */
+function describeWPBoxFailure(
+	body: SaltiSendResult | null,
+	httpStatus: number,
+): string {
+	if (body?.error_message) {
+		return body.wa_error_code
+			? `${body.wa_error_code}: ${body.error_message}`
+			: body.error_message;
+	}
+	if (body?.message) {
+		return body.message;
+	}
+	return `API returned ${httpStatus}`;
+}
+
+async function readJsonBody(
+	response: Response,
+): Promise<SaltiSendResult | null> {
+	try {
+		const body: unknown = await response.json();
+		return body !== null && typeof body === "object"
+			? (body as SaltiSendResult)
+			: null;
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Send a templated message via the WPBox API. Never throws — returns a
@@ -65,12 +101,18 @@ export async function sendWPBoxTemplate(params: {
 		};
 	}
 
-	const phone = normalizePhone(params.phone);
-	if (phone.length < 10) {
-		logger.warn(`${params.logTag} Invalid phone number`, { phone });
+	// Only send to numbers libphonenumber validates. The old digit-strip
+	// fallback turned junk (usernames, truncated numbers) into `961…`
+	// strings that looked long enough to send.
+	const phone = parsePhone(params.phone)?.digits;
+	if (!phone) {
+		logger.warn(`${params.logTag} Invalid phone number`, {
+			phone: params.phone,
+			...params.logContext,
+		});
 		return {
 			ok: false,
-			phone,
+			phone: params.phone,
 			error: "Invalid phone number",
 			retriable: false,
 		};
@@ -92,31 +134,42 @@ export async function sendWPBoxTemplate(params: {
 				signal: AbortSignal.timeout(getWpboxTimeoutMs()),
 			},
 		);
+		const body = await readJsonBody(response);
 
-		if (response.ok) {
+		if (response.ok && body?.status === "success") {
+			const messageId =
+				body.message_id !== undefined && body.message_id !== null
+					? String(body.message_id)
+					: null;
 			logger.info(`${params.logTag} Sent successfully`, {
 				phone,
+				messageId,
 				...params.logContext,
 			});
-			return { ok: true, phone, status: response.status };
+			return { ok: true, phone, status: response.status, messageId };
 		}
 
-		logger.warn(`${params.logTag} API returned non-OK`, {
+		const error = describeWPBoxFailure(body, response.status);
+		logger.warn(`${params.logTag} API returned error`, {
 			status: response.status,
+			error,
 			phone,
+			templateName: params.templateName,
+			...params.logContext,
 		});
 		return {
 			ok: false,
 			phone,
 			status: response.status,
-			error: `API returned ${response.status}`,
-			retriable: response.status >= 500,
+			error,
+			retriable: response.status >= 500 || response.status === 429,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		logger.warn(`${params.logTag} Failed to send`, {
 			error: message,
 			phone,
+			...params.logContext,
 		});
 		return {
 			ok: false,
@@ -196,7 +249,9 @@ export async function sendWhatsAppLocationRequest(params: {
 /**
  * Notify a customer that a maintenance visit is scheduled — uses the
  * `maintenance_visit` template with three body parameters: customer first
- * name, worker name, and worker phone. The template must exist in WPBox.
+ * name, worker name, and worker phone. The template must exist (and be
+ * approved) in the Salti account — until it is, WPBox rejects every send
+ * with "Invalid template" and this returns false.
  */
 export async function sendWhatsAppMaintenanceVisit(params: {
 	phone: string;
@@ -224,4 +279,34 @@ export async function sendWhatsAppMaintenanceVisit(params: {
 		logTag: "[WhatsApp Maintenance Visit]",
 	});
 	return result.ok;
+}
+
+/**
+ * Confirm money recorded on a dealer's account — `dealer_account_update`
+ * (UTILITY, Arabic) from the official number. Seven body params, in order:
+ * name, operation, amount, date, owed, prepaid credit, note. Dealer
+ * confirmations used to go out from the support bot's WaSender number, which
+ * risks a ban for business-initiated sends; they must stay on WPBox.
+ */
+export async function sendWhatsAppDealerAccountUpdate(params: {
+	phone: string;
+	params: string[];
+	dealerAccountId: string;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "dealer_account_update",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: params.params.map((text) => ({
+					type: "text",
+					text,
+				})),
+			},
+		],
+		logContext: { dealerAccountId: params.dealerAccountId },
+		logTag: "[WhatsApp Dealer Update]",
+	});
 }

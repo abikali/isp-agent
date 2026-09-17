@@ -254,6 +254,12 @@ export async function iradiusAdjustDealerCredit(
 export interface RecordPaymentResult {
 	accountEntryId: number;
 	owed: number;
+	/**
+	 * `Dealer.Credit` read live inside the same transaction. The local copy is
+	 * only refreshed by the dealer sync, and iRadius lowers it on every renewal
+	 * the dealer makes, so anything shown to the dealer must use this value.
+	 */
+	credit: number;
 }
 
 /**
@@ -279,7 +285,17 @@ export async function iradiusRecordDealerPayment(
 				operationDate: params.operationDate,
 				comment: params.comment,
 			});
-			return { accountEntryId: entry.id, owed: entry.balance };
+			// Read only — a payment never changes the dealer's prepaid credit.
+			const rows = await queryIRadius(
+				conn,
+				"SELECT IFNULL(Credit, 0) AS Credit FROM Dealer WHERE UserId = ?",
+				[dealerId],
+			);
+			return {
+				accountEntryId: entry.id,
+				owed: entry.balance,
+				credit: round2(Number(rows[0]?.["Credit"] ?? 0)),
+			};
 		}),
 	);
 }

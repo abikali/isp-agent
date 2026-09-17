@@ -16,6 +16,7 @@ import {
 	ArrowRightIcon,
 	BatteryLowIcon,
 	HandshakeIcon,
+	PhoneOffIcon,
 	PlusIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -39,6 +40,7 @@ const FILTERS: Array<{ value: DealerFilter; label: string }> = [
 	{ value: "owing", label: "Owing" },
 	{ value: "low", label: "Low credit" },
 	{ value: "settled", label: "Settled" },
+	{ value: "no_whatsapp", label: "No WhatsApp" },
 ];
 
 function matches(dealer: DealerFinanceRow, filter: DealerFilter): boolean {
@@ -49,6 +51,8 @@ function matches(dealer: DealerFinanceRow, filter: DealerFilter): boolean {
 			return dealer.lowCredit;
 		case "settled":
 			return dealer.owed <= 0;
+		case "no_whatsapp":
+			return !dealer.whatsappPhone;
 		default:
 			return true;
 	}
@@ -113,7 +117,10 @@ export function DealerTable({
 					}}
 					aria-label="Filter dealers"
 				>
-					{FILTERS.map((f) => (
+					{FILTERS.filter(
+						// Contact gaps are the operator's to fix.
+						(f) => isOperator || f.value !== "no_whatsapp",
+					).map((f) => (
 						<ToggleGroupItem key={f.value} value={f.value}>
 							{f.label}
 						</ToggleGroupItem>
@@ -195,6 +202,22 @@ export function DealerTable({
 														Inactive
 													</Badge>
 												)}
+												{isOperator &&
+													!dealer.whatsappPhone && (
+														<span
+															className="shrink-0 text-warning"
+															title="No WhatsApp number — confirmations cannot be sent"
+														>
+															<PhoneOffIcon
+																className="size-3.5"
+																aria-hidden
+															/>
+															<span className="sr-only">
+																No WhatsApp
+																number
+															</span>
+														</span>
+													)}
 											</div>
 											<div className="truncate text-xs text-muted-foreground">
 												{[

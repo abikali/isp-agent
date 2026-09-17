@@ -5,6 +5,7 @@ import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mu
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { isScheduled } from "../lib/status-variants";
 
 export function useIntegration() {
 	const organizationId = useOrganizationId();
@@ -93,8 +94,11 @@ export function useBroadcasts(filters: BroadcastsFilters = {}) {
 		// Only poll when at least one broadcast is still in flight.
 		refetchInterval: (q) => {
 			const items = q.state.data?.items ?? [];
+			// Broadcasts scheduled for later don't change until they fire.
 			const hasActive = items.some(
-				(b) => b.status === "pending" || b.status === "running",
+				(b) =>
+					b.status === "running" ||
+					(b.status === "pending" && !isScheduled(b)),
 			);
 			return hasActive ? 5_000 : false;
 		},
@@ -140,8 +144,14 @@ export function useBroadcast(
 		// Only poll while the broadcast is in flight — terminal states
 		// (completed/failed/cancelled) don't change.
 		refetchInterval: (q) => {
-			const status = q.state.data?.broadcast?.status;
-			return status === "pending" || status === "running" ? 4_000 : false;
+			const broadcast = q.state.data?.broadcast;
+			if (!broadcast) {
+				return false;
+			}
+			return broadcast.status === "running" ||
+				(broadcast.status === "pending" && !isScheduled(broadcast))
+				? 4_000
+				: false;
 		},
 		refetchIntervalInBackground: false,
 	});
@@ -184,6 +194,8 @@ export function useAudiencePreviewQuery(
 		sample: query.data?.sample ?? [],
 		audienceType: query.data?.audienceType,
 		note: query.data?.note ?? null,
+		duplicateCount: query.data?.duplicateCount ?? 0,
+		suppressedCount: query.data?.suppressedCount ?? 0,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		error: query.error,
@@ -232,3 +244,42 @@ export const useCancelBroadcast = createInvalidatingMutation(
 
 export const useCreateAssetUploadUrl = () =>
 	useMutation(orpc.marketing.createAssetUploadUrl.mutationOptions());
+
+/**
+ * Marketing opt-out list. `useQuery` (not suspense) so typing in the search
+ * box keeps the previous page on screen instead of flashing a skeleton.
+ */
+export function useSuppressionsQuery(filters: {
+	page: number;
+	search: string;
+}) {
+	const organizationId = useOrganizationId();
+	const search = filters.search.trim();
+	const query = useQuery(
+		organizationId
+			? orpc.marketing.listSuppressions.queryOptions({
+					input: {
+						organizationId,
+						page: filters.page,
+						...(search ? { search } : {}),
+					},
+				})
+			: disabledQuery(["marketing", "listSuppressions"]),
+	);
+	return {
+		items: query.data?.items ?? [],
+		total: query.data?.total ?? 0,
+		pageSize: query.data?.pageSize ?? 50,
+		isLoading: query.isLoading,
+	};
+}
+
+export const useAddSuppressions = createInvalidatingMutation(
+	() => orpc.marketing.addSuppressions.mutationOptions(),
+	() => orpc.marketing.key(),
+);
+
+export const useRemoveSuppression = createInvalidatingMutation(
+	() => orpc.marketing.removeSuppression.mutationOptions(),
+	() => orpc.marketing.key(),
+);

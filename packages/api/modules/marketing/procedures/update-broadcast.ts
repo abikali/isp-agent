@@ -1,9 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { rescheduleMarketingSend } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { audienceSchema, materializeAudience } from "../lib/audience";
+import { scheduledAtSchema } from "../lib/schedule";
 import { templateVariablesSchema } from "../lib/template-variables";
 
 /**
@@ -32,6 +34,8 @@ export const updateBroadcast = protectedProcedure
 			templateLang: z.string().min(2).optional(),
 			variables: templateVariablesSchema.optional(),
 			audience: audienceSchema.optional(),
+			// null = send now; undefined = leave the schedule unchanged.
+			scheduledAt: scheduledAtSchema.nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -47,7 +51,7 @@ export const updateBroadcast = protectedProcedure
 				id: input.broadcastId,
 				organizationId: input.organizationId,
 			},
-			select: { id: true, status: true },
+			select: { id: true, status: true, scheduledAt: true },
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
@@ -76,15 +80,12 @@ export const updateBroadcast = protectedProcedure
 
 		// Audience change → rebuild recipient list.
 		if (input.audience !== undefined) {
-			const recipients =
-				input.audience.type === "salti_group"
-					? []
-					: await materializeAudience({
-							organizationId: input.organizationId,
-							permCtx,
-							activeDealerId,
-							audience: input.audience,
-						});
+			const { recipients } = await materializeAudience({
+				organizationId: input.organizationId,
+				permCtx,
+				activeDealerId,
+				audience: input.audience,
+			});
 			if (
 				input.audience.type !== "salti_group" &&
 				recipients.length === 0
@@ -117,6 +118,14 @@ export const updateBroadcast = protectedProcedure
 			data["failedCount"] = 0;
 		}
 
+		const scheduleChanged =
+			input.scheduledAt !== undefined &&
+			(input.scheduledAt?.getTime() ?? null) !==
+				(existing.scheduledAt?.getTime() ?? null);
+		if (scheduleChanged) {
+			data["scheduledAt"] = input.scheduledAt ?? null;
+		}
+
 		const broadcast = await db.marketingBroadcast.update({
 			where: { id: existing.id },
 			data,
@@ -125,8 +134,13 @@ export const updateBroadcast = protectedProcedure
 				name: true,
 				status: true,
 				totalRecipients: true,
+				scheduledAt: true,
 			},
 		});
+
+		if (scheduleChanged) {
+			await rescheduleMarketingSend(broadcast.id, broadcast.scheduledAt);
+		}
 
 		return { broadcast };
 	});

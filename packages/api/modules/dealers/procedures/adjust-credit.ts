@@ -11,7 +11,10 @@ import {
 	iradiusAdjustDealerCredit,
 } from "../lib/iradius-dealer";
 import { buildLedgerComment } from "../lib/ledger";
-import { dealerAmount, notifyDealerWhatsApp } from "../lib/notify-dealer";
+import {
+	buildDealerNoticeParams,
+	notifyDealerWhatsApp,
+} from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 import {
 	acquireDealerWriteLock,
@@ -40,7 +43,7 @@ export const adjustDealerCredit = protectedProcedure
 			direction: z.enum(["add", "deduct"]),
 			amount: z.number().positive().max(1_000_000),
 			note: z.string().trim().max(200).optional(),
-			/** WhatsApp the dealer a confirmation from the org's number. */
+			/** WhatsApp the dealer a confirmation from the official number. */
 			notifyDealer: z.boolean().optional(),
 		}),
 	)
@@ -107,12 +110,14 @@ export const adjustDealerCredit = protectedProcedure
 
 		// Mirror locally. The ledger row carries the iRadius id so the next
 		// sync recognises it as already imported.
-		await db.$transaction([
+		const [, ledgerEntry] = await db.$transaction([
 			db.ispDealer.update({
 				where: { id: dealer.id },
 				data: { credit: remote.finalCredit },
+				select: { id: true },
 			}),
 			db.ispDealerAccount.create({
+				select: { id: true },
 				data: {
 					dealerId: dealer.id,
 					organizationId: scope.organizationId,
@@ -143,23 +148,24 @@ export const adjustDealerCredit = protectedProcedure
 
 		void invalidateStat(FINANCE_STAT_CACHE.summary, [scope.organizationId]);
 
-		let dealerNotified = false;
-		if (input.notifyDealer) {
-			const line =
-				input.direction === "add"
-					? `تمت إضافة رصيد بقيمة ${dealerAmount(input.amount)} إلى حسابك.`
-					: `تم خصم رصيد بقيمة ${dealerAmount(input.amount)} من حسابك.`;
-			const sent = await notifyDealerWhatsApp({
-				organizationId: scope.organizationId,
-				dealerId: dealer.id,
-				text: `${dealer.name}، ${line} رصيدك الحالي: ${dealerAmount(remote.finalCredit)}.${remote.owed > 0 ? ` المتبقي عليك: ${dealerAmount(remote.owed)}.` : ""}${note ? ` (${note})` : ""} — شكراً، LibanCom`,
-			});
-			dealerNotified = sent.sent;
-		}
+		const dealerNotice = await notifyDealerWhatsApp({
+			dealerId: dealer.id,
+			dealerAccountId: ledgerEntry.id,
+			send: input.notifyDealer === true,
+			params: buildDealerNoticeParams({
+				dealer,
+				kind: input.direction === "add" ? "top_up" : "deduction",
+				amount: input.amount,
+				operationDate: remote.operationDate,
+				owed: remote.owed,
+				prepaid: remote.finalCredit,
+				note,
+			}),
+		});
 
 		return {
 			prepaid: remote.finalCredit,
 			owed: remote.owed,
-			dealerNotified,
+			dealerNotice,
 		};
 	});
