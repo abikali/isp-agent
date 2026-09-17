@@ -1098,12 +1098,13 @@ async function handleMessages(
 							break;
 						}
 
-						// Unknown-contact auto-escalation: the phone matched no
-						// active account and the customer has not identified
-						// themselves — hand it to a human once.
-						const unknownNote = await maybeEscalateUnknownContact({
+						// Unknown-contact auto-escalation: the phone matches no
+						// customer and the customer has not identified
+						// themselves — hand it to a human once per exchange.
+						const unknown = await maybeEscalateUnknownContact({
 							conversation: {
 								id: conversation.id,
+								organizationId: channel.agent.organizationId,
 								contactName: conversation.contactName,
 								contactId: conversation.contactId,
 								verifiedCustomerId:
@@ -1113,10 +1114,17 @@ async function handleMessages(
 							},
 							enabledTools: channel.agent.enabledTools,
 							tools,
-							messages: historyMessages,
+							history: historyRows,
+							contextGapThresholdMinutes:
+								channel.agent.contextGapThresholdMinutes,
+							replyText: result.text,
 						});
-						if (unknownNote) {
-							result.text = `${result.text}\n\n${unknownNote}`;
+						if (unknown) {
+							result.text = `${result.text}\n\n${unknown.note}`;
+							result.toolResults = [
+								...(result.toolResults ?? []),
+								unknown.toolResult,
+							];
 						}
 
 						// Send reply

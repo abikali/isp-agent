@@ -3,6 +3,7 @@ import {
 	buildContextGapNote,
 	type DbMessageRow,
 	dbMessagesToModelMessages,
+	modelMessagesToRoleContent,
 	selectHistoryWindow,
 } from "./history";
 
@@ -420,5 +421,35 @@ describe("dbMessagesToModelMessages", () => {
 		expect(out[2]?.role).toBe("tool");
 		expect(out[3]?.role).toBe("assistant");
 		expect(out[4]?.role).toBe("user");
+	});
+});
+
+describe("modelMessagesToRoleContent", () => {
+	it("skips context notices and labels teammate replies as admin", () => {
+		expect(
+			modelMessagesToRoleContent([
+				{
+					role: "user",
+					content:
+						"[Context Notice: 5 hours have passed since the last message.]",
+				},
+				{
+					role: "assistant",
+					content: "[Human teammate reply]\nis the money ready?",
+				},
+				{
+					role: "assistant",
+					content:
+						"[Human teammate reply — voice note sent by the human team. Content is not visible to you.]",
+				},
+				{ role: "user", content: "yes" },
+				{ role: "assistant", content: "Thanks" },
+			]),
+		).toEqual([
+			{ role: "admin", content: "is the money ready?" },
+			{ role: "admin", content: "[media sent by the team]" },
+			{ role: "user", content: "yes" },
+			{ role: "assistant", content: "Thanks" },
+		]);
 	});
 });

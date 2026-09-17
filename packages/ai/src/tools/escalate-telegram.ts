@@ -1,41 +1,18 @@
 import { logger } from "@repo/logs";
+import { getBaseUrl } from "@repo/utils";
 import { tool } from "ai";
 import { z } from "zod";
+import { resolveContactCustomer } from "../contact-customer";
 import { summarizeForEscalation } from "../escalation-summary";
-import { selectHistoryWindow } from "../history";
-import { cleanPhoneNumber, ispGet } from "./lib/isp-api-client";
+import { type DbMessageRow, selectHistoryWindow } from "../history";
+import {
+	buildEscalationMessage,
+	type CustomerDetails,
+	escalationSourceFromToolCallId,
+	type IspCustomerInfo,
+} from "./lib/escalation-message";
+import { lookupCustomerByContactPhone } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
-
-const PRIORITY_EMOJI: Record<string, string> = {
-	high: "🔴",
-	medium: "🟡",
-	low: "🟢",
-};
-
-const PRIORITY_LABEL: Record<string, string> = {
-	high: "URGENT",
-	medium: "MEDIUM",
-	low: "LOW",
-};
-
-function escapeHtml(text: string): string {
-	return text
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
-}
-
-interface CustomerDetails {
-	fullName: string | null;
-	phone: string | null;
-	email: string | null;
-	username: string | null;
-	address: string | null;
-	accountNumber: string;
-	status: string;
-	planName: string | null;
-	stationName: string | null;
-}
 
 function parseChatIds(raw: string | string[]): string[] {
 	if (Array.isArray(raw)) {
@@ -45,132 +22,6 @@ function parseChatIds(raw: string | string[]): string[] {
 		.split(/[\n,]+/)
 		.map((id) => id.trim())
 		.filter((id) => id.length > 0);
-}
-
-// ---------------------------------------------------------------------------
-// Telegram message builder
-// ---------------------------------------------------------------------------
-
-function buildConversationExcerpt(
-	messages: Array<{ role: string; content: string }>,
-	maxChars = 600,
-): string {
-	const recent = messages.slice(-6);
-	const lines: string[] = [];
-	let totalChars = 0;
-
-	for (const msg of recent) {
-		const prefix = msg.role === "user" ? "C" : "A";
-		const content = msg.content.slice(0, 150).replace(/\n/g, " ");
-		const line = `${prefix}: ${content}`;
-		if (totalChars + line.length > maxChars) {
-			break;
-		}
-		lines.push(line);
-		totalChars += line.length;
-	}
-
-	return lines.join("\n");
-}
-
-function buildTelegramMessage(opts: {
-	priority: string;
-	category: string;
-	displayName: string;
-	customer: CustomerDetails | null;
-	ispCustomer: IspCustomerInfo | null;
-	customerUsername: string | undefined;
-	contactId: string | null;
-	contactPhone: string | null;
-	summary: string;
-	actionRequired: string | undefined;
-	conversationExcerpt: string;
-	conversationId: string;
-}): string {
-	const emoji = PRIORITY_EMOJI[opts.priority] ?? "⚪";
-	const priorityLabel =
-		PRIORITY_LABEL[opts.priority] ?? opts.priority.toUpperCase();
-	const categoryLabel =
-		opts.category.charAt(0).toUpperCase() + opts.category.slice(1);
-
-	const lines: string[] = [
-		`${emoji} <b>${priorityLabel}</b> — ${categoryLabel}`,
-		"",
-	];
-
-	// Customer identity line — merge DB customer, ISP lookup, and agent-provided data
-	const nameParts: string[] = [escapeHtml(opts.displayName)];
-	const username =
-		opts.customer?.username ??
-		opts.ispCustomer?.userName ??
-		opts.customerUsername;
-	if (username) {
-		nameParts.push(`· <code>${escapeHtml(username)}</code>`);
-	}
-	lines.push(`👤 ${nameParts.join(" ")}`);
-
-	// Contact info line — prefer verified customer, then ISP lookup, then WhatsApp
-	const phone = opts.customer?.phone ?? opts.contactPhone;
-	const address = opts.customer?.address ?? opts.ispCustomer?.address;
-	const contactParts: string[] = [];
-	if (phone) {
-		contactParts.push(escapeHtml(phone));
-	}
-	if (address) {
-		contactParts.push(escapeHtml(address));
-	}
-	if (contactParts.length > 0) {
-		lines.push(`📞 ${contactParts.join(" · ")}`);
-	}
-
-	// Plan / status line — merge DB and ISP data
-	const planParts: string[] = [];
-	if (opts.customer?.planName) {
-		planParts.push(escapeHtml(opts.customer.planName));
-	} else if (opts.ispCustomer?.accountTypeName) {
-		planParts.push(escapeHtml(opts.ispCustomer.accountTypeName));
-	}
-	if (opts.customer) {
-		planParts.push(escapeHtml(opts.customer.status));
-	} else if (opts.ispCustomer) {
-		// Build status from ISP fields
-		if (opts.ispCustomer.blocked) {
-			planParts.push("BLOCKED");
-		} else if (opts.ispCustomer.active === false) {
-			planParts.push("INACTIVE");
-		} else if (opts.ispCustomer.online) {
-			planParts.push("Online");
-		} else if (opts.ispCustomer.online === false) {
-			planParts.push("Offline");
-		}
-	}
-	if (opts.ispCustomer?.stationName && !opts.customer?.stationName) {
-		planParts.push(escapeHtml(opts.ispCustomer.stationName));
-	}
-	if (planParts.length > 0) {
-		lines.push(`📋 ${planParts.join(" · ")}`);
-	}
-
-	// LLM summary
-	lines.push("", escapeHtml(opts.summary));
-
-	// Action required
-	if (opts.actionRequired) {
-		lines.push("", `⚡ <b>Action:</b> ${escapeHtml(opts.actionRequired)}`);
-	}
-
-	// Raw conversation excerpt
-	if (opts.conversationExcerpt) {
-		lines.push(
-			"",
-			`<blockquote>${escapeHtml(opts.conversationExcerpt)}</blockquote>`,
-		);
-	}
-
-	// Conversation ID (small reference at the bottom)
-	lines.push("", `<code>${escapeHtml(opts.conversationId)}</code>`);
-
-	return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -231,20 +82,11 @@ async function sendTelegramMessages(
 // ISP API customer lookup (enrichment for escalations)
 // ---------------------------------------------------------------------------
 
-interface IspCustomerInfo {
-	userName: string | null;
-	fullName: string | null;
-	address: string | null;
-	online: boolean | null;
-	active: boolean | null;
-	blocked: boolean | null;
-	stationName: string | null;
-	accountTypeName: string | null;
-}
-
 /**
  * Quick ISP API lookup by phone number to enrich escalation messages.
- * Returns null if no ISP config, no phone, or the API returns nothing.
+ * Returns null if no ISP config, no phone, or the phone does not match
+ * exactly one iRadius account — a substring search on a shared or short
+ * number used to put a stranger's name on the escalation.
  * Never throws — failures are silently ignored.
  */
 async function lookupIspCustomer(
@@ -282,20 +124,10 @@ async function lookupIspCustomer(
 			return null;
 		}
 
-		const query = cleanPhoneNumber(phone);
-		const data = await ispGet<
-			Record<string, unknown> | Record<string, unknown>[] | null
-		>(
+		const customer = await lookupCustomerByContactPhone(
 			{ baseUrl: baseUrl.replace(/\/+$/, ""), userName, password },
-			"/user-info",
-			{ mobile: query },
+			phone,
 		);
-
-		if (!data) {
-			return null;
-		}
-
-		const customer = Array.isArray(data) ? data[0] : data;
 		if (!customer) {
 			return null;
 		}
@@ -321,6 +153,44 @@ async function lookupIspCustomer(
 	} catch {
 		return null;
 	}
+}
+
+async function loadCustomerDetails(
+	customerId: string,
+): Promise<CustomerDetails | null> {
+	const { db } = await import("@repo/database");
+	const dbCustomer = await db.customer.findUnique({
+		where: { id: customerId },
+		select: {
+			firstName: true,
+			lastName: true,
+			phone: true,
+			email: true,
+			username: true,
+			address: true,
+			accountNumber: true,
+			status: true,
+			plan: { select: { name: true } },
+			station: { select: { name: true } },
+		},
+	});
+	if (!dbCustomer) {
+		return null;
+	}
+	return {
+		fullName:
+			[dbCustomer.firstName, dbCustomer.lastName]
+				.filter(Boolean)
+				.join(" ") || null,
+		phone: dbCustomer.phone,
+		email: dbCustomer.email,
+		username: dbCustomer.username,
+		address: dbCustomer.address,
+		accountNumber: dbCustomer.accountNumber,
+		status: dbCustomer.status,
+		planName: dbCustomer.plan?.name ?? null,
+		stationName: dbCustomer.station?.name ?? null,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -474,7 +344,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 					"Task category: installation = new setup, maintenance = scheduled/requested maintenance, repair = broken equipment or line fix, support = general tech support, billing = payment or invoice issues, general = anything else",
 				),
 		}),
-		execute: async (args) => {
+		execute: async (args, options) => {
 			try {
 				// ---- Validate Telegram config ----
 				const telegramBotToken = context.toolConfig?.[
@@ -550,15 +420,19 @@ function createEscalateTelegramTool(context: ToolContext) {
 					};
 				}
 
+				const source = escalationSourceFromToolCallId(
+					options?.toolCallId,
+				);
+				const now = new Date();
+
 				// ---- Load conversation, customer, and recent messages ----
 				let contactId: string | null = null;
 				let contactName: string | null = null;
 				let customer: CustomerDetails | null = null;
+				let customerMatch: "verified" | "phone" | null = null;
 				let verifiedCustomerId: string | null = null;
-				let conversationMessages: Array<{
-					role: string;
-					content: string;
-				}> = [];
+				let organizationSlug: string | null = null;
+				let historyRows: DbMessageRow[] = [];
 
 				try {
 					const { loadHistoryRows } = await import(
@@ -571,6 +445,14 @@ function createEscalateTelegramTool(context: ToolContext) {
 								contactId: true,
 								contactName: true,
 								verifiedCustomerId: true,
+								agent: {
+									select: {
+										organizationId: true,
+										organization: {
+											select: { slug: true },
+										},
+									},
+								},
 							},
 						}),
 						loadHistoryRows(context.conversationId, 15),
@@ -578,57 +460,32 @@ function createEscalateTelegramTool(context: ToolContext) {
 
 					// Same cut the reply model gets: a chat revived after a
 					// long silence must not summarise the old exchange.
-					conversationMessages =
-						selectHistoryWindow(recentMessages)?.rows ??
+					historyRows =
+						selectHistoryWindow(recentMessages, { now })?.rows ??
 						recentMessages;
 
 					if (conversation) {
 						contactId = conversation.contactId;
 						contactName = conversation.contactName;
 						verifiedCustomerId = conversation.verifiedCustomerId;
+						organizationSlug = conversation.agent.organization.slug;
 
 						if (conversation.verifiedCustomerId) {
-							const dbCustomer = await db.customer.findUnique({
-								where: {
-									id: conversation.verifiedCustomerId,
-								},
-								select: {
-									firstName: true,
-									lastName: true,
-									phone: true,
-									email: true,
-									username: true,
-									address: true,
-									accountNumber: true,
-									status: true,
-									plan: {
-										select: { name: true },
-									},
-									station: {
-										select: { name: true },
-									},
-								},
-							});
-
-							if (dbCustomer) {
-								customer = {
-									fullName:
-										[
-											dbCustomer.firstName,
-											dbCustomer.lastName,
-										]
-											.filter(Boolean)
-											.join(" ") || null,
-									phone: dbCustomer.phone,
-									email: dbCustomer.email,
-									username: dbCustomer.username,
-									address: dbCustomer.address,
-									accountNumber: dbCustomer.accountNumber,
-									status: dbCustomer.status,
-									planName: dbCustomer.plan?.name ?? null,
-									stationName:
-										dbCustomer.station?.name ?? null,
-								};
+							customer = await loadCustomerDetails(
+								conversation.verifiedCustomerId,
+							);
+							customerMatch = customer ? "verified" : null;
+						} else if (conversation.contactId) {
+							// Identity only — a phone match on a PENDING or
+							// stopped account is shown to the team but never
+							// verifies the conversation.
+							const match = await resolveContactCustomer(
+								conversation.agent.organizationId,
+								conversation.contactId,
+							);
+							if (match) {
+								customer = await loadCustomerDetails(match.id);
+								customerMatch = customer ? "phone" : null;
 							}
 						}
 					}
@@ -642,7 +499,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 					);
 				}
 
-				// ---- ISP API lookup when no verified customer ----
+				// ---- ISP API lookup when no customer on file ----
 				let ispCustomer: IspCustomerInfo | null = null;
 				if (!customer && contactId) {
 					ispCustomer = await lookupIspCustomer(
@@ -659,42 +516,74 @@ function createEscalateTelegramTool(context: ToolContext) {
 					context.contactName ??
 					"Unknown";
 
-				// ---- LLM summary (fall back to agent args on failure) ----
-				const llmSummary = await summarizeForEscalation({
-					conversationMessages,
-					customerName: displayName,
-					customerPhone: customer?.phone ?? undefined,
-					agentHints: {
-						reason: args.reason,
-						summary: args.summary,
-						priority: args.priority,
-						category: args.category,
-						actionRequired: args.actionRequired,
-					},
-				});
+				// ---- LLM summary ----
+				// The caller's priority and category are final: the
+				// summariser used to override them and turned most
+				// "medium" escalations into URGENT tasks. It only rewrites
+				// the summary and the action. The safety net already ran
+				// the summariser to build its args, so it is not run twice.
+				const llmSummary =
+					source === "safety-net"
+						? null
+						: await summarizeForEscalation({
+								conversationMessages: historyRows.map(
+									(row) => ({
+										role: row.role,
+										content: row.content,
+									}),
+								),
+								customerName: displayName,
+								customerPhone: customer?.phone ?? undefined,
+								agentHints: {
+									reason: args.reason,
+									summary: args.summary,
+									priority: args.priority,
+									category: args.category,
+									actionRequired: args.actionRequired,
+								},
+							});
+
+				if (
+					llmSummary &&
+					(llmSummary.priority !== args.priority ||
+						llmSummary.category !== args.category)
+				) {
+					logger.info("escalation-priority-disagreement", {
+						conversationId: context.conversationId,
+						source,
+						callerPriority: args.priority,
+						summaryPriority: llmSummary.priority,
+						callerCategory: args.category,
+						summaryCategory: llmSummary.category,
+					});
+				}
 
 				const finalSummary = llmSummary?.summary ?? args.summary;
-				const finalPriority = llmSummary?.priority ?? args.priority;
-				const finalCategory = llmSummary?.category ?? args.category;
+				const finalPriority = args.priority;
+				const finalCategory = args.category;
 				const finalAction =
 					llmSummary?.actionRequired ?? args.actionRequired;
 
 				// ---- Build and send Telegram message ----
-				const excerpt = buildConversationExcerpt(conversationMessages);
-
-				const message = buildTelegramMessage({
+				const message = buildEscalationMessage({
 					priority: finalPriority,
 					category: finalCategory,
+					reason: args.reason,
+					source,
 					displayName,
 					customer,
+					customerMatch,
 					ispCustomer,
 					customerUsername: args.customerUsername,
-					contactId,
 					contactPhone: contactId,
 					summary: finalSummary,
 					actionRequired: finalAction,
-					conversationExcerpt: excerpt,
+					rows: historyRows,
 					conversationId: context.conversationId,
+					conversationUrl: organizationSlug
+						? `${getBaseUrl()}/app/${organizationSlug}/conversations/${context.conversationId}`
+						: null,
+					now,
 				});
 
 				const { succeeded, failed } = await sendTelegramMessages(

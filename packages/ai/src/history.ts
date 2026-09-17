@@ -579,7 +579,7 @@ function describeAdminMedia(attachmentType: string): string {
 const MEDIA_PLACEHOLDER_RE =
 	/^\s*(?:\[(?:voice message|image|video|document|audio) received\]|voice note|image|video|document|audio)?\s*$/i;
 
-function isMediaPlaceholder(content: string): boolean {
+export function isMediaPlaceholder(content: string): boolean {
 	return MEDIA_PLACEHOLDER_RE.test(content);
 }
 
@@ -745,11 +745,17 @@ export function legacyRowToParts(
 	return assistantMessageToParts(content, toolResults);
 }
 
+const TEAMMATE_MARKER = "[Human teammate reply";
+
 /**
  * Flatten ModelMessage[] into {role, content}[] for the escalation guard /
  * summarizer LLMs. Tool messages are dropped; assistant tool-call parts are
  * rendered as `[called <toolName>]` markers so the summarizer sees what
  * actions the agent took.
+ *
+ * Injected `[Context Notice …]` rows are not customer messages and are
+ * skipped. A human teammate's replay row comes back as role `admin` with the
+ * marker line stripped, so the summary does not credit the bot with it.
  */
 export function modelMessagesToRoleContent(
 	messages: ModelMessage[],
@@ -757,6 +763,28 @@ export function modelMessagesToRoleContent(
 	const out: Array<{ role: string; content: string }> = [];
 	for (const m of messages) {
 		if (m.role !== "user" && m.role !== "assistant") {
+			continue;
+		}
+		if (
+			typeof m.content === "string" &&
+			m.role === "user" &&
+			m.content.startsWith("[Context Notice")
+		) {
+			continue;
+		}
+		if (
+			typeof m.content === "string" &&
+			m.role === "assistant" &&
+			m.content.startsWith(TEAMMATE_MARKER)
+		) {
+			const newline = m.content.indexOf("\n");
+			out.push({
+				role: "admin",
+				content:
+					newline === -1
+						? "[media sent by the team]"
+						: m.content.slice(newline + 1),
+			});
 			continue;
 		}
 		const content =

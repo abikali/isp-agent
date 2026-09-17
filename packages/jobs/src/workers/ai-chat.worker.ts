@@ -319,9 +319,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				}
 
 				// Unknown-contact auto-escalation (shared with the webhook path).
-				const unknownNote = await maybeEscalateUnknownContact({
+				const unknown = await maybeEscalateUnknownContact({
 					conversation: {
 						id: conversation.id,
+						organizationId: conversation.agent.organizationId,
 						contactName: conversation.contactName,
 						contactId: conversation.contactId,
 						verifiedCustomerId: conversation.verifiedCustomerId,
@@ -329,10 +330,17 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					},
 					enabledTools: conversation.agent.enabledTools,
 					tools,
-					messages,
+					history: historyRows,
+					contextGapThresholdMinutes:
+						conversation.agent.contextGapThresholdMinutes,
+					replyText: result.text,
 				});
-				if (unknownNote) {
-					result.text = `${result.text}\n\n${unknownNote}`;
+				if (unknown) {
+					result.text = `${result.text}\n\n${unknown.note}`;
+					result.toolResults = [
+						...(result.toolResults ?? []),
+						unknown.toolResult,
+					];
 				}
 
 				const sendResult = await sendTextMessage(
