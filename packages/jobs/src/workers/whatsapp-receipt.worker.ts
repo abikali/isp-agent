@@ -9,17 +9,21 @@ import {
 	WHATSAPP_RECEIPT_QUEUE_NAME,
 } from "../queues/whatsapp-receipt.queue";
 import type {
-	WhatsAppReceiptJobData,
 	WhatsAppReceiptJobResult,
+	WhatsAppReceiptQueueJobData,
 } from "../types";
+import { processReferralRewardJob } from "./whatsapp-referral-reward";
 
 export function createWhatsAppReceiptWorker(): Worker<
-	WhatsAppReceiptJobData,
+	WhatsAppReceiptQueueJobData,
 	WhatsAppReceiptJobResult
 > {
-	return new Worker<WhatsAppReceiptJobData, WhatsAppReceiptJobResult>(
+	return new Worker<WhatsAppReceiptQueueJobData, WhatsAppReceiptJobResult>(
 		WHATSAPP_RECEIPT_QUEUE_NAME,
 		async (job) => {
+			if ("kind" in job.data) {
+				return processReferralRewardJob(job.data, job);
+			}
 			const { phone: rawPhone, paymentId, source = "auto" } = job.data;
 			const actionLabel =
 				source === "manual"

@@ -18,3 +18,20 @@ export async function queueWhatsAppReceipt(
 	});
 	return job.id ?? "";
 }
+
+/**
+ * Queue the referrer's "free month" WhatsApp for an approved referral free
+ * payment. The caller claims `Payment.referralRewardNotifiedAt` first; the
+ * dedupe id is a second guard against a double enqueue.
+ */
+export async function queueWhatsAppReferralReward(
+	paymentId: string,
+): Promise<string> {
+	const queue = getWhatsAppReceiptQueue();
+	const job = await queue.add(
+		"send-referral-reward",
+		{ kind: "referral-reward", paymentId },
+		{ deduplication: { id: `referral-reward:${paymentId}` } },
+	);
+	return job.id ?? "";
+}

@@ -1,6 +1,9 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "../connection";
-import type { WhatsAppReceiptJobData } from "../types";
+import type { WhatsAppReceiptQueueJobData } from "../types";
+
+/** Receipts and referral-reward messages share this queue. */
+type WhatsAppReceiptJobData = WhatsAppReceiptQueueJobData;
 
 export const WHATSAPP_RECEIPT_QUEUE_NAME = "whatsapp-receipt";
 

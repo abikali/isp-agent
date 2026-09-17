@@ -1,20 +1,25 @@
 import { ORPCError } from "@orpc/server";
 import { db } from "@repo/database";
+import { queueWhatsAppReferralReward } from "@repo/jobs";
+import { logger } from "@repo/logs";
 import {
 	IRadiusUserNotFoundError,
 	iradiusSetActive,
 } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { VOID_REASON, voidInvoice } from "./invoice-void";
+import {
+	isReferralRewardEligible,
+	type ReferralRewardCandidate,
+} from "./referral-reward";
 import { closeReviewTasksForCustomer } from "./review-tasks";
 
 /**
  * Minimal shape `reviewOnePayment` needs. Callers load it with their own
  * scope filters (org/dealer) and pass the row through.
  */
-export interface ReviewablePayment {
+export interface ReviewablePayment extends ReferralRewardCandidate {
 	id: string;
-	stoppedAccount: boolean;
 	customerId: string;
 	invoiceId: string | null;
 	customer: { externalId: string | null; username: string | null };
@@ -31,7 +36,9 @@ export interface ReviewablePayment {
  * local transaction run — stamp `reviewedAt`, flip the customer to INACTIVE,
  * and void the invoice this stop replaces. The review task is then closed.
  *
- * For a normal flagged payment it only stamps `reviewedAt`.
+ * For a normal flagged payment it stamps `reviewedAt`; when that payment is a
+ * referral free month it also queues the referrer's "free month" WhatsApp
+ * (see `claimReferralReward`).
  *
  * `tolerateMissing` forgives the "iRadius user already deleted" error and
  * still records the local deactivation. The single procedure sets it only
@@ -45,7 +52,7 @@ export async function reviewOnePayment(args: {
 	payment: ReviewablePayment;
 	iradiusDisabled?: boolean;
 	tolerateMissing?: boolean;
-}): Promise<void> {
+}): Promise<{ referralRewardQueued: boolean }> {
 	const {
 		organizationId,
 		userId,
@@ -81,7 +88,7 @@ export async function reviewOnePayment(args: {
 
 	if (!payment.stoppedAccount) {
 		await runLocal();
-		return;
+		return { referralRewardQueued: await claimReferralReward(payment) };
 	}
 
 	// Deactivate in iRadius FIRST when approving a stopped payment. If that
@@ -111,4 +118,61 @@ export async function reviewOnePayment(args: {
 		local: runLocal,
 	});
 	await closeReviewTasksForCustomer(organizationId, payment.customerId);
+	return { referralRewardQueued: false };
+}
+
+/**
+ * Queue the referrer's "free month" WhatsApp for a just-approved payment.
+ * Never throws — a messaging problem must not fail the approval.
+ *
+ * `payment` is the state loaded before the review, so a row that was already
+ * reviewed never messages. The claim on `referralRewardNotifiedAt` is atomic
+ * (a double-clicked approve queues once), and a referrer whose reward for
+ * the same new customer was already messaged — a re-recorded payment — is not
+ * messaged again.
+ */
+async function claimReferralReward(
+	payment: ReviewablePayment,
+): Promise<boolean> {
+	if (!isReferralRewardEligible(payment)) {
+		return false;
+	}
+	try {
+		const alreadyMessaged = await db.payment.findFirst({
+			where: {
+				id: { not: payment.id },
+				customerId: payment.customerId,
+				referredCustomerId: payment.referredCustomerId,
+				referralRewardNotifiedAt: { not: null },
+			},
+			select: { id: true },
+		});
+		if (alreadyMessaged) {
+			return false;
+		}
+		const { count } = await db.payment.updateMany({
+			where: { id: payment.id, referralRewardNotifiedAt: null },
+			data: { referralRewardNotifiedAt: new Date() },
+		});
+		if (count === 0) {
+			return false;
+		}
+		try {
+			await queueWhatsAppReferralReward(payment.id);
+		} catch (error) {
+			// Release the claim so the message isn't marked as handled.
+			await db.payment.update({
+				where: { id: payment.id },
+				data: { referralRewardNotifiedAt: null },
+			});
+			throw error;
+		}
+		return true;
+	} catch (error) {
+		logger.warn("[Referral Reward] Failed to queue WhatsApp", {
+			paymentId: payment.id,
+			error: String(error),
+		});
+		return false;
+	}
 }

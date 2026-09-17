@@ -42,7 +42,11 @@ export const reviewPayment = protectedProcedure
 			},
 			select: {
 				id: true,
+				reviewedAt: true,
 				stoppedAccount: true,
+				freeAccount: true,
+				referredCustomerId: true,
+				referralRewardNotifiedAt: true,
 				customerId: true,
 				invoiceId: true,
 				customer: {
@@ -57,7 +61,17 @@ export const reviewPayment = protectedProcedure
 			});
 		}
 
-		await reviewOnePayment({
+		// Already reviewed (double click, stale tab): re-running would re-stamp
+		// reviewedAt and, for a stopped account, deactivate in iRadius again.
+		if (payment.reviewedAt) {
+			return {
+				success: true,
+				alreadyReviewed: true,
+				referralRewardQueued: false,
+			};
+		}
+
+		const { referralRewardQueued } = await reviewOnePayment({
 			organizationId: input.organizationId,
 			userId: user.id,
 			payment,
@@ -69,5 +83,5 @@ export const reviewPayment = protectedProcedure
 
 		notifyBadgeForOrganization(input.organizationId);
 
-		return { success: true };
+		return { success: true, alreadyReviewed: false, referralRewardQueued };
 	});

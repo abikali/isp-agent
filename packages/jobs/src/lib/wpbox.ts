@@ -243,3 +243,89 @@ export async function sendWhatsAppMaintenanceVisit(params: {
 	});
 	return result.ok;
 }
+
+// ── Referral reward ("free month") ─────────────────────────────────────────
+
+/** Month names as written in Lebanon (Syriac calendar names). */
+const MONTH_NAMES_AR = [
+	"كانون الثاني",
+	"شباط",
+	"آذار",
+	"نيسان",
+	"أيار",
+	"حزيران",
+	"تموز",
+	"آب",
+	"أيلول",
+	"تشرين الأول",
+	"تشرين الثاني",
+	"كانون الأول",
+];
+
+/** "أيلول 2026" for a billing month (1-based month). */
+export function arabicMonthLabel(year: number, month: number): string {
+	const name = MONTH_NAMES_AR[month - 1];
+	return name ? `${name} ${year}` : `${month}/${year}`;
+}
+
+/**
+ * Meta rejects template parameters that are empty or contain newlines, tabs
+ * or more than four consecutive spaces — one bad customer name would fail
+ * the whole send permanently.
+ */
+export function sanitizeTemplateParam(
+	value: string | null | undefined,
+	fallback: string,
+	maxLength = 60,
+): string {
+	const clean = (value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+	return clean.trim() || fallback;
+}
+
+/**
+ * Tell a referrer their free month was approved — `referral_free_month` (ar,
+ * UTILITY): "مرحباً {{1}}، شكراً لأنك عرّفتنا على {{2}} 🎉 تمّت إضافة شهر
+ * مجاني على اشتراكك عن شهر {{3}}. شكراً لثقتك بنا."
+ * {{1}} referrer's name, {{2}} the new customer they brought, {{3}} the month.
+ */
+export async function sendWhatsAppReferralReward(params: {
+	phone: string;
+	paymentId: string;
+	referrerName: string | null;
+	referredName: string | null;
+	year: number;
+	month: number;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "referral_free_month",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: [
+					{
+						type: "text",
+						text: sanitizeTemplateParam(
+							params.referrerName,
+							"عميلنا",
+						),
+					},
+					{
+						type: "text",
+						text: sanitizeTemplateParam(
+							params.referredName,
+							"صديقك",
+						),
+					},
+					{
+						type: "text",
+						text: arabicMonthLabel(params.year, params.month),
+					},
+				],
+			},
+		],
+		logContext: { paymentId: params.paymentId },
+		logTag: "[WhatsApp Referral Reward]",
+	});
+}

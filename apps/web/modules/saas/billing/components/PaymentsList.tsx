@@ -329,6 +329,38 @@ function withLive<T extends { id: string }>(
 		: customer;
 }
 
+/** A referral free month — approving it WhatsApps the referrer. */
+function isReferralReward(payment: PaymentRow): boolean {
+	return (
+		payment.freeAccount &&
+		!payment.stoppedAccount &&
+		payment.referredCustomer !== null
+	);
+}
+
+/**
+ * Why the new customer behind a referral free month looks doubtful — not
+ * active, or their line has expired. Worth a look before approving; never a
+ * block.
+ */
+function referredCustomerWarning(payment: PaymentRow): string | null {
+	const referred = payment.referredCustomer;
+	if (!payment.freeAccount || !referred) {
+		return null;
+	}
+	const problems: string[] = [];
+	if (referred.status !== "ACTIVE") {
+		problems.push(referred.status.toLowerCase());
+	}
+	if (
+		referred.expiresAt &&
+		new Date(referred.expiresAt).getTime() < Date.now()
+	) {
+		problems.push(`expired ${formatDate(referred.expiresAt)}`);
+	}
+	return problems.length > 0 ? problems.join(", ") : null;
+}
+
 function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
 	const { data: stats } = usePaymentStatsQuery(billingMonthId);
 
@@ -892,6 +924,14 @@ export function PaymentsList() {
 			| "set-expiry";
 		customer: IradiusCustomerRef;
 	} | null>(null);
+	// Approving a referral free month whose new customer is inactive or
+	// expired: confirm first (a warning, not a block).
+	const [referralConfirm, setReferralConfirm] = useState<{
+		referrerName: string;
+		referredName: string;
+		warning: string;
+		approve: () => void;
+	} | null>(null);
 	// Opened when "Approve & Deactivate" fails because the customer was
 	// already deleted in iRadius. Carries the row so we can name the customer
 	// and retry the review with `force` (local-only deactivation).
@@ -997,6 +1037,15 @@ export function PaymentsList() {
 			.length;
 	}, [reviewablePaymentIds, payments]);
 
+	// Referral free months in the selection: approving them WhatsApps the
+	// referrer, and a doubtful new customer is worth a warning first.
+	const selectedReferrals = rows.filter(
+		(p) => reviewablePaymentIds.includes(p.id) && isReferralReward(p),
+	);
+	const selectedDoubtfulReferralCount = selectedReferrals.filter(
+		(p) => referredCustomerWarning(p) !== null,
+	).length;
+
 	function handleBulkReview() {
 		if (!organizationId || reviewablePaymentIds.length === 0) {
 			return;
@@ -1008,6 +1057,11 @@ export function PaymentsList() {
 					const parts: string[] = [`Reviewed ${result.succeeded}`];
 					if (result.skipped > 0) {
 						parts.push(`${result.skipped} already reviewed`);
+					}
+					if (result.referralRewardsQueued > 0) {
+						parts.push(
+							`${result.referralRewardsQueued} free-month WhatsApp${result.referralRewardsQueued === 1 ? "" : "s"} queued`,
+						);
 					}
 					if (result.failed > 0) {
 						parts.push(`${result.failed} failed`);
@@ -1356,6 +1410,53 @@ export function PaymentsList() {
 						declineStoppedPayment.isPending &&
 						declineStoppedPayment.variables?.paymentId ===
 							payment.id;
+					const referralReward = isReferralReward(payment);
+					const referralWarning = referralReward
+						? referredCustomerWarning(payment)
+						: null;
+					const referrerName =
+						displayName(
+							payment.customer.firstName,
+							payment.customer.lastName,
+						) ||
+						payment.customer.username ||
+						"the customer";
+					const referredName = payment.referredCustomer
+						? displayName(
+								payment.referredCustomer.firstName,
+								payment.referredCustomer.lastName,
+							) ||
+							payment.referredCustomer.username ||
+							"the new customer"
+						: "";
+					const approve = () => {
+						if (!organizationId) {
+							return;
+						}
+						reviewPayment.mutate(
+							{ organizationId, paymentId: payment.id },
+							{
+								onSuccess: (result) => {
+									if (result.alreadyReviewed) {
+										toast.info("Already reviewed");
+									} else if (result.referralRewardQueued) {
+										toast.success(
+											`Marked as reviewed · free-month WhatsApp queued for ${referrerName}`,
+										);
+									} else {
+										toast.success("Marked as reviewed");
+									}
+								},
+								onError: (error) => {
+									if (isIradiusUserMissing(error)) {
+										setIradiusMissingPayment(payment);
+										return;
+									}
+									toast.error(error.message);
+								},
+							},
+						);
+					};
 
 					return (
 						<div className="flex items-center gap-1">
@@ -1397,49 +1498,41 @@ export function PaymentsList() {
 									</Tooltip>
 								)}
 
-							{/* Review button — always visible when needed */}
+							{/* Review button — always visible when needed. A
+							    referral free month whose new customer looks
+							    doubtful asks first, but never blocks. */}
 							{organizationId && needsReview && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
 											size="sm"
 											variant="ghost"
-											className="text-emerald-600"
+											className={
+												referralWarning
+													? "text-amber-600"
+													: "text-emerald-600"
+											}
 											disabled={
 												isReviewing || isDeclining
 											}
-											onClick={() =>
-												reviewPayment.mutate(
-													{
-														organizationId,
-														paymentId: payment.id,
-													},
-													{
-														onSuccess: () =>
-															toast.success(
-																"Marked as reviewed",
-															),
-														onError: (error) => {
-															if (
-																isIradiusUserMissing(
-																	error,
-																)
-															) {
-																setIradiusMissingPayment(
-																	payment,
-																);
-																return;
-															}
-															toast.error(
-																error.message,
-															);
-														},
-													},
-												)
-											}
+											onClick={() => {
+												if (referralWarning) {
+													setReferralConfirm({
+														referrerName,
+														referredName,
+														warning:
+															referralWarning,
+														approve,
+													});
+													return;
+												}
+												approve();
+											}}
 										>
 											{isReviewing ? (
 												<Loader2Icon className="size-3.5 animate-spin" />
+											) : referralWarning ? (
+												<AlertTriangleIcon className="size-3.5" />
 											) : (
 												<CheckIcon className="size-3.5" />
 											)}
@@ -1450,7 +1543,9 @@ export function PaymentsList() {
 											? "Approve & Deactivate"
 											: canReprice
 												? "Approve as-is — keep current pricing, remainder stays owed"
-												: "Mark as reviewed"}
+												: referralReward
+													? `Approve — sends free-month WhatsApp to ${referrerName}${referralWarning ? ` (new customer ${referralWarning})` : ""}`
+													: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
 							)}
@@ -2203,6 +2298,35 @@ export function PaymentsList() {
 													? `${selectedStoppedCount} of these ${selectedStoppedCount === 1 ? "is a stopped account" : "are stopped accounts"} — approving will deactivate ${selectedStoppedCount === 1 ? "that customer" : "those customers"} in iRadius and void the matching invoice. Already-reviewed payments are skipped.`
 													: "The selected flagged payments will be marked as reviewed and leave the Needs Review queue. Already-reviewed payments are skipped."}
 											</AlertDialogDescription>
+											{selectedReferrals.length > 0 && (
+												<p className="text-sm text-muted-foreground">
+													{selectedReferrals.length}{" "}
+													referral reward
+													{selectedReferrals.length ===
+													1
+														? ""
+														: "s"}{" "}
+													will be messaged on
+													WhatsApp.
+												</p>
+											)}
+											{selectedDoubtfulReferralCount >
+												0 && (
+												<p className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+													<AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+													{
+														selectedDoubtfulReferralCount
+													}{" "}
+													of the referred new
+													customers{" "}
+													{selectedDoubtfulReferralCount ===
+													1
+														? "is"
+														: "are"}{" "}
+													inactive or expired — check
+													the referral is real.
+												</p>
+											)}
 										</AlertDialogHeader>
 										<AlertDialogFooter>
 											<AlertDialogCancel>
@@ -2459,6 +2583,49 @@ export function PaymentsList() {
 					</AlertDialogContent>
 				</AlertDialog>
 			)}
+
+			<AlertDialog
+				open={!!referralConfirm}
+				onOpenChange={(o) => !o && setReferralConfirm(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Approve this referral free month?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{referralConfirm && (
+								<>
+									<span className="font-medium text-foreground">
+										{referralConfirm.referredName}
+									</span>
+									, the new customer{" "}
+									{referralConfirm.referrerName} brought in,
+									is {referralConfirm.warning}. Check the
+									referral is real before approving.
+									<br />
+									<br />
+									Approving keeps the free month and sends{" "}
+									{referralConfirm.referrerName} the
+									free-month WhatsApp.
+								</>
+							)}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={reviewPayment.isPending}
+							onClick={() => {
+								referralConfirm?.approve();
+								setReferralConfirm(null);
+							}}
+						>
+							Approve anyway
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/*
 			 * Per-row iRadius dialogs. One state owns the active kind +

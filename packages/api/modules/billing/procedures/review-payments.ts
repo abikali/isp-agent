@@ -61,6 +61,9 @@ export const reviewPayments = protectedProcedure
 				id: true,
 				reviewedAt: true,
 				stoppedAccount: true,
+				freeAccount: true,
+				referredCustomerId: true,
+				referralRewardNotifiedAt: true,
 				customerId: true,
 				invoiceId: true,
 				customer: {
@@ -77,6 +80,7 @@ export const reviewPayments = protectedProcedure
 
 		let succeeded = 0;
 		let skipped = 0;
+		let referralRewardsQueued = 0;
 		const failures: Array<{ id: string; reason: string }> = [];
 
 		for (const payment of payments) {
@@ -86,7 +90,7 @@ export const reviewPayments = protectedProcedure
 				continue;
 			}
 			try {
-				await reviewOnePayment({
+				const { referralRewardQueued } = await reviewOnePayment({
 					organizationId: input.organizationId,
 					userId: user.id,
 					payment,
@@ -96,6 +100,9 @@ export const reviewPayments = protectedProcedure
 					tolerateMissing: true,
 				});
 				succeeded++;
+				if (referralRewardQueued) {
+					referralRewardsQueued++;
+				}
 			} catch (error) {
 				const reason =
 					error instanceof Error ? error.message : "Unknown error";
@@ -114,6 +121,7 @@ export const reviewPayments = protectedProcedure
 			skipped,
 			failed: failures.length,
 			failures,
+			referralRewardsQueued,
 			requested: input.paymentIds.length,
 		};
 	});
