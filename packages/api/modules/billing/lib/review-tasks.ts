@@ -10,6 +10,7 @@
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { notifyTaskWorkers } from "../../tasks/lib/notify-task-workers";
+import { bustTaskStats } from "../../tasks/lib/stats-cache";
 
 export const REVIEW_STOPPED_TASK_TITLE_PREFIX = "Review stopped payment:";
 
@@ -61,6 +62,11 @@ export async function cancelOpenUninstallTasks(
 				detail: "The customer was reactivated — do not uninstall.",
 			});
 		}
+		for (const organizationId of new Set(
+			tasks.map((t) => t.organizationId),
+		)) {
+			bustTaskStats(organizationId);
+		}
 	} catch (err) {
 		logger.warn("[Uninstall] Failed to cancel open uninstall tasks", {
 			customerId,
@@ -90,6 +96,7 @@ export async function closeReviewTasksForCustomer(
 				completedAt: new Date(),
 			},
 		});
+		bustTaskStats(organizationId);
 	} catch (err) {
 		logger.warn("[Stopped Payment] Failed to close review task", {
 			customerId,

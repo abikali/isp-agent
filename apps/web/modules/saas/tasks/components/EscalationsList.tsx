@@ -312,6 +312,19 @@ export function EscalationsList({
 		sortOrder,
 	});
 
+	const hasFilters =
+		search.trim() !== "" ||
+		status !== "all" ||
+		priority !== "all" ||
+		followUp !== "all";
+	const clearFilters = () => {
+		setSearch("");
+		setStatus("all");
+		setPriority("all");
+		setFollowUp("all");
+		resetPage();
+	};
+
 	const columns = useEscalationColumns(organizationSlug);
 
 	const selectedIds = Object.keys(rowSelection);
@@ -439,15 +452,26 @@ export function EscalationsList({
 							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
 								<BotIcon className="mb-3 size-10 text-muted-foreground/50" />
 								<h3 className="mb-1 text-lg font-medium">
-									{total === 0
+									{!hasFilters
 										? "No AI escalations yet"
-										: "No results found"}
+										: search.trim()
+											? `No escalations match “${search.trim()}”`
+											: "No escalations match these filters"}
 								</h3>
 								<p className="text-sm text-muted-foreground">
-									{total === 0
-										? "Escalations will appear here when AI agents need human help."
-										: "Try adjusting your filters or search term."}
+									{hasFilters
+										? "Try another search term or clear the filters."
+										: "Escalations will appear here when AI agents need human help."}
 								</p>
+								{hasFilters && (
+									<Button
+										variant="outline"
+										className="mt-4"
+										onClick={clearFilters}
+									>
+										Clear filters
+									</Button>
+								)}
 							</div>
 						}
 					/>

@@ -57,7 +57,7 @@ export function TaskFilters({
 			<div className="relative w-full sm:min-w-[200px] sm:max-w-xs sm:flex-1">
 				<SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
 				<Input
-					placeholder="Search tasks..."
+					placeholder="Search task, customer, phone, account, worker…"
 					value={search}
 					onChange={(e) => onSearchChange(e.target.value)}
 					className="pl-9"

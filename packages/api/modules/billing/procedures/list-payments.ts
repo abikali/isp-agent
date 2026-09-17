@@ -5,11 +5,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import {
-	assignmentFilterValue,
-	buildDateRangeFilter,
-	customerSearchFilter,
-} from "../lib/filters";
+import { customerSearchWhere } from "../../customers/lib/customer-search";
+import { assignmentFilterValue, buildDateRangeFilter } from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
 import { receiptStatusWhere } from "../lib/receipt-status";
 import { isReferralRewardMessagingEnabled } from "../lib/review-payment-core";
@@ -149,7 +146,12 @@ export const listPayments = protectedProcedure
 								mode: "insensitive" as const,
 							},
 						},
-						{ customer: customerSearchFilter(input.search) },
+						{
+							customer: await customerSearchWhere(
+								input.organizationId,
+								input.search,
+							),
+						},
 					],
 				},
 			];

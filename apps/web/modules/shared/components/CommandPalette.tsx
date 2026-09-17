@@ -7,6 +7,7 @@ import {
 } from "@saas/organizations/client";
 import { orpc } from "@shared/lib/orpc";
 import { setTheme } from "@shared/stores/theme-store";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -135,16 +136,23 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 		[onClose],
 	);
 
-	// Debounced server search
+	// Debounced server search — each request runs the digits-only phone scan
+	// and the join-heavy task search, so don't fire one per keystroke.
 	const trimmedQuery = query.trim();
-	const enableSearch = trimmedQuery.length >= 2 && activeOrganization != null;
+	const [debouncedQuery] = useDebouncedValue(trimmedQuery, { wait: 300 });
+	const enableSearch =
+		debouncedQuery.length >= 2 && activeOrganization != null;
 
-	const { data: searchData, isLoading: searchLoading } = useQuery({
+	const {
+		data: searchData,
+		isLoading: searchLoading,
+		isPlaceholderData,
+	} = useQuery({
 		...orpc.shared.search.queryOptions({
 			input: {
 				organizationId: activeOrganization?.id ?? "",
 				organizationSlug: activeOrganization?.slug ?? undefined,
-				q: trimmedQuery,
+				q: debouncedQuery,
 				limitPerType: 5,
 			},
 		}),
@@ -152,9 +160,16 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 		staleTime: 30_000,
 	});
 
+	// Results render with `keywords={[trimmedQuery]}` so cmdk never hides a
+	// server match — which means they must belong to what's typed right now.
+	// While the debounce is pending, or the previous query's rows are held as
+	// placeholder data, show none rather than stale rows under the new query.
+	const searchSettled =
+		enableSearch && debouncedQuery === trimmedQuery && !isPlaceholderData;
+
 	const searchResults = useMemo(
-		() => searchData?.results ?? [],
-		[searchData],
+		() => (searchSettled ? (searchData?.results ?? []) : []),
+		[searchSettled, searchData],
 	);
 	const grouped = useMemo(() => {
 		const groups = {
@@ -286,7 +301,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 				onValueChange={setQuery}
 			/>
 			<CommandList>
-				{!searchLoading && trimmedQuery.length >= 2 && (
+				{searchSettled && !searchLoading && (
 					<CommandEmpty>No results found.</CommandEmpty>
 				)}
 
@@ -297,6 +312,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`customer-${r.id}-${r.label}`}
+								// Server results already matched (phone, username, …);
+								// keep cmdk's label filter from hiding it.
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<UsersIcon className="size-4" />
@@ -316,6 +334,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`employee-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<HardHatIcon className="size-4" />
@@ -335,6 +354,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`task-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<AlertTriangleIcon className="size-4" />
@@ -354,6 +374,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`conv-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<MessageSquareIcon className="size-4" />
@@ -373,6 +394,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`bcast-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<MegaphoneIcon className="size-4" />

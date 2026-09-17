@@ -11,6 +11,7 @@ import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
+import { bustTaskStats } from "../lib/stats-cache";
 import { buildTaskTitle, taskTitleCode } from "../lib/task-title";
 
 export const createTask = protectedProcedure
@@ -193,6 +194,8 @@ export const createTask = protectedProcedure
 				createdAt: true,
 			},
 		});
+
+		bustTaskStats(input.organizationId);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.created(

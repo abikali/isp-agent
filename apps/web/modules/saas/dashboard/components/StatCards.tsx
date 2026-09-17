@@ -257,7 +257,7 @@ export function StatCards() {
 									? `${taskStats?.overdue} overdue`
 									: undefined
 							}
-							href={`${base}/tasks`}
+							href={`${base}/tasks?status=OPEN`}
 						/>
 					</>
 				)}
@@ -331,7 +331,10 @@ function useTaskStatsQuery(organizationId: string | null) {
 	const { data: stats, isLoading } = useQuery(
 		organizationId
 			? orpc.tasks.stats.queryOptions({
-					input: { organizationId },
+					// The Tasks page's sources. AI escalations (hundreds of
+					// them) and system reviews are not field work and are
+					// counted on their own pages.
+					input: { organizationId, sources: ["MANUAL", "LEGACY"] },
 				})
 			: disabledQuery(["tasks", "stats"]),
 	);

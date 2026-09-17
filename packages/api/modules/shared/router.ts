@@ -1,19 +1,27 @@
+import { ORPCError } from "@orpc/server";
 import { db } from "@repo/database";
 import { z } from "zod";
 import { verifyOrganizationMembership } from "../../lib/membership";
+import {
+	getDealerScopeFilter,
+	getOwnershipFilterAsync,
+	getPermissionContext,
+} from "../../lib/permission";
 import { protectedProcedure, publicProcedure } from "../../orpc/procedures";
+import {
+	customerSearchWhere,
+	memoizedPhoneIdLookup,
+} from "../customers/lib/customer-search";
+import { taskDealerScopeWhere } from "../tasks/lib/dealer-scope";
+import { taskOwnScopeWhere } from "../tasks/lib/read-scope";
+import { taskSearchWhere } from "../tasks/lib/task-search";
+import { allowedSearchTypes, SEARCH_TYPES } from "./lib/search-scope";
 
 /**
  * Cross-cutting procedures used by the command palette and other shared UI.
  */
 
-const SearchTypeSchema = z.enum([
-	"customer",
-	"employee",
-	"task",
-	"conversation",
-	"broadcast",
-]);
+const SearchTypeSchema = z.enum(SEARCH_TYPES);
 
 const SearchResultSchema = z.object({
 	type: SearchTypeSchema,
@@ -31,6 +39,10 @@ type SearchResult = z.infer<typeof SearchResultSchema>;
  * Returns up to `limitPerType` matches per resource type, ranked by recency.
  * Each row is a discriminated record with a stable shape so the palette can
  * render them generically.
+ *
+ * Scoping matches each type's list page: a type the caller can't `read` is
+ * skipped, customers/employees/tasks stay inside the active dealer, and
+ * `read:own` roles (e.g. collectors) only see their own customers and tasks.
  *
  * Performance: each fan-out query has its own `take` cap and is `Promise.all`'d.
  * Postgres `mode: "insensitive"` for case-insensitive contains.
@@ -53,7 +65,22 @@ const find = protectedProcedure
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
-		await verifyOrganizationMembership(user.id, input.organizationId);
+		const member = await verifyOrganizationMembership(
+			input.organizationId,
+			user.id,
+		);
+		if (!member) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "You must be a member of this organization",
+			});
+		}
+		const permCtx = getPermissionContext(
+			user.id,
+			input.organizationId,
+			member.role,
+			member.rolePermissions,
+		);
+		const activeDealerId = member.activeDealerId ?? null;
 
 		const q = input.q.trim();
 		if (q.length === 0) {
@@ -61,69 +88,46 @@ const find = protectedProcedure
 		}
 
 		const limit = input.limitPerType;
-		const types = new Set(
-			input.types ?? [
-				"customer",
-				"employee",
-				"task",
-				"conversation",
-				"broadcast",
-			],
-		);
+		const types = allowedSearchTypes(permCtx, input.types);
 
 		// URL prefix derived once for link construction.
 		// If slug not provided, fall back to organization ID (still works in the app).
 		const slug = input.organizationSlug ?? input.organizationId;
 		const orgPath = `/app/${slug}`;
 
-		const [customers, employees, tasks, conversations, broadcasts] =
+		// Name / username / account / any phone — resolved up front because a
+		// phone-shaped query needs a digits-only lookup first. Customers and
+		// tasks share one lookup so that scan runs once, not per section.
+		const phoneIds = memoizedPhoneIdLookup(input.organizationId);
+		const [customerSearch, customerOwnScope, taskSearch, taskOwnScope] =
 			await Promise.all([
 				types.has("customer")
+					? customerSearchWhere(input.organizationId, q, phoneIds)
+					: null,
+				types.has("customer")
+					? getOwnershipFilterAsync(permCtx, "customers", "read")
+					: undefined,
+				types.has("task")
+					? taskSearchWhere(input.organizationId, q, phoneIds)
+					: null,
+				types.has("task") ? taskOwnScopeWhere(permCtx) : null,
+			]);
+
+		const [customers, employees, tasks, conversations, broadcasts] =
+			await Promise.all([
+				customerSearch
 					? db.customer.findMany({
 							where: {
 								organizationId: input.organizationId,
 								// Skip soft-deleted customers in global search —
 								// they're back-references only.
 								deletedAt: null,
+								...customerOwnScope,
+								...getDealerScopeFilter(activeDealerId),
 								OR: [
-									{
-										firstName: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										lastName: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										username: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
+									customerSearch,
 									{
 										email: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										phone: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										mobile: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										accountNumber: {
 											contains: q,
 											mode: "insensitive",
 										},
@@ -161,6 +165,7 @@ const find = protectedProcedure
 								organizationId: input.organizationId,
 								// Match the employees list — skip soft-deleted.
 								deletedAt: null,
+								...getDealerScopeFilter(activeDealerId),
 								OR: [
 									{
 										name: {
@@ -205,23 +210,14 @@ const find = protectedProcedure
 							},
 						})
 					: Promise.resolve([]),
-				types.has("task")
+				taskSearch
 					? db.task.findMany({
 							where: {
 								organizationId: input.organizationId,
-								OR: [
-									{
-										title: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										description: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
+								AND: [
+									taskSearch,
+									taskDealerScopeWhere(activeDealerId),
+									...(taskOwnScope ? [taskOwnScope] : []),
 								],
 							},
 							orderBy: { updatedAt: "desc" },
@@ -231,6 +227,9 @@ const find = protectedProcedure
 								title: true,
 								status: true,
 								priority: true,
+								customer: {
+									select: { firstName: true, lastName: true },
+								},
 							},
 						})
 					: Promise.resolve([]),
@@ -319,7 +318,18 @@ const find = protectedProcedure
 				type: "task",
 				id: t.id,
 				label: t.title,
-				sub: [t.status, t.priority].filter(Boolean).join(" · ") || null,
+				// Synced titles ("Maintenance #2907") carry no name — show
+				// whose task it is so a customer/phone match is recognisable.
+				sub:
+					[
+						[t.customer?.firstName, t.customer?.lastName]
+							.filter(Boolean)
+							.join(" "),
+						t.status,
+						t.priority,
+					]
+						.filter(Boolean)
+						.join(" · ") || null,
 				link: `${orgPath}/tasks/${t.id}`,
 			});
 		}

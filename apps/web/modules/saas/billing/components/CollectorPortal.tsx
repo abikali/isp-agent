@@ -132,7 +132,7 @@ export function CollectorPortal() {
 							setSearch(val);
 							setPage(1);
 						}}
-						placeholder="Search customers..."
+						placeholder="Name, username, account or phone…"
 						className="flex-1"
 					/>
 					<GroupSelect

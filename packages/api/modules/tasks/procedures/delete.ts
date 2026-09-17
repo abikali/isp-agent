@@ -8,6 +8,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
+import { bustTaskStats } from "../lib/stats-cache";
 
 export const deleteTask = protectedProcedure
 	.route({
@@ -54,6 +55,7 @@ export const deleteTask = protectedProcedure
 			where: { id: input.id },
 			data: { status: "CANCELLED" },
 		});
+		bustTaskStats(input.organizationId);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.deleted(

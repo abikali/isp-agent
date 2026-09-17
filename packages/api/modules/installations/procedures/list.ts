@@ -3,9 +3,10 @@ import {
 	getOwnershipFilterAsync,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db } from "@repo/database";
+import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerSearchWhere } from "../../customers/lib/customer-search";
 
 export const listInstallations = protectedProcedure
 	.route({
@@ -116,48 +117,35 @@ export const listInstallations = protectedProcedure
 				...(input.to ? { lte: input.to } : {}),
 			};
 		}
-		if (input.search) {
-			where["OR"] = [
+		if (input.search?.trim()) {
+			const search = input.search.trim();
+			where["AND"] = [
 				{
-					customer: {
-						OR: [
-							{
-								firstName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
+					OR: [
+						{
+							customer: await customerSearchWhere(
+								input.organizationId,
+								search,
+							),
+						},
+						{
+							stockItem: {
+								name: { contains: search, mode: "insensitive" },
 							},
-							{
-								lastName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
+						},
+						{
+							station: {
+								name: { contains: search, mode: "insensitive" },
 							},
-							{
-								username: {
-									contains: input.search,
-									mode: "insensitive",
-								},
+						},
+						{
+							base: {
+								name: { contains: search, mode: "insensitive" },
 							},
-						],
-					},
+						},
+						{ notes: { contains: search, mode: "insensitive" } },
+					] satisfies Prisma.InstallationWhereInput[],
 				},
-				{
-					stockItem: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
-				},
-				{
-					station: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
-				},
-				{
-					base: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
-				},
-				{ notes: { contains: input.search, mode: "insensitive" } },
 			];
 		}
 

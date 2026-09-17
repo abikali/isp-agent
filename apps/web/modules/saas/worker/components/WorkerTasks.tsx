@@ -288,7 +288,7 @@ export function WorkerTasks() {
 			<SearchBar
 				value={search}
 				onChange={onFilter(setSearch)}
-				placeholder="Search tasks…"
+				placeholder="Search task, customer, phone, account…"
 			/>
 			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
 				<SelectControl

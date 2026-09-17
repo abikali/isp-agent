@@ -6,7 +6,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { phoneSearchClauses } from "../../customers/lib/phone-search";
+import { customerSearchWhere } from "../../customers/lib/customer-search";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	assignmentFilterValue,
@@ -136,44 +136,10 @@ export const listUnpaidCustomers = protectedProcedure
 				excludeGroupFilter(input.excludeGroupName),
 			];
 		}
-		if (input.search) {
+		if (input.search?.trim()) {
 			customerWhere["AND"] = [
 				...((customerWhere["AND"] as unknown[]) ?? []),
-				{
-					OR: [
-						{
-							firstName: {
-								contains: input.search,
-								mode: "insensitive" as const,
-							},
-						},
-						{
-							lastName: {
-								contains: input.search,
-								mode: "insensitive" as const,
-							},
-						},
-						{
-							username: {
-								contains: input.search,
-								mode: "insensitive" as const,
-							},
-						},
-						{
-							mobile: {
-								contains: input.search,
-								mode: "insensitive" as const,
-							},
-						},
-						{
-							phone: {
-								contains: input.search,
-								mode: "insensitive" as const,
-							},
-						},
-						...phoneSearchClauses(input.search),
-					],
-				},
+				await customerSearchWhere(input.organizationId, input.search),
 			];
 		}
 		await applyCollectorScope(customerWhere, permCtx, input.collectorId);

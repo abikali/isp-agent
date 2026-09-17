@@ -17,6 +17,7 @@ import {
 } from "../../installations/lib/addons";
 import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
+import { bustTaskStats } from "../lib/stats-cache";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
 // (or, optionally, a MAINTENANCE task). Each line becomes a PENDING Installation
@@ -340,6 +341,10 @@ export const completeTaskWithEvidence = protectedProcedure
 				},
 			});
 		});
+
+		// The approver's sidebar badge counts this completion (task and any
+		// recovered items) — drop the cached numbers so it shows up now.
+		bustTaskStats(input.organizationId);
 
 		const customerName = task.customer
 			? [task.customer.firstName, task.customer.lastName]

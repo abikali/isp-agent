@@ -97,7 +97,7 @@ export function CustomerCombobox({
 						autoFocus
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Search by name or username…"
+						placeholder="Name, username, account or phone…"
 						className="h-9"
 					/>
 				</div>

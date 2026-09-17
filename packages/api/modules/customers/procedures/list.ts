@@ -7,8 +7,8 @@ import {
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerSearchWhere } from "../lib/customer-search";
 import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../lib/needs-review";
-import { phoneSearchClauses } from "../lib/phone-search";
 import { CUSTOMER_LIST_STATUSES } from "../lib/statuses";
 
 export const listCustomers = protectedProcedure
@@ -141,82 +141,57 @@ export const listCustomers = protectedProcedure
 				{ OR: [{ latitude: null }, { longitude: null }] },
 			];
 		}
-		if (input.search) {
-			const tokens = input.search
-				.trim()
-				.split(/\s+/)
-				.filter(Boolean)
-				.slice(0, 10);
-			const nameClauses: Prisma.CustomerWhereInput[] =
-				tokens.length > 1
-					? [
-							{
-								AND: tokens.map((token) => ({
-									OR: [
-										{
-											firstName: {
-												contains: token,
-												mode: "insensitive",
-											},
-										},
-										{
-											lastName: {
-												contains: token,
-												mode: "insensitive",
-											},
-										},
-									],
-								})),
+		if (input.search?.trim()) {
+			const search = input.search.trim();
+			where["AND"] = [
+				...((where["AND"] as unknown[] | undefined) ?? []),
+				{
+					OR: [
+						await customerSearchWhere(input.organizationId, search),
+						{ email: { contains: search, mode: "insensitive" } },
+						{
+							groupName: {
+								contains: search,
+								mode: "insensitive",
 							},
-						]
-					: [
-							{
-								firstName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
+						},
+						{ address: { contains: search, mode: "insensitive" } },
+						{
+							ipAddress: {
+								contains: search,
+								mode: "insensitive",
 							},
-							{
-								lastName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
+						},
+						{
+							macAddress: {
+								contains: search,
+								mode: "insensitive",
 							},
-						];
-			where["OR"] = [
-				...nameClauses,
-				...phoneSearchClauses(input.search),
-				{ email: { contains: input.search, mode: "insensitive" } },
-				{ phone: { contains: input.search, mode: "insensitive" } },
-				{ mobile: { contains: input.search, mode: "insensitive" } },
-				{
-					accountNumber: {
-						contains: input.search,
-						mode: "insensitive",
-					},
-				},
-				{ username: { contains: input.search, mode: "insensitive" } },
-				{ groupName: { contains: input.search, mode: "insensitive" } },
-				{ address: { contains: input.search, mode: "insensitive" } },
-				{ ipAddress: { contains: input.search, mode: "insensitive" } },
-				{ macAddress: { contains: input.search, mode: "insensitive" } },
-				{ externalId: { contains: input.search, mode: "insensitive" } },
-				{ notes: { contains: input.search, mode: "insensitive" } },
-				{ mof: { contains: input.search, mode: "insensitive" } },
-				{
-					plan: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
-				},
-				{
-					station: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
-				},
-				{
-					collector: {
-						name: { contains: input.search, mode: "insensitive" },
-					},
+						},
+						{
+							externalId: {
+								contains: search,
+								mode: "insensitive",
+							},
+						},
+						{ notes: { contains: search, mode: "insensitive" } },
+						{ mof: { contains: search, mode: "insensitive" } },
+						{
+							plan: {
+								name: { contains: search, mode: "insensitive" },
+							},
+						},
+						{
+							station: {
+								name: { contains: search, mode: "insensitive" },
+							},
+						},
+						{
+							collector: {
+								name: { contains: search, mode: "insensitive" },
+							},
+						},
+					] satisfies Prisma.CustomerWhereInput[],
 				},
 			];
 		}

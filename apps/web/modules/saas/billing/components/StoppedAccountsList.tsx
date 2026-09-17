@@ -250,7 +250,7 @@ export function StoppedAccountsList() {
 							setSearch(v);
 							resetPage();
 						}}
-						placeholder="Search customers..."
+						placeholder="Name, username, account or phone…"
 						className="w-full sm:max-w-xs"
 					/>
 					<CollectorSelect

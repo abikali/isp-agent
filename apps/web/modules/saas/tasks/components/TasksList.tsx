@@ -10,11 +10,14 @@ import { TableColumnsToggle } from "@shared/components/TableColumnsToggle";
 import { usePersistedColumnVisibility } from "@shared/hooks/use-persisted-column-visibility";
 import { useServerSorting } from "@shared/hooks/use-server-sorting";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import { getRouteApi } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
 import { DataTable } from "@ui/components/data-table";
 import { TooltipProvider } from "@ui/components/tooltip";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
+
+const routeApi = getRouteApi("/_saas/app/_org/$organizationSlug/tasks/");
 
 const TASK_SORT_BY_MAP = {
 	title: "title",
@@ -42,11 +45,32 @@ import { WorkerWorkloadCards } from "./WorkerWorkloadCards";
 export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 	const [search, setSearch] = useState("");
 	const [debouncedSearch] = useDebouncedValue(search, { wait: 300 });
-	const [status, setStatus] = useState("all");
+	// Status lives in the URL so the sidebar badge can open the approval queue.
+	const { status: statusParam } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const status = statusParam ?? "all";
+	const setStatus = (value: string) =>
+		navigate({
+			search: (prev) => ({
+				...prev,
+				status:
+					value === "all"
+						? undefined
+						: (value as NonNullable<typeof statusParam>),
+			}),
+			replace: true,
+		});
 	const [priority, setPriority] = useState("all");
 	const [category, setCategory] = useState("all");
 	const [employeeId, setEmployeeId] = useState("all");
 	const [page, setPage] = useState(1);
+	// A status change from the URL (sidebar badge, back button) starts over
+	// at page 1 like the in-page filters do.
+	const [pageStatus, setPageStatus] = useState(statusParam);
+	if (pageStatus !== statusParam) {
+		setPageStatus(statusParam);
+		setPage(1);
+	}
 	const [showCreate, setShowCreate] = useState(false);
 	const [columnVisibility, setColumnVisibility] =
 		usePersistedColumnVisibility("tasks");
@@ -59,7 +83,7 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 
 	const { tasks, total, isLoading, isFetching } = useTasks({
 		search: debouncedSearch || undefined,
-		status: status !== "all" ? (status as "OPEN") : undefined,
+		status: statusParam,
 		priority: priority !== "all" ? (priority as "LOW") : undefined,
 		category: category !== "all" ? (category as "GENERAL") : undefined,
 		sources: ["MANUAL", "LEGACY"],
@@ -68,6 +92,21 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 		sortBy,
 		sortOrder,
 	});
+
+	const hasFilters =
+		search.trim() !== "" ||
+		status !== "all" ||
+		priority !== "all" ||
+		category !== "all" ||
+		employeeId !== "all";
+	const clearFilters = () => {
+		setSearch("");
+		setStatus("all");
+		setPriority("all");
+		setCategory("all");
+		setEmployeeId("all");
+		resetPage();
+	};
 
 	const columns = useTaskColumns(organizationSlug);
 	// Live online/offline for the customers on this page — the row data is
@@ -101,7 +140,14 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 			}
 		>
 			<AsyncBoundary fallback={<TaskStatsSkeleton />}>
-				<TaskStats sources={["MANUAL", "LEGACY"]} />
+				<TaskStats
+					sources={["MANUAL", "LEGACY"]}
+					selectedStatus={statusParam}
+					onSelectStatus={(value) =>
+						// Clicking the active card again clears the filter.
+						setStatus(value === statusParam ? "all" : value)
+					}
+				/>
 			</AsyncBoundary>
 
 			<AsyncBoundary fallback={null}>
@@ -119,10 +165,7 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 							resetPage();
 						}}
 						status={status}
-						onStatusChange={(v) => {
-							setStatus(v);
-							resetPage();
-						}}
+						onStatusChange={setStatus}
 						priority={priority}
 						onPriorityChange={(v) => {
 							setPriority(v);
@@ -172,16 +215,25 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 						emptyState={
 							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
 								<h3 className="mb-1 text-lg font-medium">
-									{total === 0
+									{!hasFilters
 										? "No tasks yet"
-										: "No results found"}
+										: search.trim()
+											? `No tasks match “${search.trim()}”`
+											: "No tasks match these filters"}
 								</h3>
 								<p className="mb-4 text-sm text-muted-foreground">
-									{total === 0
-										? "Create your first task to get started."
-										: "Try adjusting your filters or search term."}
+									{hasFilters
+										? "Try another search term or clear the filters."
+										: "Create your first task to get started."}
 								</p>
-								{total === 0 && (
+								{hasFilters ? (
+									<Button
+										variant="outline"
+										onClick={clearFilters}
+									>
+										Clear filters
+									</Button>
+								) : (
 									<Button onClick={() => setShowCreate(true)}>
 										<PlusIcon className="mr-2 size-4" />
 										Create Task

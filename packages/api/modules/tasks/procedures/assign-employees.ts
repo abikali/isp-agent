@@ -9,6 +9,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
+import { bustTaskStats } from "../lib/stats-cache";
 
 export const assignEmployees = protectedProcedure
 	.route({
@@ -83,6 +84,8 @@ export const assignEmployees = protectedProcedure
 				}),
 			),
 		]);
+
+		bustTaskStats(input.organizationId);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.employeesAssigned(

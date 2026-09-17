@@ -11,9 +11,7 @@ import { OrganizationSelect } from "@saas/organizations/components/OrganizationS
 import { NotificationBell } from "@saas/shared/components/NotificationBell";
 import { UserMenu } from "@saas/shared/components/UserMenu";
 import { Logo } from "@shared/components/Logo";
-import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
-import { orpc } from "@shared/lib/orpc";
-import { useQuery } from "@tanstack/react-query";
+import { useNavBadges } from "@shared/hooks/use-nav-badges";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
 	Sidebar,
@@ -64,6 +62,7 @@ interface NavItem {
 	icon: LucideIcon;
 	exact?: boolean;
 	badge?: number;
+	search?: { status: "PENDING_APPROVAL" };
 }
 
 interface NavSection {
@@ -81,64 +80,19 @@ export function AppSidebar() {
 		useActiveOrganization();
 	const hasPermission = useCanAccess();
 	const getScope = usePermissionScope();
-	const organizationId = useOrganizationId();
 	const { open: openPalette } = useCommandPalette();
 	const { state, toggleSidebar } = useSidebar();
 	const collapsed = state === "collapsed";
 
-	// Live badges
-	const { data: paymentStats } = useQuery(
-		organizationId
-			? orpc.billing.payments.stats.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["billing", "stats"]),
-	);
-	const unreviewedCount = paymentStats?.unreviewedCount ?? 0;
-
-	const { data: installationStats } = useQuery(
-		organizationId
-			? orpc.installations.stats.queryOptions({
-					input: { organizationId },
-				})
-			: disabledQuery(["installations", "stats"]),
-	);
-	const pendingInstallations = installationStats?.pendingCount ?? 0;
-
-	const { data: expenseStats } = useQuery(
-		organizationId
-			? orpc.expenses.stats.queryOptions({ input: { organizationId } })
-			: disabledQuery(["expenses", "stats"]),
-	);
-	const pendingExpenses = expenseStats?.pendingCount ?? 0;
-
-	const { data: stockStats } = useQuery(
-		organizationId
-			? orpc.stock.stats.queryOptions({ input: { organizationId } })
-			: disabledQuery(["stock", "stats"]),
-	);
-	const pendingStockRefunds = stockStats?.pendingRefundCount ?? 0;
-
-	// Recovered equipment a worker submitted and nobody has reviewed. Only the
-	// approvers can act on it, so only they get the badge.
-	const canApproveInstallations = hasPermission("installations", "approve");
-	const { data: taskStats } = useQuery(
-		organizationId && hasPermission("tasks", "read")
-			? orpc.tasks.stats.queryOptions({ input: { organizationId } })
-			: disabledQuery(["tasks", "stats"]),
-	);
-	const pendingRecoveredItems = canApproveInstallations
-		? (taskStats?.pendingRecoveredItems ?? 0)
-		: 0;
-
-	const { data: setupRequests } = useQuery(
-		organizationId
-			? orpc.customers.setupRequests.list.queryOptions({
-					input: { organizationId, status: "PENDING" },
-				})
-			: disabledQuery(["customers", "setupRequests"]),
-	);
-	const pendingNewCustomers = setupRequests?.total ?? 0;
+	const {
+		billing: unreviewedCount,
+		installations: pendingInstallations,
+		expenses: pendingExpenses,
+		stock: pendingStockRefunds,
+		newCustomers: pendingNewCustomers,
+		tasks: pendingTaskReviews,
+		taskApprovals: pendingTaskApprovals,
+	} = useNavBadges();
 
 	const basePath = activeOrganization
 		? `/app/${activeOrganization.slug}`
@@ -291,7 +245,14 @@ export function AppSidebar() {
 					label: "Tasks",
 					to: `${basePath}/tasks`,
 					icon: UsersIcon,
-					badge: pendingRecoveredItems,
+					// Completions waiting approval + recovered equipment to
+					// review. With completions pending, the link opens the
+					// list filtered to them; the recovered-equipment card
+					// sits above the list either way.
+					badge: pendingTaskReviews,
+					...(pendingTaskApprovals > 0
+						? { search: { status: "PENDING_APPROVAL" as const } }
+						: {}),
 				});
 			}
 			if (canReadInventory) {
@@ -385,7 +346,8 @@ export function AppSidebar() {
 		pendingExpenses,
 		pendingNewCustomers,
 		pendingStockRefunds,
-		pendingRecoveredItems,
+		pendingTaskReviews,
+		pendingTaskApprovals,
 	]);
 
 	const bottomItems = useMemo<NavItem[]>(() => {
@@ -509,6 +471,7 @@ export function AppSidebar() {
 											>
 												<Link
 													to={item.to}
+													search={item.search}
 													preload="intent"
 												>
 													<item.icon />

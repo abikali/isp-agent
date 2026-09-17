@@ -1,12 +1,10 @@
-import {
-	getActionScope,
-	getUserEmployeeId,
-	requirePermission,
-} from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
+import { taskOwnScopeWhere } from "../lib/read-scope";
+import { taskSearchWhere } from "../lib/task-search";
 
 export const listTasks = protectedProcedure
 	.route({
@@ -84,25 +82,22 @@ export const listTasks = protectedProcedure
 		};
 
 		// Composite own filter: tasks created by user OR assigned to user's employee
-		// Uses AND to avoid conflicting with the search OR clause
-		const scope = getActionScope(permCtx, "tasks", "read");
+		// Every clause (scope, dealer, search) goes through AND so no OR overwrites another
 		const andClauses: Record<string, unknown>[] = [];
-		if (scope === "own") {
-			const empId = await getUserEmployeeId(
-				input.organizationId,
-				user.id,
-			);
-			andClauses.push({
-				OR: [
-					{ createdById: user.id },
-					...(empId
-						? [{ assignments: { some: { employeeId: empId } } }]
-						: []),
-				],
-			});
+		const ownScope = await taskOwnScopeWhere(permCtx);
+		if (ownScope) {
+			andClauses.push(ownScope);
 		}
 
 		andClauses.push(taskDealerScopeWhere(activeDealerId));
+
+		// Title, customer (name/account/any phone), base, station, worker.
+		const search = input.search
+			? await taskSearchWhere(input.organizationId, input.search)
+			: null;
+		if (search) {
+			andClauses.push(search);
+		}
 
 		if (andClauses.length > 0) {
 			where["AND"] = andClauses;
@@ -137,17 +132,6 @@ export const listTasks = protectedProcedure
 			where["assignments"] = {
 				some: { employeeId: input.employeeId },
 			};
-		}
-		if (input.search) {
-			where["OR"] = [
-				{ title: { contains: input.search, mode: "insensitive" } },
-				{
-					description: {
-						contains: input.search,
-						mode: "insensitive",
-					},
-				},
-			];
 		}
 
 		const [tasks, total] = await Promise.all([

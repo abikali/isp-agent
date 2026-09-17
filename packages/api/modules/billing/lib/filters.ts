@@ -116,22 +116,6 @@ export function buildDateRangeFilter(
 }
 
 /**
- * Case-insensitive search across common customer fields.
- * Returns a Prisma OR clause matching firstName, lastName, username, or mobile.
- */
-export function customerSearchFilter(search: string) {
-	return {
-		OR: [
-			{ firstName: { contains: search, mode: "insensitive" as const } },
-			{ lastName: { contains: search, mode: "insensitive" as const } },
-			{ username: { contains: search, mode: "insensitive" as const } },
-			{ mobile: { contains: search, mode: "insensitive" as const } },
-			{ phone: { contains: search, mode: "insensitive" as const } },
-		],
-	};
-}
-
-/**
  * Sentinel the filter dropdowns send for "not assigned to anyone". Radix
  * selects reserve the empty string, so `"none"` stands in for NULL and
  * `assignmentFilterValue` turns it back into the Prisma value to match on.
