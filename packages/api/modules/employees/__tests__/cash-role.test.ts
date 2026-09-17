@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	collectorRoleWhere,
+	isAssignableCashRole,
 	resolveCashRole,
 	usesCollectorWallet,
 	workerRoleWhere,
@@ -73,5 +74,13 @@ describe("role where builders", () => {
 				},
 			],
 		});
+	});
+});
+
+describe("isAssignableCashRole", () => {
+	it("holds BOTH back until setup payments stop double-counting", () => {
+		expect(isAssignableCashRole("COLLECTOR")).toBe(true);
+		expect(isAssignableCashRole("WORKER")).toBe(true);
+		expect(isAssignableCashRole("BOTH")).toBe(false);
 	});
 });

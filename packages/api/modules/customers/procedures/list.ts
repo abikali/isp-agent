@@ -129,16 +129,36 @@ export const listCustomers = protectedProcedure
 				{ OR: [{ lastName: null }, { lastName: "" }] },
 			];
 		}
+		// A pin counts only when both coordinates are away from zero — iRadius
+		// "no pin" rows can carry float noise like lng 0.000008 (same rule as
+		// isUsablePin in @repo/utils).
 		if (input.hasLocation === "yes") {
 			where["AND"] = [
 				...((where["AND"] as unknown[] | undefined) ?? []),
-				{ latitude: { not: null } },
-				{ longitude: { not: null } },
+				{
+					OR: [
+						{ latitude: { gte: 0.001 } },
+						{ latitude: { lte: -0.001 } },
+					],
+				},
+				{
+					OR: [
+						{ longitude: { gte: 0.001 } },
+						{ longitude: { lte: -0.001 } },
+					],
+				},
 			];
 		} else if (input.hasLocation === "no") {
 			where["AND"] = [
 				...((where["AND"] as unknown[] | undefined) ?? []),
-				{ OR: [{ latitude: null }, { longitude: null }] },
+				{
+					OR: [
+						{ latitude: null },
+						{ longitude: null },
+						{ latitude: { gt: -0.001, lt: 0.001 } },
+						{ longitude: { gt: -0.001, lt: 0.001 } },
+					],
+				},
 			];
 		}
 		if (input.search) {

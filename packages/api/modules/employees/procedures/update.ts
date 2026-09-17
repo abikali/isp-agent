@@ -11,7 +11,7 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { bustCashStats } from "../../billing/lib/cash-cache";
-import { CASH_ROLES } from "../lib/cash-role";
+import { CASH_ROLES, isAssignableCashRole } from "../lib/cash-role";
 
 export const updateEmployee = protectedProcedure
 	.route({
@@ -92,6 +92,19 @@ export const updateEmployee = protectedProcedure
 					message: `Email "${normalizedEmail}" is already used by another employee (${emailTaken.name})`,
 				});
 			}
+		}
+
+		// BOTH can't be newly assigned (see ASSIGNABLE_CASH_ROLES); an employee
+		// already on it can keep it while other fields are edited.
+		if (
+			input.cashRole &&
+			!isAssignableCashRole(input.cashRole) &&
+			input.cashRole !== existing.cashRole
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Collector & worker can't be assigned yet — pick Collector or Worker.",
+			});
 		}
 
 		const updateData: Record<string, unknown> = {};

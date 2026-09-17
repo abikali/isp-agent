@@ -1,6 +1,7 @@
 "use client";
 
 import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
+import { isUsablePin } from "@repo/utils";
 import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import {
@@ -527,9 +528,10 @@ export function CustomersList({
 						row.original.firstName,
 						row.original.lastName,
 					);
-					const hasLocation =
-						row.original.latitude != null &&
-						row.original.longitude != null;
+					const hasLocation = isUsablePin(
+						row.original.latitude,
+						row.original.longitude,
+					);
 					const meta = [
 						`#${row.original.accountNumber}`,
 						row.original.username
@@ -868,10 +870,10 @@ export function CustomersList({
 						hasExternalId={!!row.original.externalId}
 						organizationSlug={organizationSlug}
 						organizationId={organizationId}
-						hasLocation={
-							row.original.latitude != null &&
-							row.original.longitude != null
-						}
+						hasLocation={isUsablePin(
+							row.original.latitude,
+							row.original.longitude,
+						)}
 						onRequestLocation={() =>
 							handleRequestClick(row.original)
 						}

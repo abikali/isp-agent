@@ -5,6 +5,7 @@ import {
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
 import {
+	cashAudit,
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
@@ -213,6 +214,15 @@ export const deleteCollection = protectedProcedure
 			bustExpenseStats();
 		}
 		bustCashStats(input.organizationId);
+		if (collection.transferId) {
+			cashAudit.transferReverted(
+				collection.transferId,
+				user.id,
+				input.organizationId,
+				getAuditContextFromHeaders(headers),
+				{ deletedCollectionId: collection.id },
+			);
+		}
 
 		return {
 			success: true,

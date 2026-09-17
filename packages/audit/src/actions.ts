@@ -159,6 +159,12 @@ export const AUDIT_ACTIONS = {
 		paymentRecorded: "dealer.payment_recorded",
 	},
 
+	// Staff cash moves (paired ADMIN_TRANSFER ledger rows)
+	cash: {
+		transferred: "cash.transferred",
+		transferReverted: "cash.transfer_reverted",
+	},
+
 	// Data export/deletion
 	data: {
 		exported: "data.exported",
@@ -190,6 +196,7 @@ export const RESOURCE_TYPES = {
 	employee: "employee",
 	task: "task",
 	dealer: "dealer",
+	cashTransfer: "cash_transfer",
 } as const;
 
 // Type helper to extract all values from a nested const object

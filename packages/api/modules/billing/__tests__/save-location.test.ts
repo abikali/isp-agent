@@ -10,6 +10,11 @@ vi.mock("@repo/database", () => ({
 	},
 }));
 
+vi.mock("@repo/auth/lib/audit", () => ({
+	customerAudit: { updated: vi.fn() },
+	getAuditContextFromHeaders: vi.fn(() => ({})),
+}));
+
 vi.mock("@repo/api/lib/permission", () => ({
 	requirePermission: vi.fn(),
 	resolveCollectorScope: vi.fn(),

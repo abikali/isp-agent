@@ -14,6 +14,22 @@ import type { EmployeeCashRole } from "@repo/database/enums";
 
 export const CASH_ROLES = ["COLLECTOR", "WORKER", "BOTH"] as const;
 
+/**
+ * Roles an admin can assign today. BOTH is held back: a setup approval writes
+ * the first subscription as a Payment (collectorId = requester) AND inside the
+ * NEW_USER_SETUP ledger row, and the collector wallet formula would count that
+ * cash twice for a BOTH employee who files setup requests. BOTH becomes
+ * assignable once payments carry a setup-request link (or dual people get
+ * linked records instead) — Jhonny's call, see employee-field-role.
+ */
+export const ASSIGNABLE_CASH_ROLES = ["COLLECTOR", "WORKER"] as const;
+
+export function isAssignableCashRole(
+	role: EmployeeCashRole,
+): role is (typeof ASSIGNABLE_CASH_ROLES)[number] {
+	return (ASSIGNABLE_CASH_ROLES as readonly string[]).includes(role);
+}
+
 export const CASH_ROLE_LABELS: Record<EmployeeCashRole, string> = {
 	COLLECTOR: "Collector",
 	WORKER: "Worker",
@@ -45,7 +61,8 @@ export function resolveCashRole(employee: CashRoleFields): EmployeeCashRole {
  * Known gap for BOTH: a setup approval writes the first subscription both as
  * a Payment (collectorId = requester) and inside the NEW_USER_SETUP ledger
  * row, so a BOTH employee who also files setup requests sees that
- * subscription twice until payments carry a setup-request link.
+ * subscription twice until payments carry a setup-request link. That is why
+ * BOTH is not in ASSIGNABLE_CASH_ROLES yet.
  */
 export function usesCollectorWallet(role: EmployeeCashRole): boolean {
 	return role !== "WORKER";

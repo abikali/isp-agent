@@ -4,6 +4,10 @@ import {
 	requirePermission,
 	resolveCollectorScope,
 } from "@repo/api/lib/permission";
+import {
+	customerAudit,
+	getAuditContextFromHeaders,
+} from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { isUsablePin } from "@repo/utils";
 import z from "zod";
@@ -39,7 +43,7 @@ export const saveLocation = protectedProcedure
 			longitude: z.number().finite(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, headers }, input }) => {
 		const { permCtx, activeDealerId, iradiusDisabled } =
 			await requirePermission(
 				input.organizationId,
@@ -122,6 +126,13 @@ export const saveLocation = protectedProcedure
 					select: { id: true },
 				}),
 		});
+
+		customerAudit.updated(
+			customer.id,
+			user.id,
+			input.organizationId,
+			getAuditContextFromHeaders(headers),
+		);
 
 		return { latitude: input.latitude, longitude: input.longitude };
 	});

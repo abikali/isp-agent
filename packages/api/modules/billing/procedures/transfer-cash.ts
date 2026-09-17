@@ -5,6 +5,7 @@ import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
+import { cashAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
@@ -44,11 +45,20 @@ export const transferCash = protectedProcedure
 			organizationId: z.string(),
 			fromEmployeeId: z.string(),
 			toEmployeeId: z.string(),
-			amount: z.number().finite().positive().max(1_000_000),
+			// Balances are float sums; money moves in whole cents. Rounded
+			// here so both legs and the double-submit key use the same value.
+			amount: z
+				.number()
+				.finite()
+				.max(1_000_000)
+				.transform((v) => Math.round(v * 100) / 100)
+				.refine((v) => v >= 0.01, {
+					message: "Amount must be at least $0.01",
+				}),
 			notes: z.string().trim().max(400).optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, headers }, input }) => {
 		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
@@ -129,6 +139,18 @@ export const transferCash = protectedProcedure
 		}
 
 		bustCashStats(input.organizationId);
+		cashAudit.transferred(
+			transferId,
+			user.id,
+			input.organizationId,
+			getAuditContextFromHeaders(headers),
+			{
+				fromEmployeeId: from.id,
+				toEmployeeId: to.id,
+				amount: input.amount,
+				note: note ?? null,
+			},
+		);
 
 		const amountLabel = `$${input.amount.toFixed(2)}`;
 		const telegramText = (title: string) =>

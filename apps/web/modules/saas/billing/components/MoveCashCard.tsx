@@ -201,7 +201,12 @@ export function MoveCashCard({
 												className="h-9 shrink-0 text-xs"
 												onClick={() =>
 													field.handleChange(
-														String(senderInHand),
+														(
+															Math.round(
+																senderInHand *
+																	100,
+															) / 100
+														).toFixed(2),
 													)
 												}
 											>

@@ -2,8 +2,9 @@
 
 import { isValidEmail } from "@repo/api/lib/validation";
 import {
+	ASSIGNABLE_CASH_ROLES,
 	CASH_ROLE_LABELS,
-	CASH_ROLES,
+	type CASH_ROLES,
 	resolveCashRole,
 	usesCollectorWallet,
 } from "@repo/api/modules/employees/lib/cash-role";
@@ -848,20 +849,30 @@ function OverviewTab({
 													})
 												].toLowerCase()}
 											</SelectItem>
-											{CASH_ROLES.map((role) => (
-												<SelectItem
-													key={role}
-													value={role}
-												>
-													{CASH_ROLE_LABELS[role]}
+											{ASSIGNABLE_CASH_ROLES.map(
+												(role) => (
+													<SelectItem
+														key={role}
+														value={role}
+													>
+														{CASH_ROLE_LABELS[role]}
+													</SelectItem>
+												),
+											)}
+											{/* Not assignable yet — only shown so an employee already on it keeps a valid value. */}
+											{employee.cashRole === "BOTH" && (
+												<SelectItem value="BOTH">
+													{CASH_ROLE_LABELS.BOTH}
 												</SelectItem>
-											))}
+											)}
 										</SelectContent>
 									</Select>
 									<FieldDescription>
 										Decides the collector and worker
 										pickers, the role label, and how the
-										cash balance is counted.
+										cash balance is counted. Someone who
+										works as both keeps one record per role
+										for now.
 									</FieldDescription>
 								</Field>
 							)}
