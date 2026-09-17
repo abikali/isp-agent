@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { mockDb, mockVerifyApiKey, mockCheckRateLimit } = vi.hoisted(() => ({
 	mockDb: {
 		organization: { findUnique: vi.fn() },
+		$queryRaw: vi.fn(),
 		customer: {
 			findMany: vi.fn(),
 			count: vi.fn(),
@@ -176,6 +177,7 @@ describe("customerSearchHandler", () => {
 
 	it("routes 6+ digit queries to the phone lookup", async () => {
 		validKey(["*"]);
+		mockDb.$queryRaw.mockResolvedValue([{ id: "c1" }]);
 		mockDb.customer.count.mockResolvedValue(1);
 		mockDb.customer.findMany.mockResolvedValue([
 			detail("c1", "Ali", "alihajjhasan"),
@@ -187,11 +189,11 @@ describe("customerSearchHandler", () => {
 		const body = await res.json();
 		expect(body.results[0].matchedOn).toBe("phone");
 		expect(mockDb.customer.findMany).toHaveBeenCalledTimes(1);
-		expect(mockDb.customer.findMany.mock.calls[0]?.[0].where.OR).toEqual(
-			expect.arrayContaining([
-				{ mobile: { contains: "76123456", mode: "insensitive" } },
-			]),
-		);
+		// Resolved through the shared digits-only scan of every stored number.
+		expect(mockDb.$queryRaw).toHaveBeenCalledTimes(1);
+		expect(mockDb.customer.findMany.mock.calls[0]?.[0].where.id).toEqual({
+			in: ["c1"],
+		});
 	});
 
 	it("routes ACC- queries to the account number lookup", async () => {

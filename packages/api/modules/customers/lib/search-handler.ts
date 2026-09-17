@@ -6,12 +6,12 @@ import {
 	authenticateOrgRequest,
 	jsonResponse,
 } from "../../api-keys/lib/authenticate-org-request";
+import { customerIdsByPhone, looksLikePhone } from "./customer-search";
 import {
 	MAX_QUERY_TOKENS,
 	rankNameSearch,
 	tokenizeSearchQuery,
 } from "./name-search";
-import { phoneSearchClauses } from "./phone-search";
 
 /**
  * Customer directory search for the Telegram ISP bot.
@@ -77,10 +77,6 @@ function toResult(
 		matchedOn,
 		score,
 	};
-}
-
-function looksLikePhone(q: string): boolean {
-	return /^[\d\s+\-().]+$/.test(q) && q.replace(/\D/g, "").length >= 6;
 }
 
 export async function customerSearchHandler(
@@ -158,8 +154,11 @@ export async function customerSearchHandler(
 		matchedOn: MatchedOn;
 	} | null = null;
 	if (looksLikePhone(q)) {
+		// Digits-only match against every stored number (mobile, phone and
+		// each `phones` entry), shared with the dashboard's customer search.
+		const ids = await customerIdsByPhone(organizationId, q);
 		direct = {
-			where: { ...baseWhere, OR: phoneSearchClauses(q) },
+			where: { ...baseWhere, id: { in: ids } },
 			matchedOn: "phone",
 		};
 	} else if (/^acc-/i.test(q)) {

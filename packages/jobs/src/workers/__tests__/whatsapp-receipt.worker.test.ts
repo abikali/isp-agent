@@ -56,6 +56,7 @@ describe("WhatsApp receipt worker", () => {
 			ok: true,
 			phone: "96170000000",
 			status: 200,
+			messageId: null,
 		});
 		vi.mocked(appendPaymentActivityLog).mockRejectedValue(
 			new Error("connection reset"),
@@ -119,6 +120,7 @@ describe("processReferralRewardJob", () => {
 			ok: true,
 			phone: "96170000000",
 			status: 200,
+			messageId: null,
 		});
 		vi.mocked(appendPaymentActivityLog).mockRejectedValue(
 			new Error("connection reset"),
