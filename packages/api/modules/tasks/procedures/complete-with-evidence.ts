@@ -9,6 +9,7 @@ import {
 import { db } from "@repo/database";
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -98,16 +99,21 @@ export const completeTaskWithEvidence = protectedProcedure
 			},
 		});
 		if (!task) {
-			throw new ORPCError("NOT_FOUND", { message: "Task not found" });
+			throw new ORPCError("NOT_FOUND", {
+				message: bilingual("Task not found", "المهمة غير موجودة"),
+			});
 		}
 		if (task.status === "COMPLETED" || task.status === "CANCELLED") {
 			throw new ORPCError("CONFLICT", {
-				message: "Task is already closed",
+				message: bilingual("Task is already closed", "المهمة مغلقة"),
 			});
 		}
 		if (task.status === "PENDING_APPROVAL") {
 			throw new ORPCError("CONFLICT", {
-				message: "Task completion is already awaiting admin approval",
+				message: bilingual(
+					"Task completion is already awaiting admin approval",
+					"المهمة بانتظار موافقة الإدارة",
+				),
 			});
 		}
 
@@ -134,35 +140,52 @@ export const completeTaskWithEvidence = protectedProcedure
 		if (requiresInstall) {
 			if (installedItems.length === 0) {
 				throw new ORPCError("BAD_REQUEST", {
-					message: "Record at least one installed item",
+					message: bilingual(
+						"Record at least one installed item",
+						"سجّل غرضاً واحداً على الأقل من الاغراض التي تم تركيبها",
+					),
 				});
 			}
 			if (!input.photoUrl) {
 				throw new ORPCError("BAD_REQUEST", {
-					message: "A photo is required for this task",
+					message: bilingual(
+						"A photo is required for this task",
+						"الصورة مطلوبة لهذه المهمة",
+					),
 				});
 			}
 			if (!task.customerId && !task.stationId && !task.baseId) {
 				throw new ORPCError("BAD_REQUEST", {
-					message:
+					message: bilingual(
 						"This task must target a customer, station, or base to record an install",
+						"يجب ربط المهمة بزبون أو محطة أو قاعدة لتسجيل التركيب",
+					),
 				});
 			}
 			if (!employeeId) {
 				throw new ORPCError("FORBIDDEN", {
-					message: "Only a field employee can record installed items",
+					message: bilingual(
+						"Only a field employee can record installed items",
+						"فقط الموظف الميداني يمكنه تسجيل الاغراض التي تم تركيبها",
+					),
 				});
 			}
 		}
 		if (requiresRecovery && recoveredItems.length === 0) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Record at least one recovered item",
+				message: bilingual(
+					"Record at least one recovered item",
+					"سجّل غرضاً واحداً على الأقل من الاغراض التي تم فكها",
+				),
 			});
 		}
 		// Maintenance / general tasks resolve via a canned resolution code
 		if (!requiresInstall && !requiresRecovery && !input.resolutionCode) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Select what you found to complete this task",
+				message: bilingual(
+					"Select what you found to complete this task",
+					"اختر ما وجدته لإنهاء المهمة",
+				),
 			});
 		}
 
@@ -192,13 +215,19 @@ export const completeTaskWithEvidence = protectedProcedure
 		if (addonLines.length > 0) {
 			if (!task.customerId) {
 				throw new ORPCError("BAD_REQUEST", {
-					message: "Add-ons can only be recorded for a customer task",
+					message: bilingual(
+						"Add-ons can only be recorded for a customer task",
+						"الخدمات الإضافية تُسجَّل فقط على مهمة زبون",
+					),
 				});
 			}
 			const requested = addonLines.map((l) => l.addonType);
 			if (new Set(requested).size !== requested.length) {
 				throw new ORPCError("BAD_REQUEST", {
-					message: "Only one of each add-on type per task",
+					message: bilingual(
+						"Only one of each add-on type per task",
+						"خدمة إضافية واحدة من كل نوع لكل مهمة",
+					),
 				});
 			}
 			const existingAddons = await db.installation.findMany({
@@ -218,7 +247,10 @@ export const completeTaskWithEvidence = protectedProcedure
 			for (const type of requested) {
 				if (existingTypes.has(type)) {
 					throw new ORPCError("CONFLICT", {
-						message: `Customer already has ${addonNoteFor(type)}`,
+						message: bilingual(
+							`Customer already has ${addonNoteFor(type)}`,
+							`الزبون لديه ${addonNoteFor(type)} مسبقاً`,
+						),
 					});
 				}
 			}
@@ -281,8 +313,10 @@ export const completeTaskWithEvidence = protectedProcedure
 			!task.baseId
 		) {
 			throw new ORPCError("BAD_REQUEST", {
-				message:
+				message: bilingual(
 					"This task must target a customer, station, or base to record installed items",
+					"يجب ربط المهمة بزبون أو محطة أو قاعدة لتسجيل الاغراض التي تم تركيبها",
+				),
 			});
 		}
 

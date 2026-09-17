@@ -7,7 +7,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgMessage } from "@repo/utils";
+import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
@@ -443,14 +443,29 @@ export const approveInstallations = protectedProcedure
 			notifyFieldEmployee({
 				organizationId: input.organizationId,
 				employeeId,
-				title: "Installation approved",
-				message: "Your installation submission was approved",
+				title: bilingual(
+					"Installation approved",
+					"تمت الموافقة على التركيب",
+				),
+				message: bilingual(
+					"Your installation submission was approved",
+					"تمت الموافقة على التركيب الذي أرسلته",
+				),
 				type: "success",
 				telegramText: tgMessage({
 					icon: "✅",
-					title: "Installation approved",
+					title: bilingual(
+						"Installation approved",
+						"تمت الموافقة على التركيب",
+					),
 					fields: [
-						{ icon: "🔧", value: "Your submission was approved" },
+						{
+							icon: "🔧",
+							value: bilingual(
+								"Your submission was approved",
+								"تمت الموافقة على ما أرسلته",
+							),
+						},
 					],
 				}),
 			}).catch((err: unknown) =>
@@ -519,18 +534,31 @@ export const denyInstallation = protectedProcedure
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: installation.employeeId,
-			title: "Installation denied",
+			title: bilingual("Installation denied", "تم رفض التركيب"),
 			message: input.reason
-				? `An installation was denied: ${input.reason}`
-				: "An installation submission was denied",
+				? `${bilingual("An installation was denied", "تم رفض تركيب")}: ${input.reason}`
+				: bilingual(
+						"An installation submission was denied",
+						"تم رفض تركيب أرسلته",
+					),
 			type: "warning",
 			telegramText: tgMessage({
 				icon: "⛔",
-				title: "Installation denied",
+				title: bilingual("Installation denied", "تم رفض التركيب"),
 				fields: [
 					input.reason
-						? { icon: "✍️", label: "Reason", value: input.reason }
-						: { icon: "🔧", value: "Your submission was denied" },
+						? {
+								icon: "✍️",
+								label: bilingual("Reason", "السبب"),
+								value: input.reason,
+							}
+						: {
+								icon: "🔧",
+								value: bilingual(
+									"Your submission was denied",
+									"تم رفض ما أرسلته",
+								),
+							},
 				],
 			}),
 		}).catch((err: unknown) =>

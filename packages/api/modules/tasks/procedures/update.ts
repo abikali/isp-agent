@@ -7,10 +7,19 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
+
+/** Arabic priority names for the worker notification. */
+const PRIORITY_AR: Record<"LOW" | "MEDIUM" | "HIGH" | "URGENT", string> = {
+	LOW: "منخفضة",
+	MEDIUM: "متوسطة",
+	HIGH: "عالية",
+	URGENT: "عاجلة",
+};
 
 export const updateTask = protectedProcedure
 	.route({
@@ -216,14 +225,20 @@ export const updateTask = protectedProcedure
 					if (dueChanged) {
 						details.push(
 							input.dueDate
-								? `New due date: ${input.dueDate
-										.toISOString()
-										.slice(0, 10)}`
-								: "Due date cleared",
+								? bilingual(
+										`New due date: ${input.dueDate.toISOString().slice(0, 10)}`,
+										`موعد جديد: ${input.dueDate.toISOString().slice(0, 10)}`,
+									)
+								: bilingual("Due date cleared", "أُزيل الموعد"),
 						);
 					}
 					if (priorityChanged && input.priority) {
-						details.push(`Priority: ${input.priority}`);
+						details.push(
+							bilingual(
+								`Priority: ${input.priority}`,
+								`الأولوية: ${PRIORITY_AR[input.priority]}`,
+							),
+						);
 					}
 					notifyTaskWorkers({
 						organizationId: input.organizationId,
@@ -232,7 +247,7 @@ export const updateTask = protectedProcedure
 						employeeIds: assigneeIds,
 						event: "updated",
 						...(details.length
-							? { detail: details.join(" · ") }
+							? { detail: details.join("\n") }
 							: {}),
 					});
 				}

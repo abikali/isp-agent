@@ -1,3 +1,4 @@
+import { bilingual } from "@repo/utils";
 import { describe, expect, it } from "vitest";
 import {
 	assertStockAvailable,
@@ -120,7 +121,10 @@ describe("shortfallMessage", () => {
 		expect(
 			shortfallMessage(s, { itemName: cable.name, audience: "worker" }),
 		).toBe(
-			"You hold 24 × Utp Cat5E Outdoor (10 already on pending installs), so you can use 14, not 28. Lower the quantity or ask for a delivery first.",
+			bilingual(
+				"You hold 24 × Utp Cat5E Outdoor (10 already on pending installs), so you can use 14, not 28. Lower the quantity or ask for a delivery first.",
+				"معك 24 × Utp Cat5E Outdoor (10 على تركيبات معلّقة)، يمكنك استعمال 14 فقط وليس 28. خفّف الكمية أو اطلب تسليم أولاً.",
+			),
 		);
 	});
 	it("names the worker for admins", () => {

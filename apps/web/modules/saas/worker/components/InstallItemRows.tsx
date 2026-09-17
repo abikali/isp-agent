@@ -1,5 +1,6 @@
 "use client";
 
+import { bilingual } from "@repo/utils";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import { formatCurrency } from "@shared/lib/format";
 import { Button } from "@ui/components/button";
@@ -8,6 +9,7 @@ import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useMyStockQuery } from "../hooks/use-worker";
+import { FIELD_LABELS as L } from "../lib/labels";
 import { type InstallLine, installLinesTotal } from "./install-lines";
 
 /**
@@ -124,7 +126,7 @@ export function InstallItemRows({
 				<div key={line.key} className="space-y-2 rounded-md border p-3">
 					<div className="flex items-center justify-between">
 						<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							{line.kind === "addon" ? "Add-on" : "Item"}
+							{line.kind === "addon" ? L.addon : L.item}
 						</p>
 						<Button
 							variant="ghost"
@@ -144,9 +146,9 @@ export function InstallItemRows({
 					{line.kind === "item" ? (
 						<Combobox
 							value={line.stockItemId ?? ""}
-							placeholder="Pick from my stock"
-							searchPlaceholder="Search my stock…"
-							emptyText="No stock items"
+							placeholder={L.pickFromMyStock}
+							searchPlaceholder={L.searchMyStock}
+							emptyText={L.noStockItems}
 							onChange={(v) => {
 								const alloc = allocations.find(
 									(a) => a.stockItem.id === v,
@@ -170,8 +172,8 @@ export function InstallItemRows({
 					) : (
 						<Combobox
 							value={line.addonType ?? ""}
-							placeholder="Add-on type"
-							searchPlaceholder="Search add-ons…"
+							placeholder={L.addonType}
+							searchPlaceholder={L.search}
 							onChange={(v) => {
 								const addonType = v as "IPTV" | "REAL_IP";
 								update(line.key, {
@@ -200,7 +202,7 @@ export function InstallItemRows({
 					<div className="grid grid-cols-2 gap-2">
 						{line.kind === "item" && (
 							<div className="space-y-1">
-								<Label className="text-xs">Qty</Label>
+								<Label className="text-xs">{L.qty}</Label>
 								<Input
 									type="number"
 									inputMode="numeric"
@@ -235,8 +237,8 @@ export function InstallItemRows({
 						<div className="space-y-1">
 							<Label className="text-xs">
 								{line.kind === "addon"
-									? "Monthly price ($)"
-									: "Price ($)"}
+									? L.monthlyPrice
+									: L.price}
 							</Label>
 							{line.kind === "item" ? (
 								// Hardware prices are admin-set on the stock item;
@@ -270,29 +272,29 @@ export function InstallItemRows({
 				<Button
 					variant="outline"
 					size="sm"
-					className="flex-1"
+					className="h-auto min-h-8 flex-1 whitespace-normal py-1.5"
 					onClick={() => addLine("item")}
 				>
 					<PlusIcon className="mr-1.5 size-3.5" />
-					Add item
+					{L.addItem}
 				</Button>
 				{allowAddons && (
 					<Button
 						variant="outline"
 						size="sm"
-						className="flex-1"
+						className="h-auto min-h-8 flex-1 whitespace-normal py-1.5"
 						disabled={hasIptv && hasRealIp}
 						onClick={() => addLine("addon")}
 					>
 						<PlusIcon className="mr-1.5 size-3.5" />
-						Add add-on
+						{L.addAddon}
 					</Button>
 				)}
 			</div>
 
 			{lines.length > 0 && (
 				<div className="flex items-center justify-between border-t pt-2 text-sm">
-					<span className="text-muted-foreground">Total</span>
+					<span className="text-muted-foreground">{L.total}</span>
 					<span className="font-mono font-medium tabular-nums">
 						{formatCurrency(installLinesTotal(lines))}
 					</span>
@@ -310,8 +312,11 @@ function stockLabel(
 		return name;
 	}
 	return stock.pending > 0
-		? `${name} (have ${stock.held} · ${stock.pending} pending)`
-		: `${name} (have ${stock.held})`;
+		? `${name} (${bilingual(
+				`have ${stock.held}, ${stock.pending} pending`,
+				`معك ${stock.held}، ${stock.pending} معلّقة`,
+			)})`
+		: `${name} (${bilingual(`have ${stock.held}`, `معك ${stock.held}`)})`;
 }
 
 function overStockHint(
@@ -319,7 +324,13 @@ function overStockHint(
 ): string {
 	const held = stock?.held ?? 0;
 	if (stock && stock.pending > 0) {
-		return `You hold ${held} (${stock.pending} already pending), so you can use ${stock.available} — lower the quantity or ask for a delivery.`;
+		return bilingual(
+			`You hold ${held} (${stock.pending} already pending), so you can use ${stock.available} — lower the quantity or ask for a delivery.`,
+			`معك ${held} (${stock.pending} منها معلّقة)، يمكنك استعمال ${stock.available} — خفّف الكمية أو اطلب تسليم.`,
+		);
 	}
-	return `You hold ${held} — lower the quantity or ask for a delivery.`;
+	return bilingual(
+		`You hold ${held} — lower the quantity or ask for a delivery.`,
+		`معك ${held} — خفّف الكمية أو اطلب تسليم.`,
+	);
 }

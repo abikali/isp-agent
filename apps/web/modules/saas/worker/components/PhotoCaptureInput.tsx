@@ -6,6 +6,7 @@ import { cn } from "@ui/lib";
 import { CameraIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
+import { FIELD_LABELS as L } from "../lib/labels";
 
 interface UploadUrlResult {
 	uploadUrl: string;
@@ -22,7 +23,7 @@ export function PhotoCaptureInput({
 	value,
 	onChange,
 	getUploadUrl,
-	label = "Add photo",
+	label = L.addPhoto,
 	className,
 }: {
 	value: string | null;
@@ -43,7 +44,7 @@ export function PhotoCaptureInput({
 			onChange(publicUrl);
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "Upload failed",
+				error instanceof Error ? error.message : L.uploadFailed,
 			);
 		} finally {
 			setProgress(null);
@@ -93,14 +94,14 @@ export function PhotoCaptureInput({
 			<Button
 				type="button"
 				variant="outline"
-				className="h-20 w-full border-dashed"
+				className="h-20 w-full whitespace-normal border-dashed"
 				disabled={progress !== null}
 				onClick={() => inputRef.current?.click()}
 			>
 				{progress !== null ? (
 					<span className="flex items-center gap-2 text-sm">
 						<Loader2Icon className="size-4 animate-spin" />
-						Uploading… {progress}%
+						{L.uploading} {progress}%
 					</span>
 				) : (
 					<span className="flex items-center gap-2 text-sm text-muted-foreground">

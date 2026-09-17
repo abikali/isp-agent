@@ -20,6 +20,7 @@ import {
 	SearchIcon,
 	XIcon,
 } from "lucide-react";
+import { FIELD_LABELS as L } from "../lib/labels";
 
 /**
  * Whole-day count since the Unix epoch for a date, evaluated in Beirut time.
@@ -156,7 +157,7 @@ export function StatStrip({
 export function SearchBar({
 	value,
 	onChange,
-	placeholder = "Search…",
+	placeholder = L.search,
 }: {
 	value: string;
 	onChange: (value: string) => void;
@@ -250,7 +251,7 @@ export function Pager({
 				onClick={() => onPageChange(page - 1)}
 			>
 				<ChevronLeftIcon className="mr-1 size-4" />
-				Prev
+				{L.prev}
 			</Button>
 			<span className="text-muted-foreground text-xs tabular-nums">
 				Page {page} of {totalPages}
@@ -261,7 +262,7 @@ export function Pager({
 				disabled={page >= totalPages || isFetching}
 				onClick={() => onPageChange(page + 1)}
 			>
-				Next
+				{L.next}
 				<ChevronRightIcon className="ml-1 size-4" />
 			</Button>
 		</div>

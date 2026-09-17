@@ -4,7 +4,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgMessage } from "@repo/utils";
+import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
@@ -103,19 +103,26 @@ export const reviewTaskCompletion = protectedProcedure
 
 		if (task.completedByEmployeeId) {
 			const detail = approved
-				? "Your completion was approved"
-				: `Your completion was rejected — the task is back in your queue${input.note ? `. Reason: ${input.note}` : ""}`;
+				? bilingual(
+						"Your completion was approved",
+						"تمت الموافقة على إنهاء المهمة",
+					)
+				: `${bilingual(
+						"Your completion was rejected — the task is back in your queue",
+						"تم رفض إنهاء المهمة — عادت المهمة إلى قائمتك",
+					)}${input.note ? `. ${bilingual("Reason", "السبب")}: ${input.note}` : ""}`;
+			const title = approved
+				? bilingual("Task approved", "تمت الموافقة على المهمة")
+				: bilingual("Task completion rejected", "تم رفض إنهاء المهمة");
 			notifyFieldEmployee({
 				organizationId: input.organizationId,
 				employeeId: task.completedByEmployeeId,
-				title: approved ? "Task approved" : "Task completion rejected",
+				title,
 				message: `"${task.title}": ${detail}`,
 				type: approved ? "success" : "warning",
 				telegramText: tgMessage({
 					icon: approved ? "✅" : "↩️",
-					title: approved
-						? "Task approved"
-						: "Task completion rejected",
+					title,
 					fields: [
 						{ icon: "🛠️", value: task.title },
 						...(input.note && !approved

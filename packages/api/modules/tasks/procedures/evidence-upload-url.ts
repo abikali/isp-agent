@@ -3,7 +3,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { requirePermission } from "@repo/api/lib/permission";
 import { config } from "@repo/config";
 import { getSignedUploadUrl } from "@repo/storage";
-import { getBaseUrl } from "@repo/utils";
+import { bilingual, getBaseUrl } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -38,7 +38,10 @@ export const createEvidenceUploadUrl = protectedProcedure
 
 		if (!isAllowedMimeType(input.contentType)) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Evidence photos must be JPG, PNG, or WEBP images",
+				message: bilingual(
+					"Evidence photos must be JPG, PNG, or WEBP images",
+					"يجب أن تكون الصورة JPG أو PNG أو WEBP",
+				),
 			});
 		}
 

@@ -9,6 +9,7 @@
 
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import { notifyTaskWorkers } from "../../tasks/lib/notify-task-workers";
 
 export const REVIEW_STOPPED_TASK_TITLE_PREFIX = "Review stopped payment:";
@@ -58,7 +59,10 @@ export async function cancelOpenUninstallTasks(
 				taskTitle: task.title,
 				employeeIds: task.assignments.map((a) => a.employeeId),
 				event: "cancelled",
-				detail: "The customer was reactivated — do not uninstall.",
+				detail: bilingual(
+					"The customer was reactivated — do not uninstall.",
+					"تمت إعادة تفعيل الزبون — لا تفكّ التركيب.",
+				),
 			});
 		}
 	} catch (err) {

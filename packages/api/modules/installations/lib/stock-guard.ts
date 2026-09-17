@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import type { Prisma } from "@repo/database";
+import { bilingual } from "@repo/utils";
 
 /**
  * One aggregate stock guard for every path that commits a worker's stock:
@@ -145,6 +146,17 @@ function reservationNote(s: StockShortfall, others: boolean): string {
 	return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
+function reservationNoteAr(s: StockShortfall): string {
+	const parts: string[] = [];
+	if (s.pendingInstalls > 0) {
+		parts.push(`${s.pendingInstalls} على تركيبات معلّقة`);
+	}
+	if (s.pendingRefunds > 0) {
+		parts.push(`${s.pendingRefunds} على طلبات إرجاع معلّقة`);
+	}
+	return parts.length > 0 ? ` (${parts.join("، ")})` : "";
+}
+
 /** User-facing refusal for one shortfall. Exported for tests. */
 export function shortfallMessage(
 	s: StockShortfall,
@@ -161,11 +173,20 @@ export function shortfallMessage(
 	);
 	const reserved = s.pendingInstalls + s.pendingRefunds > 0;
 	if (opts.audience === "worker") {
+		// Workers read Arabic: the refusal carries both languages. A custom
+		// hint is English-only, so the Arabic half keeps the default advice.
 		const hint =
 			opts.hint ?? "Lower the quantity or ask for a delivery first.";
+		const hintAr = "خفّف الكمية أو اطلب تسليم أولاً.";
 		return reserved
-			? `You hold ${s.held} × ${opts.itemName}${reservationNote(s, false)}, so you can use ${available}, not ${s.needed}. ${hint}`
-			: `You hold ${s.held} × ${opts.itemName}, so you cannot use ${s.needed}. ${hint}`;
+			? bilingual(
+					`You hold ${s.held} × ${opts.itemName}${reservationNote(s, false)}, so you can use ${available}, not ${s.needed}. ${hint}`,
+					`معك ${s.held} × ${opts.itemName}${reservationNoteAr(s)}، يمكنك استعمال ${available} فقط وليس ${s.needed}. ${hintAr}`,
+				)
+			: bilingual(
+					`You hold ${s.held} × ${opts.itemName}, so you cannot use ${s.needed}. ${hint}`,
+					`معك ${s.held} × ${opts.itemName}، لا يمكنك استعمال ${s.needed}. ${hintAr}`,
+				);
 	}
 	const who = opts.employeeName ?? "The worker";
 	const hint = opts.hint ?? "Deliver stock or lower the quantity.";
