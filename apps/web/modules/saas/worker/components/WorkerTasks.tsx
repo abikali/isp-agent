@@ -75,7 +75,7 @@ import {
 	useMyTrendQuery,
 	useUninstallItemsQuery,
 } from "../hooks/use-worker";
-import { FIELD_LABELS as L } from "../lib/labels";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { InstallItemRows, useOverStockLines } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
@@ -960,9 +960,7 @@ function MaintenanceSubmitSheet({
 			toast.success(L.taskCompleted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : L.failedToSubmit,
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
@@ -1063,9 +1061,7 @@ function InstallSubmitSheet({
 			toast.success(L.installationSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : L.failedToSubmit,
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
@@ -1147,9 +1143,7 @@ function ReplacementSubmitSheet({
 			toast.success(L.replacementSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : L.failedToSubmit,
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
@@ -1217,9 +1211,7 @@ function UninstallSubmitSheet({
 			toast.success(L.recoveredSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : L.failedToSubmit,
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 

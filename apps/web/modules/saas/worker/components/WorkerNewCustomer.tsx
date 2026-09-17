@@ -19,6 +19,7 @@ import {
 	useWorkerCreateCustomer,
 	useWorkerCreateOptions,
 } from "../hooks/use-worker";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { InstallItemRows, useOverStockLines } from "./InstallItemRows";
 import {
 	type InstallLine,
@@ -251,9 +252,7 @@ export function WorkerNewCustomer() {
 			toast.success("Customer submitted for approval");
 			reset();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 

@@ -6,7 +6,7 @@ import { cn } from "@ui/lib";
 import { CameraIcon, Loader2Icon, XIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FIELD_LABELS as L } from "../lib/labels";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 
 interface UploadUrlResult {
 	uploadUrl: string;
@@ -43,9 +43,7 @@ export function PhotoCaptureInput({
 			await uploadWithProgress(uploadUrl, file, setProgress);
 			onChange(publicUrl);
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : L.uploadFailed,
-			);
+			toast.error(fieldErrorMessage(error, L.uploadFailed));
 		} finally {
 			setProgress(null);
 		}

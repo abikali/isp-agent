@@ -24,6 +24,7 @@ import {
 	useMyStockQuery,
 	useRequestStockRefund,
 } from "../hooks/use-worker";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
 
 const PAGE_SIZE = 15;
@@ -293,11 +294,7 @@ function RefundSheet({
 			toast.success("Refund request sent for approval");
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to send refund request",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSendRefund));
 		}
 	}
 

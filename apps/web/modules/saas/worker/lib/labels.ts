@@ -80,6 +80,14 @@ const STRINGS = {
 		"تم إرسال الاغراض التي تم فكها للمراجعة",
 	],
 	failedToSubmit: ["Failed to submit", "فشل الإرسال"],
+	failedToSendRefund: [
+		"Failed to send refund request",
+		"فشل إرسال طلب الإرجاع",
+	],
+	invalidInput: [
+		"Some fields are missing or invalid — check the form",
+		"بعض الحقول ناقصة أو غير صحيحة — راجع النموذج",
+	],
 
 	// Item rows
 	item: ["Item", "الغرض"],
@@ -127,3 +135,23 @@ export type FieldLabelKey = keyof typeof STRINGS;
 export const FIELD_LABELS = Object.fromEntries(
 	Object.entries(STRINGS).map(([key, [en, ar]]) => [key, bilingual(en, ar)]),
 ) as Record<FieldLabelKey, string>;
+
+/**
+ * Toast text for a failed field-crew request. Server messages written for
+ * the field team are already bilingual; the generic ones every procedure
+ * shares — permission refusals and input validation — are English-only
+ * server side (admins read them too), so they get their Arabic here.
+ */
+export function fieldErrorMessage(error: unknown, fallback: string): string {
+	if (!(error instanceof Error)) {
+		return fallback;
+	}
+	const code = (error as { code?: unknown }).code;
+	if (code === "FORBIDDEN" && !error.message.includes("\u2068")) {
+		return bilingual(error.message, "ليس لديك صلاحية للقيام بهذا");
+	}
+	if (code === "BAD_REQUEST" && error.message === "Input validation failed") {
+		return FIELD_LABELS.invalidInput;
+	}
+	return error.message || fallback;
+}

@@ -32,6 +32,7 @@ import { PlusIcon, ReceiptIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useMyExpensesList, useMyStatsQuery } from "../hooks/use-worker";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
 import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
 
@@ -182,9 +183,7 @@ export function WorkerExpenses() {
 			setNote("");
 			setReceiptUrl(null);
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 

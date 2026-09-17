@@ -3,6 +3,7 @@ import { notifyOrgForReview } from "@repo/api/lib/notify-employee";
 import { getUserEmployeeId, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { loadStockReservations } from "../../installations/lib/stock-guard";
@@ -36,7 +37,10 @@ export const requestStockRefund = protectedProcedure
 		);
 		if (!employeeId) {
 			throw new ORPCError("FORBIDDEN", {
-				message: "No employee record linked to your account",
+				message: bilingual(
+					"No employee record linked to your account",
+					"حسابك غير مربوط بسجل موظف",
+				),
 			});
 		}
 
@@ -60,7 +64,10 @@ export const requestStockRefund = protectedProcedure
 			allocation.stockItem.organizationId !== input.organizationId
 		) {
 			throw new ORPCError("NOT_FOUND", {
-				message: "You don't hold any of this item",
+				message: bilingual(
+					"You don't hold any of this item",
+					"لا تملك أي قطعة من هذا الغرض",
+				),
 			});
 		}
 
@@ -75,6 +82,7 @@ export const requestStockRefund = protectedProcedure
 		const onInstalls = pendingInstalls.get(input.stockItemId) ?? 0;
 		const refundable = allocation.quantity - alreadyRefunding - onInstalls;
 		if (input.quantity > refundable) {
+			const name = allocation.stockItem.name;
 			const committed = [
 				alreadyRefunding > 0
 					? `${alreadyRefunding} on pending refunds`
@@ -83,11 +91,25 @@ export const requestStockRefund = protectedProcedure
 			]
 				.filter(Boolean)
 				.join(", ");
+			const committedAr = [
+				alreadyRefunding > 0
+					? `${alreadyRefunding} بطلبات إرجاع قيد المراجعة`
+					: null,
+				onInstalls > 0 ? `${onInstalls} بتركيبات قيد الموافقة` : null,
+			]
+				.filter(Boolean)
+				.join("، ");
 			throw new ORPCError("CONFLICT", {
 				message:
 					refundable <= 0
-						? `All ${allocation.quantity} × ${allocation.stockItem.name} you hold are already committed (${committed})`
-						: `You can request a refund for at most ${refundable} × ${allocation.stockItem.name}${committed ? ` (${committed})` : ""}`,
+						? bilingual(
+								`All ${allocation.quantity} × ${name} you hold are already committed (${committed})`,
+								`كل الـ ${allocation.quantity} × ${name} التي معك محجوزة (${committedAr})`,
+							)
+						: bilingual(
+								`You can request a refund for at most ${refundable} × ${name}${committed ? ` (${committed})` : ""}`,
+								`يمكنك طلب إرجاع ${refundable} × ${name} كحد أقصى${committedAr ? ` (${committedAr})` : ""}`,
+							),
 			});
 		}
 
