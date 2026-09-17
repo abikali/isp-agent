@@ -270,10 +270,10 @@ export async function sendWhatsAppLocationRequest(params: {
 
 /**
  * Notify a customer that a maintenance visit is scheduled — uses the
- * `maintenance_visit` template with three body parameters: customer first
- * name, worker name, and worker phone. The template must exist (and be
- * approved) in the Salti account — until it is, WPBox rejects every send
- * with "Invalid template" and this returns false.
+ * `maintenance_visit` template (UTILITY, Arabic) with three body parameters:
+ * customer first name, worker name, and worker phone. Template body:
+ * "مرحباً {{1}}، سيزورك الفني {{2}} قريباً بخصوص خدمة LibanCom. للتواصل معه: {{3}}. نشكر ثقتك بنا."
+ * Until Meta approves it, WPBox rejects every send and this returns false.
  */
 export async function sendWhatsAppMaintenanceVisit(params: {
 	phone: string;
@@ -284,16 +284,14 @@ export async function sendWhatsAppMaintenanceVisit(params: {
 	const result = await sendWPBoxTemplate({
 		phone: params.phone,
 		templateName: "maintenance_visit",
+		templateLanguage: "ar",
 		components: [
 			{
 				type: "body",
 				parameters: [
-					{ type: "text", text: params.customerName ?? "there" },
-					{
-						type: "text",
-						text: params.workerName ?? "our technician",
-					},
-					{ type: "text", text: params.workerPhone ?? "-" },
+					{ type: "text", text: params.customerName || "عزيزنا" },
+					{ type: "text", text: params.workerName || "من فريقنا" },
+					{ type: "text", text: params.workerPhone || "هذا الرقم" },
 				],
 			},
 		],

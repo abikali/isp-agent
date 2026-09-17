@@ -225,6 +225,25 @@ describe("sendWhatsAppMaintenanceVisit", () => {
 		vi.unstubAllGlobals();
 	});
 
+	it("falls back to Arabic wording when names are missing", async () => {
+		mockFetch.mockResolvedValue(jsonResponse({ status: "success" }));
+
+		await sendWhatsAppMaintenanceVisit({ phone: "03123456" });
+
+		expect(sentPayload()).toMatchObject({
+			components: [
+				{
+					type: "body",
+					parameters: [
+						{ type: "text", text: "عزيزنا" },
+						{ type: "text", text: "من فريقنا" },
+						{ type: "text", text: "هذا الرقم" },
+					],
+				},
+			],
+		});
+	});
+
 	it("returns false when WPBox rejects the template", async () => {
 		mockFetch.mockResolvedValue(
 			jsonResponse({ status: "error", message: "Invalid template" }),
@@ -240,6 +259,7 @@ describe("sendWhatsAppMaintenanceVisit", () => {
 		expect(sent).toBe(false);
 		expect(sentPayload()).toMatchObject({
 			template_name: "maintenance_visit",
+			template_language: "ar",
 			components: [
 				{
 					type: "body",
