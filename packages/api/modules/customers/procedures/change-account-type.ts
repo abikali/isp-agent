@@ -12,6 +12,10 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	assertSamePlanLine,
+	loadOrgDealerLines,
+} from "../../dealers/lib/internal-lines";
+import {
 	type AccountTypeChangeResult,
 	executeAccountTypeChange,
 	previewAccountTypeChange,
@@ -59,6 +63,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				discount: true,
 				iptvPrice: true,
 				realIpPrice: true,
+				plan: { select: { dealerId: true, dealerExternalId: true } },
 			},
 		});
 		if (!customer) {
@@ -78,13 +83,23 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true, name: true },
+			select: {
+				externalId: true,
+				name: true,
+				dealerId: true,
+				dealerExternalId: true,
+			},
 		});
 		if (!newPlan?.externalId) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Plan not linked to iRadius",
 			});
 		}
+		assertSamePlanLine(
+			customer.plan,
+			newPlan,
+			await loadOrgDealerLines(input.organizationId),
+		);
 
 		try {
 			const preview = await previewAccountTypeChange(
@@ -148,7 +163,12 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true, username: true, collectorId: true },
+			select: {
+				externalId: true,
+				username: true,
+				collectorId: true,
+				plan: { select: { dealerId: true, dealerExternalId: true } },
+			},
 		});
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
@@ -169,6 +189,8 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				sellingPrice: true,
 				rate: true,
 				monthlyPrice: true,
+				dealerId: true,
+				dealerExternalId: true,
 			},
 		});
 		if (!newPlan?.externalId) {
@@ -176,6 +198,11 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				message: "Plan not linked to iRadius",
 			});
 		}
+		assertSamePlanLine(
+			customer.plan,
+			newPlan,
+			await loadOrgDealerLines(input.organizationId),
+		);
 
 		// Mirror what iRadius just set on User.AccountPrice so the local
 		// monthlyRate doesn't drift and trip the next sync's conflict queue.

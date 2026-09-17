@@ -3,6 +3,7 @@ import { db } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { loadOrgDealerLines } from "../../dealers/lib/internal-lines";
 
 export const listIRadiusGroups = protectedProcedure
 	.route({
@@ -32,7 +33,10 @@ export const listIRadiusGroups = protectedProcedure
 		// users only ever see their own groups. Super-admins (no active
 		// dealer) see every group.
 		const scopedDealerId = input.dealerId ?? activeDealerId;
-		let dealerExternalId: number | null = null;
+		// iRadius DealerIds whose groups are in scope. The org's master also
+		// brings its internal lines: their subscribers are the org's own and
+		// carry the master's dealerId locally.
+		let dealerExternalIds: number[] | null = null;
 		if (scopedDealerId) {
 			const dealer = await db.ispDealer.findFirst({
 				where: {
@@ -47,15 +51,25 @@ export const listIRadiusGroups = protectedProcedure
 			if (!Number.isFinite(parsed)) {
 				return { groups: [] };
 			}
-			dealerExternalId = parsed;
+			const lines =
+				scopedDealerId === activeDealerId
+					? (await loadOrgDealerLines(input.organizationId)).lines
+					: [];
+			dealerExternalIds = [
+				parsed,
+				...lines.flatMap((l) =>
+					l.externalId ? [Number.parseInt(l.externalId, 10)] : [],
+				),
+			];
 		}
 
+		const ids = dealerExternalIds;
 		const rows = await withIRadiusConnection((conn) =>
-			dealerExternalId !== null
+			ids !== null
 				? queryIRadius(
 						conn,
-						"SELECT Id, Name FROM UserGroup WHERE DealerId = ? ORDER BY Name",
-						[dealerExternalId],
+						`SELECT Id, Name FROM UserGroup WHERE DealerId IN (${ids.map(() => "?").join(", ")}) ORDER BY Name`,
+						ids,
 					)
 				: queryIRadius(
 						conn,

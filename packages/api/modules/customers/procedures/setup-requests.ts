@@ -21,6 +21,10 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import {
+	assertOwnPlan,
+	loadOrgDealerLines,
+} from "../../dealers/lib/internal-lines";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import {
@@ -252,11 +256,20 @@ export const workerCreateCustomer = protectedProcedure
 
 		const plan = await db.servicePlan.findFirst({
 			where: { id: input.planId, organizationId: input.organizationId },
-			select: { id: true, name: true, monthlyPrice: true },
+			select: {
+				id: true,
+				name: true,
+				monthlyPrice: true,
+				dealerId: true,
+				dealerExternalId: true,
+			},
 		});
 		if (!plan) {
 			throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
 		}
+		// Only the org's own plans — its master's or an internal line's.
+		// Approval creates the subscriber under whichever dealer owns it.
+		assertOwnPlan(plan, await loadOrgDealerLines(input.organizationId));
 
 		if (input.collectorId) {
 			const collector = await db.employee.findFirst({
@@ -616,11 +629,18 @@ export const updateSetupRequest = protectedProcedure
 					id: input.planId,
 					organizationId: input.organizationId,
 				},
-				select: { sellingPrice: true, rate: true, monthlyPrice: true },
+				select: {
+					sellingPrice: true,
+					rate: true,
+					monthlyPrice: true,
+					dealerId: true,
+					dealerExternalId: true,
+				},
 			});
 			if (!plan) {
 				throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
 			}
+			assertOwnPlan(plan, await loadOrgDealerLines(input.organizationId));
 			if (input.planId !== request.customer.planId) {
 				newPlanRate =
 					plan.sellingPrice ?? plan.rate ?? plan.monthlyPrice;
