@@ -479,4 +479,18 @@ describe("modelMessagesToRoleContent", () => {
 			{ role: "assistant", content: "Thanks" },
 		]);
 	});
+
+	it("keeps customer text that follows a context notice", () => {
+		expect(
+			modelMessagesToRoleContent([
+				{
+					role: "user",
+					content:
+						"[Context Notice: 5 hours have passed since the last message.] is my line down? nothing loads",
+				},
+			]),
+		).toEqual([
+			{ role: "user", content: "is my line down? nothing loads" },
+		]);
+	});
 });

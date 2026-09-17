@@ -1,5 +1,6 @@
 import { beirutParts } from "@repo/utils";
 import type { ModelMessage, UIMessage } from "ai";
+import { stripInternalMarkers } from "./chat-formatting";
 import type { ToolResult } from "./types";
 
 /** Gaps at least this long drop the earlier exchange from the model context. */
@@ -763,8 +764,8 @@ const TEAMMATE_MARKER = "[Human teammate reply";
  * rendered as `[called <toolName>]` markers so the summarizer sees what
  * actions the agent took.
  *
- * Injected `[Context Notice …]` rows are not customer messages and are
- * skipped. A human teammate's replay row comes back as role `admin` with the
+ * Injected `[Context Notice …]` notes are not customer messages and are
+ * stripped (any customer text after the note is kept). A human teammate's replay row comes back as role `admin` with the
  * marker line stripped, so the summary does not credit the bot with it.
  */
 export function modelMessagesToRoleContent(
@@ -780,6 +781,12 @@ export function modelMessagesToRoleContent(
 			m.role === "user" &&
 			m.content.startsWith("[Context Notice")
 		) {
+			// A notice can still carry customer text after it (a caller that
+			// merged it into the next turn): keep that text.
+			const rest = stripInternalMarkers(m.content);
+			if (rest) {
+				out.push({ role: "user", content: rest });
+			}
 			continue;
 		}
 		if (

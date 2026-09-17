@@ -1550,14 +1550,22 @@ export async function whatsappWebhookHandler(
  * we want the model to see them as a single thought.
  *
  * Only flattens user messages whose content is a plain `string`; structured
- * messages (with tool-call/tool-result parts) are left as-is.
+ * messages (with tool-call/tool-result parts) are left as-is. Injected
+ * `[Context Notice …]` notes stop the run: they must stay their own turn, or
+ * the note gets glued onto the customer's text and anything that filters
+ * notes out (the escalation summary) loses what the customer is asking now.
  */
 function mergeTrailingUserTextMessages(messages: ModelMessage[]): void {
 	let i = messages.length - 1;
 	const trailingParts: string[] = [];
 	while (i >= 0) {
 		const m = messages[i];
-		if (!m || m.role !== "user" || typeof m.content !== "string") {
+		if (
+			!m ||
+			m.role !== "user" ||
+			typeof m.content !== "string" ||
+			m.content.startsWith("[Context Notice")
+		) {
 			break;
 		}
 		trailingParts.unshift(m.content);
