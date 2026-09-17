@@ -62,6 +62,16 @@ export function useRecordDealerPayment() {
 	});
 }
 
+/** Name and phone go to iRadius; contact person and WhatsApp stay local. */
+export function useUpdateDealerContact() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.dealers.updateContact.mutationOptions(),
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: orpc.dealers.key() }),
+	});
+}
+
 /** Resend (or send a skipped) WhatsApp confirmation for one ledger entry. */
 export function useResendDealerNotice() {
 	const queryClient = useQueryClient();

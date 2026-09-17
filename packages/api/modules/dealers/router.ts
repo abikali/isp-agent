@@ -15,6 +15,7 @@ import { resendDealerNotice } from "./procedures/resend-notice";
 import { setActiveDealer } from "./procedures/set-active";
 import { getDealerStats } from "./procedures/stats";
 import { updateDealer } from "./procedures/update";
+import { updateDealerContact } from "./procedures/update-contact";
 
 export const dealersRouter = {
 	list: listDealers,
@@ -38,6 +39,7 @@ export const dealerFinanceRouter = {
 	adjustCredit: adjustDealerCredit,
 	recordPayment: recordDealerPayment,
 	resendNotice: resendDealerNotice,
+	updateContact: updateDealerContact,
 	syncNow: syncDealerFinanceNow,
 	syncStatus: getDealerFinanceSyncStatus,
 };

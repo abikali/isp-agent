@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { DealerFinanceOverview } from "../../hooks/use-dealer-finance";
 
-export type DealerFilter = "all" | "owing" | "low" | "settled";
+export type DealerFilter = "all" | "owing" | "low" | "settled" | "no_whatsapp";
 
 interface DealerTotalsProps {
 	totals: DealerFinanceOverview["totals"];

@@ -12,7 +12,7 @@ import {
 	round2,
 	withRunningBalance,
 } from "../lib/ledger";
-import { readDealerNotice } from "../lib/notify-dealer";
+import { readDealerNotice, resolveDealerWhatsApp } from "../lib/notify-dealer";
 import { requireDealerInScope, resolveDealerScope } from "../lib/scope";
 
 const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
@@ -221,6 +221,8 @@ export const getDealerFinanceLedger = protectedProcedure
 				operationDate: c.operationDate,
 			}));
 
+		const whatsapp = resolveDealerWhatsApp(dealer);
+
 		return {
 			dealer: {
 				id: dealer.id,
@@ -233,6 +235,20 @@ export const getDealerFinanceLedger = protectedProcedure
 				isLinked: dealer.externalId !== null,
 				customersCount: dealer._count.customers,
 				lastSyncedAt: dealer.lastSyncedAt,
+				contact: {
+					/** iRadius Mobile, else Phone — as typed there. */
+					phone: dealer.phone,
+					companyMobile: dealer.companyMobile,
+					companyPhone: dealer.companyPhone,
+					contactName: dealer.contactName,
+					/** The number staff set for WhatsApp, if any (E.164). */
+					whatsappOverride: dealer.whatsappPhone,
+					/** Where confirmations actually go (E.164), or null. */
+					whatsappPhone:
+						whatsapp.status === "ok" ? `+${whatsapp.phone}` : null,
+					whatsappIssue:
+						whatsapp.status === "ok" ? null : whatsapp.status,
+				},
 			},
 			canManage: scope.canManage,
 			summary: {

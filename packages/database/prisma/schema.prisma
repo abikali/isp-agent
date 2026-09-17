@@ -1530,6 +1530,13 @@ model IspDealer {
   canAddDealer            Boolean        @default(false)
   canDeleteUser           Boolean        @default(false)
   canChangeAccountType    Boolean        @default(false)
+  // Local-only contact details for WhatsApp confirmations (dealers.updateContact).
+  // Not iRadius columns, so the dealer sync never touches them.
+  // whatsappPhone: validated E.164 (+96171123456); wins over the dirty iRadius
+  // phone fields. contactName: who to greet, when the account name is a
+  // business name or "Unknown".
+  whatsappPhone           String?
+  contactName             String?
   // iRadius Dealer extra fields
   notifyBefore3Days       Boolean        @default(false)
   notifyBefore2Days       Boolean        @default(false)

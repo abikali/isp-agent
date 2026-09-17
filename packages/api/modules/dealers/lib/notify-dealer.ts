@@ -61,12 +61,24 @@ function beirutDate(date: Date): string {
 	return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-/** iRadius names dealers with no first/last name "Unknown". */
-function greetingName(dealer: {
+interface DealerNameFields {
 	name: string;
 	companyName: string | null;
 	username: string | null;
-}): string {
+	/** Local override set from the dealer page; wins when present. */
+	contactName?: string | null | undefined;
+}
+
+/**
+ * Who the message greets: the contact person staff entered, else the iRadius
+ * name — skipping "Unknown", which older syncs wrote for dealers with no
+ * first/last name.
+ */
+function greetingName(dealer: DealerNameFields): string {
+	const contact = dealer.contactName?.trim();
+	if (contact) {
+		return contact;
+	}
 	const name = dealer.name.trim();
 	if (name && name.toLowerCase() !== "unknown") {
 		return name;
@@ -79,11 +91,7 @@ function greetingName(dealer: {
  * operation, amount, date (Beirut), what is still owed, prepaid credit, note.
  */
 export function buildDealerNoticeParams(input: {
-	dealer: {
-		name: string;
-		companyName: string | null;
-		username: string | null;
-	};
+	dealer: DealerNameFields;
 	kind: LedgerKind;
 	amount: number;
 	operationDate: Date;
@@ -141,6 +149,28 @@ export function resolveDealerWhatsAppPhone(
 		: { status: "no_phone", phone: null };
 }
 
+export interface DealerPhoneFields {
+	whatsappPhone: string | null;
+	phone: string | null;
+	companyMobile: string | null;
+	companyPhone: string | null;
+}
+
+/**
+ * Where a dealer's confirmations go: the WhatsApp number staff set on the
+ * dealer page first (validated on save), then the iRadius phone fields.
+ */
+export function resolveDealerWhatsApp(
+	dealer: DealerPhoneFields,
+): DealerPhoneResolution {
+	return resolveDealerWhatsAppPhone([
+		dealer.whatsappPhone,
+		dealer.phone,
+		dealer.companyMobile,
+		dealer.companyPhone,
+	]);
+}
+
 async function saveNotice(
 	dealerAccountId: string,
 	notice: DealerWhatsAppNotice,
@@ -175,16 +205,15 @@ export async function notifyDealerWhatsApp(input: {
 			const dealer = await db.ispDealer.findUnique({
 				where: { id: input.dealerId },
 				select: {
+					whatsappPhone: true,
 					phone: true,
 					companyMobile: true,
 					companyPhone: true,
 				},
 			});
-			const resolved = resolveDealerWhatsAppPhone([
-				dealer?.phone,
-				dealer?.companyMobile,
-				dealer?.companyPhone,
-			]);
+			const resolved = dealer
+				? resolveDealerWhatsApp(dealer)
+				: ({ status: "no_phone", phone: null } as const);
 			notice.phone = resolved.phone;
 			if (resolved.status !== "ok") {
 				notice.status = resolved.status;

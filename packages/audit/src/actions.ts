@@ -157,6 +157,7 @@ export const AUDIT_ACTIONS = {
 	dealer: {
 		creditAdjusted: "dealer.credit_adjusted",
 		paymentRecorded: "dealer.payment_recorded",
+		contactUpdated: "dealer.contact_updated",
 	},
 
 	// Data export/deletion

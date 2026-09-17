@@ -1777,4 +1777,32 @@ export const dealerAudit = {
 			),
 		);
 	},
+
+	/** Name/phone go to iRadius first; contact person and WhatsApp are local. */
+	contactUpdated: (
+		dealerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			dealerName: string;
+			changes: Record<string, { from: string | null; to: string | null }>;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.dealer.contactUpdated,
+					resourceType: RESOURCE_TYPES.dealer,
+				},
+				{
+					resourceId: dealerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
 };

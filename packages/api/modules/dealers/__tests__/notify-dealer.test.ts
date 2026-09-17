@@ -24,6 +24,7 @@ vi.mock("@repo/logs", () => ({
 import {
 	buildDealerNoticeParams,
 	notifyDealerWhatsApp,
+	resolveDealerWhatsApp,
 	resolveDealerWhatsAppPhone,
 } from "../lib/notify-dealer";
 
@@ -98,6 +99,21 @@ describe("buildDealerNoticeParams", () => {
 			})[0],
 		).toBe("Zaiter Net");
 	});
+
+	it("greets the contact person staff set, over any account name", () => {
+		expect(
+			buildDealerNoticeParams({
+				...base,
+				dealer: { ...dealer, contactName: "  Hamza " },
+			})[0],
+		).toBe("Hamza");
+		expect(
+			buildDealerNoticeParams({
+				...base,
+				dealer: { ...dealer, contactName: "" },
+			})[0],
+		).toBe("MATAR NET");
+	});
 });
 
 describe("resolveDealerWhatsAppPhone", () => {
@@ -107,6 +123,12 @@ describe("resolveDealerWhatsAppPhone", () => {
 		["+961 71 123 456", "96171123456"],
 		["70123456-71234567", "96170123456"],
 		["70123456 - Hamza", "96170123456"],
+		["961 3 123 456", "9613123456"],
+		["+96181261820", "96181261820"],
+		["81261820-akram khoury 2", "96181261820"],
+		["71112011  76111211", "96171112011"],
+		["70123456,71234567", "96170123456"],
+		["79174574", "96179174574"],
 	])("%s → %s", (raw, digits) => {
 		expect(resolveDealerWhatsAppPhone([raw])).toEqual({
 			status: "ok",
@@ -127,10 +149,42 @@ describe("resolveDealerWhatsAppPhone", () => {
 		).toEqual({ status: "ok", phone: "96171123456" });
 	});
 
+	it("reports the first raw value when no field validates", () => {
+		expect(resolveDealerWhatsAppPhone(["12345", "abc"])).toEqual({
+			status: "invalid_phone",
+			phone: "12345",
+		});
+	});
+
 	it("reports no phone when every field is empty", () => {
 		expect(resolveDealerWhatsAppPhone([null, "", "  ", undefined])).toEqual(
 			{ status: "no_phone", phone: null },
 		);
+	});
+});
+
+describe("resolveDealerWhatsApp", () => {
+	const fields = {
+		whatsappPhone: null,
+		phone: "791745774",
+		companyMobile: "03123456",
+		companyPhone: null,
+	};
+
+	it("uses the WhatsApp number staff set before the iRadius fields", () => {
+		expect(
+			resolveDealerWhatsApp({ ...fields, whatsappPhone: "+96171123456" }),
+		).toEqual({ status: "ok", phone: "96171123456" });
+	});
+
+	it("falls back to the iRadius phone, then the company numbers", () => {
+		expect(resolveDealerWhatsApp(fields)).toEqual({
+			status: "ok",
+			phone: "9613123456",
+		});
+		expect(
+			resolveDealerWhatsApp({ ...fields, companyMobile: null }),
+		).toEqual({ status: "invalid_phone", phone: "791745774" });
 	});
 });
 
@@ -155,6 +209,7 @@ describe("notifyDealerWhatsApp", () => {
 	beforeEach(() => {
 		vi.stubEnv("WPBOX_TOKEN", "token");
 		mocks.findUnique.mockResolvedValue({
+			whatsappPhone: null,
 			phone: "71123456",
 			companyMobile: null,
 			companyPhone: null,
@@ -237,6 +292,7 @@ describe("notifyDealerWhatsApp", () => {
 
 	it("does not send when the dealer has no phone", async () => {
 		mocks.findUnique.mockResolvedValue({
+			whatsappPhone: null,
 			phone: null,
 			companyMobile: "",
 			companyPhone: null,
@@ -247,6 +303,28 @@ describe("notifyDealerWhatsApp", () => {
 		expect(result.status).toBe("no_phone");
 		expect(mocks.send).not.toHaveBeenCalled();
 		expect(savedNotice()).toMatchObject({ status: "no_phone", params });
+	});
+
+	it("sends to the WhatsApp number set on the dealer page", async () => {
+		mocks.findUnique.mockResolvedValue({
+			whatsappPhone: "+9613123456",
+			phone: "71123456",
+			companyMobile: null,
+			companyPhone: null,
+		});
+		mocks.send.mockResolvedValue({
+			ok: true,
+			phone: "9613123456",
+			status: 200,
+			messageId: "wamid-2",
+		});
+
+		const result = await notifyDealerWhatsApp(input);
+
+		expect(result.phone).toBe("9613123456");
+		expect(mocks.send).toHaveBeenCalledWith(
+			expect.objectContaining({ phone: "9613123456" }),
+		);
 	});
 
 	it("reports not_configured without WPBOX_TOKEN", async () => {

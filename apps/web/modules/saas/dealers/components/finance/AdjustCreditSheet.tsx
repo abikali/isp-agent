@@ -28,6 +28,8 @@ export interface CreditTarget {
 	name: string;
 	owed: number;
 	prepaid: number;
+	/** Where the confirmation would go (E.164); null = nowhere. */
+	whatsappPhone: string | null;
 }
 
 interface AdjustCreditSheetProps {
@@ -248,11 +250,21 @@ export function AdjustCreditSheet({
 						>
 							WhatsApp the dealer a confirmation
 							<span className="block text-xs text-muted-foreground">
-								From the official LibanCom number, with the new
-								credit.
+								From the official LibanCom number
+								{target?.whatsappPhone
+									? ` to ${target.whatsappPhone}`
+									: ""}
+								, with the new credit.
 							</span>
 						</Label>
 					</div>
+					{notifyDealer && target && !target.whatsappPhone && (
+						<p className="-mt-3 rounded-lg border border-warning/30 bg-warning/[0.06] px-3 py-2 text-xs">
+							{target.name} has no WhatsApp number, so this
+							confirmation will not be sent. Add one under Contact
+							on the dealer's page.
+						</p>
+					)}
 
 					<div className="space-y-1.5">
 						<Label htmlFor="credit-note">

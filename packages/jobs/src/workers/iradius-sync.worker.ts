@@ -1341,11 +1341,16 @@ async function processIRadiusSync(
 					const existing = dealerByExtId.get(extId);
 
 					const dealerData = {
+						// Many dealers have no first/last name in iRadius;
+						// their company or login is still better than "Unknown".
 						name:
 							[dr["FirstName"], dr["LastName"]]
 								.filter(Boolean)
 								.join(" ")
-								.trim() || "Unknown",
+								.trim() ||
+							String(dr["CompanyName"] ?? "").trim() ||
+							String(dr["UserName"] ?? "").trim() ||
+							"Unknown",
 						externalId: extId,
 						username: (dr["UserName"] as string) || null,
 						email: (dr["MailAddress"] as string) || null,
