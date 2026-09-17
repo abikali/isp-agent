@@ -2,6 +2,7 @@ import type { Prisma } from "@repo/database";
 import { db } from "@repo/database";
 import { queryBilling, withBillingConnection } from "@repo/database/billing";
 import { logger } from "@repo/logs";
+import { isUsablePin } from "@repo/utils";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { BILLING_SYNC_QUEUE_NAME } from "../queues/billing-sync.queue";
@@ -175,6 +176,15 @@ async function processBillingSync(
 						};
 						const department =
 							departmentMap[mapping.role ?? ""] ?? null;
+						const cashRoleMap: Record<
+							string,
+							Prisma.EmployeeCreateInput["cashRole"]
+						> = {
+							worker: "WORKER",
+							collector: "COLLECTOR",
+						};
+						const cashRole =
+							cashRoleMap[mapping.role ?? ""] ?? null;
 						const position = mapping.role ?? null;
 
 						const telegram =
@@ -193,6 +203,7 @@ async function processBillingSync(
 								username: legacyName,
 								dealerId: org?.activeDealerId ?? null,
 								department,
+								cashRole,
 								position,
 								phone: mapping.phone ?? null,
 								telegramChatId: telegram,
@@ -317,7 +328,8 @@ async function processBillingSync(
 				}
 				const lat = Number(row["lat"]);
 				const lng = Number(row["lng"]);
-				if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+				// `!= 0` in SQL still lets near-zero noise (0.000008) through.
+				if (!isUsablePin(lat, lng)) {
 					continue;
 				}
 				try {

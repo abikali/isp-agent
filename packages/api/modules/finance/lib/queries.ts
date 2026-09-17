@@ -19,6 +19,10 @@ import {
 	monthRemaining,
 } from "../../billing/lib/settlement";
 import { classifyLedgerRow, isLegacyCurrency } from "../../dealers/lib/ledger";
+import {
+	resolveCashRole,
+	usesCollectorWallet,
+} from "../../employees/lib/cash-role";
 import { UNCLASSIFIED_LABEL } from "./categories";
 import { matchRule } from "./classify";
 import type { MoneyLine } from "./money-model";
@@ -484,6 +488,7 @@ export async function fetchCashHeld(scope: FinanceScope) {
 			name: true,
 			username: true,
 			department: true,
+			cashRole: true,
 		},
 	});
 
@@ -491,13 +496,15 @@ export async function fetchCashHeld(scope: FinanceScope) {
 		return { total: 0, holders: [] };
 	}
 
-	// A "collector" here means someone whose cash comes from billing rounds.
-	// Everyone else settles on the worker formula.
+	// The field role picks the formula: collectors (and collector & worker)
+	// settle billing-round cash; workers settle on the ledger alone. Unset
+	// roles fall back to billing department → collector.
 	const collectorIds = employees
-		.filter((e) => e.department === "BILLING")
+		.filter((e) => usesCollectorWallet(resolveCashRole(e)))
 		.map((e) => e.id);
+	const collectorWallet = new Set(collectorIds);
 	const workerIds = employees
-		.filter((e) => e.department !== "BILLING")
+		.filter((e) => !collectorWallet.has(e.id))
 		.map((e) => e.id);
 
 	const [collectorBalances, workerBalances] = await Promise.all([
@@ -517,7 +524,7 @@ export async function fetchCashHeld(scope: FinanceScope) {
 
 	const holders = employees
 		.map((employee) => {
-			const isCollector = employee.department === "BILLING";
+			const isCollector = collectorWallet.has(employee.id);
 			const balances = isCollector ? collectorBalances : workerBalances;
 			const collected = balances.collectedMap.get(employee.id) ?? 0;
 			const handedOff = balances.handedOffMap.get(employee.id) ?? 0;

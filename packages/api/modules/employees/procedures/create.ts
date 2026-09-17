@@ -7,6 +7,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { ASSIGNABLE_CASH_ROLES } from "../lib/cash-role";
 import { generateEmployeeNumber } from "../lib/employee-number";
 
 export const createEmployee = protectedProcedure
@@ -32,6 +33,7 @@ export const createEmployee = protectedProcedure
 					"FIELD_OPS",
 				])
 				.optional(),
+			cashRole: z.enum(ASSIGNABLE_CASH_ROLES).optional(),
 			hireDate: z.coerce.date().optional(),
 			status: z
 				.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"])
@@ -83,6 +85,7 @@ export const createEmployee = protectedProcedure
 				phone: input.phone ?? null,
 				position: input.position ?? null,
 				department: input.department ?? null,
+				cashRole: input.cashRole ?? null,
 				hireDate: input.hireDate ?? null,
 				status: input.status,
 				notes: input.notes ?? null,

@@ -9,6 +9,7 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
+import { isUsablePin } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
@@ -95,6 +96,22 @@ export const updateCustomer = protectedProcedure
 		}
 
 		await verifyCustomerOwnership(permCtx, "update", existing.collectorId);
+
+		// Setting a new pin (not clearing it) must describe a real place: a
+		// coordinate within 0.001 of zero is iRadius "no pin" noise. An
+		// unchanged existing pin is let through so the rest of the form saves.
+		if (
+			typeof input.latitude === "number" &&
+			typeof input.longitude === "number" &&
+			(input.latitude !== existing.latitude ||
+				input.longitude !== existing.longitude) &&
+			!isUsablePin(input.latitude, input.longitude)
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"That location is not valid — a coordinate is 0 or too close to it",
+			});
+		}
 
 		const updateData: Record<string, unknown> = {};
 		if (input.firstName !== undefined) {

@@ -11,6 +11,8 @@
  *                    'cd /app/packages/database && node --import tsx scripts/backfill-geo-from-iradius.ts --org <id>'
  */
 // biome-ignore-all lint/suspicious/noConsole: operator script
+
+import { isUsablePin } from "@repo/utils";
 import { db } from "../index";
 import { queryIRadius, withIRadiusConnection } from "../lib/iradius";
 
@@ -66,7 +68,9 @@ async function main() {
 
 	let updated = 0;
 	for (const pin of pins) {
-		if (!Number.isFinite(pin.lat) || !Number.isFinite(pin.lng)) {
+		// GSMLat <> 0 in SQL is not enough: some rows carry near-zero noise
+		// (lng 0.000008) that would pin the customer off the coast of Africa.
+		if (!isUsablePin(pin.lat, pin.lng)) {
 			continue;
 		}
 		for (const customerId of byExternalId.get(pin.userId) ?? []) {

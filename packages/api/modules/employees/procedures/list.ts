@@ -5,6 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { collectorRoleWhere, workerRoleWhere } from "../lib/cash-role";
 
 export const listEmployees = protectedProcedure
 	.route({
@@ -28,6 +29,10 @@ export const listEmployees = protectedProcedure
 				])
 				.optional(),
 			stationId: z.string().optional(),
+			// Field role the employee can act as: "COLLECTOR" also matches
+			// BOTH, "WORKER" also matches BOTH. Unset roles use the fallback
+			// derivation (billing department / worker portal).
+			cashRole: z.enum(["COLLECTOR", "WORKER"]).optional(),
 			// When provided, only return employees whose linked user holds this
 			// organization role (e.g. "worker"). Used by forms that should list a
 			// single staff role rather than everyone (e.g. task "assign workers").
@@ -66,6 +71,15 @@ export const listEmployees = protectedProcedure
 		}
 		if (input.department) {
 			where["department"] = input.department;
+		}
+		if (input.cashRole) {
+			// Role helpers carry their own OR — keep them in AND so the
+			// search OR below can't overwrite them.
+			where["AND"] = [
+				input.cashRole === "COLLECTOR"
+					? collectorRoleWhere({})
+					: workerRoleWhere(input.organizationId),
+			];
 		}
 		if (input.stationId) {
 			where["stations"] = {
@@ -110,6 +124,7 @@ export const listEmployees = protectedProcedure
 					phone: true,
 					position: true,
 					department: true,
+					cashRole: true,
 					status: true,
 					hireDate: true,
 					userId: true,

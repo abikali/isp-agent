@@ -38,6 +38,7 @@ import { resendReferralReward } from "./procedures/resend-referral-reward";
 import { resetMonth } from "./procedures/reset-month";
 import { reviewPayment } from "./procedures/review-payment";
 import { reviewPayments } from "./procedures/review-payments";
+import { saveLocation } from "./procedures/save-location";
 import {
 	declineStoppedPayment,
 	listPendingStoppedPayments,
@@ -51,6 +52,7 @@ import {
 	testBilling,
 } from "./procedures/sync-billing";
 import { toggleMonthLock } from "./procedures/toggle-month-lock";
+import { transferCash } from "./procedures/transfer-cash";
 import { updateInvoice } from "./procedures/update-invoice";
 import { updatePayment } from "./procedures/update-payment";
 import {
@@ -116,6 +118,7 @@ export const billingRouter = {
 	collections: {
 		list: listCollections,
 		create: createCollection,
+		transfer: transferCash,
 		delete: deleteCollection,
 	},
 	workers: {
@@ -126,6 +129,7 @@ export const billingRouter = {
 		request: requestLocation,
 		notifyNeeded: notifyLocationNeeded,
 		createRequest: createLocationRequest,
+		save: saveLocation,
 	},
 	noteCategories: {
 		list: listNoteCategories,

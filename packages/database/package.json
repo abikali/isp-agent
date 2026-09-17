@@ -47,6 +47,7 @@
 		"backfill:geo": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-geo-from-iradius.ts",
 		"seed:worker-options": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/seed-worker-options.ts",
 		"backfill:shortcodes": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-shortcodes.ts",
+		"backfill:cash-role": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/backfill-employee-cash-role.ts",
 		"import:bases": "dotenv -c -e ../../.env -- pnpm dlx tsx scripts/import-bases.ts"
 	},
 	"dependencies": {

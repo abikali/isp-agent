@@ -6,7 +6,12 @@ import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	resolveCashRole,
+	workerRoleWhere,
+} from "../../employees/lib/cash-role";
 import { collectorBalance } from "../lib/calculations";
+import { BILLING_STAT_CACHE } from "../lib/cash-cache";
 import { SETTLED_PAYMENT } from "../lib/filters";
 import { fetchWorkerBalanceBatch } from "../lib/queries";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
@@ -34,15 +39,14 @@ export const listWorkers = protectedProcedure
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		return cachedStat(
-			statCacheKey("billing/workers/list", [
+			statCacheKey(BILLING_STAT_CACHE.workersList, [
 				input.organizationId,
 				activeDealerId,
 			]),
 			async () => {
-				// A "worker" is an employee surfaced to the worker portal: linked
-				// to a user holding the org `worker` role, or running the worker
-				// layout, or carrying worker-assigned customers. Matches the
-				// assign-workers picker definition (employees/list.ts role filter).
+				// A "worker" is an employee whose field role is WORKER/BOTH (or,
+				// with no role set, one surfaced to the worker portal), plus
+				// anyone carrying worker-assigned customers.
 				const workers = await db.employee.findMany({
 					where: {
 						organizationId: input.organizationId,
@@ -50,18 +54,7 @@ export const listWorkers = protectedProcedure
 						deletedAt: null,
 						...dealerFilter,
 						OR: [
-							{
-								user: {
-									members: {
-										some: {
-											organizationId:
-												input.organizationId,
-											role: "worker",
-										},
-									},
-								},
-							},
-							{ preferredLayout: "worker" },
+							workerRoleWhere(input.organizationId),
 							{ customerWorkerAssignments: { some: {} } },
 						],
 					},
@@ -71,6 +64,7 @@ export const listWorkers = protectedProcedure
 						username: true,
 						phone: true,
 						department: true,
+						cashRole: true,
 						_count: {
 							select: {
 								customerWorkerAssignments: {
@@ -136,6 +130,7 @@ export const listWorkers = protectedProcedure
 							username: w.username,
 							phone: w.phone,
 							department: w.department,
+							cashRole: resolveCashRole(w),
 							customerCount: w._count.customerWorkerAssignments,
 							inHand: collectorBalance(
 								totalCollected,

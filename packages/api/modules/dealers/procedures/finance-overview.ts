@@ -1,6 +1,11 @@
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	collectorRoleWhere,
+	resolveCashRole,
+	workerRoleWhere,
+} from "../../employees/lib/cash-role";
 import { DEALER_ADMIN_TRANSFER_TYPES } from "../../finance/lib/money-model";
 import { previousPeriod, resolvePeriod } from "../../finance/lib/period";
 import { netOwed, round2 } from "../lib/ledger";
@@ -102,20 +107,38 @@ export const getDealerFinanceOverview = protectedProcedure
 					createdAt: true,
 				},
 			}),
-			// Who can take cash from a dealer on the operator's behalf.
+			// Who can take cash from a dealer on the operator's behalf: field
+			// staff only (collector or worker role), labelled with that role.
 			scope.canManage
-				? db.employee.findMany({
-						where: {
-							organizationId: scope.organizationId,
-							status: "ACTIVE",
-							deletedAt: null,
-							...(scope.activeDealerId
-								? { dealerId: scope.activeDealerId }
-								: {}),
-						},
-						select: { id: true, name: true, department: true },
-						orderBy: { name: "asc" },
-					})
+				? db.employee
+						.findMany({
+							where: {
+								organizationId: scope.organizationId,
+								status: "ACTIVE",
+								deletedAt: null,
+								...(scope.activeDealerId
+									? { dealerId: scope.activeDealerId }
+									: {}),
+								OR: [
+									collectorRoleWhere({}),
+									workerRoleWhere(scope.organizationId),
+								],
+							},
+							select: {
+								id: true,
+								name: true,
+								department: true,
+								cashRole: true,
+							},
+							orderBy: { name: "asc" },
+						})
+						.then((rows) =>
+							rows.map((e) => ({
+								id: e.id,
+								name: e.name,
+								cashRole: resolveCashRole(e),
+							})),
+						)
 				: Promise.resolve([]),
 		]);
 

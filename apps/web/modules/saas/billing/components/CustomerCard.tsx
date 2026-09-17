@@ -1,6 +1,7 @@
 "use client";
 
 import { parsePhones } from "@repo/database/phones";
+import { directionsUrl, isUsablePin } from "@repo/utils";
 import { PhoneActions } from "@shared/components/PhoneActions";
 import { displayName } from "@shared/lib/display-name";
 import { formatCurrency, formatDate } from "@shared/lib/format";
@@ -16,6 +17,7 @@ import {
 	CopyIcon,
 	HandCoinsIcon,
 	MapPinIcon,
+	MapPinPlusIcon,
 	NavigationIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -24,6 +26,7 @@ import {
 	formatCycleShort,
 	getExpiryInfo,
 } from "../lib/billing-utils";
+import { AddPinDialog } from "./AddPinDialog";
 
 export interface UnpaidCustomer {
 	id: string;
@@ -75,6 +78,10 @@ export interface UnpaidCustomer {
 	lastPaymentAmount?: number | null;
 }
 
+// Call · WhatsApp · Directions share one row as equal, thumb-sized stacked
+// icon-over-label buttons — three labeled buttons fit a 360px phone that way.
+const QUICK_ACTION_CLASS = "h-14 flex-1 basis-0 flex-col gap-1 px-1 text-xs";
+
 interface CustomerCardProps {
 	customer: UnpaidCustomer;
 	onPay: (customer: UnpaidCustomer) => void;
@@ -108,6 +115,7 @@ function CopyButton({ value }: { value: string }) {
 
 export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 	const [expanded, setExpanded] = useState(false);
+	const [addPinOpen, setAddPinOpen] = useState(false);
 	const name = displayName(customer.firstName, customer.lastName);
 	const monthlyDue = customerMonthlyDue(customer);
 	const totalDue = customer.accumulatedDue ?? monthlyDue;
@@ -134,7 +142,11 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 		: [customer.mobile ?? customer.phone].filter((n): n is string =>
 				Boolean(n),
 			);
-	const hasLocation = customer.latitude && customer.longitude;
+	// A missing pin and iRadius's near-zero noise pins (lng 0.000008) both mean
+	// "no usable pin": Directions would send the collector abroad.
+	const pinUrl = isUsablePin(customer.latitude, customer.longitude)
+		? directionsUrl(`${customer.latitude},${customer.longitude}`)
+		: null;
 
 	return (
 		<Card className="overflow-hidden">
@@ -416,48 +428,21 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 								</div>
 							)}
 						</div>
-
-						{/* Location actions */}
-						{hasLocation && (
-							<div className="mt-3 flex gap-2">
-								<Button
-									variant="outline"
-									size="sm"
-									className="flex-1"
-									asChild
-								>
-									<a
-										href={`https://www.google.com/maps/dir/?api=1&destination=${customer.latitude},${customer.longitude}`}
-										target="_blank"
-										rel="noopener noreferrer"
-									>
-										<NavigationIcon className="mr-1.5 size-3.5" />
-										Get Directions
-									</a>
-								</Button>
-							</div>
-						)}
 					</div>
 				)}
 
-				{/* Action row */}
+				{/* Action rows: Pay + details toggle, then the door-side
+				    quick actions on the card face — no expanding to navigate. */}
 				<div className="mt-3 flex items-center gap-2">
 					<Button
 						variant="primary"
 						size="lg"
-						className="flex-1 text-base font-semibold"
+						className="h-11 flex-1 text-base font-semibold"
 						onClick={() => onPay(customer)}
 					>
 						<BanknoteIcon className="mr-1.5 size-4" />
 						Pay
 					</Button>
-
-					{/* One number → direct link; several → a picker, because the
-					    collector must choose which line to call or message. */}
-					<PhoneActions
-						numbers={phoneNumbers}
-						className="h-11 flex-none basis-auto px-3 text-sm"
-					/>
 
 					<Button
 						variant="ghost"
@@ -474,7 +459,48 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						)}
 					</Button>
 				</div>
+
+				<div className="mt-2 flex gap-2">
+					{/* One number → direct link; several → a picker, because the
+					    collector must choose which line to call or message. */}
+					<PhoneActions
+						numbers={phoneNumbers}
+						className={QUICK_ACTION_CLASS}
+					/>
+					{pinUrl ? (
+						<Button
+							variant="outline"
+							className={QUICK_ACTION_CLASS}
+							asChild
+						>
+							<a
+								href={pinUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								<NavigationIcon />
+								Directions
+							</a>
+						</Button>
+					) : (
+						<Button
+							variant="outline"
+							className={QUICK_ACTION_CLASS}
+							onClick={() => setAddPinOpen(true)}
+						>
+							<MapPinPlusIcon />
+							Add pin
+						</Button>
+					)}
+				</div>
 			</CardContent>
+			{addPinOpen && (
+				<AddPinDialog
+					customerId={customer.id}
+					customerName={name}
+					onClose={() => setAddPinOpen(false)}
+				/>
+			)}
 		</Card>
 	);
 }

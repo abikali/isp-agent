@@ -1806,3 +1806,62 @@ export const dealerAudit = {
 		);
 	},
 };
+
+/**
+ * Staff cash moves — money changing hands between employees' wallets. The
+ * resource id is the pair's `transferId`.
+ */
+export const cashAudit = {
+	transferred: (
+		transferId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			fromEmployeeId: string;
+			toEmployeeId: string;
+			amount: number;
+			note: string | null;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.cash.transferred,
+					resourceType: RESOURCE_TYPES.cashTransfer,
+				},
+				{
+					resourceId: transferId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	transferReverted: (
+		transferId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: { deletedCollectionId: string },
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.cash.transferReverted,
+					resourceType: RESOURCE_TYPES.cashTransfer,
+				},
+				{
+					resourceId: transferId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};

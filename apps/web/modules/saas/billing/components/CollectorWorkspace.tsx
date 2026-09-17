@@ -21,6 +21,7 @@ import { formatCurrency, formatDate, formatDateTime } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -84,6 +85,7 @@ import { cashTypeLabel, cashTypeTone } from "../lib/cash-types";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
 import { GiveMoneyCard } from "./GiveMoneyCard";
+import { MoveCashCard } from "./MoveCashCard";
 
 const HANDOFF_SORT_BY_MAP = {
 	collectedAt: "collectedAt",
@@ -260,6 +262,12 @@ export function CollectorWorkspace({
 			/>
 
 			<GiveMoneyCard employeeId={collectorId} balance={balance} />
+
+			<MoveCashCard
+				employeeId={collectorId}
+				employeeName={collectorName}
+				balance={balance}
+			/>
 
 			<Tabs defaultValue="payments" className="space-y-3">
 				<TabsList className="w-full justify-start sm:w-auto">
@@ -449,6 +457,7 @@ function PaymentsPanel({
 	const [statusFilter, setStatusFilter] = useState<string>("");
 	const [groupFilter, setGroupFilter] = useState<string>("");
 	const [search, setSearch] = useState("");
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 250 });
 	const { groups } = useCustomerGroups();
 	const {
 		monthFilter,
@@ -474,7 +483,7 @@ function PaymentsPanel({
 		billingMonthId,
 		stoppedAccount,
 		groupName: groupFilter || undefined,
-		search: search || undefined,
+		search: debouncedSearch || undefined,
 		page,
 		pageSize: PAGE_SIZE,
 		sortBy: "paidAt",
@@ -945,13 +954,15 @@ function HandoffsPanel({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete entry?</AlertDialogTitle>
 						<AlertDialogDescription>
-							{pendingDelete?.type === "HANDOFF"
-								? "The collector's in-hand balance will jump back up by the handoff amount."
-								: pendingDelete?.type === "CASH_FLOAT"
-									? "This removes the float. His cash in hand goes back down by the amount."
-									: pendingDelete?.type === "SALARY"
-										? "This removes his pay and its expense. His cash in hand is unchanged."
-										: "This removes the entry and its linked expense; the collector's balance will adjust accordingly."}
+							{pendingDelete?.transferId
+								? "This undoes the whole cash move: both people's entries are removed and each one's cash in hand goes back to what it was."
+								: pendingDelete?.type === "HANDOFF"
+									? "The collector's in-hand balance will jump back up by the handoff amount."
+									: pendingDelete?.type === "CASH_FLOAT"
+										? "This removes the float. His cash in hand goes back down by the amount."
+										: pendingDelete?.type === "SALARY"
+											? "This removes his pay and its expense. His cash in hand is unchanged."
+											: "This removes the entry and its linked expense; the collector's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -984,6 +995,7 @@ interface HandoffRow {
 		| "EXPENSE"
 		| string;
 	externalBillingId: number | null;
+	transferId: string | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
 }

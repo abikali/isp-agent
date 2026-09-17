@@ -24,6 +24,11 @@ interface LocationPromptDialogProps {
 	onSkip: () => void;
 	onSendWhatsapp: () => void;
 	whatsappPending?: boolean;
+	/**
+	 * Dismiss button label. Defaults to the payment flow's "remind me on
+	 * Telegram"; a standalone Add pin passes a plain "Cancel".
+	 */
+	skipLabel?: string;
 }
 
 export function LocationPromptDialog({
@@ -33,6 +38,7 @@ export function LocationPromptDialog({
 	onSkip,
 	onSendWhatsapp,
 	whatsappPending = false,
+	skipLabel,
 }: LocationPromptDialogProps) {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [errorMessage, setErrorMessage] = useState("");
@@ -156,8 +162,12 @@ export function LocationPromptDialog({
 						className="w-full gap-2 text-muted-foreground"
 						onClick={onSkip}
 					>
-						<SendIcon className="size-4" />
-						Skip & remind me on Telegram
+						{skipLabel ?? (
+							<>
+								<SendIcon className="size-4" />
+								Skip & remind me on Telegram
+							</>
+						)}
 					</Button>
 				</div>
 			</DialogContent>

@@ -64,6 +64,7 @@ import {
 } from "../hooks/use-billing";
 import { cashTypeLabel, cashTypeTone } from "../lib/cash-types";
 import { GiveMoneyCard } from "./GiveMoneyCard";
+import { MoveCashCard } from "./MoveCashCard";
 
 const HANDOFF_SORT_BY_MAP = {
 	collectedAt: "collectedAt",
@@ -464,6 +465,12 @@ export function WorkerCashWorkspace({
 				/>
 			</div>
 
+			<MoveCashCard
+				employeeId={workerId}
+				employeeName={workerName}
+				balance={balance}
+			/>
+
 			<CashHistoryPanel
 				workerId={workerId}
 				organizationId={organizationId}
@@ -630,6 +637,7 @@ interface CashRow {
 		| "EXPENSE"
 		| string;
 	externalBillingId: number | null;
+	transferId: string | null;
 	collectedAt: string | Date;
 	receivedBy: { id: string; name: string } | null;
 	// Present on NEW_USER_SETUP rows: the subscriber this setup created.
@@ -850,16 +858,18 @@ function CashHistoryPanel({
 						<AlertDialogDescription>
 							{pendingCustomer
 								? `The worker gets his money and the installed hardware back, and the install lines return to the pending queue. Decide below what happens to ${pendingCustomer.label}.`
-								: pendingDelete?.type === "HANDOFF"
-									? "The worker's in-hand balance will jump back up by the handoff amount."
-									: pendingDelete?.type === "CASH_FLOAT"
-										? "This removes the float. His cash in hand goes back down by the amount."
-										: pendingDelete?.type === "SALARY"
-											? "This removes his pay and its expense. His cash in hand is unchanged."
-											: pendingDelete?.type ===
-													"STORE_PURCHASE"
-												? "This removes the purchase. His cash in hand goes back up by the amount."
-												: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
+								: pendingDelete?.transferId
+									? "This undoes the whole cash move: both people's entries are removed and each one's cash in hand goes back to what it was."
+									: pendingDelete?.type === "HANDOFF"
+										? "The worker's in-hand balance will jump back up by the handoff amount."
+										: pendingDelete?.type === "CASH_FLOAT"
+											? "This removes the float. His cash in hand goes back down by the amount."
+											: pendingDelete?.type === "SALARY"
+												? "This removes his pay and its expense. His cash in hand is unchanged."
+												: pendingDelete?.type ===
+														"STORE_PURCHASE"
+													? "This removes the purchase. His cash in hand goes back up by the amount."
+													: "This removes the entry and its linked expense; the worker's balance will adjust accordingly."}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					{pendingCustomer && (

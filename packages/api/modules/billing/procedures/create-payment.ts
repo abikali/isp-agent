@@ -20,7 +20,7 @@ import {
 	notifyBadgeForOrganization,
 	sendOrganizationNotification,
 } from "@repo/notifications";
-import { tgMessage } from "@repo/utils";
+import { isUsablePin, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -314,10 +314,17 @@ export const createPayment = protectedProcedure
 		// edit form. Only touches iRadius when a field actually changed AND the
 		// customer is linked, so a plain collection never depends on iRadius.
 		const mirrorNext: MirrorNextFields = {};
+		// A near-zero pin is dropped, not stored — the payment still goes
+		// through, the collector just gets prompted for a pin again next time.
+		const pinUsable = isUsablePin(
+			input.customerLatitude,
+			input.customerLongitude,
+		);
 		if (input.customerPhones && input.customerPhones.length > 0) {
 			mirrorNext.phones = input.customerPhones;
 		}
 		if (
+			pinUsable &&
 			input.customerLatitude !== undefined &&
 			input.customerLongitude !== undefined
 		) {
@@ -349,6 +356,7 @@ export const createPayment = protectedProcedure
 			customerUpdates["mobile"] = getPrimaryPhone(input.customerPhones);
 		}
 		if (
+			pinUsable &&
 			input.customerLatitude !== undefined &&
 			input.customerLongitude !== undefined
 		) {

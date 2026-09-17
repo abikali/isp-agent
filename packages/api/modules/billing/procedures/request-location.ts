@@ -6,7 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgLink, tgMessage } from "@repo/utils";
+import { isUsablePin, tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -68,7 +68,9 @@ export const requestLocation = protectedProcedure
 			});
 		}
 
-		if (!customer.latitude || !customer.longitude) {
+		// Near-zero iRadius noise (e.g. lng 0.000008) is not a pin — it would
+		// send the collector abroad.
+		if (!isUsablePin(customer.latitude, customer.longitude)) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "No location available for this customer",
 			});

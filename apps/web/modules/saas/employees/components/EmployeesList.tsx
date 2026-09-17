@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	CASH_ROLE_LABELS,
+	resolveCashRole,
+} from "@repo/api/modules/employees/lib/cash-role";
+import type { EmployeeCashRole } from "@repo/database/enums";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import {
 	ContentCard,
@@ -91,6 +96,7 @@ interface EmployeeRow {
 	phone: string | null;
 	position: string | null;
 	department: string | null;
+	cashRole: EmployeeCashRole | null;
 	hireDate: Date | null;
 	userId: string | null;
 	externalId: string | null;
@@ -247,6 +253,32 @@ export function EmployeesList({
 					) : (
 						<span className="text-muted-foreground">-</span>
 					),
+			},
+			{
+				id: "cashRole",
+				header: "Field role",
+				enableSorting: false,
+				meta: { className: "hidden lg:table-cell" },
+				cell: ({ row }) => {
+					const role = resolveCashRole(row.original);
+					// Unset roles show what they are counted as, muted.
+					return (
+						<span
+							className={
+								row.original.cashRole
+									? "text-sm"
+									: "text-sm text-muted-foreground"
+							}
+							title={
+								row.original.cashRole
+									? undefined
+									: "Not set — counted from the department"
+							}
+						>
+							{CASH_ROLE_LABELS[role]}
+						</span>
+					);
+				},
 			},
 			{
 				id: "stations",

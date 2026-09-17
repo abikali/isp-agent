@@ -12,6 +12,7 @@ import {
 	fetchWorkerBalance,
 } from "../../billing/lib/queries";
 import { taskDealerScopeWhere } from "../../tasks/lib/dealer-scope";
+import { resolveCashRole, usesCollectorWallet } from "../lib/cash-role";
 
 /**
  * Consolidated analytics report for a single worker/employee.
@@ -67,6 +68,7 @@ export const getEmployeeReport = protectedProcedure
 				status: true,
 				position: true,
 				department: true,
+				cashRole: true,
 				preferredLayout: true,
 				phone: true,
 				hireDate: true,
@@ -91,7 +93,9 @@ export const getEmployeeReport = protectedProcedure
 		// Workers hold cash attributed to their own pocket (Payment.workerId);
 		// collectors hold cash where they are the recorder (workerId: null).
 		// This drives both the cash balance and the recent-payments feed below.
-		const isWorker = employee.preferredLayout === "worker";
+		// Same field-role rule as the employee page balance and the Money page
+		// (explicit role, else billing department → collector).
+		const isWorker = !usesCollectorWallet(resolveCashRole(employee));
 		const paymentCashScope = isWorker
 			? { workerId: employee.id }
 			: { collectorId: employee.id, workerId: null };

@@ -1,6 +1,10 @@
 "use client";
 
 import { emailSchema } from "@repo/api/lib/validation";
+import {
+	ASSIGNABLE_CASH_ROLES,
+	CASH_ROLE_LABELS,
+} from "@repo/api/modules/employees/lib/cash-role";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
@@ -43,6 +47,8 @@ export function CreateEmployeeDialog({
 			phone: "",
 			position: "",
 			department: "",
+			// "auto" = no explicit field role (Select items can't carry "").
+			cashRole: "auto",
 			hireDate: "",
 			notes: "",
 		},
@@ -64,6 +70,10 @@ export function CreateEmployeeDialog({
 						| "MANAGEMENT"
 						| "FIELD_OPS"
 						| undefined,
+					cashRole:
+						value.cashRole === "auto"
+							? undefined
+							: (value.cashRole as (typeof ASSIGNABLE_CASH_ROLES)[number]),
 					hireDate: value.hireDate
 						? new Date(value.hireDate)
 						: undefined,
@@ -226,6 +236,37 @@ export function CreateEmployeeDialog({
 								)}
 							</form.Field>
 						</div>
+
+						<form.Field name="cashRole">
+							{(field) => (
+								<div className="space-y-2">
+									<Label>Field role</Label>
+									<Select
+										value={field.state.value}
+										onValueChange={field.handleChange}
+									>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="auto">
+												Not set — from department
+											</SelectItem>
+											{ASSIGNABLE_CASH_ROLES.map(
+												(role) => (
+													<SelectItem
+														key={role}
+														value={role}
+													>
+														{CASH_ROLE_LABELS[role]}
+													</SelectItem>
+												),
+											)}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
+						</form.Field>
 
 						<form.Field name="hireDate">
 							{(field) => (

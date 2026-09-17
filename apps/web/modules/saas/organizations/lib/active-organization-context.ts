@@ -10,6 +10,7 @@ export interface EmployeeIdentity {
 	employeeNumber: string;
 	position: string | null;
 	department: string | null;
+	cashRole: "COLLECTOR" | "WORKER" | "BOTH" | null;
 	email: string | null;
 	phone: string | null;
 	preferredLayout: string;

@@ -29,6 +29,7 @@ import {
 	PROFILE_DEPARTMENT_MAP,
 	PROFILE_POSITION_MAP,
 	safeDate,
+	syncPin,
 	toBigInt,
 	toBooleanFromBit,
 } from "./iradius-sync-helpers";
@@ -1861,6 +1862,10 @@ async function processIRadiusSync(
 								organizationId,
 								employeeNumber,
 								preferredLayout: "collector",
+								// Field role is seeded once and then owned by
+								// the admin — never part of employeeData, so
+								// later syncs don't overwrite it.
+								cashRole: profileId === 6 ? "COLLECTOR" : null,
 								lastSyncedAt: new Date(),
 								...employeeData,
 							},
@@ -2276,8 +2281,7 @@ async function processIRadiusSync(
 					iptvPrice: (u["IPTVPRICE"] as number) ?? 0,
 					realIpPrice: (u["REALIPPRICE"] as number) ?? 0,
 					discount: (u["Discount"] as number) ?? 0,
-					latitude: (u["GSMLat"] as number) || null,
-					longitude: (u["GSMLng"] as number) || null,
+					...syncPin(u),
 					categoryName: (u["CategoryName"] as string) || null,
 					groupName: (u["GroupName"] as string) || null,
 					groupExternalId: (u["UserGroupId"] as number) ?? null,

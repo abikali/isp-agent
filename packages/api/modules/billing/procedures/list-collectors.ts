@@ -6,7 +6,12 @@ import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	collectorRoleWhere,
+	resolveCashRole,
+} from "../../employees/lib/cash-role";
 import { collectorBalance } from "../lib/calculations";
+import { BILLING_STAT_CACHE } from "../lib/cash-cache";
 import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
@@ -43,7 +48,7 @@ export const listCollectors = protectedProcedure
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
 
 		return cachedStat(
-			statCacheKey("billing/collectors/list", [
+			statCacheKey(BILLING_STAT_CACHE.collectorsList, [
 				input.organizationId,
 				activeDealerId,
 			]),
@@ -54,8 +59,11 @@ export const listCollectors = protectedProcedure
 						status: "ACTIVE",
 						// Match employee list — skip soft-deleted collectors.
 						deletedAt: null,
+						// Collector role (explicit, or billing department when
+						// unset), plus anyone still holding collector-assigned
+						// customers so nobody's customers become orphaned.
 						OR: [
-							{ ...dealerFilter, department: "BILLING" },
+							collectorRoleWhere(dealerFilter),
 							{ customerCollections: { some: dealerFilter } },
 						],
 					},
@@ -65,6 +73,7 @@ export const listCollectors = protectedProcedure
 						username: true,
 						phone: true,
 						department: true,
+						cashRole: true,
 						_count: {
 							select: {
 								customerCollections: { where: dealerFilter },
@@ -226,6 +235,7 @@ export const listCollectors = protectedProcedure
 							username: c.username,
 							phone: c.phone,
 							department: c.department,
+							cashRole: resolveCashRole(c),
 							customerCount: c._count.customerCollections,
 							inHand: collectorBalance(
 								totalCollected,

@@ -10,6 +10,7 @@ import {
 	runCreateLocationRequest,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { isUsablePin } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure, publicProcedure } from "../../../orpc/procedures";
 import { iradiusUpdateUserLocation } from "../lib/iradius-api";
@@ -174,6 +175,14 @@ export const updateCustomerLocation = protectedProcedure
 			input.customerId,
 			user.id,
 		);
+		// A coordinate within 0.001 of zero is iRadius's "no pin" noise, never
+		// a real place — refuse it rather than store a pin that misdirects.
+		if (!isUsablePin(input.latitude, input.longitude)) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"That location is not valid — a coordinate is 0 or too close to it",
+			});
+		}
 		const customer = await db.customer.findUnique({
 			where: { id: input.customerId },
 			select: { externalId: true },
@@ -273,6 +282,12 @@ export const submitLocationByToken = publicProcedure
 		}),
 	)
 	.handler(async ({ input }) => {
+		if (!isUsablePin(input.latitude, input.longitude)) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"We couldn't read your location. Turn on location and try again.",
+			});
+		}
 		const request = await db.locationRequest.findUnique({
 			where: { token: input.token },
 			select: {

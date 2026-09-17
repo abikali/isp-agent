@@ -29,6 +29,7 @@ interface Collection {
 	type: string;
 	notes: string | null;
 	externalBillingId: number | null;
+	transferId: string | null;
 	collectedAt: string | Date;
 	collector: { name: string };
 	receivedBy: { name: string } | null;
@@ -136,9 +137,17 @@ export function HandoffsTable({
 										Delete handoff record?
 									</AlertDialogTitle>
 									<AlertDialogDescription>
-										This will permanently delete the{" "}
-										{formatCurrency(row.original.amount)}{" "}
-										handoff record.
+										{row.original.transferId ? (
+											"This undoes the whole cash move: both people's entries are removed."
+										) : (
+											<>
+												This will permanently delete the{" "}
+												{formatCurrency(
+													row.original.amount,
+												)}{" "}
+												handoff record.
+											</>
+										)}
 									</AlertDialogDescription>
 								</AlertDialogHeader>
 								<AlertDialogFooter>

@@ -4,6 +4,8 @@ import {
 	handoffAmount,
 	installationCostAmount,
 	newUserSetupAmount,
+	transferInAmount,
+	transferOutAmount,
 } from "../lib/cash-signs";
 
 /**
@@ -40,5 +42,28 @@ describe("cash-signs", () => {
 		const balance = payments - entries.reduce((sum, a) => sum + a, 0);
 		// owes 100 + 40 − 25 = 115
 		expect(balance).toBe(115);
+	});
+
+	it("transfer legs: out is positive, in is negative, pair sums to zero", () => {
+		expect(transferOutAmount(500)).toBe(500);
+		expect(transferOutAmount(-500)).toBe(500);
+		expect(transferInAmount(500)).toBe(-500);
+		expect(transferInAmount(-500)).toBe(-500);
+		expect(transferOutAmount(123.45) + transferInAmount(123.45)).toBe(0);
+	});
+
+	it("balance math: moving cash lowers the sender and raises the receiver by the same amount", () => {
+		// Collector formula: Σ payments − Σ ledger.
+		const collectorPayments = 8545;
+		const collectorAfter = collectorPayments - transferOutAmount(8545);
+		expect(collectorAfter).toBe(0);
+		// Worker formula: −Σ ledger.
+		const workerLedger = [installationCostAmount(1000)];
+		const workerBefore = -workerLedger.reduce((sum, a) => sum + a, 0);
+		const workerAfter = -[...workerLedger, transferInAmount(8545)].reduce(
+			(sum, a) => sum + a,
+			0,
+		);
+		expect(workerAfter - workerBefore).toBe(8545);
 	});
 });

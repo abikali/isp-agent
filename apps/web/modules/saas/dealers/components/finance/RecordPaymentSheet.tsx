@@ -1,5 +1,7 @@
 "use client";
 
+import { CASH_ROLE_LABELS } from "@repo/api/modules/employees/lib/cash-role";
+import type { EmployeeCashRole } from "@repo/database/enums";
 import { useConfirmationAlert } from "@saas/shared/client";
 import {
 	beirutWallClockToUtc,
@@ -43,7 +45,7 @@ export interface PaymentTarget {
 export interface PaymentStaff {
 	id: string;
 	name: string;
-	department: string | null;
+	cashRole: EmployeeCashRole;
 }
 
 interface RecordPaymentSheetProps {
@@ -333,7 +335,7 @@ export function RecordPaymentSheet({
 									{ value: "office", label: "The office" },
 									...staff.map((s) => ({
 										value: s.id,
-										label: `${s.name}${s.department === "BILLING" ? " — collector" : s.department ? " — worker" : ""}`,
+										label: `${s.name} — ${CASH_ROLE_LABELS[s.cashRole].toLowerCase()}`,
 									})),
 								]}
 							/>

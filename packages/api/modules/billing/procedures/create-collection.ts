@@ -1,11 +1,16 @@
 import { ORPCError } from "@orpc/server";
+import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
 import {
 	getDealerScopeFilter,
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { logger } from "@repo/logs";
+import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { bustCashStats } from "../lib/cash-cache";
+import { handoffAmount } from "../lib/cash-signs";
 
 export const createCollection = protectedProcedure
 	.route({
@@ -36,6 +41,7 @@ export const createCollection = protectedProcedure
 				id: input.collectorId,
 				organizationId: input.organizationId,
 				status: "ACTIVE",
+				deletedAt: null,
 				...getDealerScopeFilter(activeDealerId),
 			},
 			select: { id: true },
@@ -46,12 +52,14 @@ export const createCollection = protectedProcedure
 			});
 		}
 
+		const note = input.notes?.trim() || undefined;
+
 		const collection = await db.cashCollection.create({
 			data: {
 				organizationId: input.organizationId,
 				collectorId: input.collectorId,
-				amount: input.amount,
-				notes: input.notes ?? null,
+				amount: handoffAmount(input.amount),
+				notes: note ?? null,
 				type: "HANDOFF",
 				receivedById: user.id,
 			},
@@ -59,6 +67,37 @@ export const createCollection = protectedProcedure
 				collector: { select: { id: true, name: true } },
 			},
 		});
+
+		bustCashStats(input.organizationId);
+
+		const amountLabel = `$${input.amount.toFixed(2)}`;
+		notifyFieldEmployee({
+			organizationId: input.organizationId,
+			employeeId: input.collectorId,
+			title: "Handoff recorded",
+			message: `The office recorded ${amountLabel} handed in by you${note ? ` — ${note}` : ""}.`,
+			type: "success",
+			telegramText: tgMessage({
+				icon: "🤝",
+				title: "Handoff recorded",
+				fields: [
+					{
+						icon: "💰",
+						label: "Amount",
+						value: amountLabel,
+						copyable: true,
+					},
+					user.name
+						? { icon: "👤", label: "Received by", value: user.name }
+						: null,
+					note ? { icon: "✍️", label: "Note", value: note } : null,
+				],
+			}),
+		}).catch((err: unknown) =>
+			logger.warn("[Billing] handoff notify failed", {
+				error: String(err),
+			}),
+		);
 
 		return { collection };
 	});
