@@ -1,12 +1,9 @@
-import {
-	getActionScope,
-	getUserEmployeeId,
-	requirePermission,
-} from "@repo/api/lib/permission";
+import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
+import { taskOwnScopeWhere } from "../lib/read-scope";
 import { taskSearchWhere } from "../lib/task-search";
 
 export const listTasks = protectedProcedure
@@ -86,21 +83,10 @@ export const listTasks = protectedProcedure
 
 		// Composite own filter: tasks created by user OR assigned to user's employee
 		// Every clause (scope, dealer, search) goes through AND so no OR overwrites another
-		const scope = getActionScope(permCtx, "tasks", "read");
 		const andClauses: Record<string, unknown>[] = [];
-		if (scope === "own") {
-			const empId = await getUserEmployeeId(
-				input.organizationId,
-				user.id,
-			);
-			andClauses.push({
-				OR: [
-					{ createdById: user.id },
-					...(empId
-						? [{ assignments: { some: { employeeId: empId } } }]
-						: []),
-				],
-			});
+		const ownScope = await taskOwnScopeWhere(permCtx);
+		if (ownScope) {
+			andClauses.push(ownScope);
 		}
 
 		andClauses.push(taskDealerScopeWhere(activeDealerId));

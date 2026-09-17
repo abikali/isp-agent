@@ -1,21 +1,24 @@
+import { ORPCError } from "@orpc/server";
 import { db } from "@repo/database";
 import { z } from "zod";
 import { verifyOrganizationMembership } from "../../lib/membership";
+import {
+	getDealerScopeFilter,
+	getOwnershipFilterAsync,
+	getPermissionContext,
+} from "../../lib/permission";
 import { protectedProcedure, publicProcedure } from "../../orpc/procedures";
 import { customerSearchWhere } from "../customers/lib/customer-search";
+import { taskDealerScopeWhere } from "../tasks/lib/dealer-scope";
+import { taskOwnScopeWhere } from "../tasks/lib/read-scope";
 import { taskSearchWhere } from "../tasks/lib/task-search";
+import { allowedSearchTypes, SEARCH_TYPES } from "./lib/search-scope";
 
 /**
  * Cross-cutting procedures used by the command palette and other shared UI.
  */
 
-const SearchTypeSchema = z.enum([
-	"customer",
-	"employee",
-	"task",
-	"conversation",
-	"broadcast",
-]);
+const SearchTypeSchema = z.enum(SEARCH_TYPES);
 
 const SearchResultSchema = z.object({
 	type: SearchTypeSchema,
@@ -33,6 +36,10 @@ type SearchResult = z.infer<typeof SearchResultSchema>;
  * Returns up to `limitPerType` matches per resource type, ranked by recency.
  * Each row is a discriminated record with a stable shape so the palette can
  * render them generically.
+ *
+ * Scoping matches each type's list page: a type the caller can't `read` is
+ * skipped, customers/employees/tasks stay inside the active dealer, and
+ * `read:own` roles (e.g. collectors) only see their own customers and tasks.
  *
  * Performance: each fan-out query has its own `take` cap and is `Promise.all`'d.
  * Postgres `mode: "insensitive"` for case-insensitive contains.
@@ -55,7 +62,22 @@ const find = protectedProcedure
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
-		await verifyOrganizationMembership(user.id, input.organizationId);
+		const member = await verifyOrganizationMembership(
+			input.organizationId,
+			user.id,
+		);
+		if (!member) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "You must be a member of this organization",
+			});
+		}
+		const permCtx = getPermissionContext(
+			user.id,
+			input.organizationId,
+			member.role,
+			member.rolePermissions,
+		);
+		const activeDealerId = member.activeDealerId ?? null;
 
 		const q = input.q.trim();
 		if (q.length === 0) {
@@ -63,15 +85,7 @@ const find = protectedProcedure
 		}
 
 		const limit = input.limitPerType;
-		const types = new Set(
-			input.types ?? [
-				"customer",
-				"employee",
-				"task",
-				"conversation",
-				"broadcast",
-			],
-		);
+		const types = allowedSearchTypes(permCtx, input.types);
 
 		// URL prefix derived once for link construction.
 		// If slug not provided, fall back to organization ID (still works in the app).
@@ -80,12 +94,19 @@ const find = protectedProcedure
 
 		// Name / username / account / any phone — resolved up front because a
 		// phone-shaped query needs a digits-only lookup first.
-		const [customerSearch, taskSearch] = await Promise.all([
-			types.has("customer")
-				? customerSearchWhere(input.organizationId, q)
-				: null,
-			types.has("task") ? taskSearchWhere(input.organizationId, q) : null,
-		]);
+		const [customerSearch, customerOwnScope, taskSearch, taskOwnScope] =
+			await Promise.all([
+				types.has("customer")
+					? customerSearchWhere(input.organizationId, q)
+					: null,
+				types.has("customer")
+					? getOwnershipFilterAsync(permCtx, "customers", "read")
+					: undefined,
+				types.has("task")
+					? taskSearchWhere(input.organizationId, q)
+					: null,
+				types.has("task") ? taskOwnScopeWhere(permCtx) : null,
+			]);
 
 		const [customers, employees, tasks, conversations, broadcasts] =
 			await Promise.all([
@@ -96,6 +117,8 @@ const find = protectedProcedure
 								// Skip soft-deleted customers in global search —
 								// they're back-references only.
 								deletedAt: null,
+								...customerOwnScope,
+								...getDealerScopeFilter(activeDealerId),
 								OR: [
 									customerSearch,
 									{
@@ -137,6 +160,7 @@ const find = protectedProcedure
 								organizationId: input.organizationId,
 								// Match the employees list — skip soft-deleted.
 								deletedAt: null,
+								...getDealerScopeFilter(activeDealerId),
 								OR: [
 									{
 										name: {
@@ -185,7 +209,11 @@ const find = protectedProcedure
 					? db.task.findMany({
 							where: {
 								organizationId: input.organizationId,
-								AND: [taskSearch],
+								AND: [
+									taskSearch,
+									taskDealerScopeWhere(activeDealerId),
+									...(taskOwnScope ? [taskOwnScope] : []),
+								],
 							},
 							orderBy: { updatedAt: "desc" },
 							take: limit,
