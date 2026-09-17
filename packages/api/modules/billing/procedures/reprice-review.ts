@@ -21,10 +21,7 @@ import {
 	pushMirrorDiffToIRadius,
 } from "../../customers/lib/mirror-fields";
 import { planMonthlyRate } from "../../customers/lib/plan-rate";
-import {
-	assertSamePlanLine,
-	loadOrgDealerLines,
-} from "../../dealers/lib/internal-lines";
+import { assertCustomerStaysOnLine } from "../../dealers/lib/internal-lines";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	coverageKey,
@@ -194,11 +191,12 @@ export const repriceAndReviewPayment = protectedProcedure
 			throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
 		}
 		if (newPlan) {
-			assertSamePlanLine(
-				customer.plan,
+			await assertCustomerStaysOnLine({
+				organizationId: input.organizationId,
+				customer,
 				newPlan,
-				await loadOrgDealerLines(input.organizationId),
-			);
+				readIRadius: !iradiusDisabled,
+			});
 		}
 		if (newPlan && !iradiusDisabled) {
 			if (!newPlan.externalId) {

@@ -34,6 +34,34 @@ export async function iradiusUsernameExists(
 }
 
 /**
+ * Read-only: the iRadius dealer a subscriber sits under (`User.ParentId`), as
+ * a string like `IspDealer.externalId`. `null` when no such user exists.
+ *
+ * This is what iRadius bills when the subscriber is charged, so it is the
+ * authority on which of an organization's dealer lines they are on — the
+ * local plan is conflict-tracked and can lag behind. One primary-key read.
+ */
+export async function iradiusGetUserParentId(
+	externalId: string,
+): Promise<string | null> {
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			"SELECT ParentId FROM User WHERE Id = ? LIMIT 1",
+			[Number.parseInt(externalId, 10)],
+		);
+		const row = rows[0];
+		if (!row) {
+			return null;
+		}
+		const parentId = row["ParentId"];
+		return typeof parentId === "number" || typeof parentId === "string"
+			? String(parentId)
+			: "0";
+	});
+}
+
+/**
  * Read-only: find an iRadius subscriber this app created but never linked.
  *
  * An approval that created the user in iRadius and then rolled back locally

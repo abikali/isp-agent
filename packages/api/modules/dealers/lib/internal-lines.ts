@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { db } from "@repo/database";
+import { iradiusGetUserParentId } from "../../customers/lib/iradius-api";
 
 /**
  * An organization's own iRadius dealer accounts: its master
@@ -83,23 +84,65 @@ function lineKey(line: PlanLine): string {
 }
 
 /**
- * Refuse a plan move between the master and an internal line (or between two
- * lines). The subscriber's `User.ParentId` stays where it is on an account
- * type change, so iRadius would bill one line's credit for the other line's
- * plan — and moving a subscriber between dealers has no sanctioned write.
- *
- * A customer with no local plan is taken to be on the master line, where every
- * customer lands by default. Orgs without internal lines are never affected.
+ * Which of the org's lines a subscriber is on, from their iRadius
+ * `User.ParentId`. A parent of 0 or 1 (none, or the iRadius admin) is where
+ * the sync falls back to the master, so it counts as the master line.
  */
-export function assertSamePlanLine(
-	currentPlan: PlanDealerFields | null,
-	newPlan: PlanDealerFields,
+export function lineOfIRadiusParent(
+	parentExternalId: string,
+	{ master, lines }: OrgDealerLines,
+): PlanLine {
+	const line = lines.find((l) => l.externalId === parentExternalId);
+	if (line?.externalId) {
+		return {
+			kind: "line",
+			dealerId: line.id,
+			externalId: line.externalId,
+			name: line.name,
+		};
+	}
+	if (
+		parentExternalId === "0" ||
+		parentExternalId === "1" ||
+		parentExternalId === master?.externalId
+	) {
+		return { kind: "master" };
+	}
+	return { kind: "foreign" };
+}
+
+/**
+ * The line a customer is on right now. iRadius `User.ParentId` decides when it
+ * can be read (`readIRadius` and a linked customer): the local plan is
+ * conflict-tracked, so it lags behind every move made in iRadius and is null
+ * for many synced customers. Otherwise the local plan decides, and a customer
+ * with no plan is taken to be on the master line, where every customer lands
+ * by default. `parentExternalId` is null when the local plan decided.
+ */
+export async function resolveCustomerLine(
+	customer: { externalId: string | null; plan: PlanDealerFields | null },
 	lines: OrgDealerLines,
-): void {
-	const from: PlanLine = currentPlan
-		? resolvePlanLine(currentPlan, lines)
-		: { kind: "master" };
-	const to = resolvePlanLine(newPlan, lines);
+	readIRadius: boolean,
+): Promise<{ line: PlanLine; parentExternalId: string | null }> {
+	const parentExternalId =
+		readIRadius && customer.externalId
+			? await iradiusGetUserParentId(customer.externalId)
+			: null;
+	if (parentExternalId !== null) {
+		return {
+			line: lineOfIRadiusParent(parentExternalId, lines),
+			parentExternalId,
+		};
+	}
+	return {
+		line: customer.plan
+			? resolvePlanLine(customer.plan, lines)
+			: { kind: "master" },
+		parentExternalId: null,
+	};
+}
+
+function assertSameLine(from: PlanLine, to: PlanLine): void {
 	if (from.kind !== "line" && to.kind !== "line") {
 		return;
 	}
@@ -109,6 +152,57 @@ export function assertSamePlanLine(
 	throw new ORPCError("BAD_REQUEST", {
 		message: `Can't move this customer to a plan on ${lineLabel(to)}: they are on ${lineLabel(from)}. Moving a subscriber between dealer lines isn't supported — create a new subscription on the other line instead.`,
 	});
+}
+
+/**
+ * Refuse a plan move between the master and an internal line (or between two
+ * lines), judged from the customer's LOCAL plan. The subscriber's
+ * `User.ParentId` stays where it is on an account type change, so iRadius
+ * would bill one line's credit for the other line's plan — and moving a
+ * subscriber between dealers has no sanctioned write.
+ *
+ * This is the fallback of `assertCustomerStaysOnLine`, which asks iRadius.
+ */
+export function assertSamePlanLine(
+	currentPlan: PlanDealerFields | null,
+	newPlan: PlanDealerFields,
+	lines: OrgDealerLines,
+): void {
+	assertSameLine(
+		currentPlan ? resolvePlanLine(currentPlan, lines) : { kind: "master" },
+		resolvePlanLine(newPlan, lines),
+	);
+}
+
+/**
+ * Refuse moving an existing customer onto a plan of a different dealer line.
+ * The line is read from iRadius when `readIRadius` (pass `!iradiusDisabled`)
+ * and the customer is linked, from the local plan otherwise — see
+ * `resolveCustomerLine`. No iRadius read for an org without internal lines.
+ */
+export async function assertCustomerStaysOnLine(opts: {
+	organizationId: string;
+	customer: { externalId: string | null; plan: PlanDealerFields | null };
+	newPlan: PlanDealerFields;
+	readIRadius: boolean;
+}): Promise<void> {
+	const lines = await loadOrgDealerLines(opts.organizationId);
+	if (lines.lines.length === 0) {
+		return;
+	}
+	const { line, parentExternalId } = await resolveCustomerLine(
+		opts.customer,
+		lines,
+		opts.readIRadius,
+	);
+	// iRadius moved the subscriber to a dealer outside the org's own lines
+	// since the last sync: no plan of ours fits.
+	if (parentExternalId !== null && line.kind === "foreign") {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `In iRadius this customer is under another dealer (#${parentExternalId}). Sync from iRadius before changing their plan.`,
+		});
+	}
+	assertSameLine(line, resolvePlanLine(opts.newPlan, lines));
 }
 
 /** Refuse a plan that belongs to neither the master nor an internal line. */

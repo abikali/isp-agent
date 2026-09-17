@@ -6,6 +6,10 @@ import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	loadOrgDealerLines,
+	resolvePlanLine,
+} from "../../dealers/lib/internal-lines";
 
 export const listServicePlans = protectedProcedure
 	.route({
@@ -63,30 +67,53 @@ export const listServicePlans = protectedProcedure
 						];
 					}
 
-					const plans = await db.servicePlan.findMany({
-						where,
-						select: {
-							id: true,
-							externalId: true,
-							name: true,
-							description: true,
-							downloadSpeed: true,
-							uploadSpeed: true,
-							monthlyPrice: true,
-							archived: true,
-							visible: true,
-							commission: true,
-							parentCommission: true,
-							createdAt: true,
-							dealer: {
-								select: { id: true, name: true },
+					const [rows, lines] = await Promise.all([
+						db.servicePlan.findMany({
+							where,
+							select: {
+								id: true,
+								externalId: true,
+								name: true,
+								description: true,
+								downloadSpeed: true,
+								uploadSpeed: true,
+								monthlyPrice: true,
+								archived: true,
+								visible: true,
+								commission: true,
+								parentCommission: true,
+								createdAt: true,
+								dealer: {
+									select: { id: true, name: true },
+								},
+								dealerId: true,
+								dealerExternalId: true,
+								_count: {
+									select: { customers: true },
+								},
 							},
-							_count: {
-								select: { customers: true },
-							},
+							orderBy: { createdAt: "desc" },
+						}),
+						loadOrgDealerLines(organizationId),
+					]);
+
+					// Which internal dealer line sells each plan (null = the
+					// main line), so pickers can label and filter by line.
+					const plans = rows.map(
+						({ dealerId, dealerExternalId, ...plan }) => {
+							const line = resolvePlanLine(
+								{ dealerId, dealerExternalId },
+								lines,
+							);
+							return {
+								...plan,
+								line:
+									line.kind === "line"
+										? { id: line.dealerId, name: line.name }
+										: null,
+							};
 						},
-						orderBy: { createdAt: "desc" },
-					});
+					);
 
 					return { plans };
 				},

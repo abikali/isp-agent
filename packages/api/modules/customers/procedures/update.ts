@@ -12,6 +12,7 @@ import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
+import { assertCustomerStaysOnLine } from "../../dealers/lib/internal-lines";
 import { iradiusSetActive } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
 import {
@@ -124,6 +125,42 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.planId !== undefined) {
 			updateData["planId"] = input.planId ?? null;
+		}
+		// A linked subscriber stays on its dealer line (see
+		// `assertCustomerStaysOnLine`). A setup request isn't in iRadius yet —
+		// its approval creates it under whichever line its plan is on.
+		if (
+			input.planId &&
+			input.planId !== existing.planId &&
+			existing.externalId
+		) {
+			const [newPlan, currentPlan] = await Promise.all([
+				db.servicePlan.findFirst({
+					where: {
+						id: input.planId,
+						organizationId: input.organizationId,
+					},
+					select: { dealerId: true, dealerExternalId: true },
+				}),
+				existing.planId
+					? db.servicePlan.findUnique({
+							where: { id: existing.planId },
+							select: { dealerId: true, dealerExternalId: true },
+						})
+					: null,
+			]);
+			if (!newPlan) {
+				throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
+			}
+			await assertCustomerStaysOnLine({
+				organizationId: input.organizationId,
+				customer: {
+					externalId: existing.externalId,
+					plan: currentPlan,
+				},
+				newPlan,
+				readIRadius: !iradiusDisabled,
+			});
 		}
 		if (input.stationId !== undefined) {
 			updateData["stationId"] = input.stationId ?? null;

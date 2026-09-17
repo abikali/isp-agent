@@ -24,6 +24,7 @@ import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import {
 	assertOwnPlan,
 	loadOrgDealerLines,
+	resolvePlanLine,
 } from "../../dealers/lib/internal-lines";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
@@ -92,7 +93,7 @@ export const workerCreateOptions = protectedProcedure
 			? { visibleWorkers: { some: { employeeId } } }
 			: { visibleWorkers: { some: { employeeId: "__none__" } } };
 
-		const [plans, collectors, groupRows] = await Promise.all([
+		const [planRows, collectors, groupRows, lines] = await Promise.all([
 			canReadPlans
 				? db.servicePlan.findMany({
 						where: {
@@ -102,7 +103,13 @@ export const workerCreateOptions = protectedProcedure
 							...dealerScope,
 							...workerVisibilityFilter,
 						},
-						select: { id: true, name: true, monthlyPrice: true },
+						select: {
+							id: true,
+							name: true,
+							monthlyPrice: true,
+							dealerId: true,
+							dealerExternalId: true,
+						},
 						orderBy: { name: "asc" },
 					})
 				: Promise.resolve([]),
@@ -134,7 +141,26 @@ export const workerCreateOptions = protectedProcedure
 						orderBy: { groupName: "asc" },
 					})
 				: Promise.resolve([]),
+			loadOrgDealerLines(input.organizationId),
 		]);
+
+		// Name the internal dealer line a plan is sold on (null = main line):
+		// the new subscriber is created under that line.
+		const plans = planRows.map(
+			({ dealerId, dealerExternalId, ...plan }) => {
+				const line = resolvePlanLine(
+					{ dealerId, dealerExternalId },
+					lines,
+				);
+				return {
+					...plan,
+					line:
+						line.kind === "line"
+							? { id: line.dealerId, name: line.name }
+							: null,
+				};
+			},
+		);
 
 		return {
 			plans,

@@ -13,6 +13,14 @@ import {
 const ADMIN_TRANSFER_TYPES: string[] = [...DEALER_ADMIN_TRANSFER_TYPES];
 
 /**
+ * Warn when an own line's prepaid credit covers fewer than this many charges
+ * of its dearest plan. iRadius refuses a NEW USER / renewal charge the dealer
+ * can't cover, and setup approval only logs that failure — so a line that runs
+ * dry quietly produces approved-but-unbilled subscribers.
+ */
+const OWN_LINE_WARN_CHARGES = 5;
+
+/**
  * The owner's dealer page in one call: what every dealer owes, how much
  * prepaid credit each has left, what they burned this month, and when they
  * last paid — plus the totals across all of them.
@@ -191,6 +199,10 @@ export const getDealerFinanceOverview = protectedProcedure
 			orphanOwed: round2(orphans.reduce((sum, r) => sum + r.owed, 0)),
 		};
 
+		const ownLines = scope.isOperator
+			? await loadOwnLinesCredit(scope.organizationId, scope.ownDealerIds)
+			: [];
+
 		const lastSyncedAt = dealers.reduce<Date | null>((latest, d) => {
 			if (!d.lastSyncedAt) {
 				return latest;
@@ -215,6 +227,78 @@ export const getDealerFinanceOverview = protectedProcedure
 			totals,
 			dealers: live,
 			orphans,
+			ownLines,
 			staff,
 		};
 	});
+
+/**
+ * The operator's own dealer accounts — the master and its internal lines
+ * (LIBANCOM-FIBER). They are kept off the dealer list, but they still spend
+ * prepaid iRadius credit on every new subscriber and renewal, so their credit
+ * is shown on its own.
+ */
+async function loadOwnLinesCredit(
+	organizationId: string,
+	ownDealerIds: string[],
+) {
+	if (ownDealerIds.length === 0) {
+		return [];
+	}
+	const dealers = await db.ispDealer.findMany({
+		where: { id: { in: ownDealerIds }, deletedAt: null },
+		select: {
+			id: true,
+			name: true,
+			externalId: true,
+			credit: true,
+			notificationAmount: true,
+			noCharge: true,
+			internalLineOfOrganizationId: true,
+			lastSyncedAt: true,
+		},
+		orderBy: { name: "asc" },
+	});
+	const externalIds = dealers.flatMap((d) =>
+		d.externalId ? [d.externalId] : [],
+	);
+	// Plans keep naming the iRadius dealer that owns them — and that it
+	// charges — in `dealerExternalId`, whichever local dealer they sit under.
+	const dearestPlans = await db.servicePlan.groupBy({
+		by: ["dealerExternalId"],
+		where: {
+			organizationId,
+			deletedAt: null,
+			dealerExternalId: { in: externalIds },
+		},
+		_max: { rate: true },
+	});
+	const maxRate = new Map(
+		dearestPlans.map((p) => [p.dealerExternalId, p._max.rate ?? 0]),
+	);
+
+	return dealers.map((dealer) => {
+		const prepaid = round2(dealer.credit ?? 0);
+		const rate = dealer.externalId
+			? (maxRate.get(dealer.externalId) ?? 0)
+			: 0;
+		const warnAt = dealer.noCharge
+			? 0
+			: Math.max(
+					dealer.notificationAmount ?? 0,
+					rate * OWN_LINE_WARN_CHARGES,
+				);
+		return {
+			id: dealer.id,
+			name: dealer.name,
+			isInternalLine: dealer.internalLineOfOrganizationId !== null,
+			prepaid,
+			noCharge: dealer.noCharge,
+			chargesLeft:
+				rate > 0 ? Math.max(0, Math.floor(prepaid / rate)) : null,
+			lowCredit: warnAt > 0 && prepaid < warnAt,
+			warnAt: round2(warnAt),
+			lastSyncedAt: dealer.lastSyncedAt,
+		};
+	});
+}

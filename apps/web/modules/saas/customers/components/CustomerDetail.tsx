@@ -78,7 +78,7 @@ import {
 	useSetCustomerPin,
 	useUpdateCustomer,
 } from "../hooks/use-customers";
-import { usePlansQuery } from "../hooks/use-plans";
+import { planLineSuffix, usePlansQuery } from "../hooks/use-plans";
 import {
 	CONNECTION_TYPE_OPTIONS,
 	CUSTOMER_STATUS_OPTIONS,
@@ -1272,7 +1272,7 @@ function ServiceTab({
 								<Combobox
 									options={plans.map((p) => ({
 										value: p.id,
-										label: p.name,
+										label: `${p.name}${planLineSuffix(p)}`,
 									}))}
 									value={field.state.value}
 									onChange={field.handleChange}
