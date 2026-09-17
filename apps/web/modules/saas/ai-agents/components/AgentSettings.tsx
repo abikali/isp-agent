@@ -845,6 +845,14 @@ export function AgentSettings({
 														minutes
 													</span>
 												</div>
+												<p className="text-xs text-muted-foreground">
+													Sent only between 09:00 and
+													20:30 Beirut time. One due
+													later waits until 09:30 the
+													next morning, or is skipped
+													if that is over 14 hours
+													after the bot's reply.
+												</p>
 											</Field>
 										)}
 									</form.Field>

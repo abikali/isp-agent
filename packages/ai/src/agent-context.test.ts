@@ -344,4 +344,34 @@ describe("buildAgentMessages – history gap handling", () => {
 			"after",
 		]);
 	});
+
+	it("adds no notice for a follow-up whose history is read as of the bot's last reply", () => {
+		const repliedAt = Date.now() - 300 * 60_000;
+		const rows: DbMessageRow[] = [
+			{
+				role: "user",
+				content: "how much is the 10 Mbps plan?",
+				createdAt: new Date(repliedAt - 60_000),
+			},
+			{
+				role: "assistant",
+				content: "It is $40/month. Can you send your location pin?",
+				createdAt: new Date(repliedAt),
+			},
+		];
+		const out = nonSystem(
+			buildAgentMessages({
+				systemOptions: { ...systemOptions, now: new Date() },
+				history: rows,
+				now: new Date(repliedAt),
+				contextGapThresholdMinutes: 240,
+				newUserMessage: "[Follow-up check]",
+			}),
+		);
+		expect(out.map((m) => textOf(m as never))).toEqual([
+			"how much is the 10 Mbps plan?",
+			"It is $40/month. Can you send your location pin?",
+			"[Follow-up check]",
+		]);
+	});
 });

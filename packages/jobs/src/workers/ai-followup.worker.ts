@@ -8,12 +8,14 @@ import {
 	decryptToken,
 	generateAgentResponse,
 	isHumanTakeoverActive,
+	isNoFollowUpReply,
+	isWithinFollowUpHours,
 	loadHistoryRows,
-	NO_FOLLOW_UP,
 	type PromptSection,
 	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
+	stripInternalMarkers,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
@@ -28,8 +30,10 @@ import type { AiFollowUpJobData, AiFollowUpJobResult } from "../types";
  *
  * Every skip is a legitimate reason NOT to speak: the customer (or a human
  * teammate) wrote since, a human took over, maintenance is on, the nudge
- * already went out, or another process holds the chat. The model decides
- * whether the exchange was actually finished by answering NO_FOLLOW_UP.
+ * already went out, the bot's reply never reached the customer, it is outside
+ * the 09:00–20:30 Beirut window (a job that fires late after a worker
+ * restart), or another process holds the chat. The model decides whether
+ * the exchange was actually finished by answering NO_FOLLOW_UP.
  */
 export function createAiFollowUpWorker(): Worker<
 	AiFollowUpJobData,
@@ -48,6 +52,9 @@ export function createAiFollowUpWorker(): Worker<
 			};
 
 			const now = new Date();
+			if (!isWithinFollowUpHours(now)) {
+				return skip("quiet_hours");
+			}
 			const conversation = await db.aiConversation.findUnique({
 				where: { id: conversationId },
 				include: {
@@ -112,10 +119,18 @@ export function createAiFollowUpWorker(): Worker<
 			const lastRow = await db.aiMessage.findFirst({
 				where: { conversationId },
 				orderBy: { createdAt: "desc" },
-				select: { role: true, error: true },
+				select: {
+					role: true,
+					error: true,
+					deliveryStatus: true,
+					createdAt: true,
+				},
 			});
 			if (!lastRow || lastRow.role !== "assistant" || lastRow.error) {
 				return skip("last_message_not_a_clean_reply");
+			}
+			if (lastRow.deliveryStatus === "failed") {
+				return skip("last_reply_not_delivered");
 			}
 
 			// Per-chat lock, no retry: busy means the customer is writing.
@@ -168,12 +183,27 @@ export function createAiFollowUpWorker(): Worker<
 						promptSections:
 							agent.promptSections as unknown as PromptSection[],
 						workingHours: agent,
+						// The prompt's clock is the real one…
+						now,
 					},
 					history,
+					// …but the history is read as of the bot's last reply, so
+					// the silence being followed up is not announced as a
+					// "[Context Notice: … an earlier exchange]" right before
+					// the instruction.
+					now: lastRow.createdAt,
 					contextGapThresholdMinutes:
 						agent.contextGapThresholdMinutes,
+					// Real silence: longer than the setting when the nudge
+					// was moved to the next morning.
 					newUserMessage: buildFollowUpInstruction(
-						agent.followUpMinutes,
+						Math.max(
+							agent.followUpMinutes,
+							Math.round(
+								(now.getTime() - lastRow.createdAt.getTime()) /
+									60_000,
+							),
+						),
 						agent.followUpMessage,
 					),
 				});
@@ -193,8 +223,8 @@ export function createAiFollowUpWorker(): Worker<
 					}),
 					abortSignal: AbortSignal.timeout(60_000),
 				});
-				const text = result.text.trim();
-				if (!text || text.replace(/[.\s]/g, "") === NO_FOLLOW_UP) {
+				const text = stripInternalMarkers(result.text);
+				if (!text || isNoFollowUpReply(text)) {
 					return skip("model_declined");
 				}
 
