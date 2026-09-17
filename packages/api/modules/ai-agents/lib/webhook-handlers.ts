@@ -24,6 +24,7 @@ import {
 	sendTextMessage,
 	sendTypingIndicator,
 	sendWhishPaymentEscalation,
+	shouldDeferToTeammate,
 	telegram,
 	transcribeMessageMedia,
 	triageBufferedMessages,
@@ -678,6 +679,19 @@ async function handleMessages(
 					messageText: truncatedText,
 				}).catch(() => {});
 
+				continue;
+			}
+
+			// Takeover expired, but the customer may still be answering the
+			// teammate who wrote last — leave that to the team. The message is
+			// stored; humanTakeoverAt is deliberately left alone.
+			if (
+				await shouldDeferToTeammate({ conversationId: conversation.id })
+			) {
+				logger.info("ai-teammate-reply-deferred", {
+					conversationId: conversation.id,
+					path: "webhook",
+				});
 				continue;
 			}
 

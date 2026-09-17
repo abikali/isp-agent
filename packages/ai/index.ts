@@ -70,6 +70,7 @@ export type {
 	ResolveAgentToolsResult,
 } from "./src/resolve-agent-tools";
 export { resolveAgentTools } from "./src/resolve-agent-tools";
+export { shouldDeferToTeammate } from "./src/teammate-reply";
 export {
 	getAvailableTools,
 	getToolRegistry,

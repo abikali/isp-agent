@@ -174,6 +174,7 @@ vi.mock("@repo/ai", () => ({
 	computeBotFingerprint,
 	isHumanTakeoverActive,
 	maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
+	shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),
@@ -200,10 +201,11 @@ vi.mock("@repo/config", () => ({
 
 // ── Imports (after mocks) ────────────────────────────────────────────
 
-import { parseWebhookPayload } from "@repo/ai";
+import { parseWebhookPayload, shouldDeferToTeammate } from "@repo/ai";
 import { whatsappWebhookHandler } from "../lib/webhook-handlers";
 
 const mockParseWebhookPayload = vi.mocked(parseWebhookPayload);
+const mockShouldDeferToTeammate = vi.mocked(shouldDeferToTeammate);
 
 // ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -265,6 +267,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.useFakeTimers({ shouldAdvanceTime: true });
 	mockRedis.resetMultiCount();
+	mockShouldDeferToTeammate.mockResolvedValue(false);
 
 	mockSendTextMessage.mockResolvedValue({ messageId: "msg-1" });
 	mockGenerateAgentResponse.mockResolvedValue({
@@ -616,6 +619,85 @@ describe("Human Takeover - AI Blocking During Takeover", () => {
 
 		// Should attempt AI generation (takeover expired, AI resumes)
 		expect(mockGenerateAgentResponse).toHaveBeenCalled();
+	});
+});
+
+describe("Human Takeover - Customer Answering A Teammate", () => {
+	const expiredTakeover = {
+		...CONVERSATION_FIXTURE,
+		// Teammate wrote 5 hours ago, takeover window is 4 hours
+		humanTakeoverAt: new Date(Date.now() - 5 * 60 * 60 * 1000),
+	};
+
+	beforeEach(() => {
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "142378635661318@lid",
+				messageId: "wa-msg-teammate-reply",
+				text: "tamem ba3tak bokra",
+				contactName: "Customer",
+				contactId: "+961123456",
+			},
+		]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(expiredTakeover);
+		mockDb.aiConversation.update.mockResolvedValue(expiredTakeover);
+	});
+
+	it("stores the message but does not reply when the gate defers", async () => {
+		mockShouldDeferToTeammate.mockResolvedValue(true);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+		});
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					role: "user",
+					content: "tamem ba3tak bokra",
+				}),
+			}),
+		);
+		expect(mockRedis.rpush).not.toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+		expect(mockSendTextMessage).not.toHaveBeenCalled();
+
+		// The deferral must not re-arm the takeover window
+		const rearmed = mockDb.aiConversation.update.mock.calls.filter(
+			(c: unknown[]) =>
+				(
+					(c[0] as Record<string, unknown>).data as Record<
+						string,
+						unknown
+					>
+				).humanTakeoverAt instanceof Date,
+		);
+		expect(rearmed).toHaveLength(0);
+	});
+
+	it("replies as usual when the gate does not defer", async () => {
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).toHaveBeenCalled();
+	});
+
+	it("does not consult the gate while takeover is still active", async () => {
+		const activeTakeover = {
+			...CONVERSATION_FIXTURE,
+			humanTakeoverAt: new Date(Date.now() - 30 * 60 * 1000),
+		};
+		mockDb.aiConversation.findFirst.mockResolvedValue(activeTakeover);
+		mockDb.aiConversation.update.mockResolvedValue(activeTakeover);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockShouldDeferToTeammate).not.toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
 	});
 });
 

@@ -17,6 +17,7 @@ import {
 	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
+	shouldDeferToTeammate,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
@@ -86,6 +87,20 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				)
 			) {
 				return { success: true, error: "Human takeover active" };
+			}
+
+			// Same gate as the webhook: without it, reconcile-orphaned-chats
+			// re-queues a deferred customer message on the next deploy and the
+			// bot answers it anyway.
+			if (await shouldDeferToTeammate({ conversationId })) {
+				logger.info("ai-teammate-reply-deferred", {
+					conversationId,
+					path: "retry-worker",
+				});
+				return {
+					success: true,
+					error: "Customer is answering a teammate",
+				};
 			}
 
 			const apiToken = decryptToken(

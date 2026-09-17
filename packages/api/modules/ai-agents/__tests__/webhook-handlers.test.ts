@@ -149,6 +149,7 @@ vi.mock("@repo/ai", () => ({
 	computeBotFingerprint: vi.fn().mockReturnValue("mock-fp"),
 	isHumanTakeoverActive: vi.fn().mockReturnValue(false),
 	maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
+	shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
 	whatsapp: {
 		parseReceiptUpdate: vi.fn().mockReturnValue([]),
 		parseReactionEvent: vi.fn().mockReturnValue([]),
