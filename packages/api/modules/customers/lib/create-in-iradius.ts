@@ -2,6 +2,10 @@ import { ORPCError } from "@orpc/server";
 import { buildIRadiusMobile, db } from "@repo/database";
 import { logger } from "@repo/logs";
 import {
+	loadOrgDealerLines,
+	resolveNewSubscriberParent,
+} from "../../dealers/lib/internal-lines";
+import {
 	iradiusChargeNewUser,
 	iradiusCreateUser,
 	iradiusFindOrphanedAppUser,
@@ -67,7 +71,14 @@ export async function createCustomerInIRadius(opts: {
 			discount: true,
 			expiresAt: true,
 			groupExternalId: true,
-			plan: { select: { externalId: true } },
+			plan: {
+				select: {
+					externalId: true,
+					dealerId: true,
+					dealerExternalId: true,
+				},
+			},
+			dealerId: true,
 			dealer: { select: { externalId: true } },
 			collector: { select: { externalId: true } },
 			station: { select: { externalId: true } },
@@ -96,6 +107,17 @@ export async function createCustomerInIRadius(opts: {
 	const num = (v: string | null | undefined): number | null =>
 		v ? Number.parseInt(v, 10) : null;
 
+	// Before the remote create: a refused plan/dealer pairing must not leave
+	// a subscriber behind in iRadius.
+	const parentId = resolveNewSubscriberParent(
+		{
+			dealerId: customer.dealerId,
+			dealerExternalId: customer.dealer?.externalId ?? null,
+		},
+		customer.plan,
+		await loadOrgDealerLines(opts.organizationId),
+	);
+
 	const expiryAccount = toMysqlDateTimeUTC(customer.expiresAt);
 	const username = customer.username.trim();
 
@@ -105,7 +127,7 @@ export async function createCustomerInIRadius(opts: {
 			userName: username,
 			password: opts.password,
 			accountTypeId: Number.parseInt(customer.plan.externalId, 10),
-			parentId: num(customer.dealer?.externalId),
+			parentId: num(parentId),
 			firstName: customer.firstName,
 			lastName: customer.lastName,
 			mobile: buildIRadiusMobile(customer.phones),

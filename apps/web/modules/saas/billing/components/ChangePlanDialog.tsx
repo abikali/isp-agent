@@ -1,8 +1,9 @@
 "use client";
 
 import {
+	planLineSuffix,
+	useCustomerPlanChoices,
 	useExecuteAccountTypeChange,
-	usePlansQuery,
 	usePreviewAccountTypeChange,
 } from "@saas/customers/client";
 import { formatCurrency } from "@shared/lib/format";
@@ -41,7 +42,10 @@ export function ChangePlanDialog({
 	customerId,
 	currentPlanId,
 }: ChangePlanDialogProps) {
-	const { plans, isLoading: plansLoading } = usePlansQuery();
+	const { plans, isLoading: plansLoading } = useCustomerPlanChoices(
+		customerId,
+		open,
+	);
 	const preview = usePreviewAccountTypeChange();
 	const execute = useExecuteAccountTypeChange();
 	const isExecuting = execute.isPending;
@@ -208,8 +212,8 @@ export function ChangePlanDialog({
 								value: p.id,
 								label:
 									p.monthlyPrice != null
-										? `${p.name} — ${formatCurrency(p.monthlyPrice)}`
-										: p.name,
+										? `${p.name} — ${formatCurrency(p.monthlyPrice)}${planLineSuffix(p)}`
+										: `${p.name}${planLineSuffix(p)}`,
 							}))}
 							placeholder={
 								plansLoading

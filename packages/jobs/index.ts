@@ -198,6 +198,8 @@ export {
 	CUSTOMER_FROM_CLAUSE,
 	CUSTOMER_SELECT_COLUMNS,
 	EMPLOYEE_SELECT_COLUMNS,
+	type PlanConnectionInfo,
+	resolveSyncDealers,
 	type SyncLookupMaps,
 } from "./src/workers/iradius-sync-helpers";
 export { createLocationRequestWorker } from "./src/workers/location-request.worker";

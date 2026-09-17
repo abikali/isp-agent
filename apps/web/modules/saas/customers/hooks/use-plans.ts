@@ -37,6 +37,39 @@ export function usePlansQuery() {
 	};
 }
 
+/**
+ * Plans an existing customer can be moved to. When the organization runs
+ * internal dealer lines (LIBANCOM-FIBER beside the main line), only the plans
+ * of the line the customer is on — the server reads it from iRadius, the same
+ * way it guards the change. Everything while that is loading or unknown; the
+ * server still refuses a cross-line pick.
+ */
+export function useCustomerPlanChoices(customerId: string, enabled: boolean) {
+	const organizationId = useOrganizationId();
+	const { plans, isLoading } = usePlansQuery();
+
+	const lineQuery = useQuery(
+		organizationId && enabled
+			? orpc.customers.planLine.queryOptions({
+					input: { organizationId, customerId },
+				})
+			: disabledQuery(["customers", "planLine", customerId]),
+	);
+	const restrictTo = lineQuery.data?.restrictTo ?? null;
+
+	return {
+		plans: restrictTo
+			? plans.filter((p) => (p.line?.id ?? null) === restrictTo.lineId)
+			: plans,
+		isLoading: isLoading || lineQuery.isLoading,
+	};
+}
+
+/** " · LIBANCOM-FIBER" for a plan sold on an internal dealer line. */
+export function planLineSuffix(plan: { line: { name: string } | null }) {
+	return plan.line ? ` · ${plan.line.name}` : "";
+}
+
 export const useCreatePlan = createInvalidatingMutation(
 	() => orpc.servicePlans.create.mutationOptions(),
 	() => orpc.servicePlans.key(),

@@ -21,6 +21,7 @@ import {
 	pushMirrorDiffToIRadius,
 } from "../../customers/lib/mirror-fields";
 import { planMonthlyRate } from "../../customers/lib/plan-rate";
+import { assertCustomerStaysOnLine } from "../../dealers/lib/internal-lines";
 import { customerMonthlyDue } from "../lib/calculations";
 import {
 	coverageKey,
@@ -111,7 +112,13 @@ export const repriceAndReviewPayment = protectedProcedure
 						username: true,
 						planId: true,
 						monthlyRate: true,
-						plan: { select: { monthlyPrice: true } },
+						plan: {
+							select: {
+								monthlyPrice: true,
+								dealerId: true,
+								dealerExternalId: true,
+							},
+						},
 						iptvPrice: true,
 						realIpPrice: true,
 						discount: true,
@@ -174,11 +181,21 @@ export const repriceAndReviewPayment = protectedProcedure
 						sellingPrice: true,
 						rate: true,
 						monthlyPrice: true,
+						dealerId: true,
+						dealerExternalId: true,
 					},
 				})
 			: null;
 		if (targetPlanId && !newPlan) {
 			throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
+		}
+		if (newPlan) {
+			await assertCustomerStaysOnLine({
+				organizationId: input.organizationId,
+				customer,
+				newPlan,
+				readIRadius: !iradiusDisabled,
+			});
 		}
 		if (newPlan && !iradiusDisabled) {
 			if (!newPlan.externalId) {

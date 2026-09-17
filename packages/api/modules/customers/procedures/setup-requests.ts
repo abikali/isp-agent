@@ -21,6 +21,11 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import {
+	assertOwnPlan,
+	loadOrgDealerLines,
+	resolvePlanLine,
+} from "../../dealers/lib/internal-lines";
 import { collectorRoleWhere } from "../../employees/lib/cash-role";
 import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import { syncPendingAddonLinePrices } from "../../installations/lib/addon-price-sync";
@@ -88,7 +93,7 @@ export const workerCreateOptions = protectedProcedure
 			? { visibleWorkers: { some: { employeeId } } }
 			: { visibleWorkers: { some: { employeeId: "__none__" } } };
 
-		const [plans, collectors, groupRows] = await Promise.all([
+		const [planRows, collectors, groupRows, lines] = await Promise.all([
 			canReadPlans
 				? db.servicePlan.findMany({
 						where: {
@@ -98,7 +103,13 @@ export const workerCreateOptions = protectedProcedure
 							...dealerScope,
 							...workerVisibilityFilter,
 						},
-						select: { id: true, name: true, monthlyPrice: true },
+						select: {
+							id: true,
+							name: true,
+							monthlyPrice: true,
+							dealerId: true,
+							dealerExternalId: true,
+						},
 						orderBy: { name: "asc" },
 					})
 				: Promise.resolve([]),
@@ -130,7 +141,26 @@ export const workerCreateOptions = protectedProcedure
 						orderBy: { groupName: "asc" },
 					})
 				: Promise.resolve([]),
+			loadOrgDealerLines(input.organizationId),
 		]);
+
+		// Name the internal dealer line a plan is sold on (null = main line):
+		// the new subscriber is created under that line.
+		const plans = planRows.map(
+			({ dealerId, dealerExternalId, ...plan }) => {
+				const line = resolvePlanLine(
+					{ dealerId, dealerExternalId },
+					lines,
+				);
+				return {
+					...plan,
+					line:
+						line.kind === "line"
+							? { id: line.dealerId, name: line.name }
+							: null,
+				};
+			},
+		);
 
 		return {
 			plans,
@@ -258,11 +288,20 @@ export const workerCreateCustomer = protectedProcedure
 
 		const plan = await db.servicePlan.findFirst({
 			where: { id: input.planId, organizationId: input.organizationId },
-			select: { id: true, name: true, monthlyPrice: true },
+			select: {
+				id: true,
+				name: true,
+				monthlyPrice: true,
+				dealerId: true,
+				dealerExternalId: true,
+			},
 		});
 		if (!plan) {
 			throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
 		}
+		// Only the org's own plans — its master's or an internal line's.
+		// Approval creates the subscriber under whichever dealer owns it.
+		assertOwnPlan(plan, await loadOrgDealerLines(input.organizationId));
 
 		if (input.collectorId) {
 			const collector = await db.employee.findFirst({
@@ -657,11 +696,18 @@ export const updateSetupRequest = protectedProcedure
 					id: input.planId,
 					organizationId: input.organizationId,
 				},
-				select: { sellingPrice: true, rate: true, monthlyPrice: true },
+				select: {
+					sellingPrice: true,
+					rate: true,
+					monthlyPrice: true,
+					dealerId: true,
+					dealerExternalId: true,
+				},
 			});
 			if (!plan) {
 				throw new ORPCError("NOT_FOUND", { message: "Plan not found" });
 			}
+			assertOwnPlan(plan, await loadOrgDealerLines(input.organizationId));
 			if (input.planId !== request.customer.planId) {
 				newPlanRate =
 					plan.sellingPrice ?? plan.rate ?? plan.monthlyPrice;

@@ -88,6 +88,10 @@ export async function getOrganizationById(id: string) {
 			activeDealer: {
 				select: { id: true, name: true },
 			},
+			internalDealerLines: {
+				select: { id: true, name: true, externalId: true },
+				orderBy: { name: "asc" },
+			},
 			_count: {
 				select: {
 					customers: true,

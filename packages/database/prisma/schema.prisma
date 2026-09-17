@@ -313,6 +313,7 @@ model Organization {
   ispNasServers          IspNas[]
   ispRouters             IspRouter[]
   ispDealers             IspDealer[]
+  internalDealerLines    IspDealer[]             @relation("InternalDealerLines")
   ispDealerAccounts      IspDealerAccount[]
   iRadiusSyncOps         IRadiusSyncOperation[]
   iRadiusPushOps         IRadiusPushOperation[]
@@ -1503,77 +1504,86 @@ model IspRouter {
 }
 
 model IspDealer {
-  id                      String         @id @default(cuid())
-  organizationId          String?
-  externalId              String?        @unique
-  name                    String
-  username                String?
-  email                   String?
-  phone                   String?
-  companyName             String?
-  companyAddress          String?
-  companyPhone            String?
-  companyMobile           String?
-  companyVatNumber        String?
-  credit                  Float          @default(0)
-  commission              Float          @default(0)
-  smsSenderId             String?
-  notificationAmount      Float?
-  fupResetPrice           Float?
-  extraOneGbPrice         Float?
-  extraOneGbCommission    Float?
-  canShowRate             Boolean        @default(false)
-  canShowSpeed            Boolean        @default(false)
-  noCharge                Boolean        @default(false)
-  canSendMail             Boolean        @default(false)
-  canSendSms              Boolean        @default(false)
-  canExportToExcel        Boolean        @default(false)
-  canAddDealer            Boolean        @default(false)
-  canDeleteUser           Boolean        @default(false)
-  canChangeAccountType    Boolean        @default(false)
+  id                           String         @id @default(cuid())
+  organizationId               String?
+  externalId                   String?        @unique
+  name                         String
+  username                     String?
+  email                        String?
+  phone                        String?
+  companyName                  String?
+  companyAddress               String?
+  companyPhone                 String?
+  companyMobile                String?
+  companyVatNumber             String?
+  credit                       Float          @default(0)
+  commission                   Float          @default(0)
+  smsSenderId                  String?
+  notificationAmount           Float?
+  fupResetPrice                Float?
+  extraOneGbPrice              Float?
+  extraOneGbCommission         Float?
+  canShowRate                  Boolean        @default(false)
+  canShowSpeed                 Boolean        @default(false)
+  noCharge                     Boolean        @default(false)
+  canSendMail                  Boolean        @default(false)
+  canSendSms                   Boolean        @default(false)
+  canExportToExcel             Boolean        @default(false)
+  canAddDealer                 Boolean        @default(false)
+  canDeleteUser                Boolean        @default(false)
+  canChangeAccountType         Boolean        @default(false)
   // Local-only contact details for WhatsApp confirmations (dealers.updateContact).
   // Not iRadius columns, so the dealer sync never touches them.
   // whatsappPhone: validated E.164 (+96171123456); wins over the dirty iRadius
   // phone fields. contactName: who to greet, when the account name is a
   // business name or "Unknown".
-  whatsappPhone           String?
-  contactName             String?
+  whatsappPhone                String?
+  contactName                  String?
   // iRadius Dealer extra fields
-  notifyBefore3Days       Boolean        @default(false)
-  notifyBefore2Days       Boolean        @default(false)
-  notifyBefore1Day        Boolean        @default(false)
-  extraGb                 Boolean        @default(false)
-  canShowOnlineUsersSpeed Boolean        @default(false)
-  userNotification        Boolean        @default(false)
-  canMonitorLog           Boolean        @default(false)
-  chargeIfNotExpiry       Boolean        @default(false)
-  parentDealerId          String?
-  userId                  String?        @unique
-  status                  CustomerStatus @default(ACTIVE)
-  lastSyncedAt            DateTime?
+  notifyBefore3Days            Boolean        @default(false)
+  notifyBefore2Days            Boolean        @default(false)
+  notifyBefore1Day             Boolean        @default(false)
+  extraGb                      Boolean        @default(false)
+  canShowOnlineUsersSpeed      Boolean        @default(false)
+  userNotification             Boolean        @default(false)
+  canMonitorLog                Boolean        @default(false)
+  chargeIfNotExpiry            Boolean        @default(false)
+  parentDealerId               String?
+  // Set when this iRadius dealer account is one of an organization's OWN
+  // product lines rather than a reseller — e.g. LIBANCOM-FIBER (iRadius 84545)
+  // is abiroot's fiber/DSL line, a top-level sibling of its master johnnyh.
+  // The org sync treats customers, employees and plans under an internal line
+  // as the org's own (mapped onto `activeDealerId`, so the exact dealer scope
+  // keeps working) while plans keep `dealerExternalId` pointing at the line.
+  internalLineOfOrganizationId String?
+  userId                       String?        @unique
+  status                       CustomerStatus @default(ACTIVE)
+  lastSyncedAt                 DateTime?
   // Soft-delete marker set by the global dealer sync (dealers-only mode) when
   // the corresponding User row (ProfileId=2) is no longer present in iRadius.
   // Hard-delete is avoided because deleting a dealer would cascade-wipe its
   // IspDealerAccount rows (real financial history).
-  deletedAt               DateTime?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
+  deletedAt                    DateTime?
+  createdAt                    DateTime       @default(now())
+  updatedAt                    DateTime       @updatedAt
 
-  organization          Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  user                  User?              @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
-  parentDealer          IspDealer?         @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
-  childDealers          IspDealer[]        @relation("DealerHierarchy")
-  customers             Customer[]
-  employees             Employee[]
-  servicePlans          ServicePlan[]
-  bases                 Base[]
-  dealerAccounts        IspDealerAccount[]
-  charges               DealerCharge[]
-  activeForOrganization Organization?      @relation("ActiveDealer")
+  organization               Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user                       User?              @relation("DealerUser", fields: [userId], references: [id], onDelete: SetNull)
+  parentDealer               IspDealer?         @relation("DealerHierarchy", fields: [parentDealerId], references: [id], onDelete: SetNull)
+  childDealers               IspDealer[]        @relation("DealerHierarchy")
+  customers                  Customer[]
+  employees                  Employee[]
+  servicePlans               ServicePlan[]
+  bases                      Base[]
+  dealerAccounts             IspDealerAccount[]
+  charges                    DealerCharge[]
+  activeForOrganization      Organization?      @relation("ActiveDealer")
+  internalLineOfOrganization Organization?      @relation("InternalDealerLines", fields: [internalLineOfOrganizationId], references: [id], onDelete: SetNull)
 
   @@unique([email])
   @@index([organizationId])
   @@index([parentDealerId])
+  @@index([internalLineOfOrganizationId])
   @@index([deletedAt])
   @@map("isp_dealer")
 }

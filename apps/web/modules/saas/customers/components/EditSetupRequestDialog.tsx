@@ -18,7 +18,7 @@ import { Label } from "@ui/components/label";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useIRadiusGroups } from "../hooks/use-customers";
-import { usePlansQuery } from "../hooks/use-plans";
+import { planLineSuffix, usePlansQuery } from "../hooks/use-plans";
 import {
 	useCheckIradiusUsername,
 	type useSetupRequests,
@@ -362,7 +362,12 @@ export function EditSetupRequestDialog({
 									options={plans.flatMap((p) =>
 										p.archived
 											? []
-											: [{ value: p.id, label: p.name }],
+											: [
+													{
+														value: p.id,
+														label: `${p.name}${planLineSuffix(p)}`,
+													},
+												],
 									)}
 								/>
 							</div>

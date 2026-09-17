@@ -47,7 +47,9 @@ export {
 	useUpdateCustomer,
 } from "./hooks/use-customers";
 export {
+	planLineSuffix,
 	useCreatePlan,
+	useCustomerPlanChoices,
 	useDeletePlan,
 	usePlans,
 	usePlansQuery,

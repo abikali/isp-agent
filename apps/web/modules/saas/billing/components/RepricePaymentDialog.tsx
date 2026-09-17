@@ -1,7 +1,8 @@
 "use client";
 
 import {
-	usePlansQuery,
+	planLineSuffix,
+	useCustomerPlanChoices,
 	usePreviewAccountTypeChange,
 } from "@saas/customers/client";
 import { formatCurrency } from "@shared/lib/format";
@@ -80,7 +81,10 @@ export function RepricePaymentDialog({
 	organizationId,
 	payment,
 }: RepricePaymentDialogProps) {
-	const { plans, isLoading: plansLoading } = usePlansQuery();
+	const { plans, isLoading: plansLoading } = useCustomerPlanChoices(
+		payment.customerId,
+		open,
+	);
 	const preview = usePreviewAccountTypeChange();
 	const reprice = useRepriceAndReview();
 
@@ -327,8 +331,8 @@ export function RepricePaymentDialog({
 										value: p.id,
 										label:
 											p.monthlyPrice != null
-												? `${p.name} — ${formatCurrency(p.monthlyPrice)}${matchesPaid(p) ? " · matches amount paid" : ""}`
-												: p.name,
+												? `${p.name} — ${formatCurrency(p.monthlyPrice)}${planLineSuffix(p)}${matchesPaid(p) ? " · matches amount paid" : ""}`
+												: `${p.name}${planLineSuffix(p)}`,
 									})),
 								]}
 								placeholder={

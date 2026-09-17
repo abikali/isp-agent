@@ -12,6 +12,7 @@ import {
 import { bulkSetCustomerStatus } from "./procedures/bulk-set-status";
 import {
 	executeAccountTypeChangeProcedure,
+	getCustomerPlanLine,
 	previewAccountTypeChangeProcedure,
 } from "./procedures/change-account-type";
 import { getConnectivityStatus } from "./procedures/connectivity-status";
@@ -121,6 +122,7 @@ export const customersRouter = {
 	cancelIRadiusPush,
 	getIRadiusPushStatus,
 	previewAccountTypeChange: previewAccountTypeChangeProcedure,
+	planLine: getCustomerPlanLine,
 	executeAccountTypeChange: executeAccountTypeChangeProcedure,
 	resetMacAddress: resetCustomerMacAddress,
 	pullLocationFromIRadius: pullCustomerLocationFromIRadius,

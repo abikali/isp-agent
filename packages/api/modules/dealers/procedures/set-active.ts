@@ -28,6 +28,12 @@ export const setActiveDealer = adminProcedure
 					message: "Dealer not found",
 				});
 			}
+			if (dealer.internalLineOfOrganizationId) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"This dealer is linked as an internal line — unlink it first",
+				});
+			}
 
 			// Assign dealer to this organization and set as active
 			await db.$transaction([

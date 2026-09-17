@@ -16,6 +16,7 @@ import { DealerSyncButton } from "./DealerSyncButton";
 import { DealerTable } from "./DealerTable";
 import { type DealerFilter, DealerTotals } from "./DealerTotals";
 import { OrphanBalances } from "./OrphanBalances";
+import { OwnLinesCredit } from "./OwnLinesCredit";
 import { RecordPaymentSheet } from "./RecordPaymentSheet";
 
 interface PaymentIntent {
@@ -97,6 +98,8 @@ export function DealerFinancePage() {
 				filter={filter}
 				onFilter={setFilter}
 			/>
+
+			<OwnLinesCredit lines={overview.ownLines} />
 
 			{isOperator && (
 				<DealerAttention

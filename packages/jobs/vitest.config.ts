@@ -16,6 +16,12 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			// Subpaths first: `@repo/database` is a prefix match and would
+			// otherwise rewrite them to `index.ts/<subpath>`.
+			"@repo/database/iradius": resolve(
+				__dirname,
+				"../database/lib/iradius.ts",
+			),
 			"@repo/database": resolve(__dirname, "../database/index.ts"),
 			"@repo/config": resolve(__dirname, "../../config/index.ts"),
 			"@repo/logs": resolve(__dirname, "../logs/index.ts"),

@@ -366,7 +366,7 @@ export function WorkerNewCustomer() {
 						searchPlaceholder="Search plans…"
 						options={plans.map((p) => ({
 							value: p.id,
-							label: `${p.name} — ${formatCurrency(p.monthlyPrice)}/mo`,
+							label: `${p.name} — ${formatCurrency(p.monthlyPrice)}/mo${p.line ? ` · ${p.line.name}` : ""}`,
 						}))}
 					/>
 				</div>

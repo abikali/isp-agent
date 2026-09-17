@@ -10,7 +10,8 @@ import { db } from "@repo/database";
  * therefore decided per organization, not per row:
  *
  * - The wholesale operator (`Organization.isWholesaleOperator`, Liban-Com)
- *   sees every dealer except its own master account, and is the only party
+ *   sees every dealer except its own accounts — the master and its internal
+ *   lines (LIBANCOM-FIBER), which are not resellers — and is the only party
  *   that can add credit or record a payment — those are writes to iRadius
  *   that only the network owner is entitled to make.
  * - A reseller organization sees exactly one dealer: itself. Its page reads
@@ -21,6 +22,12 @@ export interface DealerScope {
 	userId: string;
 	/** The organization's own dealer account (the master, for the operator). */
 	activeDealerId: string | null;
+	/**
+	 * Every dealer account the organization runs itself: `activeDealerId` plus
+	 * its internal lines (`IspDealer.internalLineOfOrganizationId`). Never
+	 * listed as a dealer — their charges are the org's own subscribers.
+	 */
+	ownDealerIds: string[];
 	/** True for the network owner: every dealer is in scope. */
 	isOperator: boolean;
 	/** Add credit / record payment allowed (operator + `dealers:manage`). */
@@ -42,7 +49,11 @@ export async function resolveDealerScope(
 
 	const organization = await db.organization.findUnique({
 		where: { id: organizationId },
-		select: { isWholesaleOperator: true, iradiusDisabled: true },
+		select: {
+			isWholesaleOperator: true,
+			iradiusDisabled: true,
+			internalDealerLines: { select: { id: true } },
+		},
 	});
 	if (!organization) {
 		throw new ORPCError("NOT_FOUND", { message: "Organization not found" });
@@ -54,6 +65,10 @@ export async function resolveDealerScope(
 		organizationId,
 		userId,
 		activeDealerId: activeDealerId ?? null,
+		ownDealerIds: [
+			...(activeDealerId ? [activeDealerId] : []),
+			...organization.internalDealerLines.map((line) => line.id),
+		],
 		isOperator,
 		canManage: isOperator && hasPermission(permCtx, "dealers", "manage"),
 		iradiusDisabled: organization.iradiusDisabled,
@@ -61,13 +76,15 @@ export async function resolveDealerScope(
 }
 
 /** Prisma `where` fragment selecting the dealers this scope may see. */
-export function dealerWhereForScope(scope: DealerScope): {
-	id?: string | { not: string };
+export function dealerWhereForScope(
+	scope: Pick<DealerScope, "isOperator" | "activeDealerId" | "ownDealerIds">,
+): {
+	id?: string | { notIn: string[] };
 } {
 	if (scope.isOperator) {
-		// `id` is non-nullable, so `not` cannot accidentally drop null rows.
-		return scope.activeDealerId
-			? { id: { not: scope.activeDealerId } }
+		// `id` is non-nullable, so `notIn` cannot accidentally drop null rows.
+		return scope.ownDealerIds.length > 0
+			? { id: { notIn: scope.ownDealerIds } }
 			: {};
 	}
 	// A reseller with no dealer assigned sees nothing rather than everything.

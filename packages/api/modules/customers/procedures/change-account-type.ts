@@ -12,6 +12,11 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	assertCustomerStaysOnLine,
+	loadOrgDealerLines,
+	resolveCustomerLine,
+} from "../../dealers/lib/internal-lines";
+import {
 	type AccountTypeChangeResult,
 	executeAccountTypeChange,
 	previewAccountTypeChange,
@@ -24,6 +29,61 @@ const input = z.object({
 	customerId: z.string(),
 	newPlanId: z.string(),
 });
+
+/**
+ * Which dealer line's plans a customer can move to, for plan pickers. Read
+ * from iRadius like the plan-change guard, so the picker offers exactly what
+ * the server accepts. `restrictTo: null` = no restriction (the org has no
+ * internal lines, or iRadius has the customer under another dealer — the
+ * change is refused with an explanation then); `lineId: null` = the main line.
+ */
+export const getCustomerPlanLine = protectedProcedure
+	.route({
+		method: "GET",
+		path: "/customers/plan-line",
+		tags: ["Customers"],
+		summary: "The dealer line whose plans this customer can move to",
+	})
+	.input(z.object({ organizationId: z.string(), customerId: z.string() }))
+	.handler(async ({ context: { user }, input }) => {
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"customers",
+			"read",
+		);
+		const lines = await loadOrgDealerLines(input.organizationId);
+		if (lines.lines.length === 0) {
+			return { restrictTo: null };
+		}
+		const customer = await db.customer.findFirst({
+			where: {
+				id: input.customerId,
+				organizationId: input.organizationId,
+				...getDealerScopeFilter(activeDealerId),
+			},
+			select: {
+				externalId: true,
+				plan: { select: { dealerId: true, dealerExternalId: true } },
+			},
+		});
+		if (!customer) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Customer not found",
+			});
+		}
+		const { line } = await resolveCustomerLine(
+			customer,
+			lines,
+			!iradiusDisabled,
+		);
+		if (line.kind === "foreign") {
+			return { restrictTo: null };
+		}
+		return {
+			restrictTo: { lineId: line.kind === "line" ? line.dealerId : null },
+		};
+	});
 
 export const previewAccountTypeChangeProcedure = protectedProcedure
 	.route({
@@ -59,6 +119,7 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				discount: true,
 				iptvPrice: true,
 				realIpPrice: true,
+				plan: { select: { dealerId: true, dealerExternalId: true } },
 			},
 		});
 		if (!customer) {
@@ -78,13 +139,26 @@ export const previewAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true, name: true },
+			select: {
+				externalId: true,
+				name: true,
+				dealerId: true,
+				dealerExternalId: true,
+			},
 		});
 		if (!newPlan?.externalId) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Plan not linked to iRadius",
 			});
 		}
+		// iRadius-disabled orgs were refused above, so the line is read from
+		// iRadius — the local plan can be stale.
+		await assertCustomerStaysOnLine({
+			organizationId: input.organizationId,
+			customer,
+			newPlan,
+			readIRadius: true,
+		});
 
 		try {
 			const preview = await previewAccountTypeChange(
@@ -148,7 +222,12 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { externalId: true, username: true, collectorId: true },
+			select: {
+				externalId: true,
+				username: true,
+				collectorId: true,
+				plan: { select: { dealerId: true, dealerExternalId: true } },
+			},
 		});
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", {
@@ -169,6 +248,8 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				sellingPrice: true,
 				rate: true,
 				monthlyPrice: true,
+				dealerId: true,
+				dealerExternalId: true,
 			},
 		});
 		if (!newPlan?.externalId) {
@@ -176,6 +257,14 @@ export const executeAccountTypeChangeProcedure = protectedProcedure
 				message: "Plan not linked to iRadius",
 			});
 		}
+		// iRadius-disabled orgs were refused above, so the line is read from
+		// iRadius — the local plan can be stale.
+		await assertCustomerStaysOnLine({
+			organizationId: input.organizationId,
+			customer,
+			newPlan,
+			readIRadius: true,
+		});
 
 		// Mirror what iRadius just set on User.AccountPrice so the local
 		// monthlyRate doesn't drift and trip the next sync's conflict queue.
