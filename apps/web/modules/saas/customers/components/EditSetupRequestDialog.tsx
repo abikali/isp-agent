@@ -24,6 +24,12 @@ import {
 	type useSetupRequests,
 	useUpdateSetupRequest,
 } from "../hooks/use-setup-requests";
+import {
+	buildSetupRequestPatch,
+	firstMonthBill,
+	parseMoneyInput,
+} from "../lib/setup-request-patch";
+import { SetupRequestPriceSummary } from "./SetupRequestPriceSummary";
 
 type SetupRequest = ReturnType<typeof useSetupRequests>["requests"][number];
 
@@ -101,9 +107,13 @@ export function EditSetupRequestDialog({
 	const [firstCharge, setFirstCharge] = useState(
 		String(request.firstChargeAmount),
 	);
-	const [iptvPrice, setIptvPrice] = useState("");
-	const [realIpPrice, setRealIpPrice] = useState("");
-	const [discount, setDiscount] = useState("");
+	// Seeded from the saved values — blank inputs used to read as "no
+	// discount" even when one was stored.
+	const [iptvPrice, setIptvPrice] = useState(String(customer.iptvPrice));
+	const [realIpPrice, setRealIpPrice] = useState(
+		String(customer.realIpPrice),
+	);
+	const [discount, setDiscount] = useState(String(customer.discount));
 	const [expiresAt, setExpiresAt] = useState(
 		customer.expiresAt ? formatDateInput(customer.expiresAt) : "",
 	);
@@ -123,6 +133,25 @@ export function EditSetupRequestDialog({
 		!usernameCheck.isFetching &&
 		usernameCheck.data?.available === true;
 
+	// Price summary. A plan change re-bases the monthly rate server-side on
+	// save, so the saved rate only describes the bill while the plan is kept.
+	const planChanged = planId !== (customer.plan?.id ?? "");
+	const rate = customer.monthlyRate ?? 0;
+	const discountValue = parseMoneyInput(discount) ?? 0;
+	const iptvValue = parseMoneyInput(iptvPrice) ?? 0;
+	const realIpValue = parseMoneyInput(realIpPrice) ?? 0;
+	const monthlyTotal = rate + iptvValue + realIpValue;
+	const discountTooLarge =
+		!planChanged && discountValue > monthlyTotal + 0.005;
+	const subscriptionBill = firstMonthBill(rate, discountValue);
+	const chargeValue = parseMoneyInput(firstCharge);
+	const showChargeHint =
+		!planChanged &&
+		customer.monthlyRate != null &&
+		request.durationType === "month" &&
+		chargeValue !== null &&
+		chargeValue !== subscriptionBill;
+
 	async function handleSave() {
 		if (
 			!organizationId ||
@@ -139,6 +168,20 @@ export function EditSetupRequestDialog({
 		});
 		if (!cleanedPhones.some((p) => p.primary) && cleanedPhones[0]) {
 			cleanedPhones[0].primary = true;
+		}
+		const priceResult = buildSetupRequestPatch(
+			{
+				discount: customer.discount,
+				iptvPrice: customer.iptvPrice,
+				realIpPrice: customer.realIpPrice,
+				firstChargeAmount: request.firstChargeAmount,
+				expiresAt: customer.expiresAt,
+			},
+			{ discount, iptvPrice, realIpPrice, firstCharge, expiresAt },
+		);
+		if (!priceResult.ok) {
+			toast.error(priceResult.error);
+			return;
 		}
 		try {
 			await updateRequest.mutateAsync({
@@ -160,13 +203,7 @@ export function EditSetupRequestDialog({
 					: null,
 				...(planId ? { planId } : {}),
 				collectorId: collectorId || null,
-				firstChargeAmount: Number(firstCharge) || 0,
-				...(iptvPrice !== "" ? { iptvPrice: Number(iptvPrice) } : {}),
-				...(realIpPrice !== ""
-					? { realIpPrice: Number(realIpPrice) }
-					: {}),
-				...(discount !== "" ? { discount: Number(discount) } : {}),
-				...(expiresAt ? { expiresAt: new Date(expiresAt) } : {}),
+				...priceResult.patch,
 			});
 			toast.success("Request updated");
 			onClose();
@@ -323,7 +360,7 @@ export function EditSetupRequestDialog({
 								step="0.01"
 								value={discount}
 								onChange={(e) => setDiscount(e.target.value)}
-								placeholder="Keep current"
+								placeholder="0"
 							/>
 						</div>
 					</div>
@@ -337,7 +374,7 @@ export function EditSetupRequestDialog({
 								step="0.01"
 								value={iptvPrice}
 								onChange={(e) => setIptvPrice(e.target.value)}
-								placeholder="Keep current"
+								placeholder="0"
 							/>
 						</div>
 						<div className="space-y-1.5">
@@ -351,10 +388,24 @@ export function EditSetupRequestDialog({
 								step="0.01"
 								value={realIpPrice}
 								onChange={(e) => setRealIpPrice(e.target.value)}
-								placeholder="Keep current"
+								placeholder="0"
 							/>
 						</div>
 					</div>
+					<SetupRequestPriceSummary
+						planChanged={planChanged}
+						rate={rate}
+						discount={discountValue}
+						iptv={iptvValue}
+						realIp={realIpValue}
+						discountTooLarge={discountTooLarge}
+						chargeHintAmount={
+							showChargeHint ? subscriptionBill : null
+						}
+						onUseChargeHint={() =>
+							setFirstCharge(String(subscriptionBill))
+						}
+					/>
 					<div className="space-y-1.5">
 						<Label htmlFor="esr-expiry">Expiry date</Label>
 						<Input
@@ -376,7 +427,8 @@ export function EditSetupRequestDialog({
 							!firstName.trim() ||
 							!trimmedUsername ||
 							usernameChecking ||
-							usernameTaken
+							usernameTaken ||
+							discountTooLarge
 						}
 					>
 						{updateRequest.isPending ? "Saving…" : "Save changes"}

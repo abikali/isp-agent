@@ -11,6 +11,7 @@ import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
+import { syncCustomerAddonPrice } from "../lib/addon-price-sync";
 import { classifyAddonNote } from "../lib/addons";
 
 export const updatePendingInstallation = protectedProcedure
@@ -55,7 +56,13 @@ export const updatePendingInstallation = protectedProcedure
 				organizationId: input.organizationId,
 				employee: getDealerScopeFilter(activeDealerId),
 			},
-			select: { id: true, status: true, isAddOn: true },
+			select: {
+				id: true,
+				status: true,
+				isAddOn: true,
+				notes: true,
+				setupRequestId: true,
+			},
 		});
 		if (!installation) {
 			throw new ORPCError("NOT_FOUND", {
@@ -79,9 +86,14 @@ export const updatePendingInstallation = protectedProcedure
 			updateData["notes"] = input.notes;
 		}
 
-		const updated = await db.installation.update({
-			where: { id: input.id },
-			data: updateData,
+		const updated = await db.$transaction(async (tx) => {
+			if (input.price !== undefined && installation.isAddOn) {
+				await syncCustomerAddonPrice(tx, installation, input.price);
+			}
+			return tx.installation.update({
+				where: { id: input.id },
+				data: updateData,
+			});
 		});
 
 		return { installation: updated };
