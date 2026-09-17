@@ -12,6 +12,7 @@ import { getDealerLedger } from "./procedures/ledger";
 import { listDealers } from "./procedures/list";
 import { recordDealerPayment } from "./procedures/record-payment";
 import { setActiveDealer } from "./procedures/set-active";
+import { setInternalDealerLine } from "./procedures/set-internal-line";
 import { getDealerStats } from "./procedures/stats";
 import { updateDealer } from "./procedures/update";
 
@@ -23,6 +24,7 @@ export const dealersRouter = {
 	delete: deleteDealer,
 	stats: getDealerStats,
 	setActive: setActiveDealer,
+	setInternalLine: setInternalDealerLine,
 	ledger: getDealerLedger,
 };
 

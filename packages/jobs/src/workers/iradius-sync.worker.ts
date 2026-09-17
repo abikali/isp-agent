@@ -26,8 +26,10 @@ import {
 	deriveStatus,
 	inferConnectionType,
 	kbpsToMbps,
+	type PlanConnectionInfo,
 	PROFILE_DEPARTMENT_MAP,
 	PROFILE_POSITION_MAP,
+	resolveSyncDealers,
 	safeDate,
 	toBigInt,
 	toBooleanFromBit,
@@ -451,7 +453,7 @@ async function processIRadiusSync(
 
 			// Maps populated by Phases 1-5, referenced by later phases
 			const planMap = new Map<number, string>();
-			const planNames = new Map<number, string>();
+			const planInfo = new Map<number, PlanConnectionInfo>();
 			const stationMap = new Map<number, string>();
 			const apMap = new Map<number, string>();
 			const nasHostMap = new Map<string, string>();
@@ -737,13 +739,16 @@ async function processIRadiusSync(
 					timestamp: new Date(),
 				});
 
-				// Build plan name lookup for connection type inference
+				// Build plan lookup for connection type inference
 				for (const at of accountTypes) {
 					if (at["AccountTypeName"]) {
-						planNames.set(
-							at["Id"] as number,
-							at["AccountTypeName"] as string,
-						);
+						planInfo.set(at["Id"] as number, {
+							name: at["AccountTypeName"] as string,
+							ipPoolName: (at["IpPoolName"] as string) || null,
+							dealerExternalId: at["DealerId"]
+								? String(at["DealerId"])
+								: null,
+						});
 					}
 				}
 
@@ -1664,15 +1669,23 @@ async function processIRadiusSync(
 			const activeDealerId = orgRecord?.activeDealerId ?? null;
 
 			// Build a lookup from iRadius dealer User.Id → our IspDealer.id
-			// so we can resolve ParentId on employees/customers to the correct dealer
+			// so we can resolve ParentId on employees/customers to the correct
+			// dealer. The org's internal lines resolve to its master dealer.
 			const allDealers = await db.ispDealer.findMany({
 				where: { externalId: { not: null } },
-				select: { id: true, externalId: true },
+				select: {
+					id: true,
+					externalId: true,
+					internalLineOfOrganizationId: true,
+				},
 			});
-			for (const d of allDealers) {
-				if (d.externalId) {
-					dealerMap.set(Number(d.externalId), d.id);
-				}
+			const {
+				dealerMap: resolvedDealerMap,
+				internalLineExtIds,
+				internalLineDealerIds,
+			} = resolveSyncDealers(allDealers, organizationId, activeDealerId);
+			for (const [extId, id] of resolvedDealerMap) {
+				dealerMap.set(extId, id);
 			}
 
 			await updateProgress(operationId, {
@@ -1680,21 +1693,31 @@ async function processIRadiusSync(
 				processedDealers: 0,
 			});
 
-			// Backfill dealerId on service plans that have dealerExternalId but no dealerId
+			// Backfill dealerId on service plans that have dealerExternalId but
+			// no dealerId. Plans still stamped with one of our internal lines
+			// (backfilled before the line was linked) are repointed at the
+			// master; `dealerExternalId` keeps naming the line that owns the
+			// AccountType in iRadius.
 			const plansToBackfill = await db.servicePlan.findMany({
 				where: {
 					organizationId,
-					dealerId: null,
 					dealerExternalId: { not: null },
+					OR: [
+						{ dealerId: null },
+						{ dealerId: { in: [...internalLineDealerIds] } },
+					],
 				},
-				select: { id: true, dealerExternalId: true },
+				select: { id: true, dealerId: true, dealerExternalId: true },
 			});
 			await Promise.all(
 				plansToBackfill.flatMap((plan) => {
 					const resolvedDealerId = dealerMap.get(
 						Number(plan.dealerExternalId),
 					);
-					if (!resolvedDealerId) {
+					if (
+						!resolvedDealerId ||
+						resolvedDealerId === plan.dealerId
+					) {
 						return [];
 					}
 					return db.servicePlan
@@ -1926,16 +1949,24 @@ async function processIRadiusSync(
 					? Number(activeDealer.externalId)
 					: null;
 				if (activeDealerExtId !== null) {
-					allowedIRadiusDealerExtIds.add(activeDealerExtId);
-					const subDealers = await queryIRadius(
-						conn,
-						"SELECT Id FROM User WHERE ProfileId = 2 AND ParentId = ?",
-						[activeDealerExtId],
-					);
-					for (const row of subDealers) {
-						const subId = row["Id"] as number | null;
-						if (subId !== null) {
-							allowedIRadiusDealerExtIds.add(subId);
+					// The org's internal lines (LIBANCOM-FIBER beside
+					// johnnyh) are top-level siblings of the master in
+					// iRadius, so each is its own root.
+					for (const rootExtId of [
+						activeDealerExtId,
+						...internalLineExtIds,
+					]) {
+						allowedIRadiusDealerExtIds.add(rootExtId);
+						const subDealers = await queryIRadius(
+							conn,
+							"SELECT Id FROM User WHERE ProfileId = 2 AND ParentId = ?",
+							[rootExtId],
+						);
+						for (const row of subDealers) {
+							const subId = row["Id"] as number | null;
+							if (subId !== null) {
+								allowedIRadiusDealerExtIds.add(subId);
+							}
 						}
 					}
 				}
@@ -2127,8 +2158,8 @@ async function processIRadiusSync(
 					}
 				}
 
-				const planName = u["AccountTypeId"]
-					? planNames.get(u["AccountTypeId"] as number)
+				const plan = u["AccountTypeId"]
+					? planInfo.get(u["AccountTypeId"] as number)
 					: null;
 				const planId = u["AccountTypeId"]
 					? (planMap.get(u["AccountTypeId"] as number) ?? null)
@@ -2239,7 +2270,10 @@ async function processIRadiusSync(
 						u["Active"] as number,
 						u["Blocked"] as number,
 					),
-					connectionType: inferConnectionType(planName),
+					connectionType: inferConnectionType(
+						plan,
+						internalLineExtIds,
+					),
 					ipAddress:
 						(u["IpAddress"] as string) ||
 						(u["StaticIP"] as string) ||
@@ -2585,11 +2619,16 @@ async function processIRadiusSync(
 					// customer. Previously being an orphan made a customer
 					// permanently "seen" and so immune to cleanup, which is why
 					// 17 of sakonet's, vipernet's and georgesabboud's
-					// subscribers stayed live in dotnet2.
+					// subscribers stayed live in dotnet2. Our internal lines
+					// count as our own dealer.
 					const keep =
 						existing.notes === ORPHAN_STUB_NOTES
 							? orphanBackRefs.has(extId)
-							: existing.dealerId === activeDealerId;
+							: existing.dealerId === activeDealerId ||
+								(existing.dealerId !== null &&
+									internalLineDealerIds.has(
+										existing.dealerId,
+									));
 					if (!keep) {
 						continue;
 					}

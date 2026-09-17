@@ -20,13 +20,74 @@ export { toBooleanFromBit };
 
 export interface SyncLookupMaps {
 	planMap: Map<number, string>;
-	planNames: Map<number, string>;
+	planInfo: Map<number, PlanConnectionInfo>;
 	stationMap: Map<number, string>;
 	apMap: Map<number, string>;
 	nasHostMap: Map<string, string>;
 	employeeMap: Map<number, string>;
 	dealerMap: Map<number, string>;
 	activeDealerId: string | null;
+	/** iRadius `User.Id`s of the org's internal dealer lines. */
+	internalLineExtIds: ReadonlySet<number>;
+}
+
+// ---------------------------------------------------------------------------
+// Dealer resolution
+// ---------------------------------------------------------------------------
+
+export interface SyncDealerRow {
+	id: string;
+	externalId: string | null;
+	internalLineOfOrganizationId: string | null;
+}
+
+export interface SyncDealerResolution {
+	/** iRadius dealer `User.Id` → local `IspDealer.id` to stamp on rows. */
+	dealerMap: Map<number, string>;
+	/** iRadius `User.Id`s of this org's internal lines. */
+	internalLineExtIds: Set<number>;
+	/** Local `IspDealer.id`s of this org's internal lines. */
+	internalLineDealerIds: Set<string>;
+}
+
+/**
+ * Build the dealer lookup for an organization sync.
+ *
+ * An internal line (`IspDealer.internalLineOfOrganizationId`) is a second
+ * iRadius dealer account the org runs itself — LIBANCOM-FIBER next to
+ * johnnyh. Everything under it resolves to the org's master dealer, so the
+ * exact `getDealerScopeFilter` keeps showing those customers, employees and
+ * plans without learning about lines. Lines of OTHER orgs, and every line
+ * when the org has no master, map to their own row as before.
+ */
+export function resolveSyncDealers(
+	dealers: SyncDealerRow[],
+	organizationId: string,
+	activeDealerId: string | null,
+): SyncDealerResolution {
+	const dealerMap = new Map<number, string>();
+	const internalLineExtIds = new Set<number>();
+	const internalLineDealerIds = new Set<string>();
+
+	for (const d of dealers) {
+		if (!d.externalId) {
+			continue;
+		}
+		const extId = Number(d.externalId);
+		if (
+			activeDealerId !== null &&
+			d.id !== activeDealerId &&
+			d.internalLineOfOrganizationId === organizationId
+		) {
+			dealerMap.set(extId, activeDealerId);
+			internalLineExtIds.add(extId);
+			internalLineDealerIds.add(d.id);
+			continue;
+		}
+		dealerMap.set(extId, d.id);
+	}
+
+	return { dealerMap, internalLineExtIds, internalLineDealerIds };
 }
 
 // ---------------------------------------------------------------------------
@@ -50,18 +111,37 @@ export function deriveStatus(
 	return "PENDING";
 }
 
+export interface PlanConnectionInfo {
+	name: string;
+	ipPoolName: string | null;
+	dealerExternalId: string | null;
+}
+
 export function inferConnectionType(
-	planName?: string | null,
-): ConnectionType | null {
-	if (!planName) {
+	plan: PlanConnectionInfo | null | undefined,
+	internalLineExtIds: ReadonlySet<number>,
+): ConnectionType {
+	if (!plan) {
 		return "WIRELESS";
 	}
-	const lower = planName.toLowerCase();
+	const lower = plan.name.toLowerCase();
 	if (lower.includes("fiber") || lower.includes("ftth")) {
 		return "FIBER";
 	}
 	if (lower.includes("dsl") || lower.includes("adsl")) {
 		return "DSL";
+	}
+	// "Open Speed" is fiber sold under a name that doesn't say so; its
+	// AccountType hands out addresses from the fiber pool.
+	if (plan.ipPoolName?.toLowerCase().includes("fiber")) {
+		return "FIBER";
+	}
+	// An internal line only carries fiber and DSL (DSL is caught by name).
+	if (
+		plan.dealerExternalId !== null &&
+		internalLineExtIds.has(Number(plan.dealerExternalId))
+	) {
+		return "FIBER";
 	}
 	return "WIRELESS";
 }
@@ -129,8 +209,8 @@ export function buildCustomerDataFromRow(
 	u: Record<string, unknown>,
 	maps: SyncLookupMaps,
 ) {
-	const planName = u["AccountTypeId"]
-		? maps.planNames.get(u["AccountTypeId"] as number)
+	const plan = u["AccountTypeId"]
+		? maps.planInfo.get(u["AccountTypeId"] as number)
 		: null;
 	const planId = u["AccountTypeId"]
 		? (maps.planMap.get(u["AccountTypeId"] as number) ?? null)
@@ -187,7 +267,7 @@ export function buildCustomerDataFromRow(
 			u["Active"] as number,
 			u["Blocked"] as number,
 		),
-		connectionType: inferConnectionType(planName),
+		connectionType: inferConnectionType(plan, maps.internalLineExtIds),
 		ipAddress:
 			(u["IpAddress"] as string) || (u["StaticIP"] as string) || null,
 		macAddress: (u["MacAddress"] as string) || null,

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CreateOwnerDialog } from "./CreateOwnerDialog";
+import { InternalDealerLinesCard } from "./InternalDealerLinesCard";
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive admin org editor (details, members, dealer + iRadius cards); JSX-heavy, splitting would scatter shared org data/mutations
 export function OrganizationForm({
@@ -385,6 +386,13 @@ export function OrganizationForm({
 							</div>
 						</CardContent>
 					</Card>
+
+					<InternalDealerLinesCard
+						organizationId={organization.id}
+						activeDealerId={activeDealer?.id ?? null}
+						lines={organization.internalDealerLines}
+						dealers={dealers}
+					/>
 
 					<Card>
 						<CardHeader>

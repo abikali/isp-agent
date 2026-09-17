@@ -10,6 +10,8 @@ import {
 	createAccountNumberGenerator,
 	EMPLOYEE_SELECT_COLUMNS,
 	LOCAL_AUTHORITATIVE_FIELDS,
+	type PlanConnectionInfo,
+	resolveSyncDealers,
 	type SyncLookupMaps,
 	serializeValue,
 	valuesEqual,
@@ -28,7 +30,13 @@ async function buildLocalLookupMaps(
 		await Promise.all([
 			db.servicePlan.findMany({
 				where: { organizationId, externalId: { not: null } },
-				select: { id: true, externalId: true, name: true },
+				select: {
+					id: true,
+					externalId: true,
+					name: true,
+					ipPoolName: true,
+					dealerExternalId: true,
+				},
 			}),
 			db.station.findMany({
 				where: { organizationId, externalId: { not: null } },
@@ -47,8 +55,18 @@ async function buildLocalLookupMaps(
 				select: { id: true, externalId: true },
 			}),
 			db.ispDealer.findMany({
-				where: { organizationId, externalId: { not: null } },
-				select: { id: true, externalId: true },
+				where: {
+					externalId: { not: null },
+					OR: [
+						{ organizationId },
+						{ internalLineOfOrganizationId: organizationId },
+					],
+				},
+				select: {
+					id: true,
+					externalId: true,
+					internalLineOfOrganizationId: true,
+				},
 			}),
 			db.organization.findUnique({
 				where: { id: organizationId },
@@ -57,14 +75,18 @@ async function buildLocalLookupMaps(
 		]);
 
 	const planMap = new Map<number, string>();
-	const planNames = new Map<number, string>();
+	const planInfo = new Map<number, PlanConnectionInfo>();
 	for (const p of plans) {
 		if (!p.externalId) {
 			continue;
 		}
 		const extNum = Number.parseInt(p.externalId, 10);
 		planMap.set(extNum, p.id);
-		planNames.set(extNum, p.name);
+		planInfo.set(extNum, {
+			name: p.name,
+			ipPoolName: p.ipPoolName,
+			dealerExternalId: p.dealerExternalId,
+		});
 	}
 
 	const stationMap = new Map<number, string>();
@@ -98,24 +120,23 @@ async function buildLocalLookupMaps(
 		employeeMap.set(Number.parseInt(e.externalId, 10), e.id);
 	}
 
-	const dealerMap = new Map<number, string>();
-	for (const d of dealers) {
-		if (!d.externalId) {
-			continue;
-		}
-		dealerMap.set(Number.parseInt(d.externalId, 10), d.id);
-	}
 	const activeDealerId = orgRecord?.activeDealerId ?? null;
+	const { dealerMap, internalLineExtIds } = resolveSyncDealers(
+		dealers,
+		organizationId,
+		activeDealerId,
+	);
 
 	return {
 		planMap,
-		planNames,
+		planInfo,
 		stationMap,
 		apMap,
 		nasHostMap,
 		employeeMap,
 		dealerMap,
 		activeDealerId,
+		internalLineExtIds,
 	};
 }
 
