@@ -146,3 +146,29 @@ export function getAvatarColor(name: string | null | undefined): string {
 	}
 	return colors[Math.abs(hash) % colors.length] ?? colors[0];
 }
+
+/**
+ * Read a location pin from what an admin pastes: "33.8938, 35.5018" or a full
+ * Google Maps link (`@33.89,35.50,17z`, `?q=33.89,35.50`). Short share links
+ * (maps.app.goo.gl) carry no coordinates and return null.
+ */
+export function parseCoordinates(
+	text: string,
+): { latitude: number; longitude: number } | null {
+	const match = text.match(
+		/(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/,
+	);
+	if (!match) {
+		return null;
+	}
+	const latitude = Number(match[1]);
+	const longitude = Number(match[2]);
+	if (
+		Math.abs(latitude) > 90 ||
+		Math.abs(longitude) > 180 ||
+		(latitude === 0 && longitude === 0)
+	) {
+		return null;
+	}
+	return { latitude, longitude };
+}

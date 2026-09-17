@@ -12,6 +12,7 @@ import {
 	FileTextIcon,
 	ImageIcon,
 	LoaderIcon,
+	MapPinIcon,
 	MicIcon,
 	PaperclipIcon,
 	SendIcon,
@@ -24,6 +25,7 @@ import { useAttachmentUpload } from "../hooks/use-attachment-upload";
 import { EmojiPicker } from "./EmojiPicker";
 import { MediaPreviewDialog } from "./MediaPreviewDialog";
 import { ShareContactDialog } from "./ShareContactDialog";
+import { ShareLocationDialog } from "./ShareLocationDialog";
 import { VoiceRecorder } from "./VoiceRecorder";
 
 interface ReplyTarget {
@@ -75,6 +77,7 @@ export function AdminChatInput({
 	const [attachPopoverOpen, setAttachPopoverOpen] = useState(false);
 	const [previewFile, setPreviewFile] = useState<File | null>(null);
 	const [contactDialogOpen, setContactDialogOpen] = useState(false);
+	const [locationDialogOpen, setLocationDialogOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const imageInputRef = useRef<HTMLInputElement>(null);
 	const docInputRef = useRef<HTMLInputElement>(null);
@@ -206,6 +209,22 @@ export function AdminChatInput({
 				contact,
 			},
 			{ onSuccess: () => setContactDialogOpen(false) },
+		);
+	}
+
+	function handleLocationSend(location: {
+		latitude: number;
+		longitude: number;
+	}) {
+		mutation.mutate(
+			{
+				conversationId,
+				organizationId,
+				message: "",
+				attachmentType: "location",
+				location,
+			},
+			{ onSuccess: () => setLocationDialogOpen(false) },
 		);
 	}
 
@@ -361,6 +380,17 @@ export function AdminChatInput({
 										<UserRoundIcon className="size-4" />
 										Contact
 									</button>
+									<button
+										type="button"
+										className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent"
+										onClick={() => {
+											setAttachPopoverOpen(false);
+											setLocationDialogOpen(true);
+										}}
+									>
+										<MapPinIcon className="size-4" />
+										Location
+									</button>
 								</PopoverContent>
 							</Popover>
 						)}
@@ -483,6 +513,14 @@ export function AdminChatInput({
 				<ShareContactDialog
 					onSend={handleContactSend}
 					onClose={() => setContactDialogOpen(false)}
+					isSending={mutation.isPending}
+				/>
+			)}
+
+			{locationDialogOpen && (
+				<ShareLocationDialog
+					onSend={handleLocationSend}
+					onClose={() => setLocationDialogOpen(false)}
 					isSending={mutation.isPending}
 				/>
 			)}
