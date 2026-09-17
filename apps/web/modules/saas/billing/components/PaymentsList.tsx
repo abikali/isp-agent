@@ -105,6 +105,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConnectivityCell } from "../../customers/components/ConnectivityCell";
 import { CustomerBulkActionsBar } from "../../customers/components/CustomerBulkActionsBar";
 import {
 	ChangeNameDialog,
@@ -115,6 +116,7 @@ import {
 	SetIptvPriceDialog,
 } from "../../customers/components/CustomerIradiusDialogs";
 import {
+	useCustomersConnectivity,
 	usePushToIRadius,
 	useSetDiscount,
 } from "../../customers/hooks/use-customers";
@@ -256,6 +258,9 @@ interface PaymentRow {
 		phone: string | null;
 		phones: unknown;
 		_count: { tasks: number };
+		status: CustomerStatus;
+		online: boolean;
+		lastLogin: string | Date | null;
 		expiresAt: string | Date | null;
 		iptvPrice: number;
 		realIpPrice: number;
@@ -280,12 +285,46 @@ interface PaymentRow {
 	activityLog: unknown;
 	externalBillingId: number | null;
 	reviewedAt: string | Date | null;
+	/**
+	 * The new customer the payer brought in — the payer is the referrer and
+	 * the free month is their reward.
+	 */
 	referredCustomer: {
 		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
+		status: CustomerStatus;
+		online: boolean;
+		lastLogin: string | Date | null;
+		expiresAt: string | Date | null;
 	} | null;
+}
+
+type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+
+interface LiveConnectivity {
+	status: CustomerStatus;
+	online: boolean;
+	lastLogin: string | Date | null;
+	expiresAt: string | Date | null;
+}
+
+/** Overlay the polled connectivity snapshot onto a customer ref. */
+function withLive<T extends { id: string }>(
+	customer: T,
+	live: Map<string, LiveConnectivity>,
+): T {
+	const fresh = live.get(customer.id);
+	return fresh
+		? {
+				...customer,
+				status: fresh.status,
+				online: fresh.online,
+				lastLogin: fresh.lastLogin,
+				expiresAt: fresh.expiresAt,
+			}
+		: customer;
 }
 
 function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
@@ -771,6 +810,23 @@ export function PaymentsList() {
 		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
 	});
 
+	// Live online/offline for the page's customers and the new customers
+	// their referral free months point at — the row data is a snapshot.
+	const live = useCustomersConnectivity(
+		payments.flatMap((p) =>
+			p.referredCustomer
+				? [p.customer.id, p.referredCustomer.id]
+				: [p.customer.id],
+		),
+	);
+	const rows = payments.map((p) => ({
+		...p,
+		customer: withLive(p.customer, live),
+		referredCustomer: p.referredCustomer
+			? withLive(p.referredCustomer, live)
+			: null,
+	}));
+
 	const { data: collectorsData } = useCollectors();
 	const { groups } = useCustomerGroups();
 	const collectors = collectorsData?.collectors ?? [];
@@ -993,16 +1049,23 @@ export function PaymentsList() {
 						: undefined;
 					return (
 						<>
-							{href ? (
-								<a
-									href={href}
-									className="font-medium hover:underline"
-								>
-									{name}
-								</a>
-							) : (
-								<div className="font-medium">{name}</div>
-							)}
+							<div className="flex items-center gap-1.5">
+								<ConnectivityCell
+									status={c.status}
+									online={c.online}
+									lastLogin={c.lastLogin}
+								/>
+								{href ? (
+									<a
+										href={href}
+										className="font-medium hover:underline"
+									>
+										{name}
+									</a>
+								) : (
+									<div className="font-medium">{name}</div>
+								)}
+							</div>
 							<div className="text-xs text-muted-foreground">
 								{c.username}
 							</div>
@@ -1140,26 +1203,37 @@ export function PaymentsList() {
 								</span>
 							)}
 							{payment.freeAccount && referred && orgSlug && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<a
-											href={`/app/${orgSlug}/customers/${referred.id}`}
-											onClick={(e) => e.stopPropagation()}
-											className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
-										>
-											<GiftIcon className="size-3 text-emerald-600" />
-											<span className="truncate max-w-[140px]">
-												{displayName(
-													referred.firstName,
-													referred.lastName,
-												) || referred.username}
-											</span>
-										</a>
-									</TooltipTrigger>
-									<TooltipContent>
-										Free via referral — open referrer
-									</TooltipContent>
-								</Tooltip>
+								<div className="flex items-center gap-1.5">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<a
+												href={`/app/${orgSlug}/customers/${referred.id}`}
+												onClick={(e) =>
+													e.stopPropagation()
+												}
+												className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+											>
+												<GiftIcon className="size-3 text-emerald-600" />
+												<span className="truncate max-w-[140px]">
+													{displayName(
+														referred.firstName,
+														referred.lastName,
+													) || referred.username}
+												</span>
+											</a>
+										</TooltipTrigger>
+										<TooltipContent>
+											Free month for bringing this
+											customer — open
+										</TooltipContent>
+									</Tooltip>
+									<ConnectivityCell
+										status={referred.status}
+										online={referred.online}
+										lastLogin={referred.lastLogin}
+										expiresAt={referred.expiresAt}
+									/>
+								</div>
 							)}
 						</div>
 					);
@@ -2110,7 +2184,7 @@ export function PaymentsList() {
 				<TooltipProvider>
 					<DataTable
 						columns={columns}
-						data={payments}
+						data={rows}
 						isLoading={isLoading}
 						isFetching={isFetching}
 						getRowClassName={rowClassName}

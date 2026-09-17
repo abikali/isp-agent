@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import { DataTable } from "@ui/components/data-table";
 import { GiftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useCustomersConnectivity } from "../hooks/use-customers";
+import { ConnectivityCell } from "./ConnectivityCell";
 
 const PAGE_SIZE = 10;
 
@@ -23,11 +25,15 @@ interface ReferralRow {
 		year: number;
 		month: number;
 	} | null;
+	/** The referrer: got this free month for bringing in this customer. */
 	customer: {
 		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
+		status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+		online: boolean;
+		lastLogin: string | Date | null;
 		plan: { id: string; name: string } | null;
 	};
 }
@@ -58,12 +64,27 @@ export function CustomerReferrals({
 
 	const referrals = (data?.payments ?? []) as unknown as ReferralRow[];
 	const total = data?.total ?? 0;
+	const live = useCustomersConnectivity(referrals.map((r) => r.customer.id));
+	const rows = referrals.map((r) => {
+		const fresh = live.get(r.customer.id);
+		return fresh
+			? {
+					...r,
+					customer: {
+						...r.customer,
+						status: fresh.status,
+						online: fresh.online,
+						lastLogin: fresh.lastLogin,
+					},
+				}
+			: r;
+	});
 
 	const columns = useMemo<ColumnDef<ReferralRow, unknown>[]>(
 		() => [
 			{
 				id: "customer",
-				header: "Customer",
+				header: "Referred by",
 				cell: ({ row }) => {
 					const c = row.original.customer;
 					const name =
@@ -71,19 +92,26 @@ export function CustomerReferrals({
 						c.username ||
 						"—";
 					return (
-						<Link
-							to="/app/$organizationSlug/customers/$customerId"
-							params={{
-								organizationSlug,
-								customerId: c.id,
-							}}
-							preload="intent"
-							className="font-medium text-sm hover:underline"
-						>
-							<span className="truncate max-w-[200px]">
-								{name}
-							</span>
-						</Link>
+						<div className="flex items-center gap-1.5">
+							<ConnectivityCell
+								status={c.status}
+								online={c.online}
+								lastLogin={c.lastLogin}
+							/>
+							<Link
+								to="/app/$organizationSlug/customers/$customerId"
+								params={{
+									organizationSlug,
+									customerId: c.id,
+								}}
+								preload="intent"
+								className="font-medium text-sm hover:underline"
+							>
+								<span className="truncate max-w-[200px]">
+									{name}
+								</span>
+							</Link>
+						</div>
 					);
 				},
 			},
@@ -145,7 +173,7 @@ export function CustomerReferrals({
 			<CardContent>
 				<DataTable
 					columns={columns}
-					data={referrals}
+					data={rows}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

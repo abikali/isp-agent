@@ -210,12 +210,19 @@ export const listPayments = protectedProcedure
 					// Frozen month total — what the row was expected to collect.
 					// Drives the client's mismatch flag (see `expectedTotal`).
 					invoice: { select: { total: true, voidedAt: true } },
+					// The new customer the payer brought in (the payer got the
+					// free month). Status + expiry let reviewers check the
+					// referral is a real, live subscriber.
 					referredCustomer: {
 						select: {
 							id: true,
 							firstName: true,
 							lastName: true,
 							username: true,
+							status: true,
+							online: true,
+							lastLogin: true,
+							expiresAt: true,
 						},
 					},
 					customer: {
@@ -230,6 +237,9 @@ export const listPayments = protectedProcedure
 							phones: true,
 							address: true,
 							groupName: true,
+							status: true,
+							online: true,
+							lastLogin: true,
 							expiresAt: true,
 							iptvPrice: true,
 							realIpPrice: true,

@@ -18,6 +18,8 @@ import {
 } from "@ui/components/tooltip";
 import { BanknoteIcon, GiftIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useCustomersConnectivity } from "../hooks/use-customers";
+import { ConnectivityCell } from "./ConnectivityCell";
 
 const PAGE_SIZE = 10;
 
@@ -40,11 +42,16 @@ interface PaymentRow {
 		year: number;
 		month: number;
 	} | null;
+	/** The new customer this customer brought in (their free month's reason). */
 	referredCustomer: {
 		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
+		status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+		online: boolean;
+		lastLogin: string | Date | null;
+		expiresAt: string | Date | null;
 	} | null;
 }
 
@@ -73,6 +80,20 @@ export function CustomerPayments({
 
 	const payments = (data?.payments ?? []) as unknown as PaymentRow[];
 	const total = data?.total ?? 0;
+	// Live status for referred customers — "is the referral real?" check.
+	const live = useCustomersConnectivity(
+		payments.flatMap((p) =>
+			p.referredCustomer ? [p.referredCustomer.id] : [],
+		),
+	);
+	const rows = payments.map((p) => {
+		const fresh = p.referredCustomer
+			? live.get(p.referredCustomer.id)
+			: undefined;
+		return fresh && p.referredCustomer
+			? { ...p, referredCustomer: { ...p.referredCustomer, ...fresh } }
+			: p;
+	});
 
 	const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(
 		() => [
@@ -154,27 +175,35 @@ export function CustomerPayments({
 						referred.username ||
 						"—";
 					return (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Link
-									to="/app/$organizationSlug/customers/$customerId"
-									params={{
-										organizationSlug,
-										customerId: referred.id,
-									}}
-									preload="intent"
-									className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
-								>
-									<GiftIcon className="size-3.5" />
-									<span className="truncate max-w-[180px]">
-										{name}
-									</span>
-								</Link>
-							</TooltipTrigger>
-							<TooltipContent>
-								Free via referral — open referrer
-							</TooltipContent>
-						</Tooltip>
+						<div className="flex items-center gap-1.5">
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Link
+										to="/app/$organizationSlug/customers/$customerId"
+										params={{
+											organizationSlug,
+											customerId: referred.id,
+										}}
+										preload="intent"
+										className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:underline dark:text-emerald-400"
+									>
+										<GiftIcon className="size-3.5" />
+										<span className="truncate max-w-[180px]">
+											{name}
+										</span>
+									</Link>
+								</TooltipTrigger>
+								<TooltipContent>
+									Free month for bringing this customer — open
+								</TooltipContent>
+							</Tooltip>
+							<ConnectivityCell
+								status={referred.status}
+								online={referred.online}
+								lastLogin={referred.lastLogin}
+								expiresAt={referred.expiresAt}
+							/>
+						</div>
 					);
 				},
 			},
@@ -211,7 +240,7 @@ export function CustomerPayments({
 			<CardContent>
 				<DataTable
 					columns={columns}
-					data={payments}
+					data={rows}
 					pagination={{
 						totalItems: total,
 						currentPage: page,

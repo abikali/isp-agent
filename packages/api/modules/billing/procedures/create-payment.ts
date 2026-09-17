@@ -419,10 +419,12 @@ export const createPayment = protectedProcedure
 
 				let created: PaymentRow[];
 
-				// Validate referrer belongs to the same organization and
-				// dealer (only when free account; ignored otherwise)
+				// The paying customer is the referrer (the free month is their
+				// reward); `referredCustomerId` is the new customer they
+				// brought in. Validate it belongs to the same organization and
+				// dealer (only when free account; ignored otherwise).
 				if (input.referredCustomerId && input.freeAccount) {
-					const referrer = await tx.customer.findFirst({
+					const referred = await tx.customer.findFirst({
 						where: {
 							id: input.referredCustomerId,
 							organizationId: input.organizationId,
@@ -430,7 +432,7 @@ export const createPayment = protectedProcedure
 						},
 						select: { id: true },
 					});
-					if (!referrer) {
+					if (!referred) {
 						throw new ORPCError("BAD_REQUEST", {
 							message: "Referred customer not found",
 						});

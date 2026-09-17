@@ -1,4 +1,7 @@
-import { requirePermission } from "@repo/api/lib/permission";
+import {
+	getDealerScopeFilter,
+	requirePermission,
+} from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -24,7 +27,7 @@ export const getConnectivityStatus = protectedProcedure
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
-		await requirePermission(
+		const { activeDealerId } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -35,11 +38,13 @@ export const getConnectivityStatus = protectedProcedure
 			where: {
 				organizationId: input.organizationId,
 				id: { in: input.customerIds },
+				...getDealerScopeFilter(activeDealerId),
 			},
 			select: {
 				id: true,
 				online: true,
 				status: true,
+				lastLogin: true,
 				expiresAt: true,
 			},
 		});
