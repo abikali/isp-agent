@@ -69,6 +69,21 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 		sortOrder,
 	});
 
+	const hasFilters =
+		search.trim() !== "" ||
+		status !== "all" ||
+		priority !== "all" ||
+		category !== "all" ||
+		employeeId !== "all";
+	const clearFilters = () => {
+		setSearch("");
+		setStatus("all");
+		setPriority("all");
+		setCategory("all");
+		setEmployeeId("all");
+		resetPage();
+	};
+
 	const columns = useTaskColumns(organizationSlug);
 	// Live online/offline for the customers on this page — the row data is
 	// a snapshot, the dot should not be.
@@ -172,16 +187,25 @@ export function TasksList({ organizationSlug }: { organizationSlug: string }) {
 						emptyState={
 							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
 								<h3 className="mb-1 text-lg font-medium">
-									{total === 0
+									{!hasFilters
 										? "No tasks yet"
-										: "No results found"}
+										: search.trim()
+											? `No tasks match “${search.trim()}”`
+											: "No tasks match these filters"}
 								</h3>
 								<p className="mb-4 text-sm text-muted-foreground">
-									{total === 0
-										? "Create your first task to get started."
-										: "Try adjusting your filters or search term."}
+									{hasFilters
+										? "Try another search term or clear the filters."
+										: "Create your first task to get started."}
 								</p>
-								{total === 0 && (
+								{hasFilters ? (
+									<Button
+										variant="outline"
+										onClick={clearFilters}
+									>
+										Clear filters
+									</Button>
+								) : (
 									<Button onClick={() => setShowCreate(true)}>
 										<PlusIcon className="mr-2 size-4" />
 										Create Task

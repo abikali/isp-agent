@@ -3,6 +3,7 @@ import { z } from "zod";
 import { verifyOrganizationMembership } from "../../lib/membership";
 import { protectedProcedure, publicProcedure } from "../../orpc/procedures";
 import { customerSearchWhere } from "../customers/lib/customer-search";
+import { taskSearchWhere } from "../tasks/lib/task-search";
 
 /**
  * Cross-cutting procedures used by the command palette and other shared UI.
@@ -79,9 +80,12 @@ const find = protectedProcedure
 
 		// Name / username / account / any phone — resolved up front because a
 		// phone-shaped query needs a digits-only lookup first.
-		const customerSearch = types.has("customer")
-			? await customerSearchWhere(input.organizationId, q)
-			: null;
+		const [customerSearch, taskSearch] = await Promise.all([
+			types.has("customer")
+				? customerSearchWhere(input.organizationId, q)
+				: null,
+			types.has("task") ? taskSearchWhere(input.organizationId, q) : null,
+		]);
 
 		const [customers, employees, tasks, conversations, broadcasts] =
 			await Promise.all([
@@ -177,24 +181,11 @@ const find = protectedProcedure
 							},
 						})
 					: Promise.resolve([]),
-				types.has("task")
+				taskSearch
 					? db.task.findMany({
 							where: {
 								organizationId: input.organizationId,
-								OR: [
-									{
-										title: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										description: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-								],
+								AND: [taskSearch],
 							},
 							orderBy: { updatedAt: "desc" },
 							take: limit,
@@ -203,6 +194,9 @@ const find = protectedProcedure
 								title: true,
 								status: true,
 								priority: true,
+								customer: {
+									select: { firstName: true, lastName: true },
+								},
 							},
 						})
 					: Promise.resolve([]),
@@ -291,7 +285,18 @@ const find = protectedProcedure
 				type: "task",
 				id: t.id,
 				label: t.title,
-				sub: [t.status, t.priority].filter(Boolean).join(" · ") || null,
+				// Synced titles ("Maintenance #2907") carry no name — show
+				// whose task it is so a customer/phone match is recognisable.
+				sub:
+					[
+						[t.customer?.firstName, t.customer?.lastName]
+							.filter(Boolean)
+							.join(" "),
+						t.status,
+						t.priority,
+					]
+						.filter(Boolean)
+						.join(" · ") || null,
 				link: `${orgPath}/tasks/${t.id}`,
 			});
 		}
