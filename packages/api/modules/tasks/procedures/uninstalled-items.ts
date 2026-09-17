@@ -6,7 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgMessage } from "@repo/utils";
+import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { bustTaskStats } from "../lib/stats-cache";
@@ -165,12 +165,21 @@ export const reviewUninstalledItem = protectedProcedure
 				notifyFieldEmployee({
 					organizationId: input.organizationId,
 					employeeId: item.employeeId,
-					title: "Recovered item denied",
-					message: `${item.itemName} ×${item.quantity} was denied`,
+					title: bilingual(
+						"Recovered item denied",
+						"تم رفض غرض تم فكه",
+					),
+					message: bilingual(
+						`${item.itemName} ×${item.quantity} was denied`,
+						`تم رفض ${item.itemName} ×${item.quantity}`,
+					),
 					type: "warning",
 					telegramText: tgMessage({
 						icon: "⛔",
-						title: "Recovered item denied",
+						title: bilingual(
+							"Recovered item denied",
+							"تم رفض غرض تم فكه",
+						),
 						fields: [
 							{
 								icon: "🧰",
@@ -317,12 +326,21 @@ export const reviewUninstalledItem = protectedProcedure
 			notifyFieldEmployee({
 				organizationId: input.organizationId,
 				employeeId: item.employeeId,
-				title: "Recovered item approved",
-				message: `${matchedStockItem.name} ×${quantity} added to your stock`,
+				title: bilingual(
+					"Recovered item approved",
+					"تمت الموافقة على غرض تم فكه",
+				),
+				message: bilingual(
+					`${matchedStockItem.name} ×${quantity} added to your stock`,
+					`أُضيف ${matchedStockItem.name} ×${quantity} إلى مخزونك`,
+				),
 				type: "success",
 				telegramText: tgMessage({
 					icon: "✅",
-					title: "Recovered item approved",
+					title: bilingual(
+						"Recovered item approved",
+						"تمت الموافقة على غرض تم فكه",
+					),
 					fields: [
 						{
 							icon: "🧰",
@@ -330,7 +348,10 @@ export const reviewUninstalledItem = protectedProcedure
 						},
 						{
 							icon: "📥",
-							value: "Added to your stock",
+							value: bilingual(
+								"Added to your stock",
+								"أُضيف إلى مخزونك",
+							),
 						},
 					],
 				}),

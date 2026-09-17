@@ -24,6 +24,7 @@ import {
 	useMyStockQuery,
 	useRequestStockRefund,
 } from "../hooks/use-worker";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { Pager, SearchBar, SelectControl, StatStrip } from "./WorkerUI";
 
 const PAGE_SIZE = 15;
@@ -42,8 +43,13 @@ const SORT_OPTIONS = [
 type Allocation = ReturnType<typeof useMyStockQuery>["allocations"][number];
 
 export function WorkerStockPage() {
-	const { allocations, totalValue, pendingRefundByItem, isLoading } =
-		useMyStockQuery();
+	const {
+		allocations,
+		totalValue,
+		pendingRefundByItem,
+		pendingInstallByItem,
+		isLoading,
+	} = useMyStockQuery();
 	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 
 	const [search, setSearch] = useState("");
@@ -149,6 +155,9 @@ export function WorkerStockPage() {
 							pendingRefund={
 								pendingRefundByItem[alloc.stockItem.id] ?? 0
 							}
+							pendingInstall={
+								pendingInstallByItem[alloc.stockItem.id] ?? 0
+							}
 							onRefund={() => setRefundAlloc(alloc)}
 						/>
 					))}
@@ -164,6 +173,11 @@ export function WorkerStockPage() {
 						? (pendingRefundByItem[refundAlloc.stockItem.id] ?? 0)
 						: 0
 				}
+				pendingInstall={
+					refundAlloc
+						? (pendingInstallByItem[refundAlloc.stockItem.id] ?? 0)
+						: 0
+				}
 				onClose={() => setRefundAlloc(null)}
 			/>
 		</div>
@@ -174,13 +188,15 @@ export function WorkerStockPage() {
 function StockCard({
 	alloc,
 	pendingRefund,
+	pendingInstall,
 	onRefund,
 }: {
 	alloc: Allocation;
 	pendingRefund: number;
+	pendingInstall: number;
 	onRefund: () => void;
 }) {
-	const refundable = alloc.quantity - pendingRefund;
+	const refundable = alloc.quantity - pendingRefund - pendingInstall;
 	return (
 		<Card>
 			<CardContent className="space-y-3 p-4">
@@ -200,10 +216,19 @@ function StockCard({
 					</span>
 				</div>
 				<div className="flex items-center justify-between gap-2">
-					{pendingRefund > 0 ? (
-						<Badge variant="info">
-							{pendingRefund} pending refund
-						</Badge>
+					{pendingRefund > 0 || pendingInstall > 0 ? (
+						<div className="flex flex-wrap gap-1">
+							{pendingRefund > 0 && (
+								<Badge variant="info">
+									{pendingRefund} pending refund
+								</Badge>
+							)}
+							{pendingInstall > 0 && (
+								<Badge variant="info">
+									{pendingInstall} on pending installs
+								</Badge>
+							)}
+						</div>
 					) : (
 						<span />
 					)}
@@ -226,15 +251,20 @@ function StockCard({
 function RefundSheet({
 	alloc,
 	pendingRefund,
+	pendingInstall,
 	onClose,
 }: {
 	alloc: Allocation | null;
 	pendingRefund: number;
+	pendingInstall: number;
 	onClose: () => void;
 }) {
 	const organizationId = useOrganizationId();
 	const requestRefund = useRequestStockRefund();
-	const refundable = alloc ? alloc.quantity - pendingRefund : 0;
+	// Units on pending installs are spoken for — they can't be handed back.
+	const refundable = alloc
+		? alloc.quantity - pendingRefund - pendingInstall
+		: 0;
 
 	const [quantity, setQuantity] = useState("");
 	const [note, setNote] = useState("");
@@ -264,11 +294,7 @@ function RefundSheet({
 			toast.success("Refund request sent for approval");
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to send refund request",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSendRefund));
 		}
 	}
 
@@ -298,6 +324,9 @@ function RefundSheet({
 								You hold {alloc.quantity}
 								{pendingRefund > 0
 									? ` · ${pendingRefund} already pending`
+									: ""}
+								{pendingInstall > 0
+									? ` · ${pendingInstall} on pending installs`
 									: ""}{" "}
 								· {formatCurrency(alloc.unitPrice)} each
 							</p>

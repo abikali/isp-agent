@@ -1,3 +1,5 @@
+import { CATEGORY_LABELS_AR } from "@repo/api/modules/tasks/lib/task-title";
+
 export const TASK_STATUS_LABELS: Record<string, string> = {
 	OPEN: "Open",
 	PENDING_APPROVAL: "Pending Approval",
@@ -151,14 +153,14 @@ export const TASK_CATEGORY_META: Record<
 > = {
 	INSTALLATION: {
 		label: "Installation",
-		labelAr: "تركيب",
+		labelAr: CATEGORY_LABELS_AR.INSTALLATION,
 		summary: "New service or equipment setup for a customer or base.",
 		completion: "Worker records the installed equipment and a photo.",
 		requiresTarget: true,
 	},
 	REPLACEMENT: {
 		label: "Replacement",
-		labelAr: "استبدال",
+		labelAr: CATEGORY_LABELS_AR.REPLACEMENT,
 		summary: "Swap out equipment in the field.",
 		completion:
 			"Worker records the new equipment, a photo, and the old equipment recovered.",
@@ -166,14 +168,14 @@ export const TASK_CATEGORY_META: Record<
 	},
 	UNINSTALL: {
 		label: "Uninstall",
-		labelAr: "فكّ الاشتراك",
+		labelAr: CATEGORY_LABELS_AR.UNINSTALL,
 		summary: "Remove service and reclaim equipment.",
 		completion: "Worker records the recovered equipment.",
 		requiresTarget: true,
 	},
 	MAINTENANCE: {
 		label: "Maintenance",
-		labelAr: "صيانة",
+		labelAr: CATEGORY_LABELS_AR.MAINTENANCE,
 		summary: "Service or check-up visit.",
 		completion:
 			"Worker logs what they found; equipment used can be recorded but isn't required.",
@@ -181,7 +183,7 @@ export const TASK_CATEGORY_META: Record<
 	},
 	REPAIR: {
 		label: "Repair",
-		labelAr: "تصليح",
+		labelAr: CATEGORY_LABELS_AR.REPAIR,
 		summary: "Fix a reported fault.",
 		completion:
 			"Worker logs what they found; equipment used can be recorded but isn't required.",
@@ -189,21 +191,21 @@ export const TASK_CATEGORY_META: Record<
 	},
 	SUPPORT: {
 		label: "Support",
-		labelAr: "دعم",
+		labelAr: CATEGORY_LABELS_AR.SUPPORT,
 		summary: "General customer support visit or call.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,
 	},
 	BILLING: {
 		label: "Billing",
-		labelAr: "تحصيل",
+		labelAr: CATEGORY_LABELS_AR.BILLING,
 		summary: "Billing or collection follow-up.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,
 	},
 	GENERAL: {
 		label: "General",
-		labelAr: "مهمة",
+		labelAr: CATEGORY_LABELS_AR.GENERAL,
 		summary: "Any task that doesn't fit the other categories.",
 		completion: "Worker logs the outcome.",
 		requiresTarget: false,

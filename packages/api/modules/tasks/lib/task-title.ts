@@ -37,16 +37,15 @@ export function taskTitleCode(taskId: string) {
 }
 
 /**
- * "Installation — Ahmad Khoury #7K2M", or "Support #A1B2" with no target.
- * Omit `code` to render a preview before the task (and its id) exists.
- */
-/**
  * Arabic labels for the field crew. The worker portal and the worker
  * Telegram show them next to the English label — a replacement job was
  * once worked as something else because the English word meant nothing on
- * site.
+ * site. Single source: the web app's TASK_CATEGORY_META reads it too.
  */
-export const CATEGORY_LABELS_AR: Record<string, string> = {
+export const CATEGORY_LABELS_AR: Record<
+	TaskTitleCategory | "FOLLOW_UP",
+	string
+> = {
 	INSTALLATION: "تركيب",
 	MAINTENANCE: "صيانة",
 	REPAIR: "تصليح",
@@ -58,6 +57,10 @@ export const CATEGORY_LABELS_AR: Record<string, string> = {
 	FOLLOW_UP: "متابعة",
 };
 
+/**
+ * "Installation — Ahmad Khoury #7K2M", or "Support #A1B2" with no target.
+ * Omit `code` to render a preview before the task (and its id) exists.
+ */
 export function buildTaskTitle({
 	category,
 	target,

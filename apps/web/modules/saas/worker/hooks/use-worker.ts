@@ -127,6 +127,7 @@ export function useMyStockQuery() {
 		allocations: query.data?.allocations ?? [],
 		totalValue: query.data?.totalValue ?? 0,
 		pendingRefundByItem: query.data?.pendingRefundByItem ?? {},
+		pendingInstallByItem: query.data?.pendingInstallByItem ?? {},
 		isLoading: query.isLoading,
 	};
 }
@@ -183,6 +184,8 @@ export interface MyTasksParams {
 	sortOrder?: "asc" | "desc";
 	page?: number;
 	pageSize?: number;
+	/** Just this task (a notification link) — still scoped to the worker. */
+	taskId?: string;
 }
 
 /**
@@ -209,6 +212,7 @@ export function useMyTasksList(params: MyTasksParams = {}) {
 						...(params.category
 							? { category: params.category }
 							: {}),
+						...(params.taskId ? { taskId: params.taskId } : {}),
 					},
 				})
 			: disabledQuery(["tasks", "myList"]),

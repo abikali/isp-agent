@@ -4,6 +4,7 @@ import {
 	DEFAULT_WORKER_OPTIONS,
 	type WorkerOptionListKey,
 } from "@repo/database/worker-options";
+import { bilingual } from "@repo/utils";
 import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -34,14 +35,20 @@ export function useWorkerOptions(listKey: WorkerOptionListKey) {
 	);
 
 	const stored = query.data?.options;
+	const rows = stored?.length ? stored : DEFAULT_WORKER_OPTIONS[listKey];
 	// Memoized so `options` / `labelOf` keep a stable identity — callers pass
-	// them into useMemo dependency arrays.
+	// them into useMemo dependency arrays. Dropdown choices carry the Arabic
+	// label too (they are picked in the field portal); `labelOf` stays English
+	// because it is also stored (expense description) and shown to admins.
 	const options = useMemo<WorkerOptionChoice[]>(
 		() =>
-			(stored?.length ? stored : DEFAULT_WORKER_OPTIONS[listKey]).map(
-				(option) => ({ value: option.value, label: option.label }),
-			),
-		[stored, listKey],
+			rows.map((option) => ({
+				value: option.value,
+				label: option.labelAr
+					? bilingual(option.label, option.labelAr)
+					: option.label,
+			})),
+		[rows],
 	);
 
 	/**
@@ -55,14 +62,14 @@ export function useWorkerOptions(listKey: WorkerOptionListKey) {
 				return "";
 			}
 			return (
-				options.find((option) => option.value === value)?.label ??
+				rows.find((option) => option.value === value)?.label ??
 				DEFAULT_WORKER_OPTIONS[listKey].find(
 					(option) => option.value === value,
 				)?.label ??
 				value
 			);
 		},
-		[options, listKey],
+		[rows, listKey],
 	);
 
 	return { options, labelOf, isLoading: query.isLoading };

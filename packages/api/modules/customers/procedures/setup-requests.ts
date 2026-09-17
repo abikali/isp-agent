@@ -21,15 +21,13 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import { syncPendingAddonLinePrices } from "../../installations/lib/addon-price-sync";
 import { addonNoteFor } from "../../installations/lib/addons";
-import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
-import {
-	approveInstallationInTx,
-	assertWorkerHoldsStock,
-} from "../../installations/procedures/review";
+import { assertStockAvailable } from "../../installations/lib/stock-guard";
+import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
-import { iradiusUsernameExists } from "../lib/iradius-api";
+import { iradiusUserIdExists, iradiusUsernameExists } from "../lib/iradius-api";
 
 const setupItemSchema = z
 	.object({
@@ -233,10 +231,16 @@ export const workerCreateCustomer = protectedProcedure
 			}
 		}
 
-		// The worker can only install what he is holding. Checked here, at
+		// The worker can only install what he is holding, net of what is
+		// already on his other pending installs/refunds. Checked here, at
 		// submission, so he can fix the line on the spot — the approval-time
 		// guard would otherwise reject the whole setup days later.
-		await assertWorkerHoldsStockLines(db, employeeId, input.items);
+		await assertStockAvailable(db, {
+			employeeId,
+			lines: input.items,
+			reserve: true,
+			audience: "worker",
+		});
 
 		if (input.durationType === "days" && !input.durationDays) {
 			throw new ORPCError("BAD_REQUEST", {
@@ -604,6 +608,7 @@ export const updateSetupRequest = protectedProcedure
 					select: {
 						username: true,
 						planId: true,
+						externalId: true,
 						monthlyRate: true,
 						discount: true,
 						iptvPrice: true,
@@ -615,6 +620,27 @@ export const updateSetupRequest = protectedProcedure
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Setup request not found or already reviewed",
+			});
+		}
+
+		// An earlier approval attempt already created (and charged) this
+		// subscriber in iRadius, then failed before finishing. Every customer
+		// field below is mirrored in iRadius, and a retried approval skips the
+		// create, so a local-only edit here would never reach iRadius. Only the
+		// first charge (local, read at approval) stays editable; the rest is
+		// edited on the customer's page after the approval, which mirrors.
+		const {
+			organizationId: _organizationId,
+			id: _id,
+			firstChargeAmount: _firstChargeAmount,
+			...customerFields
+		} = input;
+		if (
+			request.customer.externalId &&
+			Object.values(customerFields).some((v) => v !== undefined)
+		) {
+			throw new ORPCError("CONFLICT", {
+				message: `This customer already exists in iRadius (User ${request.customer.externalId}). Only the first charge can change here — retry the approval, then edit the customer from their page`,
 			});
 		}
 
@@ -873,8 +899,29 @@ export const approveSetupRequest = protectedProcedure
 		const pendingInstallations = request.installations.filter(
 			(i) => i.status === "PENDING",
 		);
+		// Aggregated per (worker, item): two lines of the same cable must fit
+		// together, not each on its own. Holding only — these lines are the
+		// reservation being consumed.
+		const physicalLinesByEmployee = new Map<
+			string,
+			typeof pendingInstallations
+		>();
 		for (const installation of pendingInstallations) {
-			await assertWorkerHoldsStock(db, installation);
+			if (installation.isAddOn || !installation.stockItemId) {
+				continue;
+			}
+			physicalLinesByEmployee.set(installation.employeeId, [
+				...(physicalLinesByEmployee.get(installation.employeeId) ?? []),
+				installation,
+			]);
+		}
+		for (const [employeeId, lines] of physicalLinesByEmployee) {
+			await assertStockAvailable(db, {
+				employeeId,
+				lines,
+				reserve: false,
+				audience: "admin",
+			});
 		}
 		const billingMonth = await resolveActiveBillingMonth(
 			input.organizationId,
@@ -887,10 +934,10 @@ export const approveSetupRequest = protectedProcedure
 		// aborts — no half-approved local state.
 		const shouldCreateInIRadius =
 			!iradiusDisabled && !request.customer.externalId;
-		let newExternalId: string | null = null;
 		// Kept so the approval notification can hand the worker the credentials
 		// they need on site. Null when the account already existed in iRadius.
 		let createdPassword: string | null = null;
+		let externalId = request.customer.externalId;
 		if (shouldCreateInIRadius) {
 			if (!input.iradiusPassword?.trim()) {
 				throw new ORPCError("BAD_REQUEST", {
@@ -904,7 +951,27 @@ export const approveSetupRequest = protectedProcedure
 				customerId: request.customerId,
 				password: createdPassword,
 			});
-			newExternalId = String(userId);
+			// Link immediately, outside the approval transaction: if anything
+			// below throws, the retry sees the customer as already linked and
+			// skips the create instead of tripping on "Username already exists"
+			// with an orphaned (and already charged) subscriber.
+			externalId = String(userId);
+			await db.customer.update({
+				where: { id: request.customerId },
+				data: { externalId },
+			});
+		}
+
+		// Approving the bundled add-on lines sets the customer's IPTV / Real IP
+		// price locally (approveInstallationInTx below); push the same prices
+		// to iRadius first, before the transaction opens. A failure throws
+		// before any local approval write, and the subscriber is already
+		// linked above, so a retry is clean.
+		if (!iradiusDisabled) {
+			await pushAddonPricesToIRadius(
+				{ ...request.customer, externalId },
+				pendingInstallations,
+			);
 		}
 
 		await db.$transaction(async (tx) => {
@@ -913,7 +980,6 @@ export const approveSetupRequest = protectedProcedure
 				data: {
 					status: "ACTIVE",
 					activatedAt: new Date(),
-					...(newExternalId ? { externalId: newExternalId } : {}),
 				},
 			});
 
@@ -984,7 +1050,10 @@ export const approveSetupRequest = protectedProcedure
 			// Workers render via fetchWorkerBalance (cash only), so it's invisible
 			// today — but giving a worker a collector layout would double-count
 			// this subscription cash. Keep the two lenses in mind before then.
-			const installTotal = request.installations.reduce(
+			// Only the lines approved in THIS transaction: a line approved on
+			// its own earlier already logged its INSTALLATION_COST entry, and
+			// denied lines were never collected.
+			const installTotal = pendingInstallations.reduce(
 				(sum, i) => sum + i.price * i.quantity,
 				0,
 			);
@@ -1075,7 +1144,7 @@ export const rejectSetupRequest = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"customers",
@@ -1091,13 +1160,33 @@ export const rejectSetupRequest = protectedProcedure
 			},
 			include: {
 				customer: {
-					select: { id: true, firstName: true, lastName: true },
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						externalId: true,
+					},
 				},
 			},
 		});
 		if (!request) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "Setup request not found or already reviewed",
+			});
+		}
+
+		// A linked pending request means an earlier approval attempt created
+		// (and charged) the subscriber in iRadius, then failed before
+		// finishing. Rejecting now would soft-delete the only local row of a
+		// live, billed iRadius account. Allowed only once the subscriber is
+		// gone from iRadius (read-only check).
+		const linkedExternalId = request.customer.externalId;
+		if (
+			linkedExternalId &&
+			(iradiusDisabled || (await iradiusUserIdExists(linkedExternalId)))
+		) {
+			throw new ORPCError("CONFLICT", {
+				message: `This customer already exists in iRadius (User ${linkedExternalId}). Retry the approval, or remove the subscriber in iRadius first`,
 			});
 		}
 
@@ -1113,11 +1202,17 @@ export const rejectSetupRequest = protectedProcedure
 			});
 			// Keep the customer row for audit/back-references, but soft-delete it
 			// so it drops out of the default customers list (which filters on
-			// `deletedAt: null`). It was never approved into iRadius, so there is
-			// nothing remote to clean up.
+			// `deletedAt: null`). There is nothing remote to clean up: either it
+			// was never created in iRadius, or (checked above) the subscriber an
+			// earlier approval attempt created has since been removed there, so
+			// the dead link is cleared too.
 			await tx.customer.update({
 				where: { id: request.customerId },
-				data: { status: "INACTIVE", deletedAt: new Date() },
+				data: {
+					status: "INACTIVE",
+					deletedAt: new Date(),
+					...(linkedExternalId ? { externalId: null } : {}),
+				},
 			});
 			await tx.installation.updateMany({
 				where: { setupRequestId: request.id, status: "PENDING" },

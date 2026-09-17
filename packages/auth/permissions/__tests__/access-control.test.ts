@@ -9,6 +9,7 @@ import {
 } from "../access-control";
 import {
 	admin,
+	ISP_ROLE_TEMPLATES,
 	isSystemRole,
 	MEMBER_SCOPE_RESTRICTIONS,
 	member,
@@ -519,5 +520,15 @@ describe("Type safety", () => {
 		expect(orgActions).toHaveLength(2);
 		expect(memberActions).toHaveLength(3);
 		expect(billingActions).toHaveLength(2);
+	});
+});
+
+describe("ISP_ROLE_TEMPLATES.worker", () => {
+	// Field workers must not move stock, edit item prices, or edit pending
+	// installations via the API — those are admin actions.
+	it("has read-only inventory and no installations update/approve", () => {
+		const { permissions } = ISP_ROLE_TEMPLATES.worker;
+		expect(permissions.inventory).toEqual(["read"]);
+		expect(permissions.installations).toEqual(["create", "read:own"]);
 	});
 });

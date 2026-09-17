@@ -3,8 +3,10 @@ import { notifyOrgForReview } from "@repo/api/lib/notify-employee";
 import { getUserEmployeeId, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { loadStockReservations } from "../../installations/lib/stock-guard";
 
 export const requestStockRefund = protectedProcedure
 	.route({
@@ -35,7 +37,10 @@ export const requestStockRefund = protectedProcedure
 		);
 		if (!employeeId) {
 			throw new ORPCError("FORBIDDEN", {
-				message: "No employee record linked to your account",
+				message: bilingual(
+					"No employee record linked to your account",
+					"حسابك غير مربوط بسجل موظف",
+				),
 			});
 		}
 
@@ -59,28 +64,52 @@ export const requestStockRefund = protectedProcedure
 			allocation.stockItem.organizationId !== input.organizationId
 		) {
 			throw new ORPCError("NOT_FOUND", {
-				message: "You don't hold any of this item",
+				message: bilingual(
+					"You don't hold any of this item",
+					"لا تملك أي قطعة من هذا الغرض",
+				),
 			});
 		}
 
-		// Cap the request to what the worker still holds minus any quantity
-		// already awaiting review, so they can't over-request the same stock.
-		const pendingAgg = await db.stockRefundRequest.aggregate({
-			where: {
-				employeeId,
-				stockItemId: input.stockItemId,
-				status: "PENDING",
-			},
-			_sum: { quantity: true },
-		});
-		const alreadyPending = pendingAgg._sum.quantity ?? 0;
-		const refundable = allocation.quantity - alreadyPending;
+		// Cap the request to what the worker still holds minus what is already
+		// committed — refunds awaiting review and pending install lines — so
+		// the same units can't be both installed and handed back.
+		const { pendingInstalls, pendingRefunds } = await loadStockReservations(
+			db,
+			{ employeeId, stockItemIds: [input.stockItemId] },
+		);
+		const alreadyRefunding = pendingRefunds.get(input.stockItemId) ?? 0;
+		const onInstalls = pendingInstalls.get(input.stockItemId) ?? 0;
+		const refundable = allocation.quantity - alreadyRefunding - onInstalls;
 		if (input.quantity > refundable) {
+			const name = allocation.stockItem.name;
+			const committed = [
+				alreadyRefunding > 0
+					? `${alreadyRefunding} on pending refunds`
+					: null,
+				onInstalls > 0 ? `${onInstalls} on pending installs` : null,
+			]
+				.filter(Boolean)
+				.join(", ");
+			const committedAr = [
+				alreadyRefunding > 0
+					? `${alreadyRefunding} بطلبات إرجاع قيد المراجعة`
+					: null,
+				onInstalls > 0 ? `${onInstalls} بتركيبات قيد الموافقة` : null,
+			]
+				.filter(Boolean)
+				.join("، ");
 			throw new ORPCError("CONFLICT", {
 				message:
 					refundable <= 0
-						? "You already have a pending refund for all of this stock"
-						: `You can request a refund for at most ${refundable} (rest is already pending)`,
+						? bilingual(
+								`All ${allocation.quantity} × ${name} you hold are already committed (${committed})`,
+								`كل الـ ${allocation.quantity} × ${name} التي معك محجوزة (${committedAr})`,
+							)
+						: bilingual(
+								`You can request a refund for at most ${refundable} × ${name}${committed ? ` (${committed})` : ""}`,
+								`يمكنك طلب إرجاع ${refundable} × ${name} كحد أقصى${committedAr ? ` (${committedAr})` : ""}`,
+							),
 			});
 		}
 

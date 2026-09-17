@@ -1,7 +1,7 @@
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
-import { db, parsePhones } from "@repo/database";
+import { db, parsePhones, type TaskCategory } from "@repo/database";
 import { logger } from "@repo/logs";
-import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
+import { bilingual, getBaseUrl, tgLink, tgMessage } from "@repo/utils";
 import { CATEGORY_LABELS_AR, CATEGORY_TITLES } from "./task-title";
 
 /** Worker-facing task events an org can opt out of notifying about. */
@@ -23,21 +23,53 @@ const EVENT_COPY: Record<
 	{ title: string; message: string; type: "info" | "warning" }
 > = {
 	assigned: {
-		title: "New task assigned",
-		message: "A new task has been assigned to you.",
+		title: bilingual("New task assigned", "مهمة جديدة"),
+		message: bilingual(
+			"A new task has been assigned to you.",
+			"تم تعيين مهمة جديدة لك.",
+		),
 		type: "info",
 	},
 	updated: {
-		title: "Task updated",
-		message: "A task assigned to you was updated.",
+		title: bilingual("Task updated", "تم تعديل المهمة"),
+		message: bilingual(
+			"A task assigned to you was updated.",
+			"تم تعديل مهمة معيّنة لك.",
+		),
 		type: "info",
 	},
 	cancelled: {
-		title: "Task cancelled",
-		message: "A task assigned to you was cancelled.",
+		title: bilingual("Task cancelled", "تم إلغاء المهمة"),
+		message: bilingual(
+			"A task assigned to you was cancelled.",
+			"تم إلغاء مهمة معيّنة لك.",
+		),
 		type: "warning",
 	},
 };
+
+/** "Installation · تركيب" for the worker Telegram headline. */
+export function taskCategoryLabel(category: TaskCategory): string {
+	const en =
+		(CATEGORY_TITLES as Partial<Record<TaskCategory, string>>)[category] ??
+		category;
+	return bilingual(en, CATEGORY_LABELS_AR[category]);
+}
+
+/**
+ * Where a task notification should open for this employee. Field-portal
+ * workers are redirected off /app to the portal home, so theirs opens the
+ * task inside /work instead.
+ */
+export function taskLinkFor(
+	preferredLayout: string | undefined,
+	orgSlug: string | null,
+	taskId: string,
+): string {
+	return preferredLayout === "worker"
+		? `/work/${orgSlug}/tasks?task=${encodeURIComponent(taskId)}`
+		: `/app/${orgSlug}/tasks/${taskId}`;
+}
 
 interface NotifyTaskWorkersInput {
 	organizationId: string;
@@ -81,7 +113,18 @@ export async function notifyTaskWorkers(
 		const message = input.detail
 			? `${copy.message}\n${input.detail}`
 			: copy.message;
-		const link = `/app/${org.slug}/tasks/${input.taskId}`;
+		// Workers on the field portal are redirected away from /app, so their
+		// link opens the task inside /work instead of landing on the home tab.
+		const employees = await db.employee.findMany({
+			where: {
+				id: { in: employeeIds },
+				organizationId: input.organizationId,
+			},
+			select: { id: true, preferredLayout: true },
+		});
+		const layoutById = new Map(
+			employees.map((e) => [e.id, e.preferredLayout]),
+		);
 
 		// The Telegram message is what the worker reads on site, so it
 		// carries the job itself: who, where, which numbers (tap-to-copy),
@@ -122,85 +165,92 @@ export async function notifyTaskWorkers(
 					),
 				]
 			: [];
-		const categoryLabel = task
-			? `${(CATEGORY_TITLES as Record<string, string>)[task.category] ?? task.category} · ${CATEGORY_LABELS_AR[task.category] ?? ""}`.trim()
-			: null;
+		const categoryLabel = task ? taskCategoryLabel(task.category) : null;
 		const icon =
 			input.event === "cancelled"
 				? "❌"
 				: input.event === "updated"
 					? "✏️"
 					: "🛠️";
-		const telegramText = tgMessage({
-			icon,
-			title: `${copy.title}${categoryLabel ? ` — ${categoryLabel}` : ""}`,
-			fields: [
-				customer
-					? {
-							icon: "👤",
-							value:
-								[customer.firstName, customer.lastName]
-									.filter(Boolean)
-									.join(" ") ||
-								customer.username ||
-								"Customer",
-						}
-					: task?.base
-						? { icon: "🏢", value: task.base.name }
-						: task?.station
-							? { icon: "📡", value: task.station.name }
-							: null,
-				customer?.username
-					? {
-							icon: "🔑",
-							label: "Username",
-							value: customer.username,
-							copyable: true,
-						}
-					: null,
-				customer?.accountNumber
-					? {
-							icon: "🔢",
-							label: "Account",
-							value: customer.accountNumber,
-							copyable: true,
-						}
-					: null,
-				...phones.map((number) => ({
-					icon: "📞",
-					value: number,
-					copyable: true,
-				})),
-				customer?.address
-					? { icon: "📍", value: customer.address }
-					: task?.base?.address
-						? { icon: "📍", value: task.base.address }
+		const telegramText = (link: string) =>
+			tgMessage({
+				icon,
+				title: `${copy.title}${categoryLabel ? ` — ${categoryLabel}` : ""}`,
+				fields: [
+					customer
+						? {
+								icon: "👤",
+								value:
+									[customer.firstName, customer.lastName]
+										.filter(Boolean)
+										.join(" ") ||
+									customer.username ||
+									bilingual("Customer", "زبون"),
+							}
+						: task?.base
+							? { icon: "🏢", value: task.base.name }
+							: task?.station
+								? { icon: "📡", value: task.station.name }
+								: null,
+					customer?.username
+						? {
+								icon: "🔑",
+								label: bilingual("Username", "اسم المستخدم"),
+								value: customer.username,
+								copyable: true,
+							}
 						: null,
-				task?.dueDate
-					? {
-							icon: "📅",
-							label: "Due",
-							value: task.dueDate.toISOString().slice(0, 10),
-						}
-					: null,
-				input.detail ? { icon: "ℹ️", value: input.detail } : null,
-				task?.notes ? { icon: "📝", value: task.notes } : null,
-			],
-			footer: tgLink("Open task", `${getBaseUrl()}${link}`),
-		});
+					customer?.accountNumber
+						? {
+								icon: "🔢",
+								label: bilingual("Account", "رقم الحساب"),
+								value: customer.accountNumber,
+								copyable: true,
+							}
+						: null,
+					...phones.map((number) => ({
+						icon: "📞",
+						value: number,
+						copyable: true,
+					})),
+					customer?.address
+						? { icon: "📍", value: customer.address }
+						: task?.base?.address
+							? { icon: "📍", value: task.base.address }
+							: null,
+					task?.dueDate
+						? {
+								icon: "📅",
+								label: bilingual("Due", "الموعد"),
+								value: task.dueDate.toISOString().slice(0, 10),
+							}
+						: null,
+					input.detail ? { icon: "ℹ️", value: input.detail } : null,
+					task?.notes ? { icon: "📝", value: task.notes } : null,
+				],
+				footer: tgLink(
+					bilingual("Open task", "فتح المهمة"),
+					`${getBaseUrl()}${link}`,
+				),
+			});
 
 		await Promise.all(
-			employeeIds.map((employeeId) =>
-				notifyFieldEmployee({
+			employeeIds.map((employeeId) => {
+				const link = taskLinkFor(
+					layoutById.get(employeeId),
+					org.slug,
+					input.taskId,
+				);
+				return notifyFieldEmployee({
 					organizationId: input.organizationId,
 					employeeId,
 					title: `${copy.title}: ${input.taskTitle}`,
 					message,
 					link,
 					type: copy.type,
-					telegramText,
-				}),
-			),
+					telegramText: telegramText(link),
+				});
+			}),
 		);
 	} catch (error) {
 		logger.warn("[Notify Task Workers] Failed to notify assignees", {

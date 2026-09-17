@@ -8,6 +8,7 @@ import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db, getPrimaryPhone } from "@repo/database";
 import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
@@ -209,7 +210,10 @@ export const createTask = protectedProcedure
 		// Fire-and-forget: tell the assigned workers they have a new task
 		if (input.employeeIds?.length) {
 			const dueDetail = input.dueDate
-				? `Due ${input.dueDate.toISOString().slice(0, 10)}`
+				? bilingual(
+						`Due ${input.dueDate.toISOString().slice(0, 10)}`,
+						`الموعد ${input.dueDate.toISOString().slice(0, 10)}`,
+					)
 				: undefined;
 			notifyTaskWorkers({
 				organizationId: input.organizationId,

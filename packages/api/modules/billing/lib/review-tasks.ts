@@ -9,6 +9,7 @@
 
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
+import { bilingual } from "@repo/utils";
 import { notifyTaskWorkers } from "../../tasks/lib/notify-task-workers";
 import { bustTaskStats } from "../../tasks/lib/stats-cache";
 
@@ -59,7 +60,10 @@ export async function cancelOpenUninstallTasks(
 				taskTitle: task.title,
 				employeeIds: task.assignments.map((a) => a.employeeId),
 				event: "cancelled",
-				detail: "The customer was reactivated — do not uninstall.",
+				detail: bilingual(
+					"The customer was reactivated — do not uninstall.",
+					"تمت إعادة تفعيل الزبون — لا تفكّ التركيب.",
+				),
 			});
 		}
 		for (const organizationId of new Set(

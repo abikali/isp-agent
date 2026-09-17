@@ -4,7 +4,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgMessage } from "@repo/utils";
+import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
@@ -56,23 +56,47 @@ export const reviewTaskCompletion = protectedProcedure
 		}
 
 		const approved = input.action === "approve";
-		const updated = await db.task.update({
-			where: { id: task.id },
-			data: approved
-				? {
-						status: "COMPLETED",
-						completedAt: task.completedAt ?? new Date(),
-					}
-				: {
-						// Back to the worker's queue. Evidence fields stay for
-						// reference and are overwritten on resubmission —
-						// `completedByEmployeeId` surviving with a cleared
-						// `completedAt` on an OPEN task is what marks it as
-						// returned (see isReturned in the tasks UI).
-						status: "OPEN",
-						completedAt: null,
+		const updated = await db.$transaction(async (tx) => {
+			if (!approved) {
+				// The worker resubmits the evidence from scratch, which creates
+				// fresh installation / recovered-item rows. Deny the rejected
+				// submission's pending rows so they don't turn into duplicates
+				// (and don't keep reserving the worker's stock).
+				await tx.installation.updateMany({
+					where: { taskId: task.id, status: "PENDING" },
+					data: {
+						status: "DENIED",
+						approvedById: user.id,
+						approvedAt: new Date(),
 					},
-			select: { id: true, status: true, completedAt: true },
+				});
+				await tx.uninstalledItem.updateMany({
+					where: { taskId: task.id, status: "PENDING" },
+					data: {
+						status: "DENIED",
+						reviewedById: user.id,
+						reviewedAt: new Date(),
+					},
+				});
+			}
+			return tx.task.update({
+				where: { id: task.id },
+				data: approved
+					? {
+							status: "COMPLETED",
+							completedAt: task.completedAt ?? new Date(),
+						}
+					: {
+							// Back to the worker's queue. Evidence fields stay for
+							// reference and are overwritten on resubmission —
+							// `completedByEmployeeId` surviving with a cleared
+							// `completedAt` on an OPEN task is what marks it as
+							// returned (see isReturned in the tasks UI).
+							status: "OPEN",
+							completedAt: null,
+						},
+				select: { id: true, status: true, completedAt: true },
+			});
 		});
 
 		bustTaskStats(input.organizationId);
@@ -82,19 +106,26 @@ export const reviewTaskCompletion = protectedProcedure
 
 		if (task.completedByEmployeeId) {
 			const detail = approved
-				? "Your completion was approved"
-				: `Your completion was rejected — the task is back in your queue${input.note ? `. Reason: ${input.note}` : ""}`;
+				? bilingual(
+						"Your completion was approved",
+						"تمت الموافقة على إنهاء المهمة",
+					)
+				: `${bilingual(
+						"Your completion was rejected — the task is back in your queue",
+						"تم رفض إنهاء المهمة — عادت المهمة إلى قائمتك",
+					)}${input.note ? `. ${bilingual("Reason", "السبب")}: ${input.note}` : ""}`;
+			const title = approved
+				? bilingual("Task approved", "تمت الموافقة على المهمة")
+				: bilingual("Task completion rejected", "تم رفض إنهاء المهمة");
 			notifyFieldEmployee({
 				organizationId: input.organizationId,
 				employeeId: task.completedByEmployeeId,
-				title: approved ? "Task approved" : "Task completion rejected",
+				title,
 				message: `"${task.title}": ${detail}`,
 				type: approved ? "success" : "warning",
 				telegramText: tgMessage({
 					icon: approved ? "✅" : "↩️",
-					title: approved
-						? "Task approved"
-						: "Task completion rejected",
+					title,
 					fields: [
 						{ icon: "🛠️", value: task.title },
 						...(input.note && !approved

@@ -7,12 +7,15 @@ import {
 } from "@repo/api/lib/permission";
 import { db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
-import { tgMessage } from "@repo/utils";
+import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { pushAddonPricesToIRadius } from "../lib/addon-price-mirror";
 import { syncCustomerAddonPrice } from "../lib/addon-price-sync";
-import { classifyAddonNote } from "../lib/addons";
+import { addonPriceFields } from "../lib/addons";
+import { assertStockAvailable, decrementWorkerStock } from "../lib/stock-guard";
 
 export const updatePendingInstallation = protectedProcedure
 	.route({
@@ -62,6 +65,9 @@ export const updatePendingInstallation = protectedProcedure
 				isAddOn: true,
 				notes: true,
 				setupRequestId: true,
+				quantity: true,
+				stockItemId: true,
+				employeeId: true,
 			},
 		});
 		if (!installation) {
@@ -75,11 +81,50 @@ export const updatePendingInstallation = protectedProcedure
 			});
 		}
 
+		const quantityChanged =
+			input.quantity !== undefined &&
+			input.quantity !== installation.quantity;
+		if (quantityChanged) {
+			// Quantity decides how much stock the approval consumes, so it is an
+			// approver's call — the field role holds installations:update and
+			// could otherwise inflate or shrink any pending line via the API.
+			if (!hasPermission(permCtx, "installations", "approve")) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						"Only installation approvers can change quantities",
+				});
+			}
+			if (installation.isAddOn) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Add-ons have no quantity",
+				});
+			}
+		}
+		// Only an increase can overdraw the worker; lowering always fits.
+		if (
+			input.quantity !== undefined &&
+			input.quantity > installation.quantity &&
+			installation.stockItemId
+		) {
+			await assertStockAvailable(db, {
+				employeeId: installation.employeeId,
+				lines: [
+					{
+						stockItemId: installation.stockItemId,
+						quantity: input.quantity,
+					},
+				],
+				reserve: true,
+				excludeInstallationIds: [installation.id],
+				audience: "admin",
+			});
+		}
+
 		const updateData: Record<string, unknown> = {};
 		if (input.price !== undefined) {
 			updateData["price"] = input.price;
 		}
-		if (input.quantity !== undefined) {
+		if (quantityChanged) {
 			updateData["quantity"] = input.quantity;
 		}
 		if (input.notes !== undefined && !installation.isAddOn) {
@@ -104,46 +149,15 @@ export const updatePendingInstallation = protectedProcedure
  * customer setup-request approval (which approves the bundle without
  * per-line cash entries).
  *
- * Stock rule: worker stock decrements HERE (at approval), never at create.
- */
-/**
- * The worker-stock precondition for approving a physical installation line.
- * Returns the allocation to decrement, or null when the line consumes no stock
- * (add-on / no stock item). Throws CONFLICT when the worker holds too little.
+ * The line is claimed first (PENDING → APPROVED, conditional on the status),
+ * so two concurrent approvals of the same line — or a setup approval racing
+ * a line that changed state since it was read — cannot both consume stock
+ * and log cash: the loser throws CONFLICT and its transaction rolls back.
  *
- * Exported so approval flows that do a remote write BEFORE their transaction
- * (setup-request approval creates the iRadius subscriber first) can pre-flight
- * it with `db` — otherwise the rollback leaves an orphan on the remote side.
+ * Stock rule: worker stock decrements HERE (at approval), never at create.
+ * The decrement is atomic (conditional update), so concurrent approvals of
+ * the same worker's different lines cannot overdraw him.
  */
-export async function assertWorkerHoldsStock(
-	client: Prisma.TransactionClient,
-	installation: {
-		employeeId: string;
-		stockItemId: string | null;
-		isAddOn: boolean;
-		quantity: number;
-	},
-): Promise<{ id: string; quantity: number } | null> {
-	if (!installation.stockItemId || installation.isAddOn) {
-		return null;
-	}
-	const allocation = await client.workerStock.findUnique({
-		where: {
-			stockItemId_employeeId: {
-				stockItemId: installation.stockItemId,
-				employeeId: installation.employeeId,
-			},
-		},
-		select: { id: true, quantity: true },
-	});
-	if (!allocation || allocation.quantity < installation.quantity) {
-		throw new ORPCError("CONFLICT", {
-			message: `Worker lacks stock for this item (holds ${allocation?.quantity ?? 0}, needs ${installation.quantity}) — deliver stock first or edit the quantity`,
-		});
-	}
-	return allocation;
-}
-
 export async function approveInstallationInTx(
 	tx: Prisma.TransactionClient,
 	installation: {
@@ -160,14 +174,43 @@ export async function approveInstallationInTx(
 	userId: string,
 	options: { createCashEntry: boolean },
 ): Promise<void> {
+	const claimed = await tx.installation.updateMany({
+		where: { id: installation.id, status: "PENDING" },
+		data: {
+			status: "APPROVED",
+			approvedById: userId,
+			approvedAt: new Date(),
+		},
+	});
+	if (claimed.count !== 1) {
+		throw new ORPCError("CONFLICT", {
+			message:
+				"This installation was already reviewed — refresh the list",
+		});
+	}
+
 	// Consume worker stock for physical items
 	let stockItemName: string | null = null;
-	const allocation = await assertWorkerHoldsStock(tx, installation);
-	if (installation.stockItemId && allocation) {
-		await tx.workerStock.update({
-			where: { id: allocation.id },
-			data: { quantity: { decrement: installation.quantity } },
+	if (installation.stockItemId && !installation.isAddOn) {
+		const moved = await decrementWorkerStock(tx, {
+			stockItemId: installation.stockItemId,
+			employeeId: installation.employeeId,
+			quantity: installation.quantity,
 		});
+		if (!moved) {
+			// Throws with the item / worker named; the fallback only fires if
+			// the holding changed between the two statements.
+			await assertStockAvailable(tx, {
+				employeeId: installation.employeeId,
+				lines: [installation],
+				reserve: false,
+				audience: "admin",
+			});
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Worker lacks stock for this item — deliver stock first or edit the quantity",
+			});
+		}
 		const stockItem = await tx.stockItem.findUniqueOrThrow({
 			where: { id: installation.stockItemId },
 			select: { name: true },
@@ -182,27 +225,23 @@ export async function approveInstallationInTx(
 				action: "REMOVE",
 				itemName: stockItem.name,
 				quantity: installation.quantity,
-				workerQtyBefore: allocation.quantity,
-				workerQtyAfter: allocation.quantity - installation.quantity,
+				workerQtyBefore: moved.before,
+				workerQtyAfter: moved.after,
 				notes: `Consumed by installation ${installation.id}`,
 			},
 		});
 	}
 
-	// Add-on approval updates the customer's recurring add-on price
-	if (installation.isAddOn && installation.customerId) {
-		const addonType = classifyAddonNote(installation.notes);
-		if (addonType === "IPTV") {
-			await tx.customer.update({
-				where: { id: installation.customerId },
-				data: { iptvPrice: installation.price },
-			});
-		} else if (addonType === "REAL_IP") {
-			await tx.customer.update({
-				where: { id: installation.customerId },
-				data: { realIpPrice: installation.price },
-			});
-		}
+	// Add-on approval updates the customer's recurring add-on price. iptvPrice
+	// / realIpPrice are iRadius-mirrored: every caller must push the same
+	// prices with `pushAddonPricesToIRadius` BEFORE opening this transaction
+	// (remote-first), so this local write never runs after a failed push.
+	const addonPrices = addonPriceFields([installation]);
+	if (installation.customerId && Object.keys(addonPrices).length > 0) {
+		await tx.customer.update({
+			where: { id: installation.customerId },
+			data: addonPrices,
+		});
 	}
 
 	// Cash ledger: hardware/add-on money the worker collected
@@ -243,15 +282,6 @@ export async function approveInstallationInTx(
 			},
 		});
 	}
-
-	await tx.installation.update({
-		where: { id: installation.id },
-		data: {
-			status: "APPROVED",
-			approvedById: userId,
-			approvedAt: new Date(),
-		},
-	});
 }
 
 /**
@@ -342,7 +372,7 @@ export const approveInstallations = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -358,24 +388,74 @@ export const approveInstallations = protectedProcedure
 
 		for (const id of input.ids) {
 			try {
-				await db.$transaction(async (tx) => {
-					const installation = await tx.installation.findFirst({
-						where: {
-							id,
-							organizationId: input.organizationId,
-							status: "PENDING",
-							employee: getDealerScopeFilter(activeDealerId),
+				const pendingWhere = {
+					id,
+					organizationId: input.organizationId,
+					status: "PENDING" as const,
+					employee: getDealerScopeFilter(activeDealerId),
+				};
+				const target = await db.installation.findFirst({
+					where: pendingWhere,
+					select: {
+						isAddOn: true,
+						notes: true,
+						price: true,
+						setupRequest: { select: { status: true } },
+						customer: {
+							select: {
+								externalId: true,
+								firstName: true,
+								lastName: true,
+							},
 						},
+					},
+				});
+				if (!target) {
+					throw new ORPCError("NOT_FOUND", {
+						message: "Installation not found or not pending",
 					});
-					if (!installation) {
-						throw new ORPCError("NOT_FOUND", {
-							message: "Installation not found or not pending",
-						});
-					}
-					await approveInstallationInTx(tx, installation, user.id, {
-						createCashEntry: true,
+				}
+				// A pending setup request approves its lines together and logs
+				// their money once as NEW_USER_SETUP. Approving one here first
+				// would take the worker's stock even if the customer is then
+				// rejected. Lines of an already-approved request (put back to
+				// pending when its cash entry was deleted) approve normally.
+				if (target.setupRequest?.status === "PENDING") {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"Part of a pending new-customer setup — approve or reject it from New Customers",
 					});
-					notifiedEmployees.add(installation.employeeId);
+				}
+				// An add-on line sets the customer's IPTV / Real IP price, which
+				// is iRadius-mirrored: push it remote-first, approve locally only
+				// once iRadius accepted it.
+				await mirrorToIRadius({
+					iradiusDisabled,
+					logTag: "[Installation Approve] iRadius add-on price",
+					failureMessage:
+						"Failed to set the add-on price in iRadius — not approved",
+					remote: () =>
+						pushAddonPricesToIRadius(target.customer, [target]),
+					local: () =>
+						db.$transaction(async (tx) => {
+							const installation =
+								await tx.installation.findFirst({
+									where: pendingWhere,
+								});
+							if (!installation) {
+								throw new ORPCError("NOT_FOUND", {
+									message:
+										"Installation not found or not pending",
+								});
+							}
+							await approveInstallationInTx(
+								tx,
+								installation,
+								user.id,
+								{ createCashEntry: true },
+							);
+							notifiedEmployees.add(installation.employeeId);
+						}),
 				});
 				results.push({ id, ok: true });
 			} catch (error) {
@@ -394,14 +474,29 @@ export const approveInstallations = protectedProcedure
 			notifyFieldEmployee({
 				organizationId: input.organizationId,
 				employeeId,
-				title: "Installation approved",
-				message: "Your installation submission was approved",
+				title: bilingual(
+					"Installation approved",
+					"تمت الموافقة على التركيب",
+				),
+				message: bilingual(
+					"Your installation submission was approved",
+					"تمت الموافقة على التركيب الذي أرسلته",
+				),
 				type: "success",
 				telegramText: tgMessage({
 					icon: "✅",
-					title: "Installation approved",
+					title: bilingual(
+						"Installation approved",
+						"تمت الموافقة على التركيب",
+					),
 					fields: [
-						{ icon: "🔧", value: "Your submission was approved" },
+						{
+							icon: "🔧",
+							value: bilingual(
+								"Your submission was approved",
+								"تمت الموافقة على ما أرسلته",
+							),
+						},
 					],
 				}),
 			}).catch((err: unknown) =>
@@ -470,18 +565,31 @@ export const denyInstallation = protectedProcedure
 		notifyFieldEmployee({
 			organizationId: input.organizationId,
 			employeeId: installation.employeeId,
-			title: "Installation denied",
+			title: bilingual("Installation denied", "تم رفض التركيب"),
 			message: input.reason
-				? `An installation was denied: ${input.reason}`
-				: "An installation submission was denied",
+				? `${bilingual("An installation was denied", "تم رفض تركيب")}: ${input.reason}`
+				: bilingual(
+						"An installation submission was denied",
+						"تم رفض تركيب أرسلته",
+					),
 			type: "warning",
 			telegramText: tgMessage({
 				icon: "⛔",
-				title: "Installation denied",
+				title: bilingual("Installation denied", "تم رفض التركيب"),
 				fields: [
 					input.reason
-						? { icon: "✍️", label: "Reason", value: input.reason }
-						: { icon: "🔧", value: "Your submission was denied" },
+						? {
+								icon: "✍️",
+								label: bilingual("Reason", "السبب"),
+								value: input.reason,
+							}
+						: {
+								icon: "🔧",
+								value: bilingual(
+									"Your submission was denied",
+									"تم رفض ما أرسلته",
+								),
+							},
 				],
 			}),
 		}).catch((err: unknown) =>

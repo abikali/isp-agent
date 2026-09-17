@@ -1,6 +1,7 @@
 "use client";
 
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
+import { bilingual } from "@repo/utils";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import {
 	useCompleteTaskWithEvidence,
@@ -74,6 +75,7 @@ import {
 	useMyTrendQuery,
 	useUninstallItemsQuery,
 } from "../hooks/use-worker";
+import { fieldErrorMessage, FIELD_LABELS as L } from "../lib/labels";
 import { InstallItemRows, useOverStockLines } from "./InstallItemRows";
 import { type InstallLine, linesToPayload } from "./install-lines";
 import { PhotoCaptureInput } from "./PhotoCaptureInput";
@@ -98,10 +100,10 @@ const trendConfig = {
 type WorkerTask = ReturnType<typeof useMyTasksList>["tasks"][number];
 
 const STATUS_OPTIONS = [
-	{ value: "open", label: "Open" },
-	{ value: "completed", label: "Completed" },
-	{ value: "cancelled", label: "Cancelled" },
-	{ value: "all", label: "All statuses" },
+	{ value: "open", label: L.statusOpen },
+	{ value: "completed", label: L.statusCompleted },
+	{ value: "cancelled", label: L.statusCancelled },
+	{ value: "all", label: L.statusAll },
 ];
 const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
 	open: ["OPEN"],
@@ -112,21 +114,21 @@ const STATUS_MAP: Record<string, TaskStatusValue[] | undefined> = {
 	all: undefined,
 };
 const CATEGORY_OPTIONS = [
-	{ value: "all", label: "All types · كل الأنواع" },
+	{ value: "all", label: L.allTypes },
 	...TASK_CATEGORY_OPTIONS.map((o) => ({
 		value: o.value,
-		label: `${o.label} · ${TASK_CATEGORY_META[o.value].labelAr}`,
+		label: bilingual(o.label, TASK_CATEGORY_META[o.value].labelAr),
 	})),
 ];
 
 function categoryLabel(category: string): string {
 	const meta = TASK_CATEGORY_META[category as TaskCategoryValue];
-	return meta ? `${meta.label} · ${meta.labelAr}` : category.toLowerCase();
+	return meta ? bilingual(meta.label, meta.labelAr) : category.toLowerCase();
 }
 const SORT_OPTIONS = [
-	{ value: "newest", label: "Newest first" },
-	{ value: "oldest", label: "Oldest first" },
-	{ value: "priority", label: "Priority" },
+	{ value: "newest", label: L.sortNewest },
+	{ value: "oldest", label: L.sortOldest },
+	{ value: "priority", label: L.sortPriority },
 ];
 const SORT_MAP: Record<
 	string,
@@ -137,6 +139,12 @@ const SORT_MAP: Record<
 	priority: { sortBy: "priority", sortOrder: "desc" },
 };
 const OPEN_STATUSES = new Set(["OPEN"]);
+const STATUS_BADGE_LABELS: Record<string, string> = {
+	OPEN: L.statusOpen,
+	PENDING_APPROVAL: L.statusPendingApproval,
+	COMPLETED: L.statusCompleted,
+	CANCELLED: L.statusCancelled,
+};
 
 const ADDON_LABELS: Record<string, string> = {
 	IPTV: "IPTV",
@@ -199,8 +207,8 @@ const PRIORITY_BADGE: Record<
 	string,
 	{ label: string; variant: "warning" | "error" } | undefined
 > = {
-	HIGH: { label: "High", variant: "warning" },
-	URGENT: { label: "Urgent", variant: "error" },
+	HIGH: { label: L.priorityHigh, variant: "warning" },
+	URGENT: { label: L.priorityUrgent, variant: "error" },
 };
 
 interface RecoveredItem {
@@ -232,7 +240,14 @@ function useUploadUrlGetter(organizationId: string | null) {
 	);
 }
 
-export function WorkerTasks() {
+export function WorkerTasks({
+	focusTaskId,
+	onClearFocus,
+}: {
+	/** Show only this task — set when the worker opens a Telegram task link. */
+	focusTaskId?: string;
+	onClearFocus?: () => void;
+}) {
 	const { stats, isLoading: statsLoading } = useMyStatsQuery();
 	const [activeTask, setActiveTask] = useState<WorkerTask | null>(null);
 	const [search, setSearch] = useState("");
@@ -244,17 +259,21 @@ export function WorkerTasks() {
 
 	const sortCfg =
 		SORT_MAP[sort] ?? ({ sortBy: "createdAt", sortOrder: "desc" } as const);
-	const { tasks, totalPages, isLoading, isFetching } = useMyTasksList({
-		search: debouncedSearch || undefined,
-		statuses: STATUS_MAP[statusFilter],
-		category:
-			categoryFilter === "all"
-				? undefined
-				: (categoryFilter as TaskCategoryValue),
-		sortBy: sortCfg.sortBy,
-		sortOrder: sortCfg.sortOrder,
-		page,
-	});
+	const { tasks, totalPages, isLoading, isFetching } = useMyTasksList(
+		focusTaskId
+			? { taskId: focusTaskId }
+			: {
+					search: debouncedSearch || undefined,
+					statuses: STATUS_MAP[statusFilter],
+					category:
+						categoryFilter === "all"
+							? undefined
+							: (categoryFilter as TaskCategoryValue),
+					sortBy: sortCfg.sortBy,
+					sortOrder: sortCfg.sortOrder,
+					page,
+				},
+	);
 
 	function onFilter<T>(setter: (value: T) => void) {
 		return (value: T) => {
@@ -285,34 +304,46 @@ export function WorkerTasks() {
 
 			<TaskTrendChart />
 
-			<SearchBar
-				value={search}
-				onChange={onFilter(setSearch)}
-				placeholder="Search task, customer, phone, account…"
-			/>
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-				<SelectControl
-					ariaLabel="Filter by status"
-					value={statusFilter}
-					onChange={onFilter(setStatusFilter)}
-					options={STATUS_OPTIONS}
-					className="w-full"
-				/>
-				<SelectControl
-					ariaLabel="Filter by type"
-					value={categoryFilter}
-					onChange={onFilter(setCategoryFilter)}
-					options={CATEGORY_OPTIONS}
-					className="w-full"
-				/>
-				<SelectControl
-					ariaLabel="Sort tasks"
-					value={sort}
-					onChange={onFilter(setSort)}
-					options={SORT_OPTIONS}
-					className="col-span-2 w-full sm:col-span-1"
-				/>
-			</div>
+			{focusTaskId ? (
+				<Button
+					variant="outline"
+					className="h-auto min-h-9 w-full whitespace-normal py-2"
+					onClick={onClearFocus}
+				>
+					{L.showAllTasks}
+				</Button>
+			) : (
+				<>
+					<SearchBar
+						value={search}
+						onChange={onFilter(setSearch)}
+						placeholder={L.searchTasks}
+					/>
+					<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+						<SelectControl
+							ariaLabel="Filter by status"
+							value={statusFilter}
+							onChange={onFilter(setStatusFilter)}
+							options={STATUS_OPTIONS}
+							className="w-full"
+						/>
+						<SelectControl
+							ariaLabel="Filter by type"
+							value={categoryFilter}
+							onChange={onFilter(setCategoryFilter)}
+							options={CATEGORY_OPTIONS}
+							className="w-full"
+						/>
+						<SelectControl
+							ariaLabel="Sort tasks"
+							value={sort}
+							onChange={onFilter(setSort)}
+							options={SORT_OPTIONS}
+							className="col-span-2 w-full sm:col-span-1"
+						/>
+					</div>
+				</>
+			)}
 
 			{isLoading ? (
 				<div className="space-y-2">
@@ -327,7 +358,7 @@ export function WorkerTasks() {
 				<div className="py-16 text-center">
 					<ClipboardListIcon className="mx-auto size-10 text-muted-foreground/50" />
 					<p className="mt-3 text-sm text-muted-foreground">
-						No tasks match your filters.
+						{L.noTasks}
 					</p>
 				</div>
 			) : (
@@ -728,7 +759,7 @@ function TaskCard({
 									<Button
 										variant="outline"
 										size="sm"
-										className="h-8 flex-1 basis-24 text-xs"
+										className="h-auto min-h-8 flex-1 basis-24 whitespace-normal text-xs"
 										asChild
 									>
 										<a
@@ -737,7 +768,7 @@ function TaskCard({
 											rel="noopener noreferrer"
 										>
 											<NavigationIcon />
-											Directions
+											{L.directions}
 										</a>
 									</Button>
 								) : null}
@@ -752,14 +783,13 @@ function TaskCard({
 						<PuzzleIcon className="mt-0.5 size-4 shrink-0 text-purple-500" />
 						<div className="min-w-0">
 							<p className="font-medium text-purple-700 text-xs dark:text-purple-300">
-								Set up:{" "}
+								{L.setUp}:{" "}
 								{task.requestedAddons
 									.map((a) => ADDON_LABELS[a] ?? a)
 									.join(", ")}
 							</p>
 							<p className="text-muted-foreground text-xs">
-								Confirm on the customer when you complete the
-								task.
+								{L.confirmAddons}
 							</p>
 						</div>
 					</div>
@@ -783,11 +813,11 @@ function TaskCard({
 								}
 							>
 								<CalendarClockIcon className="size-3 shrink-0" />
-								Due{" "}
+								{L.due}{" "}
 								{formatDate(task.dueDate, {
 									dateStyle: "medium",
 								})}
-								{isOverdue ? " · overdue" : ""}
+								{isOverdue ? ` — ${L.overdue}` : ""}
 							</span>
 						) : null}
 					</div>
@@ -807,7 +837,7 @@ function TaskCard({
 						<CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-600" />
 						<div className="min-w-0 text-xs">
 							<p className="font-medium text-emerald-700 dark:text-emerald-300">
-								Completed
+								{L.statusCompleted}
 								{task.completedAt
 									? ` · ${formatWhen(task.completedAt)}`
 									: ""}
@@ -839,11 +869,12 @@ function TaskCard({
 					</div>
 					{isOpen ? (
 						<Button size="sm" onClick={onSubmit}>
-							Submit
+							{L.submit}
 						</Button>
 					) : (
 						<Badge variant={isCompleted ? "success" : "outline"}>
-							{task.status.toLowerCase().replace("_", " ")}
+							{STATUS_BADGE_LABELS[task.status] ??
+								task.status.toLowerCase().replace("_", " ")}
 						</Badge>
 					)}
 				</div>
@@ -911,7 +942,7 @@ function MaintenanceSubmitSheet({
 			return;
 		}
 		if (resolutionCode === CUSTOM_RESOLUTION_VALUE && !note.trim()) {
-			toast.error("A note is required for 'Other'");
+			toast.error(L.noteRequiredForOther);
 			return;
 		}
 		try {
@@ -926,50 +957,49 @@ function MaintenanceSubmitSheet({
 					? { recoveredItems: recoveredItemsPayload(recovered) }
 					: {}),
 			});
-			toast.success("Task completed");
+			toast.success(L.taskCompleted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
 	return (
 		<SubmitSheet
-			title={`Complete — ${task.title}`}
-			submitLabel="Complete task"
+			title={`${L.complete} — ${task.title}`}
+			submitLabel={L.completeTask}
 			pending={complete.isPending}
 			disabled={!recoveredOk}
 			onClose={onClose}
 			onSubmit={handleSubmit}
 		>
 			<div className="space-y-1.5">
-				<Label>What did you find?</Label>
+				<Label>{L.whatDidYouFind}</Label>
 				<Combobox
 					value={resolutionCode}
 					onChange={setPickedResolution}
-					searchPlaceholder="Search…"
+					searchPlaceholder={L.search}
 					options={resolutionOptions}
 				/>
 			</div>
 			<div className="space-y-1.5">
 				<Label htmlFor="maint-note">
-					Note{resolutionCode === CUSTOM_RESOLUTION_VALUE ? " *" : ""}
+					{L.note}
+					{resolutionCode === CUSTOM_RESOLUTION_VALUE ? " *" : ""}
 				</Label>
 				<Textarea
 					id="maint-note"
 					value={note}
 					onChange={(e) => setNote(e.target.value)}
 					rows={2}
-					placeholder="Anything worth noting?"
+					placeholder={L.notePlaceholder}
 				/>
 			</div>
 			<div className="space-y-1.5">
 				<Label>
 					{task.requestedAddons?.length
-						? "Items & add-ons"
-						: "Items used (optional)"}
+						? L.itemsAndAddons
+						: L.itemsUsedOptional}
 				</Label>
 				<InstallItemRows
 					lines={lines}
@@ -978,7 +1008,7 @@ function MaintenanceSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label>Recovered equipment (optional)</Label>
+				<Label>{L.recoveredEquipmentOptional}</Label>
 				<RecoveredItemsEditor
 					items={recovered}
 					onChange={setRecovered}
@@ -986,7 +1016,7 @@ function MaintenanceSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label>Photo (optional)</Label>
+				<Label>{L.photoOptional}</Label>
 				<PhotoCaptureInput
 					value={photoUrl}
 					onChange={setPhotoUrl}
@@ -1028,26 +1058,24 @@ function InstallSubmitSheet({
 				photoUrl: photoUrl as string,
 				resolutionNote: note.trim() || undefined,
 			});
-			toast.success("Installation submitted for approval");
+			toast.success(L.installationSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
 	return (
 		<SubmitSheet
-			title={`Install — ${task.title}`}
-			submitLabel="Submit installation"
+			title={`${L.install} — ${task.title}`}
+			submitLabel={L.submitInstallation}
 			pending={complete.isPending}
 			disabled={!valid}
 			onClose={onClose}
 			onSubmit={handleSubmit}
 		>
 			<div className="space-y-1.5">
-				<Label>Installed items *</Label>
+				<Label>{L.installedItems} *</Label>
 				<InstallItemRows
 					lines={lines}
 					onChange={setLines}
@@ -1055,7 +1083,7 @@ function InstallSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label>Photo *</Label>
+				<Label>{L.photo} *</Label>
 				<PhotoCaptureInput
 					value={photoUrl}
 					onChange={setPhotoUrl}
@@ -1063,13 +1091,13 @@ function InstallSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label htmlFor="install-note">Note (optional)</Label>
+				<Label htmlFor="install-note">{L.noteOptional}</Label>
 				<Textarea
 					id="install-note"
 					value={note}
 					onChange={(e) => setNote(e.target.value)}
 					rows={2}
-					placeholder="Anything worth noting?"
+					placeholder={L.notePlaceholder}
 				/>
 			</div>
 		</SubmitSheet>
@@ -1112,26 +1140,24 @@ function ReplacementSubmitSheet({
 				recoveredItems: recoveredItemsPayload(recovered),
 				photoUrl: photoUrl as string,
 			});
-			toast.success("Replacement submitted for approval");
+			toast.success(L.replacementSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
 	return (
 		<SubmitSheet
-			title={`Replacement — ${task.title}`}
-			submitLabel="Submit replacement"
+			title={`${L.replacement} — ${task.title}`}
+			submitLabel={L.submitReplacement}
 			pending={complete.isPending}
 			disabled={!valid}
 			onClose={onClose}
 			onSubmit={handleSubmit}
 		>
 			<div className="space-y-1.5">
-				<Label>New installed items *</Label>
+				<Label>{L.newInstalledItems} *</Label>
 				<InstallItemRows
 					lines={lines}
 					onChange={setLines}
@@ -1139,7 +1165,7 @@ function ReplacementSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-1.5">
-				<Label>Install photo *</Label>
+				<Label>{L.installPhoto} *</Label>
 				<PhotoCaptureInput
 					value={photoUrl}
 					onChange={setPhotoUrl}
@@ -1147,7 +1173,7 @@ function ReplacementSubmitSheet({
 				/>
 			</div>
 			<div className="space-y-2 border-t pt-4">
-				<Label>Recovered (old) equipment *</Label>
+				<Label>{L.recoveredOldEquipment} *</Label>
 				<RecoveredItemsEditor
 					items={recovered}
 					onChange={setRecovered}
@@ -1182,19 +1208,17 @@ function UninstallSubmitSheet({
 				taskId: task.id,
 				recoveredItems: recoveredItemsPayload(items),
 			});
-			toast.success("Recovered items submitted for review");
+			toast.success(L.recoveredSubmitted);
 			onClose();
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to submit",
-			);
+			toast.error(fieldErrorMessage(error, L.failedToSubmit));
 		}
 	}
 
 	return (
 		<SubmitSheet
-			title={`Recovered equipment — ${task.title}`}
-			submitLabel="Submit for review"
+			title={`${L.recoveredEquipment} — ${task.title}`}
+			submitLabel={L.submitForReview}
 			pending={complete.isPending}
 			disabled={!valid}
 			onClose={onClose}
@@ -1240,11 +1264,11 @@ function SubmitSheet({
 				<div className="flex-1 space-y-4 px-4 py-4">{children}</div>
 				<SheetFooter className="border-t px-4 py-3">
 					<Button
-						className="w-full"
+						className="h-auto min-h-9 w-full whitespace-normal py-2"
 						onClick={onSubmit}
 						disabled={pending || disabled}
 					>
-						{pending ? "Submitting…" : submitLabel}
+						{pending ? L.submitting : submitLabel}
 					</Button>
 				</SheetFooter>
 			</SheetContent>
@@ -1317,7 +1341,12 @@ function RecoveredItemsEditor({
 			{items.map((item, index) => (
 				<div key={item.key} className="space-y-3 rounded-md border p-3">
 					<div className="flex items-center justify-between">
-						<p className="text-sm font-medium">Item {index + 1}</p>
+						<p className="text-sm font-medium">
+							{bilingual(
+								`Item ${index + 1}`,
+								`الغرض ${index + 1}`,
+							)}
+						</p>
 						{items.length > 1 && (
 							<Button
 								variant="ghost"
@@ -1335,11 +1364,11 @@ function RecoveredItemsEditor({
 						)}
 					</div>
 					<div className="space-y-1.5">
-						<Label>Item</Label>
+						<Label>{L.item}</Label>
 						<Combobox
 							value={item.stockItemId ?? ""}
-							placeholder="Select an item…"
-							searchPlaceholder="Search items…"
+							placeholder={L.selectItem}
+							searchPlaceholder={L.searchItems}
 							onChange={(v) =>
 								updateItem(item.key, { stockItemId: v })
 							}
@@ -1347,7 +1376,7 @@ function RecoveredItemsEditor({
 						/>
 					</div>
 					<div className="space-y-1.5">
-						<Label>Quantity</Label>
+						<Label>{L.quantity}</Label>
 						<Input
 							type="number"
 							inputMode="numeric"
@@ -1361,7 +1390,7 @@ function RecoveredItemsEditor({
 						/>
 					</div>
 					<div className="space-y-1.5">
-						<Label>Photo evidence *</Label>
+						<Label>{L.photoEvidence} *</Label>
 						<PhotoCaptureInput
 							value={item.pictureUrl}
 							onChange={(url) =>
@@ -1374,7 +1403,7 @@ function RecoveredItemsEditor({
 			))}
 			<Button
 				variant="outline"
-				className="w-full"
+				className="h-auto min-h-9 w-full whitespace-normal py-2"
 				onClick={() =>
 					onChange([
 						...items,
@@ -1385,7 +1414,7 @@ function RecoveredItemsEditor({
 				}
 			>
 				<PlusIcon className="mr-2 size-4" />
-				{items.length === 0 ? "Add recovered item" : "Add another item"}
+				{items.length === 0 ? L.addRecoveredItem : L.addAnotherItem}
 			</Button>
 		</div>
 	);

@@ -61,6 +61,9 @@ export const listTasks = protectedProcedure
 			employeeId: z.string().optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
+			// A single task (worker notification deep link). Scope rules above
+			// still apply, so a worker only ever sees his own.
+			taskId: z.string().optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -113,6 +116,9 @@ export const listTasks = protectedProcedure
 		}
 		if (input.category) {
 			where["category"] = input.category;
+		}
+		if (input.taskId) {
+			where["id"] = input.taskId;
 		}
 		if (input.customerId) {
 			where["customerId"] = input.customerId;

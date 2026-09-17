@@ -1,6 +1,7 @@
 "use client";
 
 import { formatWhatsAppLink } from "@saas/billing/lib/whatsapp";
+import { FIELD_LABELS as L } from "@saas/worker/lib/labels";
 import { Button } from "@ui/components/button";
 import {
 	DropdownMenu,
@@ -34,7 +35,11 @@ export function PhoneActions({
 		return null;
 	}
 
-	const buttonClass = cn("h-8 flex-1 basis-20 text-xs", className);
+	// Bilingual labels can outgrow a 360px row — let them wrap, not overflow.
+	const buttonClass = cn(
+		"h-auto min-h-8 flex-1 basis-20 whitespace-normal text-xs",
+		className,
+	);
 	const whatsAppNumbers = numbers.filter((n) => formatWhatsAppLink(n));
 	const [firstNumber] = numbers;
 	const [firstWhatsApp] = whatsAppNumbers;
@@ -50,17 +55,17 @@ export function PhoneActions({
 				>
 					<a href={`tel:${firstNumber}`}>
 						<PhoneIcon />
-						Call
+						{L.call}
 					</a>
 				</Button>
 			) : (
 				<NumberPicker
-					label="Which number do you want to call?"
+					label={L.whichNumberToCall}
 					numbers={numbers}
 					href={(number) => `tel:${number}`}
 					className={buttonClass}
 					icon={<PhoneIcon />}
-					text="Call"
+					text={L.call}
 				/>
 			)}
 
@@ -77,18 +82,18 @@ export function PhoneActions({
 						rel="noopener noreferrer"
 					>
 						<MessageCircleIcon />
-						WhatsApp
+						{L.whatsApp}
 					</a>
 				</Button>
 			) : whatsAppNumbers.length > 1 ? (
 				<NumberPicker
-					label="Which number do you want to message?"
+					label={L.whichNumberToMessage}
 					numbers={whatsAppNumbers}
 					href={(number) => formatWhatsAppLink(number) ?? "#"}
 					external
 					className={buttonClass}
 					icon={<MessageCircleIcon />}
-					text="WhatsApp"
+					text={L.whatsApp}
 				/>
 			) : null}
 		</>

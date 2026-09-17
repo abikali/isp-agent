@@ -9,6 +9,10 @@ import { logger } from "@repo/logs";
 import { tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	assertStockAvailable,
+	decrementWorkerStock,
+} from "../../installations/lib/stock-guard";
 
 // Approving a refund moves warehouse inventory, so review is gated on the
 // admin-level `inventory:delete` capability — field workers only have
@@ -63,25 +67,23 @@ export const approveStockRefund = protectedProcedure
 		}
 
 		await db.$transaction(async (tx) => {
-			const allocation = await tx.workerStock.findUnique({
-				where: {
-					stockItemId_employeeId: {
-						stockItemId: request.stockItemId,
-						employeeId: request.employeeId,
-					},
-				},
-				select: { id: true, quantity: true },
+			// The worker must keep enough for his pending install lines (and
+			// other pending refunds) — approving would otherwise leave those
+			// installs unapprovable.
+			await assertStockAvailable(tx, {
+				employeeId: request.employeeId,
+				lines: [request],
+				reserve: true,
+				excludeRefundRequestIds: [request.id],
+				audience: "admin",
+				hint: "Approve or deny the pending installs first, or reject this refund.",
 			});
-			if (!allocation || allocation.quantity < request.quantity) {
+			const moved = await decrementWorkerStock(tx, request);
+			if (!moved) {
 				throw new ORPCError("CONFLICT", {
-					message: `Worker only holds ${allocation?.quantity ?? 0} — cannot refund ${request.quantity}`,
+					message: `Worker no longer holds ${request.quantity} × ${request.stockItem.name}`,
 				});
 			}
-
-			await tx.workerStock.update({
-				where: { id: allocation.id },
-				data: { quantity: { decrement: request.quantity } },
-			});
 
 			const updatedItem = await tx.stockItem.update({
 				where: { id: request.stockItemId },
@@ -99,8 +101,8 @@ export const approveStockRefund = protectedProcedure
 					quantity: request.quantity,
 					adminQtyBefore: updatedItem.quantity - request.quantity,
 					adminQtyAfter: updatedItem.quantity,
-					workerQtyBefore: allocation.quantity,
-					workerQtyAfter: allocation.quantity - request.quantity,
+					workerQtyBefore: moved.before,
+					workerQtyAfter: moved.after,
 					notes: `Refund approved (request ${request.id})`,
 				},
 			});

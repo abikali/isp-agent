@@ -168,6 +168,9 @@ export const listInstallations = protectedProcedure
 					employee: { select: { id: true, name: true } },
 					stockItem: { select: { id: true, name: true } },
 					approvedBy: { select: { id: true, name: true } },
+					// A line of a still-pending setup request is approved with the
+					// request (New Customers), never on its own.
+					setupRequest: { select: { status: true } },
 					// Completion evidence (photo + worker's resolution note) lives
 					// on the task, not the installation row itself.
 					task: {
@@ -190,8 +193,106 @@ export const listInstallations = protectedProcedure
 			db.installation.count({ where }),
 		]);
 
+		// Stock context for pending physical lines so the review screen can cap
+		// quantity edits and disable Approve before the server refuses: what
+		// the worker holds, and how much of it his OTHER pending lines and
+		// refund requests already reserve (same rule as the stock guard).
+		const pendingPhysical = installations.filter(
+			(i) => i.status === "PENDING" && !i.isAddOn && i.stockItemId,
+		);
+		const stockByPair = new Map<
+			string,
+			{ held: number; pendingInstalls: number; pendingRefunds: number }
+		>();
+		if (pendingPhysical.length > 0) {
+			const employeeIds = [
+				...new Set(pendingPhysical.map((i) => i.employeeId)),
+			];
+			const stockItemIds = [
+				...new Set(pendingPhysical.map((i) => i.stockItemId as string)),
+			];
+			const [holdings, installSums, refundSums] = await Promise.all([
+				db.workerStock.findMany({
+					where: {
+						employeeId: { in: employeeIds },
+						stockItemId: { in: stockItemIds },
+					},
+					select: {
+						employeeId: true,
+						stockItemId: true,
+						quantity: true,
+					},
+				}),
+				db.installation.groupBy({
+					by: ["employeeId", "stockItemId"],
+					where: {
+						employeeId: { in: employeeIds },
+						stockItemId: { in: stockItemIds },
+						status: "PENDING",
+						isAddOn: false,
+						externalBillingId: null,
+					},
+					_sum: { quantity: true },
+				}),
+				db.stockRefundRequest.groupBy({
+					by: ["employeeId", "stockItemId"],
+					where: {
+						employeeId: { in: employeeIds },
+						stockItemId: { in: stockItemIds },
+						status: "PENDING",
+					},
+					_sum: { quantity: true },
+				}),
+			]);
+			const entry = (employeeId: string, stockItemId: string | null) => {
+				const key = `${employeeId}:${stockItemId}`;
+				const existing = stockByPair.get(key);
+				if (existing) {
+					return existing;
+				}
+				const created = {
+					held: 0,
+					pendingInstalls: 0,
+					pendingRefunds: 0,
+				};
+				stockByPair.set(key, created);
+				return created;
+			};
+			for (const h of holdings) {
+				entry(h.employeeId, h.stockItemId).held = h.quantity;
+			}
+			for (const row of installSums) {
+				entry(row.employeeId, row.stockItemId).pendingInstalls =
+					row._sum.quantity ?? 0;
+			}
+			for (const row of refundSums) {
+				entry(row.employeeId, row.stockItemId).pendingRefunds =
+					row._sum.quantity ?? 0;
+			}
+		}
+
 		return {
-			installations,
+			installations: installations.map((i) => {
+				const pair =
+					i.status === "PENDING" && !i.isAddOn && i.stockItemId
+						? stockByPair.get(`${i.employeeId}:${i.stockItemId}`)
+						: undefined;
+				const ownReserved =
+					i.externalBillingId === null ? i.quantity : 0;
+				return {
+					...i,
+					stock: pair
+						? {
+								held: pair.held,
+								reservedByOthers:
+									Math.max(
+										0,
+										pair.pendingInstalls - ownReserved,
+									) + pair.pendingRefunds,
+							}
+						: null,
+				};
+			}),
 			total,
 			page: input.page,
 			pageSize: input.pageSize,
