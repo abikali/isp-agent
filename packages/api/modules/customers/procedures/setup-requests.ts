@@ -22,11 +22,8 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
 import { addonNoteFor } from "../../installations/lib/addons";
-import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
-import {
-	approveInstallationInTx,
-	assertWorkerHoldsStock,
-} from "../../installations/procedures/review";
+import { assertStockAvailable } from "../../installations/lib/stock-guard";
+import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
 import { iradiusUsernameExists } from "../lib/iradius-api";
 
@@ -232,10 +229,16 @@ export const workerCreateCustomer = protectedProcedure
 			}
 		}
 
-		// The worker can only install what he is holding. Checked here, at
+		// The worker can only install what he is holding, net of what is
+		// already on his other pending installs/refunds. Checked here, at
 		// submission, so he can fix the line on the spot — the approval-time
 		// guard would otherwise reject the whole setup days later.
-		await assertWorkerHoldsStockLines(db, employeeId, input.items);
+		await assertStockAvailable(db, {
+			employeeId,
+			lines: input.items,
+			reserve: true,
+			audience: "worker",
+		});
 
 		if (input.durationType === "days" && !input.durationDays) {
 			throw new ORPCError("BAD_REQUEST", {
@@ -834,8 +837,29 @@ export const approveSetupRequest = protectedProcedure
 		const pendingInstallations = request.installations.filter(
 			(i) => i.status === "PENDING",
 		);
+		// Aggregated per (worker, item): two lines of the same cable must fit
+		// together, not each on its own. Holding only — these lines are the
+		// reservation being consumed.
+		const physicalLinesByEmployee = new Map<
+			string,
+			typeof pendingInstallations
+		>();
 		for (const installation of pendingInstallations) {
-			await assertWorkerHoldsStock(db, installation);
+			if (installation.isAddOn || !installation.stockItemId) {
+				continue;
+			}
+			physicalLinesByEmployee.set(installation.employeeId, [
+				...(physicalLinesByEmployee.get(installation.employeeId) ?? []),
+				installation,
+			]);
+		}
+		for (const [employeeId, lines] of physicalLinesByEmployee) {
+			await assertStockAvailable(db, {
+				employeeId,
+				lines,
+				reserve: false,
+				audience: "admin",
+			});
 		}
 		const billingMonth = await resolveActiveBillingMonth(
 			input.organizationId,
@@ -848,7 +872,6 @@ export const approveSetupRequest = protectedProcedure
 		// aborts — no half-approved local state.
 		const shouldCreateInIRadius =
 			!iradiusDisabled && !request.customer.externalId;
-		let newExternalId: string | null = null;
 		// Kept so the approval notification can hand the worker the credentials
 		// they need on site. Null when the account already existed in iRadius.
 		let createdPassword: string | null = null;
@@ -865,7 +888,14 @@ export const approveSetupRequest = protectedProcedure
 				customerId: request.customerId,
 				password: createdPassword,
 			});
-			newExternalId = String(userId);
+			// Link immediately, outside the approval transaction: if anything
+			// below throws, the retry sees the customer as already linked and
+			// skips the create instead of tripping on "Username already exists"
+			// with an orphaned (and already charged) subscriber.
+			await db.customer.update({
+				where: { id: request.customerId },
+				data: { externalId: String(userId) },
+			});
 		}
 
 		await db.$transaction(async (tx) => {
@@ -874,7 +904,6 @@ export const approveSetupRequest = protectedProcedure
 				data: {
 					status: "ACTIVE",
 					activatedAt: new Date(),
-					...(newExternalId ? { externalId: newExternalId } : {}),
 				},
 			});
 
@@ -945,7 +974,10 @@ export const approveSetupRequest = protectedProcedure
 			// Workers render via fetchWorkerBalance (cash only), so it's invisible
 			// today — but giving a worker a collector layout would double-count
 			// this subscription cash. Keep the two lenses in mind before then.
-			const installTotal = request.installations.reduce(
+			// Only the lines approved in THIS transaction: a line approved on
+			// its own earlier already logged its INSTALLATION_COST entry, and
+			// denied lines were never collected.
+			const installTotal = pendingInstallations.reduce(
 				(sum, i) => sum + i.price * i.quantity,
 				0,
 			);

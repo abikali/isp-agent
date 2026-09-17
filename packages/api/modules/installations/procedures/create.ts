@@ -16,6 +16,7 @@ import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { addonNoteFor, classifyAddonNote } from "../lib/addons";
+import { assertStockAvailable } from "../lib/stock-guard";
 
 const itemSchema = z
 	.object({
@@ -174,30 +175,14 @@ export const createInstallation = protectedProcedure
 			}
 		}
 
-		// Soft stock check — advisory only; the hard guard runs at approval
-		if (stockLines.length > 0) {
-			const allocations = await db.workerStock.findMany({
-				where: {
-					employeeId,
-					stockItemId: {
-						in: stockLines.map((i) => i.stockItemId as string),
-					},
-				},
-				select: { stockItemId: true, quantity: true },
-			});
-			const holdings = new Map(
-				allocations.map((a) => [a.stockItemId, a.quantity]),
-			);
-			for (const line of stockLines) {
-				const held = holdings.get(line.stockItemId as string) ?? 0;
-				if (held < line.quantity) {
-					throw new ORPCError("CONFLICT", {
-						message:
-							"You don't hold enough stock for one of the items — ask for a delivery first",
-					});
-				}
-			}
-		}
+		// Aggregate per item and reserve what the worker already has on
+		// pending lines/refunds; the approval still re-checks the holding.
+		await assertStockAvailable(db, {
+			employeeId,
+			lines: stockLines,
+			reserve: true,
+			audience: employeeId === ownEmployeeId ? "worker" : "admin",
+		});
 
 		const installations = await db.$transaction(
 			input.items.map((line) =>

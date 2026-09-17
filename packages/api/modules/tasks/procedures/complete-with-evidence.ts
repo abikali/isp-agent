@@ -15,7 +15,7 @@ import {
 	addonNoteFor,
 	classifyAddonNote,
 } from "../../installations/lib/addons";
-import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
+import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
@@ -176,10 +176,16 @@ export const completeTaskWithEvidence = protectedProcedure
 				Boolean(i.addonType),
 		);
 
-		// Submission-time stock check naming the item; the hard guard still
-		// runs at approval. Add-on lines carry no stock, so they're excluded.
+		// Submission-time stock check naming the item, net of what the worker
+		// already has on pending installs/refunds; approval re-checks the
+		// holding. Add-on lines carry no stock, so they're excluded.
 		if (stockLines.length > 0 && employeeId) {
-			await assertWorkerHoldsStockLines(db, employeeId, stockLines);
+			await assertStockAvailable(db, {
+				employeeId,
+				lines: stockLines,
+				reserve: true,
+				audience: "worker",
+			});
 		}
 
 		// Add-ons attach to a customer and are capped at one IPTV + one Real IP.

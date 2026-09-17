@@ -466,6 +466,30 @@ interface RowEdit {
 	quantity: string;
 }
 
+/**
+ * Why approving this pending line (with its uncommitted edit) would be
+ * refused by the server's stock guard, or null. Mirrors the server: a raised
+ * quantity must fit what the worker holds minus his other pending lines and
+ * refunds; approval itself needs the physical holding.
+ */
+function stockProblem(inst: Installation, edit: RowEdit): string | null {
+	if (!inst.stock) {
+		return null;
+	}
+	const qty = Number(edit.quantity);
+	if (!Number.isFinite(qty)) {
+		return null;
+	}
+	const { held, reservedByOthers } = inst.stock;
+	if (qty > inst.quantity && qty > held - reservedByOthers) {
+		return `Worker holds ${held}${reservedByOthers > 0 ? ` (${reservedByOthers} on other pending lines/refunds)` : ""} — cannot raise to ${qty}`;
+	}
+	if (qty > held) {
+		return `Worker holds ${held} — deliver stock or lower the quantity`;
+	}
+	return null;
+}
+
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive installations review page: filters, inline row edits, and table column defs share local state; splitting would scatter tightly-coupled state
 export function InstallationsList({
 	organizationSlug,
@@ -846,21 +870,52 @@ export function InstallationsList({
 								</span>
 							}
 						>
-							<Input
-								type="number"
-								min={1}
-								className="h-8 w-16 font-mono"
-								value={getEdit(inst).quantity}
-								onChange={(e) =>
-									setEdits((prev) => ({
-										...prev,
-										[inst.id]: {
-											...getEdit(inst),
-											quantity: e.target.value,
-										},
-									}))
-								}
-							/>
+							<div className="space-y-0.5">
+								<Input
+									type="number"
+									min={1}
+									max={
+										inst.stock
+											? Math.max(
+													inst.quantity,
+													inst.stock.held -
+														inst.stock
+															.reservedByOthers,
+												)
+											: undefined
+									}
+									disabled={inst.isAddOn}
+									aria-invalid={
+										stockProblem(inst, getEdit(inst)) !==
+											null || undefined
+									}
+									className="h-8 w-16 font-mono"
+									value={getEdit(inst).quantity}
+									onChange={(e) =>
+										setEdits((prev) => ({
+											...prev,
+											[inst.id]: {
+												...getEdit(inst),
+												quantity: e.target.value,
+											},
+										}))
+									}
+								/>
+								{inst.stock && (
+									<p
+										className={
+											stockProblem(inst, getEdit(inst))
+												? "text-destructive text-xs"
+												: "text-muted-foreground text-xs"
+										}
+									>
+										has {inst.stock.held}
+										{inst.stock.reservedByOthers > 0
+											? ` · ${inst.stock.reservedByOthers} pending`
+											: ""}
+									</p>
+								)}
+							</div>
 						</PermissionGate>
 					);
 				},
@@ -994,6 +1049,10 @@ export function InstallationsList({
 							},
 							cell: ({ row }) => {
 								const inst = row.original;
+								const problem = stockProblem(
+									inst,
+									getEdit(inst),
+								);
 								return (
 									<PermissionGate
 										resource="installations"
@@ -1002,8 +1061,10 @@ export function InstallationsList({
 										<div className="flex justify-end gap-1.5">
 											<Button
 												size="sm"
+												title={problem ?? undefined}
 												disabled={
-													approveInstallations.isPending
+													approveInstallations.isPending ||
+													problem !== null
 												}
 												onClick={() =>
 													handleApprove(inst)

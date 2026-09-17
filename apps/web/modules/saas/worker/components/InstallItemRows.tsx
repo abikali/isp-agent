@@ -11,15 +11,37 @@ import { useMyStockQuery } from "../hooks/use-worker";
 import { type InstallLine, installLinesTotal } from "./install-lines";
 
 /**
- * Which item lines ask for more than the worker holds. The server refuses
- * these at submission; surfacing them here keeps the worker from hitting
- * that wall after filling the whole form.
+ * Per stock item: what the worker holds, what is already committed on his
+ * pending installs / refund requests, and what he can still use. Same rule
+ * the server's stock guard applies at submission.
+ */
+export function useMyAvailableStock() {
+	const { allocations, pendingInstallByItem, pendingRefundByItem } =
+		useMyStockQuery();
+	return new Map(
+		allocations.map((a) => {
+			const pending =
+				(pendingInstallByItem[a.stockItem.id] ?? 0) +
+				(pendingRefundByItem[a.stockItem.id] ?? 0);
+			return [
+				a.stockItem.id,
+				{
+					held: a.quantity,
+					pending,
+					available: Math.max(0, a.quantity - pending),
+				},
+			] as const;
+		}),
+	);
+}
+
+/**
+ * Which item lines ask for more than the worker can still use. The server
+ * refuses these at submission; surfacing them here keeps the worker from
+ * hitting that wall after filling the whole form.
  */
 export function useOverStockLines(lines: InstallLine[]): Set<number> {
-	const { allocations } = useMyStockQuery();
-	const held = new Map(
-		allocations.map((a) => [a.stockItem.id, a.quantity] as const),
-	);
+	const stock = useMyAvailableStock();
 	const needed = new Map<string, number>();
 	for (const line of lines) {
 		if (line.kind === "item" && line.stockItemId) {
@@ -35,7 +57,7 @@ export function useOverStockLines(lines: InstallLine[]): Set<number> {
 			line.kind === "item" &&
 			line.stockItemId &&
 			(needed.get(line.stockItemId) ?? 0) >
-				(held.get(line.stockItemId) ?? 0)
+				(stock.get(line.stockItemId)?.available ?? 0)
 		) {
 			over.add(line.key);
 		}
@@ -58,6 +80,7 @@ export function InstallItemRows({
 	allowAddons?: boolean;
 }) {
 	const { allocations } = useMyStockQuery();
+	const stock = useMyAvailableStock();
 	const addonDefaults = useAddonDefaultsQuery();
 	const overStock = useOverStockLines(lines);
 
@@ -138,7 +161,10 @@ export function InstallItemRows({
 							}}
 							options={allocations.map((alloc) => ({
 								value: alloc.stockItem.id,
-								label: `${alloc.stockItem.name} (have ${alloc.quantity})`,
+								label: stockLabel(
+									alloc.stockItem.name,
+									stock.get(alloc.stockItem.id),
+								),
 							}))}
 						/>
 					) : (
@@ -180,11 +206,10 @@ export function InstallItemRows({
 									inputMode="numeric"
 									min={1}
 									max={
-										allocations.find(
-											(a) =>
-												a.stockItem.id ===
-												line.stockItemId,
-										)?.quantity
+										line.stockItemId
+											? stock.get(line.stockItemId)
+													?.available
+											: undefined
 									}
 									value={line.quantity}
 									aria-invalid={
@@ -198,14 +223,11 @@ export function InstallItemRows({
 								/>
 								{overStock.has(line.key) && (
 									<p className="text-xs text-destructive">
-										You hold{" "}
-										{allocations.find(
-											(a) =>
-												a.stockItem.id ===
-												line.stockItemId,
-										)?.quantity ?? 0}{" "}
-										— lower the quantity or ask for a
-										delivery.
+										{overStockHint(
+											line.stockItemId
+												? stock.get(line.stockItemId)
+												: undefined,
+										)}
 									</p>
 								)}
 							</div>
@@ -278,4 +300,26 @@ export function InstallItemRows({
 			)}
 		</div>
 	);
+}
+
+function stockLabel(
+	name: string,
+	stock: { held: number; pending: number } | undefined,
+): string {
+	if (!stock) {
+		return name;
+	}
+	return stock.pending > 0
+		? `${name} (have ${stock.held} · ${stock.pending} pending)`
+		: `${name} (have ${stock.held})`;
+}
+
+function overStockHint(
+	stock: { held: number; pending: number; available: number } | undefined,
+): string {
+	const held = stock?.held ?? 0;
+	if (stock && stock.pending > 0) {
+		return `You hold ${held} (${stock.pending} already pending), so you can use ${stock.available} — lower the quantity or ask for a delivery.`;
+	}
+	return `You hold ${held} — lower the quantity or ask for a delivery.`;
 }

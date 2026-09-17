@@ -12,6 +12,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { installationCostAmount } from "../../billing/lib/cash-signs";
 import { classifyAddonNote } from "../lib/addons";
+import { assertStockAvailable, decrementWorkerStock } from "../lib/stock-guard";
 
 export const updatePendingInstallation = protectedProcedure
 	.route({
@@ -55,7 +56,14 @@ export const updatePendingInstallation = protectedProcedure
 				organizationId: input.organizationId,
 				employee: getDealerScopeFilter(activeDealerId),
 			},
-			select: { id: true, status: true, isAddOn: true },
+			select: {
+				id: true,
+				status: true,
+				isAddOn: true,
+				quantity: true,
+				stockItemId: true,
+				employeeId: true,
+			},
 		});
 		if (!installation) {
 			throw new ORPCError("NOT_FOUND", {
@@ -68,11 +76,50 @@ export const updatePendingInstallation = protectedProcedure
 			});
 		}
 
+		const quantityChanged =
+			input.quantity !== undefined &&
+			input.quantity !== installation.quantity;
+		if (quantityChanged) {
+			// Quantity decides how much stock the approval consumes, so it is an
+			// approver's call — the field role holds installations:update and
+			// could otherwise inflate or shrink any pending line via the API.
+			if (!hasPermission(permCtx, "installations", "approve")) {
+				throw new ORPCError("FORBIDDEN", {
+					message:
+						"Only installation approvers can change quantities",
+				});
+			}
+			if (installation.isAddOn) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Add-ons have no quantity",
+				});
+			}
+		}
+		// Only an increase can overdraw the worker; lowering always fits.
+		if (
+			input.quantity !== undefined &&
+			input.quantity > installation.quantity &&
+			installation.stockItemId
+		) {
+			await assertStockAvailable(db, {
+				employeeId: installation.employeeId,
+				lines: [
+					{
+						stockItemId: installation.stockItemId,
+						quantity: input.quantity,
+					},
+				],
+				reserve: true,
+				excludeInstallationIds: [installation.id],
+				audience: "admin",
+			});
+		}
+
 		const updateData: Record<string, unknown> = {};
 		if (input.price !== undefined) {
 			updateData["price"] = input.price;
 		}
-		if (input.quantity !== undefined) {
+		if (quantityChanged) {
 			updateData["quantity"] = input.quantity;
 		}
 		if (input.notes !== undefined && !installation.isAddOn) {
@@ -93,45 +140,9 @@ export const updatePendingInstallation = protectedProcedure
  * per-line cash entries).
  *
  * Stock rule: worker stock decrements HERE (at approval), never at create.
+ * The decrement is atomic (conditional update), so concurrent approvals of
+ * the same worker's lines cannot overdraw him.
  */
-/**
- * The worker-stock precondition for approving a physical installation line.
- * Returns the allocation to decrement, or null when the line consumes no stock
- * (add-on / no stock item). Throws CONFLICT when the worker holds too little.
- *
- * Exported so approval flows that do a remote write BEFORE their transaction
- * (setup-request approval creates the iRadius subscriber first) can pre-flight
- * it with `db` — otherwise the rollback leaves an orphan on the remote side.
- */
-export async function assertWorkerHoldsStock(
-	client: Prisma.TransactionClient,
-	installation: {
-		employeeId: string;
-		stockItemId: string | null;
-		isAddOn: boolean;
-		quantity: number;
-	},
-): Promise<{ id: string; quantity: number } | null> {
-	if (!installation.stockItemId || installation.isAddOn) {
-		return null;
-	}
-	const allocation = await client.workerStock.findUnique({
-		where: {
-			stockItemId_employeeId: {
-				stockItemId: installation.stockItemId,
-				employeeId: installation.employeeId,
-			},
-		},
-		select: { id: true, quantity: true },
-	});
-	if (!allocation || allocation.quantity < installation.quantity) {
-		throw new ORPCError("CONFLICT", {
-			message: `Worker lacks stock for this item (holds ${allocation?.quantity ?? 0}, needs ${installation.quantity}) — deliver stock first or edit the quantity`,
-		});
-	}
-	return allocation;
-}
-
 export async function approveInstallationInTx(
 	tx: Prisma.TransactionClient,
 	installation: {
@@ -150,12 +161,26 @@ export async function approveInstallationInTx(
 ): Promise<void> {
 	// Consume worker stock for physical items
 	let stockItemName: string | null = null;
-	const allocation = await assertWorkerHoldsStock(tx, installation);
-	if (installation.stockItemId && allocation) {
-		await tx.workerStock.update({
-			where: { id: allocation.id },
-			data: { quantity: { decrement: installation.quantity } },
+	if (installation.stockItemId && !installation.isAddOn) {
+		const moved = await decrementWorkerStock(tx, {
+			stockItemId: installation.stockItemId,
+			employeeId: installation.employeeId,
+			quantity: installation.quantity,
 		});
+		if (!moved) {
+			// Throws with the item / worker named; the fallback only fires if
+			// the holding changed between the two statements.
+			await assertStockAvailable(tx, {
+				employeeId: installation.employeeId,
+				lines: [installation],
+				reserve: false,
+				audience: "admin",
+			});
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Worker lacks stock for this item — deliver stock first or edit the quantity",
+			});
+		}
 		const stockItem = await tx.stockItem.findUniqueOrThrow({
 			where: { id: installation.stockItemId },
 			select: { name: true },
@@ -170,8 +195,8 @@ export async function approveInstallationInTx(
 				action: "REMOVE",
 				itemName: stockItem.name,
 				quantity: installation.quantity,
-				workerQtyBefore: allocation.quantity,
-				workerQtyAfter: allocation.quantity - installation.quantity,
+				workerQtyBefore: moved.before,
+				workerQtyAfter: moved.after,
 				notes: `Consumed by installation ${installation.id}`,
 			},
 		});

@@ -127,6 +127,7 @@ export function useMyStockQuery() {
 		allocations: query.data?.allocations ?? [],
 		totalValue: query.data?.totalValue ?? 0,
 		pendingRefundByItem: query.data?.pendingRefundByItem ?? {},
+		pendingInstallByItem: query.data?.pendingInstallByItem ?? {},
 		isLoading: query.isLoading,
 	};
 }

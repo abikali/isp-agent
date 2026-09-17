@@ -6,6 +6,10 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	assertStockAvailable,
+	decrementWorkerStock,
+} from "../../installations/lib/stock-guard";
 
 export const returnStockFromWorker = protectedProcedure
 	.route({
@@ -58,25 +62,27 @@ export const returnStockFromWorker = protectedProcedure
 				});
 			}
 
-			const allocation = await tx.workerStock.findUnique({
-				where: {
-					stockItemId_employeeId: {
-						stockItemId: stockItem.id,
-						employeeId: input.employeeId,
-					},
-				},
-				select: { id: true, quantity: true },
+			// Never take back units the worker has already committed to
+			// pending install lines or refund requests.
+			await assertStockAvailable(tx, {
+				employeeId: input.employeeId,
+				lines: [
+					{ stockItemId: stockItem.id, quantity: input.quantity },
+				],
+				reserve: true,
+				audience: "admin",
+				hint: "Review their pending installs and refunds first.",
 			});
-			if (!allocation || allocation.quantity < input.quantity) {
+			const moved = await decrementWorkerStock(tx, {
+				stockItemId: stockItem.id,
+				employeeId: input.employeeId,
+				quantity: input.quantity,
+			});
+			if (!moved) {
 				throw new ORPCError("CONFLICT", {
-					message: `Worker only holds ${allocation?.quantity ?? 0} — cannot return ${input.quantity}`,
+					message: `Worker no longer holds ${input.quantity} × ${stockItem.name}`,
 				});
 			}
-
-			await tx.workerStock.update({
-				where: { id: allocation.id },
-				data: { quantity: { decrement: input.quantity } },
-			});
 
 			const updated = await tx.stockItem.update({
 				where: { id: stockItem.id },
@@ -94,8 +100,8 @@ export const returnStockFromWorker = protectedProcedure
 					quantity: input.quantity,
 					adminQtyBefore: updated.quantity - input.quantity,
 					adminQtyAfter: updated.quantity,
-					workerQtyBefore: allocation.quantity,
-					workerQtyAfter: allocation.quantity - input.quantity,
+					workerQtyBefore: moved.before,
+					workerQtyAfter: moved.after,
 					notes: input.notes ?? null,
 				},
 			});

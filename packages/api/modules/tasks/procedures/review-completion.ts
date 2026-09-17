@@ -55,23 +55,47 @@ export const reviewTaskCompletion = protectedProcedure
 		}
 
 		const approved = input.action === "approve";
-		const updated = await db.task.update({
-			where: { id: task.id },
-			data: approved
-				? {
-						status: "COMPLETED",
-						completedAt: task.completedAt ?? new Date(),
-					}
-				: {
-						// Back to the worker's queue. Evidence fields stay for
-						// reference and are overwritten on resubmission —
-						// `completedByEmployeeId` surviving with a cleared
-						// `completedAt` on an OPEN task is what marks it as
-						// returned (see isReturned in the tasks UI).
-						status: "OPEN",
-						completedAt: null,
+		const updated = await db.$transaction(async (tx) => {
+			if (!approved) {
+				// The worker resubmits the evidence from scratch, which creates
+				// fresh installation / recovered-item rows. Deny the rejected
+				// submission's pending rows so they don't turn into duplicates
+				// (and don't keep reserving the worker's stock).
+				await tx.installation.updateMany({
+					where: { taskId: task.id, status: "PENDING" },
+					data: {
+						status: "DENIED",
+						approvedById: user.id,
+						approvedAt: new Date(),
 					},
-			select: { id: true, status: true, completedAt: true },
+				});
+				await tx.uninstalledItem.updateMany({
+					where: { taskId: task.id, status: "PENDING" },
+					data: {
+						status: "DENIED",
+						reviewedById: user.id,
+						reviewedAt: new Date(),
+					},
+				});
+			}
+			return tx.task.update({
+				where: { id: task.id },
+				data: approved
+					? {
+							status: "COMPLETED",
+							completedAt: task.completedAt ?? new Date(),
+						}
+					: {
+							// Back to the worker's queue. Evidence fields stay for
+							// reference and are overwritten on resubmission —
+							// `completedByEmployeeId` surviving with a cleared
+							// `completedAt` on an OPEN task is what marks it as
+							// returned (see isReturned in the tasks UI).
+							status: "OPEN",
+							completedAt: null,
+						},
+				select: { id: true, status: true, completedAt: true },
+			});
 		});
 
 		const auditContext = getAuditContextFromHeaders(headers);
