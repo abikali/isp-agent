@@ -580,6 +580,19 @@ export function useResendReceipt() {
 	});
 }
 
+export function useResendReceipts() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.resendReceipts.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+		},
+	});
+}
+
 // ─── Create Location Request (collector-facing) ───────────────
 
 export function useCreateBillingLocationRequest() {

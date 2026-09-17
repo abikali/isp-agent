@@ -11,6 +11,7 @@ import {
 	customerSearchFilter,
 } from "../lib/filters";
 import { applyCollectorScope } from "../lib/queries";
+import { receiptStatusWhere } from "../lib/receipt-status";
 import {
 	findUnreviewedAmountMismatchPaymentIds,
 	PAYMENT_EXPECTED_TOTAL_SQL,
@@ -117,22 +118,13 @@ export const listPayments = protectedProcedure
 		if (input.noteCategory) {
 			where["noteCategory"] = input.noteCategory;
 		}
-		if (input.receiptStatus === "sent") {
-			where["receiptSent"] = true;
-		} else if (input.receiptStatus === "failed") {
-			where["receiptSent"] = false;
-			where["stoppedAccount"] = false;
-			// Has at least one failed entry in activityLog
-			where["AND"] = [
-				...((where["AND"] as unknown[]) ?? []),
-				{
-					NOT: { activityLog: { equals: [] } },
-				},
-			];
-		} else if (input.receiptStatus === "pending") {
-			where["receiptSent"] = false;
-			where["stoppedAccount"] = false;
-			where["activityLog"] = { equals: [] };
+		if (input.receiptStatus) {
+			// Same definition as the Receipt badge (see receipt-status.ts).
+			const { AND, ...flags } = receiptStatusWhere(input.receiptStatus);
+			Object.assign(where, flags);
+			if (AND) {
+				where["AND"] = [...((where["AND"] as unknown[]) ?? []), ...AND];
+			}
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
@@ -212,6 +204,7 @@ export const listPayments = protectedProcedure
 					notes: true,
 					receiptSent: true,
 					activityLog: true,
+					externalBillingId: true,
 					reviewedAt: true,
 					paidAt: true,
 					// Frozen month total — what the row was expected to collect.

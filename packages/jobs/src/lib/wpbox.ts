@@ -22,11 +22,20 @@ function getWpboxTimeoutMs(): number {
 }
 
 /**
+ * 5xx and 429 are transient. 404 is too: during the 2026-09-04 WPBox outage
+ * the endpoint answered 404 for hours before recovering, and every receipt
+ * that hit it was dropped as a permanent failure.
+ */
+function isRetriableStatus(status: number): boolean {
+	return status >= 500 || status === 404 || status === 429;
+}
+
+/**
  * Discriminated result from a WPBox template send. Callers that only
  * need a yes/no signal should use the `sendWhatsApp*` convenience wrappers
  * below, which extract `.ok` for backward-compat boolean returns. The
  * `whatsapp-receipt` worker needs the full shape so it can distinguish
- * transient (5xx — retriable) from permanent (4xx — skip) failures and
+ * transient (5xx/404/429 — retriable) from permanent (other 4xx — skip) failures and
  * log the status code into the payment's activity log.
  */
 export type WPBoxSendResult =
@@ -101,16 +110,25 @@ export async function sendWPBoxTemplate(params: {
 			return { ok: true, phone, status: response.status };
 		}
 
+		// Keep what WPBox said — "API returned 404" alone couldn't tell an
+		// outage page from a rejected template when triaging Sep 4.
+		const body = await response
+			.text()
+			.then((text) => text.replace(/\s+/g, " ").trim().slice(0, 200))
+			.catch(() => "");
 		logger.warn(`${params.logTag} API returned non-OK`, {
 			status: response.status,
 			phone,
+			body,
 		});
 		return {
 			ok: false,
 			phone,
 			status: response.status,
-			error: `API returned ${response.status}`,
-			retriable: response.status >= 500,
+			error: body
+				? `API returned ${response.status}: ${body}`
+				: `API returned ${response.status}`,
+			retriable: isRetriableStatus(response.status),
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

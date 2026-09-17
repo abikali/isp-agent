@@ -3,10 +3,11 @@ import {
 	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db, getPrimaryPhone } from "@repo/database";
+import { db } from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { isReceiptCoolingDown, receiptPhone } from "../lib/receipt-status";
 
 export const resendReceipt = protectedProcedure
 	.route({
@@ -60,33 +61,14 @@ export const resendReceipt = protectedProcedure
 			});
 		}
 
-		// Rate limit: prevent resend within 60 seconds
-		const log = Array.isArray(payment.activityLog)
-			? (payment.activityLog as Array<Record<string, unknown>>)
-			: [];
-		const lastReceipt = [...log]
-			.reverse()
-			.find(
-				(e) =>
-					typeof e["action"] === "string" &&
-					e["action"].startsWith("whatsapp_receipt"),
-			);
-		if (lastReceipt && typeof lastReceipt["timestamp"] === "string") {
-			const elapsed =
-				Date.now() - new Date(lastReceipt["timestamp"]).getTime();
-			if (elapsed < 60_000) {
-				throw new ORPCError("TOO_MANY_REQUESTS", {
-					message:
-						"Please wait at least 60 seconds before resending a receipt",
-				});
-			}
+		if (isReceiptCoolingDown(payment.activityLog, new Date())) {
+			throw new ORPCError("TOO_MANY_REQUESTS", {
+				message:
+					"Please wait at least 60 seconds before resending a receipt",
+			});
 		}
 
-		const phone =
-			input.phone ??
-			getPrimaryPhone(payment.customer.phones) ??
-			payment.customer.mobile ??
-			payment.customer.phone;
+		const phone = input.phone ?? receiptPhone(payment.customer);
 
 		if (!phone) {
 			throw new ORPCError("BAD_REQUEST", {

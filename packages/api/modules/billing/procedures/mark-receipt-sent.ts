@@ -3,7 +3,7 @@ import {
 	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
-import { db, type Prisma } from "@repo/database";
+import { appendPaymentActivityLog, db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -35,7 +35,7 @@ export const markReceiptSent = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeViaCustomer(activeDealerId),
 			},
-			select: { id: true, receiptSent: true, activityLog: true },
+			select: { id: true, receiptSent: true },
 		});
 
 		if (!payment) {
@@ -48,25 +48,16 @@ export const markReceiptSent = protectedProcedure
 			return { success: true };
 		}
 
-		const log = Array.isArray(payment.activityLog)
-			? (payment.activityLog as Array<Record<string, unknown>>)
-			: [];
-		const now = new Date();
-		log.push({
-			action: "whatsapp_receipt_marked_sent",
-			status: "success",
-			timestamp: now.toISOString(),
-			detail: `Manually marked as sent by user ${user.id}`,
-		});
-
-		await db.payment.update({
-			where: { id: payment.id },
-			data: {
-				receiptSent: true,
-				receiptSentAt: now,
-				activityLog: log as Prisma.InputJsonValue,
+		await appendPaymentActivityLog(
+			[payment.id],
+			{
+				action: "whatsapp_receipt_marked_sent",
+				status: "success",
+				timestamp: new Date().toISOString(),
+				detail: `Manually marked as sent by user ${user.id}`,
 			},
-		});
+			{ markReceiptSent: true },
+		);
 
 		return { success: true };
 	});

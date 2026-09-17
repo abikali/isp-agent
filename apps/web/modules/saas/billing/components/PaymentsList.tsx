@@ -1,5 +1,12 @@
 "use client";
 
+import {
+	classifyReceiptResend,
+	getReceiptStatus,
+	lastReceiptEntry,
+	RECEIPT_RESEND_SKIP_LABELS,
+	type ReceiptResendSkipReason,
+} from "@repo/api/modules/billing/lib/receipt-status";
 import { parsePhones } from "@repo/database/phones";
 import { useActiveOrganization } from "@saas/organizations/client";
 import {
@@ -122,6 +129,7 @@ import {
 	usePaymentStatsQuery,
 	usePaymentsQuery,
 	useResendReceipt,
+	useResendReceipts,
 	useReviewPayment,
 	useReviewPayments,
 } from "../hooks/use-billing";
@@ -270,6 +278,7 @@ interface PaymentRow {
 	notes: string | null;
 	receiptSent: boolean;
 	activityLog: unknown;
+	externalBillingId: number | null;
 	reviewedAt: string | Date | null;
 	referredCustomer: {
 		id: string;
@@ -601,10 +610,11 @@ function ActivityLogDialog({
 // ─── Receipt Badge ──────────────────────────────────────────────
 
 function getReceiptBadge(payment: PaymentRow) {
-	if (payment.stoppedAccount) {
-		return null;
+	const status = getReceiptStatus(payment);
+	if (status === null) {
+		return <span className="text-muted-foreground">{"\u2014"}</span>;
 	}
-	if (payment.receiptSent) {
+	if (status === "sent") {
 		return (
 			<Badge
 				variant="default"
@@ -614,17 +624,7 @@ function getReceiptBadge(payment: PaymentRow) {
 			</Badge>
 		);
 	}
-	const log = Array.isArray(payment.activityLog)
-		? (payment.activityLog as ActivityLogEntry[])
-		: [];
-	const lastReceipt = [...log]
-		.reverse()
-		.find(
-			(e) =>
-				typeof e.action === "string" &&
-				e.action.startsWith("whatsapp_receipt"),
-		);
-	if (lastReceipt?.status === "failed") {
+	if (status === "failed") {
 		return (
 			<Badge variant="destructive" className="text-[10px]">
 				Failed
@@ -636,6 +636,38 @@ function getReceiptBadge(payment: PaymentRow) {
 			Pending
 		</Badge>
 	);
+}
+
+/**
+ * "Last error → count" for the bulk resend confirm, so the operator sees
+ * whether the failures were an outage (5xx/404/timeouts) or bad numbers.
+ */
+function summarizeLastReceiptErrors(
+	payments: PaymentRow[],
+): Array<{ error: string; count: number }> {
+	const counts = new Map<string, number>();
+	for (const payment of payments) {
+		const error = lastReceiptEntry(payment.activityLog)?.error;
+		const key =
+			typeof error === "string" && error
+				? error
+				: "No send attempt recorded";
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	return [...counts.entries()]
+		.map(([error, count]) => ({ error, count }))
+		.sort((x, y) => y.count - x.count);
+}
+
+function formatSkipped(
+	skipped: Partial<Record<ReceiptResendSkipReason, number>>,
+): string {
+	return Object.entries(skipped)
+		.map(
+			([reason, n]) =>
+				`${n} ${RECEIPT_RESEND_SKIP_LABELS[reason as ReceiptResendSkipReason]}`,
+		)
+		.join(", ");
 }
 
 // oRPC surfaces the server's custom error code on the thrown error. This
@@ -690,8 +722,14 @@ export function PaymentsList() {
 		ActivityLogEntry[] | null
 	>(null);
 
-	// Reset page when filters change
-	const resetPage = () => setPage(1);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+	// Reset page — and the selection, so rows picked under one filter can't
+	// carry into another filter's bulk actions — when filters change
+	const resetPage = () => {
+		setPage(1);
+		setRowSelection({});
+	};
 	const handleTypeChange = (t: PaymentTypeFilter) => {
 		setTypeFilter(t);
 		resetPage();
@@ -790,7 +828,6 @@ export function PaymentsList() {
 			| "set-expiry";
 		customer: IradiusCustomerRef;
 	} | null>(null);
-	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 	// Opened when "Approve & Deactivate" fails because the customer was
 	// already deleted in iRadius. Carries the row so we can name the customer
 	// and retry the review with `force` (local-only deactivation).
@@ -813,6 +850,68 @@ export function PaymentsList() {
 		return Array.from(ids);
 	}, [rowSelection, payments]);
 	const selectedCount = selectedCustomerIds.length;
+
+	// The receipt filters get a receipt-only bulk bar: per-payment count and
+	// "Resend receipts" instead of the customer-level actions.
+	const isReceiptFilter =
+		typeFilter === "receipt_failed" || typeFilter === "receipt_pending";
+	const selectedPayments = useMemo(() => {
+		const selectedPaymentIds = new Set(Object.keys(rowSelection));
+		return payments.filter((p) => selectedPaymentIds.has(p.id));
+	}, [rowSelection, payments]);
+	// Same rules the server applies; rows it would skip are left out of the
+	// button count and summarised in the confirm instead.
+	const resendSelection = useMemo(() => {
+		const now = new Date();
+		const resendable: PaymentRow[] = [];
+		const skipped: Partial<Record<ReceiptResendSkipReason, number>> = {};
+		for (const payment of selectedPayments) {
+			const decision = classifyReceiptResend(payment, now);
+			if (decision.action === "queue") {
+				resendable.push(payment);
+			} else {
+				skipped[decision.reason] = (skipped[decision.reason] ?? 0) + 1;
+			}
+		}
+		return {
+			resendable,
+			skipped,
+			errors: summarizeLastReceiptErrors(resendable),
+		};
+	}, [selectedPayments]);
+	const resendReceipts = useResendReceipts();
+
+	function handleBulkResend() {
+		const paymentIds = resendSelection.resendable.map((p) => p.id);
+		if (!organizationId || paymentIds.length === 0) {
+			return;
+		}
+		resendReceipts.mutate(
+			{ organizationId, paymentIds },
+			{
+				onSuccess: (result) => {
+					const parts = [
+						`Queued ${result.queued} receipt${result.queued === 1 ? "" : "s"}`,
+					];
+					const skippedText = formatSkipped(result.skipped);
+					if (skippedText) {
+						parts.push(`skipped ${skippedText}`);
+					}
+					if (result.failed > 0) {
+						parts.push(`${result.failed} failed to queue`);
+					}
+					const summary = parts.join(" · ");
+					if (result.failed > 0 || result.queued === 0) {
+						toast.warning(summary);
+					} else {
+						toast.success(summary);
+					}
+					setRowSelection({});
+				},
+				onError: (error) => toast.error(error.message),
+			},
+		);
+	}
 
 	// Bulk "Mark reviewed" operates per-payment (a customer can own several
 	// flagged payments), so it keys off the selected payment ids — distinct
@@ -1838,15 +1937,117 @@ export function PaymentsList() {
 					</div>
 				</div>
 
-				{organizationId && selectedCount > 0 && (
+				{organizationId &&
+					isReceiptFilter &&
+					selectedPayments.length > 0 && (
+						<CustomerBulkActionsBar
+							count={selectedPayments.length}
+							customerIds={selectedCustomerIds}
+							organizationId={organizationId}
+							collectors={collectors}
+							onCleared={() => setRowSelection({})}
+							rowLabelSingular="payment selected"
+							rowLabelPlural="payments selected"
+							customerActions={false}
+							extraActions={
+								resendSelection.resendable.length > 0 ? (
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={
+													resendReceipts.isPending
+												}
+											>
+												{resendReceipts.isPending ? (
+													<Loader2Icon className="mr-2 size-4 animate-spin" />
+												) : (
+													<SendIcon className="mr-2 size-4" />
+												)}
+												Resend receipts (
+												{
+													resendSelection.resendable
+														.length
+												}
+												)
+											</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>
+													Resend{" "}
+													{
+														resendSelection
+															.resendable.length
+													}{" "}
+													receipt
+													{resendSelection.resendable
+														.length === 1
+														? ""
+														: "s"}
+													?
+												</AlertDialogTitle>
+												<AlertDialogDescription>
+													Each payment gets its own
+													WhatsApp receipt on the
+													customer's primary number,
+													sent about a second apart.
+													{Object.keys(
+														resendSelection.skipped,
+													).length > 0 &&
+														` Skipped: ${formatSkipped(resendSelection.skipped)}.`}
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<div className="space-y-1 rounded-md border bg-muted/40 p-3 text-xs">
+												<p className="font-medium text-foreground">
+													Last result
+												</p>
+												{resendSelection.errors
+													.slice(0, 5)
+													.map((e) => (
+														<div
+															key={e.error}
+															className="flex gap-2 text-muted-foreground"
+														>
+															<span className="tabular-nums font-medium text-foreground">
+																{e.count}×
+															</span>
+															<span className="break-words">
+																{e.error}
+															</span>
+														</div>
+													))}
+											</div>
+											<AlertDialogFooter>
+												<AlertDialogCancel>
+													Cancel
+												</AlertDialogCancel>
+												<AlertDialogAction
+													disabled={
+														resendReceipts.isPending
+													}
+													onClick={handleBulkResend}
+												>
+													{resendReceipts.isPending
+														? "Working…"
+														: "Resend receipts"}
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								) : undefined
+							}
+						/>
+					)}
+
+				{organizationId && !isReceiptFilter && selectedCount > 0 && (
 					<CustomerBulkActionsBar
 						count={selectedCount}
 						customerIds={selectedCustomerIds}
 						organizationId={organizationId}
 						collectors={collectors}
 						onCleared={() => setRowSelection({})}
-						rowLabelSingular="payment selected"
-						rowLabelPlural="payments selected"
 						extraActions={
 							reviewablePaymentIds.length > 0 ? (
 								<AlertDialog>

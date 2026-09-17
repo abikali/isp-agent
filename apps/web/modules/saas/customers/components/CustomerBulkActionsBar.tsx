@@ -65,6 +65,10 @@ interface CustomerBulkActionsBarProps {
 	// Extra context-specific actions rendered before the Clear button
 	// (e.g. "Void unpaid" on the Unpaid Customers page).
 	extraActions?: ReactNode;
+	// false hides every customer-level action (Activate / Deactivate / More)
+	// so the bar only carries `extraActions` — e.g. the payments table's
+	// receipt filters, where the selection is about receipts, not customers.
+	customerActions?: boolean;
 }
 
 /**
@@ -102,6 +106,7 @@ export function CustomerBulkActionsBar({
 	rowLabelSingular = "customer selected",
 	rowLabelPlural = "customers selected",
 	extraActions,
+	customerActions = true,
 }: CustomerBulkActionsBarProps) {
 	const bulkSetStatus = useBulkSetCustomerStatus();
 	const [confirmBulkStatus, setConfirmBulkStatus] = useState<
@@ -160,108 +165,123 @@ export function CustomerBulkActionsBar({
 					</span>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={bulkSetStatus.isPending}
-						onClick={() => setConfirmBulkStatus("ACTIVE")}
-					>
-						<UserCheckIcon className="mr-2 size-4" />
-						Activate
-					</Button>
-					<Button
-						size="sm"
-						variant="outline"
-						disabled={bulkSetStatus.isPending}
-						onClick={() => setConfirmBulkStatus("INACTIVE")}
-						className="text-destructive hover:text-destructive"
-					>
-						<UserXIcon className="mr-2 size-4" />
-						Deactivate
-					</Button>
-					{(onSyncFromIRadius || onRequestLocation) && (
-						<Separator
-							orientation="vertical"
-							className="h-6 bg-primary/20"
-						/>
-					)}
-					{onSyncFromIRadius && (
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={syncFromIRadiusDisabled}
-							onClick={onSyncFromIRadius}
-						>
-							<RefreshCwIcon className="mr-2 size-4" />
-							Sync from iRadius
-						</Button>
-					)}
-					{onRequestLocation && (
-						<Button
-							size="sm"
-							variant="outline"
-							disabled={requestLocationDisabled}
-							onClick={onRequestLocation}
-						>
-							<MapPinIcon className="mr-2 size-4" />
-							Request location
-						</Button>
-					)}
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="sm" variant="outline">
-								<MoreHorizontalIcon className="mr-2 size-4" />
-								More
+					{customerActions && (
+						<>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={bulkSetStatus.isPending}
+								onClick={() => setConfirmBulkStatus("ACTIVE")}
+							>
+								<UserCheckIcon className="mr-2 size-4" />
+								Activate
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="w-56">
-							<DropdownMenuLabel className="text-xs text-muted-foreground">
-								iRadius
-							</DropdownMenuLabel>
-							<DropdownMenuItem
-								onClick={() => setBulkDialog("push")}
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={bulkSetStatus.isPending}
+								onClick={() => setConfirmBulkStatus("INACTIVE")}
+								className="text-destructive hover:text-destructive"
 							>
-								<CloudUploadIcon className="mr-2 size-4" />
-								Push to iRadius
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								onClick={() => setBulkDialog("reset-mac")}
-							>
-								<WifiOffIcon className="mr-2 size-4" />
-								Reset MAC address
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								onClick={() => setBulkDialog("set-discount")}
-							>
-								<PercentIcon className="mr-2 size-4" />
-								Set recurring discount
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								onClick={() => setBulkDialog("set-iptv-price")}
-							>
-								<MonitorIcon className="mr-2 size-4" />
-								Set IPTV price
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								onClick={() => setBulkDialog("set-expiry")}
-							>
-								<CalendarClockIcon className="mr-2 size-4" />
-								Set billing expiry date
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuLabel className="text-xs text-muted-foreground">
-								Assignment
-							</DropdownMenuLabel>
-							<DropdownMenuItem
-								onClick={() =>
-									setBulkDialog("change-collector")
-								}
-							>
-								<UserCogIcon className="mr-2 size-4" />
-								Change collector
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+								<UserXIcon className="mr-2 size-4" />
+								Deactivate
+							</Button>
+							{(onSyncFromIRadius || onRequestLocation) && (
+								<Separator
+									orientation="vertical"
+									className="h-6 bg-primary/20"
+								/>
+							)}
+							{onSyncFromIRadius && (
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={syncFromIRadiusDisabled}
+									onClick={onSyncFromIRadius}
+								>
+									<RefreshCwIcon className="mr-2 size-4" />
+									Sync from iRadius
+								</Button>
+							)}
+							{onRequestLocation && (
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={requestLocationDisabled}
+									onClick={onRequestLocation}
+								>
+									<MapPinIcon className="mr-2 size-4" />
+									Request location
+								</Button>
+							)}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button size="sm" variant="outline">
+										<MoreHorizontalIcon className="mr-2 size-4" />
+										More
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									align="end"
+									className="w-56"
+								>
+									<DropdownMenuLabel className="text-xs text-muted-foreground">
+										iRadius
+									</DropdownMenuLabel>
+									<DropdownMenuItem
+										onClick={() => setBulkDialog("push")}
+									>
+										<CloudUploadIcon className="mr-2 size-4" />
+										Push to iRadius
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setBulkDialog("reset-mac")
+										}
+									>
+										<WifiOffIcon className="mr-2 size-4" />
+										Reset MAC address
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setBulkDialog("set-discount")
+										}
+									>
+										<PercentIcon className="mr-2 size-4" />
+										Set recurring discount
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setBulkDialog("set-iptv-price")
+										}
+									>
+										<MonitorIcon className="mr-2 size-4" />
+										Set IPTV price
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setBulkDialog("set-expiry")
+										}
+									>
+										<CalendarClockIcon className="mr-2 size-4" />
+										Set billing expiry date
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuLabel className="text-xs text-muted-foreground">
+										Assignment
+									</DropdownMenuLabel>
+									<DropdownMenuItem
+										onClick={() =>
+											setBulkDialog("change-collector")
+										}
+									>
+										<UserCogIcon className="mr-2 size-4" />
+										Change collector
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
 					{extraActions}
 					<Separator
 						orientation="vertical"

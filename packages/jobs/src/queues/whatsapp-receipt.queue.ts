@@ -4,6 +4,15 @@ import type { WhatsAppReceiptJobData } from "../types";
 
 export const WHATSAPP_RECEIPT_QUEUE_NAME = "whatsapp-receipt";
 
+/**
+ * Retry budget for a receipt send. WPBox outages last hours (2026-09-04:
+ * 08:42–13:02 UTC of 503s then 404s), and the old 3 attempts from 2s gave up
+ * within seconds. 8 attempts with exponential backoff from 30s spread the
+ * retries over ~64 minutes (30s, 1m, 2m, 4m, 8m, 16m, 32m); anything still
+ * failing lands in the Receipt Failed filter for a bulk resend.
+ */
+export const WHATSAPP_RECEIPT_MAX_ATTEMPTS = 8;
+
 let queue: Queue<WhatsAppReceiptJobData> | null = null;
 
 export function getWhatsAppReceiptQueue(): Queue<WhatsAppReceiptJobData> {
@@ -11,10 +20,10 @@ export function getWhatsAppReceiptQueue(): Queue<WhatsAppReceiptJobData> {
 		queue = new Queue<WhatsAppReceiptJobData>(WHATSAPP_RECEIPT_QUEUE_NAME, {
 			connection: getRedisConnection(),
 			defaultJobOptions: {
-				attempts: 3,
+				attempts: WHATSAPP_RECEIPT_MAX_ATTEMPTS,
 				backoff: {
 					type: "exponential",
-					delay: 2000,
+					delay: 30_000,
 				},
 				removeOnComplete: {
 					age: 24 * 60 * 60,
