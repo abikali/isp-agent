@@ -211,6 +211,13 @@ export const recordDealerPayment = protectedProcedure
 						}),
 					]
 				: []),
+			// Refresh the local prepaid credit from the live iRadius value so
+			// the page and the confirmation agree until the next sync.
+			db.ispDealer.update({
+				where: { id: dealer.id },
+				data: { credit: remote.credit },
+				select: { id: true },
+			}),
 		]);
 
 		dealerAudit.paymentRecorded(
@@ -280,7 +287,7 @@ export const recordDealerPayment = protectedProcedure
 				amount: input.amount,
 				operationDate,
 				owed: remote.owed,
-				prepaid: dealer.credit,
+				prepaid: remote.credit,
 				note: trimmedNote,
 			}),
 		});
