@@ -8,6 +8,7 @@ const { mockRedis, mockDb, mockSendTextMessage, mockGenerateAgentResponse } =
 		const mockRedis = {
 			set: vi.fn(),
 			get: vi.fn(),
+			mget: vi.fn(),
 			del: vi.fn(),
 			rpush: vi.fn(),
 			expire: vi.fn(),
@@ -295,6 +296,9 @@ beforeEach(() => {
 	mockRedis.del.mockResolvedValue(1);
 	mockRedis.eval.mockResolvedValue(1);
 	mockRedis.get.mockResolvedValue(null);
+	mockRedis.mget.mockImplementation((...keys: string[]) =>
+		Promise.resolve(keys.map(() => null)),
+	);
 	mockRedis.expire.mockResolvedValue(1);
 });
 
@@ -698,6 +702,81 @@ describe("Human Takeover - Customer Answering A Teammate", () => {
 
 		expect(mockShouldDeferToTeammate).not.toHaveBeenCalled();
 		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+	});
+});
+
+describe("Human Takeover - Contact Cards And Location Pins From Phone", () => {
+	const CONTACT_MSG = {
+		chatId: "96176538947@s.whatsapp.net",
+		messageId: "3EB0CARD123456",
+		text: "[Contact] Walid technician — +961 70 123 456",
+		mediaType: "contact",
+		contacts: [{ name: "Walid technician", numbers: ["+961 70 123 456"] }],
+		fromMe: true,
+	};
+
+	it("stores a phone-sent contact card as a contact attachment", async () => {
+		mockParseWebhookPayload.mockReturnValue([CONTACT_MSG]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+		mockDb.aiMessage.findFirst.mockResolvedValue(null);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				role: "admin",
+				content: CONTACT_MSG.text,
+				attachmentType: "contact",
+				attachmentMeta: { contacts: CONTACT_MSG.contacts },
+			}),
+		});
+	});
+
+	it("stores a phone-sent location pin with its coordinates", async () => {
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "96176538947@s.whatsapp.net",
+				messageId: "3EB0PIN123456",
+				text: "[Location: 33.8938, 35.5018]",
+				mediaType: "location",
+				latitude: 33.8938,
+				longitude: 35.5018,
+				fromMe: true,
+			},
+		]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+		mockDb.aiMessage.findFirst.mockResolvedValue(null);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				role: "admin",
+				attachmentType: "location",
+				attachmentMeta: { lat: 33.8938, lng: 35.5018 },
+			}),
+		});
+	});
+
+	it("skips the echo of a contact card the dashboard just sent", async () => {
+		// Dashboard sent "96170123456"; WaSender's vCard echoes it formatted.
+		mockRedis.mget.mockImplementation((...keys: string[]) =>
+			Promise.resolve(
+				keys.map((k) =>
+					k === "ai:bot-card:contact:70123456" ? "1" : null,
+				),
+			),
+		);
+		mockParseWebhookPayload.mockReturnValue([CONTACT_MSG]);
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).not.toHaveBeenCalled();
+		expect(mockDb.aiConversation.update).not.toHaveBeenCalled();
 	});
 });
 

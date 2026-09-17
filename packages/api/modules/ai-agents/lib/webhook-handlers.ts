@@ -44,6 +44,8 @@ import { uploadBuffer } from "@repo/storage";
 import {
 	computeBotFingerprint,
 	isHumanTakeoverActive,
+	isSentCardEcho,
+	sentCardKeys,
 	trackBotMessage,
 } from "./bot-fingerprint";
 import { resolveVerifiedCustomerId } from "./resolve-verified-customer";
@@ -219,6 +221,24 @@ async function handleMessages(
 					}
 				}
 
+				// Contact cards / location pins sent from the dashboard echo
+				// back with text rebuilt from the card, so match those on the
+				// card itself.
+				if (
+					(msg.mediaType === "contact" ||
+						msg.mediaType === "location") &&
+					(await isSentCardEcho(
+						getRedisConnection(),
+						sentCardKeys({
+							numbers: msg.contacts?.flatMap((c) => c.numbers),
+							latitude: msg.latitude,
+							longitude: msg.longitude,
+						}),
+					))
+				) {
+					continue;
+				}
+
 				// No text (voice/image/sticker from phone) or text not matching
 				// any bot fingerprint → this is a human-sent message.
 				// The bot only ever sends text via sendTextMessage(), so any
@@ -289,6 +309,14 @@ async function handleMessages(
 									lat: msg.latitude,
 									lng: msg.longitude,
 								},
+							};
+						} else if (
+							msg.mediaType === "contact" &&
+							msg.contacts?.length
+						) {
+							attachmentData = {
+								attachmentType: "contact",
+								attachmentMeta: { contacts: msg.contacts },
 							};
 						} else if (msg.mediaId && msg.mediaType) {
 							try {

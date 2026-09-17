@@ -566,6 +566,10 @@ function describeAdminMedia(attachmentType: string): string {
 			return "video sent by the human team";
 		case "document":
 			return "document sent by the human team";
+		case "contact":
+			return "shared a contact card";
+		case "location":
+			return "shared a location pin";
 		default:
 			return `${attachmentType} sent by the human team`;
 	}
@@ -610,11 +614,17 @@ function rowToModelMessages(row: DbMessageRow, index: number): ModelMessage[] {
 				];
 			}
 			// Transcribed voice note / described image: give the model what
-			// the teammate actually said, marked as theirs.
+			// the teammate actually said, marked as theirs. Contact cards and
+			// location pins carry their data verbatim — nothing was transcribed.
+			const transcribed =
+				row.attachmentType === "contact" ||
+				row.attachmentType === "location"
+					? ""
+					: ", transcribed";
 			return [
 				{
 					role: "assistant",
-					content: `[Human teammate reply — ${mediaLabel}, transcribed]\n${row.content}`,
+					content: `[Human teammate reply — ${mediaLabel}${transcribed}]\n${row.content}`,
 				},
 			];
 		}

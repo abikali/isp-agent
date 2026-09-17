@@ -219,6 +219,33 @@ describe("dbMessagesToModelMessages", () => {
 		]);
 	});
 
+	it("labels a teammate's contact card and location pin without calling them transcribed", () => {
+		const out = dbMessagesToModelMessages([
+			{
+				role: "admin",
+				content: "[Contact] Walid technician — +961 70 123 456",
+				attachmentType: "contact",
+			},
+			{
+				role: "admin",
+				content: "[Location: 33.8938, 35.5018]",
+				attachmentType: "location",
+			},
+		]);
+		expect(out).toEqual([
+			{
+				role: "assistant",
+				content:
+					"[Human teammate reply — shared a contact card]\n[Contact] Walid technician — +961 70 123 456",
+			},
+			{
+				role: "assistant",
+				content:
+					"[Human teammate reply — shared a location pin]\n[Location: 33.8938, 35.5018]",
+			},
+		]);
+	});
+
 	it("keeps the not-visible marker for admin media that was never transcribed", () => {
 		for (const content of ["Voice note", "[Voice message received]", ""]) {
 			const out = dbMessagesToModelMessages([

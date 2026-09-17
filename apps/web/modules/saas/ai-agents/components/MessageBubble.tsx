@@ -46,6 +46,23 @@ function partsToToolCalls(
 	return out;
 }
 
+/**
+ * Contact cards and location pins store a text copy of the card in `content`
+ * ("[Contact] Name — number", "[Location: lat, lng]") for the model. The card
+ * already shows it, so the copy under it is a duplicate.
+ */
+function isCardText(attachmentType: string, content: string): boolean {
+	if (attachmentType === "contact") {
+		return content
+			.split("\n")
+			.every((line) => line.startsWith("[Contact]"));
+	}
+	if (attachmentType === "location") {
+		return /^\[Location: [^\]]*\]$/.test(content.trim());
+	}
+	return false;
+}
+
 interface MessageBubbleProps {
 	id: string;
 	role: string;
@@ -243,6 +260,11 @@ export function MessageBubble({
 
 					{/* Content */}
 					{content &&
+						!(
+							attachmentType &&
+							attachmentMeta &&
+							isCardText(attachmentType, content)
+						) &&
 						(attachmentType === "voice" ? (
 							content !== "[Voice message received]" && (
 								<div className="mt-1.5 border-l-2 border-primary/30 pl-2">

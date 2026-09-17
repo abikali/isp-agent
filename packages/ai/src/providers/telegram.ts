@@ -6,6 +6,7 @@ import type {
 	SendMediaOptions,
 	SendMessageResult,
 } from "../types";
+import { formatSharedContacts } from "./whatsapp";
 
 export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 	const update = body as Update;
@@ -147,6 +148,23 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 		];
 	}
 
+	// Contact card
+	if (msg.contact) {
+		const name =
+			[msg.contact.first_name, msg.contact.last_name]
+				.filter(Boolean)
+				.join(" ") || "Contact";
+		const contacts = [{ name, numbers: [msg.contact.phone_number] }];
+		return [
+			{
+				...base,
+				text: formatSharedContacts(contacts),
+				mediaType: "contact",
+				contacts,
+			},
+		];
+	}
+
 	// Fallback — if there's a caption but no recognized media type
 	if (msg.caption) {
 		return [{ ...base, text: msg.caption }];
@@ -207,7 +225,8 @@ export async function sendTypingIndicator(
 }
 
 /**
- * Send a media message (image, video, audio, document, sticker, location) via Telegram Bot API.
+ * Send a media message (image, video, audio, document, sticker, location,
+ * contact card) via Telegram Bot API.
  */
 export async function sendMediaMessage(
 	apiToken: string,
@@ -271,6 +290,18 @@ export async function sendMediaMessage(
 				const res = await api.sendSticker(
 					numericChatId,
 					options.mediaUrl ?? "",
+				);
+				messageId = String(res.message_id);
+				break;
+			}
+			case "contact": {
+				if (!options.contact) {
+					return { success: false };
+				}
+				const res = await api.sendContact(
+					numericChatId,
+					options.contact.phone,
+					options.contact.name,
 				);
 				messageId = String(res.message_id);
 				break;
