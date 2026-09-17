@@ -2,6 +2,7 @@ import { db } from "@repo/database";
 import { z } from "zod";
 import { verifyOrganizationMembership } from "../../lib/membership";
 import { protectedProcedure, publicProcedure } from "../../orpc/procedures";
+import { customerSearchWhere } from "../customers/lib/customer-search";
 
 /**
  * Cross-cutting procedures used by the command palette and other shared UI.
@@ -76,9 +77,15 @@ const find = protectedProcedure
 		const slug = input.organizationSlug ?? input.organizationId;
 		const orgPath = `/app/${slug}`;
 
+		// Name / username / account / any phone — resolved up front because a
+		// phone-shaped query needs a digits-only lookup first.
+		const customerSearch = types.has("customer")
+			? await customerSearchWhere(input.organizationId, q)
+			: null;
+
 		const [customers, employees, tasks, conversations, broadcasts] =
 			await Promise.all([
-				types.has("customer")
+				customerSearch
 					? db.customer.findMany({
 							where: {
 								organizationId: input.organizationId,
@@ -86,44 +93,9 @@ const find = protectedProcedure
 								// they're back-references only.
 								deletedAt: null,
 								OR: [
-									{
-										firstName: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										lastName: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										username: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
+									customerSearch,
 									{
 										email: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										phone: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										mobile: {
-											contains: q,
-											mode: "insensitive",
-										},
-									},
-									{
-										accountNumber: {
 											contains: q,
 											mode: "insensitive",
 										},

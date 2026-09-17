@@ -9,12 +9,12 @@ import { logger } from "@repo/logs";
 import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerSearchWhere } from "../../customers/lib/customer-search";
 import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import {
 	APPROVED_STOPPED_PAYMENT,
 	assignmentFilterValue,
-	customerSearchFilter,
 	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
 import { unvoidInvoice } from "../lib/invoice-void";
@@ -74,8 +74,10 @@ export const listStoppedAccounts = protectedProcedure
 		const customerWhere: Record<string, unknown> = {
 			...getDealerScopeFilter(activeDealerId),
 		};
-		if (input.search) {
-			Object.assign(customerWhere, customerSearchFilter(input.search));
+		if (input.search?.trim()) {
+			customerWhere["AND"] = [
+				await customerSearchWhere(input.organizationId, input.search),
+			];
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = assignmentFilterValue(input.groupName);
@@ -261,8 +263,10 @@ export const listPendingStoppedPayments = protectedProcedure
 		const customerWhere: Record<string, unknown> = {
 			...getDealerScopeFilter(activeDealerId),
 		};
-		if (input.search) {
-			Object.assign(customerWhere, customerSearchFilter(input.search));
+		if (input.search?.trim()) {
+			customerWhere["AND"] = [
+				await customerSearchWhere(input.organizationId, input.search),
+			];
 		}
 		if (input.groupName) {
 			customerWhere["groupName"] = assignmentFilterValue(input.groupName);

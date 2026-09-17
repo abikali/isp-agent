@@ -297,6 +297,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`customer-${r.id}-${r.label}`}
+								// Server results already matched (phone, username, …);
+								// keep cmdk's label filter from hiding it.
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<UsersIcon className="size-4" />
@@ -316,6 +319,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`employee-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<HardHatIcon className="size-4" />
@@ -335,6 +339,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`task-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<AlertTriangleIcon className="size-4" />
@@ -354,6 +359,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`conv-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<MessageSquareIcon className="size-4" />
@@ -373,6 +379,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 							<CommandItem
 								key={r.id}
 								value={`bcast-${r.id}-${r.label}`}
+								keywords={[trimmedQuery]}
 								onSelect={() => go(r.link)}
 							>
 								<MegaphoneIcon className="size-4" />

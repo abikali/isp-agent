@@ -1120,7 +1120,7 @@ export function InstallationsList({
 						</span>
 					)}
 					<SearchInput
-						placeholder="Search customer, item, station, base, notes…"
+						placeholder="Search customer, phone, item, station, base, notes…"
 						hint="Searches customer name, username, stock item, station, base and notes"
 						value={search}
 						onChange={(v) => {

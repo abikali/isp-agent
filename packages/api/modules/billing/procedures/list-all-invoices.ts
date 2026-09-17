@@ -5,6 +5,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { customerSearchWhere } from "../../customers/lib/customer-search";
 import { assignmentFilterValue } from "../lib/filters";
 import {
 	coverageKey,
@@ -84,38 +85,9 @@ export const listAllInvoices = protectedProcedure
 				input.groupName,
 			);
 		}
-		if (input.search) {
-			customerFilter["OR"] = [
-				{
-					firstName: {
-						contains: input.search,
-						mode: "insensitive" as const,
-					},
-				},
-				{
-					lastName: {
-						contains: input.search,
-						mode: "insensitive" as const,
-					},
-				},
-				{
-					username: {
-						contains: input.search,
-						mode: "insensitive" as const,
-					},
-				},
-				{
-					mobile: {
-						contains: input.search,
-						mode: "insensitive" as const,
-					},
-				},
-				{
-					accountNumber: {
-						contains: input.search,
-						mode: "insensitive" as const,
-					},
-				},
+		if (input.search?.trim()) {
+			customerFilter["AND"] = [
+				await customerSearchWhere(input.organizationId, input.search),
 			];
 		}
 		if (Object.keys(customerFilter).length > 0) {

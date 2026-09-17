@@ -453,7 +453,7 @@ export function InvoicesList() {
 					<SearchInput
 						value={search}
 						onChange={setSearch}
-						placeholder="Search customers..."
+						placeholder="Name, username, account or phone…"
 						className="sm:max-w-xs"
 					/>
 					<BillingCycleSelect

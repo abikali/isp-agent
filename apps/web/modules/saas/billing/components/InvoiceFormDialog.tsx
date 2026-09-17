@@ -335,7 +335,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 							<CustomerCombobox
 								value={customer}
 								onChange={setCustomer}
-								placeholder="Search by name or username…"
+								placeholder="Name, username, account or phone…"
 							/>
 						</div>
 					)}

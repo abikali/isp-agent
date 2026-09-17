@@ -5,6 +5,11 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	customerSearchWhere,
+	looksLikePhone,
+	phoneSearchDigits,
+} from "../../customers/lib/customer-search";
 
 export const listFollowups = protectedProcedure
 	.route({
@@ -42,28 +47,30 @@ export const listFollowups = protectedProcedure
 		};
 
 		const andClauses: Record<string, unknown>[] = [dealerScope];
-		if (input.search) {
+		if (input.search?.trim()) {
+			const search = input.search.trim();
 			andClauses.push({
 				OR: [
+					// Linked customer: name, username, account, any of his numbers.
 					{
-						customerName: {
-							contains: input.search,
-							mode: "insensitive",
-						},
+						customer: await customerSearchWhere(
+							input.organizationId,
+							search,
+						),
 					},
+					// Snapshot columns — the only data on customer-less follow-ups.
+					{ customerName: { contains: search, mode: "insensitive" } },
 					{
 						customerUsername: {
-							contains: input.search,
+							contains: search,
 							mode: "insensitive",
 						},
 					},
-					{ mobile: { contains: input.search, mode: "insensitive" } },
-					{
-						groupName: {
-							contains: input.search,
-							mode: "insensitive",
-						},
-					},
+					{ mobile: { contains: search, mode: "insensitive" } },
+					...(looksLikePhone(search)
+						? [{ mobile: { contains: phoneSearchDigits(search) } }]
+						: []),
+					{ groupName: { contains: search, mode: "insensitive" } },
 				],
 			});
 		}

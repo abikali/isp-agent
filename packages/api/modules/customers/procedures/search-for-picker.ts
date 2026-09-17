@@ -6,7 +6,7 @@ import {
 import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { phoneSearchClauses } from "../lib/phone-search";
+import { customerSearchWhere } from "../lib/customer-search";
 
 export const searchCustomersForPicker = protectedProcedure
 	.route({
@@ -45,58 +45,9 @@ export const searchCustomersForPicker = protectedProcedure
 			where.id = { not: input.excludeCustomerId };
 		}
 
-		if (input.search) {
-			const tokens = input.search
-				.trim()
-				.split(/\s+/)
-				.filter(Boolean)
-				.slice(0, 10);
-			const nameClauses: Prisma.CustomerWhereInput[] =
-				tokens.length > 1
-					? [
-							{
-								AND: tokens.map((token) => ({
-									OR: [
-										{
-											firstName: {
-												contains: token,
-												mode: "insensitive",
-											},
-										},
-										{
-											lastName: {
-												contains: token,
-												mode: "insensitive",
-											},
-										},
-									],
-								})),
-							},
-						]
-					: [
-							{
-								firstName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
-							},
-							{
-								lastName: {
-									contains: input.search,
-									mode: "insensitive",
-								},
-							},
-						];
-			where.OR = [
-				...nameClauses,
-				...phoneSearchClauses(input.search),
-				{ username: { contains: input.search, mode: "insensitive" } },
-				{
-					accountNumber: {
-						contains: input.search,
-						mode: "insensitive",
-					},
-				},
+		if (input.search?.trim()) {
+			where.AND = [
+				await customerSearchWhere(input.organizationId, input.search),
 			];
 		}
 
