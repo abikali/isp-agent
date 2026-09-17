@@ -6,6 +6,7 @@ import {
 	extractToolPromptOverrides,
 	getToolName,
 	isToolUIPart,
+	loadHistoryRows,
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
@@ -128,20 +129,10 @@ export async function handleWebChatStream(
 		},
 	});
 
-	const history = await db.aiMessage.findMany({
-		where: { conversationId: conversation.id },
-		orderBy: { createdAt: "desc" },
-		take: agent.maxHistoryLength,
-		select: {
-			role: true,
-			content: true,
-			toolCalls: true,
-			parts: true,
-			attachmentType: true,
-		},
-	});
-
-	const historyRows = history.reverse();
+	const historyRows = await loadHistoryRows(
+		conversation.id,
+		agent.maxHistoryLength,
+	);
 
 	const maintenance = resolveMaintenanceState(
 		agent,
@@ -162,6 +153,7 @@ export async function handleWebChatStream(
 	);
 
 	const messages = buildAgentMessages({
+		conversationId: conversation.id,
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,

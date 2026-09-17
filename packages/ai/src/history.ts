@@ -1,8 +1,15 @@
+import { beirutParts } from "@repo/utils";
 import type { ModelMessage, UIMessage } from "ai";
 import type { ToolResult } from "./types";
 
 /** Gaps at least this long drop the earlier exchange from the model context. */
 export const STALE_HISTORY_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * Age backstop: rows at least this old never reach the model, even when the
+ * chat never paused for a full week (e.g. a customer writing every 3 days).
+ */
+export const MAX_HISTORY_AGE_MS = 14 * 24 * 60 * 60_000;
 
 /**
  * Builds a context gap note to inject into message history when there's been
@@ -26,25 +33,48 @@ export function buildContextGapNote(
 }
 
 /**
- * The note text. `historyDropped` = the earlier exchange was cut from the
- * context (gap ≥ STALE_HISTORY_MS), so the model must not assume anything
- * about it. Otherwise the earlier exchange is still visible above the note,
- * and the note has to stop the model from treating its attachments as
- * freshly sent — a two-month-old Whish receipt was once replayed to the
- * customer as "I received your transfer picture" and escalated as proof of
- * a new payment.
+ * The note placed at a pause inside the visible history. The earlier exchange
+ * is still above the note, so it has to stop the model from treating its
+ * attachments as freshly sent — a two-month-old Whish receipt was once
+ * replayed to the customer as "I received your transfer picture" and
+ * escalated as proof of a new payment.
+ *
+ * `afterTeammate` = the row right before the pause is a human teammate's
+ * message. The customer is then most likely answering that teammate (Jhonny
+ * asks "is the money ready?", the customer replies five hours later), so the
+ * note must point the model AT that message instead of filing it under
+ * "earlier exchange" — which is what made the bot reopen an unrelated
+ * month-old transfer instead.
  */
 export function formatContextGapNote(
 	gapMs: number,
 	previousAt: Date,
-	historyDropped: boolean,
+	afterTeammate: boolean,
 ): string {
 	const duration = formatGapDuration(gapMs);
-	const ended = previousAt.toISOString().slice(0, 10);
-	if (historyDropped) {
-		return `[Context Notice: ${duration} have passed since the last message. The previous exchange ended on ${ended} and is not shown. Treat this as a fresh request — nothing from before has been re-sent. If the customer refers to something earlier (a payment, a receipt, a ticket), ask them for the details again.]`;
+	if (afterTeammate) {
+		return `[Context Notice: ${duration} have passed since the last message. The message just above this notice is from a human teammate (sent ${formatBeirutDateTime(previousAt)} Beirut time). The customer's new message is most likely a reply to that teammate — read it in that light and do not reopen older topics. Images, receipts, transfer details and promises from before that were sent back then — the customer has NOT re-sent them now, so never say you received them and never cite them as proof for the new message.]`;
 	}
+	const ended = previousAt.toISOString().slice(0, 10);
 	return `[Context Notice: ${duration} have passed since the last message. Everything above this notice is an earlier exchange that ended on ${ended}. Images, receipts, transfer details and promises up there were sent back then — the customer has NOT re-sent them now, so never say you received them and never cite them as proof for the new message. Do not assume continuity — let their new message guide you.]`;
+}
+
+/**
+ * The note placed at the top of the history when older rows were cut from
+ * the context (they stay in the DB). The model must not assume anything about
+ * them. `nextAt` = when the first shown message (or the new request) came.
+ */
+export function formatDroppedHistoryNote(
+	lastDroppedAt: Date,
+	nextAt: Date,
+): string {
+	const ended = lastDroppedAt.toISOString().slice(0, 10);
+	const gapMs = nextAt.getTime() - lastDroppedAt.getTime();
+	const gap =
+		gapMs >= 60 * 60_000
+			? `, ${formatGapDuration(gapMs)} before the messages below`
+			: "";
+	return `[Context Notice: Older messages in this chat are not shown — the last of them was sent on ${ended}${gap}. Nothing from back then has been re-sent, so do not bring up older topics. If the customer refers to something from before (a payment, a receipt, a ticket), ask them for the details again.]`;
 }
 
 export interface HistoryGapSplit {
@@ -94,6 +124,100 @@ export function findLastHistoryGap(
 		}
 	}
 	return null;
+}
+
+export interface SelectHistoryWindowOptions {
+	/** Pause length that earns a context notice; omit to skip pause detection. */
+	thresholdMinutes?: number | undefined;
+	now?: Date | undefined;
+	staleMs?: number | undefined;
+	maxAgeMs?: number | undefined;
+}
+
+export interface HistoryWindow {
+	/** Rows to show the model, chronological. */
+	rows: DbMessageRow[];
+	/** Rows cut because a pause of at least `staleMs` followed them. */
+	droppedStale: number;
+	/** Rows cut afterwards by the `maxAgeMs` backstop. */
+	droppedAge: number;
+	/** `createdAt` of the newest cut row; null when nothing was cut. */
+	lastDroppedAt: Date | null;
+	/** Most recent pause ≥ thresholdMinutes within `rows` (or after the last one). */
+	pause: HistoryGapSplit | null;
+	/** The row right before `pause` is a human teammate's message. */
+	pauseAfterTeammate: boolean;
+}
+
+/**
+ * Decide which history rows the model sees. Returns null when any row lacks
+ * `createdAt` (legacy callers fall back to the conversation timestamp).
+ *
+ * 1. Cut at the most recent pause of at least `staleMs` ANYWHERE in the rows
+ *    — not just the newest pause. A chat with 36-day and 10-day silences
+ *    followed by a 5-hour one used to keep all of it, and the bot asked the
+ *    customer about a month-old transfer. If the newest row itself is that
+ *    old, everything goes.
+ * 2. Age backstop: drop whatever is still `maxAgeMs` old or older, for chats
+ *    that never paused a full week.
+ * 3. Find the latest ordinary pause (≥ thresholdMinutes) in what is left.
+ */
+export function selectHistoryWindow(
+	rows: DbMessageRow[],
+	options: SelectHistoryWindowOptions = {},
+): HistoryWindow | null {
+	const now = options.now ?? new Date();
+	const staleMs = options.staleMs ?? STALE_HISTORY_MS;
+	const maxAgeMs = options.maxAgeMs ?? MAX_HISTORY_AGE_MS;
+
+	const times: number[] = [];
+	for (const row of rows) {
+		if (!row.createdAt) {
+			return null;
+		}
+		times.push(row.createdAt.getTime());
+	}
+	const at = (i: number) => times[i] ?? 0;
+	const nowMs = now.getTime();
+	const count = rows.length;
+
+	let staleCut = 0;
+	if (count > 0 && nowMs - at(count - 1) >= staleMs) {
+		staleCut = count;
+	} else {
+		for (let i = count - 1; i >= 1; i--) {
+			if (at(i) - at(i - 1) >= staleMs) {
+				staleCut = i;
+				break;
+			}
+		}
+	}
+
+	let start = staleCut;
+	while (start < count && nowMs - at(start) >= maxAgeMs) {
+		start++;
+	}
+
+	const kept = rows.slice(start);
+	const pause =
+		options.thresholdMinutes === undefined
+			? null
+			: findLastHistoryGap(kept, options.thresholdMinutes, now);
+	return {
+		rows: kept,
+		droppedStale: staleCut,
+		droppedAge: start - staleCut,
+		lastDroppedAt: rows[start - 1]?.createdAt ?? null,
+		pause,
+		pauseAfterTeammate:
+			pause !== null && kept[pause.index - 1]?.role === "admin",
+	};
+}
+
+function formatBeirutDateTime(value: Date): string {
+	const { year, month, day, hour, minute } = beirutParts(value);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}`;
 }
 
 function formatGapDuration(ms: number): string {

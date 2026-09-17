@@ -9,6 +9,7 @@ import {
 	extractToolPromptOverrides,
 	generateAgentResponse,
 	isHumanTakeoverActive,
+	loadHistoryRows,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	type PromptSection,
@@ -123,21 +124,10 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			// crash before reaching it.
 			let lockRenewal: ReturnType<typeof setInterval> | undefined;
 
-			const history = await db.aiMessage.findMany({
-				where: { conversationId },
-				orderBy: { createdAt: "desc" },
-				take: conversation.agent.maxHistoryLength,
-				select: {
-					role: true,
-					content: true,
-					toolCalls: true,
-					parts: true,
-					attachmentType: true,
-					createdAt: true,
-				},
-			});
-
-			const historyRows = history.reverse();
+			const historyRows = await loadHistoryRows(
+				conversationId,
+				conversation.agent.maxHistoryLength,
+			);
 
 			const maintenance = resolveMaintenanceState(
 				conversation.agent,
@@ -218,6 +208,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				: undefined;
 
 			const messages = buildAgentMessages({
+				conversationId,
 				systemOptions: {
 					basePrompt: conversation.agent.systemPrompt,
 					enabledTools: conversation.agent.enabledTools,

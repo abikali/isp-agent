@@ -8,6 +8,7 @@ import {
 	decryptToken,
 	generateAgentResponse,
 	isHumanTakeoverActive,
+	loadHistoryRows,
 	NO_FOLLOW_UP,
 	type PromptSection,
 	resolveMaintenanceState,
@@ -136,21 +137,13 @@ export function createAiFollowUpWorker(): Worker<
 					.provider as ChannelProvider;
 				const chatId = conversation.externalChatId;
 
-				const history = await db.aiMessage.findMany({
-					where: { conversationId },
-					orderBy: { createdAt: "desc" },
-					take: agent.maxHistoryLength,
-					select: {
-						role: true,
-						content: true,
-						toolCalls: true,
-						parts: true,
-						attachmentType: true,
-						createdAt: true,
-					},
-				});
+				const history = await loadHistoryRows(
+					conversationId,
+					agent.maxHistoryLength,
+				);
 				const verified = conversation.verifiedCustomer;
 				const messages = buildAgentMessages({
+					conversationId,
 					systemOptions: {
 						basePrompt: agent.systemPrompt,
 						// No tools: a nudge must never turn into a diagnostic.
@@ -176,7 +169,7 @@ export function createAiFollowUpWorker(): Worker<
 							agent.promptSections as unknown as PromptSection[],
 						workingHours: agent,
 					},
-					history: history.reverse(),
+					history,
 					contextGapThresholdMinutes:
 						agent.contextGapThresholdMinutes,
 					newUserMessage: buildFollowUpInstruction(

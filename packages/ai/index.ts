@@ -36,6 +36,7 @@ export {
 	legacyRowToParts,
 	modelMessagesToRoleContent,
 } from "./src/history";
+export { loadHistoryRows } from "./src/history-loader";
 export type { MaintenanceState } from "./src/maintenance";
 export { resolveMaintenanceState } from "./src/maintenance";
 export {

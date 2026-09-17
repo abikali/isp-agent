@@ -6,6 +6,7 @@ import {
 	executeEscalationGuard,
 	extractToolPromptOverrides,
 	generateAgentResponse,
+	loadHistoryRows,
 	modelMessagesToRoleContent,
 	type PromptSection,
 	resolveAgentTools,
@@ -103,20 +104,10 @@ export async function handleWebChatMessage(
 	});
 
 	// Load history (already includes the user message we just stored)
-	const history = await db.aiMessage.findMany({
-		where: { conversationId: conversation.id },
-		orderBy: { createdAt: "desc" },
-		take: agent.maxHistoryLength,
-		select: {
-			role: true,
-			content: true,
-			toolCalls: true,
-			parts: true,
-			attachmentType: true,
-		},
-	});
-
-	const historyRows = history.reverse();
+	const historyRows = await loadHistoryRows(
+		conversation.id,
+		agent.maxHistoryLength,
+	);
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
 		agent,
@@ -132,6 +123,7 @@ export async function handleWebChatMessage(
 	);
 
 	const messages = buildAgentMessages({
+		conversationId: conversation.id,
 		systemOptions: {
 			basePrompt: agent.systemPrompt,
 			enabledTools: agent.enabledTools,

@@ -148,6 +148,9 @@ vi.mock("@repo/ai", () => ({
 	markAsRead: vi.fn().mockResolvedValue(undefined),
 	decryptToken: vi.fn().mockReturnValue("decrypted-token"),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
+	loadHistoryRows: vi
+		.fn()
+		.mockResolvedValue([{ role: "user", content: "Hello" }]),
 	buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: true }),
 	dbMessagesToModelMessages: vi.fn().mockReturnValue([]),
 	generateAgentResponse: mockGenerateAgentResponse,

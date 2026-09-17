@@ -2,6 +2,7 @@ import { logger } from "@repo/logs";
 import { tool } from "ai";
 import { z } from "zod";
 import { summarizeForEscalation } from "../escalation-summary";
+import { selectHistoryWindow } from "../history";
 import { cleanPhoneNumber, ispGet } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
@@ -560,6 +561,9 @@ function createEscalateTelegramTool(context: ToolContext) {
 				}> = [];
 
 				try {
+					const { loadHistoryRows } = await import(
+						"../history-loader"
+					);
 					const [conversation, recentMessages] = await Promise.all([
 						db.aiConversation.findUnique({
 							where: { id: context.conversationId },
@@ -569,17 +573,14 @@ function createEscalateTelegramTool(context: ToolContext) {
 								verifiedCustomerId: true,
 							},
 						}),
-						db.aiMessage.findMany({
-							where: {
-								conversationId: context.conversationId,
-							},
-							orderBy: { createdAt: "desc" },
-							take: 15,
-							select: { role: true, content: true },
-						}),
+						loadHistoryRows(context.conversationId, 15),
 					]);
 
-					conversationMessages = recentMessages.reverse();
+					// Same cut the reply model gets: a chat revived after a
+					// long silence must not summarise the old exchange.
+					conversationMessages =
+						selectHistoryWindow(recentMessages)?.rows ??
+						recentMessages;
 
 					if (conversation) {
 						contactId = conversation.contactId;

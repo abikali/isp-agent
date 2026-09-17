@@ -14,6 +14,7 @@ import {
 	generateAgentResponse,
 	initRateLimiter,
 	isWhishMoneyMessage,
+	loadHistoryRows,
 	markAsRead,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
@@ -949,25 +950,14 @@ async function handleMessages(
 						break;
 					}
 
-					// Load full conversation history (includes all stored messages)
-					const history = await db.aiMessage.findMany({
-						where: {
-							conversationId: conversation.id,
-						},
-						orderBy: { createdAt: "desc" },
-						take: channel.agent.maxHistoryLength,
-						select: {
-							role: true,
-							content: true,
-							toolCalls: true,
-							parts: true,
-							attachmentType: true,
-							createdAt: true,
-						},
-					});
-					const historyRows = history.reverse();
+					// Recent history (includes the messages just stored)
+					const historyRows = await loadHistoryRows(
+						conversation.id,
+						channel.agent.maxHistoryLength,
+					);
 
 					const historyMessages = buildAgentMessages({
+						conversationId: conversation.id,
 						systemOptions,
 						history: historyRows,
 						lastMessageAt: previousLastMessageAt,
