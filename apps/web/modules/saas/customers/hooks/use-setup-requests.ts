@@ -3,7 +3,12 @@
 import { createInvalidatingMutation } from "@shared/hooks/create-invalidating-mutation";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 
 export function useSetupRequests(
 	status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING",
@@ -22,10 +27,18 @@ export function useSetupRequests(
 	};
 }
 
-export const useUpdateSetupRequest = createInvalidatingMutation(
-	() => orpc.customers.setupRequests.update.mutationOptions(),
-	() => orpc.customers.key(),
-);
+/**
+ * Resolves only after the customers queries have refetched, so the approvals
+ * card (and a dialog reopened right away) never seeds from the pre-save values.
+ */
+export function useUpdateSetupRequest() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.customers.setupRequests.update.mutationOptions(),
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: orpc.customers.key() }),
+	});
+}
 
 export const useApproveSetupRequest = createInvalidatingMutation(
 	() => orpc.customers.setupRequests.approve.mutationOptions(),

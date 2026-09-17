@@ -7,7 +7,13 @@ import {
 	resolveCollectorScope,
 	verifyPermission,
 } from "@repo/api/lib/permission";
-import { db, getPrimaryPhone, MAX_PHONES, Prisma } from "@repo/database";
+import {
+	appendPaymentActivityLog,
+	db,
+	getPrimaryPhone,
+	MAX_PHONES,
+	Prisma,
+} from "@repo/database";
 import { queueWhatsAppReceipt } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import {
@@ -24,6 +30,7 @@ import {
 } from "../../customers/lib/mirror-fields";
 import { allocatePaymentAcrossInvoices } from "../lib/calculations";
 import { fetchCustomerUnpaidInvoices } from "../lib/queries";
+import { receiptPhone } from "../lib/receipt-status";
 import { resolveActiveBillingMonth } from "../lib/resolve-month";
 import { REVIEW_STOPPED_TASK_TITLE_PREFIX } from "../lib/review-tasks";
 
@@ -412,10 +419,12 @@ export const createPayment = protectedProcedure
 
 				let created: PaymentRow[];
 
-				// Validate referrer belongs to the same organization and
-				// dealer (only when free account; ignored otherwise)
+				// The paying customer is the referrer (the free month is their
+				// reward); `referredCustomerId` is the new customer they
+				// brought in. Validate it belongs to the same organization and
+				// dealer (only when free account; ignored otherwise).
 				if (input.referredCustomerId && input.freeAccount) {
-					const referrer = await tx.customer.findFirst({
+					const referred = await tx.customer.findFirst({
 						where: {
 							id: input.referredCustomerId,
 							organizationId: input.organizationId,
@@ -423,7 +432,7 @@ export const createPayment = protectedProcedure
 						},
 						select: { id: true },
 					});
-					if (!referrer) {
+					if (!referred) {
 						throw new ORPCError("BAD_REQUEST", {
 							message: "Referred customer not found",
 						});
@@ -570,26 +579,24 @@ export const createPayment = protectedProcedure
 		// cleared three months produces three rows, and each one now carries
 		// its own receipt entry — a row whose log opened with a receipt and no
 		// creation entry would read as though it appeared from nowhere.
-		const collectorName = collector.name;
-		db.payment
-			.updateMany({
-				where: { id: { in: settledRows.map((row) => row.id) } },
-				data: {
-					activityLog: [
-						{
-							action: "payment_created",
-							status: "success" as const,
-							detail: `Recorded by ${collectorName}`,
-							timestamp: new Date().toISOString(),
-						},
-					],
+		// Appended atomically (jsonb ||) and awaited before the receipts are
+		// queued: the old fire-and-forget overwrite could land after the
+		// receipt worker's entry and erase it.
+		try {
+			await appendPaymentActivityLog(
+				settledRows.map((row) => row.id),
+				{
+					action: "payment_created",
+					status: "success",
+					detail: `Recorded by ${collector.name}`,
+					timestamp: new Date().toISOString(),
 				},
-			})
-			.catch((err) =>
-				logger.warn("[Payment] Failed to log creation activity", {
-					error: String(err),
-				}),
 			);
+		} catch (err) {
+			logger.warn("[Payment] Failed to log creation activity", {
+				error: String(err),
+			});
+		}
 
 		// Queue WhatsApp receipts via background worker (skip for stopped
 		// accounts and debt visits — nothing was collected).
@@ -602,9 +609,12 @@ export const createPayment = protectedProcedure
 		// one month and a number smaller than what they actually handed over,
 		// with the other months getting no record at all.
 		if (!input.stoppedAccount && !input.debtAccount) {
+			// Phones submitted with the sheet win (an explicit clear means no
+			// receipt); otherwise the customer's primary structured phone, then
+			// the legacy single-number columns.
 			const phone = input.customerPhones
 				? getPrimaryPhone(input.customerPhones)
-				: (customer.mobile ?? customer.phone);
+				: receiptPhone(customer);
 			if (phone) {
 				for (const row of settledRows) {
 					queueWhatsAppReceipt({ phone, paymentId: row.id }).catch(
@@ -725,7 +735,7 @@ export const createPayment = protectedProcedure
 									copyable: true,
 								}
 							: null,
-						{ icon: "🤝", label: "By", value: collectorName },
+						{ icon: "🤝", label: "By", value: collector.name },
 					],
 				}),
 			);

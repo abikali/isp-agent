@@ -1,6 +1,7 @@
 "use client";
 
-import { formatDateTime } from "@shared/lib/format";
+import { formatDate, formatDateTime } from "@shared/lib/format";
+import { Badge } from "@ui/components/badge";
 import {
 	Tooltip,
 	TooltipContent,
@@ -12,6 +13,11 @@ interface ConnectivityCellProps {
 	status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
 	online: boolean;
 	lastLogin: Date | string | null;
+	/**
+	 * Live `Customer.expiresAt` (what iRadius says now). When passed, an
+	 * "Expired" badge follows the dot once the date is in the past.
+	 */
+	expiresAt?: Date | string | null;
 }
 
 function relativeTimeShort(d: Date | string | null): string | null {
@@ -43,6 +49,7 @@ export function ConnectivityCell({
 	status,
 	online,
 	lastLogin,
+	expiresAt,
 }: ConnectivityCellProps) {
 	const isActive = status === "ACTIVE";
 	const tone = !isActive ? "inactive" : online ? "online" : "offline";
@@ -60,8 +67,11 @@ export function ConnectivityCell({
 	}[tone];
 
 	const seenAt = relativeTimeShort(lastLogin);
+	const expired = expiresAt
+		? new Date(expiresAt).getTime() < Date.now()
+		: false;
 
-	return (
+	const dot = (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				{/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- <img> is a void element and cannot wrap these decorative dot spans; role="img"+aria-label labels the group as one image */}
@@ -98,8 +108,26 @@ export function ConnectivityCell({
 							{formatDateTime(lastLogin)}
 						</div>
 					)}
+					{expiresAt && (
+						<div className="text-muted-foreground">
+							{expired ? "Expired" : "Expires"}{" "}
+							{formatDate(expiresAt)}
+						</div>
+					)}
 				</div>
 			</TooltipContent>
 		</Tooltip>
+	);
+
+	if (!expired) {
+		return dot;
+	}
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			{dot}
+			<Badge variant="destructive" className="px-1.5 py-0 text-[10px]">
+				Expired
+			</Badge>
+		</span>
 	);
 }

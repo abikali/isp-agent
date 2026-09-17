@@ -9,7 +9,7 @@ import {
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
-import { db } from "@repo/database";
+import { appendPaymentActivityLog, db } from "@repo/database";
 import { logger } from "@repo/logs";
 import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
@@ -104,7 +104,6 @@ export const repriceAndReviewPayment = protectedProcedure
 				freeAccount: true,
 				stoppedAccount: true,
 				debtAccount: true,
-				activityLog: true,
 				customer: {
 					select: {
 						id: true,
@@ -215,9 +214,6 @@ export const repriceAndReviewPayment = protectedProcedure
 			(diff.discountChanged ||
 				diff.iptvPriceChanged ||
 				diff.realIpPriceChanged);
-		const previousLog = Array.isArray(payment.activityLog)
-			? (payment.activityLog as unknown[])
-			: [];
 
 		let disconnected = false;
 		const result = await mirrorToIRadius({
@@ -296,17 +292,20 @@ export const repriceAndReviewPayment = protectedProcedure
 							// full against the new price.
 							discount: next.discount,
 							reviewedAt: new Date(),
-							activityLog: [
-								...previousLog,
-								{
-									action: "repriced",
-									status: "success",
-									detail: `Repriced on review: ${changes.join(", ") || "no change"} → ${newInvoiceTotal}`,
-									timestamp: new Date().toISOString(),
-								},
-							] as object[],
 						},
 					});
+					// Appended in SQL so a receipt worker writing the same
+					// log concurrently can't lose its entry, or ours.
+					await appendPaymentActivityLog(
+						[payment.id],
+						{
+							action: "repriced",
+							status: "success",
+							detail: `Repriced on review: ${changes.join(", ") || "no change"} → ${newInvoiceTotal}`,
+							timestamp: new Date().toISOString(),
+						},
+						{ client: tx },
+					);
 					let invoiceRepriced = false;
 					if (payment.invoice && !payment.invoice.voidedAt) {
 						await tx.customerInvoice.update({

@@ -1,5 +1,13 @@
 "use client";
 
+import {
+	classifyReceiptResend,
+	getReceiptStatus,
+	lastReceiptEntry,
+	RECEIPT_RESEND_SKIP_LABELS,
+	type ReceiptResendSkipReason,
+} from "@repo/api/modules/billing/lib/receipt-status";
+import { lastReferralRewardEntry } from "@repo/api/modules/billing/lib/referral-reward";
 import { parsePhones } from "@repo/database/phones";
 import { useActiveOrganization } from "@saas/organizations/client";
 import {
@@ -67,6 +75,7 @@ import {
 } from "@ui/components/tooltip";
 import { cn } from "@ui/lib";
 import {
+	ActivityIcon,
 	AlertTriangleIcon,
 	ArrowDownIcon,
 	ArrowUpDownIcon,
@@ -98,6 +107,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConnectivityCell } from "../../customers/components/ConnectivityCell";
 import { CustomerBulkActionsBar } from "../../customers/components/CustomerBulkActionsBar";
 import {
 	ChangeNameDialog,
@@ -107,7 +117,9 @@ import {
 	SetExpiryDialog,
 	SetIptvPriceDialog,
 } from "../../customers/components/CustomerIradiusDialogs";
+import { DiagnoseSheet } from "../../customers/components/DiagnoseSheet";
 import {
+	useCustomersConnectivity,
 	usePushToIRadius,
 	useSetDiscount,
 } from "../../customers/hooks/use-customers";
@@ -122,6 +134,8 @@ import {
 	usePaymentStatsQuery,
 	usePaymentsQuery,
 	useResendReceipt,
+	useResendReceipts,
+	useResendReferralReward,
 	useReviewPayment,
 	useReviewPayments,
 } from "../hooks/use-billing";
@@ -248,6 +262,9 @@ interface PaymentRow {
 		phone: string | null;
 		phones: unknown;
 		_count: { tasks: number };
+		status: CustomerStatus;
+		online: boolean;
+		lastLogin: string | Date | null;
 		expiresAt: string | Date | null;
 		iptvPrice: number;
 		realIpPrice: number;
@@ -270,13 +287,80 @@ interface PaymentRow {
 	notes: string | null;
 	receiptSent: boolean;
 	activityLog: unknown;
+	externalBillingId: number | null;
 	reviewedAt: string | Date | null;
+	/**
+	 * The new customer the payer brought in — the payer is the referrer and
+	 * the free month is their reward.
+	 */
 	referredCustomer: {
 		id: string;
 		firstName: string | null;
 		lastName: string | null;
 		username: string | null;
+		status: CustomerStatus;
+		online: boolean;
+		lastLogin: string | Date | null;
+		expiresAt: string | Date | null;
 	} | null;
+}
+
+type CustomerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING";
+
+interface LiveConnectivity {
+	status: CustomerStatus;
+	online: boolean;
+	lastLogin: string | Date | null;
+	expiresAt: string | Date | null;
+}
+
+/** Overlay the polled connectivity snapshot onto a customer ref. */
+function withLive<T extends { id: string }>(
+	customer: T,
+	live: Map<string, LiveConnectivity>,
+): T {
+	const fresh = live.get(customer.id);
+	return fresh
+		? {
+				...customer,
+				status: fresh.status,
+				online: fresh.online,
+				lastLogin: fresh.lastLogin,
+				expiresAt: fresh.expiresAt,
+			}
+		: customer;
+}
+
+/** A referral free month — approving it WhatsApps the referrer. */
+function isReferralReward(payment: PaymentRow): boolean {
+	return (
+		payment.freeAccount &&
+		!payment.stoppedAccount &&
+		payment.referredCustomer !== null
+	);
+}
+
+/**
+ * Why the new customer behind a referral free month looks doubtful — not
+ * active, or their line has expired. Worth a look before approving; never a
+ * block.
+ */
+function referredCustomerWarning(payment: PaymentRow): string | null {
+	const referred = payment.referredCustomer;
+	if (!payment.freeAccount || !referred) {
+		return null;
+	}
+	const problems: string[] = [];
+	if (referred.status !== "ACTIVE") {
+		problems.push(referred.status.toLowerCase());
+	}
+	if (
+		referred.expiresAt &&
+		new Date(referred.expiresAt).getTime() < Date.now()
+	) {
+		problems.push(`expired ${formatDate(referred.expiresAt)}`);
+	}
+	return problems.length > 0 ? problems.join(", ") : null;
 }
 
 function StatsBar({ billingMonthId }: { billingMonthId: string | undefined }) {
@@ -601,10 +685,11 @@ function ActivityLogDialog({
 // ─── Receipt Badge ──────────────────────────────────────────────
 
 function getReceiptBadge(payment: PaymentRow) {
-	if (payment.stoppedAccount) {
-		return null;
+	const status = getReceiptStatus(payment);
+	if (status === null) {
+		return <span className="text-muted-foreground">{"\u2014"}</span>;
 	}
-	if (payment.receiptSent) {
+	if (status === "sent") {
 		return (
 			<Badge
 				variant="default"
@@ -614,17 +699,7 @@ function getReceiptBadge(payment: PaymentRow) {
 			</Badge>
 		);
 	}
-	const log = Array.isArray(payment.activityLog)
-		? (payment.activityLog as ActivityLogEntry[])
-		: [];
-	const lastReceipt = [...log]
-		.reverse()
-		.find(
-			(e) =>
-				typeof e.action === "string" &&
-				e.action.startsWith("whatsapp_receipt"),
-		);
-	if (lastReceipt?.status === "failed") {
+	if (status === "failed") {
 		return (
 			<Badge variant="destructive" className="text-[10px]">
 				Failed
@@ -636,6 +711,38 @@ function getReceiptBadge(payment: PaymentRow) {
 			Pending
 		</Badge>
 	);
+}
+
+/**
+ * "Last error → count" for the bulk resend confirm, so the operator sees
+ * whether the failures were an outage (5xx/404/timeouts) or bad numbers.
+ */
+function summarizeLastReceiptErrors(
+	payments: PaymentRow[],
+): Array<{ error: string; count: number }> {
+	const counts = new Map<string, number>();
+	for (const payment of payments) {
+		const error = lastReceiptEntry(payment.activityLog)?.error;
+		const key =
+			typeof error === "string" && error
+				? error
+				: "No send attempt recorded";
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	return [...counts.entries()]
+		.map(([error, count]) => ({ error, count }))
+		.sort((x, y) => y.count - x.count);
+}
+
+function formatSkipped(
+	skipped: Partial<Record<ReceiptResendSkipReason, number>>,
+): string {
+	return Object.entries(skipped)
+		.map(
+			([reason, n]) =>
+				`${n} ${RECEIPT_RESEND_SKIP_LABELS[reason as ReceiptResendSkipReason]}`,
+		)
+		.join(", ");
 }
 
 // oRPC surfaces the server's custom error code on the thrown error. This
@@ -690,8 +797,14 @@ export function PaymentsList() {
 		ActivityLogEntry[] | null
 	>(null);
 
-	// Reset page when filters change
-	const resetPage = () => setPage(1);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+	// Reset page — and the selection, so rows picked under one filter can't
+	// carry into another filter's bulk actions — when filters change
+	const resetPage = () => {
+		setPage(1);
+		setRowSelection({});
+	};
 	const handleTypeChange = (t: PaymentTypeFilter) => {
 		setTypeFilter(t);
 		resetPage();
@@ -720,18 +833,36 @@ export function PaymentsList() {
 	const { data: parentStats } = usePaymentStatsQuery(activeMonthId);
 	const unreviewedCount = parentStats?.unreviewedCount ?? 0;
 
-	const { payments, total, isLoading, isFetching } = usePaymentsQuery({
-		search: debouncedSearch || undefined,
-		...queryTypeFilters,
-		noteCategory: noteCategoryFilter,
-		collectorId: collectorFilter,
-		groupName: groupFilter,
-		billingMonthId: activeMonthId,
-		page,
-		pageSize: PAGE_SIZE,
-		sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
-		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
-	});
+	const { payments, total, isLoading, isFetching, referralRewardMessaging } =
+		usePaymentsQuery({
+			search: debouncedSearch || undefined,
+			...queryTypeFilters,
+			noteCategory: noteCategoryFilter,
+			collectorId: collectorFilter,
+			groupName: groupFilter,
+			billingMonthId: activeMonthId,
+			page,
+			pageSize: PAGE_SIZE,
+			sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
+			sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
+		});
+
+	// Live online/offline for the page's customers and the new customers
+	// their referral free months point at — the row data is a snapshot.
+	const live = useCustomersConnectivity(
+		payments.flatMap((p) =>
+			p.referredCustomer
+				? [p.customer.id, p.referredCustomer.id]
+				: [p.customer.id],
+		),
+	);
+	const rows = payments.map((p) => ({
+		...p,
+		customer: withLive(p.customer, live),
+		referredCustomer: p.referredCustomer
+			? withLive(p.referredCustomer, live)
+			: null,
+	}));
 
 	const { data: collectorsData } = useCollectors();
 	const { groups } = useCustomerGroups();
@@ -745,6 +876,7 @@ export function PaymentsList() {
 	const reviewPayments = useReviewPayments();
 	const declineStoppedPayment = useDeclineStoppedPayment();
 	const markReceiptSent = useMarkReceiptSent();
+	const resendReferralReward = useResendReferralReward();
 	const setDiscount = useSetDiscount();
 	const pushToIRadius = usePushToIRadius();
 	const [discountDialog, setDiscountDialog] = useState<{
@@ -762,6 +894,12 @@ export function PaymentsList() {
 	// price the customer agreed at the door.
 	const [repriceDialog, setRepriceDialog] =
 		useState<RepricePaymentTarget | null>(null);
+	// "Diagnose" row action — the live iRadius report the Telegram bot gives.
+	// One sheet for the page; the row only picks the customer.
+	const [diagnoseTarget, setDiagnoseTarget] = useState<{
+		customerId: string;
+		customerName: string;
+	} | null>(null);
 	// "Assign task" row action — carries the customer snapshot so the
 	// task dialog opens pre-linked to that customer.
 	const [taskDialogCustomer, setTaskDialogCustomer] = useState<{
@@ -790,7 +928,14 @@ export function PaymentsList() {
 			| "set-expiry";
 		customer: IradiusCustomerRef;
 	} | null>(null);
-	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	// Approving a referral free month whose new customer is inactive or
+	// expired: confirm first (a warning, not a block).
+	const [referralConfirm, setReferralConfirm] = useState<{
+		referrerName: string;
+		referredName: string;
+		warning: string;
+		approve: () => void;
+	} | null>(null);
 	// Opened when "Approve & Deactivate" fails because the customer was
 	// already deleted in iRadius. Carries the row so we can name the customer
 	// and retry the review with `force` (local-only deactivation).
@@ -814,6 +959,68 @@ export function PaymentsList() {
 	}, [rowSelection, payments]);
 	const selectedCount = selectedCustomerIds.length;
 
+	// The receipt filters get a receipt-only bulk bar: per-payment count and
+	// "Resend receipts" instead of the customer-level actions.
+	const isReceiptFilter =
+		typeFilter === "receipt_failed" || typeFilter === "receipt_pending";
+	const selectedPayments = useMemo(() => {
+		const selectedPaymentIds = new Set(Object.keys(rowSelection));
+		return payments.filter((p) => selectedPaymentIds.has(p.id));
+	}, [rowSelection, payments]);
+	// Same rules the server applies; rows it would skip are left out of the
+	// button count and summarised in the confirm instead.
+	const resendSelection = useMemo(() => {
+		const now = new Date();
+		const resendable: PaymentRow[] = [];
+		const skipped: Partial<Record<ReceiptResendSkipReason, number>> = {};
+		for (const payment of selectedPayments) {
+			const decision = classifyReceiptResend(payment, now);
+			if (decision.action === "queue") {
+				resendable.push(payment);
+			} else {
+				skipped[decision.reason] = (skipped[decision.reason] ?? 0) + 1;
+			}
+		}
+		return {
+			resendable,
+			skipped,
+			errors: summarizeLastReceiptErrors(resendable),
+		};
+	}, [selectedPayments]);
+	const resendReceipts = useResendReceipts();
+
+	function handleBulkResend() {
+		const paymentIds = resendSelection.resendable.map((p) => p.id);
+		if (!organizationId || paymentIds.length === 0) {
+			return;
+		}
+		resendReceipts.mutate(
+			{ organizationId, paymentIds },
+			{
+				onSuccess: (result) => {
+					const parts = [
+						`Queued ${result.queued} receipt${result.queued === 1 ? "" : "s"}`,
+					];
+					const skippedText = formatSkipped(result.skipped);
+					if (skippedText) {
+						parts.push(`skipped ${skippedText}`);
+					}
+					if (result.failed > 0) {
+						parts.push(`${result.failed} failed to queue`);
+					}
+					const summary = parts.join(" · ");
+					if (result.failed > 0 || result.queued === 0) {
+						toast.warning(summary);
+					} else {
+						toast.success(summary);
+					}
+					setRowSelection({});
+				},
+				onError: (error) => toast.error(error.message),
+			},
+		);
+	}
+
 	// Bulk "Mark reviewed" operates per-payment (a customer can own several
 	// flagged payments), so it keys off the selected payment ids — distinct
 	// from the customer-id-based bulk actions. Only the unreviewed ones in the
@@ -834,6 +1041,15 @@ export function PaymentsList() {
 			.length;
 	}, [reviewablePaymentIds, payments]);
 
+	// Referral free months in the selection: approving them WhatsApps the
+	// referrer, and a doubtful new customer is worth a warning first.
+	const selectedReferrals = rows.filter(
+		(p) => reviewablePaymentIds.includes(p.id) && isReferralReward(p),
+	);
+	const selectedDoubtfulReferralCount = selectedReferrals.filter(
+		(p) => referredCustomerWarning(p) !== null,
+	).length;
+
 	function handleBulkReview() {
 		if (!organizationId || reviewablePaymentIds.length === 0) {
 			return;
@@ -845,6 +1061,11 @@ export function PaymentsList() {
 					const parts: string[] = [`Reviewed ${result.succeeded}`];
 					if (result.skipped > 0) {
 						parts.push(`${result.skipped} already reviewed`);
+					}
+					if (result.referralRewardsQueued > 0) {
+						parts.push(
+							`${result.referralRewardsQueued} free-month WhatsApp${result.referralRewardsQueued === 1 ? "" : "s"} queued`,
+						);
 					}
 					if (result.failed > 0) {
 						parts.push(`${result.failed} failed`);
@@ -877,7 +1098,7 @@ export function PaymentsList() {
 		setGroupFilter(undefined);
 		setNoteCategoryFilter(undefined);
 		setMonthFilter("");
-		setPage(1);
+		resetPage();
 	};
 
 	const columns = useMemo<ColumnDef<PaymentRow, unknown>[]>(
@@ -894,16 +1115,23 @@ export function PaymentsList() {
 						: undefined;
 					return (
 						<>
-							{href ? (
-								<a
-									href={href}
-									className="font-medium hover:underline"
-								>
-									{name}
-								</a>
-							) : (
-								<div className="font-medium">{name}</div>
-							)}
+							<div className="flex items-center gap-1.5">
+								<ConnectivityCell
+									status={c.status}
+									online={c.online}
+									lastLogin={c.lastLogin}
+								/>
+								{href ? (
+									<a
+										href={href}
+										className="font-medium hover:underline"
+									>
+										{name}
+									</a>
+								) : (
+									<div className="font-medium">{name}</div>
+								)}
+							</div>
 							<div className="text-xs text-muted-foreground">
 								{c.username}
 							</div>
@@ -1041,26 +1269,37 @@ export function PaymentsList() {
 								</span>
 							)}
 							{payment.freeAccount && referred && orgSlug && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<a
-											href={`/app/${orgSlug}/customers/${referred.id}`}
-											onClick={(e) => e.stopPropagation()}
-											className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
-										>
-											<GiftIcon className="size-3 text-emerald-600" />
-											<span className="truncate max-w-[140px]">
-												{displayName(
-													referred.firstName,
-													referred.lastName,
-												) || referred.username}
-											</span>
-										</a>
-									</TooltipTrigger>
-									<TooltipContent>
-										Free via referral — open referrer
-									</TooltipContent>
-								</Tooltip>
+								<div className="flex items-center gap-1.5">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<a
+												href={`/app/${orgSlug}/customers/${referred.id}`}
+												onClick={(e) =>
+													e.stopPropagation()
+												}
+												className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+											>
+												<GiftIcon className="size-3 text-emerald-600" />
+												<span className="truncate max-w-[140px]">
+													{displayName(
+														referred.firstName,
+														referred.lastName,
+													) || referred.username}
+												</span>
+											</a>
+										</TooltipTrigger>
+										<TooltipContent>
+											Free month for bringing this
+											customer — open
+										</TooltipContent>
+									</Tooltip>
+									<ConnectivityCell
+										status={referred.status}
+										online={referred.online}
+										lastLogin={referred.lastLogin}
+										expiresAt={referred.expiresAt}
+									/>
+								</div>
 							)}
 						</div>
 					);
@@ -1124,6 +1363,10 @@ export function PaymentsList() {
 					const isMarkingReceipt =
 						markReceiptSent.isPending &&
 						markReceiptSent.variables?.paymentId === payment.id;
+					const isSendingReferralReward =
+						resendReferralReward.isPending &&
+						resendReferralReward.variables?.paymentId ===
+							payment.id;
 					const isDeleting =
 						deletePayment.isPending &&
 						deletePayment.variables?.paymentId === payment.id;
@@ -1163,10 +1406,65 @@ export function PaymentsList() {
 							realIpPrice: payment.customer.realIpPrice ?? 0,
 							noteCategory: payment.noteCategory,
 						});
+					const openDiagnose = () =>
+						setDiagnoseTarget({
+							customerId: payment.customer.id,
+							customerName: displayName(
+								payment.customer.firstName,
+								payment.customer.lastName,
+							),
+						});
 					const isDeclining =
 						declineStoppedPayment.isPending &&
 						declineStoppedPayment.variables?.paymentId ===
 							payment.id;
+					const referralReward = isReferralReward(payment);
+					const referralWarning = referralReward
+						? referredCustomerWarning(payment)
+						: null;
+					const referrerName =
+						displayName(
+							payment.customer.firstName,
+							payment.customer.lastName,
+						) ||
+						payment.customer.username ||
+						"the customer";
+					const referredName = payment.referredCustomer
+						? displayName(
+								payment.referredCustomer.firstName,
+								payment.referredCustomer.lastName,
+							) ||
+							payment.referredCustomer.username ||
+							"the new customer"
+						: "";
+					const approve = () => {
+						if (!organizationId) {
+							return;
+						}
+						reviewPayment.mutate(
+							{ organizationId, paymentId: payment.id },
+							{
+								onSuccess: (result) => {
+									if (result.alreadyReviewed) {
+										toast.info("Already reviewed");
+									} else if (result.referralRewardQueued) {
+										toast.success(
+											`Marked as reviewed · free-month WhatsApp queued for ${referrerName}`,
+										);
+									} else {
+										toast.success("Marked as reviewed");
+									}
+								},
+								onError: (error) => {
+									if (isIradiusUserMissing(error)) {
+										setIradiusMissingPayment(payment);
+										return;
+									}
+									toast.error(error.message);
+								},
+							},
+						);
+					};
 
 					return (
 						<div className="flex items-center gap-1">
@@ -1187,49 +1485,62 @@ export function PaymentsList() {
 								</Button>
 							)}
 
-							{/* Review button — always visible when needed */}
+							{/* Diagnose — check the line before approving */}
+							{organizationId &&
+								needsReview &&
+								payment.customer.externalId && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="sm"
+												variant="ghost"
+												aria-label="Diagnose"
+												onClick={openDiagnose}
+											>
+												<ActivityIcon className="size-3.5" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>
+											Diagnose
+										</TooltipContent>
+									</Tooltip>
+								)}
+
+							{/* Review button — always visible when needed. A
+							    referral free month whose new customer looks
+							    doubtful asks first, but never blocks. */}
 							{organizationId && needsReview && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
 											size="sm"
 											variant="ghost"
-											className="text-emerald-600"
+											className={
+												referralWarning
+													? "text-amber-600"
+													: "text-emerald-600"
+											}
 											disabled={
 												isReviewing || isDeclining
 											}
-											onClick={() =>
-												reviewPayment.mutate(
-													{
-														organizationId,
-														paymentId: payment.id,
-													},
-													{
-														onSuccess: () =>
-															toast.success(
-																"Marked as reviewed",
-															),
-														onError: (error) => {
-															if (
-																isIradiusUserMissing(
-																	error,
-																)
-															) {
-																setIradiusMissingPayment(
-																	payment,
-																);
-																return;
-															}
-															toast.error(
-																error.message,
-															);
-														},
-													},
-												)
-											}
+											onClick={() => {
+												if (referralWarning) {
+													setReferralConfirm({
+														referrerName,
+														referredName,
+														warning:
+															referralWarning,
+														approve,
+													});
+													return;
+												}
+												approve();
+											}}
 										>
 											{isReviewing ? (
 												<Loader2Icon className="size-3.5 animate-spin" />
+											) : referralWarning ? (
+												<AlertTriangleIcon className="size-3.5" />
 											) : (
 												<CheckIcon className="size-3.5" />
 											)}
@@ -1240,7 +1551,12 @@ export function PaymentsList() {
 											? "Approve & Deactivate"
 											: canReprice
 												? "Approve as-is — keep current pricing, remainder stays owed"
-												: "Mark as reviewed"}
+												: referralReward &&
+														referralRewardMessaging
+													? `Approve — sends free-month WhatsApp to ${referrerName}${referralWarning ? ` (new customer ${referralWarning})` : ""}`
+													: referralWarning
+														? `Mark as reviewed (new customer ${referralWarning})`
+														: "Mark as reviewed"}
 									</TooltipContent>
 								</Tooltip>
 							)}
@@ -1336,6 +1652,14 @@ export function PaymentsList() {
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
+										{payment.customer.externalId && (
+											<DropdownMenuItem
+												onClick={openDiagnose}
+											>
+												<ActivityIcon className="mr-2 size-3.5" />
+												Diagnose
+											</DropdownMenuItem>
+										)}
 										<DropdownMenuItem asChild>
 											<a
 												href={`/invoice/${payment.id}`}
@@ -1442,6 +1766,50 @@ export function PaymentsList() {
 														<CheckCircle2Icon className="mr-2 size-3.5" />
 													)}
 													Mark receipt as sent
+												</DropdownMenuItem>
+											)}
+										{referralRewardMessaging &&
+											referralReward &&
+											payment.reviewedAt && (
+												<DropdownMenuItem
+													disabled={
+														isSendingReferralReward
+													}
+													onClick={() => {
+														if (!organizationId) {
+															return;
+														}
+														resendReferralReward.mutate(
+															{
+																organizationId,
+																paymentId:
+																	payment.id,
+															},
+															{
+																onSuccess: () =>
+																	toast.success(
+																		`Free-month WhatsApp queued for ${referrerName}`,
+																	),
+																onError: (
+																	error,
+																) =>
+																	toast.error(
+																		error.message,
+																	),
+															},
+														);
+													}}
+												>
+													{isSendingReferralReward ? (
+														<Loader2Icon className="mr-2 size-3.5 animate-spin" />
+													) : (
+														<GiftIcon className="mr-2 size-3.5" />
+													)}
+													{lastReferralRewardEntry(
+														payment.activityLog,
+													)?.status === "success"
+														? "Resend free-month WhatsApp"
+														: "Send free-month WhatsApp"}
 												</DropdownMenuItem>
 											)}
 										{whatsappNumbers.length > 0 && (
@@ -1705,6 +2073,8 @@ export function PaymentsList() {
 			declineStoppedPayment,
 			orgSlug,
 			markReceiptSent,
+			resendReferralReward,
+			referralRewardMessaging,
 			pushToIRadius,
 		],
 	);
@@ -1720,7 +2090,7 @@ export function PaymentsList() {
 						value={search}
 						onChange={(v) => {
 							setSearch(v);
-							setPage(1);
+							resetPage();
 						}}
 						placeholder="Search customer or invoice..."
 						className="w-full sm:max-w-xs"
@@ -1838,15 +2208,122 @@ export function PaymentsList() {
 					</div>
 				</div>
 
-				{organizationId && selectedCount > 0 && (
+				{organizationId &&
+					isReceiptFilter &&
+					selectedPayments.length > 0 && (
+						<CustomerBulkActionsBar
+							count={selectedPayments.length}
+							customerIds={selectedCustomerIds}
+							organizationId={organizationId}
+							collectors={collectors}
+							onCleared={() => setRowSelection({})}
+							rowLabelSingular="payment selected"
+							rowLabelPlural="payments selected"
+							customerActions={false}
+							extraActions={
+								resendSelection.resendable.length > 0 ? (
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={
+													resendReceipts.isPending
+												}
+											>
+												{resendReceipts.isPending ? (
+													<Loader2Icon className="mr-2 size-4 animate-spin" />
+												) : (
+													<SendIcon className="mr-2 size-4" />
+												)}
+												Resend receipts (
+												{
+													resendSelection.resendable
+														.length
+												}
+												)
+											</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>
+													Resend{" "}
+													{
+														resendSelection
+															.resendable.length
+													}{" "}
+													receipt
+													{resendSelection.resendable
+														.length === 1
+														? ""
+														: "s"}
+													?
+												</AlertDialogTitle>
+												<AlertDialogDescription>
+													Each payment gets its own
+													WhatsApp receipt on the
+													customer's primary number,
+													sent about a second apart.
+													{Object.keys(
+														resendSelection.skipped,
+													).length > 0 &&
+														` Skipped: ${formatSkipped(resendSelection.skipped)}.`}
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<div className="space-y-1 rounded-md border bg-muted/40 p-3 text-xs">
+												<p className="font-medium text-foreground">
+													Last result
+												</p>
+												{resendSelection.errors
+													.slice(0, 5)
+													.map((e) => (
+														<div
+															key={e.error}
+															className="flex gap-2 text-muted-foreground"
+														>
+															<span className="tabular-nums font-medium text-foreground">
+																{e.count}×
+															</span>
+															<span className="break-words">
+																{e.error}
+															</span>
+														</div>
+													))}
+											</div>
+											<AlertDialogFooter>
+												<AlertDialogCancel>
+													Cancel
+												</AlertDialogCancel>
+												<AlertDialogAction
+													disabled={
+														resendReceipts.isPending
+													}
+													onClick={handleBulkResend}
+												>
+													{resendReceipts.isPending
+														? "Working…"
+														: "Resend receipts"}
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								) : (
+									<span className="text-muted-foreground text-xs">
+										Nothing to resend:{" "}
+										{formatSkipped(resendSelection.skipped)}
+									</span>
+								)
+							}
+						/>
+					)}
+
+				{organizationId && !isReceiptFilter && selectedCount > 0 && (
 					<CustomerBulkActionsBar
 						count={selectedCount}
 						customerIds={selectedCustomerIds}
 						organizationId={organizationId}
 						collectors={collectors}
 						onCleared={() => setRowSelection({})}
-						rowLabelSingular="payment selected"
-						rowLabelPlural="payments selected"
 						extraActions={
 							reviewablePaymentIds.length > 0 ? (
 								<AlertDialog>
@@ -1883,6 +2360,39 @@ export function PaymentsList() {
 													? `${selectedStoppedCount} of these ${selectedStoppedCount === 1 ? "is a stopped account" : "are stopped accounts"} — approving will deactivate ${selectedStoppedCount === 1 ? "that customer" : "those customers"} in iRadius and void the matching invoice. Already-reviewed payments are skipped.`
 													: "The selected flagged payments will be marked as reviewed and leave the Needs Review queue. Already-reviewed payments are skipped."}
 											</AlertDialogDescription>
+											{referralRewardMessaging &&
+												selectedReferrals.length >
+													0 && (
+													<p className="text-sm text-muted-foreground">
+														{
+															selectedReferrals.length
+														}{" "}
+														referral reward
+														{selectedReferrals.length ===
+														1
+															? ""
+															: "s"}{" "}
+														will be messaged on
+														WhatsApp.
+													</p>
+												)}
+											{selectedDoubtfulReferralCount >
+												0 && (
+												<p className="flex items-start gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+													<AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+													{
+														selectedDoubtfulReferralCount
+													}{" "}
+													of the referred new
+													customers{" "}
+													{selectedDoubtfulReferralCount ===
+													1
+														? "is"
+														: "are"}{" "}
+													inactive or expired — check
+													the referral is real.
+												</p>
+											)}
 										</AlertDialogHeader>
 										<AlertDialogFooter>
 											<AlertDialogCancel>
@@ -1909,7 +2419,7 @@ export function PaymentsList() {
 				<TooltipProvider>
 					<DataTable
 						columns={columns}
-						data={payments}
+						data={rows}
 						isLoading={isLoading}
 						isFetching={isFetching}
 						getRowClassName={rowClassName}
@@ -1924,7 +2434,12 @@ export function PaymentsList() {
 							totalItems: total,
 							currentPage: page,
 							itemsPerPage: PAGE_SIZE,
-							onPageChange: setPage,
+							// Selection is per page: a bulk action must only
+							// touch rows the operator can see.
+							onPageChange: (next) => {
+								setPage(next);
+								setRowSelection({});
+							},
 						}}
 						emptyState={
 							<EmptyState
@@ -2040,6 +2555,16 @@ export function PaymentsList() {
 				/>
 			)}
 
+			{organizationId && diagnoseTarget && (
+				<DiagnoseSheet
+					organizationId={organizationId}
+					customerId={diagnoseTarget.customerId}
+					customerName={diagnoseTarget.customerName}
+					open={!!diagnoseTarget}
+					onOpenChange={(o) => !o && setDiagnoseTarget(null)}
+				/>
+			)}
+
 			{organizationId && repriceDialog && (
 				<RepricePaymentDialog
 					key={repriceDialog.id}
@@ -2129,6 +2654,49 @@ export function PaymentsList() {
 					</AlertDialogContent>
 				</AlertDialog>
 			)}
+
+			<AlertDialog
+				open={!!referralConfirm}
+				onOpenChange={(o) => !o && setReferralConfirm(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							Approve this referral free month?
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{referralConfirm && (
+								<>
+									<span className="font-medium text-foreground">
+										{referralConfirm.referredName}
+									</span>
+									, the new customer{" "}
+									{referralConfirm.referrerName} brought in,
+									is {referralConfirm.warning}. Check the
+									referral is real before approving.
+									<br />
+									<br />
+									{referralRewardMessaging
+										? `Approving keeps the free month and sends ${referralConfirm.referrerName} the free-month WhatsApp.`
+										: "Approving keeps the free month."}
+								</>
+							)}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={reviewPayment.isPending}
+							onClick={() => {
+								referralConfirm?.approve();
+								setReferralConfirm(null);
+							}}
+						>
+							Approve anyway
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/*
 			 * Per-row iRadius dialogs. One state owns the active kind +

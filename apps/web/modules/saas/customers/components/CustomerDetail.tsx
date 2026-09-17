@@ -1938,7 +1938,7 @@ function ActivityTab({
 			</DetailSection>
 			<DetailSection
 				title="Referrals"
-				description="Customers who received a free plan referred by this customer"
+				description="Customers who got a free month for bringing in this customer"
 			>
 				<CustomerReferrals
 					customerId={customerId}

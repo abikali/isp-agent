@@ -63,6 +63,30 @@ function parsePriceInput(raw: string | undefined): number | null {
 	return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
+/** "$30/mo − $5 discount · IPTV $10 · Real IP $5" — the recurring price approval pushes to iRadius. */
+function monthlyPriceLabel(customer: {
+	monthlyRate: number | null;
+	discount: number;
+	iptvPrice: number;
+	realIpPrice: number;
+}): string {
+	return [
+		`${formatCurrency(customer.monthlyRate ?? 0)}/mo${
+			customer.discount > 0
+				? ` − ${formatCurrency(customer.discount)} discount`
+				: ""
+		}`,
+		customer.iptvPrice > 0
+			? `IPTV ${formatCurrency(customer.iptvPrice)}`
+			: null,
+		customer.realIpPrice > 0
+			? `Real IP ${formatCurrency(customer.realIpPrice)}`
+			: null,
+	]
+		.filter(Boolean)
+		.join(" · ");
+}
+
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive review queue: list, approve/reject dialogs, and edit flow share request state; splitting would obscure the flow
 export function PendingCustomersList() {
 	const organizationId = useOrganizationId();
@@ -307,6 +331,13 @@ export function PendingCustomersList() {
 												{itemsTotal > 0 &&
 													` + ${formatCurrency(itemsTotal)} items`}
 											</p>
+											{customer.monthlyRate != null && (
+												<p className="text-xs text-muted-foreground">
+													{monthlyPriceLabel(
+														customer,
+													)}
+												</p>
+											)}
 										</div>
 									</div>
 

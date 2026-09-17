@@ -29,7 +29,10 @@ export {
 	retryWebhookDelivery,
 	type WebhookPayload,
 } from "./src/jobs/webhook.jobs";
-export { queueWhatsAppReceipt } from "./src/jobs/whatsapp-receipt.jobs";
+export {
+	queueWhatsAppReceipt,
+	queueWhatsAppReferralReward,
+} from "./src/jobs/whatsapp-receipt.jobs";
 export { queueWhatsAppTemplateRetry } from "./src/jobs/whatsapp-template.jobs";
 // Shared helper re-exported for the API layer (single-customer inline sends)
 export {

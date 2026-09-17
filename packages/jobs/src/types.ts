@@ -158,6 +158,19 @@ export interface WhatsAppReceiptJobData {
 	source?: "auto" | "manual" | undefined;
 }
 
+/**
+ * "Free month" WhatsApp to a referrer, queued when their referral free
+ * payment is approved. Rides the receipt queue; `kind` tells the worker apart.
+ */
+export interface ReferralRewardJobData {
+	kind: "referral-reward";
+	paymentId: string;
+}
+
+export type WhatsAppReceiptQueueJobData =
+	| WhatsAppReceiptJobData
+	| ReferralRewardJobData;
+
 export interface WhatsAppReceiptJobResult {
 	success: boolean;
 }

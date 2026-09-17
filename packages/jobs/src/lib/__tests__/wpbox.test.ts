@@ -113,7 +113,7 @@ describe("sendWPBoxTemplate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 200,
-			error: "API returned 200",
+			error: "API returned 200: <html>ok</html>",
 			retriable: false,
 		});
 	});
@@ -128,12 +128,12 @@ describe("sendWPBoxTemplate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 503,
-			error: "API returned 503",
+			error: "API returned 503: Service Unavailable",
 			retriable: true,
 		});
 	});
 
-	it("marks 4xx as permanent", async () => {
+	it("marks 404 and 429 as retriable (WPBox outages answer 404)", async () => {
 		mockFetch.mockResolvedValue(new Response("Not Found", { status: 404 }));
 
 		const result = await send();
@@ -141,6 +141,20 @@ describe("sendWPBoxTemplate", () => {
 		expect(result).toMatchObject({
 			ok: false,
 			status: 404,
+			retriable: true,
+		});
+	});
+
+	it("marks other 4xx as permanent", async () => {
+		mockFetch.mockResolvedValue(
+			new Response("Bad Request", { status: 400 }),
+		);
+
+		const result = await send();
+
+		expect(result).toMatchObject({
+			ok: false,
+			status: 400,
 			retriable: false,
 		});
 	});

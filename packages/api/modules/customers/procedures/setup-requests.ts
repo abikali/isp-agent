@@ -21,6 +21,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { newUserSetupAmount } from "../../billing/lib/cash-signs";
 import { resolveActiveBillingMonth } from "../../billing/lib/resolve-month";
+import { syncPendingAddonLinePrices } from "../../installations/lib/addon-price-sync";
 import { addonNoteFor } from "../../installations/lib/addons";
 import { assertWorkerHoldsStockLines } from "../../installations/lib/stock-guard";
 import {
@@ -526,6 +527,10 @@ export const listSetupRequests = protectedProcedure
 						status: true,
 						expiresAt: true,
 						externalId: true,
+						monthlyRate: true,
+						discount: true,
+						iptvPrice: true,
+						realIpPrice: true,
 						plan: { select: { id: true, name: true } },
 						collector: { select: { id: true, name: true } },
 					},
@@ -595,7 +600,16 @@ export const updateSetupRequest = protectedProcedure
 			select: {
 				id: true,
 				customerId: true,
-				customer: { select: { username: true, planId: true } },
+				customer: {
+					select: {
+						username: true,
+						planId: true,
+						monthlyRate: true,
+						discount: true,
+						iptvPrice: true,
+						realIpPrice: true,
+					},
+				},
 			},
 		});
 		if (!request) {
@@ -640,6 +654,24 @@ export const updateSetupRequest = protectedProcedure
 					message: "Collector not found",
 				});
 			}
+		}
+
+		// Approval pushes these to iRadius as the subscriber's recurring price,
+		// so a discount larger than the whole bill would create a negative
+		// monthly charge. Checked on the values as they will be after this save.
+		const nextRate =
+			input.monthlyRate ??
+			newPlanRate ??
+			request.customer.monthlyRate ??
+			0;
+		const nextIptv = input.iptvPrice ?? request.customer.iptvPrice;
+		const nextRealIp = input.realIpPrice ?? request.customer.realIpPrice;
+		const nextDiscount = input.discount ?? request.customer.discount;
+		const nextBill = nextRate + nextIptv + nextRealIp;
+		if (nextDiscount > nextBill + 1e-6) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `Discount ($${nextDiscount.toFixed(2)}) can't be more than the monthly bill ($${nextBill.toFixed(2)})`,
+			});
 		}
 
 		// Re-validate a newly-assigned username against iRadius (defense in
@@ -711,6 +743,13 @@ export const updateSetupRequest = protectedProcedure
 					data: customerData,
 				});
 			}
+			// Approving a pending add-on line writes its price back onto the
+			// customer, after the iRadius create has already pushed the
+			// customer's price — keep the two in step so they can't diverge.
+			await syncPendingAddonLinePrices(tx, request.id, {
+				IPTV: input.iptvPrice,
+				REAL_IP: input.realIpPrice,
+			});
 			if (input.firstChargeAmount !== undefined) {
 				return tx.customerSetupRequest.update({
 					where: { id: request.id },

@@ -1,49 +1,29 @@
-import { db, type Prisma } from "@repo/database";
+import { appendPaymentActivityLog } from "@repo/database";
 import { logger } from "@repo/logs";
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { getWorkerConcurrency } from "../lib/worker-concurrency";
 import { sendWhatsAppReceipt } from "../lib/wpbox";
-import { WHATSAPP_RECEIPT_QUEUE_NAME } from "../queues/whatsapp-receipt.queue";
+import {
+	WHATSAPP_RECEIPT_MAX_ATTEMPTS,
+	WHATSAPP_RECEIPT_QUEUE_NAME,
+} from "../queues/whatsapp-receipt.queue";
 import type {
-	WhatsAppReceiptJobData,
 	WhatsAppReceiptJobResult,
+	WhatsAppReceiptQueueJobData,
 } from "../types";
-
-interface ActivityLogEntry {
-	action: string;
-	status: "success" | "failed" | "skipped";
-	statusCode?: number;
-	error?: string;
-	detail?: string;
-	timestamp: string;
-}
-
-async function appendActivityLog(
-	paymentId: string,
-	entry: ActivityLogEntry,
-): Promise<void> {
-	const payment = await db.payment.findUnique({
-		where: { id: paymentId },
-		select: { activityLog: true },
-	});
-	const log = Array.isArray(payment?.activityLog)
-		? (payment.activityLog as Prisma.JsonArray)
-		: [];
-	log.push(entry as unknown as Prisma.JsonValue);
-	await db.payment.update({
-		where: { id: paymentId },
-		data: { activityLog: log },
-	});
-}
+import { processReferralRewardJob } from "./whatsapp-referral-reward";
 
 export function createWhatsAppReceiptWorker(): Worker<
-	WhatsAppReceiptJobData,
+	WhatsAppReceiptQueueJobData,
 	WhatsAppReceiptJobResult
 > {
-	return new Worker<WhatsAppReceiptJobData, WhatsAppReceiptJobResult>(
+	return new Worker<WhatsAppReceiptQueueJobData, WhatsAppReceiptJobResult>(
 		WHATSAPP_RECEIPT_QUEUE_NAME,
 		async (job) => {
+			if ("kind" in job.data) {
+				return processReferralRewardJob(job.data, job);
+			}
 			const { phone: rawPhone, paymentId, source = "auto" } = job.data;
 			const actionLabel =
 				source === "manual"
@@ -57,18 +37,17 @@ export function createWhatsAppReceiptWorker(): Worker<
 
 			if (!result.ok) {
 				// Permanent failure (4xx, missing token, bad phone) — log and
-				// give up. Transient failure (5xx, timeout) — throw to retry,
-				// but only write a "failed" activity row on the final attempt
-				// so the log isn't flooded with retry noise.
+				// give up. Transient failure (5xx, 404, timeout) — throw to
+				// retry, but only write a "failed" activity row on the final
+				// attempt so the log isn't flooded with retry noise.
 				if (result.retriable) {
-					const maxAttempts = job.opts.attempts ?? 3;
+					const maxAttempts =
+						job.opts.attempts ?? WHATSAPP_RECEIPT_MAX_ATTEMPTS;
 					if (job.attemptsMade + 1 >= maxAttempts) {
-						await appendActivityLog(paymentId, {
+						await appendPaymentActivityLog([paymentId], {
 							action: actionLabel,
 							status: "failed",
-							...(result.status !== undefined && {
-								statusCode: result.status,
-							}),
+							statusCode: result.status,
 							error: `${result.error} after ${maxAttempts} attempts`,
 							detail: result.phone,
 							timestamp: new Date().toISOString(),
@@ -79,12 +58,10 @@ export function createWhatsAppReceiptWorker(): Worker<
 					);
 				}
 
-				await appendActivityLog(paymentId, {
+				await appendPaymentActivityLog([paymentId], {
 					action: actionLabel,
 					status: result.status === undefined ? "skipped" : "failed",
-					...(result.status !== undefined && {
-						statusCode: result.status,
-					}),
+					statusCode: result.status,
 					error: result.error,
 					detail: result.phone,
 					timestamp: new Date().toISOString(),
@@ -97,30 +74,26 @@ export function createWhatsAppReceiptWorker(): Worker<
 				paymentId,
 			});
 
-			// Update receipt status and append activity log in one write
-			const payment = await db.payment.findUnique({
-				where: { id: paymentId },
-				select: { activityLog: true },
-			});
-			const log = Array.isArray(payment?.activityLog)
-				? (payment.activityLog as Prisma.JsonArray)
-				: [];
-			log.push({
-				action: actionLabel,
-				status: "success",
-				statusCode: result.status,
-				detail: result.phone,
-				timestamp: new Date().toISOString(),
-			} as unknown as Prisma.JsonValue);
-
-			await db.payment.update({
-				where: { id: paymentId },
-				data: {
-					receiptSent: true,
-					receiptSentAt: new Date(),
-					activityLog: log,
-				},
-			});
+			// The message is out: a failed log write must not fail the job,
+			// or BullMQ would retry it and send the receipt again.
+			try {
+				await appendPaymentActivityLog(
+					[paymentId],
+					{
+						action: actionLabel,
+						status: "success",
+						statusCode: result.status,
+						detail: result.phone,
+						timestamp: new Date().toISOString(),
+					},
+					{ markReceiptSent: true },
+				);
+			} catch (error) {
+				logger.error("[WhatsApp Receipt] Sent but failed to log", {
+					paymentId,
+					error: String(error),
+				});
+			}
 
 			return { success: true };
 		},

@@ -598,7 +598,7 @@ export function PaymentSheet({
 										htmlFor="referred-customer"
 										className="mb-1.5 block text-xs font-medium"
 									>
-										Referred by{" "}
+										Referred customer{" "}
 										<span className="text-muted-foreground">
 											(optional)
 										</span>
@@ -607,7 +607,7 @@ export function PaymentSheet({
 										value={referredCustomer}
 										onChange={setReferredCustomer}
 										excludeCustomerId={customer?.id}
-										placeholder="Search customer who referred…"
+										placeholder="Search the new customer they brought…"
 									/>
 								</div>
 							)}

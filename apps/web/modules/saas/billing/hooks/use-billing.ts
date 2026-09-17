@@ -148,6 +148,7 @@ export function usePaymentsQuery(filters: {
 		page: query.data?.page ?? 1,
 		pageSize: query.data?.pageSize ?? 25,
 		totalPages: query.data?.totalPages ?? 0,
+		referralRewardMessaging: query.data?.referralRewardMessaging ?? false,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		error: query.error,
@@ -572,6 +573,32 @@ export function useResendReceipt() {
 
 	return useMutation({
 		...orpc.billing.payments.resendReceipt.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+		},
+	});
+}
+
+export function useResendReceipts() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.resendReceipts.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.payments.key(),
+			});
+		},
+	});
+}
+
+export function useResendReferralReward() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.resendReferralReward.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.billing.payments.key(),

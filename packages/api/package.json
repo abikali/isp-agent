@@ -39,6 +39,14 @@
 			"types": "./modules/api-keys/types.ts",
 			"default": "./modules/api-keys/types.ts"
 		},
+		"./modules/billing/lib/receipt-status": {
+			"types": "./modules/billing/lib/receipt-status.ts",
+			"default": "./modules/billing/lib/receipt-status.ts"
+		},
+		"./modules/billing/lib/referral-reward": {
+			"types": "./modules/billing/lib/referral-reward.ts",
+			"default": "./modules/billing/lib/referral-reward.ts"
+		},
 		"./modules/customers/lib/statuses": {
 			"types": "./modules/customers/lib/statuses.ts",
 			"default": "./modules/customers/lib/statuses.ts"

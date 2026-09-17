@@ -23,13 +23,22 @@ function getWpboxTimeoutMs(): number {
 }
 
 /**
+ * 5xx and 429 are transient. 404 is too: during the 2026-09-04 WPBox outage
+ * the endpoint answered 404 for hours before recovering, and every receipt
+ * that hit it was dropped as a permanent failure.
+ */
+function isRetriableStatus(status: number): boolean {
+	return status >= 500 || status === 404 || status === 429;
+}
+
+/**
  * Discriminated result from a WPBox template send. Callers that only
  * need a yes/no signal should use the `sendWhatsApp*` convenience wrappers
  * below, which extract `.ok` for backward-compat boolean returns. The
  * `whatsapp-receipt` worker needs the full shape so it can distinguish
- * transient (5xx / network — retriable) from permanent (4xx, rejected
- * template, bad phone — skip) failures and log the status code into the
- * payment's activity log.
+ * transient (5xx/404/429 / network — retriable) from permanent (other 4xx,
+ * rejected template, bad phone — skip) failures and log the status code into
+ * the payment's activity log.
  */
 export type WPBoxSendResult =
 	| { ok: true; phone: string; status: number; messageId: string | null }
@@ -49,6 +58,7 @@ export type WPBoxSendResult =
  */
 function describeWPBoxFailure(
 	body: SaltiSendResult | null,
+	rawText: string,
 	httpStatus: number,
 ): string {
 	if (body?.error_message) {
@@ -59,20 +69,32 @@ function describeWPBoxFailure(
 	if (body?.message) {
 		return body.message;
 	}
-	return `API returned ${httpStatus}`;
+	// Keep what WPBox said — "API returned 404" alone couldn't tell an
+	// outage page from a rejected template when triaging Sep 4.
+	return rawText
+		? `API returned ${httpStatus}: ${rawText}`
+		: `API returned ${httpStatus}`;
 }
 
-async function readJsonBody(
+/**
+ * Read the body once: the parsed JSON (when it is an object) for the success
+ * check, and a short whitespace-collapsed snippet of the raw text for errors.
+ */
+async function readBody(
 	response: Response,
-): Promise<SaltiSendResult | null> {
+): Promise<{ json: SaltiSendResult | null; text: string }> {
+	const raw = await response.text().catch(() => "");
+	let json: SaltiSendResult | null = null;
 	try {
-		const body: unknown = await response.json();
-		return body !== null && typeof body === "object"
-			? (body as SaltiSendResult)
-			: null;
+		const parsed: unknown = JSON.parse(raw);
+		json =
+			parsed !== null && typeof parsed === "object"
+				? (parsed as SaltiSendResult)
+				: null;
 	} catch {
-		return null;
+		json = null;
 	}
+	return { json, text: raw.replace(/\s+/g, " ").trim().slice(0, 200) };
 }
 
 /**
@@ -134,7 +156,7 @@ export async function sendWPBoxTemplate(params: {
 				signal: AbortSignal.timeout(getWpboxTimeoutMs()),
 			},
 		);
-		const body = await readJsonBody(response);
+		const { json: body, text: rawText } = await readBody(response);
 
 		if (response.ok && body?.status === "success") {
 			const messageId =
@@ -149,7 +171,7 @@ export async function sendWPBoxTemplate(params: {
 			return { ok: true, phone, status: response.status, messageId };
 		}
 
-		const error = describeWPBoxFailure(body, response.status);
+		const error = describeWPBoxFailure(body, rawText, response.status);
 		logger.warn(`${params.logTag} API returned error`, {
 			status: response.status,
 			error,
@@ -162,7 +184,7 @@ export async function sendWPBoxTemplate(params: {
 			phone,
 			status: response.status,
 			error,
-			retriable: response.status >= 500 || response.status === 429,
+			retriable: isRetriableStatus(response.status),
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -308,5 +330,91 @@ export async function sendWhatsAppDealerAccountUpdate(params: {
 		],
 		logContext: { dealerAccountId: params.dealerAccountId },
 		logTag: "[WhatsApp Dealer Update]",
+	});
+}
+
+// ── Referral reward ("free month") ─────────────────────────────────────────
+
+/** Month names as written in Lebanon (Syriac calendar names). */
+const MONTH_NAMES_AR = [
+	"كانون الثاني",
+	"شباط",
+	"آذار",
+	"نيسان",
+	"أيار",
+	"حزيران",
+	"تموز",
+	"آب",
+	"أيلول",
+	"تشرين الأول",
+	"تشرين الثاني",
+	"كانون الأول",
+];
+
+/** "أيلول 2026" for a billing month (1-based month). */
+export function arabicMonthLabel(year: number, month: number): string {
+	const name = MONTH_NAMES_AR[month - 1];
+	return name ? `${name} ${year}` : `${month}/${year}`;
+}
+
+/**
+ * Meta rejects template parameters that are empty or contain newlines, tabs
+ * or more than four consecutive spaces — one bad customer name would fail
+ * the whole send permanently.
+ */
+export function sanitizeTemplateParam(
+	value: string | null | undefined,
+	fallback: string,
+	maxLength = 60,
+): string {
+	const clean = (value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+	return clean.trim() || fallback;
+}
+
+/**
+ * Tell a referrer their free month was approved — `referral_free_month` (ar,
+ * UTILITY): "مرحباً {{1}}، شكراً لأنك عرّفتنا على {{2}} 🎉 تمّت إضافة شهر
+ * مجاني على اشتراكك عن شهر {{3}}. شكراً لثقتك بنا."
+ * {{1}} referrer's name, {{2}} the new customer they brought, {{3}} the month.
+ */
+export async function sendWhatsAppReferralReward(params: {
+	phone: string;
+	paymentId: string;
+	referrerName: string | null;
+	referredName: string | null;
+	year: number;
+	month: number;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "referral_free_month",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: [
+					{
+						type: "text",
+						text: sanitizeTemplateParam(
+							params.referrerName,
+							"عميلنا",
+						),
+					},
+					{
+						type: "text",
+						text: sanitizeTemplateParam(
+							params.referredName,
+							"صديقك",
+						),
+					},
+					{
+						type: "text",
+						text: arabicMonthLabel(params.year, params.month),
+					},
+				],
+			},
+		],
+		logContext: { paymentId: params.paymentId },
+		logTag: "[WhatsApp Referral Reward]",
 	});
 }
