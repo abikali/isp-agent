@@ -3,8 +3,9 @@ import { logger } from "@repo/logs";
 import { getAiFollowUpQueue } from "../queues/ai-followup.queue";
 import type { AiFollowUpJobData } from "../types";
 
+// BullMQ rejects custom job ids containing ":" ("Custom Id cannot contain :").
 function jobIdFor(conversationId: string): string {
-	return `followup:${conversationId}`;
+	return `followup-${conversationId}`;
 }
 
 /**
