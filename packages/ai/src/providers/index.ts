@@ -1,4 +1,5 @@
 import { toChatFormatting } from "../chat-formatting";
+import type { ModelCredentials } from "../model-registry";
 import type {
 	ChannelProvider,
 	ParsedMessage,
@@ -86,6 +87,7 @@ export async function markAsRead(
  */
 export async function processMedia(
 	apiToken: string,
+	credentials: ModelCredentials,
 	mediaType: string,
 	mediaId: string,
 	mediaCaption?: string,
@@ -95,11 +97,17 @@ export async function processMedia(
 ): Promise<string | null> {
 	switch (mediaType) {
 		case "voice":
-			return whatsapp.transcribeAudio(apiToken, mediaId, mediaLink);
+			return whatsapp.transcribeAudio(
+				apiToken,
+				mediaId,
+				credentials,
+				mediaLink,
+			);
 		case "image":
 			return whatsapp.describeImage(
 				apiToken,
 				mediaId,
+				credentials,
 				mediaCaption,
 				mediaLink,
 				userLanguageHint,
@@ -108,6 +116,7 @@ export async function processMedia(
 			return whatsapp.describeDocument(
 				apiToken,
 				mediaId,
+				credentials,
 				fileName,
 				mediaLink,
 				userLanguageHint,
@@ -125,6 +134,7 @@ export async function processMedia(
  */
 export async function transcribeMessageMedia(
 	apiToken: string,
+	credentials: ModelCredentials,
 	msg: {
 		mediaId?: string | undefined;
 		mediaType?: string | undefined;
@@ -139,6 +149,7 @@ export async function transcribeMessageMedia(
 	}
 	const processed = await processMedia(
 		apiToken,
+		credentials,
 		msg.mediaType,
 		msg.mediaId,
 		msg.mediaCaption,

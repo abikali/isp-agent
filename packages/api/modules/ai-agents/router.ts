@@ -6,6 +6,14 @@ import { deleteChannel } from "./procedures/delete-channel";
 import { deleteMaintenanceWindow } from "./procedures/delete-maintenance-window";
 import { deleteMessage } from "./procedures/delete-message";
 import { editMessage } from "./procedures/edit-message";
+import {
+	cancelConversationFollowUp,
+	getConversationFollowUp,
+	getFollowUpStats,
+	previewFollowUp,
+	sendFollowUpNow,
+	setFollowUpMuted,
+} from "./procedures/follow-ups";
 import { generateSystemPrompt } from "./procedures/generate-system-prompt";
 import { getAgent } from "./procedures/get-agent";
 import { getAgentStats } from "./procedures/get-agent-stats";
@@ -22,6 +30,7 @@ import { resumeConversation } from "./procedures/resume-conversation";
 import { searchConversationMessages } from "./procedures/search-conversation-messages";
 import { sendAdminMessage } from "./procedures/send-admin-message";
 import { sendWebChatMessage } from "./procedures/send-web-chat-message";
+import { testAgentApiKey } from "./procedures/test-agent-api-key";
 import { testTelegramConfig } from "./procedures/test-telegram-config";
 import { togglePinConversation } from "./procedures/toggle-pin-conversation";
 import { toggleWebChat } from "./procedures/toggle-web-chat";
@@ -38,6 +47,8 @@ export const aiAgentsRouter = {
 	deleteAgent,
 	listAgents,
 	getAgent,
+	testAgentApiKey,
+	getFollowUpStats,
 	generateSystemPrompt,
 	createChannel,
 	updateChannel,
@@ -58,6 +69,11 @@ export const aiAgentsRouter = {
 	uploadChatAttachment,
 
 	togglePinConversation,
+	getConversationFollowUp,
+	previewFollowUp,
+	sendFollowUpNow,
+	cancelConversationFollowUp,
+	setFollowUpMuted,
 	searchConversationMessages,
 	getAgentStats,
 	listTools,

@@ -149,6 +149,9 @@ vi.mock("@repo/ai", () => ({
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),
 	decryptToken: vi.fn().mockReturnValue("decrypted-token"),
+	resolveAgentCredentials: vi
+		.fn()
+		.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
 	loadHistoryRows: vi
 		.fn()
@@ -231,6 +234,8 @@ const CHANNEL_FIXTURE = {
 		promptSections: [],
 		contextGapThresholdMinutes: 120,
 		humanTakeoverHours: 4, // Enabled with 4-hour window
+		provider: "openrouter",
+		encryptedApiKey: "encrypted-key",
 	},
 };
 
@@ -652,6 +657,7 @@ describe("Human Takeover - Customer Answering A Teammate", () => {
 
 		expect(mockShouldDeferToTeammate).toHaveBeenCalledWith({
 			conversationId: "conv-1",
+			credentials: { provider: "openrouter", apiKey: "k" },
 		});
 		expect(mockDb.aiMessage.create).toHaveBeenCalledWith(
 			expect.objectContaining({

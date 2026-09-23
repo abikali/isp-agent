@@ -2,7 +2,11 @@
 export { closeConnection, getRedisConnection } from "./src/connection";
 // Jobs
 export { queueAiChatRetry } from "./src/jobs/ai-chat.jobs";
-export { cancelFollowUp, scheduleFollowUp } from "./src/jobs/ai-followup.jobs";
+export {
+	cancelFollowUp,
+	countRecentFollowUps,
+	scheduleFollowUp,
+} from "./src/jobs/ai-followup.jobs";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,
@@ -34,6 +38,11 @@ export {
 	queueWhatsAppReferralReward,
 } from "./src/jobs/whatsapp-receipt.jobs";
 export { queueWhatsAppTemplateRetry } from "./src/jobs/whatsapp-template.jobs";
+export {
+	draftFollowUp,
+	type FollowUpRunResult,
+	runFollowUp,
+} from "./src/lib/ai-follow-up";
 // Shared helper re-exported for the API layer (single-customer inline sends)
 export {
 	type CreateLocationRequestResult,

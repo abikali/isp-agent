@@ -53,7 +53,13 @@ describe("shouldDeferToTeammate", () => {
 		});
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(true);
 
 		expect(findMany).toHaveBeenCalledWith(
@@ -82,7 +88,13 @@ describe("shouldDeferToTeammate", () => {
 		});
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 	});
 
@@ -92,7 +104,13 @@ describe("shouldDeferToTeammate", () => {
 		classifyText.mockResolvedValue(null);
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 	});
 
@@ -102,7 +120,13 @@ describe("shouldDeferToTeammate", () => {
 		);
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 		expect(findMany).not.toHaveBeenCalled();
 		expect(classifyText).not.toHaveBeenCalled();
@@ -112,7 +136,13 @@ describe("shouldDeferToTeammate", () => {
 		findFirst.mockResolvedValue(null);
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 		expect(classifyText).not.toHaveBeenCalled();
 	});
@@ -122,7 +152,13 @@ describe("shouldDeferToTeammate", () => {
 		findMany.mockResolvedValue([row("user", "ok thanks", hoursAfter(25))]);
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 		expect(classifyText).not.toHaveBeenCalled();
 	});
@@ -132,7 +168,13 @@ describe("shouldDeferToTeammate", () => {
 		findMany.mockResolvedValue([]);
 
 		await expect(
-			shouldDeferToTeammate({ conversationId: "conv-1" }),
+			shouldDeferToTeammate({
+				credentials: {
+					provider: "openrouter",
+					apiKey: "test",
+				} as const,
+				conversationId: "conv-1",
+			}),
 		).resolves.toBe(false);
 		expect(classifyText).not.toHaveBeenCalled();
 	});

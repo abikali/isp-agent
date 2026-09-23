@@ -44,6 +44,7 @@ import {
 	FileTextIcon,
 	HandIcon,
 	HelpCircleIcon,
+	KeyRoundIcon,
 	Loader2Icon,
 	MessageCircleReplyIcon,
 	RotateCcwIcon,
@@ -54,16 +55,32 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useGenerateSystemPrompt, useUpdateAgent } from "../hooks/use-agents";
+import {
+	useFollowUpStats,
+	useGenerateSystemPrompt,
+	useUpdateAgent,
+} from "../hooks/use-agents";
 import { useAvailableTools } from "../hooks/use-tools";
 import {
 	AI_MODEL_GROUPS,
 	AI_MODEL_OPTIONS,
 	DEFAULT_PROMPT_SECTIONS,
+	isModelAvailableFrom,
+	LLM_PROVIDERS,
+	type LlmProvider,
 	type PromptSection,
 } from "../lib/constants";
+import { ApiKeyTestButton } from "./ApiKeyTestButton";
 import { MaintenanceWindows } from "./MaintenanceWindows";
 import { ToolConfigDialog } from "./ToolConfigDialog";
+
+const REPEAT_GAP_OPTIONS = [
+	{ minutes: 240, label: "4 hours" },
+	{ minutes: 720, label: "12 hours" },
+	{ minutes: 1440, label: "1 day" },
+	{ minutes: 2880, label: "2 days" },
+	{ minutes: 4320, label: "3 days" },
+];
 
 function FieldHint({ text }: { text: string }) {
 	return (
@@ -391,6 +408,14 @@ export function AgentSettings({
 			followUpEnabled: agent.followUpMinutes != null,
 			followUpMinutes: agent.followUpMinutes ?? 30,
 			followUpMessage: agent.followUpMessage ?? "",
+			followUpMaxAttempts: agent.followUpMaxAttempts,
+			followUpRepeatMinutes: agent.followUpRepeatMinutes,
+			followUpWindowStart: agent.followUpWindowStart,
+			followUpWindowEnd: agent.followUpWindowEnd,
+			followUpWeeklyCap: agent.followUpWeeklyCap,
+			provider: agent.provider as LlmProvider,
+			// Write-only: empty keeps the stored key.
+			apiKey: "",
 			promptSections: agentPromptSections,
 		},
 		onSubmit: async ({ value }) => {
@@ -426,8 +451,16 @@ export function AgentSettings({
 						? value.followUpMinutes
 						: null,
 					followUpMessage: value.followUpMessage || null,
+					followUpMaxAttempts: value.followUpMaxAttempts,
+					followUpRepeatMinutes: value.followUpRepeatMinutes,
+					followUpWindowStart: value.followUpWindowStart,
+					followUpWindowEnd: value.followUpWindowEnd,
+					followUpWeeklyCap: value.followUpWeeklyCap,
+					provider: value.provider,
+					apiKey: value.apiKey.trim() || undefined,
 					promptSections: value.promptSections,
 				});
+				form.setFieldValue("apiKey", "");
 				toast.success("Settings saved");
 			} catch (error) {
 				toast.error(
@@ -460,6 +493,9 @@ export function AgentSettings({
 	}
 
 	const isSubmitting = useStore(form.store, (s) => s.isSubmitting);
+	const provider = useStore(form.store, (s) => s.values.provider);
+	const providerChanged = provider !== agent.provider;
+	const { data: followUpStats } = useFollowUpStats(agentId, organizationId);
 
 	return (
 		<TooltipProvider>
@@ -475,6 +511,19 @@ export function AgentSettings({
 				    lives in the PageShell header; this only exposes the
 				    on/off switch + a one-liner status so operators can pause
 				    the agent while editing settings. */}
+				{!agent.hasApiKey && (
+					<div className="mb-3 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2.5 text-sm">
+						<KeyRoundIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+						<span>
+							<span className="font-medium">
+								This agent can't reply:
+							</span>{" "}
+							it has no API key. Add one under Model Configuration
+							below.
+						</span>
+					</div>
+				)}
+
 				<form.Field name="enabled">
 					{(field) => (
 						<ToggleCard
@@ -797,8 +846,8 @@ export function AgentSettings({
 							title="Follow up after silence"
 							description={
 								enabledField.state.value
-									? "One nudge when the customer goes quiet after a bot question"
-									: "Nudge a customer once when they stop replying"
+									? "Nudges a customer who goes quiet after a bot question"
+									: "Nudge a customer when they stop replying"
 							}
 							active={enabledField.state.value}
 							activeTone="info"
@@ -813,49 +862,242 @@ export function AgentSettings({
 						>
 							{enabledField.state.value && (
 								<>
-									<form.Field name="followUpMinutes">
-										{(f) => (
-											<Field>
-												<FieldLabel
-													htmlFor="fu-minutes"
-													className="text-xs"
-												>
-													After (minutes of silence)
-												</FieldLabel>
-												<div className="flex items-center gap-2">
+									<div className="grid gap-3 sm:grid-cols-2">
+										<form.Field name="followUpMinutes">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="fu-minutes"
+														className="text-xs"
+													>
+														First nudge after
+													</FieldLabel>
+													<div className="flex items-center gap-2">
+														<Input
+															id="fu-minutes"
+															type="number"
+															min={5}
+															max={1440}
+															step={5}
+															value={
+																f.state.value
+															}
+															onChange={(e) =>
+																f.handleChange(
+																	Number.parseInt(
+																		e.target
+																			.value,
+																		10,
+																	) || 30,
+																)
+															}
+															className="w-24"
+														/>
+														<span className="text-sm text-muted-foreground">
+															minutes of silence
+														</span>
+													</div>
+												</Field>
+											)}
+										</form.Field>
+										<form.Field name="followUpMaxAttempts">
+											{(f) => (
+												<Field>
+													<FieldLabel className="text-xs">
+														Nudges per silence
+														<FieldHint text="How many times the bot nudges before giving up, if the customer never answers. The count resets when they write back. The last nudge closes the loop instead of asking again." />
+													</FieldLabel>
+													<Select
+														value={String(
+															f.state.value,
+														)}
+														onValueChange={(v) =>
+															f.handleChange(
+																Number(v),
+															)
+														}
+													>
+														<SelectTrigger className="w-40">
+															<SelectValue />
+														</SelectTrigger>
+														<SelectContent>
+															<SelectItem value="1">
+																1 (just once)
+															</SelectItem>
+															<SelectItem value="2">
+																2
+															</SelectItem>
+															<SelectItem value="3">
+																3 (maximum)
+															</SelectItem>
+														</SelectContent>
+													</Select>
+												</Field>
+											)}
+										</form.Field>
+										<form.Subscribe
+											selector={(st) =>
+												st.values.followUpMaxAttempts
+											}
+										>
+											{(attempts) =>
+												attempts > 1 ? (
+													<form.Field name="followUpRepeatMinutes">
+														{(f) => (
+															<Field>
+																<FieldLabel className="text-xs">
+																	Gap before
+																	each later
+																	nudge
+																</FieldLabel>
+																<Select
+																	value={String(
+																		f.state
+																			.value,
+																	)}
+																	onValueChange={(
+																		v,
+																	) =>
+																		f.handleChange(
+																			Number(
+																				v,
+																			),
+																		)
+																	}
+																>
+																	<SelectTrigger className="w-40">
+																		<SelectValue />
+																	</SelectTrigger>
+																	<SelectContent>
+																		{REPEAT_GAP_OPTIONS.map(
+																			(
+																				o,
+																			) => (
+																				<SelectItem
+																					key={
+																						o.minutes
+																					}
+																					value={String(
+																						o.minutes,
+																					)}
+																				>
+																					{
+																						o.label
+																					}
+																				</SelectItem>
+																			),
+																		)}
+																	</SelectContent>
+																</Select>
+															</Field>
+														)}
+													</form.Field>
+												) : null
+											}
+										</form.Subscribe>
+										<form.Field name="followUpWeeklyCap">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="fu-cap"
+														className="text-xs"
+													>
+														Weekly cap per chat
+														<FieldHint text="Hard ceiling on nudges one customer gets in any 7 days, across all their conversations. Protects people who send one message a day from getting a nudge every day." />
+													</FieldLabel>
+													<div className="flex items-center gap-2">
+														<Input
+															id="fu-cap"
+															type="number"
+															min={1}
+															max={14}
+															value={
+																f.state.value
+															}
+															onChange={(e) =>
+																f.handleChange(
+																	Math.min(
+																		14,
+																		Math.max(
+																			1,
+																			Number.parseInt(
+																				e
+																					.target
+																					.value,
+																				10,
+																			) ||
+																				1,
+																		),
+																	),
+																)
+															}
+															className="w-24"
+														/>
+														<span className="text-sm text-muted-foreground">
+															nudges / 7 days
+														</span>
+													</div>
+												</Field>
+											)}
+										</form.Field>
+									</div>
+									<div className="flex flex-wrap items-end gap-3">
+										<form.Field name="followUpWindowStart">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="fu-from"
+														className="text-xs"
+													>
+														Send only from (Beirut)
+													</FieldLabel>
 													<Input
-														id="fu-minutes"
-														type="number"
-														min={5}
-														max={1440}
-														step={5}
+														id="fu-from"
+														type="time"
 														value={f.state.value}
 														onChange={(e) =>
 															f.handleChange(
-																Number.parseInt(
-																	e.target
-																		.value,
-																	10,
-																) || 30,
+																e.target.value,
 															)
 														}
-														className="w-24"
+														className="w-32"
 													/>
-													<span className="text-sm text-muted-foreground">
-														minutes
-													</span>
-												</div>
-												<p className="text-xs text-muted-foreground">
-													Sent only between 09:00 and
-													20:30 Beirut time. One due
-													later waits until 09:30 the
-													next morning, or is skipped
-													if that is over 14 hours
-													after the bot's reply.
-												</p>
-											</Field>
-										)}
-									</form.Field>
+												</Field>
+											)}
+										</form.Field>
+										<form.Field name="followUpWindowEnd">
+											{(f) => (
+												<Field>
+													<FieldLabel
+														htmlFor="fu-to"
+														className="text-xs"
+													>
+														To
+													</FieldLabel>
+													<Input
+														id="fu-to"
+														type="time"
+														value={f.state.value}
+														onChange={(e) =>
+															f.handleChange(
+																e.target.value,
+															)
+														}
+														className="w-32"
+													/>
+												</Field>
+											)}
+										</form.Field>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										A nudge due outside these hours moves to
+										30 minutes after they open. A first
+										nudge is skipped if that puts it more
+										than a night after the bot's reply. The
+										bot also skips it when the conversation
+										was already finished, and nothing is
+										sent while a teammate has taken over.
+									</p>
 									<form.Field name="followUpMessage">
 										{(f) => (
 											<Field>
@@ -879,6 +1121,20 @@ export function AgentSettings({
 											</Field>
 										)}
 									</form.Field>
+									{followUpStats && (
+										<p className="text-xs text-muted-foreground">
+											<span className="font-medium text-foreground">
+												{followUpStats.queued}
+											</span>{" "}
+											queued now ·{" "}
+											<span className="font-medium text-foreground">
+												{followUpStats.sentThisWeek}
+											</span>{" "}
+											sent in the last 7 days
+											{followUpStats.sentThisWeek > 0 &&
+												` · ${Math.round((followUpStats.answeredThisWeek / followUpStats.sentThisWeek) * 100)}% answered within 24h`}
+										</p>
+									)}
 								</>
 							)}
 						</ToggleCard>
@@ -1278,6 +1534,189 @@ export function AgentSettings({
 							</AccordionTrigger>
 							<AccordionContent className="px-6 pb-6">
 								<div className="space-y-6">
+									<div className="grid gap-4 sm:grid-cols-2">
+										<form.Field name="provider">
+											{(field) => (
+												<Field>
+													<FieldLabel>
+														Provider
+														<FieldHint text="Who the API key below is for. OpenRouter reaches every model with one key; a direct provider only serves its own models." />
+													</FieldLabel>
+													<Select
+														value={
+															field.state.value
+														}
+														onValueChange={(v) => {
+															const next =
+																v as LlmProvider;
+															field.handleChange(
+																next,
+															);
+															const current =
+																AI_MODEL_OPTIONS.find(
+																	(m) =>
+																		m.id ===
+																		form.getFieldValue(
+																			"model",
+																		),
+																);
+															if (
+																!current ||
+																!isModelAvailableFrom(
+																	current,
+																	next,
+																)
+															) {
+																const first =
+																	AI_MODEL_OPTIONS.find(
+																		(m) =>
+																			isModelAvailableFrom(
+																				m,
+																				next,
+																			),
+																	);
+																if (first) {
+																	form.setFieldValue(
+																		"model",
+																		first.id,
+																	);
+																}
+															}
+														}}
+													>
+														<SelectTrigger>
+															<SelectValue />
+														</SelectTrigger>
+														<SelectContent>
+															{LLM_PROVIDERS.map(
+																(p) => (
+																	<SelectItem
+																		key={
+																			p.id
+																		}
+																		value={
+																			p.id
+																		}
+																	>
+																		{
+																			p.label
+																		}
+																	</SelectItem>
+																),
+															)}
+														</SelectContent>
+													</Select>
+													{field.state.value ===
+														"anthropic" && (
+														<p className="text-[11px] text-muted-foreground mt-1">
+															Anthropic has no
+															audio input, so
+															WhatsApp voice notes
+															won't be
+															transcribed.
+														</p>
+													)}
+												</Field>
+											)}
+										</form.Field>
+										<form.Field name="apiKey">
+											{(field) => {
+												const meta = LLM_PROVIDERS.find(
+													(p) => p.id === provider,
+												);
+												const stored =
+													agent.hasApiKey &&
+													!providerChanged;
+												return (
+													<Field>
+														<FieldLabel htmlFor="settings-api-key">
+															API key
+															<FieldHint text="Stored encrypted and never shown again. Leave empty to keep the current key." />
+														</FieldLabel>
+														<Input
+															id="settings-api-key"
+															type="password"
+															autoComplete="off"
+															value={
+																field.state
+																	.value
+															}
+															onChange={(e) =>
+																field.handleChange(
+																	e.target
+																		.value,
+																)
+															}
+															placeholder={
+																stored
+																	? `Saved key ending in …${agent.apiKeyHint ?? ""}`
+																	: (meta?.keyHint ??
+																		"")
+															}
+															aria-invalid={
+																(providerChanged &&
+																	!field.state.value.trim()) ||
+																undefined
+															}
+														/>
+														<div className="mt-1 flex items-center justify-between gap-2">
+															<p className="text-[11px] text-muted-foreground">
+																{providerChanged
+																	? `Enter the ${meta?.label ?? provider} key to switch.`
+																	: stored
+																		? "Using the saved key."
+																		: "No key yet: the agent can't reply."}{" "}
+																{meta && (
+																	<a
+																		href={
+																			meta.keyUrl
+																		}
+																		target="_blank"
+																		rel="noreferrer"
+																		className="underline"
+																	>
+																		Get a
+																		key
+																	</a>
+																)}
+															</p>
+															<form.Subscribe
+																selector={(
+																	st,
+																) =>
+																	st.values
+																		.model
+																}
+															>
+																{(model) => (
+																	<ApiKeyTestButton
+																		agentId={
+																			agentId
+																		}
+																		organizationId={
+																			organizationId
+																		}
+																		provider={
+																			provider
+																		}
+																		model={
+																			model
+																		}
+																		apiKey={field.state.value.trim()}
+																		disabled={
+																			!field.state.value.trim() &&
+																			!stored
+																		}
+																	/>
+																)}
+															</form.Subscribe>
+														</div>
+													</Field>
+												);
+											}}
+										</form.Field>
+									</div>
+
 									<form.Field name="model">
 										{(field) => {
 											const selected =
@@ -1290,7 +1729,7 @@ export function AgentSettings({
 												<Field>
 													<FieldLabel>
 														Model
-														<FieldHint text="The AI model powering this agent. All models are routed through OpenRouter." />
+														<FieldHint text="The AI model powering this agent. The list shows what the provider above serves." />
 													</FieldLabel>
 													<Select
 														value={
@@ -1323,57 +1762,76 @@ export function AgentSettings({
 														</SelectTrigger>
 														<SelectContent>
 															{AI_MODEL_GROUPS.map(
-																(group) => (
-																	<SelectGroup
-																		key={
-																			group.label
-																		}
-																	>
-																		<SelectLabel>
-																			{
+																(group) => ({
+																	...group,
+																	models: group.models.filter(
+																		(m) =>
+																			isModelAvailableFrom(
+																				m,
+																				provider,
+																			),
+																	),
+																}),
+															)
+																.filter(
+																	(group) =>
+																		group
+																			.models
+																			.length >
+																		0,
+																)
+																.map(
+																	(group) => (
+																		<SelectGroup
+																			key={
 																				group.label
 																			}
-																		</SelectLabel>
-																		{group.models.map(
-																			(
-																				m,
-																			) => (
-																				<SelectItem
-																					key={
-																						m.id
-																					}
-																					value={
-																						m.id
-																					}
-																				>
-																					<div className="flex items-center gap-2 w-full">
-																						<span>
-																							{
-																								m.label
-																							}
-																						</span>
-																						{m.recommended && (
-																							<Badge className="text-[9px] px-1 py-0 leading-tight">
-																								recommended
-																							</Badge>
-																						)}
-																						<span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
-																							$
-																							{
-																								m.priceIn
-																							}
-																							/$
-																							{
-																								m.priceOut
-																							}
-																						</span>
-																					</div>
-																				</SelectItem>
-																			),
-																		)}
-																	</SelectGroup>
-																),
-															)}
+																		>
+																			<SelectLabel>
+																				{
+																					group.label
+																				}
+																			</SelectLabel>
+																			{group.models.map(
+																				(
+																					m,
+																				) => (
+																					<SelectItem
+																						key={
+																							m.id
+																						}
+																						value={
+																							m.id
+																						}
+																					>
+																						<div className="flex items-center gap-2 w-full">
+																							<span>
+																								{
+																									m.label
+																								}
+																							</span>
+																							{m.recommended && (
+																								<Badge className="text-[9px] px-1 py-0 leading-tight">
+																									recommended
+																								</Badge>
+																							)}
+																							<span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+																								$
+																								{
+																									m.priceIn
+																								}
+																								/$
+																								{
+																									m.priceOut
+																								}
+																							</span>
+																						</div>
+																					</SelectItem>
+																				),
+																			)}
+																		</SelectGroup>
+																	),
+																)}
 														</SelectContent>
 													</Select>
 													{selected && (

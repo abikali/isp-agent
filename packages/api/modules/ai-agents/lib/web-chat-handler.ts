@@ -8,8 +8,10 @@ import {
 	fetchServicePlansSection,
 	generateAgentResponse,
 	loadHistoryRows,
+	MISSING_API_KEY_MESSAGE,
 	modelMessagesToRoleContent,
 	type PromptSection,
+	resolveAgentCredentials,
 	resolveAgentTools,
 	resolveMaintenanceState,
 } from "@repo/ai";
@@ -48,6 +50,12 @@ export async function handleWebChatMessage(
 			message: "Agent not found or not available",
 		});
 	}
+	if (!agent.encryptedApiKey) {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message: MISSING_API_KEY_MESSAGE,
+		});
+	}
+	const credentials = resolveAgentCredentials(agent);
 
 	const maintenance = resolveMaintenanceState(
 		agent,
@@ -110,6 +118,7 @@ export async function handleWebChatMessage(
 	);
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
+		credentials,
 		agent,
 		maintenanceActive: maintenance.active,
 		conversationId: conversation.id,
@@ -149,6 +158,7 @@ export async function handleWebChatMessage(
 
 	try {
 		const result = await generateAgentResponse({
+			credentials,
 			model: agent.model,
 			messages,
 			sessionId: conversation.id,
@@ -167,6 +177,7 @@ export async function handleWebChatMessage(
 		// Escalation safety net
 		if (tools && agent.enabledTools.includes("escalate-telegram")) {
 			const guardResult = await executeEscalationGuard({
+				credentials,
 				tools,
 				responseText: result.text,
 				toolResults: result.toolResults,

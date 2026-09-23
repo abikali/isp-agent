@@ -20,6 +20,7 @@ import {
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	parseWebhookPayload,
+	resolveAgentCredentials,
 	resolveAgentTools,
 	resolveMaintenanceState,
 	sendTextMessage,
@@ -188,6 +189,15 @@ async function handleMessages(
 		return new Response("OK", { status: 200 });
 	}
 
+	// No server-wide key: an agent without its own cannot reply at all.
+	if (!channel.agent.encryptedApiKey) {
+		logger.error("AI agent has no API key — message not answered", {
+			agentId: channel.agent.id,
+			channelId: channel.id,
+		});
+		return new Response("OK", { status: 200 });
+	}
+	const credentials = resolveAgentCredentials(channel.agent);
 	const apiToken = decryptToken(channel.encryptedApiToken);
 
 	for (const msg of parsedMessages) {
@@ -372,8 +382,11 @@ async function handleMessages(
 						}
 
 						const adminContent =
-							(await transcribeMessageMedia(apiToken, msg)) ??
-							msg.text;
+							(await transcribeMessageMedia(
+								apiToken,
+								credentials,
+								msg,
+							)) ?? msg.text;
 						await db.aiMessage.create({
 							data: {
 								conversationId: takeoverConversation.id,
@@ -506,6 +519,7 @@ async function handleMessages(
 
 				const transcribed = await transcribeMessageMedia(
 					apiToken,
+					credentials,
 					msg,
 					languageHint ?? undefined,
 				);
@@ -542,6 +556,8 @@ async function handleMessages(
 						lastMessageAt: new Date(),
 						// The customer spoke: the silence is over.
 						followUpSentAt: null,
+						followUpAttempts: 0,
+						followUpDueAt: null,
 					},
 				});
 				void cancelFollowUp(conversation.id);
@@ -714,7 +730,10 @@ async function handleMessages(
 			// teammate who wrote last — leave that to the team. The message is
 			// stored; humanTakeoverAt is deliberately left alone.
 			if (
-				await shouldDeferToTeammate({ conversationId: conversation.id })
+				await shouldDeferToTeammate({
+					conversationId: conversation.id,
+					credentials,
+				})
 			) {
 				logger.info("ai-teammate-reply-deferred", {
 					conversationId: conversation.id,
@@ -773,6 +792,7 @@ async function handleMessages(
 
 			// Resolve tools once (same for all messages in this chat)
 			const { tools, agentToolConfigs } = await resolveAgentTools({
+				credentials,
 				agent: channel.agent,
 				maintenanceActive: maintenance.active,
 				conversationId: conversation.id,
@@ -902,6 +922,7 @@ async function handleMessages(
 					// Triage buffered messages on second+ iterations
 					if (!isFirstIteration && lastAssistantText) {
 						const triageResult = await triageBufferedMessages({
+							credentials,
 							lastAssistantResponse: lastAssistantText,
 							bufferedMessages: bufferedTexts,
 							recentUserMessage: lastUserMessage,
@@ -1039,6 +1060,7 @@ async function handleMessages(
 					try {
 						let sentInitial = false;
 						const result = await generateAgentResponse({
+							credentials,
 							model: channel.agent.model,
 							messages: historyMessages,
 							temperature: channel.agent.temperature,
@@ -1101,6 +1123,7 @@ async function handleMessages(
 							)
 						) {
 							const guardResult = await executeEscalationGuard({
+								credentials,
 								tools,
 								responseText: result.text,
 								toolResults: result.toolResults,
@@ -1242,8 +1265,7 @@ async function handleMessages(
 								scheduleFollowUp({
 									conversationId: conversation.id,
 									channelId: channel.id,
-									repliedAt,
-									delayMinutes: channel.agent.followUpMinutes,
+									from: repliedAt,
 								}).catch((error) =>
 									logger.warn(
 										"[ai-followup] schedule failed",

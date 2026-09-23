@@ -70,8 +70,10 @@ export interface AiChatJobResult {
 export interface AiFollowUpJobData {
 	conversationId: string;
 	channelId: string;
-	/** ISO timestamp of the bot reply this follow-up belongs to. */
+	/** ISO timestamp of the bot reply (attempt 1) or previous nudge. */
 	repliedAt: string;
+	/** 1 for the first nudge of a silence. Missing on jobs queued before attempts existed. */
+	attempt?: number;
 }
 
 export interface AiFollowUpJobResult {

@@ -27,8 +27,15 @@ export const listAllConversations = protectedProcedure
 			channelType: z.enum(["web", "whatsapp", "telegram"]).optional(),
 			status: z.enum(["active", "archived", "cleared"]).optional(),
 			pinned: z.boolean().optional(),
+			/** Only conversations with a nudge queued. */
+			followUpQueued: z.boolean().optional(),
 			sortBy: z
-				.enum(["lastMessageAt", "messageCount", "createdAt"])
+				.enum([
+					"lastMessageAt",
+					"messageCount",
+					"createdAt",
+					"followUpDueAt",
+				])
 				.default("lastMessageAt"),
 			sortOrder: z.enum(["asc", "desc"]).default("desc"),
 			cursor: z.string().optional(),
@@ -111,6 +118,10 @@ export const listAllConversations = protectedProcedure
 			where["pinned"] = input.pinned;
 		}
 
+		if (input.followUpQueued) {
+			where["followUpDueAt"] = { not: null };
+		}
+
 		const conversations = await db.aiConversation.findMany({
 			where,
 			take: input.limit + 1,
@@ -125,6 +136,9 @@ export const listAllConversations = protectedProcedure
 				messageCount: true,
 				lastMessageAt: true,
 				humanTakeoverAt: true,
+				followUpDueAt: true,
+				followUpAttempts: true,
+				followUpMuted: true,
 				createdAt: true,
 				agent: {
 					select: {
@@ -149,7 +163,15 @@ export const listAllConversations = protectedProcedure
 					take: 1,
 				},
 			},
-			orderBy: { [input.sortBy]: input.sortOrder },
+			orderBy:
+				input.sortBy === "followUpDueAt"
+					? {
+							followUpDueAt: {
+								sort: input.sortOrder,
+								nulls: "last",
+							},
+						}
+					: { [input.sortBy]: input.sortOrder },
 		});
 
 		const hasMore = conversations.length > input.limit;

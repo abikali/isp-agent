@@ -1,7 +1,12 @@
+import { createOpenAI } from "@ai-sdk/openai";
 import { logger } from "@repo/logs";
-import { generateText } from "ai";
+import { experimental_transcribe, generateText } from "ai";
 import { createWasender } from "wasenderapi";
-import { getModel } from "../model-registry";
+import {
+	getModel,
+	helperModelId,
+	type ModelCredentials,
+} from "../model-registry";
 import type {
 	ParsedMessage,
 	SendMediaOptions,
@@ -704,29 +709,90 @@ async function fetchFromUrl(url: string): Promise<FetchResult> {
 	}
 }
 
+const TRANSCRIBE_PROMPT =
+	"Transcribe the audio exactly as spoken. Output ONLY the transcribed text, nothing else. The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.";
+
 /**
- * Transcribe a voice message via OpenRouter's chat completions API directly.
- * We bypass the AI SDK here because `@ai-sdk/openai-compatible` only supports
- * wav/mp3 audio — OpenRouter's raw API supports OGG natively via `input_audio`.
+ * Transcribe a voice message with the agent's own provider:
+ * - OpenRouter: Gemini 3 Flash through the raw chat API (see below).
+ * - Google: the same Gemini model directly, audio as a file part.
+ * - OpenAI: gpt-4o-transcribe.
+ * - Anthropic: no audio input, so voice notes stay "[Voice message]".
  */
 export async function transcribeAudio(
 	apiToken: string,
 	mediaId: string,
+	credentials: ModelCredentials,
 	rawMediaPayload?: string,
 ): Promise<string | null> {
+	if (credentials.provider === "anthropic") {
+		logger.warn(
+			"Voice transcription unavailable: Anthropic has no audio input",
+		);
+		return null;
+	}
 	const media = await downloadMedia(apiToken, mediaId, rawMediaPayload);
 	if (!media) {
 		return null;
 	}
-
-	const openrouterKey = process.env["OPENROUTER_API_KEY"];
-	if (!openrouterKey) {
-		logger.error("OPENROUTER_API_KEY not set, cannot transcribe audio");
+	if (credentials.provider === "openrouter") {
+		return transcribeViaOpenRouter(media.buffer, credentials.apiKey);
+	}
+	try {
+		let text: string;
+		if (credentials.provider === "openai") {
+			const result = await experimental_transcribe({
+				model: createOpenAI({
+					apiKey: credentials.apiKey,
+				}).transcription("gpt-4o-transcribe"),
+				audio: media.buffer,
+				providerOptions: { openai: { prompt: TRANSCRIBE_PROMPT } },
+			});
+			text = result.text.trim();
+		} else {
+			const result = await generateText({
+				model: getModel("gemini-3-flash", credentials),
+				messages: [
+					{
+						role: "user",
+						content: [
+							{
+								type: "file",
+								data: media.buffer,
+								mediaType: "audio/ogg",
+							},
+							{ type: "text", text: TRANSCRIBE_PROMPT },
+						],
+					},
+				],
+			});
+			text = result.text.trim();
+		}
+		logger.info("Audio transcription succeeded", {
+			provider: credentials.provider,
+			length: text.length,
+		});
+		return text || null;
+	} catch (error) {
+		logger.error("Transcription error", {
+			provider: credentials.provider,
+			error,
+		});
 		return null;
 	}
+}
 
+/**
+ * OpenRouter's raw chat completions API. We bypass the AI SDK here because
+ * `@ai-sdk/openai-compatible` only supports wav/mp3 audio — OpenRouter's raw
+ * API supports OGG natively via `input_audio`.
+ */
+async function transcribeViaOpenRouter(
+	buffer: Buffer,
+	apiKey: string,
+): Promise<string | null> {
 	try {
-		const base64Audio = media.buffer.toString("base64");
+		const base64Audio = buffer.toString("base64");
 
 		// Use Gemini 3 Flash via OpenRouter — supports OGG natively.
 		// NOTE: keep this on a model with LIVE OpenRouter endpoints. The earlier
@@ -743,7 +809,7 @@ export async function transcribeAudio(
 			{
 				method: "POST",
 				headers: {
-					Authorization: `Bearer ${openrouterKey}`,
+					Authorization: `Bearer ${apiKey}`,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
@@ -761,7 +827,7 @@ export async function transcribeAudio(
 								},
 								{
 									type: "text",
-									text: "Transcribe the audio exactly as spoken. Output ONLY the transcribed text, nothing else. The audio is most likely in Arabic (Lebanese dialect), but transcribe in whatever language is spoken.",
+									text: TRANSCRIBE_PROMPT,
 								},
 							],
 						},
@@ -801,13 +867,14 @@ export async function transcribeAudio(
 }
 
 /**
- * Describe an image using AI SDK + OpenRouter (GPT-4.1-mini vision).
+ * Describe an image with the agent provider's helper vision model.
  * Optimized for ISP-related content: bills, invoices, receipts, network diagrams,
  * router screenshots, and general customer photos.
  */
 export async function describeImage(
 	apiToken: string,
 	mediaId: string,
+	credentials: ModelCredentials,
 	caption?: string,
 	rawMediaPayload?: string,
 	userLanguageHint?: string,
@@ -836,7 +903,7 @@ export async function describeImage(
 			: "The customer sent this image. Analyze it following your instructions.";
 
 		const { text } = await generateText({
-			model: getModel("gpt-4.1-mini"),
+			model: getModel(helperModelId(credentials.provider), credentials),
 			system: systemPrompt,
 			messages: [
 				{
@@ -865,13 +932,14 @@ export async function describeImage(
 }
 
 /**
- * Describe a document (PDF) using AI SDK + OpenRouter (GPT-4.1-mini vision).
+ * Describe a document (PDF) with the agent provider's helper vision model.
  * Sends the PDF as a file part for native document understanding.
  * Limited to 100 pages / 30MB.
  */
 export async function describeDocument(
 	apiToken: string,
 	mediaId: string,
+	credentials: ModelCredentials,
 	fileName?: string,
 	rawMediaPayload?: string,
 	userLanguageHint?: string,
@@ -916,7 +984,7 @@ export async function describeDocument(
 			: "The customer sent a PDF document. Extract and summarize its contents following your instructions.";
 
 		const { text } = await generateText({
-			model: getModel("gpt-4.1-mini"),
+			model: getModel(helperModelId(credentials.provider), credentials),
 			system: systemPrompt,
 			messages: [
 				{

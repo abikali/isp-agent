@@ -1,7 +1,9 @@
 import { ORPCError } from "@orpc/server";
+import { AI_PROVIDERS, encryptToken, isModelAvailable } from "@repo/ai";
 import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { aiAgentAudit, getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { cancelFollowUp } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -21,6 +23,9 @@ export const updateAgent = protectedProcedure
 			systemPrompt: z.string().min(1).max(15000).optional(),
 			greetingMessage: z.string().max(1000).optional(),
 			model: z.string().optional(),
+			provider: z.enum(AI_PROVIDERS).optional(),
+			/** Write-only. Omit to keep the stored key, null to remove it. */
+			apiKey: z.string().trim().min(8).max(500).nullable().optional(),
 			knowledgeBase: z.string().max(50000).optional(),
 			enabled: z.boolean().optional(),
 			maintenanceMode: z.boolean().optional(),
@@ -64,6 +69,22 @@ export const updateAgent = protectedProcedure
 				.nullable()
 				.optional(),
 			followUpMessage: z.string().max(1000).nullable().optional(),
+			followUpMaxAttempts: z.number().int().min(1).max(3).optional(),
+			followUpRepeatMinutes: z
+				.number()
+				.int()
+				.min(60)
+				.max(4320)
+				.optional(),
+			followUpWindowStart: z
+				.string()
+				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+				.optional(),
+			followUpWindowEnd: z
+				.string()
+				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+				.optional(),
+			followUpWeeklyCap: z.number().int().min(1).max(14).optional(),
 			promptSections: z
 				.array(
 					z.object({
@@ -93,7 +114,17 @@ export const updateAgent = protectedProcedure
 
 		const existing = await db.aiAgent.findFirst({
 			where: { id: input.agentId, organizationId: input.organizationId },
-			select: { id: true, createdById: true, maintenanceMessage: true },
+			select: {
+				id: true,
+				createdById: true,
+				maintenanceMessage: true,
+				model: true,
+				provider: true,
+				encryptedApiKey: true,
+				followUpMinutes: true,
+				followUpWindowStart: true,
+				followUpWindowEnd: true,
+			},
 		});
 		if (!existing) {
 			throw new ORPCError("NOT_FOUND", {
@@ -136,7 +167,31 @@ export const updateAgent = protectedProcedure
 			});
 		}
 
-		const { agentId, organizationId, ...rest } = input;
+		const provider = input.provider ?? existing.provider;
+		const model = input.model ?? existing.model;
+		if (
+			!isModelAvailable(model, provider as (typeof AI_PROVIDERS)[number])
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `${model} is not available from ${provider}. Pick another model or use OpenRouter.`,
+			});
+		}
+		// A key belongs to one provider: switching needs the new one.
+		if (provider !== existing.provider && !input.apiKey) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `Enter the ${provider} API key to switch provider`,
+			});
+		}
+		const windowStart =
+			input.followUpWindowStart ?? existing.followUpWindowStart;
+		const windowEnd = input.followUpWindowEnd ?? existing.followUpWindowEnd;
+		if (windowStart >= windowEnd) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "The follow-up window must end after it starts",
+			});
+		}
+
+		const { agentId, organizationId, apiKey, ...rest } = input;
 
 		// Build update data, converting undefined optional fields to null for Prisma
 		const updateData: Record<string, unknown> = {};
@@ -154,6 +209,14 @@ export const updateAgent = protectedProcedure
 		}
 		if (rest.model !== undefined) {
 			updateData["model"] = rest.model;
+		}
+		if (rest.provider !== undefined) {
+			updateData["provider"] = rest.provider;
+		}
+		if (apiKey !== undefined) {
+			updateData["encryptedApiKey"] = apiKey
+				? encryptToken(apiKey)
+				: null;
 		}
 		if (rest.knowledgeBase !== undefined) {
 			updateData["knowledgeBase"] = rest.knowledgeBase ?? null;
@@ -213,6 +276,17 @@ export const updateAgent = protectedProcedure
 		if (rest.followUpMessage !== undefined) {
 			updateData["followUpMessage"] = rest.followUpMessage ?? null;
 		}
+		for (const key of [
+			"followUpMaxAttempts",
+			"followUpRepeatMinutes",
+			"followUpWindowStart",
+			"followUpWindowEnd",
+			"followUpWeeklyCap",
+		] as const) {
+			if (rest[key] !== undefined) {
+				updateData[key] = rest[key];
+			}
+		}
 
 		const agent = await db.aiAgent.update({
 			where: { id: agentId },
@@ -242,10 +316,25 @@ export const updateAgent = protectedProcedure
 				offDutyMessage: true,
 				followUpMinutes: true,
 				followUpMessage: true,
+				followUpMaxAttempts: true,
+				followUpRepeatMinutes: true,
+				followUpWindowStart: true,
+				followUpWindowEnd: true,
+				followUpWeeklyCap: true,
+				provider: true,
 				promptSections: true,
 				updatedAt: true,
 			},
 		});
+
+		// Turning follow-ups off drops the nudges already queued.
+		if (existing.followUpMinutes != null && agent.followUpMinutes == null) {
+			const queued = await db.aiConversation.findMany({
+				where: { agentId, followUpDueAt: { not: null } },
+				select: { id: true },
+			});
+			await Promise.all(queued.map((c) => cancelFollowUp(c.id)));
+		}
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		aiAgentAudit.updated(agentId, user.id, organizationId, auditContext);

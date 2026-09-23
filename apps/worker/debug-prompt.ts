@@ -16,6 +16,7 @@ import {
 	generateAgentResponse,
 	loadHistoryRows,
 	type PromptSection,
+	resolveAgentCredentials,
 } from "@repo/ai";
 import { db } from "@repo/database";
 
@@ -45,6 +46,8 @@ async function main() {
 	if (!conversation) {
 		throw new Error(`conversation ${conversationId} not found`);
 	}
+
+	const credentials = resolveAgentCredentials(conversation.agent);
 
 	// Same loader as the live reply path — the newest rows, not the oldest.
 	const historyRows = await loadHistoryRows(
@@ -172,6 +175,7 @@ async function main() {
 		const start = Date.now();
 		const result = await generateAgentResponse({
 			model: conversation.agent.model,
+			credentials,
 			messages,
 			temperature: conversation.agent.temperature,
 		});
@@ -201,6 +205,7 @@ async function main() {
 	for (let i = 1; i <= 10; i++) {
 		const result = await generateAgentResponse({
 			model: conversation.agent.model,
+			credentials,
 			messages: firstTurnMessages,
 			temperature: 0.2,
 		});
@@ -220,6 +225,7 @@ async function main() {
 	for (let i = 1; i <= 3; i++) {
 		const result = await generateAgentResponse({
 			model: conversation.agent.model,
+			credentials,
 			messages: firstTurnMessages,
 			temperature: 0,
 		});
@@ -238,6 +244,7 @@ async function main() {
 	for (let i = 1; i <= 3; i++) {
 		const result = await generateAgentResponse({
 			model: "claude-sonnet",
+			credentials,
 			messages: firstTurnMessages,
 			temperature: 0.2,
 		});
@@ -256,7 +263,7 @@ async function main() {
 		"claude-sonnet": "anthropic/claude-sonnet-4.5",
 	};
 	const openRouterId = openRouterModelMap[conversation.agent.model];
-	if (openRouterId) {
+	if (openRouterId && credentials.provider === "openrouter") {
 		const systemContent = messages
 			.filter((m) => m.role === "system")
 			.map((m) =>
@@ -279,7 +286,7 @@ async function main() {
 			{
 				method: "POST",
 				headers: {
-					Authorization: `Bearer ${process.env["OPENROUTER_API_KEY"]}`,
+					Authorization: `Bearer ${credentials.apiKey}`,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({

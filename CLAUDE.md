@@ -609,7 +609,7 @@ pnpm --filter @repo/database generate
 
 Uses **AI SDK v6** (`ai@^6.0.116`) with **OpenRouter** via `@ai-sdk/openai-compatible`. Frontend uses `@ai-sdk/react@^3.0.118`.
 
-**Model Registry** (`src/model-registry.ts`): Maps short model IDs to OpenRouter model paths. All models routed through OpenRouter (no direct provider SDKs). Use short names like `gpt-4.1`, `claude-sonnet`, `gemini-3-flash`. Requires `OPENROUTER_API_KEY` env var.
+**Model Registry** (`src/model-registry.ts`): Maps short model IDs to each provider's native ID (OpenRouter serves all; OpenAI/Anthropic/Google direct serve their own). Use short names like `gpt-4.1`, `claude-sonnet`, `gemini-3-flash`. Every call takes `ModelCredentials` (`{ provider, apiKey }`) — keys live on the agent (`AiAgent.provider` + `encryptedApiKey`, set in the agent's Model settings), resolved with `resolveAgentCredentials(agent)`. There is **no** `OPENROUTER_API_KEY` env fallback: an agent without a key does not reply. Helper calls (triage, escalation guard/summary, image/PDF reading, voice transcription) use the same agent key via `helperModelId(provider)`; Anthropic has no audio input, so voice notes are not transcribed for Anthropic-direct agents.
 
 **Tool System** (`src/tools/`):
 - **Registry Pattern**: `TOOL_REGISTRY` maps tool IDs to `RegisteredTool` objects (metadata + factory function)

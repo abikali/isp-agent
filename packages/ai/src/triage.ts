@@ -1,8 +1,10 @@
 import { logger } from "@repo/logs";
 import { z } from "zod";
 import { classifyText } from "./classify";
+import type { ModelCredentials } from "./model-registry";
 
 export interface TriageInput {
+	credentials: ModelCredentials;
 	lastAssistantResponse: string;
 	bufferedMessages: string[];
 	recentUserMessage: string;
@@ -57,6 +59,7 @@ export async function triageBufferedMessages(
 		systemPrompt: TRIAGE_SYSTEM_PROMPT,
 		userPrompt,
 		schema: triageSchema,
+		credentials: input.credentials,
 	});
 
 	if (!result) {

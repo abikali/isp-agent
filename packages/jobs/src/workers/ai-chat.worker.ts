@@ -14,6 +14,7 @@ import {
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	type PromptSection,
+	resolveAgentCredentials,
 	resolveAgentTools,
 	resolveMaintenanceState,
 	sendTextMessage,
@@ -93,7 +94,16 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			// Same gate as the webhook: without it, reconcile-orphaned-chats
 			// re-queues a deferred customer message on the next deploy and the
 			// bot answers it anyway.
-			if (await shouldDeferToTeammate({ conversationId })) {
+			if (!conversation.agent.encryptedApiKey) {
+				logger.error("AI agent has no API key — retry dropped", {
+					conversationId,
+					agentId: conversation.agent.id,
+				});
+				return { success: false, error: "Agent has no API key" };
+			}
+			const credentials = resolveAgentCredentials(conversation.agent);
+
+			if (await shouldDeferToTeammate({ conversationId, credentials })) {
 				logger.info("ai-teammate-reply-deferred", {
 					conversationId,
 					path: "retry-worker",
@@ -151,6 +161,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			);
 
 			const { tools, agentToolConfigs } = await resolveAgentTools({
+				credentials,
 				agent: conversation.agent,
 				maintenanceActive: maintenance.active,
 				conversationId: conversation.id,
@@ -244,6 +255,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				let result: Awaited<ReturnType<typeof generateAgentResponse>>;
 				try {
 					result = await generateAgentResponse({
+						credentials,
 						model: conversation.agent.model,
 						messages,
 						temperature: conversation.agent.temperature,
@@ -281,6 +293,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					const conversationMessages =
 						modelMessagesToRoleContent(messages);
 					const guardResult = await executeEscalationGuard({
+						credentials,
 						tools,
 						responseText: result.text,
 						toolResults: result.toolResults,
@@ -379,8 +392,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					scheduleFollowUp({
 						conversationId,
 						channelId: conversation.channelId ?? channelId,
-						repliedAt,
-						delayMinutes: conversation.agent.followUpMinutes,
+						from: repliedAt,
 					}).catch((err) =>
 						logger.warn("[ai-followup] schedule failed", {
 							conversationId,

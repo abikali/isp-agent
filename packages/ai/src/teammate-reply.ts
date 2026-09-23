@@ -4,6 +4,7 @@ import { beirutParts } from "@repo/utils";
 import { z } from "zod";
 import { classifyText } from "./classify";
 import { isMediaPlaceholder } from "./history";
+import type { ModelCredentials } from "./model-registry";
 
 /**
  * A customer message sent this long after a teammate's message is no longer
@@ -113,6 +114,7 @@ export function teammateReplyExchange(
  */
 export async function shouldDeferToTeammate(input: {
 	conversationId: string;
+	credentials: ModelCredentials;
 }): Promise<boolean> {
 	const { conversationId } = input;
 	const select = {
@@ -154,6 +156,7 @@ export async function shouldDeferToTeammate(input: {
 			exchange.customerMessages,
 		),
 		schema: teammateReplySchema,
+		credentials: input.credentials,
 	});
 
 	// Loaded newest first; teammateReplyExchange guarantees one exists.

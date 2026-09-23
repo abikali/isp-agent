@@ -5,6 +5,7 @@ import {
 	detectMissedEscalation,
 	executeEscalationGuard,
 } from "./escalation-guard";
+import type { ToolResult } from "./types";
 
 // Mock classifyText — the unit under test is the escalation guard logic,
 // not the LLM call itself.
@@ -28,6 +29,12 @@ vi.mock("@repo/logs", () => ({
 	},
 }));
 
+const TEST_CREDENTIALS = { provider: "openrouter", apiKey: "test" } as const;
+
+function detect(text: string, toolResults?: ToolResult[]) {
+	return detectMissedEscalation(text, TEST_CREDENTIALS, toolResults);
+}
+
 function mockEscalation(promisedEscalation: boolean) {
 	mockClassifyText.mockResolvedValue({ promisedEscalation });
 }
@@ -49,7 +56,7 @@ beforeEach(() => {
 
 describe("detectMissedEscalation", () => {
 	it("returns false when escalate-telegram was already called", async () => {
-		const result = await detectMissedEscalation(
+		const result = await detect(
 			"I've forwarded your request to the team.",
 			[
 				{
@@ -66,54 +73,43 @@ describe("detectMissedEscalation", () => {
 
 	it("returns false when text has no escalation phrases", async () => {
 		mockEscalation(false);
-		expect(
-			await detectMissedEscalation("Your internet speed is 50 Mbps."),
-		).toBe(false);
+		expect(await detect("Your internet speed is 50 Mbps.")).toBe(false);
 
 		mockEscalation(false);
 		expect(
-			await detectMissedEscalation(
-				"I found your account. Everything looks good.",
-			),
+			await detect("I found your account. Everything looks good."),
 		).toBe(false);
 
 		mockEscalation(false);
-		expect(await detectMissedEscalation("مرحبا، كيف يمكنني مساعدتك؟")).toBe(
-			false,
-		);
+		expect(await detect("مرحبا، كيف يمكنني مساعدتك؟")).toBe(false);
 	});
 
 	it("returns false for empty text", async () => {
-		expect(await detectMissedEscalation("")).toBe(false);
+		expect(await detect("")).toBe(false);
 		// Should not call the LLM for empty text
 		expect(mockClassifyText).not.toHaveBeenCalled();
 	});
 
 	it("returns false when other tools were called but not escalate-telegram", async () => {
 		mockEscalation(false);
-		const result = await detectMissedEscalation(
-			"Your account status is active.",
-			[
-				{
-					toolName: "isp-search-customer",
-					args: {},
-					result: { found: true },
-				},
-			],
-		);
+		const result = await detect("Your account status is active.", [
+			{
+				toolName: "isp-search-customer",
+				args: {},
+				result: { found: true },
+			},
+		]);
 		expect(result).toBe(false);
 	});
 
 	it("returns false with undefined toolResults and no escalation text", async () => {
 		mockEscalation(false);
-		expect(await detectMissedEscalation("All good here.", undefined)).toBe(
-			false,
-		);
+		expect(await detect("All good here.", undefined)).toBe(false);
 	});
 
 	it("returns false with empty toolResults array and no escalation text", async () => {
 		mockEscalation(false);
-		expect(await detectMissedEscalation("All good here.", [])).toBe(false);
+		expect(await detect("All good here.", [])).toBe(false);
 	});
 
 	// -----------------------------------------------------------------------
@@ -123,43 +119,35 @@ describe("detectMissedEscalation", () => {
 	it("detects 'forwarded your request'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I've forwarded your request to the support team.",
-			),
+			await detect("I've forwarded your request to the support team."),
 		).toBe(true);
 	});
 
 	it("detects 'forwarding the details'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I'm forwarding the details to our technical team.",
-			),
+			await detect("I'm forwarding the details to our technical team."),
 		).toBe(true);
 	});
 
 	it("detects 'notified the team'", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"I have notified the team about your issue.",
-			),
-		).toBe(true);
+		expect(await detect("I have notified the team about your issue.")).toBe(
+			true,
+		);
 	});
 
 	it("detects 'team has been notified'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"The team has been notified of your problem.",
-			),
+			await detect("The team has been notified of your problem."),
 		).toBe(true);
 	});
 
 	it("detects 'escalated'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"Your case has been escalated to a senior technician.",
 			),
 		).toBe(true);
@@ -167,35 +155,27 @@ describe("detectMissedEscalation", () => {
 
 	it("detects 'escalating'", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"I'm escalating this to the support team.",
-			),
-		).toBe(true);
+		expect(await detect("I'm escalating this to the support team.")).toBe(
+			true,
+		);
 	});
 
 	it("detects 'someone will contact you'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"Someone from our team will contact you shortly.",
-			),
+			await detect("Someone from our team will contact you shortly."),
 		).toBe(true);
 	});
 
 	it("detects 'team will reach out'", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"Our team will reach out to you soon.",
-			),
-		).toBe(true);
+		expect(await detect("Our team will reach out to you soon.")).toBe(true);
 	});
 
 	it("detects 'get back to you'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"A colleague will get back to you as soon as possible.",
 			),
 		).toBe(true);
@@ -204,43 +184,35 @@ describe("detectMissedEscalation", () => {
 	it("detects 'sent your details to the team'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I've sent your details to the team for review.",
-			),
+			await detect("I've sent your details to the team for review."),
 		).toBe(true);
 	});
 
 	it("detects 'refer to team'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I'll refer this to our team for further assistance.",
-			),
+			await detect("I'll refer this to our team for further assistance."),
 		).toBe(true);
 	});
 
 	it("detects 'referred to team'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"Your case has been referred to the support team.",
-			),
+			await detect("Your case has been referred to the support team."),
 		).toBe(true);
 	});
 
 	it("detects 'team will follow up'", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"The team will follow up with you shortly.",
-			),
-		).toBe(true);
+		expect(await detect("The team will follow up with you shortly.")).toBe(
+			true,
+		);
 	});
 
 	it("detects 'someone from our team'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"Someone from our team will help you with the subscription.",
 			),
 		).toBe(true);
@@ -249,16 +221,14 @@ describe("detectMissedEscalation", () => {
 	it("detects 'reach out to you soon'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"A representative will reach out to you soon.",
-			),
+			await detect("A representative will reach out to you soon."),
 		).toBe(true);
 	});
 
 	it("detects 'follow-up with you shortly'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"We will follow-up with you shortly regarding this matter.",
 			),
 		).toBe(true);
@@ -266,19 +236,15 @@ describe("detectMissedEscalation", () => {
 
 	it("detects 'colleague will contact'", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"A colleague will contact you about this.",
-			),
-		).toBe(true);
+		expect(await detect("A colleague will contact you about this.")).toBe(
+			true,
+		);
 	});
 
 	it("detects 'pass your details to the team'", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I'll pass your details to the team right away.",
-			),
+			await detect("I'll pass your details to the team right away."),
 		).toBe(true);
 	});
 
@@ -288,13 +254,13 @@ describe("detectMissedEscalation", () => {
 
 	it("detects escalation phrase at very start of response", async () => {
 		mockEscalation(true);
-		expect(await detectMissedEscalation("Escalated. Done.")).toBe(true);
+		expect(await detect("Escalated. Done.")).toBe(true);
 	});
 
 	it("detects escalation phrase at very end of response", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"I checked your account and it looks like a wiring issue. I've forwarded your request to the team.",
 			),
 		).toBe(true);
@@ -308,13 +274,13 @@ describe("detectMissedEscalation", () => {
 			"I've notified the team and they will follow up with you soon.",
 			"Is there anything else I can help with?",
 		].join("\n\n");
-		expect(await detectMissedEscalation(text)).toBe(true);
+		expect(await detect(text)).toBe(true);
 	});
 
 	it("detects multiple escalation phrases in one response", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"I've forwarded your request to the team. Someone will get back to you shortly. Your case has been escalated.",
 			),
 		).toBe(true);
@@ -322,42 +288,33 @@ describe("detectMissedEscalation", () => {
 
 	it("does NOT false-positive on 'the team fixed the issue'", async () => {
 		mockEscalation(false);
-		expect(
-			await detectMissedEscalation("The team fixed the issue yesterday."),
-		).toBe(false);
+		expect(await detect("The team fixed the issue yesterday.")).toBe(false);
 	});
 
 	it("does NOT false-positive on technical descriptions with 'forward'", async () => {
 		mockEscalation(false);
-		expect(
-			await detectMissedEscalation(
-				"Port forwarding is configured correctly.",
-			),
-		).toBe(false);
+		expect(await detect("Port forwarding is configured correctly.")).toBe(
+			false,
+		);
 	});
 
 	it("does NOT false-positive on 'I found the issue'", async () => {
 		mockEscalation(false);
 		expect(
-			await detectMissedEscalation(
-				"I found the issue — your account expired last week.",
-			),
+			await detect("I found the issue — your account expired last week."),
 		).toBe(false);
 	});
 
 	it("still triggers when escalate-telegram failed (not in toolResults)", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"I've forwarded your request to the team.",
-				[
-					{
-						toolName: "isp-search-customer",
-						args: {},
-						result: {},
-					},
-				],
-			),
+			await detect("I've forwarded your request to the team.", [
+				{
+					toolName: "isp-search-customer",
+					args: {},
+					result: {},
+				},
+			]),
 		).toBe(true);
 	});
 
@@ -367,101 +324,73 @@ describe("detectMissedEscalation", () => {
 
 	it("detects Arabic: سأقوم بتحويل", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation(
-				"سأقوم بتحويل طلبك إلى الفريق المختص.",
-			),
-		).toBe(true);
+		expect(await detect("سأقوم بتحويل طلبك إلى الفريق المختص.")).toBe(true);
 	});
 
 	it("detects Arabic: تم تحويل", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("تم تحويل طلبك إلى فريق الدعم الفني."),
-		).toBe(true);
+		expect(await detect("تم تحويل طلبك إلى فريق الدعم الفني.")).toBe(true);
 	});
 
 	it("detects Arabic: سيتواصل معك", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("أحد أفراد فريقنا سيتواصل معك قريباً."),
-		).toBe(true);
+		expect(await detect("أحد أفراد فريقنا سيتواصل معك قريباً.")).toBe(true);
 	});
 
 	it("detects Arabic: سنتواصل معك", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("سنتواصل معك في أقرب وقت ممكن."),
-		).toBe(true);
+		expect(await detect("سنتواصل معك في أقرب وقت ممكن.")).toBe(true);
 	});
 
 	it("detects Arabic: فريقنا سيتابع", async () => {
 		mockEscalation(true);
-		expect(await detectMissedEscalation("فريقنا سيتابع الموضوع معك.")).toBe(
-			true,
-		);
+		expect(await detect("فريقنا سيتابع الموضوع معك.")).toBe(true);
 	});
 
 	it("detects Arabic: تم إبلاغ", async () => {
 		mockEscalation(true);
-		expect(await detectMissedEscalation("تم إبلاغ الفريق بمشكلتك.")).toBe(
-			true,
-		);
+		expect(await detect("تم إبلاغ الفريق بمشكلتك.")).toBe(true);
 	});
 
 	it("detects Arabic: شخص من فريقنا", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("شخص من فريقنا سيعاود الاتصال بك."),
-		).toBe(true);
+		expect(await detect("شخص من فريقنا سيعاود الاتصال بك.")).toBe(true);
 	});
 
 	it("detects Arabic: سأبلغ (I will inform)", async () => {
 		mockEscalation(true);
-		expect(await detectMissedEscalation("سأبلغ الفريق بخصوص مشكلتك.")).toBe(
-			true,
-		);
+		expect(await detect("سأبلغ الفريق بخصوص مشكلتك.")).toBe(true);
 	});
 
 	it("detects Arabic: سأرسل للفريق", async () => {
 		mockEscalation(true);
-		expect(await detectMissedEscalation("سأرسل التفاصيل للفريق.")).toBe(
-			true,
-		);
+		expect(await detect("سأرسل التفاصيل للفريق.")).toBe(true);
 	});
 
 	it("detects Arabic: سيعود إليك", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("أحد الزملاء سيعود إليك قريباً."),
-		).toBe(true);
+		expect(await detect("أحد الزملاء سيعود إليك قريباً.")).toBe(true);
 	});
 
 	it("detects Arabic: سيتم التواصل", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("سيتم التواصل معك بخصوص الطلب."),
-		).toBe(true);
+		expect(await detect("سيتم التواصل معك بخصوص الطلب.")).toBe(true);
 	});
 
 	it("detects Arabic: تم إرسال", async () => {
 		mockEscalation(true);
-		expect(
-			await detectMissedEscalation("تم إرسال طلبك إلى الإدارة المختصة."),
-		).toBe(true);
+		expect(await detect("تم إرسال طلبك إلى الإدارة المختصة.")).toBe(true);
 	});
 
 	it("does NOT false-positive on plain Arabic greeting", async () => {
 		mockEscalation(false);
-		expect(
-			await detectMissedEscalation("أهلاً وسهلاً، كيف يمكنني مساعدتك؟"),
-		).toBe(false);
+		expect(await detect("أهلاً وسهلاً، كيف يمكنني مساعدتك؟")).toBe(false);
 	});
 
 	it("does NOT false-positive on Arabic diagnostic response", async () => {
 		mockEscalation(false);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"حسابك فعّال والسرعة تبدو طبيعية. الرجاء إعادة تشغيل الراوتر.",
 			),
 		).toBe(false);
@@ -474,34 +403,28 @@ describe("detectMissedEscalation", () => {
 	it("detects French: transféré votre demande", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"J'ai transféré votre demande à l'équipe technique.",
-			),
+			await detect("J'ai transféré votre demande à l'équipe technique."),
 		).toBe(true);
 	});
 
 	it("detects French: demande transférée (reverse order)", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"Votre demande a été transférée au service concerné.",
-			),
+			await detect("Votre demande a été transférée au service concerné."),
 		).toBe(true);
 	});
 
 	it("detects French: équipe va contacter", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"Notre équipe va vous contacter prochainement.",
-			),
+			await detect("Notre équipe va vous contacter prochainement."),
 		).toBe(true);
 	});
 
 	it("detects French: quelqu'un va vous rappeler", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"Quelqu'un va vous rappeler dans les plus brefs délais.",
 			),
 		).toBe(true);
@@ -510,16 +433,14 @@ describe("detectMissedEscalation", () => {
 	it("detects French: revenir vers vous", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
-				"Un collègue va revenir vers vous rapidement.",
-			),
+			await detect("Un collègue va revenir vers vous rapidement."),
 		).toBe(true);
 	});
 
 	it("does NOT false-positive on plain French diagnostic", async () => {
 		mockEscalation(false);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"Votre connexion fonctionne normalement. Redémarrez votre routeur.",
 			),
 		).toBe(false);
@@ -532,7 +453,7 @@ describe("detectMissedEscalation", () => {
 	it("detects escalation in mixed-language response (Arabic + English)", async () => {
 		mockEscalation(true);
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"Your account looks fine. سيتواصل معك أحد الزملاء قريباً.",
 			),
 		).toBe(true);
@@ -547,7 +468,7 @@ describe("detectMissedEscalation", () => {
 			"However, I noticed some intermittent packet loss. " +
 			"I've forwarded your request to the technical team for further investigation. " +
 			"In the meantime, please try restarting your router.";
-		expect(await detectMissedEscalation(longResponse)).toBe(true);
+		expect(await detect(longResponse)).toBe(true);
 	});
 
 	// -----------------------------------------------------------------------
@@ -556,17 +477,15 @@ describe("detectMissedEscalation", () => {
 
 	it("returns false when classifyText fails (returns null)", async () => {
 		mockClassifyFailure();
-		expect(
-			await detectMissedEscalation(
-				"I've forwarded your request to the team.",
-			),
-		).toBe(false);
+		expect(await detect("I've forwarded your request to the team.")).toBe(
+			false,
+		);
 	});
 
 	it("passes response text as userPrompt to classifyText", async () => {
 		mockEscalation(false);
 		const text = "I've escalated your issue.";
-		await detectMissedEscalation(text);
+		await detect(text);
 
 		expect(mockClassifyText).toHaveBeenCalledOnce();
 		const callArgs = mockClassifyText.mock.calls[0]?.[0] as Record<
@@ -607,6 +526,7 @@ describe("executeEscalationGuard", () => {
 	it("returns null when no missed escalation detected", async () => {
 		mockEscalation(false);
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: { "escalate-telegram": { ...baseTool, execute: vi.fn() } },
 			responseText: "Your internet speed is 50 Mbps.",
@@ -616,6 +536,7 @@ describe("executeEscalationGuard", () => {
 
 	it("returns null when escalate-telegram was already called", async () => {
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: { "escalate-telegram": { ...baseTool, execute: vi.fn() } },
 			responseText: "I've forwarded your request to the team.",
@@ -634,6 +555,7 @@ describe("executeEscalationGuard", () => {
 	it("returns null when escalate-telegram tool not in tools record", async () => {
 		mockEscalation(true);
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"isp-search-customer": {
@@ -650,6 +572,7 @@ describe("executeEscalationGuard", () => {
 	it("returns null when tool has no execute function", async () => {
 		mockEscalation(true);
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: { "escalate-telegram": { ...baseTool } },
 			responseText: "I've forwarded your request to the team.",
@@ -665,6 +588,7 @@ describe("executeEscalationGuard", () => {
 		});
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -699,6 +623,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -722,6 +647,7 @@ describe("executeEscalationGuard", () => {
 			.mockRejectedValue(new Error("Telegram API error"));
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -738,6 +664,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-456",
 			customerName: undefined,
 			customerPhone: undefined,
@@ -764,6 +691,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -786,6 +714,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -803,6 +732,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn();
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -831,6 +761,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-789",
 			customerName: "Ali",
 			customerPhone: "+961999888",
@@ -860,6 +791,7 @@ describe("executeEscalationGuard", () => {
 		}));
 
 		await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-long",
 			customerName: "Test",
 			conversationMessages: manyMessages,
@@ -884,6 +816,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"isp-search-customer": {
@@ -914,6 +847,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn();
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -944,6 +878,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn().mockResolvedValue({ success: true });
 
 		await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -970,6 +905,7 @@ describe("executeEscalationGuard", () => {
 		const mockExecute = vi.fn();
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			...baseOpts,
 			tools: {
 				"escalate-telegram": { ...baseTool, execute: mockExecute },
@@ -1068,6 +1004,7 @@ describe("guard triggers on a diagnosed fault regardless of the reply", () => {
 			.mockResolvedValue({ success: true, message: "" });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-baz",
 			customerName: "charbel zyade",
 			customerPhone: "96178957092",
@@ -1087,6 +1024,7 @@ describe("guard triggers on a diagnosed fault regardless of the reply", () => {
 	it("does not double-escalate when the model already called the tool", async () => {
 		const execute = vi.fn();
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-baz",
 			conversationMessages: [],
 			tools: { "escalate-telegram": { ...baseTool, execute } },
@@ -1112,6 +1050,7 @@ describe("guard triggers on a diagnosed fault regardless of the reply", () => {
 			.mockResolvedValue({ success: true, message: "" });
 
 		const result = await executeEscalationGuard({
+			credentials: TEST_CREDENTIALS,
 			conversationId: "conv-peter",
 			conversationMessages: [{ role: "user", content: "mafi internet" }],
 			tools: { "escalate-telegram": { ...baseTool, execute } },
@@ -1131,7 +1070,7 @@ describe("guard triggers on a diagnosed fault regardless of the reply", () => {
 		});
 
 		expect(
-			await detectMissedEscalation(
+			await detect(
 				"نحنا صرنا على علم بالمشكلة والشباب عم يتابعوا الوضع.",
 			),
 		).toBe(true);

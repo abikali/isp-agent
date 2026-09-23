@@ -8,8 +8,10 @@ import {
 	getToolName,
 	isToolUIPart,
 	loadHistoryRows,
+	MISSING_API_KEY_MESSAGE,
 	modelMessagesToRoleContent,
 	type PromptSection,
+	resolveAgentCredentials,
 	resolveAgentTools,
 	resolveMaintenanceState,
 	type ToolResult,
@@ -81,6 +83,10 @@ export async function handleWebChatStream(
 			status: 404,
 		});
 	}
+	if (!agent.encryptedApiKey) {
+		return new Response(MISSING_API_KEY_MESSAGE, { status: 503 });
+	}
+	const credentials = resolveAgentCredentials(agent);
 
 	// Check quota BEFORE any writes.
 	const quotaResult = await checkAndIncrementQuota(
@@ -140,6 +146,7 @@ export async function handleWebChatStream(
 	);
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
+		credentials,
 		agent,
 		maintenanceActive: maintenance.active,
 		conversationId: conversation.id,
@@ -179,6 +186,7 @@ export async function handleWebChatStream(
 
 	const streamStart = Date.now();
 	const streamResult = createAgentStream({
+		credentials,
 		model: agent.model,
 		messages,
 		temperature: agent.temperature,
@@ -221,6 +229,7 @@ export async function handleWebChatStream(
 				if (tools && agent.enabledTools.includes("escalate-telegram")) {
 					try {
 						const guardResult = await executeEscalationGuard({
+							credentials,
 							tools,
 							responseText: assistantText,
 							toolResults:

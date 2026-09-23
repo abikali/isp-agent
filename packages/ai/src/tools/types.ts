@@ -1,8 +1,11 @@
 import type { Tool } from "ai";
+import type { ModelCredentials } from "../model-registry";
 
 export interface ToolContext {
 	organizationId: string;
 	agentId: string;
+	/** The agent's provider + key, for tools that make their own LLM call. */
+	credentials: ModelCredentials;
 	conversationId: string;
 	externalChatId: string;
 	contactName?: string | undefined;

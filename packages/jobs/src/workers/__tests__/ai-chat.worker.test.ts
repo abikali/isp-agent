@@ -20,6 +20,9 @@ const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
 		buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: false }),
 		computeBotFingerprint: vi.fn().mockReturnValue("fp"),
 		decryptToken: vi.fn().mockReturnValue("token"),
+		resolveAgentCredentials: vi
+			.fn()
+			.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
 		executeEscalationGuard: vi.fn().mockResolvedValue(null),
 		extractToolPromptOverrides: vi.fn().mockReturnValue({}),
 		fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
@@ -106,6 +109,8 @@ const conversation = {
 		contextGapThresholdMinutes: 240,
 		humanTakeoverHours: 1,
 		followUpMinutes: null,
+		provider: "openrouter",
+		encryptedApiKey: "encrypted-key",
 		maintenanceWindows: [],
 	},
 };
@@ -142,6 +147,7 @@ describe("AI chat retry worker - teammate reply gate", () => {
 		});
 		expect(mockAi.shouldDeferToTeammate).toHaveBeenCalledWith({
 			conversationId: "conv-1",
+			credentials: { provider: "openrouter", apiKey: "k" },
 		});
 		expect(mockRedis.set).not.toHaveBeenCalled();
 		expect(mockAi.generateAgentResponse).not.toHaveBeenCalled();

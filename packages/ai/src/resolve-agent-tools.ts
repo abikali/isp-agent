@@ -1,4 +1,5 @@
 import { db } from "@repo/database";
+import type { ModelCredentials } from "./model-registry";
 import { resolveTools } from "./tools";
 import type { ToolContext } from "./tools/types";
 import type { ToolRecord } from "./types";
@@ -16,6 +17,7 @@ export interface ResolveAgentToolsInput {
 	 * for the lockdown decision; falls back to the raw flag when omitted.
 	 */
 	maintenanceActive?: boolean | undefined;
+	credentials: ModelCredentials;
 	conversationId: string;
 	externalChatId: string;
 	contactName?: string | undefined;
@@ -67,6 +69,7 @@ export async function resolveAgentTools(
 	const toolContext: ToolContext = {
 		organizationId: input.agent.organizationId,
 		agentId: input.agent.id,
+		credentials: input.credentials,
 		conversationId: input.conversationId,
 		externalChatId: input.externalChatId,
 		contactName: input.contactName,

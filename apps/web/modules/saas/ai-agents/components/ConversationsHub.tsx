@@ -32,6 +32,7 @@ interface Filters {
 	agentId: string;
 	channelType: string;
 	status: string;
+	followUp: string;
 	sortBy: string;
 }
 
@@ -50,6 +51,7 @@ export function ConversationsHub({
 		agentId: "",
 		channelType: "",
 		status: "",
+		followUp: "",
 		sortBy: "lastMessageAt",
 	});
 
@@ -66,11 +68,20 @@ export function ConversationsHub({
 			(filters.channelType as "web" | "whatsapp" | "telegram") ||
 			undefined,
 		status: (filters.status as "active" | "archived") || undefined,
-		sortBy:
-			(filters.sortBy as
-				| "lastMessageAt"
-				| "messageCount"
-				| "createdAt") || undefined,
+		// Queued nudges read best as an agenda: soonest first.
+		...(filters.followUp === "queued"
+			? {
+					followUpQueued: true,
+					sortBy: "followUpDueAt" as const,
+					sortOrder: "asc" as const,
+				}
+			: {
+					sortBy:
+						(filters.sortBy as
+							| "lastMessageAt"
+							| "messageCount"
+							| "createdAt") || undefined,
+				}),
 	});
 
 	const orderedConversations = useMemo(() => {

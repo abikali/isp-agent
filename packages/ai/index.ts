@@ -2,6 +2,12 @@ export type { UIMessage } from "ai";
 export { getToolName, isToolUIPart } from "ai";
 export type { BuildAgentMessagesInput } from "./src/agent-context";
 export { buildAgentMessages, buildAgentTelemetry } from "./src/agent-context";
+export {
+	apiKeyHint,
+	MISSING_API_KEY_MESSAGE,
+	resolveAgentCredentials,
+	testModelCredentials,
+} from "./src/agent-credentials";
 export { needsAudioRemux, remuxWebmToOgg } from "./src/audio-remux";
 export {
 	computeBotFingerprint,
@@ -24,8 +30,10 @@ export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
 export type { EscalationSummary } from "./src/escalation-summary";
 export { summarizeForEscalation } from "./src/escalation-summary";
+export type { FollowUpWindow } from "./src/follow-up";
 export {
 	buildFollowUpInstruction,
+	DEFAULT_FOLLOW_UP_WINDOW,
 	isNoFollowUpReply,
 	isWithinFollowUpHours,
 	NO_FOLLOW_UP,
@@ -46,10 +54,15 @@ export {
 export { loadHistoryRows } from "./src/history-loader";
 export type { MaintenanceState } from "./src/maintenance";
 export { resolveMaintenanceState } from "./src/maintenance";
+export type { AiProvider, ModelCredentials } from "./src/model-registry";
 export {
+	AI_PROVIDERS,
 	CACHE_BREAKPOINT,
 	CACHE_BREAKPOINT_1H,
 	getModel,
+	helperModelId,
+	isAiProvider,
+	isModelAvailable,
 	isValidModel,
 	listAvailableModels,
 } from "./src/model-registry";

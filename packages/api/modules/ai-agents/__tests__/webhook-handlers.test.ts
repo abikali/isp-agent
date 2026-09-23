@@ -128,6 +128,9 @@ vi.mock("@repo/ai", () => ({
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),
 	decryptToken: vi.fn().mockReturnValue("decrypted-token"),
+	resolveAgentCredentials: vi
+		.fn()
+		.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
 	loadHistoryRows: vi
 		.fn()
@@ -203,6 +206,8 @@ const CHANNEL_FIXTURE = {
 	agent: {
 		id: "agent-1",
 		enabled: true,
+		provider: "openrouter",
+		encryptedApiKey: "encrypted-key",
 		organizationId: "org-1",
 		systemPrompt: "You are helpful",
 		model: "gpt-4.1",

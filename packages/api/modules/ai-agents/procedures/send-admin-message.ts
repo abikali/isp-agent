@@ -10,7 +10,7 @@ import {
 } from "@repo/ai";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
-import { getRedisConnection } from "@repo/jobs";
+import { cancelFollowUp, getRedisConnection } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { getSignedUrl, uploadBuffer } from "@repo/storage";
 import { toE164 } from "@repo/utils";
@@ -326,6 +326,8 @@ export const sendAdminMessage = protectedProcedure
 			where: { id: conversation.id },
 			data: updateData,
 		});
+		// A teammate is talking — never nudge on top of them.
+		await cancelFollowUp(conversation.id);
 
 		return {
 			message: {

@@ -6,6 +6,7 @@ import type {
 	TelemetrySettings,
 	ToolSet,
 } from "ai";
+import type { ModelCredentials } from "./model-registry";
 
 /** A contact card the customer shared: who, and which numbers. */
 export interface SharedContact {
@@ -58,6 +59,8 @@ export type ProviderOptions = Record<string, Record<string, JSONValue>>;
 
 export interface GenerateResponseInput {
 	model: string;
+	/** The agent's provider + API key (see resolveAgentCredentials). */
+	credentials: ModelCredentials;
 	/**
 	 * Full canonical message list — system message(s) + history + new user
 	 * message. The caller is responsible for building this; this preserves

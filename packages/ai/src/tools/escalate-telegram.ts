@@ -526,6 +526,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 					source === "safety-net"
 						? null
 						: await summarizeForEscalation({
+								credentials: context.credentials,
 								conversationMessages: historyRows.map(
 									(row) => ({
 										role: row.role,

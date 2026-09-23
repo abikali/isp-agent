@@ -41,6 +41,7 @@ ${ispDiagnoseCustomer.defaultPromptSection}`;
 const TOOL_CONTEXT: ToolContext = {
 	organizationId: "test-org",
 	agentId: "test-agent",
+	credentials: { provider: "openrouter", apiKey: OPENROUTER_KEY ?? "" },
 	conversationId: "test-conv",
 	externalChatId: "test-chat",
 	contactName: "Customer",
@@ -139,6 +140,7 @@ function createTool() {
 async function askAgent(userMessage: string) {
 	const result = await generateAgentResponse({
 		model: MODEL,
+		credentials: TOOL_CONTEXT.credentials,
 		messages: [
 			{ role: "system", content: SYSTEM_PROMPT },
 			{ role: "user", content: userMessage },

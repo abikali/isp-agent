@@ -16,7 +16,13 @@ interface AllConversationsFilters {
 	channelType?: "web" | "whatsapp" | "telegram" | undefined;
 	status?: "active" | "archived" | undefined;
 	pinned?: boolean | undefined;
-	sortBy?: "lastMessageAt" | "messageCount" | "createdAt" | undefined;
+	followUpQueued?: boolean | undefined;
+	sortBy?:
+		| "lastMessageAt"
+		| "messageCount"
+		| "createdAt"
+		| "followUpDueAt"
+		| undefined;
 	sortOrder?: "asc" | "desc" | undefined;
 }
 
@@ -35,6 +41,7 @@ export function useAllConversations(
 				channelType: filters?.channelType,
 				status: filters?.status,
 				pinned: filters?.pinned,
+				followUpQueued: filters?.followUpQueued,
 				sortBy: filters?.sortBy,
 				sortOrder: filters?.sortOrder,
 				limit: PAGE_SIZE,

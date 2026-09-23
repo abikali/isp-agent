@@ -18,6 +18,7 @@ import {
 import { Skeleton } from "@ui/components/skeleton";
 import { cn } from "@ui/lib";
 import {
+	AlarmClockIcon,
 	FilterIcon,
 	GlobeIcon,
 	Loader2Icon,
@@ -45,6 +46,9 @@ export interface ConversationItem {
 	contactName: string | null;
 	status: string;
 	pinned: boolean;
+	followUpDueAt: Date | string | null;
+	followUpAttempts: number;
+	followUpMuted: boolean;
 	messageCount: number;
 	lastMessageAt: Date | string | null;
 	createdAt: Date | string;
@@ -67,6 +71,7 @@ interface Filters {
 	agentId: string;
 	channelType: string;
 	status: string;
+	followUp: string;
 	sortBy: string;
 }
 
@@ -158,6 +163,18 @@ function ConversationCardSkeleton() {
 			</div>
 		</div>
 	);
+}
+
+/** "14:30", or "Tue 09:30" when the nudge is not due today. */
+function formatDueAt(value: Date | string): string {
+	const due = new Date(value);
+	const time = due.toLocaleTimeString([], {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+	return due.toDateString() === new Date().toDateString()
+		? time
+		: `${due.toLocaleDateString([], { weekday: "short" })} ${time}`;
 }
 
 /** Single conversation row card. Pure render of one item — hoisted to module scope. */
@@ -273,6 +290,15 @@ function renderCard(conv: ConversationItem, isSelected: boolean) {
 						>
 							Needs human
 						</Badge>
+					) : conv.followUpDueAt ? (
+						<Badge
+							variant="outline"
+							className="h-4 shrink-0 gap-1 border-info/40 bg-info/10 px-1.5 text-[10px] font-medium tabular-nums text-info"
+							title={`Follow-up ${conv.followUpAttempts + 1} queued`}
+						>
+							<AlarmClockIcon className="size-2.5" />
+							{formatDueAt(conv.followUpDueAt)}
+						</Badge>
 					) : conv.messageCount > 0 ? (
 						<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
 							{conv.messageCount}
@@ -340,7 +366,9 @@ export function ConversationsListPanel({
 	);
 
 	const activeFilterCount =
-		(filters.agentId ? 1 : 0) + (filters.channelType ? 1 : 0);
+		(filters.agentId ? 1 : 0) +
+		(filters.channelType ? 1 : 0) +
+		(filters.followUp ? 1 : 0);
 
 	// Pinned conversations float to the top, then everything else stays in the
 	// server-provided order so day-groupings stay coherent.
@@ -527,6 +555,30 @@ export function ConversationsListPanel({
 								</SelectContent>
 							</Select>
 						</div>
+						<div>
+							<span className="mb-1 block text-xs font-medium text-muted-foreground">
+								Follow-up
+							</span>
+							<Select
+								value={filters.followUp || "all"}
+								onValueChange={(v) =>
+									updateFilter(
+										"followUp",
+										v === "all" ? "" : v,
+									)
+								}
+							>
+								<SelectTrigger className="h-8 text-xs">
+									<SelectValue placeholder="Any" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">Any</SelectItem>
+									<SelectItem value="queued">
+										Queued (soonest first)
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 						{activeFilterCount > 0 && (
 							<Button
 								variant="ghost"
@@ -537,6 +589,7 @@ export function ConversationsListPanel({
 										...filters,
 										agentId: "",
 										channelType: "",
+										followUp: "",
 									})
 								}
 							>

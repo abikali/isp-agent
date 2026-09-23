@@ -1,6 +1,10 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getModel } from "./model-registry";
+import {
+	getModel,
+	helperModelId,
+	type ModelCredentials,
+} from "./model-registry";
 
 export const escalationSummarySchema = z.object({
 	summary: z
@@ -45,6 +49,7 @@ Rules:
 - Do NOT include raw message transcripts in the summary.`;
 
 interface SummarizeInput {
+	credentials: ModelCredentials;
 	conversationMessages: Array<{ role: string; content: string }>;
 	customerName?: string | undefined;
 	customerPhone?: string | undefined;
@@ -67,7 +72,7 @@ interface SummarizeInput {
 export async function summarizeForEscalation(
 	input: SummarizeInput,
 ): Promise<EscalationSummary | null> {
-	const model = "gpt-4.1-nano";
+	const model = helperModelId(input.credentials.provider, "nano");
 	const timeoutMs = 8000;
 
 	const abortController = new AbortController();
@@ -98,7 +103,7 @@ export async function summarizeForEscalation(
 		userPrompt += "\n\nRespond in JSON.";
 
 		const result = await generateText({
-			model: getModel(model),
+			model: getModel(model, input.credentials),
 			system: SYSTEM_PROMPT,
 			messages: [{ role: "user", content: userPrompt }],
 			output: Output.object({ schema: escalationSummarySchema }),

@@ -23,6 +23,7 @@ function mockTriageDecision(decision: TriageDecision, message?: string) {
 }
 
 const baseInput = {
+	credentials: { provider: "openrouter", apiKey: "test" } as const,
 	lastAssistantResponse: "Your internet plan is 50 Mbps and active.",
 	recentUserMessage: "What is my internet speed?",
 };
@@ -212,6 +213,7 @@ describe("triageBufferedMessages", () => {
 		mockTriageDecision("respond");
 
 		await triageBufferedMessages({
+			...baseInput,
 			lastAssistantResponse: "Your account is active.",
 			recentUserMessage: "Check my account",
 			bufferedMessages: ["also check my speed"],

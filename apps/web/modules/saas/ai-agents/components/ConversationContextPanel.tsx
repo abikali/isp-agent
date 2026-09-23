@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getAvatarColor, getContactInitials } from "../lib/chat-utils";
+import { ConversationFollowUpSection } from "./ConversationFollowUpSection";
 import type { ConversationItem } from "./ConversationsListPanel";
 
 interface ConversationContextPanelProps {
@@ -524,6 +525,14 @@ export function ConversationContextPanel({
 						))}
 					</div>
 				</Section>
+			)}
+
+			{/* Nudges only go out on WhatsApp/Telegram, never web chat. */}
+			{conversation.channel && (
+				<ConversationFollowUpSection
+					conversationId={conversation.id}
+					organizationId={organizationId}
+				/>
 			)}
 
 			<Section title="Agent">

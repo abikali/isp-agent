@@ -5,7 +5,9 @@ import {
 	type DbMessageRow,
 	extractToolPromptOverrides,
 	fetchServicePlansSection,
+	MISSING_API_KEY_MESSAGE,
 	type PromptSection,
+	resolveAgentCredentials,
 	resolveAgentTools,
 	resolveMaintenanceState,
 	type UIMessage,
@@ -100,6 +102,10 @@ export async function handleDebugChatStream(
 	} catch {
 		return new Response("Forbidden", { status: 403 });
 	}
+	if (!agent.encryptedApiKey) {
+		return new Response(MISSING_API_KEY_MESSAGE, { status: 400 });
+	}
+	const credentials = resolveAgentCredentials(agent);
 
 	const uiMessages = rawMessages as UIMessage[];
 	const historyRows: DbMessageRow[] = uiMessages.map((m) => ({
@@ -109,6 +115,7 @@ export async function handleDebugChatStream(
 	}));
 
 	const { tools, agentToolConfigs } = await resolveAgentTools({
+		credentials,
 		agent,
 		maintenanceActive: maintenance.active,
 		conversationId: `debug-${agent.id}-${session.user.id}`,
@@ -155,6 +162,7 @@ export async function handleDebugChatStream(
 	);
 
 	const streamResult = createAgentStream({
+		credentials,
 		model: agent.model,
 		messages,
 		temperature: agent.temperature,

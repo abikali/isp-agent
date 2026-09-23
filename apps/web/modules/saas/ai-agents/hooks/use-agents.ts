@@ -64,6 +64,18 @@ export function useUpdateAgent() {
 	});
 }
 
+export function useTestAgentApiKey() {
+	return useMutation(orpc.aiAgents.testAgentApiKey.mutationOptions());
+}
+
+export function useFollowUpStats(agentId: string, organizationId: string) {
+	return useQuery(
+		orpc.aiAgents.getFollowUpStats.queryOptions({
+			input: { agentId, organizationId },
+		}),
+	);
+}
+
 export function useGenerateSystemPrompt() {
 	return useMutation(orpc.aiAgents.generateSystemPrompt.mutationOptions());
 }

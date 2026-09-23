@@ -7,6 +7,8 @@ export interface AiModelOption {
 	/** Price per million output tokens (USD) */
 	priceOut: number;
 	recommended?: boolean;
+	/** Only reachable through OpenRouter, even though its maker has an API. */
+	openRouterOnly?: boolean;
 }
 
 /**
@@ -85,6 +87,7 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 				id: "gemini-3.1-flash-lite",
 				label: "Gemini 3.1 Flash Lite",
 				provider: "google",
+				openRouterOnly: true,
 				priceIn: 0.25,
 				priceOut: 1.5,
 			},
@@ -192,6 +195,50 @@ export const AI_MODEL_GROUPS: { label: string; models: AiModelOption[] }[] = [
 
 /** Flat list for backward compatibility */
 export const AI_MODEL_OPTIONS = AI_MODEL_GROUPS.flatMap((g) => g.models);
+
+/**
+ * Who the agent's API key is for. MUST match `AI_PROVIDERS` in
+ * `packages/ai/src/model-registry.ts`.
+ */
+export const LLM_PROVIDERS = [
+	{
+		id: "openrouter",
+		label: "OpenRouter",
+		keyHint: "sk-or-…",
+		keyUrl: "https://openrouter.ai/settings/keys",
+	},
+	{
+		id: "openai",
+		label: "OpenAI",
+		keyHint: "sk-…",
+		keyUrl: "https://platform.openai.com/api-keys",
+	},
+	{
+		id: "anthropic",
+		label: "Anthropic",
+		keyHint: "sk-ant-…",
+		keyUrl: "https://console.anthropic.com/settings/keys",
+	},
+	{
+		id: "google",
+		label: "Google (Gemini)",
+		keyHint: "AIza…",
+		keyUrl: "https://aistudio.google.com/apikey",
+	},
+] as const;
+
+export type LlmProvider = (typeof LLM_PROVIDERS)[number]["id"];
+
+/** OpenRouter serves every model; a direct provider only its own. */
+export function isModelAvailableFrom(
+	model: AiModelOption,
+	provider: LlmProvider,
+): boolean {
+	return (
+		provider === "openrouter" ||
+		(model.provider === provider && !model.openRouterOnly)
+	);
+}
 
 export const PROVIDER_OPTIONS = [
 	{ id: "whatsapp", label: "WhatsApp" },

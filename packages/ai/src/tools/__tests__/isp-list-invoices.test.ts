@@ -32,6 +32,7 @@ import { ispListInvoices } from "../isp-list-invoices";
 const context = {
 	organizationId: "org",
 	agentId: "agent",
+	credentials: { provider: "openrouter", apiKey: "test" } as const,
 	conversationId: "conv",
 	externalChatId: "x",
 };

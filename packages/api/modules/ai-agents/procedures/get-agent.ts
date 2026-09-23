@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { apiKeyHint } from "@repo/ai";
 import { requirePermission, verifyPermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
@@ -55,6 +56,13 @@ export const getAgent = protectedProcedure
 				offDutyMessage: true,
 				followUpMinutes: true,
 				followUpMessage: true,
+				followUpMaxAttempts: true,
+				followUpRepeatMinutes: true,
+				followUpWindowStart: true,
+				followUpWindowEnd: true,
+				followUpWeeklyCap: true,
+				provider: true,
+				encryptedApiKey: true,
 				promptSections: true,
 				webChatEnabled: true,
 				webChatToken: true,
@@ -123,5 +131,15 @@ export const getAgent = protectedProcedure
 				(w) => w.startsAt <= now && now < w.endsAt,
 			);
 
-		return { agent: { ...agent, maintenanceActive } };
+		// The key itself never leaves the server — only whether one is set
+		// and its last four characters.
+		const { encryptedApiKey, ...rest } = agent;
+		return {
+			agent: {
+				...rest,
+				maintenanceActive,
+				hasApiKey: Boolean(encryptedApiKey),
+				apiKeyHint: apiKeyHint(encryptedApiKey),
+			},
+		};
 	});

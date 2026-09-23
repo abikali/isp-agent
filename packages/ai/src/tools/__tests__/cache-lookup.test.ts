@@ -12,6 +12,7 @@ vi.mock("../lib/isp-api-client", async (importOriginal) => {
 const baseContext = {
 	organizationId: "org",
 	agentId: "agent",
+	credentials: { provider: "openrouter", apiKey: "test" } as const,
 	conversationId: "conv",
 	externalChatId: "chat",
 };

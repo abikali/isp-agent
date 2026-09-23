@@ -107,3 +107,41 @@ describe("resolveFollowUpFireAt", () => {
 		).toEqual(new Date("2026-01-16T07:30:00Z"));
 	});
 });
+
+describe("resolveFollowUpFireAt with a custom window and later attempts", () => {
+	const window = { start: "10:00", end: "18:00" };
+
+	it("uses the agent's window", () => {
+		// 17:30 Beirut + 60 min → 18:30, closed → next day 10:30 Beirut
+		expect(
+			resolveFollowUpFireAt(new Date("2026-09-17T14:30:00Z"), 60, window),
+		).toEqual(new Date("2026-09-18T07:30:00Z"));
+	});
+
+	it("moves a later attempt instead of dropping it", () => {
+		// 18:00 Beirut + 180 min → 21:00 → 09:30 next day, 15.5 h later
+		expect(
+			resolveFollowUpFireAt(
+				new Date("2026-09-17T15:00:00Z"),
+				180,
+				undefined,
+				2,
+			),
+		).toEqual(new Date("2026-09-18T06:30:00Z"));
+	});
+});
+
+describe("buildFollowUpInstruction for repeat attempts", () => {
+	it("marks the last attempt as closing", () => {
+		const text = buildFollowUpInstruction(1440, null, 2, 2);
+		expect(text).toContain("follow-up 2 of 2");
+		expect(text).toContain("LAST one");
+		expect(stripInternalMarkers(text)).toBe("");
+	});
+
+	it("says nothing about repeats on the first attempt", () => {
+		expect(buildFollowUpInstruction(30, null, 1, 3)).not.toContain(
+			"follow-up 1 of",
+		);
+	});
+});

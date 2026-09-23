@@ -720,10 +720,22 @@ model AiAgent {
   workingHoursStart          String   @default("09:00")
   workingHoursEnd            String   @default("18:00")
   offDutyMessage             String?  @db.Text
-  // Follow up once when the customer goes quiet after a bot question.
-  // null = off. See packages/jobs/src/workers/ai-followup.worker.ts.
+  // LLM provider + its API key (AES-256-GCM, see packages/ai/src/encryption.ts).
+  // No server-wide fallback: an agent without a key cannot reply.
+  provider                   String   @default("openrouter") // "openrouter" | "openai" | "anthropic" | "google"
+  encryptedApiKey            String?  @db.Text
+  // Follow up when the customer goes quiet after a bot question.
+  // null = off. See packages/jobs/src/lib/follow-up.ts.
   followUpMinutes            Int?
   followUpMessage            String?  @db.Text
+  // Nudges per silence (1 = a single nudge), and the gap before each later one.
+  followUpMaxAttempts        Int      @default(1)
+  followUpRepeatMinutes      Int      @default(1440)
+  // Beirut wall-clock window nudges may go out in.
+  followUpWindowStart        String   @default("09:00")
+  followUpWindowEnd          String   @default("20:30")
+  // Hard ceiling on nudges one chat receives in any rolling 7 days.
+  followUpWeeklyCap          Int      @default(3)
   webChatEnabled             Boolean  @default(false)
   webChatToken               String?  @unique
   createdById                String
@@ -779,9 +791,16 @@ model AiConversation {
   pinLockedUntil     DateTime?
   humanTakeoverAt    DateTime? @map("human_takeover_at")
   unknownEscalatedAt DateTime? @map("unknown_escalated_at")
-  // One nudge per silence: set when the follow-up went out, cleared on the
-  // customer's next message.
+  // Follow-up state for the current silence. All reset on the customer's
+  // next message. followUpDueAt mirrors the pending BullMQ job so the UI can
+  // list queued nudges without scanning Redis.
   followUpSentAt     DateTime? @map("follow_up_sent_at")
+  followUpDueAt      DateTime? @map("follow_up_due_at")
+  followUpAttempts   Int       @default(0) @map("follow_up_attempts")
+  followUpMuted      Boolean   @default(false) @map("follow_up_muted")
+  // Last worker outcome ("sent", or the skip reason), for the admin panel.
+  followUpOutcome    String?   @map("follow_up_outcome")
+  followUpOutcomeAt  DateTime? @map("follow_up_outcome_at")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -797,6 +816,7 @@ model AiConversation {
   @@index([agentId, externalChatId])
   @@index([channelId])
   @@index([lastMessageAt])
+  @@index([followUpDueAt])
   @@map("ai_conversation")
 }
 
@@ -817,6 +837,7 @@ model AiMessage {
   cacheWriteTokens   Int?
   replyToId          String?
   deliveryStatus     String? // "sent" | "delivered" | "read"
+  isFollowUp         Boolean   @default(false)
   editedAt           DateTime?
   deletedAt          DateTime?
   attachmentType     String? // "image" | "video" | "audio" | "document" | "location" | "sticker"

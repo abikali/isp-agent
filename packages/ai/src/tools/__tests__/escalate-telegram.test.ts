@@ -25,6 +25,7 @@ import { escalateTelegram } from "../escalate-telegram";
 const context = {
 	organizationId: "org-1",
 	agentId: "agent-1",
+	credentials: { provider: "openrouter", apiKey: "test" } as const,
 	conversationId: "conv-1",
 	externalChatId: "chat-1",
 	toolConfig: { telegramBotToken: "bot-token", telegramChatIds: ["123"] },

@@ -29,7 +29,9 @@ function resolveStopWhen(
 export function createAgentStream(
 	input: GenerateResponseInput,
 ): AgentStreamResult {
-	const model = getModel(input.model, { sessionId: input.sessionId });
+	const model = getModel(input.model, input.credentials, {
+		sessionId: input.sessionId,
+	});
 
 	return streamText({
 		model,

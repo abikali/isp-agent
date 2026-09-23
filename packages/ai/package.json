@@ -22,12 +22,15 @@
 		"test:run": "vitest run"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "3.0.120",
+		"@ai-sdk/google": "3.0.125",
+		"@ai-sdk/openai": "3.0.115",
+		"@ai-sdk/openai-compatible": "^2.0.35",
+		"@openrouter/ai-sdk-provider": "^2.9.0",
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
 		"@repo/utils": "workspace:*",
-		"@ai-sdk/openai-compatible": "^2.0.35",
-		"@openrouter/ai-sdk-provider": "^2.9.0",
 		"ai": "^6.0.116",
 		"grammy": "^1.39.2",
 		"nodejs-traceroute": "^2.0.1",

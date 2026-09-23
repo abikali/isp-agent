@@ -3,6 +3,7 @@ import { z } from "zod";
 import { hasToolNarration } from "./chat-formatting";
 import { classifyText } from "./classify";
 import { summarizeForEscalation } from "./escalation-summary";
+import type { ModelCredentials } from "./model-registry";
 import type { ToolRecord, ToolResult } from "./types";
 
 interface EscalationToolOutput {
@@ -134,6 +135,7 @@ const ESCALATION_KEYWORD_RE = new RegExp(
  */
 export async function detectMissedEscalation(
 	responseText: string,
+	credentials: ModelCredentials,
 	toolResults?: ToolResult[],
 ): Promise<boolean> {
 	if (toolResults?.some((tr) => tr.toolName === "escalate-telegram")) {
@@ -153,6 +155,7 @@ export async function detectMissedEscalation(
 		systemPrompt: ESCALATION_SYSTEM_PROMPT,
 		userPrompt: text,
 		schema: escalationSchema,
+		credentials,
 	});
 
 	// Both are assertions of an escalation the model never made: it either said
@@ -220,6 +223,7 @@ async function hasRecentEscalation(conversationId: string): Promise<boolean> {
 }
 
 interface EscalationGuardOptions {
+	credentials: ModelCredentials;
 	tools: ToolRecord;
 	responseText: string;
 	toolResults?: ToolResult[] | undefined;
@@ -276,6 +280,7 @@ export async function executeEscalationGuard(
 			? "model narrated a tool call instead of making one"
 			: (await detectMissedEscalation(
 						opts.responseText,
+						opts.credentials,
 						opts.toolResults,
 					))
 				? "model asserted an escalation it never made"
@@ -296,6 +301,7 @@ export async function executeEscalationGuard(
 
 	// Use LLM to produce a proper summary, priority, and category
 	const llmSummary = await summarizeForEscalation({
+		credentials: opts.credentials,
 		conversationMessages: opts.conversationMessages,
 		customerName: opts.customerName,
 		customerPhone: opts.customerPhone,

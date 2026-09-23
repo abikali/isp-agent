@@ -1,11 +1,16 @@
 import { generateText, Output } from "ai";
 import type { z } from "zod";
-import { getModel } from "./model-registry";
+import {
+	getModel,
+	helperModelId,
+	type ModelCredentials,
+} from "./model-registry";
 
 interface ClassifyOptions<T extends z.ZodType> {
 	systemPrompt: string;
 	userPrompt: string;
 	schema: T;
+	credentials: ModelCredentials;
 	model?: string | undefined;
 	timeoutMs?: number | undefined;
 }
@@ -20,7 +25,7 @@ interface ClassifyOptions<T extends z.ZodType> {
 export async function classifyText<T extends z.ZodType>(
 	opts: ClassifyOptions<T>,
 ): Promise<z.infer<T> | null> {
-	const model = opts.model ?? "gpt-4.1-mini";
+	const model = opts.model ?? helperModelId(opts.credentials.provider);
 	const timeoutMs = opts.timeoutMs ?? 5000;
 
 	const abortController = new AbortController();
@@ -28,7 +33,7 @@ export async function classifyText<T extends z.ZodType>(
 
 	try {
 		const result = await generateText({
-			model: getModel(model),
+			model: getModel(model, opts.credentials),
 			system: opts.systemPrompt,
 			// Append "Respond in JSON." — some OpenRouter-routed providers (Azure OpenAI)
 			// require the word "json" in the message when using json_object response format.
