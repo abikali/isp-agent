@@ -257,6 +257,15 @@ export const createPayment = protectedProcedure
 			});
 		}
 
+		// A free settlement only collects addons. Cash beyond that would be
+		// stored as paidAmount on waived months — counted in the collector's
+		// balance and receipted as "Paid $X" to a customer who paid nothing.
+		if (input.freeAccount && input.paidAmount > totalDue + 0.01) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: `A free settlement can only collect addons (${totalDue.toFixed(2)}). Turn off Free to record a cash payment.`,
+			});
+		}
+
 		// Require a note when paid amount differs from total due
 		const isAmountMismatch =
 			Math.abs(input.paidAmount - totalDue) >= 0.01 &&

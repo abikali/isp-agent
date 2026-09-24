@@ -33,6 +33,7 @@ export const getInvoice = publicProcedure
 				paidAmount: true,
 				discount: true,
 				stoppedAccount: true,
+				freeAccount: true,
 				paidAt: true,
 				createdAt: true,
 				customer: {

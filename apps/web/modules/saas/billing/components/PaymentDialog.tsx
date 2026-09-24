@@ -435,7 +435,19 @@ export function PaymentDialog({
 							<Switch
 								id="freeAccount"
 								checked={freeAccount}
-								onCheckedChange={setFreeAccount}
+								onCheckedChange={(checked) => {
+									setFreeAccount(checked);
+									// Free waives the month — the prefilled cash
+									// total must not ride along (it was stored
+									// as paidAmount and receipted as "Paid").
+									setPaidAmount(
+										String(
+											calculateTotalDue(customer, {
+												freeAccount: checked,
+											}),
+										),
+									);
+								}}
 							/>
 						</div>
 						<div className="flex items-center justify-between">

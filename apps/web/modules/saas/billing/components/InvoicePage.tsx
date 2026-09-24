@@ -62,7 +62,7 @@ function InvoiceContent({ paymentId }: { paymentId: string }) {
 	// Partial when the month's combined coverage still leaves money owed —
 	// a topped-up month's second receipt correctly reads Paid.
 	const remainingDue = settlement?.remaining ?? 0;
-	const statusConfig = getStatusConfig(payment.stoppedAccount, remainingDue);
+	const statusConfig = getStatusConfig(payment, remainingDue);
 
 	const customerName = [customer.firstName, customer.lastName]
 		.filter(Boolean)
@@ -285,12 +285,22 @@ function formatUSD(value: number): string {
 	return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function getStatusConfig(stoppedAccount: boolean, remainingDue: number) {
-	if (stoppedAccount) {
+function getStatusConfig(
+	payment: { stoppedAccount: boolean; freeAccount: boolean },
+	remainingDue: number,
+) {
+	if (payment.stoppedAccount) {
 		return {
 			label: "Stopped",
 			icon: AlertCircleIcon,
 			className: "bg-red-100 text-red-700",
+		};
+	}
+	if (payment.freeAccount) {
+		return {
+			label: "Free",
+			icon: CheckCircleIcon,
+			className: "bg-green-100 text-green-700",
 		};
 	}
 	if (remainingDue > 0) {

@@ -89,6 +89,9 @@ export const getCustomerActivity = protectedProcedure
 								discount: true,
 								status: true,
 								notes: true,
+								freeAccount: true,
+								stoppedAccount: true,
+								debtAccount: true,
 								collector: { select: { name: true } },
 								billingMonth: {
 									select: { year: true, month: true },
@@ -180,7 +183,13 @@ export const getCustomerActivity = protectedProcedure
 				type: "payment",
 				id: p.id,
 				occurredAt: p.paidAt,
-				title: `Payment $${p.paidAmount.toFixed(2)} received`,
+				title: p.freeAccount
+					? "Month settled as free"
+					: p.stoppedAccount
+						? "Marked stopped"
+						: p.debtAccount
+							? "Debt visit — nothing collected"
+							: `Payment $${p.paidAmount.toFixed(2)} received`,
 				detail: null,
 				actor: p.collector?.name ?? null,
 				meta: {
