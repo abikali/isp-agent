@@ -32,7 +32,11 @@ export type ScheduledJobType =
 	| "online-status-sync"
 	| "network-monitor-sync"
 	| "dealer-sync"
-	| "recurring-expenses";
+	| "recurring-expenses"
+	| "conversation-summaries"
+	| "conversation-summary-digest"
+	| "bot-follow-ups"
+	| "outreach-reconcile";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;
@@ -286,4 +290,15 @@ export interface BillingSyncJobData {
 export interface BillingSyncJobResult {
 	success: boolean;
 	operationId: string;
+}
+
+// Salti (WPBox) inbound webhook: Meta's raw Cloud-API body, forwarded once.
+export interface SaltiInboundJobData {
+	body: unknown;
+	receivedAt: string;
+}
+
+export interface SaltiInboundJobResult {
+	matched: number;
+	ignored: number;
 }

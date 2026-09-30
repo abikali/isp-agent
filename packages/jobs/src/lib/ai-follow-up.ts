@@ -3,6 +3,7 @@ import {
 	buildAgentMessages,
 	buildAgentTelemetry,
 	buildFollowUpInstruction,
+	buildPostEscalationInstruction,
 	type ChannelProvider,
 	computeBotFingerprint,
 	decryptToken,
@@ -14,6 +15,7 @@ import {
 	loadHistoryRows,
 	type PromptSection,
 	resolveAgentCredentials,
+	resolveFollowUpFireAt,
 	resolveMaintenanceState,
 	sendTextMessage,
 	sendTypingIndicator,
@@ -123,11 +125,36 @@ function lastMessageOf(conversationId: string) {
  * Ask the model for the nudge. Returns null when it declines. `at` is the
  * moment it would go out: the prompt's clock and the silence length.
  */
-async function generateFollowUpText(
+/** The silence-nudge instruction for `attempt`, fired at `at`. */
+function silenceInstruction(
 	conversation: LoadedConversation,
 	lastReplyAt: Date,
 	attempt: number,
 	at: Date,
+): string {
+	const agent = conversation.agent;
+	const delay =
+		attempt === 1
+			? (agent.followUpMinutes ?? 0)
+			: agent.followUpRepeatMinutes;
+	// Real silence: longer than the setting when the nudge was moved to the
+	// next morning.
+	return buildFollowUpInstruction(
+		Math.max(
+			delay,
+			Math.round((at.getTime() - lastReplyAt.getTime()) / 60_000),
+		),
+		agent.followUpMessage,
+		attempt,
+		Math.max(attempt, agent.followUpMaxAttempts),
+	);
+}
+
+async function generateFollowUpText(
+	conversation: LoadedConversation,
+	lastReplyAt: Date,
+	at: Date,
+	instruction: string,
 ): Promise<string | null> {
 	const agent = conversation.agent;
 	const conversationId = conversation.id;
@@ -144,10 +171,6 @@ async function generateFollowUpText(
 	);
 	const verified = conversation.verifiedCustomer;
 	const provider = conversation.channel?.provider as ChannelProvider;
-	const delay =
-		attempt === 1
-			? (agent.followUpMinutes ?? 0)
-			: agent.followUpRepeatMinutes;
 	const messages = buildAgentMessages({
 		conversationId,
 		systemOptions: {
@@ -182,17 +205,7 @@ async function generateFollowUpText(
 		// earlier exchange]" right before the instruction.
 		now: lastReplyAt,
 		contextGapThresholdMinutes: agent.contextGapThresholdMinutes,
-		// Real silence: longer than the setting when the nudge was moved to
-		// the next morning.
-		newUserMessage: buildFollowUpInstruction(
-			Math.max(
-				delay,
-				Math.round((at.getTime() - lastReplyAt.getTime()) / 60_000),
-			),
-			agent.followUpMessage,
-			attempt,
-			Math.max(attempt, agent.followUpMaxAttempts),
-		),
+		newUserMessage: instruction,
 	});
 
 	const result = await generateAgentResponse({
@@ -236,13 +249,16 @@ export async function draftFollowUp(conversationId: string): Promise<{
 		return { text: existing.text, attempt, cached: true };
 	}
 	const lastRow = await lastMessageOf(conversationId);
-	const text = await generateFollowUpText(
-		conversation,
-		lastRow?.createdAt ?? now,
-		attempt,
+	const lastReplyAt = lastRow?.createdAt ?? now;
+	const at =
 		conversation.followUpDueAt && conversation.followUpDueAt > now
 			? conversation.followUpDueAt
-			: now,
+			: now;
+	const text = await generateFollowUpText(
+		conversation,
+		lastReplyAt,
+		at,
+		silenceInstruction(conversation, lastReplyAt, attempt, at),
 	);
 	const draft: FollowUpDraft = { basis, attempt, text };
 	await getRedisConnection()
@@ -378,8 +394,13 @@ export async function runFollowUp(input: {
 				: await generateFollowUpText(
 						conversation,
 						lastRow.createdAt,
-						attempt,
 						now,
+						silenceInstruction(
+							conversation,
+							lastRow.createdAt,
+							attempt,
+							now,
+						),
 					);
 		redis.del(draftKey(conversationId)).catch(() => {});
 		if (!text) {
@@ -401,7 +422,7 @@ export async function runFollowUp(input: {
 			.catch(() => {});
 		const parts = assistantMessageToParts(text, undefined);
 		const sentAt = new Date();
-		await db.aiMessage.create({
+		const message = await db.aiMessage.create({
 			data: {
 				conversationId,
 				role: "assistant",
@@ -414,7 +435,32 @@ export async function runFollowUp(input: {
 					: {}),
 				createdAt: sentAt,
 			},
+			select: { id: true },
 		});
+		// The Bot follow-ups page's record of the nudge. Declines stay on
+		// `followUpOutcome` only, so the table holds real sends.
+		await db.botFollowUp
+			.create({
+				data: {
+					organizationId: agent.organizationId,
+					agentId: agent.id,
+					type: "silence",
+					channel: "bot",
+					status: sendResult.success ? "sent" : "failed",
+					conversationId,
+					customerId: conversation.verifiedCustomerId,
+					sentAt,
+					messageText: text,
+					externalMessageId: sendResult.messageId ?? null,
+					aiMessageId: message.id,
+				},
+			})
+			.catch((error) =>
+				logger.warn("[ai-followup] follow-up row not written", {
+					conversationId,
+					error: String(error),
+				}),
+			);
 		await db.aiConversation.update({
 			where: { id: conversationId },
 			data: {
@@ -443,6 +489,259 @@ export async function runFollowUp(input: {
 			);
 		}
 		return { sent: sendResult.success, text };
+	} finally {
+		await redis
+			.eval(
+				`if redis.call("get",KEYS[1])==ARGV[1] then return redis.call("del",KEYS[1]) else return 0 end`,
+				1,
+				lockKey,
+				lockValue,
+			)
+			.catch(() => {});
+	}
+}
+
+// ── Check-back after an escalation (#13) ─────────────────────────────────────
+
+export interface PostEscalationRow {
+	id: string;
+	conversationId: string | null;
+	taskId: string | null;
+}
+
+export interface PostEscalationResult {
+	status: "sent" | "skipped" | "failed" | "rescheduled";
+	skipReason?: string;
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Ask the customer, in the chat they started, whether the team reached them
+ * and whether the escalated problem is solved. One question, one attempt:
+ * no silence nudge is scheduled after it. The row must be claimed
+ * (`sending`); this writes its final state.
+ */
+export async function runPostEscalationCheck(
+	row: PostEscalationRow,
+): Promise<PostEscalationResult> {
+	const now = new Date();
+	const finish = async (
+		result: PostEscalationResult,
+		data: Prisma.BotFollowUpUpdateInput = {},
+	): Promise<PostEscalationResult> => {
+		await db.botFollowUp.update({
+			where: { id: row.id },
+			data: {
+				status:
+					result.status === "rescheduled"
+						? "scheduled"
+						: result.status,
+				...(result.skipReason ? { skipReason: result.skipReason } : {}),
+				...data,
+			},
+		});
+		if (result.skipReason) {
+			logger.info("[check-back] skipped", {
+				followUpId: row.id,
+				reason: result.skipReason,
+			});
+		}
+		return result;
+	};
+	const skip = (reason: string) =>
+		finish({ status: "skipped", skipReason: reason });
+
+	if (!row.conversationId) {
+		return skip("conversation_missing");
+	}
+	const conversation = await loadConversation(row.conversationId, now);
+	if (!conversation?.channel || !conversation.agent) {
+		return skip("conversation_or_channel_missing");
+	}
+	const agent = conversation.agent;
+	const conversationId = conversation.id;
+	if (!agent.enabled) {
+		return skip("agent_disabled");
+	}
+	if (!agent.encryptedApiKey) {
+		return skip("no_api_key");
+	}
+	if (agent.postEscalationCheckMinutes == null) {
+		return skip("check_back_disabled");
+	}
+	if (conversation.status !== "active") {
+		return skip("conversation_not_active");
+	}
+	if (conversation.followUpMuted) {
+		return skip("muted");
+	}
+	if (
+		isHumanTakeoverActive(
+			conversation.humanTakeoverAt,
+			agent.humanTakeoverHours,
+		)
+	) {
+		return skip("human_takeover");
+	}
+	if (resolveMaintenanceState(agent, agent.maintenanceWindows).active) {
+		return skip("maintenance");
+	}
+	const window = {
+		start: agent.followUpWindowStart,
+		end: agent.followUpWindowEnd,
+	};
+	if (!isWithinFollowUpHours(now, window)) {
+		// A late sweep (worker restart) must not ask at night: move it.
+		return finish(
+			{ status: "rescheduled" },
+			{ dueAt: resolveFollowUpFireAt(now, 0, window, 2) ?? now },
+		);
+	}
+	const task = row.taskId
+		? await db.task.findUnique({
+				where: { id: row.taskId },
+				select: {
+					title: true,
+					status: true,
+					followUpStatus: true,
+					createdAt: true,
+				},
+			})
+		: null;
+	if (!task) {
+		return skip("task_missing");
+	}
+	if (task.followUpStatus === "resolved" || task.status === "CANCELLED") {
+		return skip("task_resolved");
+	}
+	const recentUser = await db.aiMessage.findFirst({
+		where: {
+			conversationId,
+			role: "user",
+			createdAt: { gte: new Date(now.getTime() - 12 * HOUR_MS) },
+		},
+		select: { id: true },
+	});
+	if (recentUser) {
+		return skip("customer_active");
+	}
+	const alreadyChecked = await db.botFollowUp.findFirst({
+		where: {
+			conversationId,
+			type: "post_escalation",
+			id: { not: row.id },
+			sentAt: { gte: new Date(now.getTime() - 72 * HOUR_MS) },
+		},
+		select: { id: true },
+	});
+	if (alreadyChecked) {
+		return skip("already_checked");
+	}
+	if ((await countRecentFollowUps(conversation)) >= agent.followUpWeeklyCap) {
+		return skip("weekly_cap");
+	}
+	const lastRow = await lastMessageOf(conversationId);
+	if (!lastRow) {
+		return skip("conversation_empty");
+	}
+	if (lastRow.deliveryStatus === "failed") {
+		return skip("last_reply_not_delivered");
+	}
+
+	const redis = getRedisConnection();
+	const lockKey = `ai:lock:${conversation.channelId}:${conversation.externalChatId}`;
+	const lockValue = `checkback-${row.id}-${Date.now()}`;
+	const locked = Boolean(
+		await redis.set(lockKey, lockValue, "EX", 120, "NX"),
+	);
+	if (!locked) {
+		return finish(
+			{ status: "rescheduled" },
+			{ dueAt: new Date(now.getTime() + 10 * 60_000) },
+		);
+	}
+
+	try {
+		const teamReplied = await db.aiMessage.findFirst({
+			where: {
+				conversationId,
+				role: "admin",
+				createdAt: { gt: task.createdAt },
+			},
+			select: { id: true },
+		});
+		const hours = Math.max(
+			1,
+			Math.round((now.getTime() - task.createdAt.getTime()) / HOUR_MS),
+		);
+		const instruction = buildPostEscalationInstruction(
+			hours,
+			task.title,
+			Boolean(teamReplied),
+		);
+		const text = await generateFollowUpText(
+			conversation,
+			lastRow.createdAt,
+			now,
+			instruction,
+		);
+		if (!text) {
+			return skip("model_declined");
+		}
+
+		const apiToken = decryptToken(conversation.channel.encryptedApiToken);
+		const provider = conversation.channel.provider as ChannelProvider;
+		const sendResult = await sendTextMessage(
+			provider,
+			apiToken,
+			conversation.externalChatId,
+			text,
+		);
+		redis
+			.set(`ai:bot-fp:${computeBotFingerprint(text)}`, "1", "EX", 600)
+			.catch(() => {});
+		const parts = assistantMessageToParts(text, undefined);
+		const sentAt = new Date();
+		const message = await db.aiMessage.create({
+			data: {
+				conversationId,
+				role: "assistant",
+				content: text,
+				// Counts toward the weekly cap like any nudge.
+				isFollowUp: true,
+				externalMsgId: sendResult.messageId ?? null,
+				...(sendResult.success ? {} : { deliveryStatus: "failed" }),
+				...(parts.length > 0
+					? { parts: parts as Prisma.InputJsonValue }
+					: {}),
+				createdAt: sentAt,
+			},
+			select: { id: true },
+		});
+		await db.aiConversation.update({
+			where: { id: conversationId },
+			data: {
+				messageCount: { increment: 1 },
+				lastMessageAt: sentAt,
+			},
+		});
+		logger.info("[check-back] sent", {
+			followUpId: row.id,
+			conversationId,
+			success: sendResult.success,
+		});
+		return finish(
+			sendResult.success
+				? { status: "sent" }
+				: { status: "failed", skipReason: "send_failed" },
+			{
+				sentAt,
+				messageText: text,
+				aiMessageId: message.id,
+				externalMessageId: sendResult.messageId ?? null,
+			},
+		);
 	} finally {
 		await redis
 			.eval(

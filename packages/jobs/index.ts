@@ -25,6 +25,7 @@ export {
 	rescheduleMarketingSend,
 } from "./src/jobs/marketing-send.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
+export { queueSaltiInbound } from "./src/jobs/salti-inbound.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueTelegramNotify } from "./src/jobs/telegram-notify.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
@@ -43,12 +44,29 @@ export {
 	type FollowUpRunResult,
 	runFollowUp,
 } from "./src/lib/ai-follow-up";
+export {
+	captureFollowUpReply,
+	runBotFollowUpSweep,
+	settleCheckBackReplies,
+} from "./src/lib/bot-follow-ups";
+export { summarizeConversation } from "./src/lib/conversation-summaries";
 // Shared helper re-exported for the API layer (single-customer inline sends)
 export {
 	type CreateLocationRequestResult,
 	runCreateLocationRequest,
 } from "./src/lib/location-request-helper";
+export {
+	loadOutreachContext,
+	OUTREACH_DEFINITIONS,
+	type OutreachType,
+	outreachTemplateName,
+	renderOutreachBody,
+	type ScheduleOutreachInput,
+	type ScheduleOutreachResult,
+	scheduleOutreach,
+} from "./src/lib/outreach";
 export { reconcileOrphanedAiChats } from "./src/lib/reconcile-orphaned-chats";
+export { sendVoiceReply } from "./src/lib/voice-reply";
 // WPBox template senders (shared; API layer imports via @repo/jobs)
 export {
 	sendWhatsAppDealerAccountUpdate,
@@ -107,6 +125,11 @@ export {
 	getOrgSetupQueue,
 	ORG_SETUP_QUEUE_NAME,
 } from "./src/queues/org-setup.queue";
+export {
+	closeSaltiInboundQueue,
+	getSaltiInboundQueue,
+	SALTI_INBOUND_QUEUE_NAME,
+} from "./src/queues/salti-inbound.queue";
 export {
 	closeScheduledQueue,
 	getScheduledQueue,
@@ -169,6 +192,8 @@ export type {
 	MarketingSendJobResult,
 	OrgSetupJobData,
 	OrgSetupJobResult,
+	SaltiInboundJobData,
+	SaltiInboundJobResult,
 	ScheduledJobData,
 	ScheduledJobResult,
 	TelegramLocationJobData,
@@ -214,6 +239,7 @@ export {
 export { createLocationRequestWorker } from "./src/workers/location-request.worker";
 export { createMarketingSendWorker } from "./src/workers/marketing-send.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
+export { createSaltiInboundWorker } from "./src/workers/salti-inbound.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
 export { createTelegramNotifyWorker } from "./src/workers/telegram-notify.worker";

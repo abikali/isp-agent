@@ -11,6 +11,7 @@ import {
 	createLocationRequestWorker,
 	createMarketingSendWorker,
 	createOrgSetupWorker,
+	createSaltiInboundWorker,
 	createScheduledWorker,
 	createTelegramLocationWorker,
 	createTelegramNotifyWorker,
@@ -54,6 +55,7 @@ async function main() {
 	const marketingSendWorker = createMarketingSendWorker();
 	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
 	const whatsAppTemplateWorker = createWhatsAppTemplateWorker();
+	const saltiInboundWorker = createSaltiInboundWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -87,6 +89,7 @@ async function main() {
 			"marketing-send",
 			"whatsapp-receipt",
 			"whatsapp-template",
+			"salti-inbound",
 		],
 	});
 
@@ -112,6 +115,7 @@ async function main() {
 			marketingSendWorker.close(),
 			whatsAppReceiptWorker.close(),
 			whatsAppTemplateWorker.close(),
+			saltiInboundWorker.close(),
 		]);
 
 		healthServer.close();

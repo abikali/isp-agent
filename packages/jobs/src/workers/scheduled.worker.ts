@@ -8,6 +8,12 @@ import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { queueIRadiusSync } from "../jobs/iradius-sync.jobs";
 import { queueWatcherCheck } from "../jobs/watcher-check.jobs";
+import { runBotFollowUpSweep } from "../lib/bot-follow-ups";
+import {
+	runConversationSummarySweep,
+	sendConversationSummaryDigests,
+} from "../lib/conversation-summaries";
+import { reconcileOutreachReplies } from "../lib/outreach";
 import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
 import { SCHEDULED_QUEUE_NAME } from "../queues/scheduled.queue";
 import type { ScheduledJobData, ScheduledJobResult } from "../types";
@@ -342,6 +348,25 @@ export function createScheduledWorker(): Worker<
 				case "recurring-expenses": {
 					const generated = await generateDueRecurringExpenses();
 					return { processedCount: generated };
+				}
+				case "conversation-summaries": {
+					const stored = await runConversationSummarySweep();
+					return { processedCount: stored };
+				}
+				case "conversation-summary-digest": {
+					const sent = await sendConversationSummaryDigests();
+					return { processedCount: sent };
+				}
+				case "bot-follow-ups": {
+					const result = await runBotFollowUpSweep();
+					return {
+						processedCount:
+							result.dispatched + result.noReply + result.expired,
+					};
+				}
+				case "outreach-reconcile": {
+					const recovered = await reconcileOutreachReplies();
+					return { processedCount: recovered };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);
