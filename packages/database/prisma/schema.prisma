@@ -380,6 +380,13 @@ model Organization {
   stoppedPaymentTaskEnabled   Boolean @default(true)
   stoppedPaymentNotifyEnabled Boolean @default(true)
 
+  // Collector "Collected Bills" tally policy: does a free waiver / an
+  // approved-or-pending stop on the active month count as a collected bill
+  // for the collector? Counts only — cash figures never change. Each
+  // collector can override either via Employee.counts*Override.
+  collectorCountsFree Boolean @default(true) @map("collector_counts_free")
+  collectorCountsStop Boolean @default(false) @map("collector_counts_stop")
+
   // Admin Telegram alerts. When `adminTelegramChatId` is set, each enabled
   // event below sends a Telegram message to that chat via the collector bot
   // (see notifyAdminTelegram in packages/api/lib/notify-employee.ts). All
@@ -1833,6 +1840,10 @@ model Employee {
   // Explicit field role. iRadius sync only seeds it on create (profile 6 →
   // COLLECTOR) and never overwrites it, unlike `department`.
   cashRole          EmployeeCashRole?   @map("cash_role")
+  // Per-collector override of Organization.collectorCountsFree / Stop.
+  // null = inherit the org default.
+  countsFreeOverride Boolean?           @map("counts_free_override")
+  countsStopOverride Boolean?           @map("counts_stop_override")
   hireDate          DateTime?
   status            EmployeeStatus      @default(ACTIVE)
   notes             String?             @db.Text
