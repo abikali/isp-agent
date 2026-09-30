@@ -674,6 +674,19 @@ export function AgentSettings({
 						</ToggleCard>
 					)}
 				</form.Field>
+				<form.Subscribe
+					selector={(state) => state.values.humanTakeoverEnabled}
+				>
+					{(takeoverEnabled) =>
+						takeoverEnabled ? null : (
+							<p className="-mt-2 flex items-center gap-2 px-1 text-xs text-amber-600 dark:text-amber-500">
+								<AlertTriangleIcon className="size-3.5 shrink-0" />
+								The bot will answer immediately even while you
+								are typing to the customer.
+							</p>
+						)
+					}
+				</form.Subscribe>
 
 				{/* Working hours — off-duty briefing outside them. */}
 				<form.Field name="workingHoursEnabled">

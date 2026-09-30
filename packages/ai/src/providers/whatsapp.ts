@@ -345,6 +345,9 @@ export function parseWebhookPayload(body: unknown): ParsedMessage[] {
 			results.push({
 				chatId: msg.key.remoteJid,
 				messageId: msg.key.id,
+				// Lets the handler find a phone-keyed conversation when the
+				// echo arrives under the `@lid` JID.
+				contactId: msg.key.cleanedSenderPn ?? undefined,
 				text: extracted?.text ?? "",
 				mediaId: extracted?.mediaId,
 				mediaLink: extracted?.mediaLink,

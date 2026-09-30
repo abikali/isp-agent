@@ -355,6 +355,32 @@ describe("WhatsApp fromMe Parsing — Foundation for Human Takeover", () => {
 		});
 	});
 
+	describe("fromMe sender phone", () => {
+		it("keeps senderPn digits so an @lid echo can match a phone-keyed chat", () => {
+			const [msg] = parseWebhookPayload({
+				event: "messages.upsert",
+				data: {
+					messages: [
+						{
+							key: {
+								id: "3EB0LIDVOICE",
+								fromMe: true,
+								remoteJid: "120606976643130@lid",
+								senderPn: "96170204704@s.whatsapp.net",
+								cleanedSenderPn: "96170204704",
+							},
+							message: { conversation: "ok bokra" },
+							messageTimestamp: 1711000100,
+						},
+					],
+				},
+			});
+
+			expect(msg?.fromMe).toBe(true);
+			expect(msg?.contactId).toBe("96170204704");
+		});
+	});
+
 	describe("Non-fromMe messages (normal customer flow)", () => {
 		it("parses incoming customer message correctly", () => {
 			const messages = parseWebhookPayload(CUSTOMER_MESSAGE_PAYLOAD);

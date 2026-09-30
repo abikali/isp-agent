@@ -288,6 +288,15 @@ export const updateAgent = protectedProcedure
 			}
 		}
 
+		// Which settings actually changed, for the audit row (the form sends
+		// every field, so "submitted" is not "changed").
+		const before = await db.aiAgent.findUnique({ where: { id: agentId } });
+		const changed = Object.keys(updateData).filter(
+			(key) =>
+				JSON.stringify(before?.[key as keyof typeof before] ?? null) !==
+				JSON.stringify(updateData[key] ?? null),
+		);
+
 		const agent = await db.aiAgent.update({
 			where: { id: agentId },
 			data: updateData,
@@ -337,7 +346,9 @@ export const updateAgent = protectedProcedure
 		}
 
 		const auditContext = getAuditContextFromHeaders(headers);
-		aiAgentAudit.updated(agentId, user.id, organizationId, auditContext);
+		aiAgentAudit.updated(agentId, user.id, organizationId, auditContext, {
+			changed,
+		});
 
 		return { agent };
 	});

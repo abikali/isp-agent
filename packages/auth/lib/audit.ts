@@ -813,6 +813,7 @@ export const aiAgentAudit = {
 		userId: string,
 		organizationId: string,
 		context: AuditContext,
+		metadata?: { changed?: string[] },
 	) => {
 		logAuthEvent(
 			buildLogEventParams(
@@ -824,6 +825,7 @@ export const aiAgentAudit = {
 					resourceId: agentId,
 					userId,
 					organizationId,
+					metadata,
 					context,
 				},
 			),
