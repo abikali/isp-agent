@@ -60,10 +60,18 @@ export async function classifyText<T extends z.ZodType>(
 
 		return (result.output ?? null) as z.infer<T> | null;
 	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (message.includes("Invalid schema")) {
+			// A provider rejected the schema itself: every call with it fails
+			// until the code changes, so make it loud and greppable.
+			// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
+			console.error("classifier-schema-error", { model, error: message });
+			return null;
+		}
 		// biome-ignore lint/suspicious/noConsole: logger from @repo/logs breaks client bundle (Rollup can't resolve it)
 		console.warn("classifyText failed, returning null", {
 			model,
-			error: error instanceof Error ? error.message : String(error),
+			error: message,
 		});
 		return null;
 	} finally {

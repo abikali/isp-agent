@@ -21,7 +21,7 @@ export interface TeammateReplyRow {
 	createdAt: Date;
 }
 
-const teammateReplySchema = z.object({
+export const teammateReplySchema = z.object({
 	addressedToTeammate: z.boolean(),
 	reason: z.string(),
 });

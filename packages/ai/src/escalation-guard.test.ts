@@ -36,7 +36,10 @@ function detect(text: string, toolResults?: ToolResult[]) {
 }
 
 function mockEscalation(promisedEscalation: boolean) {
-	mockClassifyText.mockResolvedValue({ promisedEscalation });
+	mockClassifyText.mockResolvedValue({
+		promisedEscalation,
+		claimedTeamAware: false,
+	});
 }
 
 function mockClassifyFailure() {

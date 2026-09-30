@@ -17,9 +17,11 @@ export interface TriageResult {
 	message?: string | undefined;
 }
 
-const triageSchema = z.object({
+// Every field required (nullable, never optional): Azure-routed models enforce
+// strict JSON schemas and reject any property missing from `required`.
+export const triageSchema = z.object({
 	decision: z.enum(["skip", "acknowledge", "respond"]),
-	message: z.string().optional(),
+	message: z.string().nullable(),
 });
 
 const TRIAGE_SYSTEM_PROMPT = `You are a message triage system for a customer support AI agent at an ISP.
@@ -41,14 +43,40 @@ IMPORTANT: Messages that clarify or reinforce the customer's original request ar
 
 Only use "acknowledge" when the customer clearly wants to END the conversation entirely.
 
+Always include the "message" field; use null unless decision is "acknowledge".
+
 When deciding "acknowledge", set the "message" field to a brief polite reply in the customer's language. For example:
 - Arabic: "تمام، أنا هون إذا بتحتاج شي."
 - French: "D'accord, n'hésitez pas si vous avez besoin d'aide."
 - English: "Understood, let me know if you need anything else."`;
 
+const NOISE_PLACEHOLDER_RE =
+	/^\s*\[(?:(?:sticker|reaction|voice message) received|sticker: [^\]]*)\]\s*$/i;
+const EMOJI_ONLY_RE =
+	/^(?:\s|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\u200d|\ufe0f)+$/u;
+
+/**
+ * A buffered message with nothing to answer: a sticker, a reaction, an
+ * untranscribed voice-note placeholder, or emoji only. A buffer made only of
+ * these never needs a second generation.
+ */
+export function isNoiseMessage(text: string): boolean {
+	return NOISE_PLACEHOLDER_RE.test(text) || EMOJI_ONLY_RE.test(text);
+}
+
 export async function triageBufferedMessages(
 	input: TriageInput,
 ): Promise<TriageResult> {
+	const allNoise =
+		input.bufferedMessages.length > 0 &&
+		input.bufferedMessages.every(isNoiseMessage);
+	if (allNoise) {
+		logger.info("Triage: skipping sticker/reaction-only buffer", {
+			count: input.bufferedMessages.length,
+		});
+		return { decision: "skip" };
+	}
+
 	const userPrompt = [
 		`Original question: ${input.recentUserMessage}`,
 		`Last assistant response: ${input.lastAssistantResponse}`,
@@ -78,6 +106,6 @@ export async function triageBufferedMessages(
 
 	return {
 		decision: result.decision,
-		message: result.message,
+		message: result.message ?? undefined,
 	};
 }

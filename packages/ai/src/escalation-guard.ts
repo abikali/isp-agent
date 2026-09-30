@@ -11,13 +11,12 @@ interface EscalationToolOutput {
 	message: string;
 }
 
-const escalationSchema = z.object({
+// Every field required: Azure-routed models enforce strict JSON schemas and
+// reject the whole call when a property is missing from `required` (a
+// `.default()` field is not required, which silently disabled this guard).
+export const escalationSchema = z.object({
 	promisedEscalation: z.boolean(),
-	// Defaulted, not required: classifyText runs the schema through
-	// Output.object and returns null on any validation failure. A classifier
-	// that omits this field would otherwise disable the whole guard rather
-	// than just this one signal.
-	claimedTeamAware: z.boolean().default(false),
+	claimedTeamAware: z.boolean(),
 });
 
 const ESCALATION_SYSTEM_PROMPT = `You are analyzing a customer support agent's response message.
@@ -48,7 +47,9 @@ The agent has NO way to know the team is aware unless it escalated. So this clai
 CLAIM OF AN ESCALATION, not a description of someone else's action — set it true even
 though promisedEscalation is false. Set claimedTeamAware to false for a plain diagnosis
 with no assertion about the team ("there is packet loss in your area"), for advice
-("restart your router"), and for offers to notify the team.`;
+("restart your router"), and for offers to notify the team.
+
+Always return both fields.`;
 
 /**
  * Multilingual keyword filter — short-circuits the expensive LLM classify

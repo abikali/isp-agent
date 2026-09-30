@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TriageDecision } from "./triage";
-import { triageBufferedMessages } from "./triage";
+import { isNoiseMessage, triageBufferedMessages } from "./triage";
 
 // Mock classifyText — the unit under test is the triage logic,
 // not the LLM call itself.
@@ -19,7 +19,7 @@ vi.mock("@repo/logs", () => ({
 }));
 
 function mockTriageDecision(decision: TriageDecision, message?: string) {
-	mockClassifyText.mockResolvedValue({ decision, message });
+	mockClassifyText.mockResolvedValue({ decision, message: message ?? null });
 }
 
 const baseInput = {
@@ -240,5 +240,51 @@ describe("triageBufferedMessages", () => {
 
 		expect(result.decision).toBe("skip");
 		expect(result.message).toBeUndefined();
+	});
+});
+
+describe("deterministic noise skip", () => {
+	it("skips a sticker-only buffer without calling the LLM", async () => {
+		const result = await triageBufferedMessages({
+			...baseInput,
+			bufferedMessages: ["[Sticker received]"],
+		});
+
+		expect(result.decision).toBe("skip");
+		expect(mockClassifyText).not.toHaveBeenCalled();
+	});
+
+	it("skips reactions, emoji and telegram sticker emoji", async () => {
+		const result = await triageBufferedMessages({
+			...baseInput,
+			bufferedMessages: [
+				"👍",
+				"[Sticker: 😂]",
+				"🙏🏻❤️",
+				"[Reaction received]",
+			],
+		});
+
+		expect(result.decision).toBe("skip");
+		expect(mockClassifyText).not.toHaveBeenCalled();
+	});
+
+	it("still classifies when any buffered message has text", async () => {
+		mockTriageDecision("respond");
+
+		const result = await triageBufferedMessages({
+			...baseInput,
+			bufferedMessages: ["[Sticker received]", "still slow"],
+		});
+
+		expect(result.decision).toBe("respond");
+		expect(mockClassifyText).toHaveBeenCalledOnce();
+	});
+
+	it("isNoiseMessage leaves digits and words alone", () => {
+		expect(isNoiseMessage("1")).toBe(false);
+		expect(isNoiseMessage("ok")).toBe(false);
+		expect(isNoiseMessage("[Image received]")).toBe(false);
+		expect(isNoiseMessage("[Voice message received]")).toBe(true);
 	});
 });
