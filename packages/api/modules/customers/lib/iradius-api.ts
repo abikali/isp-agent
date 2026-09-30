@@ -394,45 +394,209 @@ export async function iradiusCreateUser(
 	};
 }
 
+/** Operations served by the LibanCom bridge servlet in the iRadius Tomcat app. */
+export type IRadiusBridgeOp = "charge-new-user" | "renew" | "delete-user";
+
+/** JSON body the bridge servlet answers with. */
+export interface IRadiusBridgeResponse {
+	success?: boolean;
+	error?: string;
+	/** `renew`: the new ExpiryAccount, tz-naive "YYYY-MM-DD HH:MM:SS". */
+	newExpiry?: string;
+	/** `delete-user`: the User row was already gone. */
+	alreadyDeleted?: boolean;
+	/** `charge-new-user`: skipped because a UserBalance row already exists. */
+	skipped?: boolean;
+}
+
+/**
+ * Thrown by `iradiusRenewUser` when the bridge answers HTTP 409: the user's
+ * `UserNas.ExpiryAccount` no longer matches the value we read just before the
+ * call — it changed (possibly already renewed) in the meantime.
+ */
+export class IRadiusExpiryChangedError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "IRadiusExpiryChangedError";
+	}
+}
+
+/**
+ * The bridge endpoint URL. `IRADIUS_BRIDGE_URL` is the current name; the old
+ * `IRADIUS_CHARGE_URL` is still honoured so a deploy that has not renamed the
+ * variable yet keeps charging new users.
+ */
+export function getIRadiusBridgeUrl(): string | null {
+	return (
+		process.env["IRADIUS_BRIDGE_URL"] ||
+		process.env["IRADIUS_CHARGE_URL"] ||
+		null
+	);
+}
+
+/**
+ * Call one operation of the LibanCom bridge servlet
+ * (`me.iradius.server.servlet.LibanComBridgeServlet`), a POST-only servlet we
+ * install in the iRadius Tomcat app. It runs iRadius's OWN billing code
+ * (`RenewUser.renewUser`, `DeleteUserMgmt.deleteUser`) — dealer credit,
+ * commission cascade, invoice, UserBalance, UserLog — which lives only in
+ * that webapp and is not reachable from the `/create-user` REST app.
+ *
+ * `op` and the params go as a form body; auth is the shared `X-Charge-Secret`
+ * header. Throws on any non-2xx status or `success: false`. HTTP 409 (the
+ * `renew` expiry guard) throws `IRadiusExpiryChangedError`; HTTP 404 means a
+ * vendor ROOT.war redeploy wiped the servlet (the hourly bridge probe raises
+ * the alarm for that).
+ */
+export async function callIRadiusBridge(
+	op: IRadiusBridgeOp,
+	params: Record<string, string | number | null>,
+): Promise<IRadiusBridgeResponse> {
+	const url = getIRadiusBridgeUrl();
+	const secret = process.env["IRADIUS_CHARGE_SECRET"];
+	if (!url || !secret) {
+		throw new Error(
+			"iRadius bridge not configured (IRADIUS_BRIDGE_URL / IRADIUS_CHARGE_SECRET)",
+		);
+	}
+	const form = new URLSearchParams({ op });
+	for (const [key, value] of Object.entries(params)) {
+		form.set(key, value === null ? "null" : String(value));
+	}
+	const res = await fetch(url, {
+		method: "POST",
+		headers: {
+			"X-Charge-Secret": secret,
+			"Content-Type": "application/x-www-form-urlencoded",
+		},
+		body: form.toString(),
+	});
+	const text = await res.text();
+	let body: IRadiusBridgeResponse = {};
+	try {
+		body = JSON.parse(text) as IRadiusBridgeResponse;
+	} catch {
+		// non-JSON response — fall through to the status checks below
+	}
+	if (res.status === 409) {
+		throw new IRadiusExpiryChangedError(
+			body.error ??
+				"iRadius expiry changed since it was read — the account may already have been renewed",
+		);
+	}
+	if (res.status === 404) {
+		throw new Error(
+			`iRadius bridge missing (HTTP 404) — reinstall the LibanCom servlet on the iRadius server (${op})`,
+		);
+	}
+	if (!res.ok || body.success === false) {
+		throw new Error(
+			body.error ?? `iRadius ${op} failed (HTTP ${res.status})`,
+		);
+	}
+	return body;
+}
+
 /**
  * Apply iRadius's native "NEW USER" charge to a freshly-created subscriber:
  * decrements the dealer's credit, cascades dealer commission, and generates the
  * opening Invoice + UserBalance "Renew Account" debit — exactly what the legacy
- * GWT add-user does. Implemented by a thin servlet we added to the iRadius
- * Tomcat app (`/iradius/charge-new-user`) that calls iRadius's own
- * `RenewUser.renewUser(addMode=NEW USER)`, because that billing logic lives in
- * the GWT webapp and is NOT reachable from the `/create-user` REST app.
+ * GWT add-user does (`RenewUser.renewUser(addMode=NEW USER)` via the bridge).
  *
- * The endpoint is idempotent (skips if the user already has a UserBalance row),
- * so retries can't double-charge. Requires `IRADIUS_CHARGE_URL` (full endpoint
- * URL, port 80) and `IRADIUS_CHARGE_SECRET`. Throws on any failure so the caller
- * can log it — the user already exists at this point, so callers should log and
- * continue rather than orphan the subscriber.
+ * The bridge skips the charge when the user already has a UserBalance row, so
+ * retries can't double-charge. Throws on any failure so the caller can log it
+ * — the user already exists at this point, so callers should log and continue
+ * rather than orphan the subscriber.
  */
 export async function iradiusChargeNewUser(userId: number): Promise<void> {
-	const url = process.env["IRADIUS_CHARGE_URL"];
-	const secret = process.env["IRADIUS_CHARGE_SECRET"];
-	if (!url || !secret) {
-		throw new Error(
-			"iRadius charge endpoint not configured (IRADIUS_CHARGE_URL / IRADIUS_CHARGE_SECRET)",
+	await callIRadiusBridge("charge-new-user", { userId });
+}
+
+/**
+ * Read-only: the subscriber's current `UserNas.ExpiryAccount` as the exact
+ * tz-naive "YYYY-MM-DD HH:MM:SS" literal iRadius holds (null when unset).
+ * This is what `iradiusRenewUser` passes as `expectedExpiry`, so it must come
+ * from iRadius itself, never from possibly-stale local data.
+ */
+export async function iradiusGetExpiry(
+	externalId: string,
+): Promise<string | null> {
+	const userId = requireExternalId({ externalId });
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			"SELECT DATE_FORMAT(ExpiryAccount, '%Y-%m-%d %H:%i:%s') AS ExpiryAccount FROM UserNas WHERE UserId = ? LIMIT 1",
+			[userId],
 		);
-	}
-	const res = await fetch(`${url}?userId=${encodeURIComponent(userId)}`, {
-		method: "POST",
-		headers: { "X-Charge-Secret": secret },
+		const row = rows[0];
+		if (!row) {
+			throw new IRadiusUserNotFoundError(
+				`iRadius user ${userId} not found (no UserNas row)`,
+			);
+		}
+		const value = row["ExpiryAccount"];
+		return typeof value === "string" && value ? value : null;
 	});
-	const text = await res.text();
-	let body: { success?: boolean; error?: string } = {};
-	try {
-		body = JSON.parse(text) as { success?: boolean; error?: string };
-	} catch {
-		// non-JSON response — fall through to the status check below
+}
+
+/**
+ * Renew a subscriber for one period through iRadius's own manual renew
+ * (`RenewUser.renewUser(RENEW)` via the bridge): debits the dealer's credit
+ * (DealerBillingLog `RENEW`), cascades commission, writes the UserLog line,
+ * generates the Invoice + UserBalance debit and moves `ExpiryAccount` to
+ * `max(ExpiryAccount, now) + ValidityPeriod` at 23:59. It does not touch
+ * `UserNas.Active`.
+ *
+ * `expectedExpiry` is the ExpiryAccount just read with `iradiusGetExpiry`.
+ * The bridge refuses (409 → `IRadiusExpiryChangedError`) when it no longer
+ * matches, which is what stops a retried request from renewing twice.
+ * Returns the new expiry as iRadius's tz-naive literal.
+ */
+export async function iradiusRenewUser(
+	customer: { externalId?: string | null },
+	expectedExpiry: string | null,
+): Promise<{ newExpiry: string }> {
+	const userId = requireExternalId(customer);
+	const body = await callIRadiusBridge("renew", { userId, expectedExpiry });
+	if (!body.newExpiry) {
+		throw new Error("iRadius renew returned no new expiry");
 	}
-	if (!res.ok || body.success === false) {
-		throw new Error(
-			body.error ?? `iRadius charge failed (HTTP ${res.status})`,
-		);
-	}
+	return { newExpiry: body.newExpiry };
+}
+
+/**
+ * Permanently delete a subscriber through iRadius's own delete
+ * (`DeleteUserMgmt.deleteUser` via the bridge, after a best-effort MikroTik
+ * disconnect): UserLog op 3 "Delete User By …", a `UserDeleted` row, a hard
+ * `DELETE FROM User` (UserNas & co. cascade) and — for a refundable plan with
+ * a future expiry — a dealer-credit REFUND. Irreversible and not
+ * transactional on the iRadius side, so callers run it as their LAST remote
+ * step. `alreadyDeleted` is true when the User row was already gone.
+ */
+export async function iradiusDeleteUser(
+	customer: { externalId?: string | null },
+	by: string,
+): Promise<{ alreadyDeleted: boolean }> {
+	const userId = requireExternalId(customer);
+	const body = await callIRadiusBridge("delete-user", {
+		userId,
+		by: sanitizeBridgeText(by),
+	});
+	return { alreadyDeleted: body.alreadyDeleted === true };
+}
+
+/**
+ * iRadius's `QueryEngine.checkInjecttion` rejects any statement containing
+ * "CREATE ", "DROP ", "INFORMATION_SCHEMA" or "COLLATIONS" — mid-operation,
+ * since the native code is not transactional. Free text we send (the operator
+ * name) ends up inside such statements, so strip those tokens and quotes.
+ */
+export function sanitizeBridgeText(value: string): string {
+	return value
+		.replace(/create\s|drop\s|information_schema|collations/gi, "")
+		.replace(/["'\\`]/g, "")
+		.trim()
+		.slice(0, 100);
 }
 
 /**
@@ -505,18 +669,49 @@ function requireExternalId(customer: { externalId?: string | null }): number {
  * Reset a customer's MAC address in iRadius (UserNas.MacAddress = NULL).
  * The MAC is re-learned on the next RADIUS Accounting-Start packet.
  * No MikroTik disconnect is forced — matches legacy UI behaviour.
+ *
+ * Then writes the history row legacy `ResetMacAddress.resetMacAddress` writes
+ * (UserLog op 5 "Reset Mac Address"). Legacy's bulk reset skips that row; we
+ * log for bulk too, since the per-user history is what admins read.
  */
 export async function iradiusResetMacAddress(customer: {
 	externalId?: string | null;
 }): Promise<{ affectedRows: number }> {
 	const userId = requireExternalId(customer);
-	return withIRadiusConnection(async (conn) => {
+	const result = await withIRadiusConnection(async (conn) => {
 		return executeIRadius(
 			conn,
 			"UPDATE UserNas SET MacAddress = NULL WHERE UserId = ?",
 			[userId],
 		);
 	});
+	if (result.affectedRows === 1) {
+		await iradiusLogResetMac(userId);
+	}
+	return result;
+}
+
+/**
+ * UserLog op 5 for a MAC reset, in the exact shape legacy `TraceUserLog`
+ * writes (DealerId = User.ParentId, UserName from the User row). Best-effort:
+ * the MAC is already cleared, so a failed history line is logged and swallowed.
+ */
+async function iradiusLogResetMac(userId: number): Promise<void> {
+	try {
+		await withIRadiusConnection(async (conn) => {
+			await executeIRadius(
+				conn,
+				`INSERT INTO UserLog (UserId, DealerId, UserName, OperationTypeId, Description, Logdate)
+				 SELECT Id, ParentId, UserName, 5, 'Reset Mac Address', NOW() FROM User WHERE Id = ?`,
+				[userId],
+			);
+		});
+	} catch (error) {
+		logger.warn("iRadius reset-MAC UserLog insert failed", {
+			userId,
+			error: error instanceof Error ? error.message : error,
+		});
+	}
 }
 
 /**
@@ -706,6 +901,27 @@ export async function iradiusSetIptvPrice(
 			conn,
 			"UPDATE UserNas SET IPTVPRICE = ? WHERE UserId = ?",
 			[iptvPrice, userId],
+		);
+	});
+}
+
+/**
+ * Set a customer's "Access Point Electrical" flag in iRadius
+ * (UserNas.APElectrical, BIT(1)): the customer powers our access point. Purely
+ * informational in iRadius — saved by the same user-edit dialog as IPTVPRICE,
+ * with no UserLog row. Bound as 1/0, not a JS boolean. mysql2 reports found
+ * rows, so an unchanged value still returns affectedRows 1.
+ */
+export async function iradiusSetApElectrical(
+	customer: { externalId?: string | null },
+	value: boolean,
+): Promise<{ affectedRows: number }> {
+	const userId = requireExternalId(customer);
+	return withIRadiusConnection(async (conn) => {
+		return executeIRadius(
+			conn,
+			"UPDATE UserNas SET APElectrical = ? WHERE UserId = ?",
+			[value ? 1 : 0, userId],
 		);
 	});
 }

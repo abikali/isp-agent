@@ -20,6 +20,9 @@ All findings below are derived by:
 | 4 | Set IPTV price | NO | Generic `UserManagement` on `UserNas` | `UserNas.IPTVPRICE` (float). Billing engine adds it on top of `AccountType.SellingPrice`. | None. | Low — direct UPDATE. |
 | 5 | Change collector / dealer | NO | `UserManagement.assignUsersToCollectors(...)` for collector; ParentId move for dealer | Collector: `User.CollectorId`. Dealer: `User.ParentId` (+ `LFT/RGT` nested-set columns). | None. Past `UserBalance.CollectorId` rows are NOT rewritten (history preserved). | Low (collector). Medium (dealer — LFT/RGT tree maintenance). |
 | 6 | Update phone / mobile | NO | Generic `UserManagement` | `User.Mobile` (char(25)), `User.Phone` (char(25)) | None. | Low — direct UPDATE. |
+| 7 | Set AP Electrical | NO | Generic `UserDialog.saveUser` on `UserNas` (same save as IPTVPRICE) | `UserNas.APElectrical` (bit(1)). Informational only; no UserLog. | None. | Low — direct UPDATE (`iradiusSetApElectrical`). |
+| 8 | Renew user | NO (bridge servlet) | `RenewUser.renewUser(RENEW)` | Dealer.Credit, DealerBillingLog RENEW, UserNas.ExpiryAccount, UserLog op 2, Invoice + InvoiceItems + UserBalance | RADIUS quota-reset socket. | High — native code via the LibanCom bridge (`iradiusRenewUser`). |
+| 9 | Delete user | NO (bridge servlet) | `DeleteUserMgmt.deleteUser` | UserLog op 3, UserDeleted, `DELETE FROM User` (cascades UserNas…), Dealer.Credit + DealerBillingLog REFUND | Best-effort `MikrotikApiDao.disconnectUser`. | High — native code via the LibanCom bridge (`iradiusDeleteUser`). |
 
 **Key finding:** the RadiusServerApp HTTP API (port 88) exposes only 8 endpoints (see
 Raw Notes). None of the six actions above are available via HTTP. All six are performed
@@ -88,8 +91,13 @@ their session; the MAC is simply re-learned when they next reconnect.
   4. (Optional) If forcing immediate re-auth is desired, additionally call
      `MikrotikDisconnectUtils.disconnectMikrotikByRadiusClient(...)` — but the legacy UI
      does NOT do this, so we should not either unless the product team asks for it.
-- Write an audit row in our own `auditLog` (we can skip `UserLog` in iRadius — TraceUserLog
-  is purely for the legacy UI's history tab which we don't expose).
+- Write an audit row in our own `auditLog`.
+- **2026-09-30:** `iradiusResetMacAddress` now also writes the legacy UserLog row
+  (`INSERT INTO UserLog (UserId, DealerId, UserName, OperationTypeId, Description, Logdate)
+  SELECT Id, ParentId, UserName, 5, 'Reset Mac Address', NOW() FROM User WHERE Id = ?`),
+  best-effort, after the UPDATE touched one row. Admins read that history in iRadius. It is
+  written for the bulk reset too — a deliberate deviation from legacy
+  `resetMackAddressesForSelectedUsers`, which logs nothing.
 
 ---
 
@@ -226,6 +234,48 @@ Mirror to our `customer.mobile` / `customer.phone`.
 Note: the `/api/user-info?mobile=X` endpoint now uses `LIKE CONCAT('%', ?, '%')` after
 the 2026-03-23 patch, so we can still look customers up by partial mobile after
 multi-number fields change.
+
+---
+
+## 7. Access Point Electrical flag (2026-09-30)
+
+`UserNas.APElectrical` (bit(1), nullable) — "the customer powers our access point".
+Only the GWT client reads it (`UserDialog` checkbox "Acess Point Electrical", `UserGrid`
+column "AP Elect"); no server DAO or business logic uses it. It is saved by the generic
+user-edit dialog in the same `Table("UserNas")` write as `IPTVPRICE`, and that save writes
+no UserLog row for it.
+
+Integration: `iradiusSetApElectrical(customer, value)` →
+`UPDATE UserNas SET APElectrical = ? WHERE UserId = ?` with `1`/`0` bound. Callers: the
+manual toggle `customers.setApElectrical`, and installation / setup-request approval
+when an installed stock item has `StockItem.isElectricity` (never cleared automatically).
+Sync classification: `apElectrical` is conflict-tracked.
+
+## 8. LibanCom bridge servlet: charge / renew / delete (2026-09-30)
+
+Renew and delete (and the new-user charge) call iRadius's own DAOs, which exist only in
+the Tomcat ROOT webapp. `me.iradius.server.servlet.LibanComBridgeServlet`, POST-only,
+auth header `X-Charge-Secret`, at `IRADIUS_BRIDGE_URL`
+(`http://185.170.131.27/iradius/libancom`). Form params, `op=`:
+
+| op | params | native call | response |
+|----|--------|-------------|----------|
+| `charge-new-user` | `userId` | `RenewUser.renewUser(ParentId, userId, "LibanCom App ", true, null)`; skipped when a UserBalance row exists | `{success, skipped?}` |
+| `renew` | `userId`, `expectedExpiry` (`YYYY-MM-DD HH:MM:SS` or `null`) | 409 `{error:"expiry changed"}` when `UserNas.ExpiryAccount` ≠ `expectedExpiry`; else `RenewUser.renewUser(ParentId, userId, "LibanCom App Renew : ", false, null)` | `{success, newExpiry}` |
+| `delete-user` | `userId`, `by` | best-effort `MikrotikApiDao.disconnectUser`, then `DeleteUserMgmt.deleteUser(ParentId, "LibanCom App (" + by + ")", …)` | `{success, alreadyDeleted?}` |
+
+App side (`customers/lib/iradius-api.ts`): `callIRadiusBridge(op, params)` with the
+wrappers `iradiusChargeNewUser`, `iradiusRenewUser` (with `iradiusGetExpiry` for the
+optimistic expiry check) and `iradiusDeleteUser`. Renew writes: Dealer.Credit −Rate,
+DealerBillingLog `RENEW`, commission cascade, UserLog op 2, Invoice + InvoiceItems +
+UserBalance, `UserNas.ExpiryAccount = max(ExpiryAccount, now) + ValidityPeriod` at 23:59.
+Delete writes: UserLog op 3, UserDeleted, `DELETE FROM User` (FK cascade), and for
+refundable plans with a future expiry Dealer.Credit + DealerBillingLog `REFUND`.
+
+A vendor ROOT.war redeploy wipes the servlet (2026-09-16). The worker's hourly
+`iradius-bridge-probe` job GETs the URL: 405 = present, 404 = wiped → error log +
+in-app notification to org owners/admins. Reinstall with
+`/var/local/libancom-bridge/install.sh`.
 
 ---
 

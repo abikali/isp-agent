@@ -985,6 +985,9 @@ export const approveSetupRequest = protectedProcedure
 		// they need on site. Null when the account already existed in iRadius.
 		let createdPassword: string | null = null;
 		let externalId = request.customer.externalId;
+		// Set when iRadius created the subscriber but its native NEW USER charge
+		// failed (e.g. the bridge servlet was wiped) — surfaced to the operator.
+		let chargeFailed = false;
 		if (shouldCreateInIRadius) {
 			if (!input.iradiusPassword?.trim()) {
 				throw new ORPCError("BAD_REQUEST", {
@@ -993,16 +996,17 @@ export const approveSetupRequest = protectedProcedure
 				});
 			}
 			createdPassword = input.iradiusPassword.trim();
-			const { userId } = await createCustomerInIRadius({
+			const created = await createCustomerInIRadius({
 				organizationId: input.organizationId,
 				customerId: request.customerId,
 				password: createdPassword,
 			});
+			chargeFailed = created.chargeFailed;
 			// Link immediately, outside the approval transaction: if anything
 			// below throws, the retry sees the customer as already linked and
 			// skips the create instead of tripping on "Username already exists"
 			// with an orphaned (and already charged) subscriber.
-			externalId = String(userId);
+			externalId = String(created.userId);
 			await db.customer.update({
 				where: { id: request.customerId },
 				data: { externalId },
@@ -1173,7 +1177,7 @@ export const approveSetupRequest = protectedProcedure
 			}),
 		);
 
-		return { success: true };
+		return { success: true, chargeFailed };
 	});
 
 export const rejectSetupRequest = protectedProcedure

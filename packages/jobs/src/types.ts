@@ -32,7 +32,8 @@ export type ScheduledJobType =
 	| "online-status-sync"
 	| "network-monitor-sync"
 	| "dealer-sync"
-	| "recurring-expenses";
+	| "recurring-expenses"
+	| "iradius-bridge-probe";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;

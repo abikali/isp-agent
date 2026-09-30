@@ -124,6 +124,20 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Is the LibanCom bridge servlet still in the iRadius Tomcat app? A vendor
+	// ROOT.war redeploy wipes it silently (2026-09-16), after which approvals
+	// stop billing the dealer. Hourly GET: 405 = present, 404 = wiped → alert.
+	await queue.upsertJobScheduler(
+		"iradius-bridge-probe",
+		{
+			pattern: "7 * * * *",
+		},
+		{
+			name: "iradius-bridge-probe",
+			data: { type: "iradius-bridge-probe" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

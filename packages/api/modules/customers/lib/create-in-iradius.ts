@@ -51,7 +51,7 @@ export async function createCustomerInIRadius(opts: {
 	organizationId: string;
 	customerId: string;
 	password: string;
-}): Promise<{ userId: number }> {
+}): Promise<{ userId: number; chargeFailed: boolean }> {
 	const customer = await db.customer.findFirst({
 		where: { id: opts.customerId, organizationId: opts.organizationId },
 		select: {
@@ -210,9 +210,13 @@ export async function createCustomerInIRadius(opts: {
 	// Log-and-continue: the subscriber already exists in iRadius here, so a
 	// charge hiccup must not abort the approval and orphan it — the endpoint is
 	// idempotent, so it can be safely retried.
+	// The failure is also returned so the approval can tell the operator the
+	// account was created but NOT billed, instead of leaving it in a log.
+	let chargeFailed = false;
 	try {
 		await iradiusChargeNewUser(userId);
 	} catch (error) {
+		chargeFailed = true;
 		logger.error(
 			"[iRadius] new-user charge failed — subscriber created but NOT billed",
 			{ userId, customerId: opts.customerId, error: String(error) },
@@ -252,5 +256,5 @@ export async function createCustomerInIRadius(opts: {
 		}
 	}
 
-	return { userId };
+	return { userId, chargeFailed };
 }
