@@ -6,6 +6,8 @@ import type { BandwidthDataPoint } from "./isp-bandwidth-stats";
 import type { ParsedPingResult } from "./isp-ping-customer";
 import { parsePingOutput } from "./isp-ping-customer";
 import {
+	ACCESS_MEDIUM_DESCRIPTION,
+	detectAccessMedium,
 	detectConnectionType,
 	filterCustomerData,
 	needsMikrotikPeers,
@@ -17,6 +19,7 @@ import {
 	isSearchableQuery,
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
+import { loadLocalPlan, PLAN_FIELD_DESCRIPTION } from "./lib/local-plan";
 import type { RegisteredTool, ToolContext } from "./types";
 
 const SPEED_TEST_URL = "https://speedtest.libancomlb.com/";
@@ -165,7 +168,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			severity: "account-issue",
 			diagnosis: "Account is blocked — usually due to an unpaid balance.",
 			actionNeeded:
-				"Contact your ISP to resolve the block on your account.",
+				"The account needs a payment or a team check to resolve the block — offer to pass it to the team.",
 			needsHumanFollowUp: false,
 		};
 	}
@@ -181,7 +184,8 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 		return {
 			severity: "account-issue",
 			diagnosis: "Account is disabled.",
-			actionNeeded: "Contact your ISP to reactivate your account.",
+			actionNeeded:
+				"The team has to reactivate the account — offer to pass it to them.",
 			needsHumanFollowUp: false,
 		};
 	}
@@ -193,7 +197,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			diagnosis:
 				"Connection is active but speed is reduced due to Fair Usage Policy (data quota exceeded).",
 			actionNeeded:
-				"Wait for the quota to reset, or contact your ISP about upgrading your plan.",
+				"Wait for the quota to reset, or offer an upgrade to a bigger plan.",
 			needsHumanFollowUp: false,
 		};
 	}
@@ -240,10 +244,10 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 
 		const action =
 			input.accessPointOnline === false
-				? "Check that your equipment (antenna/router) is plugged in and powered on. If it is, contact your ISP for further help."
+				? "Check that the equipment (antenna/router) is plugged in and powered on. If it is, a technician needs to check it."
 				: input.stationOnline === false
-					? "There appears to be an infrastructure issue. Your ISP is likely already aware. If not, contact them."
-					: "Try restarting your router/equipment. If the issue persists, contact your ISP.";
+					? "There appears to be an infrastructure issue on our network — report it to the team."
+					: "Try restarting the router/equipment. If the issue persists, a technician needs to check the line.";
 
 		return {
 			severity: "down",
@@ -285,7 +289,7 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 			diagnosis:
 				"Connection appears healthy. Ping is good and bandwidth is not saturated.",
 			actionNeeded:
-				"Run a speed test to verify actual throughput. If the result is lower than expected, contact your ISP with the screenshot.",
+				"Ask for a speed test on speedtest.libancomlb.com (on-net: it should read far above the plan speed; a low result points at the router/Wi-Fi).",
 			needsHumanFollowUp: false,
 		};
 	}
@@ -340,7 +344,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 		description:
 			"Run a full diagnostic on an ISP customer: searches their account, checks status, pings them, " +
 			"checks bandwidth, and pings neighbors. Returns a pre-analyzed diagnostic report. " +
-			"Use this as the FIRST tool when a customer reports any connectivity issue.",
+			"Use this as the FIRST tool when a customer reports any connectivity issue. " +
+			`${PLAN_FIELD_DESCRIPTION} ${ACCESS_MEDIUM_DESCRIPTION}`,
 		inputSchema: z.object({
 			query: z.string().describe("Customer phone number or ISP username"),
 		}),
@@ -457,6 +462,15 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						);
 					}
 					const connectionType = detectConnectionType(customer);
+					const accessMedium = detectAccessMedium(customer);
+					const plan =
+						typeof matchedUserName === "string" && matchedUserName
+							? await loadLocalPlan(
+									context.organizationId,
+									matchedUserName,
+									context.servicePlanIds,
+								)
+							: null;
 
 					// Fetch peers
 					let peerUsers: { userName: string; online: boolean }[] = [];
@@ -538,6 +552,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							customerName,
 							userName,
 							connectionType,
+							accessMedium,
+							plan,
 							accountStatus,
 							accountActive: false,
 							connectionStatus: "Offline",
@@ -624,6 +640,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							customerName,
 							userName,
 							connectionType,
+							accessMedium,
+							plan,
 							accountStatus,
 							accountActive: true,
 							connectionStatus: "Online",
@@ -754,6 +772,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						customerName,
 						userName,
 						connectionType,
+						accessMedium,
+						plan,
 						accountStatus,
 						accountActive: true,
 						connectionStatus,
@@ -817,14 +837,15 @@ Fields like fupActive, ping, bandwidth, and signal are only present when relevan
 
 ## Speed Test
 
-When the report shows the customer is online but bandwidth is idle (inconclusive), or the customer insists internet is slow despite a healthy-looking report, ask them to run a speed test. Send the link on its own line:
+When the report shows the customer online but bandwidth idle (inconclusive), or the customer insists it is slow despite a healthy report, ask them to run a speed test. Send the link on its own line:
 https://speedtest.libancomlb.com/
-Then tell them to press the Start button, wait for the test to finish, and send you a screenshot of the results.
+Tell them to press Start, wait for it to finish, and send a screenshot. Skip it when the customer is offline, FUP is active, or bandwidth is saturated.
 
-Do NOT send the speed test link when:
-- The customer is offline (they can't reach it)
-- FUP is active (speed reduction is expected, no test needed)
-- Bandwidth is saturated (the diagnosis is already clear)
+Reading the result — this test runs on a server INSIDE our network. It measures the customer's device, Wi-Fi and router up to us; it is NOT capped by their plan and it is NOT their internet speed.
+- On a healthy line the result should be far above the plan speed (roughly 80–90 Mbps on wireless links and up to ~300 Mbps on fiber, when the device is close to the router or on a cable).
+- A result near or below the plan speed means the bottleneck is on the customer's side: the router, the Wi-Fi (distance, walls, 2.4 GHz band), or the device. Suggest testing next to the router or on a cable, and restarting the router. If it stays low on a cable, escalate — the router may need replacing.
+- NEVER say a result is "above your plan", "normal for your plan" or "matches your plan". Plan speed applies to internet traffic, not to this test.
+- Low speed on websites/games but a high result here = internet-side congestion or the plan limit/FUP — use the report's fupActive and bandwidth fields, and escalate if those are clean.
 
 ## FUP (Fair Usage Policy)
 

@@ -10,6 +10,8 @@ export interface ResolveAgentToolsInput {
 		organizationId: string;
 		enabledTools: string[];
 		maintenanceMode?: boolean | undefined;
+		/** Plans the agent sells; tools flag a subscriber's plan as legacy. */
+		servicePlanIds?: string[] | undefined;
 	};
 	/**
 	 * Effective maintenance state computed by the caller (manual toggle OR an
@@ -74,6 +76,7 @@ export async function resolveAgentTools(
 		externalChatId: input.externalChatId,
 		contactName: input.contactName,
 		contactPhone: input.contactPhone,
+		servicePlanIds: input.agent.servicePlanIds,
 	};
 
 	const tools = resolveTools(

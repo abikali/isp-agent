@@ -63,5 +63,6 @@ export async function fetchServicePlansSection(
 		...planLines,
 		"",
 		"When discussing plans, use ONLY the information above. Do not invent details.",
+		'These are the plans currently on SALE. Existing subscribers are often on older plans that are not listed (e.g. "johnnyh-UP TO 6M" at $35 is not "johnnyh-UP TO 6M NEW" at $40). For a subscriber\'s own plan and price use only the "plan" field from isp-diagnose-customer / isp-search-customer or the VERIFIED CUSTOMER section.',
 	].join("\n");
 }

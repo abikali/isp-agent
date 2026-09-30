@@ -17,6 +17,8 @@ export interface ToolContext {
 	 */
 	contactPhone?: string | undefined;
 	toolConfig?: Record<string, unknown> | undefined;
+	/** Service plans the agent currently sells (the SERVICE PLANS catalog). */
+	servicePlanIds?: string[] | undefined;
 	/**
 	 * Returns the iRadius customer matching `contactPhone`, memoized for the
 	 * lifetime of this turn so multiple ISP tools share one network round-trip.

@@ -18,6 +18,22 @@ import {
 	vi,
 } from "vitest";
 import { generateAgentResponse } from "../../generate";
+
+// Local billing lookups: the subscriber is on a legacy 6M plan at $35.
+vi.mock("../lib/local-plan", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/local-plan")>()),
+	loadLocalPlan: vi.fn().mockResolvedValue({
+		planName: "johnnyh-UP TO 6M",
+		monthlyPriceUsd: 35,
+		downloadMbps: 6,
+		uploadMbps: 6,
+		inCurrentCatalog: false,
+	}),
+}));
+vi.mock("../../link-conversation-customer", () => ({
+	linkConversationCustomer: vi.fn().mockResolvedValue(null),
+}));
+
 import { ispDiagnoseCustomer } from "../isp-diagnose-customer";
 import type { ToolContext } from "../types";
 
@@ -1114,6 +1130,52 @@ describeWithLLM("isp-diagnose-customer LLM smoke tests", () => {
 			// Should NOT have old fup field
 			expect(output).not.toHaveProperty("fup");
 			expect(output).not.toHaveProperty("fupActive");
+		}, 60_000);
+	});
+
+	// ===================================================================
+	// SPEED TEST READING — on-net test vs plan speed
+	// ===================================================================
+
+	describe("speed test result on a 6M plan", () => {
+		it("does not call 11.2 Mbps 'above your plan'", async () => {
+			setupMockRoutes([
+				{
+					path: "/user-info",
+					response: makeCustomer({
+						online: true,
+						fupMode: "0",
+						basicSpeedDown: "6000",
+						basicSpeedUp: "6000",
+					}),
+				},
+				{
+					path: "/user-ping",
+					params: { mobile: "elierbahe" },
+					response: makePingResponse({ loss: 0 }),
+				},
+				{
+					path: "/user-stat",
+					params: { mobile: "elierbahe" },
+					response: makeBandwidthResponse({
+						limitDown: 6000,
+						currentDown: 300,
+					}),
+				},
+			]);
+
+			const result = await askAgent(
+				"الانترنت بطيء. عملت speed test على speedtest.libancomlb.com وطلع 11.2 Mbps download. يوزرنيمي elierbahe",
+			);
+
+			const text = normalize(result.text);
+			expect(text).not.toMatch(
+				/above (your|the) plan|normal for your plan|matches your plan/,
+			);
+			expect(text).not.toMatch(
+				/(اعلى|أعلى|اكتر|أكثر) من (سرعة )?(باقتك|اشتراكك|الباقة)/,
+			);
+			expect(text).not.toMatch(/طبيعي(ة)? (ل|بالنسبة ل)(باقتك|اشتراكك)/);
 		}, 60_000);
 	});
 });

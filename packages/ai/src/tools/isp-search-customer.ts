@@ -9,6 +9,7 @@ import {
 	isSearchableQuery,
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
+import { loadLocalPlan, PLAN_FIELD_DESCRIPTION } from "./lib/local-plan";
 import type { RegisteredTool, ToolContext } from "./types";
 
 /** Whitelist of fields safe for the AI to see. */
@@ -89,6 +90,31 @@ export function detectConnectionType(
 	return "wired"; // fallback
 }
 
+/** Tool-description text for the `accessMedium` output field. */
+export const ACCESS_MEDIUM_DESCRIPTION =
+	'"accessMedium" is how the line reaches the customer: "fiber (OLT/PON)", "ethernet" or "wireless (access point)" (null when unknown). Use it when the customer asks what kind of connection they have.';
+
+/**
+ * Customer-facing wording for the physical line. `detectConnectionType`
+ * stays the routing signal; this is what the bot may say. Local
+ * `Customer.connectionType` is not used: sync labels OLT subscribers WIRELESS.
+ */
+export function detectAccessMedium(
+	customer: Record<string, unknown>,
+): "fiber (OLT/PON)" | "ethernet" | "wireless (access point)" | null {
+	const iface = customer["mikrotikInterface"];
+	if (typeof iface === "string" && /olt/i.test(iface)) {
+		return "fiber (OLT/PON)";
+	}
+	if (typeof iface === "string" && /ether|eth\d/i.test(iface)) {
+		return "ethernet";
+	}
+	if (customer["accessPointName"] != null) {
+		return "wireless (access point)";
+	}
+	return null;
+}
+
 export function needsMikrotikPeers(customer: Record<string, unknown>): boolean {
 	const iface = customer["mikrotikInterface"] as string | undefined;
 	return !!iface && MIKROTIK_PEER_IFACE.test(iface);
@@ -99,7 +125,8 @@ function createIspSearchCustomerTool(context: ToolContext) {
 		description:
 			"Search for an ISP customer by phone number or username. Returns account status (active, blocked, expiryAccount), " +
 			"connection details (fupMode, speeds, quotas), network topology (station, access point, mikrotikInterface), " +
-			"and accessPointUsers (peers on the same AP for cross-checking). Does NOT return billing or personal contact info.",
+			"and accessPointUsers (peers on the same AP for cross-checking). Does NOT return billing or personal contact info. " +
+			`${PLAN_FIELD_DESCRIPTION} ${ACCESS_MEDIUM_DESCRIPTION}`,
 		inputSchema: z.object({
 			query: z
 				.string()
@@ -178,6 +205,15 @@ function createIspSearchCustomerTool(context: ToolContext) {
 							);
 						}
 						const connectionType = detectConnectionType(first);
+						const accessMedium = detectAccessMedium(first);
+						const plan =
+							typeof userName === "string" && userName
+								? await loadLocalPlan(
+										context.organizationId,
+										userName,
+										context.servicePlanIds,
+									)
+								: null;
 						let peerUsers: { userName: string; online: boolean }[] =
 							[];
 
@@ -244,6 +280,8 @@ function createIspSearchCustomerTool(context: ToolContext) {
 							success: true,
 							message: `Found customer "${first["userName"] ?? args.query}".`,
 							connectionType,
+							accessMedium,
+							plan,
 							peerUsers,
 							peerSummary,
 							customer: first,
