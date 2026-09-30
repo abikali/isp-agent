@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { ispGet } from "@repo/ai/isp-api-client";
 import {
 	detectConnectionType,
+	fetchInterfacePeers,
 	filterCustomerData,
 } from "@repo/ai/isp-search-customer";
 import {
@@ -11,12 +12,18 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { enrichDiagnosePeers } from "../lib/diagnose-peers";
 import { getIspApiConfigFromEnv } from "../lib/iradius-api";
 
 /**
  * The same live report the Telegram bot gives (`/user-info` on the iRadius
  * HTTP API, whitelisted to the fields a technician needs, plus a ping), for
  * the task detail and the customer page. Read-only.
+ *
+ * Peers are the bot's: everyone on the same building interface for fiber /
+ * ether / base, otherwise the access point's users, each marked online,
+ * expired (live iRadius expiry) or offline. ONU state is a separate query
+ * (`customers.onuStatus`) because the OLT lookup takes seconds.
  *
  * No output schema on purpose: the ISP API mixes strings, booleans and
  * nulls for the same field (see CLAUDE.md, ISP tools). The UI renders the
@@ -76,20 +83,29 @@ export const diagnoseCustomer = protectedProcedure
 			});
 		}
 		const report = filterCustomerData(first);
+		const username = customer.username;
 
-		let ping: unknown = null;
-		try {
-			ping = await ispGet<unknown>(config, "/user-ping", {
-				mobile: customer.username,
-			});
-		} catch {
-			ping = null;
-		}
+		const [ping, peerResult] = await Promise.all([
+			ispGet<unknown>(config, "/user-ping", { mobile: username }).catch(
+				() => null,
+			),
+			fetchInterfacePeers(config, report).catch(() => null),
+		]);
+		const peers = peerResult
+			? await enrichDiagnosePeers({
+					organizationId: input.organizationId,
+					activeDealerId,
+					peers: peerResult.peers,
+				})
+			: [];
 
 		return {
 			fetchedAt: new Date().toISOString(),
 			connectionType: detectConnectionType(report),
 			report,
 			ping,
+			peers,
+			peerSource: peerResult?.source ?? null,
+			peersError: peerResult === null,
 		};
 	});

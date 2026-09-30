@@ -5,8 +5,9 @@ import type { ParsedPingResult } from "./isp-ping-customer";
 import { parsePingOutput } from "./isp-ping-customer";
 import {
 	detectConnectionType,
+	fetchInterfacePeers,
 	filterCustomerData,
-	needsMikrotikPeers,
+	type InterfacePeer,
 } from "./isp-search-customer";
 import {
 	cleanIspLookupQuery,
@@ -15,6 +16,7 @@ import {
 	isSearchableQuery,
 	withIspErrorHandling,
 } from "./lib/isp-api-client";
+import { getOnuStatus, type OnuStatusResult } from "./lib/onu-client";
 import type { RegisteredTool, ToolContext } from "./types";
 
 const SPEED_TEST_URL = "https://speedtest.libancomlb.com/";
@@ -131,6 +133,10 @@ interface DiagnosisInput {
 	pingStatus: PingAnalysis["status"];
 	bandwidthStatus: BandwidthAnalysis["status"] | null;
 	neighborResults: Array<{ userName: string; ping: string }>;
+	/** Fiber only, looked up when the customer is offline. */
+	onuStatus?: "online" | "offline" | "not_found" | null | undefined;
+	/** The OLT's last deregistration reason, e.g. "Power Off", "Wire Down". */
+	onuDeregReason?: string | null | undefined;
 }
 
 interface DiagnosisOutput {
@@ -208,6 +214,19 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 		if (input.stationOnline === false) {
 			issues.push("The station serving this customer is down.");
 		}
+		const onuReason = input.onuDeregReason ?? "";
+		const onuPoweredOff =
+			input.onuStatus === "offline" && /power/i.test(onuReason);
+		const fiberLinkDown =
+			input.onuStatus === "offline" &&
+			/wire|\blos\b|link/i.test(onuReason);
+		if (onuPoweredOff) {
+			issues.push("The fiber box at the building appears powered off.");
+		} else if (fiberLinkDown) {
+			issues.push("The fiber link appears to be down.");
+		} else if (input.onuStatus === "offline") {
+			issues.push("The fiber box at the building is offline.");
+		}
 
 		// Check if neighbors are also down
 		const allNeighborsUnreachable =
@@ -239,9 +258,13 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 		const action =
 			input.accessPointOnline === false
 				? "Check that your equipment (antenna/router) is plugged in and powered on. If it is, contact your ISP for further help."
-				: input.stationOnline === false
-					? "There appears to be an infrastructure issue. Your ISP is likely already aware. If not, contact them."
-					: "Try restarting your router/equipment. If the issue persists, contact your ISP.";
+				: onuPoweredOff
+					? "Check that the fiber box and the router are plugged in and powered on. If they are, a technician needs to check the line."
+					: fiberLinkDown
+						? "The fiber line needs a technician to check it."
+						: input.stationOnline === false
+							? "There appears to be an infrastructure issue. Your ISP is likely already aware. If not, contact them."
+							: "Try restarting your router/equipment. If the issue persists, contact your ISP.";
 
 		return {
 			severity: "down",
@@ -298,6 +321,35 @@ export function buildDiagnosis(input: DiagnosisInput): DiagnosisOutput {
 		needsHumanFollowUp:
 			input.pingStatus === "unstable" &&
 			input.neighborResults.some((n) => peerIsDegraded(n.ping)),
+	};
+}
+
+/**
+ * The customer-safe slice of the bot's ONU lookup: up/down and why, never the
+ * MAC or another ONU's data. Null when the lookup didn't apply or failed.
+ */
+export function summarizeOnu(result: OnuStatusResult | null): {
+	status: "online" | "offline" | "not_found";
+	lastOfflineReason: string | null;
+	lastOfflineAt: string | null;
+} | null {
+	if (!result?.applicable) {
+		return null;
+	}
+	if (result.result === "not_found") {
+		return {
+			status: "not_found",
+			lastOfflineReason: null,
+			lastOfflineAt: null,
+		};
+	}
+	if (result.result !== "found" || !result.onu) {
+		return null;
+	}
+	return {
+		status: /online/i.test(result.onu.status) ? "online" : "offline",
+		lastOfflineReason: result.onu.lastDeregReason,
+		lastOfflineAt: result.onu.lastDeregTime,
 	};
 }
 
@@ -436,32 +488,13 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					const connectionType = detectConnectionType(customer);
 
 					// Fetch peers
-					let peerUsers: { userName: string; online: boolean }[] = [];
-					if (needsMikrotikPeers(customer)) {
-						const iface = customer["mikrotikInterface"] as string;
-						try {
-							const mikrotikData = await ispGet<
-								{ userName: string; online: boolean }[]
-							>(config, "/mikrotik-user-list", {
-								mikrotikInterface: iface,
-							});
-							if (Array.isArray(mikrotikData)) {
-								peerUsers = mikrotikData.filter(
-									(u) => u.userName !== customer["userName"],
-								);
-							}
-						} catch {
-							// Non-fatal
-						}
-					} else {
-						const apUsers = customer["accessPointUsers"] as
-							| { userName: string; online: boolean }[]
-							| undefined;
-						if (Array.isArray(apUsers)) {
-							peerUsers = apUsers.filter(
-								(u) => u.userName !== customer["userName"],
-							);
-						}
+					let peerUsers: InterfacePeer[] = [];
+					try {
+						peerUsers = (
+							await fetchInterfacePeers(config, customer)
+						).peers;
+					} catch {
+						// Non-fatal
 					}
 
 					const onlineCount = peerUsers.filter(
@@ -625,6 +658,16 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 					// -------------------------------------------------------
 					const selectedPeers = pickRandomPeers(peerUsers, 2);
 
+					// Fiber and offline: ask the OLT (via the Telegram bot)
+					// whether the building's fiber box is up. Never throws.
+					const iface = customer["mikrotikInterface"];
+					const onuLookup =
+						connectionType === "fiber" &&
+						!online &&
+						typeof iface === "string"
+							? getOnuStatus(iface, { timeoutMs: 15_000 })
+							: Promise.resolve(null);
+
 					const [pingResult, bandwidthResult, ...peerPingResults] =
 						await Promise.allSettled([
 							// Always ping customer
@@ -698,6 +741,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 								: "Peer pings failed"
 							: `Pinged ${neighborResults.map((n) => `${n.userName} (${n.ping})`).join(", ")}`;
 
+					const onu = summarizeOnu(await onuLookup);
+
 					const connectionStatus = online
 						? "Online"
 						: accessPointOnline === false
@@ -707,6 +752,8 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 								: "Offline";
 
 					const diagResult = buildDiagnosis({
+						onuStatus: onu?.status ?? null,
+						onuDeregReason: onu?.lastOfflineReason ?? null,
 						accountStatus,
 						accountActive: true,
 						online,
@@ -746,6 +793,7 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 						signal: signalResult,
 						neighborCheck,
 						peersSummary,
+						...(onu ? { onu } : {}),
 						...diagResult,
 						...(shouldIncludeSpeedTest
 							? { speedTestUrl: SPEED_TEST_URL }
@@ -790,7 +838,9 @@ escalated, say what you found and that you are reporting it now — then report 
 
 The tool runs ALL diagnostics automatically. Do NOT manually re-run individual tools unless the customer asks for a specific follow-up.
 
-Fields like fupActive, ping, bandwidth, and signal are only present when relevant — do NOT mention absent fields.
+Fields like fupActive, ping, bandwidth, signal and onu are only present when relevant — do NOT mention absent fields.
+
+The onu field (fiber customers who are offline) is the state of the fiber box at their building. Call it "the fiber box", never "ONU", "OLT" or "PON". status "offline" with lastOfflineReason "Power Off" means the box lost power; "Wire Down" means the fiber line itself is down. "not_found" means we could not see the box — say nothing about it.
 
 ## Speed Test
 

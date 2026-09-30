@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	cleanIspLookupQuery,
 	getIspApiConfigFields,
+	type IspApiConfig,
 	ispGet,
 	isSearchableQuery,
 	withIspErrorHandling,
@@ -92,6 +93,44 @@ export function needsMikrotikPeers(customer: Record<string, unknown>): boolean {
 	return !!iface && MIKROTIK_PEER_IFACE.test(iface);
 }
 
+export interface InterfacePeer {
+	userName: string;
+	online: boolean;
+}
+
+/**
+ * Who else is on this customer's connection, the way the Telegram bot shows
+ * it: everyone on the same building interface (`/mikrotik-user-list`) for
+ * fiber / ether / base, otherwise the access point's user list. The customer
+ * itself is excluded. Throws if the mikrotik lookup fails.
+ */
+export async function fetchInterfacePeers(
+	config: IspApiConfig,
+	report: Record<string, unknown>,
+): Promise<{ source: "interface" | "accessPoint"; peers: InterfacePeer[] }> {
+	const self = report["userName"];
+	if (needsMikrotikPeers(report)) {
+		const data = await ispGet<InterfacePeer[]>(
+			config,
+			"/mikrotik-user-list",
+			{ mikrotikInterface: report["mikrotikInterface"] as string },
+		);
+		return {
+			source: "interface",
+			peers: Array.isArray(data)
+				? data.filter((u) => u.userName !== self)
+				: [],
+		};
+	}
+	const apUsers = report["accessPointUsers"];
+	return {
+		source: "accessPoint",
+		peers: Array.isArray(apUsers)
+			? (apUsers as InterfacePeer[]).filter((u) => u.userName !== self)
+			: [],
+	};
+}
+
 function createIspSearchCustomerTool(context: ToolContext) {
 	return tool({
 		description:
@@ -158,36 +197,13 @@ function createIspSearchCustomerTool(context: ToolContext) {
 					const first = filtered[0];
 					if (filtered.length === 1 && first) {
 						const connectionType = detectConnectionType(first);
-						let peerUsers: { userName: string; online: boolean }[] =
-							[];
-
-						if (needsMikrotikPeers(first)) {
-							// Fiber/wired: fetch from mikrotik API
-							const iface = first["mikrotikInterface"] as string;
-							try {
-								const mikrotikData = await ispGet<
-									{ userName: string; online: boolean }[]
-								>(config, "/mikrotik-user-list", {
-									mikrotikInterface: iface,
-								});
-								if (Array.isArray(mikrotikData)) {
-									peerUsers = mikrotikData.filter(
-										(u) => u.userName !== first["userName"],
-									);
-								}
-							} catch {
-								// Non-fatal — peer data is supplementary
-							}
-						} else {
-							// Wireless: use accessPointUsers from search result
-							const apUsers = first["accessPointUsers"] as
-								| { userName: string; online: boolean }[]
-								| undefined;
-							if (Array.isArray(apUsers)) {
-								peerUsers = apUsers.filter(
-									(u) => u.userName !== first["userName"],
-								);
-							}
+						let peerUsers: InterfacePeer[] = [];
+						try {
+							peerUsers = (
+								await fetchInterfacePeers(config, first)
+							).peers;
+						} catch {
+							// Non-fatal — peer data is supplementary
 						}
 
 						const onlineCount = peerUsers.filter(

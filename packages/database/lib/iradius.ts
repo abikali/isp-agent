@@ -345,6 +345,48 @@ export async function queryIRadiusUsageSnapshot(): Promise<
 	}
 }
 
+/**
+ * Live `UserNas.ExpiryAccount` for a handful of usernames (diagnose peers).
+ * Read-only. The local `customer.expiresAt` is only refreshed by the full
+ * sync, so it can call a just-renewed customer expired; this can't.
+ *
+ * Datetimes arrive as naive strings and are read in the process TZ, the same
+ * way the sync reads them. Throws on connection failure: callers fall back to
+ * the local value.
+ */
+export async function queryIRadiusExpiryByUsernames(
+	usernames: string[],
+): Promise<Map<string, Date | null>> {
+	const result = new Map<string, Date | null>();
+	if (usernames.length === 0) {
+		return result;
+	}
+	const rows = await withIRadiusConnection((conn) =>
+		queryIRadius(
+			conn,
+			`SELECT u.UserName, un.ExpiryAccount
+			FROM User u
+			JOIN UserNas un ON un.UserId = u.Id
+			WHERE u.UserName IN (${usernames.map(() => "?").join(", ")})`,
+			usernames,
+		),
+	);
+	for (const row of rows) {
+		const raw = row["ExpiryAccount"];
+		const date =
+			raw instanceof Date
+				? raw
+				: typeof raw === "string" && raw
+					? new Date(raw.replace(" ", "T"))
+					: null;
+		result.set(
+			String(row["UserName"]),
+			date && !Number.isNaN(date.getTime()) ? date : null,
+		);
+	}
+	return result;
+}
+
 /** Monitor-field snapshot for a single iRadius Station. */
 export interface IRadiusStationMonitor {
 	externalId: string;
