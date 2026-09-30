@@ -39,6 +39,13 @@ export default defineConfig({
 				),
 			},
 			{
+				find: "@repo/database/billing-filters",
+				replacement: resolve(
+					__dirname,
+					"../database/lib/billing-filters.ts",
+				),
+			},
+			{
 				// @repo/mail re-exports React Email .tsx templates that vite
 				// can't parse (jsx: preserve). No api unit test renders email,
 				// so stub it to keep suites that transitively import it
