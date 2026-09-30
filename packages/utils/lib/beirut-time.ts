@@ -95,3 +95,28 @@ export function beirutWallClockToUtc(local: string): Date {
 	}
 	return new Date(utcMs);
 }
+
+/**
+ * `hhmm` Beirut wall-clock on the Beirut calendar day `daysAhead` after the
+ * day of `from` — "3 days after the install, at 11:00". DST-safe.
+ */
+export function beirutDayAt(
+	from: BeirutDateInput,
+	daysAhead: number,
+	hhmm: string,
+): Date {
+	const { year, month, day } = beirutParts(from);
+	const target = new Date(Date.UTC(year, month - 1, day + daysAhead));
+	const pad = (n: number) => String(n).padStart(2, "0");
+	const [h = "0", m = "0"] = hhmm.split(":");
+	return beirutWallClockToUtc(
+		`${target.getUTCFullYear()}-${pad(target.getUTCMonth() + 1)}-${pad(target.getUTCDate())}T${pad(Number(h))}:${pad(Number(m))}`,
+	);
+}
+
+/** "2026-09-30 14:05" in Beirut time, for notes and messages. */
+export function formatBeirutStamp(value: BeirutDateInput): string {
+	const { year, month, day, hour, minute } = beirutParts(value);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${year}-${pad(month)}-${pad(day)} ${pad(hour)}:${pad(minute)}`;
+}

@@ -4,4 +4,5 @@ export * from "./lib/bilingual";
 export * from "./lib/geo";
 export * from "./lib/phone";
 export * from "./lib/security";
+export * from "./lib/task-notes";
 export * from "./lib/telegram-format";
