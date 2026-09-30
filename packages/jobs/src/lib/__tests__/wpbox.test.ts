@@ -5,8 +5,10 @@ vi.mock("@repo/logs", () => ({
 }));
 
 import {
+	quickReplyButtons,
 	sendWhatsAppDealerAccountUpdate,
 	sendWhatsAppMaintenanceVisit,
+	sendWPBoxMessage,
 	sendWPBoxTemplate,
 } from "../wpbox";
 
@@ -318,5 +320,83 @@ describe("sendWhatsAppDealerAccountUpdate", () => {
 				},
 			],
 		});
+	});
+});
+
+describe("quickReplyButtons", () => {
+	it("builds one quick-reply component per choice with our payload", () => {
+		expect(quickReplyButtons("ck1", ["good", "bad"])).toEqual([
+			{
+				type: "button",
+				sub_type: "quick_reply",
+				index: "0",
+				parameters: [{ type: "payload", payload: "fu_ck1_good" }],
+			},
+			{
+				type: "button",
+				sub_type: "quick_reply",
+				index: "1",
+				parameters: [{ type: "payload", payload: "fu_ck1_bad" }],
+			},
+		]);
+	});
+});
+
+describe("sendWPBoxMessage", () => {
+	beforeEach(() => {
+		vi.stubEnv("WPBOX_TOKEN", "test-token");
+		vi.stubGlobal("fetch", mockFetch);
+		mockFetch.mockReset();
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+	});
+
+	it("posts a free-form message and returns the wamid", async () => {
+		mockFetch.mockResolvedValue(
+			jsonResponse({
+				status: "success",
+				message_id: 9,
+				message_wamid: "wamid.ABC",
+			}),
+		);
+		const result = await sendWPBoxMessage({
+			phone: "70123456",
+			message: "شكراً",
+			buttons: [
+				{ id: "a", title: "A" },
+				{ id: "b", title: "B" },
+				{ id: "c", title: "C" },
+				{ id: "d", title: "D" },
+			],
+			logContext: {},
+			logTag: "[Test]",
+		});
+		expect(result).toMatchObject({ ok: true, wamid: "wamid.ABC" });
+		expect(mockFetch.mock.calls[0]?.[0]).toBe(
+			"https://saltimarketing.com/api/wpbox/sendmessage",
+		);
+		const body = sentPayload();
+		expect(body).toMatchObject({
+			token: "test-token",
+			phone: "96170123456",
+			message: "شكراً",
+		});
+		expect(body["buttons"]).toHaveLength(3);
+	});
+
+	it("treats an error body as a failure", async () => {
+		mockFetch.mockResolvedValue(
+			jsonResponse({ status: "error", message: "Outside window" }),
+		);
+		const result = await sendWPBoxMessage({
+			phone: "70123456",
+			message: "x",
+			logContext: {},
+			logTag: "[Test]",
+		});
+		expect(result).toMatchObject({ ok: false, error: "Outside window" });
 	});
 });

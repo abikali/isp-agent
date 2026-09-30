@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
+const { mockDb, mockRedis, mockAi, mockFollowUps } = vi.hoisted(() => ({
+	mockFollowUps: {
+		settleCheckBackReplies: vi.fn().mockResolvedValue(undefined),
+		loadOutreachContext: vi.fn().mockResolvedValue(undefined),
+		sendVoiceReply: vi.fn().mockResolvedValue(false),
+	},
 	mockDb: {
 		aiConversation: {
 			findUnique: vi.fn(),
 			update: vi.fn().mockResolvedValue({}),
 		},
-		aiMessage: { create: vi.fn().mockResolvedValue({}) },
+		aiMessage: { create: vi.fn().mockResolvedValue({ id: "msg-1" }) },
 	},
 	mockRedis: {
 		set: vi.fn().mockResolvedValue("OK"),
@@ -75,6 +80,15 @@ vi.mock("../../connection", () => ({
 }));
 vi.mock("../../jobs/ai-followup.jobs", () => ({
 	scheduleFollowUp: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../lib/bot-follow-ups", () => ({
+	settleCheckBackReplies: mockFollowUps.settleCheckBackReplies,
+}));
+vi.mock("../../lib/outreach", () => ({
+	loadOutreachContext: mockFollowUps.loadOutreachContext,
+}));
+vi.mock("../../lib/voice-reply", () => ({
+	sendVoiceReply: mockFollowUps.sendVoiceReply,
 }));
 vi.mock("../../queues/ai-chat.queue", () => ({
 	AI_CHAT_QUEUE_NAME: "ai-chat",
@@ -172,5 +186,22 @@ describe("AI chat retry worker - teammate reply gate", () => {
 			error: "Human takeover active",
 		});
 		expect(mockAi.shouldDeferToTeammate).not.toHaveBeenCalled();
+	});
+
+	it("settles check-back answers after the reply", async () => {
+		await processor(job);
+
+		expect(mockFollowUps.settleCheckBackReplies).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			credentials: { provider: "openrouter", apiKey: "k" },
+			botReply: "AI response",
+			escalatedThisTurn: false,
+		});
+		expect(mockFollowUps.sendVoiceReply).toHaveBeenCalledWith(
+			expect.objectContaining({
+				assistantMessageId: "msg-1",
+				triggeredByVoice: false,
+			}),
+		);
 	});
 });

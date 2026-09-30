@@ -8,6 +8,7 @@ const { db, summarize } = vi.hoisted(() => ({
 		customer: { findMany: vi.fn(), findUnique: vi.fn() },
 		aiAgentToolConfig: { findFirst: vi.fn() },
 		aiAgent: { findUnique: vi.fn() },
+		botFollowUp: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 	},
 	summarize: vi.fn(),
 }));
@@ -60,8 +61,16 @@ beforeEach(() => {
 		json: async () => ({ ok: true }),
 	});
 	db.task.findFirst.mockResolvedValue(null);
-	db.task.create.mockResolvedValue({});
-	db.aiAgent.findUnique.mockResolvedValue({ organizationId: "org-1" });
+	db.task.create.mockResolvedValue({ id: "task-new" });
+	db.aiAgent.findUnique.mockResolvedValue({
+		organizationId: "org-1",
+		postEscalationCheckMinutes: null,
+		followUpWindowStart: "09:00",
+		followUpWindowEnd: "20:30",
+	});
+	db.botFollowUp.findFirst.mockResolvedValue(null);
+	db.botFollowUp.create.mockResolvedValue({});
+	db.botFollowUp.update.mockResolvedValue({});
 	db.aiConversation.findUnique.mockResolvedValue({
 		contactId: "96170000000",
 		contactName: "Joseph",
@@ -135,5 +144,75 @@ describe("escalate-telegram", () => {
 		expect(text).toContain("unknown-contact rule");
 		await vi.waitFor(() => expect(db.task.create).toHaveBeenCalled());
 		expect(db.task.create.mock.calls[0]?.[0]?.data.customerId).toBeNull();
+	});
+
+	describe("check-back after an escalation", () => {
+		beforeEach(() => {
+			db.aiAgent.findUnique.mockResolvedValue({
+				organizationId: "org-1",
+				postEscalationCheckMinutes: 1440,
+				followUpWindowStart: "09:00",
+				followUpWindowEnd: "20:30",
+			});
+		});
+
+		it("schedules one check-back for a new escalation task", async () => {
+			await run("call_1");
+			await vi.waitFor(() =>
+				expect(db.botFollowUp.create).toHaveBeenCalled(),
+			);
+			const data = db.botFollowUp.create.mock.calls[0]?.[0]?.data;
+			expect(data).toMatchObject({
+				type: "post_escalation",
+				channel: "bot",
+				status: "scheduled",
+				conversationId: "conv-1",
+				taskId: "task-new",
+			});
+			expect(data.dueAt).toBeInstanceOf(Date);
+			expect(data.dueAt.getTime()).toBeGreaterThan(Date.now());
+		});
+
+		it("moves the pending check-back instead of stacking a second", async () => {
+			// 1st findFirst: the check-back-linked task lookup; 2nd: pending row.
+			db.botFollowUp.findFirst
+				.mockResolvedValueOnce(null)
+				.mockResolvedValueOnce({ id: "fu-1" });
+			await run("call_1");
+			await vi.waitFor(() =>
+				expect(db.botFollowUp.update).toHaveBeenCalled(),
+			);
+			expect(db.botFollowUp.create).not.toHaveBeenCalled();
+			expect(db.botFollowUp.update.mock.calls[0]?.[0]).toMatchObject({
+				where: { id: "fu-1" },
+				data: { taskId: "task-new" },
+			});
+		});
+
+		it("does not schedule when the check-back is off", async () => {
+			db.aiAgent.findUnique.mockResolvedValue({
+				organizationId: "org-1",
+				postEscalationCheckMinutes: null,
+				followUpWindowStart: "09:00",
+				followUpWindowEnd: "20:30",
+			});
+			await run("call_1");
+			await vi.waitFor(() => expect(db.task.create).toHaveBeenCalled());
+			expect(db.botFollowUp.create).not.toHaveBeenCalled();
+		});
+
+		it("updates the task the customer just answered a check-back about", async () => {
+			db.botFollowUp.findFirst.mockResolvedValueOnce({
+				taskId: "task-old",
+			});
+			await run("call_1");
+			await vi.waitFor(() => expect(db.task.update).toHaveBeenCalled());
+			expect(db.task.update.mock.calls[0]?.[0]?.where).toEqual({
+				id: "task-old",
+			});
+			expect(db.task.create).not.toHaveBeenCalled();
+			// The 1-hour rule is not consulted when a check-back task exists.
+			expect(db.task.findFirst).toHaveBeenCalledTimes(1);
+		});
 	});
 });

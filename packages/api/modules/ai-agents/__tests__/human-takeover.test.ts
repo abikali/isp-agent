@@ -99,6 +99,10 @@ vi.mock("@repo/jobs", () => ({
 	queueAiChatRetry: vi.fn().mockResolvedValue(undefined),
 	scheduleFollowUp: vi.fn().mockResolvedValue(undefined),
 	cancelFollowUp: vi.fn().mockResolvedValue(undefined),
+	captureFollowUpReply: vi.fn().mockResolvedValue(null),
+	loadOutreachContext: vi.fn().mockResolvedValue(undefined),
+	sendVoiceReply: vi.fn().mockResolvedValue(false),
+	settleCheckBackReplies: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/database", () => ({
