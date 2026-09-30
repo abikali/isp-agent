@@ -12,13 +12,13 @@ import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
-	iradiusResetMacAddress,
 	iradiusSetExpiryAccount,
 	iradiusSetIptvPrice,
 	iradiusSetRecurringDiscount,
 	iradiusUpdateUserName,
 } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
+import { resetMacForCustomer } from "../lib/reset-mac";
 
 const baseInput = z.object({
 	organizationId: z.string(),
@@ -30,6 +30,7 @@ interface LinkedCustomer {
 	externalId: string;
 	username: string | null;
 	collectorId: string | null;
+	macAddress: string | null;
 }
 
 async function loadLinkedCustomer(opts: {
@@ -48,6 +49,7 @@ async function loadLinkedCustomer(opts: {
 			externalId: true,
 			username: true,
 			collectorId: true,
+			macAddress: true,
 		},
 	});
 	if (!customer) {
@@ -62,19 +64,14 @@ async function loadLinkedCustomer(opts: {
 }
 
 /**
- * Shared lifecycle for the four direct-SQL iRadius admin actions:
- *   permission → ownership → iRadius write → local mirror → audit.
+ * Permission → iRadius enabled → linked customer → ownership. Shared by every
+ * direct-SQL iRadius admin action.
  */
-async function runIRadiusAdminAction(opts: {
+async function authorizeIRadiusAdminAction(opts: {
 	organizationId: string;
 	customerId: string;
 	userId: string;
-	headers: Headers;
-	failureMessage: string;
-	logTag: string;
-	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
-	localData: Prisma.CustomerUpdateInput;
-}): Promise<{ success: true }> {
+}): Promise<LinkedCustomer> {
 	const { permCtx, activeDealerId, iradiusDisabled } =
 		await requirePermission(
 			opts.organizationId,
@@ -93,6 +90,24 @@ async function runIRadiusAdminAction(opts: {
 		activeDealerId,
 	});
 	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
+	return customer;
+}
+
+/**
+ * Shared lifecycle for the direct-SQL iRadius admin actions:
+ *   authorize → iRadius write → local mirror → audit.
+ */
+async function runIRadiusAdminAction(opts: {
+	organizationId: string;
+	customerId: string;
+	userId: string;
+	headers: Headers;
+	failureMessage: string;
+	logTag: string;
+	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
+	localData: Prisma.CustomerUpdateInput;
+}): Promise<{ success: true }> {
+	const customer = await authorizeIRadiusAdminAction(opts);
 
 	await mirrorToIRadius({
 		logTag: opts.logTag,
@@ -130,18 +145,21 @@ export const resetCustomerMacAddress = protectedProcedure
 		summary: "Reset a customer's MAC address in iRadius",
 	})
 	.input(baseInput)
-	.handler(({ context: { user, headers }, input }) =>
-		runIRadiusAdminAction({
+	.handler(async ({ context: { user, headers }, input }) => {
+		const customer = await authorizeIRadiusAdminAction({
 			organizationId: input.organizationId,
 			customerId: input.customerId,
 			userId: user.id,
-			headers,
-			failureMessage: "Failed to reset MAC address in iRadius",
-			logTag: "iRadius reset MAC",
-			mutate: (customer) => iradiusResetMacAddress(customer),
-			localData: { macAddress: null },
-		}),
-	);
+		});
+		await resetMacForCustomer({
+			organizationId: input.organizationId,
+			customer,
+			actorUserId: user.id,
+			auditContext: getAuditContextFromHeaders(headers),
+			metadata: { via: "app", previousMac: customer.macAddress },
+		});
+		return { success: true as const };
+	});
 
 export const updateCustomerNameInIRadius = protectedProcedure
 	.route({

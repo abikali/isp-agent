@@ -1029,6 +1029,35 @@ export const aiChannelAudit = {
  * Customer audit logging functions
  */
 export const customerAudit = {
+	macReset: (
+		customerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			via: "telegram" | "app";
+			telegramId?: string | undefined;
+			telegramName?: string | undefined;
+			previousMac: string | null;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.customer.macReset,
+					resourceType: RESOURCE_TYPES.customer,
+				},
+				{
+					resourceId: customerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
 	created: (
 		customerId: string,
 		userId: string,
