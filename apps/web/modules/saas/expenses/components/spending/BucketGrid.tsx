@@ -53,8 +53,15 @@ export function BucketGrid({ buckets, periodLabel, slug }: BucketGridProps) {
 						>
 							<div className="flex items-start justify-between gap-2">
 								<div className="min-w-0">
-									<div className="truncate text-sm font-medium">
-										{bucket.label}
+									<div className="flex items-center gap-1.5">
+										<span className="truncate text-sm font-medium">
+											{bucket.label}
+										</span>
+										{bucket.kind === "DRAW" && (
+											<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+												draw
+											</span>
+										)}
 									</div>
 									<div className="mt-1 text-2xl font-medium tabular-nums leading-none tracking-tight">
 										{formatCurrency(bucket.amount)}

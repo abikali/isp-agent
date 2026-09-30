@@ -2,7 +2,9 @@ import { hasPermission, requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { foldLines } from "../../finance/lib/money-model";
 import { previousPeriod, resolvePeriod } from "../../finance/lib/period";
+import { classifyApprovedExpenses } from "../../finance/lib/queries";
 import { buildExpenseWhere } from "../lib/filters";
 
 /** A pending claim older than this needs a decision, whatever its size. */
@@ -48,8 +50,8 @@ export const getSpendingOverview = protectedProcedure
 		});
 
 		const [
-			thisMonth,
-			lastMonth,
+			thisMonthLines,
+			lastMonthLines,
 			directThisMonth,
 			pending,
 			unclassified,
@@ -60,15 +62,10 @@ export const getSpendingOverview = protectedProcedure
 			noReceiptClaims,
 			recurring,
 		] = await Promise.all([
-			db.expense.aggregate({
-				where: approvedIn(period),
-				_sum: { amount: true },
-				_count: true,
-			}),
-			db.expense.aggregate({
-				where: approvedIn(prior),
-				_sum: { amount: true },
-			}),
+			// Same classifier as the Money page, so "Spent" is one number:
+			// COST lines only, owner draws reported apart.
+			classifyApprovedExpenses(input.organizationId, scope, period),
+			classifyApprovedExpenses(input.organizationId, scope, prior),
 			db.expense.aggregate({
 				where: { ...approvedIn(period), submittedById: null },
 				_sum: { amount: true },
@@ -189,13 +186,19 @@ export const getSpendingOverview = protectedProcedure
 			},
 		];
 
+		const thisMonth = foldLines(thisMonthLines);
+		const lastMonth = foldLines(lastMonthLines);
+
 		return {
 			periodLabel: period.label,
 			canManage,
 			totals: {
-				spent: thisMonth._sum.amount ?? 0,
-				spentCount: thisMonth._count,
-				spentLastMonth: lastMonth._sum.amount ?? 0,
+				spent: thisMonth.cost,
+				spentCount: thisMonthLines.filter((l) => l.kind === "COST")
+					.length,
+				/** Owner / partner draws — real cash out, not a cost. */
+				drawn: thisMonth.draws,
+				spentLastMonth: lastMonth.cost,
 				direct: directThisMonth._sum.amount ?? 0,
 				pending: pending._sum.amount ?? 0,
 				pendingCount: pending._count,

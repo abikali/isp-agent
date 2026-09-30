@@ -18,11 +18,18 @@ import {
 	invoiceAmount,
 	monthRemaining,
 } from "../../billing/lib/settlement";
-import { classifyLedgerRow, isLegacyCurrency } from "../../dealers/lib/ledger";
+import {
+	classifyLedgerRow,
+	isLegacyCurrency,
+	LEGACY_CURRENCY_THRESHOLD,
+	netOwed,
+	round2,
+} from "../../dealers/lib/ledger";
 import {
 	resolveCashRole,
 	usesCollectorWallet,
 } from "../../employees/lib/cash-role";
+import { expenseDealerScope } from "../../expenses/lib/filters";
 import { UNCLASSIFIED_LABEL } from "./categories";
 import { matchRule } from "./classify";
 import type { MoneyLine } from "./money-model";
@@ -219,27 +226,27 @@ export async function fetchDealerPayments(
  * set one, otherwise the first matching rule, otherwise unclassified. An
  * unclassified cost is reported AS unclassified rather than folded into a
  * bucket, so the gap is visible and gets fixed.
+ *
+ * The ONE classifier for approved spending: the Money page (`fetchCostLines`)
+ * and the Spending page (`expenses.overview`) both read it, so "Spent" means
+ * the same number on both — COST lines only, owner draws apart.
+ *
+ * @param expenseWhere  the caller's scope (`buildExpenseWhere` /
+ *                      `expenseDealerScope`); status and period are added here
  */
-export async function fetchCostLines(
-	scope: FinanceScope,
-	period: Period,
+export async function classifyApprovedExpenses(
+	organizationId: string,
+	expenseWhere: Record<string, unknown>,
+	period: { from: Date; to: Date },
 ): Promise<MoneyLine[]> {
 	const [expenses, categories, rules] = await Promise.all([
 		db.expense.findMany({
 			where: {
-				organizationId: scope.organizationId,
-				status: "APPROVED",
-				createdAt: { gte: period.from, lt: period.to },
-				// A claim belongs to its worker's dealer. A direct row has no
-				// worker — it is the organization's own spending and is always
-				// in scope, so an owner-entered cost cannot vanish from the
-				// P&L just because the org has a master dealer account.
-				OR: [
-					{ submittedById: null },
+				AND: [
+					expenseWhere,
 					{
-						submittedBy: {
-							dealerId: scope.activeDealerId ?? null,
-						},
+						status: "APPROVED",
+						createdAt: { gte: period.from, lt: period.to },
 					},
 				],
 			},
@@ -251,14 +258,11 @@ export async function fetchCostLines(
 			},
 		}),
 		db.financeCategory.findMany({
-			where: {
-				organizationId: scope.organizationId,
-				archivedAt: null,
-			},
+			where: { organizationId, archivedAt: null },
 			select: { id: true, label: true, kind: true },
 		}),
 		db.financeRule.findMany({
-			where: { organizationId: scope.organizationId },
+			where: { organizationId },
 			select: {
 				id: true,
 				pattern: true,
@@ -294,6 +298,72 @@ export async function fetchCostLines(
 	}
 
 	return lines;
+}
+
+/**
+ * The Money page's costs and draws. A claim belongs to its worker's dealer; a
+ * direct row has no worker — it is the organization's own spending and is
+ * always in scope, so an owner-entered cost cannot vanish from the P&L just
+ * because the org has a master dealer account (`expenseDealerScope`).
+ */
+export async function fetchCostLines(
+	scope: FinanceScope,
+	period: Period,
+): Promise<MoneyLine[]> {
+	return classifyApprovedExpenses(
+		scope.organizationId,
+		{
+			organizationId: scope.organizationId,
+			...expenseDealerScope(scope.activeDealerId),
+		},
+		period,
+	);
+}
+
+/**
+ * What dealers still owe the operator: Σ(credit − debit) of the receivable
+ * ledger per live dealer, recomputed rather than trusting the stored balance
+ * (same basis as `dealers.overview` totals). Pre-2024 Lebanese-pound rows are
+ * skipped. The org's own accounts (master and internal lines) are not
+ * dealers. Null for a reseller org — only the operator has this ledger.
+ */
+export async function fetchDealersOwe(
+	scope: FinanceScope,
+): Promise<{ total: number; owingCount: number } | null> {
+	const org = await db.organization.findUnique({
+		where: { id: scope.organizationId },
+		select: { isWholesaleOperator: true },
+	});
+	if (!org?.isWholesaleOperator) {
+		return null;
+	}
+	const ownIds = await fetchOwnDealerIds(scope);
+	const dealers = await db.ispDealer.findMany({
+		where: {
+			deletedAt: null,
+			...(ownIds.length > 0 ? { id: { notIn: ownIds } } : {}),
+		},
+		select: { id: true },
+	});
+	const totals = await db.ispDealerAccount.groupBy({
+		by: ["dealerId"],
+		where: {
+			dealerId: { in: dealers.map((d) => d.id) },
+			credit: { lt: LEGACY_CURRENCY_THRESHOLD },
+			debit: { lt: LEGACY_CURRENCY_THRESHOLD },
+		},
+		_sum: { credit: true, debit: true },
+	});
+	let total = 0;
+	let owingCount = 0;
+	for (const row of totals) {
+		const owed = netOwed(row._sum.credit ?? 0, row._sum.debit ?? 0);
+		total += owed;
+		if (owed > 0) {
+			owingCount++;
+		}
+	}
+	return { total: round2(total), owingCount };
 }
 
 /**
@@ -408,9 +478,14 @@ export async function fetchReceivables(scope: FinanceScope) {
 			where: {
 				organizationId: scope.organizationId,
 				voidedAt: null,
-				...(scope.activeDealerId
-					? { customer: { dealerId: scope.activeDealerId } }
-					: {}),
+				// Soft-deleted customers are gone from every collect list;
+				// their stale invoices are not money anyone will collect.
+				customer: {
+					deletedAt: null,
+					...(scope.activeDealerId
+						? { dealerId: scope.activeDealerId }
+						: {}),
+				},
 			},
 			select: {
 				customerId: true,

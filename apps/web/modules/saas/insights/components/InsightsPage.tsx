@@ -174,6 +174,8 @@ export function InsightsPage({ period, onPeriodChange }: InsightsPageProps) {
 						handoffs: summary.cash.handoffs,
 						dealerPayments: summary.cash.dealerPayments,
 						inTeamHands: summary.cash.inTeamHands.total,
+						dealersOwe: summary.cash.dealersOwe?.total ?? null,
+						dealersCharged: summary.earned.wholesale,
 					}}
 					streams={[
 						{

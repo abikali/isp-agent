@@ -16,12 +16,17 @@ interface MoneyFlowProps {
 	draws: number;
 	/** kept − draws: what actually stayed in the business. */
 	net: number;
-	/** Cash POSITION, not part of the arithmetic: how much of what was earned
-	 *  has physically reached the office, and how much is still elsewhere. */
+	/** Cash POSITION, not part of the arithmetic: balances read from their own
+	 *  ledgers, never derived from `earned`. */
 	cash: {
 		reachedOffice: number;
 		handoffs: number;
+		/** Collected but not handed in yet, across all periods. */
 		inTeamHands: number;
+		/** What dealers owe on the receivable ledger; null for a reseller org. */
+		dealersOwe: number | null;
+		/** Dealer charges raised this period (for the dealers-owe hint). */
+		dealersCharged: number;
 		/** Cash dealers paid in this period. Already inside `earned` from the
 		 *  moment they were charged, so it is shown as position only. */
 		dealerPayments: { total: number; count: number };
@@ -64,7 +69,6 @@ export function MoneyFlow({
 	const positive = kept >= 0;
 	const netPositive = net >= 0;
 	const total = streams?.reduce((sum, s) => sum + s.amount, 0) ?? 0;
-	const elsewhere = Math.max(earned - cash.reachedOffice, 0);
 	const handoffs =
 		cash.handoffs === 0
 			? "no handoffs yet"
@@ -88,7 +92,7 @@ export function MoneyFlow({
 					label="You earned"
 					value={earned}
 					tone="text-foreground"
-					hint="Everything your team took in from customers and dealers"
+					hint="Everything your team took in from customers and dealers (dealer charges count when billed, not when paid)"
 				/>
 				<Operator symbol="−" />
 				<Figure
@@ -172,7 +176,7 @@ export function MoneyFlow({
 					Earning it and holding it are different things. This does
 					not change the figures above.
 				</p>
-				<div className="mt-3 grid gap-3 sm:grid-cols-3">
+				<div className="mt-3 grid gap-3 sm:grid-cols-2">
 					<Position
 						label="Reached the office"
 						value={cash.reachedOffice}
@@ -185,15 +189,23 @@ export function MoneyFlow({
 						muted={dealerCount === 0}
 					/>
 					<Position
-						label="Still out with the team"
-						value={elsewhere}
+						label="Held by the team now"
+						value={cash.inTeamHands}
 						hint={
-							elsewhere > 0
-								? `Collected but not handed in yet. They hold ${formatCurrency(cash.inTeamHands)} in total, including earlier periods.`
-								: "Everything earned this period has been handed in."
+							cash.inTeamHands > 0
+								? "Collected but not handed in yet, across all periods."
+								: "Your team holds no cash right now."
 						}
-						muted={elsewhere === 0}
+						muted={cash.inTeamHands === 0}
 					/>
+					{cash.dealersOwe !== null && (
+						<Position
+							label="Dealers still owe"
+							value={cash.dealersOwe}
+							hint={`What dealers owe you on their account · charged ${formatCurrency(cash.dealersCharged)} this period, paid ${formatCurrency(cash.dealerPayments.total)}.`}
+							muted={cash.dealersOwe <= 0}
+						/>
+					)}
 				</div>
 			</div>
 		</section>

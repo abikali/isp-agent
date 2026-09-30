@@ -10,6 +10,7 @@ import {
 	fetchCashHeld,
 	fetchCostLines,
 	fetchDealerPayments,
+	fetchDealersOwe,
 	fetchFieldCash,
 	fetchHandedIn,
 	fetchReceivables,
@@ -97,6 +98,7 @@ export const getFinanceSummary = protectedProcedure
 					cashHeld,
 					handedIn,
 					dealerPayments,
+					dealersOwe,
 					fieldCash,
 					priorRetail,
 					priorWholesale,
@@ -110,6 +112,7 @@ export const getFinanceSummary = protectedProcedure
 					fetchCashHeld(scope),
 					fetchHandedIn(scope, period),
 					fetchDealerPayments(scope, period),
+					fetchDealersOwe(scope),
 					fetchFieldCash(scope, period),
 					fetchRetailRevenue(scope, prior),
 					fetchWholesaleRevenue(scope, prior),
@@ -231,17 +234,23 @@ export const getFinanceSummary = protectedProcedure
 					draws: current.draws,
 					operatingProfit: kept,
 					net: kept - current.draws,
-					/** Cash POSITION — never an input to the arithmetic above.
-					 *  `reachedOffice` is this period's handoffs and
-					 *  `dealerPayments` is this period's cash from dealers (the
+					/** Cash POSITION — never an input to the arithmetic above,
+					 *  and never derived from `earned` (earned − handed in
+					 *  used to be shown as "still out with the team", which
+					 *  counted ~$42k of dealer receivables as cash in staff
+					 *  pockets). `reachedOffice` is this period's handoffs and
+					 *  `dealerPayments` this period's cash from dealers (the
 					 *  wholesale twin of a handoff: income already counted in
 					 *  `earned.wholesale` when the dealer was charged, now
-					 *  arriving); the other two are balances as of now. */
+					 *  arriving); `inTeamHands`, `dealersOwe` and
+					 *  `owedByCustomers` are balances as of now. */
 					cash: {
 						reachedOffice: handedIn.total,
 						handoffs: handedIn.count,
 						dealerPayments,
 						inTeamHands: cashHeld,
+						/** Null for a reseller org (no receivable ledger). */
+						dealersOwe,
 						owedByCustomers: receivables,
 					},
 				};
