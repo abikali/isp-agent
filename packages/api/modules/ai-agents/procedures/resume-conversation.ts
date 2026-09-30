@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
-import { queueAiChatRetry } from "@repo/jobs";
+import { cancelTeammateWait, queueAiChatRetry } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -50,10 +50,13 @@ export const resumeConversation = protectedProcedure
 
 		await db.aiConversation.update({
 			where: { id: input.conversationId },
-			data: { humanTakeoverAt: null },
+			data: { humanTakeoverAt: null, awaitingHumanSince: null },
 		});
+		await cancelTeammateWait(input.conversationId);
 
-		// If the last message is from a user (unanswered), queue an AI response
+		// If the last message is from a user (unanswered), make the bot answer
+		// it. bypassDeferral: the admin chose "let AI answer", so the teammate
+		// deferral must not silence it again.
 		if (conversation.channelId) {
 			const lastMessage = await db.aiMessage.findFirst({
 				where: { conversationId: input.conversationId },
@@ -64,6 +67,7 @@ export const resumeConversation = protectedProcedure
 				queueAiChatRetry({
 					conversationId: input.conversationId,
 					channelId: conversation.channelId,
+					bypassDeferral: true,
 				}).catch((err) =>
 					logger.error("Failed to queue AI response after resume", {
 						error: err,

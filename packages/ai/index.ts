@@ -48,6 +48,7 @@ export {
 	assistantMessageToParts,
 	buildContextGapNote,
 	dbMessagesToModelMessages,
+	formatAwaitingTeammateNote,
 	legacyRowToParts,
 	modelMessagesToRoleContent,
 } from "./src/history";

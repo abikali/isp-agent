@@ -59,7 +59,20 @@ export interface AiChatJobData {
 	conversationId: string;
 	channelId: string;
 	userMessageId?: string;
+	/** Reply even if the customer seems to be answering a teammate (Resume, teammate-wait). */
+	bypassDeferral?: boolean;
+	/** Extra context notice for the forced reply. */
+	contextNotice?: "awaiting-teammate";
+	/** `teammate-wait` jobs only: which step of the wait this is. */
+	stage?: TeammateWaitStage;
+	/** `teammate-wait` jobs only: why the bot held back. */
+	origin?: TeammateWaitOrigin;
 }
+
+/** alert = tell the team on Telegram; reply = let the bot answer. */
+export type TeammateWaitStage = "alert" | "reply";
+/** takeover = held during human takeover (never classified); deferral = classified as addressed to the teammate. */
+export type TeammateWaitOrigin = "takeover" | "deferral";
 
 export interface AiChatJobResult {
 	success: boolean;

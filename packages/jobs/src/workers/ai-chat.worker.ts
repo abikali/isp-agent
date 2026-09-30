@@ -8,6 +8,7 @@ import {
 	executeEscalationGuard,
 	extractToolPromptOverrides,
 	fetchServicePlansSection,
+	formatAwaitingTeammateNote,
 	generateAgentResponse,
 	isHumanTakeoverActive,
 	loadHistoryRows,
@@ -28,6 +29,12 @@ import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { scheduleFollowUp } from "../jobs/ai-followup.jobs";
+import {
+	clearAwaitingHuman,
+	markAwaitingHuman,
+	TEAMMATE_BOT_TAKEOVER_AFTER_MS,
+} from "../jobs/ai-teammate-wait.jobs";
+import { handleTeammateWait } from "../lib/teammate-wait";
 import { AI_CHAT_QUEUE_NAME } from "../queues/ai-chat.queue";
 import type { AiChatJobData, AiChatJobResult } from "../types";
 
@@ -42,6 +49,9 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 	return new Worker<AiChatJobData, AiChatJobResult>(
 		AI_CHAT_QUEUE_NAME,
 		async (job: Job<AiChatJobData>) => {
+			if (job.name === "teammate-wait") {
+				return handleTeammateWait(job.data);
+			}
 			const { conversationId, channelId } = job.data;
 
 			logger.info(`Processing AI chat retry job ${job.id}`, {
@@ -94,15 +104,36 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 			}
 			const credentials = resolveAgentCredentials(conversation.agent);
 
-			if (await shouldDeferToTeammate({ conversationId, credentials })) {
-				logger.info("ai-teammate-reply-deferred", {
+			// Resume and the teammate-wait reply force an answer: the admin (or
+			// the 30 min wait) already decided the bot should speak.
+			if (job.data.bypassDeferral) {
+				logger.info("ai-resume-forced-reply", {
 					conversationId,
-					path: "retry-worker",
+					contextNotice: job.data.contextNotice ?? null,
 				});
-				return {
-					success: true,
-					error: "Customer is answering a teammate",
-				};
+			} else {
+				const deferral = await shouldDeferToTeammate({
+					conversationId,
+					credentials,
+				});
+				if (deferral) {
+					logger.info("ai-teammate-reply-deferred", {
+						conversationId,
+						path: "retry-worker",
+						needsAction: deferral.needsAction,
+					});
+					if (deferral.needsAction) {
+						await markAwaitingHuman({
+							conversationId,
+							channelId: conversation.channelId ?? channelId,
+							origin: "deferral",
+						});
+					}
+					return {
+						success: true,
+						error: "Customer is answering a teammate",
+					};
+				}
 			}
 
 			const apiToken = decryptToken(
@@ -199,6 +230,18 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				lastMessageAt: conversation.lastMessageAt,
 				contextGapThresholdMinutes:
 					conversation.agent.contextGapThresholdMinutes,
+				extraNotice:
+					job.data.contextNotice === "awaiting-teammate"
+						? formatAwaitingTeammateNote(
+								conversation.awaitingHumanSince
+									? Math.round(
+											(Date.now() -
+												conversation.awaitingHumanSince.getTime()) /
+												60_000,
+										)
+									: TEAMMATE_BOT_TAKEOVER_AFTER_MS / 60_000,
+							)
+						: undefined,
 			});
 
 			try {
@@ -366,6 +409,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						lastMessageAt: repliedAt,
 					},
 				});
+				await clearAwaitingHuman(conversationId);
 				if (conversation.agent.followUpMinutes) {
 					scheduleFollowUp({
 						conversationId,

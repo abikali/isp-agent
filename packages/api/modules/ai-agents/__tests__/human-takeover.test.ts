@@ -99,6 +99,8 @@ vi.mock("@repo/jobs", () => ({
 	queueAiChatRetry: vi.fn().mockResolvedValue(undefined),
 	scheduleFollowUp: vi.fn().mockResolvedValue(undefined),
 	cancelFollowUp: vi.fn().mockResolvedValue(undefined),
+	markAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+	clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/database", () => ({
@@ -205,6 +207,7 @@ vi.mock("@repo/config", () => ({
 // ── Imports (after mocks) ────────────────────────────────────────────
 
 import { parseWebhookPayload, shouldDeferToTeammate } from "@repo/ai";
+import { clearAwaitingHuman, markAwaitingHuman } from "@repo/jobs";
 import { whatsappWebhookHandler } from "../lib/webhook-handlers";
 
 const mockParseWebhookPayload = vi.mocked(parseWebhookPayload);
@@ -421,6 +424,8 @@ describe("Human Takeover - Bot Echo Detection", () => {
 				humanTakeoverAt: expect.any(Date),
 			},
 		});
+		// The teammate answered: the customer is no longer waiting
+		expect(clearAwaitingHuman).toHaveBeenCalledWith("conv-1");
 	});
 
 	it("does NOT set humanTakeoverAt when humanTakeoverHours is null (feature disabled)", async () => {
@@ -659,6 +664,13 @@ describe("Human Takeover - AI Blocking During Takeover", () => {
 
 		// Should NOT send any message
 		expect(mockSendTextMessage).not.toHaveBeenCalled();
+
+		// The held message starts the teammate wait (alert, then bot reply)
+		expect(markAwaitingHuman).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			channelId: "channel-1",
+			origin: "takeover",
+		});
 	});
 
 	it("clears expired takeover and resumes AI on next customer message", async () => {
@@ -754,7 +766,10 @@ describe("Human Takeover - Customer Answering A Teammate", () => {
 	});
 
 	it("stores the message but does not reply when the gate defers", async () => {
-		mockShouldDeferToTeammate.mockResolvedValue(true);
+		mockShouldDeferToTeammate.mockResolvedValue({
+			defer: true,
+			needsAction: false,
+		});
 
 		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
 		await flushBackground(5000);
@@ -786,6 +801,25 @@ describe("Human Takeover - Customer Answering A Teammate", () => {
 				).humanTakeoverAt instanceof Date,
 		);
 		expect(rearmed).toHaveLength(0);
+		// A pure acknowledgement needs nobody: no wait is tracked.
+		expect(markAwaitingHuman).not.toHaveBeenCalled();
+	});
+
+	it("starts the teammate wait when the deferred message needs action", async () => {
+		mockShouldDeferToTeammate.mockResolvedValue({
+			defer: true,
+			needsAction: true,
+		});
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(markAwaitingHuman).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			channelId: "channel-1",
+			origin: "deferral",
+		});
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
 	});
 
 	it("replies as usual when the gate does not defer", async () => {

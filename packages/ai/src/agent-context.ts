@@ -37,6 +37,11 @@ export interface BuildAgentMessagesInput {
 	now?: Date | undefined;
 	/** When set, the chosen history window is logged as `ai-history-window`. */
 	conversationId?: string | undefined;
+	/**
+	 * A context notice placed right before the trailing run of customer
+	 * messages (e.g. the forced reply after a teammate stayed silent).
+	 */
+	extraNotice?: string | undefined;
 }
 
 /**
@@ -153,6 +158,25 @@ export function buildAgentMessages(
 		historyMessages.push({ role: "user", content: gapNote });
 	}
 	historyMessages.push(...after);
+
+	if (input.extraNotice) {
+		let at = historyMessages.length;
+		while (at > 0) {
+			const prev = historyMessages[at - 1];
+			if (
+				prev?.role !== "user" ||
+				(typeof prev.content === "string" &&
+					prev.content.startsWith("[Context Notice"))
+			) {
+				break;
+			}
+			at--;
+		}
+		historyMessages.splice(at, 0, {
+			role: "user",
+			content: input.extraNotice,
+		});
+	}
 
 	messages.push(...historyMessages);
 

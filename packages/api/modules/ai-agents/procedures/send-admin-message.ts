@@ -10,7 +10,11 @@ import {
 } from "@repo/ai";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
-import { cancelFollowUp, getRedisConnection } from "@repo/jobs";
+import {
+	cancelFollowUp,
+	clearAwaitingHuman,
+	getRedisConnection,
+} from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { getSignedUrl, uploadBuffer } from "@repo/storage";
 import { toE164 } from "@repo/utils";
@@ -328,6 +332,8 @@ export const sendAdminMessage = protectedProcedure
 		});
 		// A teammate is talking — never nudge on top of them.
 		await cancelFollowUp(conversation.id);
+		// The customer got their answer: stop the teammate-wait alert/reply.
+		await clearAwaitingHuman(conversation.id);
 
 		return {
 			message: {

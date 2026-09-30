@@ -136,6 +136,7 @@ export const listAllConversations = protectedProcedure
 				messageCount: true,
 				lastMessageAt: true,
 				humanTakeoverAt: true,
+				awaitingHumanSince: true,
 				followUpDueAt: true,
 				followUpAttempts: true,
 				followUpMuted: true,

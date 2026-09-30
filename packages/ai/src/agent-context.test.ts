@@ -6,7 +6,7 @@ vi.mock("@repo/logs", () => ({
 }));
 
 import { buildAgentMessages } from "./agent-context";
-import type { DbMessageRow } from "./history";
+import { type DbMessageRow, formatAwaitingTeammateNote } from "./history";
 
 const systemOptions = {
 	basePrompt: "You are a support agent.",
@@ -373,5 +373,42 @@ describe("buildAgentMessages – history gap handling", () => {
 			"It is $40/month. Can you send your location pin?",
 			"[Follow-up check]",
 		]);
+	});
+});
+
+describe("buildAgentMessages – extra notice", () => {
+	it("puts the awaiting-teammate notice right before the unanswered customer messages", () => {
+		const now = Date.now();
+		const rows: DbMessageRow[] = [
+			{
+				role: "admin",
+				content: "jehzo masare please",
+				createdAt: new Date(now - 40 * 60_000),
+			},
+			{
+				role: "user",
+				content: "mashi",
+				createdAt: new Date(now - 35 * 60_000),
+			},
+			{
+				role: "user",
+				content: "fik tawleli l internet l lele?",
+				createdAt: new Date(now - 34 * 60_000),
+			},
+		];
+		const out = nonSystem(
+			buildAgentMessages({
+				systemOptions,
+				history: rows,
+				contextGapThresholdMinutes: 240,
+				extraNotice: formatAwaitingTeammateNote(34),
+			}),
+		).map((m) => textOf(m as never));
+
+		expect(out[out.length - 3]).toMatch(
+			/^\[Context Notice: The customer's messages below were written to a human teammate, who has not answered for 34 minutes\. The team was alerted on Telegram\./,
+		);
+		expect(out[out.length - 2]).toBe("mashi");
+		expect(out[out.length - 1]).toBe("fik tawleli l internet l lele?");
 	});
 });

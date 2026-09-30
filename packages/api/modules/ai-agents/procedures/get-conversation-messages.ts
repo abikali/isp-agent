@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { legacyRowToParts } from "@repo/ai";
+import { legacyRowToParts, TEAMMATE_REPLY_WINDOW_MS } from "@repo/ai";
 import {
 	getDealerScopeFilter,
 	requirePermission,
@@ -142,6 +142,13 @@ export const getConversationMessages = protectedProcedure
 			}
 		}
 
+		const botPaused = await resolveBotPaused(
+			input.conversationId,
+			humanTakeoverExpiresAt,
+			conversation.humanTakeoverAt,
+			conversation.awaitingHumanSince,
+		);
+
 		// Resolve linked customers (for username display) via phone match.
 		// Customer.mobile is stored normalized (+961...) so we normalize contactId
 		// the same way before the lookup. Multiple customers may share one phone.
@@ -173,6 +180,8 @@ export const getConversationMessages = protectedProcedure
 				status: conversation.status,
 				humanTakeoverAt: conversation.humanTakeoverAt,
 				humanTakeoverExpiresAt,
+				awaitingHumanSince: conversation.awaitingHumanSince,
+				botPaused,
 				channel: conversation.channel,
 				customers,
 			},
@@ -180,3 +189,67 @@ export const getConversationMessages = protectedProcedure
 			nextCursor,
 		};
 	});
+
+export interface BotPaused {
+	/**
+	 * takeover = a teammate wrote and the AI is paused; awaiting-human = the
+	 * customer is waiting on a teammate (alert/reply jobs pending);
+	 * deferred-ack = the AI likely stayed silent because the customer seemed
+	 * to answer a teammate.
+	 */
+	reason: "takeover" | "awaiting-human" | "deferred-ack";
+	since: Date;
+	/** Takeover only: when the AI resumes on its own. */
+	until: Date | null;
+}
+
+/**
+ * Why the AI is not answering this chat right now, so the dashboard can show
+ * the banner with a "let AI answer" button. Null when the AI is free to reply.
+ */
+async function resolveBotPaused(
+	conversationId: string,
+	takeoverExpiresAt: Date | null,
+	takeoverAt: Date | null,
+	awaitingHumanSince: Date | null,
+): Promise<BotPaused | null> {
+	if (takeoverExpiresAt && takeoverAt) {
+		return {
+			reason: "takeover",
+			since: takeoverAt,
+			until: takeoverExpiresAt,
+		};
+	}
+	if (awaitingHumanSince) {
+		return {
+			reason: "awaiting-human",
+			since: awaitingHumanSince,
+			until: null,
+		};
+	}
+	const [last, lastNonCustomer] = await Promise.all([
+		db.aiMessage.findFirst({
+			where: { conversationId },
+			orderBy: { createdAt: "desc" },
+			select: { role: true, createdAt: true },
+		}),
+		db.aiMessage.findFirst({
+			where: { conversationId, role: { not: "user" } },
+			orderBy: { createdAt: "desc" },
+			select: { role: true, createdAt: true },
+		}),
+	]);
+	if (
+		last?.role === "user" &&
+		lastNonCustomer?.role === "admin" &&
+		last.createdAt.getTime() - lastNonCustomer.createdAt.getTime() <=
+			TEAMMATE_REPLY_WINDOW_MS
+	) {
+		return {
+			reason: "deferred-ack",
+			since: lastNonCustomer.createdAt,
+			until: null,
+		};
+	}
+	return null;
+}

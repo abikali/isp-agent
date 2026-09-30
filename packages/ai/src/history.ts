@@ -61,6 +61,15 @@ export function formatContextGapNote(
 }
 
 /**
+ * The note placed before the customer's unanswered messages when the bot is
+ * forced to answer after a teammate stayed silent (teammate-wait). The team
+ * was already alerted on Telegram, so saying so is true.
+ */
+export function formatAwaitingTeammateNote(minutesWaiting: number): string {
+	return `[Context Notice: The customer's messages below were written to a human teammate, who has not answered for ${minutesWaiting} minutes. The team was alerted on Telegram. Answer what you can now, apologise for the wait, and tell the customer the team has been notified — do not claim a teammate is replying right now.]`;
+}
+
+/**
  * The note placed at the top of the history when older rows were cut from
  * the context (they stay in the DB). The model must not assume anything about
  * them. `nextAt` = when the first shown message (or the new request) came.

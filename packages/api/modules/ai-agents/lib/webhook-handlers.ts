@@ -38,7 +38,9 @@ import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
 import {
 	cancelFollowUp,
+	clearAwaitingHuman,
 	getRedisConnection,
+	markAwaitingHuman,
 	queueAiChatRetry,
 	scheduleFollowUp,
 } from "@repo/jobs";
@@ -452,6 +454,7 @@ async function handleMessages(
 
 				// A human is replying — never nudge on top of them.
 				void cancelFollowUp(takeoverConversation.id);
+				await clearAwaitingHuman(takeoverConversation.id);
 				// Update conversation: bump lastMessageAt, and activate
 				// takeover if the feature is enabled on the agent.
 				await db.aiConversation.update({
@@ -732,6 +735,18 @@ async function handleMessages(
 						...attachmentData,
 					} as never,
 				});
+				// Held for the teammate: if nobody answers, alert the team
+				// and eventually let the bot reply (teammate-wait).
+				await markAwaitingHuman({
+					conversationId: conversation.id,
+					channelId: channel.id,
+					origin: "takeover",
+				}).catch((error) =>
+					logger.error("ai-awaiting-human-mark-failed", {
+						conversationId: conversation.id,
+						error: String(error),
+					}),
+				);
 				continue;
 			}
 			// Clear expired takeover if present. Conditional on the stored
@@ -782,6 +797,7 @@ async function handleMessages(
 						content: whishReply,
 					},
 				});
+				await clearAwaitingHuman(conversation.id);
 				await db.aiConversation.update({
 					where: { id: conversation.id },
 					data: {
@@ -804,17 +820,31 @@ async function handleMessages(
 
 			// Takeover expired, but the customer may still be answering the
 			// teammate who wrote last — leave that to the team. The message is
-			// stored; humanTakeoverAt is deliberately left alone.
-			if (
-				await shouldDeferToTeammate({
-					conversationId: conversation.id,
-					credentials,
-				})
-			) {
+			// stored; humanTakeoverAt is deliberately left alone. When the
+			// message still needs someone, the wait is tracked so the team is
+			// alerted and the bot answers if nobody does.
+			const deferral = await shouldDeferToTeammate({
+				conversationId: conversation.id,
+				credentials,
+			});
+			if (deferral) {
 				logger.info("ai-teammate-reply-deferred", {
 					conversationId: conversation.id,
 					path: "webhook",
+					needsAction: deferral.needsAction,
 				});
+				if (deferral.needsAction) {
+					await markAwaitingHuman({
+						conversationId: conversation.id,
+						channelId: channel.id,
+						origin: "deferral",
+					}).catch((error) =>
+						logger.error("ai-awaiting-human-mark-failed", {
+							conversationId: conversation.id,
+							error: String(error),
+						}),
+					);
+				}
 				continue;
 			}
 
@@ -1032,6 +1062,7 @@ async function handleMessages(
 										content: ackMessage,
 									},
 								});
+								await clearAwaitingHuman(conversation.id);
 
 								await db.aiConversation.update({
 									where: { id: conversation.id },
@@ -1327,6 +1358,7 @@ async function handleMessages(
 
 							// Update conversation counters
 							const repliedAt = new Date();
+							await clearAwaitingHuman(conversation.id);
 							await db.aiConversation.update({
 								where: {
 									id: conversation.id,

@@ -16,8 +16,11 @@ vi.mock("./classify", () => ({ classifyText }));
 
 import {
 	buildTeammateReplyPrompt,
+	complainsNoReply,
+	isBarePing,
 	shouldDeferToTeammate,
 	type TeammateReplyRow,
+	teammateActionNeeded,
 } from "./teammate-reply";
 
 const TEAMMATE_AT = new Date("2026-09-14T06:00:00Z");
@@ -49,6 +52,7 @@ describe("shouldDeferToTeammate", () => {
 		]);
 		classifyText.mockResolvedValue({
 			addressedToTeammate: true,
+			needsTeammateAction: false,
 			reason: "answers the payment request",
 		});
 
@@ -60,7 +64,7 @@ describe("shouldDeferToTeammate", () => {
 				} as const,
 				conversationId: "conv-1",
 			}),
-		).resolves.toBe(true);
+		).resolves.toEqual({ defer: true, needsAction: false });
 
 		expect(findMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -84,6 +88,7 @@ describe("shouldDeferToTeammate", () => {
 		]);
 		classifyText.mockResolvedValue({
 			addressedToTeammate: false,
+			needsTeammateAction: true,
 			reason: "new outage report",
 		});
 
@@ -147,9 +152,11 @@ describe("shouldDeferToTeammate", () => {
 		expect(classifyText).not.toHaveBeenCalled();
 	});
 
-	it("skips the classifier when the teammate wrote more than 24h earlier", async () => {
+	it("skips the classifier when the teammate wrote more than 6h earlier", async () => {
 		findFirst.mockResolvedValue(teammate);
-		findMany.mockResolvedValue([row("user", "ok thanks", hoursAfter(25))]);
+		findMany.mockResolvedValue([
+			row("user", "ok thanks", hoursAfter(6.02)),
+		]);
 
 		await expect(
 			shouldDeferToTeammate({
@@ -177,6 +184,144 @@ describe("shouldDeferToTeammate", () => {
 			}),
 		).resolves.toBe(false);
 		expect(classifyText).not.toHaveBeenCalled();
+	});
+});
+
+const credentials = { provider: "openrouter", apiKey: "test" } as const;
+
+describe("shouldDeferToTeammate — v2 window, overrides, needsAction", () => {
+	it("classifies at 5h59 and replies without classifying at 6h01", async () => {
+		findFirst.mockResolvedValue(teammate);
+		classifyText.mockResolvedValue({
+			addressedToTeammate: true,
+			needsTeammateAction: false,
+			reason: "ack",
+		});
+
+		findMany.mockResolvedValue([
+			row("user", "ok merci", hoursAfter(5 + 59 / 60)),
+		]);
+		await expect(
+			shouldDeferToTeammate({ credentials, conversationId: "conv-1" }),
+		).resolves.toEqual({ defer: true, needsAction: false });
+		expect(classifyText).toHaveBeenCalledTimes(1);
+
+		findMany.mockResolvedValue([
+			row("user", "ok merci", hoursAfter(6 + 1 / 60)),
+		]);
+		await expect(
+			shouldDeferToTeammate({ credentials, conversationId: "conv-1" }),
+		).resolves.toBe(false);
+		expect(classifyText).toHaveBeenCalledTimes(1);
+	});
+
+	it("propagates needsTeammateAction", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([
+			row("user", "johnny please turn my internet on", hoursAfter(1)),
+		]);
+		classifyText.mockResolvedValue({
+			addressedToTeammate: true,
+			needsTeammateAction: true,
+			reason: "asks the teammate to act",
+		});
+
+		await expect(
+			shouldDeferToTeammate({ credentials, conversationId: "conv-1" }),
+		).resolves.toEqual({ defer: true, needsAction: true });
+	});
+
+	it("does not defer, and skips the classifier, when the customer says nobody replied", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([
+			row("user", "leh ma radet 3a laye ?", hoursAfter(1.2)),
+		]);
+
+		await expect(
+			shouldDeferToTeammate({ credentials, conversationId: "conv-1" }),
+		).resolves.toBe(false);
+		expect(classifyText).not.toHaveBeenCalled();
+	});
+
+	it("treats a bare ?? 73 min after the teammate as a ping", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([
+			row("user", "??", new Date(TEAMMATE_AT.getTime() + 73 * 60_000)),
+		]);
+
+		await expect(
+			shouldDeferToTeammate({ credentials, conversationId: "conv-1" }),
+		).resolves.toBe(false);
+		expect(classifyText).not.toHaveBeenCalled();
+	});
+
+	it("leaves a ?? 3 min after the teammate to the classifier", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([
+			row("user", "??", new Date(TEAMMATE_AT.getTime() + 3 * 60_000)),
+		]);
+		classifyText.mockResolvedValue({
+			addressedToTeammate: true,
+			needsTeammateAction: false,
+			reason: "reacting to the teammate",
+		});
+
+		await shouldDeferToTeammate({ credentials, conversationId: "conv-1" });
+		expect(classifyText).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("teammateActionNeeded", () => {
+	it("is true when the classifier fails", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([row("user", "ok", hoursAfter(0.2))]);
+		classifyText.mockResolvedValue(null);
+
+		await expect(
+			teammateActionNeeded({ credentials, conversationId: "conv-1" }),
+		).resolves.toBe(true);
+	});
+
+	it("is false for a pure acknowledgement", async () => {
+		findFirst.mockResolvedValue(teammate);
+		findMany.mockResolvedValue([row("user", "👍", hoursAfter(0.2))]);
+		classifyText.mockResolvedValue({
+			addressedToTeammate: true,
+			needsTeammateAction: false,
+			reason: "thumbs up",
+		});
+
+		await expect(
+			teammateActionNeeded({ credentials, conversationId: "conv-1" }),
+		).resolves.toBe(false);
+	});
+});
+
+describe("complainsNoReply", () => {
+	it.each([
+		"leh ma radet 3a laye ?",
+		"ليش ما رديت",
+		"nobody answered me",
+		"personne ne répond",
+		"ma 7ada rad",
+	])("matches %s", (text) => {
+		expect(complainsNoReply(text)).toBe(true);
+	});
+
+	it("does not match a plain thank-you", () => {
+		expect(complainsNoReply("ok merci")).toBe(false);
+	});
+});
+
+describe("isBarePing", () => {
+	it("needs only punctuation, at least 10 minutes after the teammate", () => {
+		const at = (m: number) => new Date(TEAMMATE_AT.getTime() + m * 60_000);
+		expect(isBarePing(teammate, [row("user", "??", at(73))])).toBe(true);
+		expect(isBarePing(teammate, [row("user", "؟؟", at(15))])).toBe(true);
+		expect(isBarePing(teammate, [row("user", "??", at(3))])).toBe(false);
+		expect(isBarePing(teammate, [row("user", "shu??", at(73))])).toBe(
+			false,
+		);
 	});
 });
 

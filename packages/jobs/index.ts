@@ -7,6 +7,13 @@ export {
 	countRecentFollowUps,
 	scheduleFollowUp,
 } from "./src/jobs/ai-followup.jobs";
+export {
+	cancelTeammateWait,
+	clearAwaitingHuman,
+	markAwaitingHuman,
+	TEAMMATE_ALERT_AFTER_MS,
+	TEAMMATE_BOT_TAKEOVER_AFTER_MS,
+} from "./src/jobs/ai-teammate-wait.jobs";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
 export {
 	queueEmail,

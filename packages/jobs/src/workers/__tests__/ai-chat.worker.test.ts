@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
+const { mockDb, mockRedis, mockAi, mockTeammateWait } = vi.hoisted(() => ({
+	mockTeammateWait: {
+		clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+		markAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+		handleTeammateWait: vi.fn().mockResolvedValue({ success: true }),
+	},
 	mockDb: {
 		aiConversation: {
 			findUnique: vi.fn(),
@@ -26,6 +31,11 @@ const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
 		executeEscalationGuard: vi.fn().mockResolvedValue(null),
 		extractToolPromptOverrides: vi.fn().mockReturnValue({}),
 		fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
+		formatAwaitingTeammateNote: vi
+			.fn()
+			.mockImplementation(
+				(m: number) => `[Context Notice: waiting ${m}]`,
+			),
 		generateAgentResponse: vi.fn().mockResolvedValue({
 			text: "AI response",
 			toolResults: null,
@@ -79,6 +89,14 @@ vi.mock("../../jobs/ai-followup.jobs", () => ({
 }));
 vi.mock("../../queues/ai-chat.queue", () => ({
 	AI_CHAT_QUEUE_NAME: "ai-chat",
+}));
+vi.mock("../../jobs/ai-teammate-wait.jobs", () => ({
+	clearAwaitingHuman: mockTeammateWait.clearAwaitingHuman,
+	markAwaitingHuman: mockTeammateWait.markAwaitingHuman,
+	TEAMMATE_BOT_TAKEOVER_AFTER_MS: 30 * 60_000,
+}));
+vi.mock("../../lib/teammate-wait", () => ({
+	handleTeammateWait: mockTeammateWait.handleTeammateWait,
 }));
 
 import { createAiChatWorker } from "../ai-chat.worker";
@@ -138,7 +156,10 @@ describe("AI chat retry worker - teammate reply gate", () => {
 	});
 
 	it("does not reply when the customer is answering a teammate", async () => {
-		mockAi.shouldDeferToTeammate.mockResolvedValue(true);
+		mockAi.shouldDeferToTeammate.mockResolvedValue({
+			defer: true,
+			needsAction: false,
+		});
 
 		const result = await processor(job);
 
@@ -173,5 +194,93 @@ describe("AI chat retry worker - teammate reply gate", () => {
 			error: "Human takeover active",
 		});
 		expect(mockAi.shouldDeferToTeammate).not.toHaveBeenCalled();
+	});
+});
+
+describe("AI chat retry worker - forced replies and the teammate wait", () => {
+	let processor: (job: Record<string, unknown>) => Promise<unknown>;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockDb.aiConversation.findUnique.mockResolvedValue(conversation);
+		mockAi.shouldDeferToTeammate.mockResolvedValue(false);
+		createAiChatWorker();
+		if (!capturedProcessor) {
+			throw new Error("Worker processor was not captured");
+		}
+		processor = capturedProcessor;
+	});
+
+	it("bypassDeferral skips the teammate gate and replies", async () => {
+		mockAi.shouldDeferToTeammate.mockResolvedValue({
+			defer: true,
+			needsAction: true,
+		});
+
+		const result = await processor({
+			...job,
+			data: { ...job.data, bypassDeferral: true },
+		});
+
+		expect(result).toEqual({ success: true });
+		expect(mockAi.shouldDeferToTeammate).not.toHaveBeenCalled();
+		expect(mockAi.sendTextMessage).toHaveBeenCalled();
+		expect(mockTeammateWait.clearAwaitingHuman).toHaveBeenCalledWith(
+			"conv-1",
+		);
+	});
+
+	it("adds the awaiting-teammate notice to a teammate-wait reply", async () => {
+		mockDb.aiConversation.findUnique.mockResolvedValue({
+			...conversation,
+			awaitingHumanSince: new Date(Date.now() - 31 * 60_000),
+		});
+
+		await processor({
+			...job,
+			data: {
+				...job.data,
+				bypassDeferral: true,
+				contextNotice: "awaiting-teammate",
+			},
+		});
+
+		expect(mockAi.formatAwaitingTeammateNote).toHaveBeenCalledWith(31);
+		expect(mockAi.buildAgentMessages).toHaveBeenCalledWith(
+			expect.objectContaining({
+				extraNotice: "[Context Notice: waiting 31]",
+			}),
+		);
+	});
+
+	it("starts the teammate wait when a deferred message needs action", async () => {
+		mockAi.shouldDeferToTeammate.mockResolvedValue({
+			defer: true,
+			needsAction: true,
+		});
+
+		await processor(job);
+
+		expect(mockTeammateWait.markAwaitingHuman).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			channelId: "channel-1",
+			origin: "deferral",
+		});
+		expect(mockAi.sendTextMessage).not.toHaveBeenCalled();
+	});
+
+	it("routes teammate-wait jobs to their handler", async () => {
+		const waitJob = {
+			...job,
+			name: "teammate-wait",
+			data: { ...job.data, stage: "alert", origin: "takeover" },
+		};
+
+		await processor(waitJob);
+
+		expect(mockTeammateWait.handleTeammateWait).toHaveBeenCalledWith(
+			waitJob.data,
+		);
+		expect(mockDb.aiConversation.findUnique).not.toHaveBeenCalled();
 	});
 });
