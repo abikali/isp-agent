@@ -40,6 +40,7 @@ import {
 	LineChartIcon,
 	type LucideIcon,
 	MegaphoneIcon,
+	MessageCircleReplyIcon,
 	MessageSquareIcon,
 	PackageIcon,
 	PanelLeftCloseIcon,
@@ -287,6 +288,11 @@ export function AppSidebar() {
 						label: "Conversations",
 						to: `${basePath}/conversations`,
 						icon: MessageSquareIcon,
+					},
+					{
+						label: "Bot follow-ups",
+						to: `${basePath}/conversations/follow-ups`,
+						icon: MessageCircleReplyIcon,
 					},
 				);
 			}

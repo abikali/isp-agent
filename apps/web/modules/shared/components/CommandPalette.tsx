@@ -27,6 +27,7 @@ import {
 	HardHatIcon,
 	HomeIcon,
 	MegaphoneIcon,
+	MessageCircleReplyIcon,
 	MessageSquareIcon,
 	MonitorIcon,
 	MoonIcon,
@@ -254,6 +255,11 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 				label: "Conversations",
 				to: `${basePath}/conversations`,
 				icon: MessageSquareIcon,
+			});
+			items.push({
+				label: "Bot follow-ups",
+				to: `${basePath}/conversations/follow-ups`,
+				icon: MessageCircleReplyIcon,
 			});
 		}
 		if (hasPermission("watchers", "read")) {

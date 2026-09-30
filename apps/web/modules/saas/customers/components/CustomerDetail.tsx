@@ -56,6 +56,7 @@ import {
 	ActivityIcon,
 	AlertCircleIcon,
 	CheckCircle2Icon,
+	MessageSquareIcon,
 	MoreVerticalIcon,
 	NetworkIcon,
 	PlusIcon,
@@ -84,6 +85,7 @@ import {
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
 import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
+import { CustomerBotTab } from "./CustomerBotTab";
 import { CustomerFollowups } from "./CustomerFollowups";
 import { CustomerInstallations } from "./CustomerInstallations";
 import { CustomerInvoices } from "./CustomerInvoices";
@@ -616,6 +618,17 @@ export function CustomerDetail({
 							icon: WrenchIcon,
 							content: (
 								<FieldTab
+									customerId={customerId}
+									organizationSlug={organizationSlug}
+								/>
+							),
+						},
+						{
+							id: "bot",
+							label: "Bot",
+							icon: MessageSquareIcon,
+							content: (
+								<CustomerBotTab
 									customerId={customerId}
 									organizationSlug={organizationSlug}
 								/>

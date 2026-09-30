@@ -34,6 +34,7 @@ import {
 import type { ReactNode } from "react";
 import { getAvatarColor, getContactInitials } from "../lib/chat-utils";
 import { ConversationFollowUpSection } from "./ConversationFollowUpSection";
+import { ConversationSummariesSection } from "./ConversationSummariesSection";
 import type { ConversationItem } from "./ConversationsListPanel";
 
 interface ConversationContextPanelProps {
@@ -534,6 +535,11 @@ export function ConversationContextPanel({
 					organizationId={organizationId}
 				/>
 			)}
+
+			<ConversationSummariesSection
+				conversationId={conversation.id}
+				organizationId={organizationId}
+			/>
 
 			<Section title="Agent">
 				<Row

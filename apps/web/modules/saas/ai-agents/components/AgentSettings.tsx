@@ -70,6 +70,7 @@ import {
 	type LlmProvider,
 	type PromptSection,
 } from "../lib/constants";
+import { AgentOutreachSettings } from "./AgentOutreachSettings";
 import { ApiKeyTestButton } from "./ApiKeyTestButton";
 import { MaintenanceWindows } from "./MaintenanceWindows";
 import { ToolConfigDialog } from "./ToolConfigDialog";
@@ -1140,6 +1141,12 @@ export function AgentSettings({
 						</ToggleCard>
 					)}
 				</form.Field>
+
+				<AgentOutreachSettings
+					agentId={agentId}
+					organizationId={organizationId}
+					agent={agent}
+				/>
 
 				{/* Accordion sections */}
 				<Accordion
