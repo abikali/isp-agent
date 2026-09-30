@@ -146,12 +146,14 @@ import {
 	getPaymentFlagLabel,
 	getPaymentFlagVariant,
 	getPaymentRowClassName,
+	isAlignToFirstHint,
 	isAmountMismatch,
 	isPlanChangeRequest,
 	isRepriceCandidate,
 	isUnreviewed,
 	NOTE_CATEGORY_LABELS,
 } from "../lib/billing-utils";
+import { AlignToFirstDialog } from "./AlignToFirstDialog";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { CollectorSelect, GroupSelect } from "./BillingFilters";
 import { ChangePlanDialog } from "./ChangePlanDialog";
@@ -894,6 +896,11 @@ export function PaymentsList() {
 	// price the customer agreed at the door.
 	const [repriceDialog, setRepriceDialog] =
 		useState<RepricePaymentTarget | null>(null);
+	// "Align to 1st": the collector took the days up to the 1st.
+	const [alignDialog, setAlignDialog] = useState<{
+		paymentId: string;
+		customerName: string;
+	} | null>(null);
 	// "Diagnose" row action — the live iRadius report the Telegram bot gives.
 	// One sheet for the page; the row only picks the customer.
 	const [diagnoseTarget, setDiagnoseTarget] = useState<{
@@ -1382,6 +1389,15 @@ export function PaymentsList() {
 					const isPendingStopped =
 						payment.stoppedAccount && payment.reviewedAt === null;
 					const canReprice = isRepriceCandidate(payment);
+					const alignHint = isAlignToFirstHint(payment);
+					const openAlign = () =>
+						setAlignDialog({
+							paymentId: payment.id,
+							customerName: displayName(
+								payment.customer.firstName,
+								payment.customer.lastName,
+							),
+						});
 					const openReprice = () =>
 						setRepriceDialog({
 							id: payment.id,
@@ -1473,11 +1489,26 @@ export function PaymentsList() {
 							    add-ons). The green check stays next to it — an
 							    admin may approve as-is and leave the remainder
 							    owed. */}
-							{organizationId && canReprice && (
+							{organizationId && alignHint && (
 								<Button
 									size="sm"
 									variant="outline"
 									className="border-amber-500/60 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+									onClick={openAlign}
+								>
+									<CalendarClockIcon className="mr-1.5 size-3.5" />
+									Align to 1st
+								</Button>
+							)}
+							{organizationId && canReprice && (
+								<Button
+									size="sm"
+									variant={alignHint ? "ghost" : "outline"}
+									className={
+										alignHint
+											? undefined
+											: "border-amber-500/60 text-amber-700 hover:bg-amber-500/10 dark:text-amber-400"
+									}
 									onClick={openReprice}
 								>
 									<SlidersHorizontalIcon className="mr-1.5 size-3.5" />
@@ -1891,6 +1922,14 @@ export function PaymentsList() {
 											>
 												<SlidersHorizontalIcon className="mr-2 size-3.5" />
 												Adjust pricing & review
+											</DropdownMenuItem>
+										)}
+										{canReprice && (
+											<DropdownMenuItem
+												onClick={openAlign}
+											>
+												<CalendarClockIcon className="mr-2 size-3.5" />
+												Align to 1st & review
 											</DropdownMenuItem>
 										)}
 										{payment.customer.externalId && (
@@ -2562,6 +2601,16 @@ export function PaymentsList() {
 					customerName={diagnoseTarget.customerName}
 					open={!!diagnoseTarget}
 					onOpenChange={(o) => !o && setDiagnoseTarget(null)}
+				/>
+			)}
+
+			{organizationId && alignDialog && (
+				<AlignToFirstDialog
+					key={alignDialog.paymentId}
+					open={!!alignDialog}
+					onOpenChange={(o) => !o && setAlignDialog(null)}
+					organizationId={organizationId}
+					target={alignDialog}
 				/>
 			)}
 

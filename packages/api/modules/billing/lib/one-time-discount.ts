@@ -91,3 +91,17 @@ export async function applyOneTimeDiscount(
 		totalWithTax: data.totalWithTax,
 	};
 }
+
+/** Σ one-time discounts recorded in an invoice note, for the collector card. */
+export function oneTimeDiscountFromNote(
+	note: string | null | undefined,
+): number {
+	if (!note) {
+		return 0;
+	}
+	let sum = 0;
+	for (const m of note.matchAll(/One-time discount −\$(\d+(?:\.\d+)?)/g)) {
+		sum += Number(m[1]);
+	}
+	return round2(sum);
+}

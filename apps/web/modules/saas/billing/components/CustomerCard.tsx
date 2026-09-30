@@ -40,6 +40,8 @@ export interface UnpaidCustomer {
 	address?: string | null;
 	groupName?: string | null;
 	oldestUnpaidExpiry?: string | Date | null;
+	/** One-time ("this month only") discounts already taken off what is owed. */
+	oneTimeDiscount?: number;
 	monthlyRate?: number | null;
 	discount?: number | null;
 	iptvPrice?: number | null;
@@ -196,6 +198,12 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 						<p className="text-lg font-bold tabular-nums">
 							{formatCurrency(totalDue)}
 						</p>
+						{(customer.oneTimeDiscount ?? 0) > 0 && (
+							<p className="text-xs text-muted-foreground tabular-nums">
+								−{formatCurrency(customer.oneTimeDiscount ?? 0)}{" "}
+								one-time
+							</p>
+						)}
 						{unpaidMonths > 1 && (
 							<p className="text-xs text-muted-foreground tabular-nums">
 								{/* Partially-paid months carry only their

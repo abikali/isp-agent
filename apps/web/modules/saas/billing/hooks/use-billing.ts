@@ -585,6 +585,70 @@ export function useRepriceAndReview() {
 	});
 }
 
+interface AlignToFirstInput {
+	organizationId: string;
+	paymentId?: string;
+	invoiceId?: string;
+	targetExpiry?: string;
+	billableDays?: number;
+	chargeDealer?: boolean;
+}
+
+/**
+ * "Align to 1st" preview: days to add, the dealer's prorated charge and the
+ * customer's prorated amount. Read-only (reads iRadius live).
+ */
+export function useAlignToFirstPreview(input: AlignToFirstInput | null) {
+	return useQuery(
+		input
+			? {
+					...orpc.billing.payments.alignToFirstPreview.queryOptions({
+						input,
+					}),
+					staleTime: 0,
+				}
+			: disabledQuery(["billing", "payments", "alignToFirstPreview"]),
+	);
+}
+
+/**
+ * "Align to 1st": moves the expiry to the 1st in iRadius (charging the
+ * dealer), prorates the month's invoice and reviews the payment. Touches the
+ * customer row too, so both caches go stale.
+ */
+export function useAlignToFirst() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.payments.alignToFirst.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.key(),
+			});
+		},
+	});
+}
+
+/** "This month only" discount on one invoice — local, never the customer. */
+export function useApplyOneTimeDiscount() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		...orpc.billing.invoices.applyOneTimeDiscount.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.billing.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.customers.listInvoices.key(),
+			});
+		},
+	});
+}
+
 export function useReviewPayments() {
 	const queryClient = useQueryClient();
 

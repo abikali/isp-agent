@@ -68,6 +68,8 @@ type PreviewData = Awaited<
 
 const KEEP_PLAN = "__keep__";
 
+type PricingScope = "recurring" | "thisMonth";
+
 /**
  * "Adjust pricing & review": the collector took a price the customer agreed
  * at the door — a different plan, a discount, a dropped add-on. The admin
@@ -88,6 +90,15 @@ export function RepricePaymentDialog({
 	const preview = usePreviewAccountTypeChange();
 	const reprice = useRepriceAndReview();
 
+	// "This month only" is the default for doorstep discounts — the one-off
+	// cases sit there; a recurring discount would come back every month.
+	const defaultScope: PricingScope =
+		payment.noteCategory === "DISCOUNT" ? "thisMonth" : "recurring";
+	const defaultOneTime = String(
+		Math.max(0, payment.expectedTotal - payment.paidAmount),
+	);
+	const [scope, setScope] = useState<PricingScope>(defaultScope);
+	const [oneTime, setOneTime] = useState(defaultOneTime);
 	const [planId, setPlanId] = useState(KEEP_PLAN);
 	const [discount, setDiscount] = useState(String(payment.discount));
 	const [iptvPrice, setIptvPrice] = useState(String(payment.iptvPrice));
@@ -135,15 +146,27 @@ export function RepricePaymentDialog({
 	// the invoice froze); then nothing changes on the customer and the
 	// invoice is the only thing left to reprice.
 	const invoiceStale = Math.abs(newTotal - payment.expectedTotal) > 0.01;
-	const canApply = changed || invoiceStale;
-	const invalid = [discount, iptvPrice, realIpPrice].some((v) => {
+	const oneTimeNum = parseAmount(oneTime);
+	const thisMonth = scope === "thisMonth";
+	const canApply = thisMonth
+		? oneTimeNum > 0 && oneTimeNum <= payment.expectedTotal + 0.001
+		: changed || invoiceStale;
+	const invalid = (
+		thisMonth ? [oneTime] : [discount, iptvPrice, realIpPrice]
+	).some((v) => {
 		const n = Number.parseFloat(v);
 		return !Number.isFinite(n) || n < 0;
 	});
+	const monthDue = thisMonth
+		? Math.max(0, payment.expectedTotal - oneTimeNum)
+		: newTotal;
+	const monthRemaining = monthDue - payment.paidAmount;
 	const busy = preview.isPending || reprice.isPending;
 
 	function handleOpenChange(next: boolean) {
 		if (!next) {
+			setScope(defaultScope);
+			setOneTime(defaultOneTime);
 			setPlanId(KEEP_PLAN);
 			setDiscount(String(payment.discount));
 			setIptvPrice(String(payment.iptvPrice));
@@ -156,7 +179,7 @@ export function RepricePaymentDialog({
 	}
 
 	async function handleContinue() {
-		if (planChanged) {
+		if (!thisMonth && planChanged) {
 			try {
 				setPreviewData(
 					await preview.mutateAsync({
@@ -178,20 +201,33 @@ export function RepricePaymentDialog({
 	async function handleConfirm() {
 		try {
 			setResult(
-				await reprice.mutateAsync({
-					organizationId,
-					paymentId: payment.id,
-					...(planChanged ? { newPlanId: planId } : {}),
-					...(Math.abs(discountNum - payment.recordedDiscount) > 0.001
-						? { discount: discountNum }
-						: {}),
-					...(Math.abs(iptvNum - payment.iptvPrice) > 0.001
-						? { iptvPrice: iptvNum }
-						: {}),
-					...(Math.abs(realIpNum - payment.realIpPrice) > 0.001
-						? { realIpPrice: realIpNum }
-						: {}),
-				}),
+				await reprice.mutateAsync(
+					thisMonth
+						? {
+								organizationId,
+								paymentId: payment.id,
+								scope: "thisMonth",
+								oneTimeDiscount: oneTimeNum,
+							}
+						: {
+								organizationId,
+								paymentId: payment.id,
+								...(planChanged ? { newPlanId: planId } : {}),
+								...(Math.abs(
+									discountNum - payment.recordedDiscount,
+								) > 0.001
+									? { discount: discountNum }
+									: {}),
+								...(Math.abs(iptvNum - payment.iptvPrice) >
+								0.001
+									? { iptvPrice: iptvNum }
+									: {}),
+								...(Math.abs(realIpNum - payment.realIpPrice) >
+								0.001
+									? { realIpPrice: realIpNum }
+									: {}),
+							},
+				),
 			);
 		} catch (err) {
 			toast.error(
@@ -214,8 +250,9 @@ export function RepricePaymentDialog({
 							<DialogTitle>Pricing applied</DialogTitle>
 						</div>
 						<DialogDescription>
-							The customer, this payment and its month were
-							repriced and the payment marked reviewed.
+							{thisMonth
+								? "This month's invoice was discounted once and the payment marked reviewed. The customer's price is unchanged."
+								: "The customer, this payment and its month were repriced and the payment marked reviewed."}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
@@ -314,7 +351,62 @@ export function RepricePaymentDialog({
 					)}
 				</div>
 
-				{!confirming ? (
+				<div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+					{(
+						[
+							["thisMonth", "This month only"],
+							["recurring", "Every month"],
+						] as const
+					).map(([value, label]) => (
+						<Button
+							key={value}
+							type="button"
+							size="sm"
+							variant={scope === value ? "secondary" : "ghost"}
+							className={
+								scope === value ? "bg-card shadow-xs" : ""
+							}
+							onClick={() => {
+								setScope(value);
+								setConfirming(false);
+							}}
+							disabled={busy}
+						>
+							{label}
+						</Button>
+					))}
+				</div>
+				<p className="-mt-2 text-xs text-muted-foreground">
+					{thisMonth
+						? "Lowers only this month's invoice. The customer and iRadius keep their price."
+						: "Changes the customer's price in iRadius and here, for every month from now on."}
+				</p>
+
+				{thisMonth ? (
+					confirming ? (
+						<div className="rounded-lg border p-3 text-sm">
+							One-time discount{" "}
+							<span className="font-medium">
+								−{formatCurrency(oneTimeNum)}
+							</span>{" "}
+							on this month's invoice only.
+						</div>
+					) : (
+						<div className="space-y-2">
+							<Label htmlFor="reprice-one-time">
+								Discount this month
+							</Label>
+							<Input
+								id="reprice-one-time"
+								type="number"
+								step="0.01"
+								min="0"
+								value={oneTime}
+								onChange={(e) => setOneTime(e.target.value)}
+							/>
+						</div>
+					)
+				) : !confirming ? (
 					<div className="space-y-4">
 						<div className="space-y-2">
 							<Label htmlFor="reprice-plan">Plan</Label>
@@ -469,21 +561,23 @@ export function RepricePaymentDialog({
 							Month due{confirming ? "" : " (estimate)"}:
 						</span>
 						<span className="font-medium">
-							{formatCurrency(newTotal)}
+							{formatCurrency(monthDue)}
 						</span>
 						<span className="text-muted-foreground">Paid:</span>
 						<span>{formatCurrency(payment.paidAmount)}</span>
 						<span className="text-muted-foreground">
-							{remaining > 0.01 ? "Still owed:" : "Difference:"}
+							{monthRemaining > 0.01
+								? "Still owed:"
+								: "Difference:"}
 						</span>
 						<span
 							className={
-								remaining > 0.01
+								monthRemaining > 0.01
 									? "text-destructive"
 									: "text-green-600"
 							}
 						>
-							{formatCurrency(Math.abs(remaining))}
+							{formatCurrency(Math.abs(monthRemaining))}
 						</span>
 					</div>
 				</div>

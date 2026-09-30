@@ -79,6 +79,7 @@ export const listCustomerInvoices = protectedProcedure
 					total: true,
 					tax: true,
 					totalWithTax: true,
+					note: true,
 					voidedAt: true,
 					payments: { select: { id: true }, take: 1 },
 				},

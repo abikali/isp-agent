@@ -32,9 +32,11 @@ import {
 } from "@ui/components/select";
 import {
 	BanIcon,
+	CalendarClockIcon,
 	FileTextIcon,
 	MoreHorizontalIcon,
 	PencilIcon,
+	PercentIcon,
 	PlusIcon,
 	RotateCcwIcon,
 	TrashIcon,
@@ -50,9 +52,18 @@ import {
 	useVoidInvoice,
 	useVoidInvoices,
 } from "../hooks/use-billing";
+import { oneTimeDiscountFromNote } from "../lib/billing-utils";
+import {
+	AlignToFirstDialog,
+	type AlignToFirstTarget,
+} from "./AlignToFirstDialog";
 import { BillingCycleSelect } from "./BillingCycleSelect";
 import { GroupSelect } from "./BillingFilters";
 import { InvoiceFormDialog } from "./InvoiceFormDialog";
+import {
+	OneTimeDiscountDialog,
+	type OneTimeDiscountTarget,
+} from "./OneTimeDiscountDialog";
 
 const PAGE_SIZE = 25;
 
@@ -79,6 +90,7 @@ interface InvoiceRow {
 	totalWithTax: number;
 	voidedAt: string | Date | null;
 	voidReason: string | null;
+	note: string | null;
 	createdAt: string | Date;
 	customer: {
 		id: string;
@@ -140,6 +152,11 @@ export function InvoicesList() {
 		: options.find((o) => o.value === monthFilter);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
+	const [alignInvoice, setAlignInvoice] = useState<AlignToFirstTarget | null>(
+		null,
+	);
+	const [discountInvoice, setDiscountInvoice] =
+		useState<OneTimeDiscountTarget | null>(null);
 	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
 	const { data, isLoading } = useInvoices({
@@ -331,7 +348,19 @@ export function InvoicesList() {
 			accessorFn: (row) => row.total,
 			enableSorting: true,
 			meta: { className: "text-right" },
-			cell: ({ row }) => formatCurrency(row.original.total),
+			cell: ({ row }) => {
+				const oneTime = oneTimeDiscountFromNote(row.original.note);
+				return (
+					<div>
+						{formatCurrency(row.original.total)}
+						{oneTime > 0 && (
+							<div className="text-[11px] text-muted-foreground">
+								−{formatCurrency(oneTime)} one-time
+							</div>
+						)}
+					</div>
+				);
+			},
 		},
 		{
 			id: "totalTTC",
@@ -405,6 +434,34 @@ export function InvoicesList() {
 									<BanIcon className="mr-2 size-4" />
 									Void
 								</DropdownMenuItem>
+							)}
+							{!isVoided && (
+								<>
+									<DropdownMenuItem
+										onClick={() =>
+											setAlignInvoice({
+												invoiceId: row.original.id,
+												customerName: `${displayName(row.original.customer.firstName, row.original.customer.lastName)} · ${rowSummary(row.original)}`,
+											})
+										}
+									>
+										<CalendarClockIcon className="mr-2 size-4" />
+										Prorate to 1st…
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setDiscountInvoice({
+												invoiceId: row.original.id,
+												label: `${displayName(row.original.customer.firstName, row.original.customer.lastName)} · ${rowSummary(row.original)}`,
+												total: row.original.total,
+												note: row.original.note,
+											})
+										}
+									>
+										<PercentIcon className="mr-2 size-4" />
+										One-time discount…
+									</DropdownMenuItem>
+								</>
 							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
@@ -519,6 +576,24 @@ export function InvoicesList() {
 				/>
 			</ContentCard>
 
+			{organizationId && alignInvoice && (
+				<AlignToFirstDialog
+					key={alignInvoice.invoiceId}
+					open={!!alignInvoice}
+					onOpenChange={(o) => !o && setAlignInvoice(null)}
+					organizationId={organizationId}
+					target={alignInvoice}
+				/>
+			)}
+			{organizationId && discountInvoice && (
+				<OneTimeDiscountDialog
+					key={discountInvoice.invoiceId}
+					open={!!discountInvoice}
+					onOpenChange={(o) => !o && setDiscountInvoice(null)}
+					organizationId={organizationId}
+					invoice={discountInvoice}
+				/>
+			)}
 			<InvoiceFormDialog
 				open={createOpen}
 				onOpenChange={setCreateOpen}

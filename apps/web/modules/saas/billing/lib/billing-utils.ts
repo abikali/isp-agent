@@ -405,6 +405,35 @@ export function isRepriceCandidate(payment: FlaggablePayment): boolean {
 	);
 }
 
+/** Notes collectors write when they took "the difference" to the 1st. */
+const ALIGN_TO_FIRST_HINT = /awal|awel|1st|أول|اول|la ysir|فرق|fare2/i;
+
+/**
+ * A reprice candidate whose note says the collector charged the days up to
+ * the 1st ("8 la ysir awal chaher") — "Align to 1st" is the review then.
+ */
+export function isAlignToFirstHint(payment: FlaggablePayment): boolean {
+	return (
+		isRepriceCandidate(payment) &&
+		!!payment.notes &&
+		ALIGN_TO_FIRST_HINT.test(payment.notes)
+	);
+}
+
+/** Σ one-time discounts recorded in an invoice note ("One-time discount −$10 …"). */
+export function oneTimeDiscountFromNote(
+	note: string | null | undefined,
+): number {
+	if (!note) {
+		return 0;
+	}
+	let sum = 0;
+	for (const m of note.matchAll(/One-time discount −\$(\d+(?:\.\d+)?)/g)) {
+		sum += Number(m[1]);
+	}
+	return Math.round(sum * 100) / 100;
+}
+
 /**
  * A reprice candidate the collector explicitly tagged Downgrade / Upgrade:
  * the admin's job is picking the plan the customer asked for.

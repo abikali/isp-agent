@@ -1,5 +1,6 @@
 "use client";
 
+import { beirutEndOfDay } from "@repo/utils";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { displayName } from "@shared/lib/display-name";
 import {
@@ -48,6 +49,11 @@ interface CustomerPickerValue {
 	id: string;
 	name: string;
 	username: string | null;
+}
+
+/** A picked due date means that day's end in Beirut (23:59), like iRadius — not 00:00 UTC. */
+function dueDateIso(dateInput: string): string {
+	return beirutEndOfDay(dateInput).utc.toISOString();
 }
 
 function parseOrEmpty(value: string): number | null {
@@ -180,10 +186,16 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 				? emptyIfNullish(cust.discount)
 				: "0",
 		tax: isEdit && invoice ? String(invoice.tax) : "0",
+		// Reactivation: a customer whose expiry is already past would freeze
+		// a stale "due since" on the new invoice — start from today instead.
 		expiryDate:
 			isEdit && invoice?.expiryDate
 				? formatDateInput(invoice.expiryDate)
-				: "",
+				: !isEdit &&
+						cust?.expiresAt &&
+						new Date(cust.expiresAt) < new Date()
+					? formatDateInput(new Date())
+					: "",
 		note: isEdit ? (invoice?.note ?? "") : "",
 	};
 
@@ -251,9 +263,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 			discount: dc,
 			tax: tx,
 			totalWithTax,
-			...(expiryDate
-				? { expiryDate: new Date(expiryDate).toISOString() }
-				: {}),
+			...(expiryDate ? { expiryDate: dueDateIso(expiryDate) } : {}),
 			note: note.trim() ? note.trim() : null,
 		};
 
@@ -287,7 +297,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 					tax: tx,
 					totalWithTax,
 					...(expiryDate
-						? { expiryDate: new Date(expiryDate).toISOString() }
+						? { expiryDate: dueDateIso(expiryDate) }
 						: {}),
 					...(note.trim() ? { note: note.trim() } : {}),
 				},
