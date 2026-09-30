@@ -17,6 +17,7 @@ import {
 	isNearDuplicateReply,
 	isWhishMoneyMessage,
 	loadHistoryRows,
+	loadVerifiedCustomerSummary,
 	markAsRead,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
@@ -297,8 +298,8 @@ async function handleMessages(
 					},
 					orderBy: { updatedAt: "desc" },
 				});
+				const chatIdBase = msg.chatId.split("@")[0];
 				if (!takeoverConversation) {
-					const chatIdBase = msg.chatId.split("@")[0];
 					takeoverConversation = await db.aiConversation.findFirst({
 						where: {
 							channelId: channel.id,
@@ -306,6 +307,22 @@ async function handleMessages(
 							externalChatId: {
 								startsWith: `${chatIdBase}@`,
 							},
+						},
+						orderBy: { updatedAt: "desc" },
+					});
+				}
+				// Most chats are keyed by `…@lid`, while a teammate's
+				// WhatsApp Web/desktop send echoes with the phone JID (or the
+				// reverse). Match on the contact's phone digits instead.
+				const contactPhone = msg.chatId.endsWith("@s.whatsapp.net")
+					? chatIdBase
+					: msg.contactId;
+				if (!takeoverConversation && contactPhone) {
+					takeoverConversation = await db.aiConversation.findFirst({
+						where: {
+							channelId: channel.id,
+							status: "active",
+							contactId: contactPhone,
 						},
 						orderBy: { updatedAt: "desc" },
 					});
@@ -717,10 +734,21 @@ async function handleMessages(
 				});
 				continue;
 			}
-			// Clear expired takeover if present
+			// Clear expired takeover if present. Conditional on the stored
+			// value still being expired: the in-memory row is stale, and a
+			// teammate may have taken over from the dashboard a moment ago.
 			if (conversation.humanTakeoverAt) {
-				await db.aiConversation.update({
-					where: { id: conversation.id },
+				await db.aiConversation.updateMany({
+					where: {
+						id: conversation.id,
+						humanTakeoverAt: {
+							lt: new Date(
+								Date.now() -
+									(channel.agent.humanTakeoverHours ?? 0) *
+										3_600_000,
+							),
+						},
+					},
 					data: { humanTakeoverAt: null },
 				});
 			}
@@ -861,34 +889,13 @@ async function handleMessages(
 			// CUSTOMER section (concrete username for ISP tools, "don't
 			// re-ask" guidance). Without this the section only ever rendered
 			// on the retry-worker path.
-			let verifiedCustomer:
-				| BuildSystemPromptOptions["verifiedCustomer"]
-				| undefined;
-			if (conversation.verifiedCustomerId) {
-				const customer = await db.customer.findUnique({
-					where: { id: conversation.verifiedCustomerId },
-					select: {
-						firstName: true,
-						lastName: true,
-						username: true,
-						accountNumber: true,
-						status: true,
-						plan: { select: { name: true } },
-					},
-				});
-				if (customer) {
-					verifiedCustomer = {
-						fullName:
-							[customer.firstName, customer.lastName]
-								.filter(Boolean)
-								.join(" ") || undefined,
-						username: customer.username ?? undefined,
-						accountNumber: customer.accountNumber ?? undefined,
-						status: customer.status,
-						planName: customer.plan?.name ?? undefined,
-					};
-				}
-			}
+			const verifiedCustomer = conversation.verifiedCustomerId
+				? await loadVerifiedCustomerSummary({
+						organizationId: channel.agent.organizationId,
+						customerId: conversation.verifiedCustomerId,
+						contactPhone: conversation.contactId,
+					})
+				: undefined;
 
 			// Reusable system prompt options — `buildAgentMessages` rebuilds
 			// the prompt and stamps cache breakpoints on each iteration.

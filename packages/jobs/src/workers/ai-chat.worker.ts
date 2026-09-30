@@ -11,6 +11,7 @@ import {
 	generateAgentResponse,
 	isHumanTakeoverActive,
 	loadHistoryRows,
+	loadVerifiedCustomerSummary,
 	maybeEscalateUnknownContact,
 	modelMessagesToRoleContent,
 	type PromptSection,
@@ -65,16 +66,6 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						},
 					},
 					channel: true,
-					verifiedCustomer: {
-						select: {
-							firstName: true,
-							lastName: true,
-							username: true,
-							accountNumber: true,
-							status: true,
-							plan: { select: { name: true } },
-						},
-					},
 				},
 			});
 
@@ -176,25 +167,12 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 				conversation.agent.servicePlanIds,
 			);
 
-			const verifiedCustomer = conversation.verifiedCustomer
-				? {
-						fullName:
-							[
-								conversation.verifiedCustomer.firstName,
-								conversation.verifiedCustomer.lastName,
-							]
-								.filter(Boolean)
-								.join(" ") || undefined,
-						username:
-							conversation.verifiedCustomer.username ?? undefined,
-						accountNumber:
-							conversation.verifiedCustomer.accountNumber ??
-							undefined,
-						status: conversation.verifiedCustomer.status,
-						planName:
-							conversation.verifiedCustomer.plan?.name ??
-							undefined,
-					}
+			const verifiedCustomer = conversation.verifiedCustomerId
+				? await loadVerifiedCustomerSummary({
+						organizationId: conversation.agent.organizationId,
+						customerId: conversation.verifiedCustomerId,
+						contactPhone: conversation.contactId,
+					})
 				: undefined;
 
 			const messages = buildAgentMessages({

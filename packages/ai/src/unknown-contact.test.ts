@@ -191,11 +191,18 @@ describe("maybeEscalateUnknownContact", () => {
 		expect(execute).not.toHaveBeenCalled();
 	});
 
-	it("still escalates when the phone matches several customers", async () => {
+	it("skips when the phone matches several customers (shared phone)", async () => {
 		findManyCustomers.mockResolvedValue([
-			{ id: "c1", status: "ACTIVE" },
-			{ id: "c2", status: "PENDING" },
+			{ id: "c1", status: "ACTIVE", username: "mohamadshaaban" },
+			{ id: "c2", status: "ACTIVE", username: "mohamadshaabanhome" },
+			{ id: "c3", status: "ACTIVE", username: "mohamadshaabanwork1" },
 		]);
+		expect(await run(realExchange)).toBeNull();
+		expect(execute).not.toHaveBeenCalled();
+	});
+
+	it("escalates when the phone matches no customer", async () => {
+		findManyCustomers.mockResolvedValue([]);
 		expect(await run(realExchange)).not.toBeNull();
 	});
 

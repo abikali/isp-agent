@@ -1,6 +1,6 @@
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { resolveContactCustomer } from "./contact-customer";
+import { findContactCustomers } from "./contact-customer";
 import { type DbMessageRow, selectHistoryWindow } from "./history";
 import type { ToolRecord, ToolResult } from "./types";
 
@@ -100,8 +100,8 @@ export interface UnknownContactInput {
  * - the customer sent at least two messages in this exchange that say
  *   something, and the bot has already replied at least once;
  * - no teammate wrote in the chat during the last 7 days;
- * - the phone does not match exactly one customer of any status (a PENDING
- *   or stopped subscriber is known to the team, not an unknown contact).
+ * - the phone matches no customer of any status (a PENDING, stopped or
+ *   multi-account subscriber is known to the team, not an unknown contact).
  *
  * It used to count every user-role model message, the injected context
  * notice included, so a revived chat plus a single stray "لذب٨" filed an
@@ -161,15 +161,15 @@ export async function maybeEscalateUnknownContact(
 		}
 
 		if (conversation.contactId) {
-			const match = await resolveContactCustomer(
+			const matches = await findContactCustomers(
 				conversation.organizationId,
 				conversation.contactId,
 			);
-			if (match) {
+			if (matches.length > 0) {
 				logger.info("ai-unknown-contact-skipped", {
 					conversationId: conversation.id,
 					reason: "phone matches a customer",
-					customerStatus: match.status,
+					matches: matches.length,
 				});
 				return null;
 			}

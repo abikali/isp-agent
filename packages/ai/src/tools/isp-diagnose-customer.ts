@@ -1,5 +1,7 @@
+import { logger } from "@repo/logs";
 import { tool } from "ai";
 import { z } from "zod";
+import { linkConversationCustomer } from "../link-conversation-customer";
 import type { BandwidthDataPoint } from "./isp-bandwidth-stats";
 import type { ParsedPingResult } from "./isp-ping-customer";
 import { parsePingOutput } from "./isp-ping-customer";
@@ -432,6 +434,27 @@ function createIspDiagnoseCustomerTool(context: ToolContext) {
 							lookedUpBy,
 							message: `No customer found for "${args.query}".`,
 						};
+					}
+					const matchedUserName = customer["userName"];
+					if (
+						typeof matchedUserName === "string" &&
+						matchedUserName
+					) {
+						linkConversationCustomer({
+							organizationId: context.organizationId,
+							conversationId: context.conversationId,
+							contactPhone: context.contactPhone,
+							userName: matchedUserName,
+							phoneBacked: Boolean(phoneMatch),
+						}).catch((error) =>
+							logger.warn(
+								"ai-conversation-customer-link-failed",
+								{
+									conversationId: context.conversationId,
+									error: String(error),
+								},
+							),
+						);
 					}
 					const connectionType = detectConnectionType(customer);
 

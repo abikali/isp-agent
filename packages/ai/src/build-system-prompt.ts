@@ -16,6 +16,10 @@ export interface VerifiedCustomerSummary {
 	accountNumber?: string | undefined;
 	status?: string | undefined;
 	planName?: string | undefined;
+	/** What this subscriber pays per month (billing rate, else the plan price). */
+	monthlyPriceUsd?: number | undefined;
+	/** Other accounts registered on the same phone (usernames). */
+	otherAccounts?: string[] | undefined;
 }
 
 export interface BuildSystemPromptOptions {
@@ -288,10 +292,19 @@ function verifiedCustomerSection(opts: BuildSystemPromptOptions): string {
 		facts.push(`status: ${customer.status}`);
 	}
 	if (customer.planName) {
-		facts.push(`plan: ${customer.planName}`);
+		facts.push(
+			customer.monthlyPriceUsd != null
+				? `plan: ${customer.planName} ($${customer.monthlyPriceUsd}/month)`
+				: `plan: ${customer.planName}`,
+		);
 	}
 	if (opts.contactPhone) {
 		facts.push(`phone: ${opts.contactPhone}`);
+	}
+	if (customer.otherAccounts?.length) {
+		facts.push(
+			`other accounts on this phone: ${customer.otherAccounts.join(", ")} — if the customer talks about another location, ask which one and pass that username`,
+		);
 	}
 	const usernameNote = customer.username
 		? ` Pass "${customer.username}" as the \`query\` argument to ISP tools (isp-search-customer, isp-diagnose-customer, etc.) — do NOT search by phone or name.`

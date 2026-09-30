@@ -274,6 +274,25 @@ describe("buildSystemPrompt", () => {
 		expect(result).not.toContain("CUSTOMER CONTACT INFO");
 	});
 
+	it("renders the plan price and the other accounts on the phone", () => {
+		const result = buildSystemPrompt({
+			basePrompt: BASE_PROMPT,
+			enabledTools: [],
+			contactPhone: "96171341878",
+			verifiedCustomer: {
+				username: "mohamadshaabanhome",
+				status: "ACTIVE",
+				planName: "johnnyh-UP TO 6M",
+				monthlyPriceUsd: 35,
+				otherAccounts: ["mohamadshaaban", "mohamadshaabanwork1"],
+			},
+		});
+		expect(result).toContain("plan: johnnyh-UP TO 6M ($35/month)");
+		expect(result).toContain(
+			"other accounts on this phone: mohamadshaaban, mohamadshaabanwork1 — if the customer talks about another location, ask which one and pass that username",
+		);
+	});
+
 	it("falls back to soft contact info when no verified customer", () => {
 		const result = buildSystemPrompt({
 			basePrompt: BASE_PROMPT,

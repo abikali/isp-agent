@@ -1,5 +1,7 @@
+import { logger } from "@repo/logs";
 import { tool } from "ai";
 import { z } from "zod";
+import { linkConversationCustomer } from "../link-conversation-customer";
 import {
 	cleanIspLookupQuery,
 	getIspApiConfigFields,
@@ -157,6 +159,24 @@ function createIspSearchCustomerTool(context: ToolContext) {
 
 					const first = filtered[0];
 					if (filtered.length === 1 && first) {
+						const userName = first["userName"];
+						if (typeof userName === "string" && userName) {
+							linkConversationCustomer({
+								organizationId: context.organizationId,
+								conversationId: context.conversationId,
+								contactPhone: context.contactPhone,
+								userName,
+								phoneBacked: Boolean(phoneMatch),
+							}).catch((error) =>
+								logger.warn(
+									"ai-conversation-customer-link-failed",
+									{
+										conversationId: context.conversationId,
+										error: String(error),
+									},
+								),
+							);
+						}
 						const connectionType = detectConnectionType(first);
 						let peerUsers: { userName: string; online: boolean }[] =
 							[];

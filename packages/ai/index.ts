@@ -91,7 +91,12 @@ export type {
 } from "./src/resolve-agent-tools";
 export { resolveAgentTools } from "./src/resolve-agent-tools";
 export { fetchServicePlansSection } from "./src/service-plans-section";
-export { shouldDeferToTeammate } from "./src/teammate-reply";
+export type { TeammateDeferral } from "./src/teammate-reply";
+export {
+	shouldDeferToTeammate,
+	TEAMMATE_REPLY_WINDOW_MS,
+	teammateActionNeeded,
+} from "./src/teammate-reply";
 export {
 	getAvailableTools,
 	getToolRegistry,
@@ -119,6 +124,7 @@ export type {
 	ToolResult,
 } from "./src/types";
 export { maybeEscalateUnknownContact } from "./src/unknown-contact";
+export { loadVerifiedCustomerSummary } from "./src/verified-customer";
 export {
 	isEmployeePhone,
 	isWhishMoneyMessage,

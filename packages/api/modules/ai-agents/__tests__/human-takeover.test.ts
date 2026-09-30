@@ -154,6 +154,7 @@ vi.mock("@repo/ai", () => ({
 		.fn()
 		.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
+	loadVerifiedCustomerSummary: vi.fn().mockResolvedValue(undefined),
 	loadHistoryRows: vi
 		.fn()
 		.mockResolvedValue([{ role: "user", content: "Hello" }]),
@@ -526,6 +527,92 @@ describe("Human Takeover - JID Mismatch Handling", () => {
 	});
 });
 
+describe("Human Takeover - Linked-device phone JID vs @lid chat", () => {
+	it("matches a phone-JID echo to a @lid conversation by contact phone", async () => {
+		mockRedis.get.mockResolvedValue(null);
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "96170204704@s.whatsapp.net",
+				messageId: "3EB0PHONEJID",
+				text: "[Voice message received]",
+				mediaType: "audio",
+				fromMe: true,
+			},
+		]);
+		const lidConversation = {
+			...CONVERSATION_FIXTURE,
+			externalChatId: "120606976643130@lid",
+			contactId: "96170204704",
+		};
+		mockDb.aiConversation.findFirst.mockImplementation(
+			(args: { where: Record<string, unknown> }) =>
+				Promise.resolve(
+					args.where.contactId === "96170204704"
+						? lidConversation
+						: null,
+				),
+		);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiConversation.findFirst).toHaveBeenCalledWith({
+			where: {
+				channelId: "channel-1",
+				status: "active",
+				contactId: "96170204704",
+			},
+			orderBy: { updatedAt: "desc" },
+		});
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					conversationId: "conv-1",
+					role: "admin",
+				}),
+			}),
+		);
+		expect(mockDb.aiConversation.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: { id: "conv-1" },
+				data: expect.objectContaining({
+					humanTakeoverAt: expect.any(Date),
+				}),
+			}),
+		);
+	});
+
+	it("matches an @lid echo to a phone-keyed conversation by senderPn", async () => {
+		mockRedis.get.mockResolvedValue(null);
+		mockParseWebhookPayload.mockReturnValue([
+			{
+				chatId: "120606976643130@lid",
+				messageId: "3EB0LIDECHO",
+				text: "ok, bokra",
+				contactId: "96170204704",
+				fromMe: true,
+			},
+		]);
+		mockDb.aiConversation.findFirst.mockImplementation(
+			(args: { where: Record<string, unknown> }) =>
+				Promise.resolve(
+					args.where.contactId === "96170204704"
+						? CONVERSATION_FIXTURE
+						: null,
+				),
+		);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(2000);
+
+		expect(mockDb.aiMessage.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: expect.objectContaining({ role: "admin" }),
+			}),
+		);
+	});
+});
+
 describe("Human Takeover - AI Blocking During Takeover", () => {
 	it("stores customer message but skips AI generation during active takeover", async () => {
 		// Conversation has active takeover (set 30 minutes ago)
@@ -615,14 +702,30 @@ describe("Human Takeover - AI Blocking During Takeover", () => {
 		whatsappWebhookHandler(request, "token-1");
 		await flushBackground(5000);
 
-		// Should clear the expired takeover (among other update calls)
-		const updateCalls = mockDb.aiConversation.update.mock.calls;
-		const clearTakeoverCall = updateCalls.find((c: unknown[]) => {
-			const arg = c[0] as Record<string, unknown>;
-			const data = arg.data as Record<string, unknown>;
-			return data.humanTakeoverAt === null;
-		});
+		// Clears the expired takeover only if the stored value is still
+		// expired — a fresh dashboard takeover must survive.
+		const clearTakeoverCall = mockDb.aiConversation.updateMany.mock.calls
+			.map((c: unknown[]) => c[0] as Record<string, unknown>)
+			.find(
+				(arg) =>
+					(arg.data as Record<string, unknown>).humanTakeoverAt ===
+					null,
+			);
 		expect(clearTakeoverCall).toBeDefined();
+		const where = clearTakeoverCall?.where as {
+			id: string;
+			humanTakeoverAt: { lt: Date };
+		};
+		expect(where.id).toBe("conv-1");
+		// 4h window: the cutoff is ~4h ago, so a takeover set seconds ago
+		// (after the stale read) does not match.
+		expect(Date.now() - where.humanTakeoverAt.lt.getTime()).toBeGreaterThan(
+			4 * 60 * 60 * 1000 - 60_000,
+		);
+		expect(mockDb.aiConversation.update).not.toHaveBeenCalledWith({
+			where: { id: "conv-1" },
+			data: { humanTakeoverAt: null },
+		});
 
 		// Should attempt AI generation (takeover expired, AI resumes)
 		expect(mockGenerateAgentResponse).toHaveBeenCalled();

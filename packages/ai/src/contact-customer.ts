@@ -4,28 +4,31 @@ import { phoneSearchVariants } from "@repo/utils";
 export interface ContactCustomerMatch {
 	id: string;
 	status: string;
+	username: string | null;
 }
 
 /**
- * The single customer of ANY status whose phone matches the chat contact, or
- * null when none or several match.
+ * Every customer of ANY status (not deleted) whose phone matches the chat
+ * contact, up to `take`.
  *
  * Unlike `resolveVerifiedCustomerId` (ACTIVE only, which is what unlocks the
  * account tools), this never verifies anyone. It answers "is this number
- * already on file?" — a PENDING or stopped subscriber writing in is not an
- * unknown contact, and the team still wants to see who it is.
+ * already on file?" — a PENDING or stopped subscriber, or a phone shared by
+ * several accounts, is not an unknown contact.
  */
-export async function resolveContactCustomer(
+export async function findContactCustomers(
 	organizationId: string,
 	contactId: string,
-): Promise<ContactCustomerMatch | null> {
+	take = 10,
+): Promise<ContactCustomerMatch[]> {
 	const variants = phoneSearchVariants(contactId);
 	if (variants.length === 0) {
-		return null;
+		return [];
 	}
-	const matches = await db.customer.findMany({
+	return db.customer.findMany({
 		where: {
 			organizationId,
+			deletedAt: null,
 			OR: [
 				{ mobile: { in: variants } },
 				...variants.map((v) => ({
@@ -33,8 +36,19 @@ export async function resolveContactCustomer(
 				})),
 			],
 		},
-		select: { id: true, status: true },
-		take: 2,
+		select: { id: true, status: true, username: true },
+		take,
 	});
+}
+
+/**
+ * The single customer whose phone matches the chat contact, or null when none
+ * or several match — for linking something (a task) to exactly one account.
+ */
+export async function resolveContactCustomer(
+	organizationId: string,
+	contactId: string,
+): Promise<ContactCustomerMatch | null> {
+	const matches = await findContactCustomers(organizationId, contactId, 2);
 	return matches.length === 1 ? (matches[0] ?? null) : null;
 }

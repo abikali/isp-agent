@@ -133,6 +133,7 @@ vi.mock("@repo/ai", () => ({
 		.fn()
 		.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
 	buildAgentMessages: vi.fn().mockReturnValue([]),
+	loadVerifiedCustomerSummary: vi.fn().mockResolvedValue(undefined),
 	loadHistoryRows: vi
 		.fn()
 		.mockResolvedValue([{ role: "user", content: "Hello" }]),

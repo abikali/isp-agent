@@ -32,6 +32,7 @@ const { mockDb, mockRedis, mockAi } = vi.hoisted(() => ({
 		}),
 		isHumanTakeoverActive: vi.fn().mockReturnValue(false),
 		loadHistoryRows: vi.fn().mockResolvedValue([]),
+		loadVerifiedCustomerSummary: vi.fn().mockResolvedValue(undefined),
 		maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
 		modelMessagesToRoleContent: vi.fn().mockReturnValue([]),
 		resolveAgentTools: vi
