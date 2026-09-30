@@ -6,6 +6,7 @@ import {
 	verifyCustomerOwnership,
 } from "@repo/api/lib/permission";
 import {
+	billingAudit,
 	customerAudit,
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
@@ -23,6 +24,10 @@ import {
 import { planMonthlyRate } from "../../customers/lib/plan-rate";
 import { assertCustomerStaysOnLine } from "../../dealers/lib/internal-lines";
 import { customerMonthlyDue } from "../lib/calculations";
+import {
+	applyOneTimeDiscount,
+	OneTimeDiscountError,
+} from "../lib/one-time-discount";
 import {
 	coverageKey,
 	fetchCoverageMap,
@@ -74,6 +79,13 @@ export const repriceAndReviewPayment = protectedProcedure
 			discount: z.number().finite().min(0).optional(),
 			iptvPrice: z.number().finite().min(0).optional(),
 			realIpPrice: z.number().finite().min(0).optional(),
+			/**
+			 * "recurring" (default) changes the customer + iRadius for every
+			 * month. "thisMonth" only lowers this payment's invoice by
+			 * `oneTimeDiscount` — local, never the customer, never iRadius.
+			 */
+			scope: z.enum(["recurring", "thisMonth"]).default("recurring"),
+			oneTimeDiscount: z.number().finite().positive().optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -158,6 +170,21 @@ export const repriceAndReviewPayment = protectedProcedure
 			"update",
 			payment.customer.collectorId,
 		);
+
+		if (input.scope === "thisMonth") {
+			return applyThisMonthOnly({
+				organizationId: input.organizationId,
+				payment,
+				oneTimeDiscount: input.oneTimeDiscount,
+				hasPricingChange:
+					input.newPlanId !== undefined ||
+					input.discount !== undefined ||
+					input.iptvPrice !== undefined ||
+					input.realIpPrice !== undefined,
+				user,
+				headers,
+			});
+		}
 
 		const { customer } = payment;
 		const linked = !!customer.externalId;
@@ -373,3 +400,128 @@ export const repriceAndReviewPayment = protectedProcedure
 			remaining: result.remaining,
 		};
 	});
+
+/**
+ * `scope: "thisMonth"` — a one-time discount on the payment's invoice. The
+ * customer row and iRadius are left alone (a recurring discount would come
+ * back on every invoice and every iRadius renew); only `reviewedAt` is set
+ * on the payment.
+ */
+async function applyThisMonthOnly(opts: {
+	organizationId: string;
+	payment: {
+		id: string;
+		billingMonthId: string;
+		accountPrice: number;
+		customer: {
+			id: string;
+			discount: number | null;
+			iptvPrice: number | null;
+			realIpPrice: number | null;
+		};
+		invoice: { id: string; tax: number; voidedAt: Date | null } | null;
+	};
+	oneTimeDiscount: number | undefined;
+	hasPricingChange: boolean;
+	user: { id: string; name: string };
+	headers: Headers;
+}) {
+	const { payment } = opts;
+	if (opts.hasPricingChange) {
+		throw new ORPCError("BAD_REQUEST", {
+			message:
+				"A plan or price change is never one-time — use Every month for that.",
+		});
+	}
+	if (!opts.oneTimeDiscount) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Enter the discount for this month.",
+		});
+	}
+	const { invoice } = payment;
+	if (!invoice || invoice.voidedAt) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "This payment has no open invoice to discount.",
+		});
+	}
+	const amount = opts.oneTimeDiscount;
+
+	let result: { oldTotal: number; total: number; remaining: number };
+	try {
+		result = await db.$transaction(async (tx) => {
+			const applied = await applyOneTimeDiscount(tx, {
+				invoiceId: invoice.id,
+				amount,
+				reason: "on review",
+				userName: opts.user.name,
+			});
+			await tx.payment.update({
+				where: { id: payment.id },
+				data: { reviewedAt: new Date() },
+			});
+			await appendPaymentActivityLog(
+				[payment.id],
+				{
+					action: "one_time_discount",
+					status: "success",
+					detail: `One-time discount −$${amount} (this month only): invoice $${applied.oldTotal}→$${applied.total}`,
+					timestamp: new Date().toISOString(),
+				},
+				{ client: tx },
+			);
+			const coverage = await fetchCoverageMap(
+				tx,
+				opts.organizationId,
+				[payment.billingMonthId],
+				[payment.customer.id],
+			);
+			return {
+				oldTotal: applied.oldTotal,
+				total: applied.total,
+				remaining: monthRemaining(
+					applied.totalWithTax,
+					coverage.get(
+						coverageKey(
+							payment.customer.id,
+							payment.billingMonthId,
+						),
+					),
+				),
+			};
+		});
+	} catch (error) {
+		if (error instanceof OneTimeDiscountError) {
+			throw new ORPCError("BAD_REQUEST", { message: error.message });
+		}
+		throw error;
+	}
+
+	billingAudit.oneTimeDiscount(
+		invoice.id,
+		opts.user.id,
+		opts.organizationId,
+		getAuditContextFromHeaders(opts.headers),
+		{
+			customerId: payment.customer.id,
+			paymentId: payment.id,
+			amount,
+			reason: "on review",
+			oldTotal: result.oldTotal,
+			newTotal: result.total,
+		},
+	);
+	notifyBadgeForOrganization(opts.organizationId);
+
+	return {
+		planChanged: false,
+		disconnected: false,
+		newPlan: null,
+		accountPrice: payment.accountPrice,
+		discount: payment.customer.discount,
+		iptvPrice: payment.customer.iptvPrice,
+		realIpPrice: payment.customer.realIpPrice,
+		invoiceTotal: result.total,
+		invoiceRepriced: true,
+		remaining: result.remaining,
+	};
+}
