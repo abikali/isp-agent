@@ -487,7 +487,7 @@ describe("Salti inbound", () => {
 		await handleOutreachInbound({
 			phone: "96170123456",
 			payload: "fu_fu1_bad",
-			text: "في مشكلة 👎",
+			text: "في مشكلة",
 		});
 		const message = wpbox.sendWPBoxMessage.mock.calls[0]?.[0]?.message;
 		expect(message).toContain("https://wa.me/96181000000?text=");

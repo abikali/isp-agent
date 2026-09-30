@@ -56,7 +56,7 @@ export const OUTREACH_DEFINITIONS: Record<OutreachType, OutreachDefinition> = {
 	post_install: {
 		templateEnv: "SALTI_TEMPLATE_INSTALL_SATISFACTION",
 		choices: ["good", "ok", "bad"],
-		buttonTitles: ["ممتازة 👍", "مقبولة", "في مشكلة 👎"],
+		buttonTitles: ["ممتازة", "مقبولة", "في مشكلة"],
 		body: (name) =>
 			`مرحباً ${name}، شكراً لاختيارك LibanCom 🙏 مرّ كم يوم على تركيب خط الإنترنت عندك، ويهمّنا نعرف رأيك: كيف الخدمة لحدّ هلّق؟`,
 	},
