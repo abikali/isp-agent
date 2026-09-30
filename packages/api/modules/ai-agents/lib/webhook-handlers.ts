@@ -36,9 +36,13 @@ import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
 import {
 	cancelFollowUp,
+	captureFollowUpReply,
 	getRedisConnection,
+	loadOutreachContext,
 	queueAiChatRetry,
 	scheduleFollowUp,
+	sendVoiceReply,
+	settleCheckBackReplies,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { checkAndIncrementQuota } from "@repo/quotas";
@@ -561,6 +565,8 @@ async function handleMessages(
 					},
 				});
 				void cancelFollowUp(conversation.id);
+				// An answer to a check-back or nudge we sent in this chat.
+				await captureFollowUpReply(conversation.id, truncatedText);
 			} else {
 				conversation = await db.aiConversation.create({
 					data: {
@@ -860,6 +866,12 @@ async function handleMessages(
 					.promptSections as unknown as PromptSection[],
 				toolPromptOverrides:
 					extractToolPromptOverrides(agentToolConfigs),
+				outreachContext: await loadOutreachContext({
+					organizationId: channel.agent.organizationId,
+					customerId: conversation.verifiedCustomerId,
+					phone: conversation.contactId ?? msg.contactId ?? null,
+					messageText: truncatedText,
+				}),
 			};
 
 			// Renew lock every 30s to prevent expiry during long generations
@@ -1225,7 +1237,7 @@ async function handleMessages(
 								result.text,
 								result.toolResults,
 							);
-							await db.aiMessage.create({
+							const assistantRow = await db.aiMessage.create({
 								data: {
 									conversationId: conversation.id,
 									role: "assistant",
@@ -1275,6 +1287,33 @@ async function handleMessages(
 										},
 									),
 								);
+							}
+							// Follow-up results + voice reply; neither may
+							// delay or break the reply loop.
+							void settleCheckBackReplies({
+								conversationId: conversation.id,
+								credentials,
+								botReply: result.text,
+								escalatedThisTurn: (
+									result.toolResults ?? []
+								).some(
+									(t) => t.toolName === "escalate-telegram",
+								),
+							});
+							if (sendResult.success) {
+								void sendVoiceReply({
+									agent: channel.agent,
+									credentials,
+									provider,
+									apiToken,
+									chatId: msg.chatId,
+									conversationId: conversation.id,
+									assistantMessageId: assistantRow.id,
+									triggeredByVoice:
+										isFirstIteration &&
+										msg.mediaType === "audio",
+									text: result.text,
+								});
 							}
 						}
 

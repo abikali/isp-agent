@@ -1,3 +1,11 @@
+import {
+	approveBotFollowUps,
+	getBotFollowUpStats,
+	listBotFollowUps,
+	sendBotFollowUpNow,
+	skipBotFollowUps,
+} from "./procedures/bot-follow-ups";
+import { listConversationSummaries } from "./procedures/conversation-summaries";
 import { createAgent } from "./procedures/create-agent";
 import { createChannel } from "./procedures/create-channel";
 import { createMaintenanceWindow } from "./procedures/create-maintenance-window";
@@ -83,4 +91,14 @@ export const aiAgentsRouter = {
 	sendWebChatMessage,
 	getWebChatHistory,
 	toggleWebChat,
+	botFollowUps: {
+		list: listBotFollowUps,
+		stats: getBotFollowUpStats,
+		approve: approveBotFollowUps,
+		skip: skipBotFollowUps,
+		sendNow: sendBotFollowUpNow,
+	},
+	conversationSummaries: {
+		list: listConversationSummaries,
+	},
 };

@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import { handleDebugChatStream } from "./modules/ai-agents/lib/debug-stream-handler";
+import { saltiWebhookHandler } from "./modules/ai-agents/lib/salti-webhook";
 import { handleWebChatStream } from "./modules/ai-agents/lib/web-chat-stream-handler";
 import {
 	telegramWebhookHandler,
@@ -42,6 +43,10 @@ export const app = new Hono()
 	)
 	.post("/webhooks/chat/telegram/:webhookToken", (c) =>
 		telegramWebhookHandler(c.req.raw, c.req.param("webhookToken")),
+	)
+	// Salti/WPBox forwards official-number messages (follow-up answers)
+	.post("/webhooks/salti/:secret", (c) =>
+		saltiWebhookHandler(c.req.raw, c.req.param("secret")),
 	)
 	// AI Chat streaming endpoint
 	.post("/ai-agents/web-chat/:token/stream", (c) =>

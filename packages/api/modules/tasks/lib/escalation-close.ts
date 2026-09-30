@@ -38,8 +38,4 @@ export function buildEscalationCloseNote({
 	return `[${at} Beirut] Closed ${how} by ${closedByName}.`;
 }
 
-/** Appends the close note below any existing notes. */
-export function appendTaskNote(existing: string | null, note: string): string {
-	const trimmed = existing?.trim();
-	return trimmed ? `${trimmed}\n\n${note}` : note;
-}
+export { appendTaskNote } from "@repo/utils";
