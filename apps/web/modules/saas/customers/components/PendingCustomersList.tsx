@@ -170,14 +170,21 @@ export function PendingCustomersList() {
 			return;
 		}
 		try {
-			await approve.mutateAsync({
+			const result = await approve.mutateAsync({
 				organizationId,
 				id: approving.id,
 				...(iradiusPassword.trim()
 					? { iradiusPassword: iradiusPassword.trim() }
 					: {}),
 			});
-			toast.success("Customer approved and activated");
+			if (result.chargeFailed) {
+				toast.warning(
+					"Customer created in iRadius but NOT billed — the dealer was not charged. Check the iRadius bridge and charge this account.",
+					{ duration: 15000 },
+				);
+			} else {
+				toast.success("Customer approved and activated");
+			}
 			setApproving(null);
 		} catch (error) {
 			toast.error(

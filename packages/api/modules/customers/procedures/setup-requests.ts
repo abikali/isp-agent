@@ -30,6 +30,7 @@ import { collectorRoleWhere } from "../../employees/lib/cash-role";
 import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import { syncPendingAddonLinePrices } from "../../installations/lib/addon-price-sync";
 import { addonNoteFor } from "../../installations/lib/addons";
+import { pushApElectricalToIRadius } from "../../installations/lib/electricity-mirror";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
@@ -999,6 +1000,9 @@ export const approveSetupRequest = protectedProcedure
 		// they need on site. Null when the account already existed in iRadius.
 		let createdPassword: string | null = null;
 		let externalId = request.customer.externalId;
+		// Set when iRadius created the subscriber but its native NEW USER charge
+		// failed (e.g. the bridge servlet was wiped) — surfaced to the operator.
+		let chargeFailed = false;
 		if (shouldCreateInIRadius) {
 			if (!input.iradiusPassword?.trim()) {
 				throw new ORPCError("BAD_REQUEST", {
@@ -1007,16 +1011,17 @@ export const approveSetupRequest = protectedProcedure
 				});
 			}
 			createdPassword = input.iradiusPassword.trim();
-			const { userId } = await createCustomerInIRadius({
+			const created = await createCustomerInIRadius({
 				organizationId: input.organizationId,
 				customerId: request.customerId,
 				password: createdPassword,
 			});
+			chargeFailed = created.chargeFailed;
 			// Link immediately, outside the approval transaction: if anything
 			// below throws, the retry sees the customer as already linked and
 			// skips the create instead of tripping on "Username already exists"
 			// with an orphaned (and already charged) subscriber.
-			externalId = String(userId);
+			externalId = String(created.userId);
 			await db.customer.update({
 				where: { id: request.customerId },
 				data: { externalId },
@@ -1024,13 +1029,18 @@ export const approveSetupRequest = protectedProcedure
 		}
 
 		// Approving the bundled add-on lines sets the customer's IPTV / Real IP
-		// price locally (approveInstallationInTx below); push the same prices
+		// price (and, for an electricity item, AP Electrical) locally
+		// (approveInstallationInTx below); push the same values
 		// to iRadius first, before the transaction opens. A failure throws
 		// before any local approval write, and the subscriber is already
 		// linked above, so a retry is clean.
 		if (!iradiusDisabled) {
 			await pushAddonPricesToIRadius(
 				{ ...request.customer, externalId },
+				pendingInstallations,
+			);
+			await pushApElectricalToIRadius(
+				{ externalId },
 				pendingInstallations,
 			);
 		}
@@ -1187,7 +1197,7 @@ export const approveSetupRequest = protectedProcedure
 			}),
 		);
 
-		return { success: true };
+		return { success: true, chargeFailed };
 	});
 
 export const rejectSetupRequest = protectedProcedure

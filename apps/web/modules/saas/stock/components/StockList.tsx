@@ -38,6 +38,7 @@ import {
 	TruckIcon,
 	UndoIcon,
 	UsersIcon,
+	ZapIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -106,6 +107,16 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 								<Badge variant="error" className="gap-1">
 									<AlertTriangleIcon className="size-3" />
 									Low
+								</Badge>
+							)}
+							{row.original.isElectricity && (
+								<Badge
+									variant="secondary"
+									className="gap-1"
+									title="Electricity item — sets AP Electrical on install"
+								>
+									<ZapIcon className="size-3" />
+									Electricity
 								</Badge>
 							)}
 						</div>

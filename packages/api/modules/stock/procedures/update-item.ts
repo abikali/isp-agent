@@ -21,6 +21,7 @@ export const updateStockItem = protectedProcedure
 			alertThreshold: z.number().int().min(0).nullable().optional(),
 			alertEnabled: z.boolean().optional(),
 			showInUninstall: z.boolean().optional(),
+			isElectricity: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -75,6 +76,9 @@ export const updateStockItem = protectedProcedure
 		}
 		if (input.showInUninstall !== undefined) {
 			updateData["showInUninstall"] = input.showInUninstall;
+		}
+		if (input.isElectricity !== undefined) {
+			updateData["isElectricity"] = input.isElectricity;
 		}
 
 		const updated = await db.stockItem.update({

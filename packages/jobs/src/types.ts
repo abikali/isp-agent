@@ -33,7 +33,8 @@ export type ScheduledJobType =
 	| "network-monitor-sync"
 	| "dealer-sync"
 	| "recurring-expenses"
-	| "task-reminder-sweep";
+	| "task-reminder-sweep"
+	| "iradius-bridge-probe";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;

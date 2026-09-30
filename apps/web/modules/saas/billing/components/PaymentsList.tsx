@@ -159,6 +159,7 @@ import {
 	RepricePaymentDialog,
 	type RepricePaymentTarget,
 } from "./RepricePaymentDialog";
+import { StopApprovalDialog } from "./StopApprovalDialog";
 
 const PAGE_SIZE = 25;
 
@@ -941,6 +942,9 @@ export function PaymentsList() {
 	// and retry the review with `force` (local-only deactivation).
 	const [iradiusMissingPayment, setIradiusMissingPayment] =
 		useState<PaymentRow | null>(null);
+	// "Approve & Deactivate" on a stopped payment first asks: inactive only,
+	// or inactive + delete from iRadius and CP.
+	const [stopApproval, setStopApproval] = useState<PaymentRow | null>(null);
 
 	// Selected payments → unique customer ids. A single customer can own
 	// multiple payments in the table (overpaid + free, or one payment per
@@ -1439,6 +1443,10 @@ export function PaymentsList() {
 						: "";
 					const approve = () => {
 						if (!organizationId) {
+							return;
+						}
+						if (payment.stoppedAccount) {
+							setStopApproval(payment);
 							return;
 						}
 						reviewPayment.mutate(
@@ -2572,6 +2580,27 @@ export function PaymentsList() {
 					onOpenChange={(o) => !o && setRepriceDialog(null)}
 					organizationId={organizationId}
 					payment={repriceDialog}
+				/>
+			)}
+
+			{organizationId && stopApproval && (
+				<StopApprovalDialog
+					key={stopApproval.id}
+					organizationId={organizationId}
+					payment={{
+						id: stopApproval.id,
+						customerName: displayName(
+							stopApproval.customer.firstName,
+							stopApproval.customer.lastName,
+						),
+						expiresAt: stopApproval.customer.expiresAt,
+						linked: !!stopApproval.customer.externalId,
+					}}
+					onOpenChange={(o) => !o && setStopApproval(null)}
+					onIradiusUserMissing={() => {
+						setIradiusMissingPayment(stopApproval);
+						setStopApproval(null);
+					}}
 				/>
 			)}
 

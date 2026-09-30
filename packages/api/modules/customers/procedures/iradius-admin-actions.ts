@@ -12,6 +12,7 @@ import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	iradiusSetApElectrical,
 	iradiusSetExpiryAccount,
 	iradiusSetIptvPrice,
 	iradiusSetRecurringDiscount,
@@ -37,6 +38,8 @@ async function loadLinkedCustomer(opts: {
 	organizationId: string;
 	customerId: string;
 	activeDealerId: string | null;
+	/** Return an unlinked customer too (externalId empty) instead of refusing. */
+	allowUnlinked?: boolean;
 }): Promise<LinkedCustomer> {
 	const customer = await db.customer.findFirst({
 		where: {
@@ -56,6 +59,9 @@ async function loadLinkedCustomer(opts: {
 		throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
 	}
 	if (!customer.externalId) {
+		if (opts.allowUnlinked) {
+			return { ...customer, externalId: "" };
+		}
 		throw new ORPCError("BAD_REQUEST", {
 			message: "Customer is not linked to iRadius",
 		});
@@ -71,7 +77,12 @@ async function authorizeIRadiusAdminAction(opts: {
 	organizationId: string;
 	customerId: string;
 	userId: string;
-}): Promise<LinkedCustomer> {
+	/**
+	 * For a field that also means something locally: an unlinked customer or
+	 * an iRadius-disabled org gets the local write only, instead of an error.
+	 */
+	localOnlyWhenUnlinked?: boolean;
+}): Promise<LinkedCustomer & { iradiusDisabled: boolean }> {
 	const { permCtx, activeDealerId, iradiusDisabled } =
 		await requirePermission(
 			opts.organizationId,
@@ -79,7 +90,7 @@ async function authorizeIRadiusAdminAction(opts: {
 			"customers",
 			"update",
 		);
-	if (iradiusDisabled) {
+	if (iradiusDisabled && !opts.localOnlyWhenUnlinked) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "iRadius is disabled for this organization",
 		});
@@ -88,9 +99,10 @@ async function authorizeIRadiusAdminAction(opts: {
 		organizationId: opts.organizationId,
 		customerId: opts.customerId,
 		activeDealerId,
+		allowUnlinked: opts.localOnlyWhenUnlinked === true,
 	});
 	await verifyCustomerOwnership(permCtx, "update", customer.collectorId);
-	return customer;
+	return { ...customer, iradiusDisabled: Boolean(iradiusDisabled) };
 }
 
 /**
@@ -106,10 +118,12 @@ async function runIRadiusAdminAction(opts: {
 	logTag: string;
 	mutate: (customer: LinkedCustomer) => Promise<{ affectedRows: number }>;
 	localData: Prisma.CustomerUpdateInput;
+	localOnlyWhenUnlinked?: boolean;
 }): Promise<{ success: true }> {
 	const customer = await authorizeIRadiusAdminAction(opts);
 
 	await mirrorToIRadius({
+		iradiusDisabled: customer.iradiusDisabled || !customer.externalId,
 		logTag: opts.logTag,
 		failureMessage: opts.failureMessage,
 		remote: async () => {
@@ -285,5 +299,28 @@ export const setCustomerIptvPrice = protectedProcedure
 			mutate: (customer) =>
 				iradiusSetIptvPrice(customer, input.iptvPrice),
 			localData: { iptvPrice: input.iptvPrice },
+		}),
+	);
+
+export const setCustomerApElectrical = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/customers/set-ap-electrical",
+		tags: ["Customers"],
+		summary:
+			"Set whether the customer powers our access point (iRadius UserNas.APElectrical)",
+	})
+	.input(baseInput.extend({ value: z.boolean() }))
+	.handler(({ context: { user, headers }, input }) =>
+		runIRadiusAdminAction({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			userId: user.id,
+			headers,
+			failureMessage: "Failed to set AP Electrical in iRadius",
+			logTag: "iRadius set AP electrical",
+			mutate: (customer) => iradiusSetApElectrical(customer, input.value),
+			localData: { apElectrical: input.value },
+			localOnlyWhenUnlinked: true,
 		}),
 	);

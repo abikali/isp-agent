@@ -5,13 +5,17 @@ import {
 	requirePermission,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { probeIRadiusBridge } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerSearchWhere } from "../../customers/lib/customer-search";
-import { iradiusSetActive } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import {
+	customExpiryValues,
+	reactivateInIRadius,
+} from "../../customers/lib/reactivate-in-iradius";
 import {
 	APPROVED_STOPPED_PAYMENT,
 	assignmentFilterValue,
@@ -73,6 +77,9 @@ export const listStoppedAccounts = protectedProcedure
 
 		const customerWhere: Record<string, unknown> = {
 			...getDealerScopeFilter(activeDealerId),
+			// "Inactive + delete" soft-deletes the customer: it is gone from iRadius
+			// and cannot be reactivated, so it leaves this list.
+			deletedAt: null,
 		};
 		if (input.search?.trim()) {
 			customerWhere["AND"] = [
@@ -107,6 +114,7 @@ export const listStoppedAccounts = protectedProcedure
 							phone: true,
 							groupName: true,
 							expiresAt: true,
+							externalId: true,
 							status: true,
 							plan: { select: { id: true, name: true } },
 							collector: { select: { id: true, name: true } },
@@ -146,7 +154,16 @@ export const reactivateAccount = protectedProcedure
 		z.object({
 			organizationId: z.string(),
 			paymentId: z.string(),
-			customExpiry: z.string().datetime().optional(),
+			/**
+			 * Renew one period through iRadius's own renew (charges the
+			 * dealer; expiry = max(expiry, today) + period).
+			 */
+			renewInIRadius: z.boolean().default(false),
+			/** YYYY-MM-DD; written to iRadius and locally at 23:59:00. */
+			customExpiryDate: z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+				.optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -173,15 +190,37 @@ export const reactivateAccount = protectedProcedure
 			});
 		}
 
-		const newExpiry = input.customExpiry
-			? new Date(input.customExpiry)
+		if (
+			input.renewInIRadius &&
+			(iradiusDisabled || !payment.customer.externalId)
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Renew on iRadius needs a customer linked to iRadius",
+			});
+		}
+
+		const customExpiryDate = input.customExpiryDate ?? null;
+		// iRadius-disabled orgs skip the remote step; the operator's date
+		// still applies locally.
+		let newExpiry = customExpiryDate
+			? customExpiryValues(customExpiryDate).date
 			: null;
 
 		await mirrorToIRadius({
 			iradiusDisabled,
 			logTag: "iRadius reactivate stopped account",
 			failureMessage: "Failed to reactivate customer in iRadius",
-			remote: () => iradiusSetActive(payment.customer, true),
+			remote: async () => {
+				// The expiry goes to iRadius too: a local-only expiresAt was
+				// reverted by the next sync (it is auto-updated from iRadius).
+				({ expiresAt: newExpiry } = await reactivateInIRadius({
+					customer: payment.customer,
+					activate: true,
+					renew: input.renewInIRadius,
+					customExpiryDate,
+					reason: "Reactivated from stopped accounts",
+				}));
+			},
 			local: () =>
 				db.$transaction(async (tx) => {
 					await tx.payment.delete({
@@ -322,6 +361,35 @@ export const listPendingStoppedPayments = protectedProcedure
 			page: input.page,
 			pageSize: input.pageSize,
 			totalPages: Math.ceil(total / input.pageSize),
+		};
+	});
+
+// ─── iRadius bridge status ────────────────────────────────────────
+
+/**
+ * Is the LibanCom bridge servlet (needed to delete / renew in iRadius)
+ * installed right now? The stop-approval dialog disables "Inactive + delete"
+ * while it is missing, instead of failing on submit.
+ */
+export const getIRadiusBridgeStatus = protectedProcedure
+	.route({
+		method: "GET",
+		path: "/billing/iradius-bridge-status",
+		tags: ["Billing"],
+		summary: "Whether the iRadius bridge servlet is reachable",
+	})
+	.input(z.object({ organizationId: z.string() }))
+	.handler(async ({ context: { user }, input }) => {
+		const { iradiusDisabled } = await requirePermission(
+			input.organizationId,
+			user.id,
+			"billing",
+			"view",
+		);
+		return {
+			status: iradiusDisabled
+				? ("unconfigured" as const)
+				: await probeIRadiusBridge(),
 		};
 	});
 

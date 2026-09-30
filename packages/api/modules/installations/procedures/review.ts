@@ -15,6 +15,7 @@ import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { pushAddonPricesToIRadius } from "../lib/addon-price-mirror";
 import { syncCustomerAddonPrice } from "../lib/addon-price-sync";
 import { addonPriceFields } from "../lib/addons";
+import { pushApElectricalToIRadius } from "../lib/electricity-mirror";
 import { assertStockAvailable, decrementWorkerStock } from "../lib/stock-guard";
 
 export const updatePendingInstallation = protectedProcedure
@@ -213,9 +214,17 @@ export async function approveInstallationInTx(
 		}
 		const stockItem = await tx.stockItem.findUniqueOrThrow({
 			where: { id: installation.stockItemId },
-			select: { name: true },
+			select: { name: true, isElectricity: true },
 		});
 		stockItemName = stockItem.name;
+		// An electricity item means the customer powers our AP. Callers push
+		// UserNas.APElectrical first (`pushApElectricalToIRadius`, remote-first).
+		if (stockItem.isElectricity && installation.customerId) {
+			await tx.customer.update({
+				where: { id: installation.customerId },
+				data: { apElectrical: true },
+			});
+		}
 		await tx.stockLog.create({
 			data: {
 				organizationId: installation.organizationId,
@@ -431,6 +440,7 @@ export const approveInstallations = protectedProcedure
 						isAddOn: true,
 						notes: true,
 						price: true,
+						stockItemId: true,
 						setupRequest: { select: { status: true } },
 						customer: {
 							select: {
@@ -464,9 +474,15 @@ export const approveInstallations = protectedProcedure
 					iradiusDisabled,
 					logTag: "[Installation Approve] iRadius add-on price",
 					failureMessage:
-						"Failed to set the add-on price in iRadius — not approved",
-					remote: () =>
-						pushAddonPricesToIRadius(target.customer, [target]),
+						"Failed to update the customer in iRadius (add-on price / AP electrical) — not approved",
+					remote: async () => {
+						await pushAddonPricesToIRadius(target.customer, [
+							target,
+						]);
+						await pushApElectricalToIRadius(target.customer, [
+							target,
+						]);
+					},
 					local: () =>
 						db.$transaction(async (tx) => {
 							const installation =

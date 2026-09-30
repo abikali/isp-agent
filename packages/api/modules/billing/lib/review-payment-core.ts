@@ -1,18 +1,27 @@
 import { ORPCError } from "@orpc/server";
+import { type AuditContext, customerAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { queueWhatsAppReferralReward } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import {
 	IRadiusUserNotFoundError,
+	iradiusDeleteUser,
 	iradiusSetActive,
 } from "../../customers/lib/iradius-api";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { NOT_VOIDED } from "./filters";
 import { VOID_REASON, voidInvoice } from "./invoice-void";
 import {
 	isReferralRewardEligible,
 	type ReferralRewardCandidate,
 } from "./referral-reward";
 import { closeReviewTasksForCustomer } from "./review-tasks";
+import {
+	coverageKey,
+	fetchCoverageMap,
+	invoiceAmount,
+	monthRemaining,
+} from "./settlement";
 
 /**
  * Minimal shape `reviewOnePayment` needs. Callers load it with their own
@@ -45,6 +54,14 @@ export interface ReviewablePayment extends ReferralRewardCandidate {
  * after the operator confirms via the client prompt (its `force` flag); the
  * bulk procedure sets it unconditionally since it can't prompt per row — the
  * same convention `bulkSetCustomerStatus` uses for deactivation.
+ *
+ * `stopAction: "delete"` ("Inactive + delete from iRadius and CP") goes
+ * further for a stopped account: after the deactivation it deletes the
+ * subscriber natively in iRadius (irreversible, so it is the LAST remote
+ * step and only runs once the local pre-checks passed), and the local
+ * transaction also soft-deletes the customer (`deletedAt`; payments and
+ * invoices stay). A missing iRadius user just means it is already gone.
+ * Refused while the customer owes other months unless `ignoreOwedMonths`.
  */
 export async function reviewOnePayment(args: {
 	organizationId: string;
@@ -52,6 +69,11 @@ export async function reviewOnePayment(args: {
 	payment: ReviewablePayment;
 	iradiusDisabled?: boolean;
 	tolerateMissing?: boolean;
+	stopAction?: "inactive" | "delete";
+	/** Recorded in iRadius' "Delete User By …" history line. */
+	operatorName?: string;
+	ignoreOwedMonths?: boolean;
+	auditContext?: AuditContext;
 }): Promise<{ referralRewardQueued: boolean }> {
 	const {
 		organizationId,
@@ -60,6 +82,22 @@ export async function reviewOnePayment(args: {
 		iradiusDisabled,
 		tolerateMissing,
 	} = args;
+	const deleteCustomer =
+		payment.stoppedAccount && args.stopAction === "delete";
+
+	if (deleteCustomer && !args.ignoreOwedMonths) {
+		const owed = await countOwedMonths(
+			organizationId,
+			payment.customerId,
+			payment.invoiceId,
+		);
+		if (owed > 0) {
+			throw new ORPCError("CONFLICT", {
+				message: `Customer still owes ${owed} month(s) — collect or void them first, or choose Inactive only`,
+				data: { owedMonths: owed },
+			});
+		}
+	}
 
 	const runLocal = () =>
 		db.$transaction(async (tx) => {
@@ -70,7 +108,12 @@ export async function reviewOnePayment(args: {
 			if (payment.stoppedAccount) {
 				await tx.customer.update({
 					where: { id: payment.customerId },
-					data: { status: "INACTIVE" },
+					data: {
+						status: "INACTIVE",
+						// Soft delete: hidden from CP lists, history kept, and
+						// the sync skips it (no "deleted on iRadius" conflict).
+						...(deleteCustomer ? { deletedAt: new Date() } : {}),
+					},
 				});
 				// Void the invoice this stop replaces — the customer is no
 				// longer on the hook for this month. Keeps a full audit trail
@@ -96,11 +139,14 @@ export async function reviewOnePayment(args: {
 	await mirrorToIRadius({
 		iradiusDisabled: iradiusDisabled ?? false,
 		logTag: "iRadius deactivate on review-payment",
-		failureMessage: "Failed to deactivate customer in iRadius",
+		failureMessage: deleteCustomer
+			? "Failed to deactivate / delete the customer in iRadius"
+			: "Failed to deactivate customer in iRadius",
 		remote: async () => {
 			try {
 				await iradiusSetActive(payment.customer, false, {
-					tolerateMissing: tolerateMissing === true,
+					// Deleting anyway: an already-missing user is the goal.
+					tolerateMissing: tolerateMissing === true || deleteCustomer,
 				});
 			} catch (error) {
 				// Not tolerated: surface a distinct code so the single-payment
@@ -114,11 +160,78 @@ export async function reviewOnePayment(args: {
 				}
 				throw error;
 			}
+			if (deleteCustomer && payment.customer.externalId) {
+				try {
+					await iradiusDeleteUser(
+						payment.customer,
+						args.operatorName ?? "CP",
+					);
+				} catch (error) {
+					// Surface iRadius' own reason (e.g. the bridge is missing)
+					// instead of the generic failure message.
+					throw new ORPCError("BAD_GATEWAY", {
+						message: `iRadius delete failed: ${error instanceof Error ? error.message : String(error)}`,
+					});
+				}
+			}
 		},
 		local: runLocal,
 	});
 	await closeReviewTasksForCustomer(organizationId, payment.customerId);
+	if (deleteCustomer) {
+		// The uninstall task (if any) is kept on purpose: the equipment still
+		// has to be recovered.
+		customerAudit.deleted(
+			payment.customerId,
+			userId,
+			organizationId,
+			args.auditContext ?? {},
+		);
+	}
 	return { referralRewardQueued: false };
+}
+
+/**
+ * How many billed months the customer still owes, ignoring the invoice the
+ * stop replaces (the approval voids it). Voided invoices never count;
+ * settlement is the same amount comparison the collector lists use.
+ */
+async function countOwedMonths(
+	organizationId: string,
+	customerId: string,
+	stopInvoiceId: string | null,
+): Promise<number> {
+	const invoices = await db.customerInvoice.findMany({
+		where: {
+			organizationId,
+			customerId,
+			...NOT_VOIDED,
+			...(stopInvoiceId ? { id: { not: stopInvoiceId } } : {}),
+		},
+		select: { year: true, month: true, total: true, totalWithTax: true },
+	});
+	if (invoices.length === 0) {
+		return 0;
+	}
+	const months = await db.billingMonth.findMany({
+		where: {
+			organizationId,
+			OR: invoices.map((inv) => ({ year: inv.year, month: inv.month })),
+		},
+		select: { id: true, year: true, month: true },
+	});
+	const monthId = new Map(months.map((m) => [`${m.year}-${m.month}`, m.id]));
+	const coverage = await fetchCoverageMap(
+		db,
+		organizationId,
+		months.map((m) => m.id),
+		[customerId],
+	);
+	return invoices.filter((inv) => {
+		const id = monthId.get(`${inv.year}-${inv.month}`);
+		const cov = id ? coverage.get(coverageKey(customerId, id)) : undefined;
+		return monthRemaining(invoiceAmount(inv), cov) > 0;
+	}).length;
 }
 
 /**

@@ -12,6 +12,9 @@ vi.mock("../../customers/lib/iradius-mirror", () => ({
 vi.mock("../lib/addon-price-mirror", () => ({
 	pushAddonPricesToIRadius: vi.fn(),
 }));
+vi.mock("../lib/electricity-mirror", () => ({
+	pushApElectricalToIRadius: vi.fn(),
+}));
 
 const { approveInstallationInTx } = await import("../procedures/review");
 
@@ -30,7 +33,13 @@ const line = {
 };
 
 /** In-memory tx: one installation row and one worker holding. */
-function fakeTx(state: { status: string; held: number }) {
+function fakeTx(
+	state: { status: string; held: number },
+	item: { name: string; isElectricity: boolean } = {
+		name: "Utp Cat5E",
+		isElectricity: false,
+	},
+) {
 	const cash: unknown[] = [];
 	const tx = {
 		installation: {
@@ -63,8 +72,9 @@ function fakeTx(state: { status: string; held: number }) {
 			findUniqueOrThrow: vi.fn(async () => ({ quantity: state.held })),
 		},
 		stockItem: {
-			findUniqueOrThrow: vi.fn(async () => ({ name: "Utp Cat5E" })),
+			findUniqueOrThrow: vi.fn(async () => item),
 		},
+		customer: { update: vi.fn(async () => ({})) },
 		stockLog: { create: vi.fn(async () => ({})) },
 		cashCollection: {
 			create: vi.fn(async (args: unknown) => {
@@ -100,5 +110,35 @@ describe("approveInstallationInTx", () => {
 		expect(raw.workerStock.updateMany).not.toHaveBeenCalled();
 		expect(state.held).toBe(24);
 		expect(cash).toHaveLength(0);
+	});
+
+	it("sets the customer's AP Electrical flag for an electricity item", async () => {
+		const state = { status: "PENDING", held: 5 };
+		const { tx, raw } = fakeTx(state, {
+			name: "Adapter Poe 24v 1.5A",
+			isElectricity: true,
+		});
+		await approveInstallationInTx(
+			tx,
+			{ ...line, customerId: "cust-1", quantity: 1 },
+			"admin-1",
+			{ createCashEntry: false },
+		);
+		expect(raw.customer.update).toHaveBeenCalledWith({
+			where: { id: "cust-1" },
+			data: { apElectrical: true },
+		});
+	});
+
+	it("leaves AP Electrical alone for other items", async () => {
+		const state = { status: "PENDING", held: 5 };
+		const { tx, raw } = fakeTx(state);
+		await approveInstallationInTx(
+			tx,
+			{ ...line, customerId: "cust-1", quantity: 1 },
+			"admin-1",
+			{ createCashEntry: false },
+		);
+		expect(raw.customer.update).not.toHaveBeenCalled();
 	});
 });

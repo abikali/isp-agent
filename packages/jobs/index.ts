@@ -54,6 +54,10 @@ export {
 	type FollowUpRunResult,
 	runFollowUp,
 } from "./src/lib/ai-follow-up";
+export {
+	type BridgeProbeStatus,
+	probeIRadiusBridge,
+} from "./src/lib/iradius-bridge-probe";
 // Shared helper re-exported for the API layer (single-customer inline sends)
 export {
 	type CreateLocationRequestResult,

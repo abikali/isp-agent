@@ -71,6 +71,9 @@ export const CONFLICT_TRACKED_FIELDS = new Set([
 	"activatedAt",
 	// Flags
 	"automaticRenew",
+	// Written locally (customers.setApElectrical, electricity-item approval)
+	// AND still toggled by staff in iRadius, like iptvPrice.
+	"apElectrical",
 ]);
 
 /**

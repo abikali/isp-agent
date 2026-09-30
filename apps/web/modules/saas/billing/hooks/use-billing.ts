@@ -310,6 +310,21 @@ export function useReactivateAccount() {
 	});
 }
 
+/**
+ * Is the iRadius bridge servlet (needed to delete / renew in iRadius) there?
+ * Pass `enabled: false` to skip the probe until it is needed.
+ */
+export function useIRadiusBridgeStatus(enabled: boolean) {
+	const organizationId = useOrganizationId();
+	return useQuery(
+		organizationId && enabled
+			? orpc.billing.stopped.bridgeStatus.queryOptions({
+					input: { organizationId },
+				})
+			: disabledQuery(["billing", "bridgeStatus"]),
+	);
+}
+
 export function useDeclineStoppedPayment() {
 	const queryClient = useQueryClient();
 

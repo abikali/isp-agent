@@ -6,6 +6,8 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { reactivateInIRadius } from "../../customers/lib/reactivate-in-iradius";
 import { getMonthDateRange } from "../lib/resolve-month";
 
 /**
@@ -35,10 +37,17 @@ export const createInvoice = protectedProcedure
 			totalWithTax: z.number().finite().min(0).optional(),
 			expiryDate: z.string().optional(),
 			note: z.string().optional(),
+			/**
+			 * Renew the (expired) customer one period in iRadius first —
+			 * charges the dealer — and freeze the renewed expiry on the invoice.
+			 */
+			renewInIRadius: z.boolean().optional(),
+			/** With `renewInIRadius`: also re-enable an inactive customer. */
+			activate: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"billing",
@@ -51,7 +60,12 @@ export const createInvoice = protectedProcedure
 				organizationId: input.organizationId,
 				...getDealerScopeFilter(activeDealerId),
 			},
-			select: { id: true, expiresAt: true },
+			select: {
+				id: true,
+				expiresAt: true,
+				externalId: true,
+				status: true,
+			},
 		});
 		if (!customer) {
 			throw new ORPCError("NOT_FOUND", { message: "Customer not found" });
@@ -91,27 +105,71 @@ export const createInvoice = protectedProcedure
 			input.discount;
 		const total = input.total ?? Math.max(0, lineItemTotal);
 		const totalWithTax = input.totalWithTax ?? total + input.tax;
-		const expiryDate = input.expiryDate
-			? new Date(input.expiryDate)
-			: (customer.expiresAt ?? range.lte);
+		const invoiceData = (fallbackExpiry: Date | null) => ({
+			organizationId: input.organizationId,
+			customerId: input.customerId,
+			year: input.year,
+			month: input.month,
+			invoiceDate: range.gte,
+			expiryDate: input.expiryDate
+				? new Date(input.expiryDate)
+				: (fallbackExpiry ?? range.lte),
+			accountPrice: input.accountPrice ?? null,
+			iptvPrice: input.iptvPrice ?? null,
+			realIpPrice: input.realIpPrice ?? null,
+			total,
+			discount: input.discount,
+			tax: input.tax,
+			totalWithTax,
+			note: input.note ?? null,
+		});
 
-		const invoice = await db.customerInvoice.create({
-			data: {
-				organizationId: input.organizationId,
-				customerId: input.customerId,
-				year: input.year,
-				month: input.month,
-				invoiceDate: range.gte,
-				expiryDate,
-				accountPrice: input.accountPrice ?? null,
-				iptvPrice: input.iptvPrice ?? null,
-				realIpPrice: input.realIpPrice ?? null,
-				total,
-				discount: input.discount,
-				tax: input.tax,
-				totalWithTax,
-				note: input.note ?? null,
+		if (!input.renewInIRadius) {
+			const invoice = await db.customerInvoice.create({
+				data: invoiceData(customer.expiresAt),
+			});
+			return { invoice };
+		}
+
+		// Renew in iRadius first — after the duplicate-month CONFLICT above,
+		// so a duplicate invoice never triggers a charge — then write the
+		// expiry iRadius now holds, the status and the invoice in one
+		// transaction. The invoice freezes the renewed expiry.
+		if (iradiusDisabled || !customer.externalId) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Renew on iRadius needs a customer linked to iRadius",
+			});
+		}
+		const activate =
+			input.activate === true && customer.status !== "ACTIVE";
+		let renewedExpiry: Date | null = null;
+		const invoice = await mirrorToIRadius({
+			logTag: "iRadius renew on create-invoice",
+			failureMessage: "Failed to renew the customer in iRadius",
+			remote: async () => {
+				({ expiresAt: renewedExpiry } = await reactivateInIRadius({
+					customer,
+					activate,
+					renew: true,
+					customExpiryDate: null,
+					reason: "Renewed on invoice creation",
+				}));
 			},
+			local: () =>
+				db.$transaction(async (tx) => {
+					await tx.customer.update({
+						where: { id: customer.id },
+						data: {
+							...(renewedExpiry
+								? { expiresAt: renewedExpiry }
+								: {}),
+							...(activate ? { status: "ACTIVE" as const } : {}),
+						},
+					});
+					return tx.customerInvoice.create({
+						data: invoiceData(renewedExpiry ?? customer.expiresAt),
+					});
+				}),
 		});
 
 		return { invoice };

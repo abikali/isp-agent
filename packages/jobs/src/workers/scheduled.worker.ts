@@ -12,6 +12,7 @@ import {
 	scheduleTaskReminder,
 } from "../jobs/task-reminder.jobs";
 import { queueWatcherCheck } from "../jobs/watcher-check.jobs";
+import { checkIRadiusBridge } from "../lib/iradius-bridge-probe";
 import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
 import { SCHEDULED_QUEUE_NAME } from "../queues/scheduled.queue";
 import type { ScheduledJobData, ScheduledJobResult } from "../types";
@@ -390,6 +391,10 @@ export function createScheduledWorker(): Worker<
 				case "task-reminder-sweep": {
 					const queued = await sweepTaskReminders();
 					return { processedCount: queued };
+				}
+				case "iradius-bridge-probe": {
+					const alerted = await checkIRadiusBridge();
+					return { processedCount: alerted };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

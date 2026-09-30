@@ -41,6 +41,7 @@ import { reviewPayments } from "./procedures/review-payments";
 import { saveLocation } from "./procedures/save-location";
 import {
 	declineStoppedPayment,
+	getIRadiusBridgeStatus,
 	listPendingStoppedPayments,
 	listStoppedAccounts,
 	reactivateAccount,
@@ -108,6 +109,7 @@ export const billingRouter = {
 		list: listStoppedAccounts,
 		pending: listPendingStoppedPayments,
 		decline: declineStoppedPayment,
+		bridgeStatus: getIRadiusBridgeStatus,
 	},
 	collectors: {
 		list: listCollectors,
