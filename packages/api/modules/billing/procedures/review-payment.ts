@@ -3,6 +3,7 @@ import {
 	getDealerScopeViaCustomer,
 	requirePermission,
 } from "@repo/api/lib/permission";
+import { getAuditContextFromHeaders } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
 import { notifyBadgeForOrganization } from "@repo/notifications";
 import z from "zod";
@@ -24,9 +25,16 @@ export const reviewPayment = protectedProcedure
 			// iRadius user is already gone: forgives the "user not found"
 			// remote error and still records the local deactivation.
 			force: z.boolean().optional(),
+			// Stopped accounts only: "inactive" (default) deactivates;
+			// "delete" also deletes the subscriber in iRadius and soft-deletes
+			// it in CP. The bulk review stays inactive-only.
+			stopAction: z.enum(["inactive", "delete"]).default("inactive"),
+			// "delete" is refused while other months are owed; the operator
+			// can override explicitly.
+			ignoreOwedMonths: z.boolean().optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, headers }, input }) => {
 		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
@@ -79,6 +87,10 @@ export const reviewPayment = protectedProcedure
 			// `force` is set once the operator confirms via the client prompt
 			// that the iRadius user is already gone.
 			tolerateMissing: input.force === true,
+			stopAction: input.stopAction,
+			operatorName: user.name || user.email,
+			ignoreOwedMonths: input.ignoreOwedMonths === true,
+			auditContext: getAuditContextFromHeaders(headers),
 		});
 
 		notifyBadgeForOrganization(input.organizationId);
