@@ -10,15 +10,17 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
-import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Tabs, TabsList, TabsTrigger } from "@ui/components/tabs";
+import { Textarea } from "@ui/components/textarea";
 import { cn } from "@ui/lib";
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useAddStockQuantity, useSuppliersQuery } from "../hooks/use-stock";
 import { QuantityInput } from "./QuantityInput";
 import type { StockItem } from "./StockList";
+import { SupplierDialog } from "./SupplierDialog";
 
 export function AddQuantityDialog({
 	open,
@@ -37,9 +39,11 @@ export function AddQuantityDialog({
 	const [quantity, setQuantity] = useState(1);
 	const [notes, setNotes] = useState("");
 	const { suppliers } = useSuppliersQuery();
-	// Default to the item's only supplier; leave the choice open otherwise.
+	const [creatingSupplier, setCreatingSupplier] = useState(false);
+	// Default to whoever delivered this item last, else its only supplier.
 	const [supplierId, setSupplierId] = useState(
-		item.suppliers.length === 1 ? (item.suppliers[0]?.id ?? "") : "",
+		item.lastDelivery?.supplierId ??
+			(item.suppliers.length === 1 ? (item.suppliers[0]?.id ?? "") : ""),
 	);
 	const supplierOptions = [
 		{ value: "", label: "No supplier" },
@@ -108,6 +112,40 @@ export function AddQuantityDialog({
 							</TabsTrigger>
 						</TabsList>
 					</Tabs>
+					{!isRemove && (
+						<div className="space-y-1.5">
+							<Label htmlFor="adjust-qty-supplier">
+								Supplier (who delivered it)
+							</Label>
+							<div className="flex gap-2">
+								<Combobox
+									id="adjust-qty-supplier"
+									options={supplierOptions}
+									value={supplierId}
+									onChange={setSupplierId}
+									placeholder="No supplier"
+									searchPlaceholder="Search suppliers…"
+									emptyText="No suppliers yet"
+									className="min-w-0 flex-1"
+								/>
+								<Button
+									type="button"
+									variant="outline"
+									size="icon"
+									aria-label="New supplier"
+									onClick={() => setCreatingSupplier(true)}
+								>
+									<PlusIcon className="size-4" />
+								</Button>
+							</div>
+							{!supplierId && (
+								<p className="text-muted-foreground text-xs">
+									Recording the supplier shows where each
+									delivery came from in the stock log.
+								</p>
+							)}
+						</div>
+					)}
 					<div className="space-y-1.5">
 						<Label htmlFor="adjust-qty">Quantity</Label>
 						<QuantityInput
@@ -135,29 +173,19 @@ export function AddQuantityDialog({
 							{newQuantity}
 						</span>
 					</p>
-					{!isRemove && (
-						<div className="space-y-1.5">
-							<Label htmlFor="adjust-qty-supplier">
-								Supplier
-							</Label>
-							<Combobox
-								id="adjust-qty-supplier"
-								options={supplierOptions}
-								value={supplierId}
-								onChange={setSupplierId}
-								placeholder="No supplier"
-								searchPlaceholder="Search suppliers…"
-								emptyText="No suppliers yet — add one from the item's edit dialog"
-							/>
-						</div>
-					)}
 					<div className="space-y-1.5">
 						<Label htmlFor="adjust-qty-notes">Notes</Label>
-						<Input
+						<Textarea
 							id="adjust-qty-notes"
 							value={notes}
 							onChange={(e) => setNotes(e.target.value)}
-							placeholder="Optional note"
+							placeholder={
+								isRemove
+									? "Why is stock being removed?"
+									: "Invoice #, price paid, remarks"
+							}
+							rows={2}
+							maxLength={1000}
 						/>
 					</div>
 				</div>
@@ -180,6 +208,12 @@ export function AddQuantityDialog({
 								: `Add ${quantity}`}
 					</Button>
 				</DialogFooter>
+				{creatingSupplier && (
+					<SupplierDialog
+						onClose={() => setCreatingSupplier(false)}
+						onSaved={(supplier) => setSupplierId(supplier.id)}
+					/>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

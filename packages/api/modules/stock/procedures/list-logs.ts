@@ -18,6 +18,7 @@ export const listStockLogs = protectedProcedure
 			organizationId: z.string(),
 			stockItemId: z.string().optional(),
 			employeeId: z.string().optional(),
+			supplierId: z.string().optional(),
 			action: z
 				.enum([
 					"ADD",
@@ -60,6 +61,9 @@ export const listStockLogs = protectedProcedure
 		}
 		if (input.employeeId) {
 			where["employeeId"] = input.employeeId;
+		}
+		if (input.supplierId) {
+			where["supplierId"] = input.supplierId;
 		}
 		if (input.action) {
 			where["action"] = input.action;

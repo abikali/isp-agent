@@ -82,6 +82,7 @@ import { Route as SaasAppOrgOrganizationSlugBillingIndexRouteImport } from "./ro
 import { Route as SaasAppOrgOrganizationSlugAiAgentsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/ai-agents/index"
 import { Route as SaasAppAccountAdminOrganizationsIndexRouteImport } from "./routes/_saas/app/_account/admin/organizations/index"
 import { Route as SaasAppAccountAdminDealersIndexRouteImport } from "./routes/_saas/app/_account/admin/dealers/index"
+import { Route as SaasAppOrgOrganizationSlugStockSuppliersRouteImport } from "./routes/_saas/app/_org/$organizationSlug/stock/suppliers"
 import { Route as SaasAppOrgOrganizationSlugStockLogRouteImport } from "./routes/_saas/app/_org/$organizationSlug/stock/log"
 import { Route as SaasAppOrgOrganizationSlugSettingsWorkerOptionsRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/worker-options"
 import { Route as SaasAppOrgOrganizationSlugSettingsWebhooksRouteImport } from "./routes/_saas/app/_org/$organizationSlug/settings/webhooks"
@@ -547,6 +548,12 @@ const SaasAppAccountAdminDealersIndexRoute =
     path: "/dealers/",
     getParentRoute: () => SaasAppAccountAdminRoute,
   } as any)
+const SaasAppOrgOrganizationSlugStockSuppliersRoute =
+  SaasAppOrgOrganizationSlugStockSuppliersRouteImport.update({
+    id: "/stock/suppliers",
+    path: "/stock/suppliers",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
 const SaasAppOrgOrganizationSlugStockLogRoute =
   SaasAppOrgOrganizationSlugStockLogRouteImport.update({
     id: "/stock/log",
@@ -952,6 +959,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/app/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
+  "/app/$organizationSlug/stock/suppliers": typeof SaasAppOrgOrganizationSlugStockSuppliersRoute
   "/app/admin/dealers": typeof SaasAppAccountAdminDealersIndexRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
   "/app/$organizationSlug/ai-agents": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
@@ -1067,6 +1075,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/app/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/app/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
+  "/app/$organizationSlug/stock/suppliers": typeof SaasAppOrgOrganizationSlugStockSuppliersRoute
   "/app/admin/dealers": typeof SaasAppAccountAdminDealersIndexRoute
   "/app/admin/organizations": typeof SaasAppAccountAdminOrganizationsIndexRoute
   "/app/$organizationSlug/ai-agents": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
@@ -1197,6 +1206,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/settings/webhooks": typeof SaasAppOrgOrganizationSlugSettingsWebhooksRoute
   "/_saas/app/_org/$organizationSlug/settings/worker-options": typeof SaasAppOrgOrganizationSlugSettingsWorkerOptionsRoute
   "/_saas/app/_org/$organizationSlug/stock/log": typeof SaasAppOrgOrganizationSlugStockLogRoute
+  "/_saas/app/_org/$organizationSlug/stock/suppliers": typeof SaasAppOrgOrganizationSlugStockSuppliersRoute
   "/_saas/app/_account/admin/dealers/": typeof SaasAppAccountAdminDealersIndexRoute
   "/_saas/app/_account/admin/organizations/": typeof SaasAppAccountAdminOrganizationsIndexRoute
   "/_saas/app/_org/$organizationSlug/ai-agents/": typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
@@ -1321,6 +1331,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/webhooks"
     | "/app/$organizationSlug/settings/worker-options"
     | "/app/$organizationSlug/stock/log"
+    | "/app/$organizationSlug/stock/suppliers"
     | "/app/admin/dealers"
     | "/app/admin/organizations"
     | "/app/$organizationSlug/ai-agents"
@@ -1436,6 +1447,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/settings/webhooks"
     | "/app/$organizationSlug/settings/worker-options"
     | "/app/$organizationSlug/stock/log"
+    | "/app/$organizationSlug/stock/suppliers"
     | "/app/admin/dealers"
     | "/app/admin/organizations"
     | "/app/$organizationSlug/ai-agents"
@@ -1565,6 +1577,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/settings/webhooks"
     | "/_saas/app/_org/$organizationSlug/settings/worker-options"
     | "/_saas/app/_org/$organizationSlug/stock/log"
+    | "/_saas/app/_org/$organizationSlug/stock/suppliers"
     | "/_saas/app/_account/admin/dealers/"
     | "/_saas/app/_account/admin/organizations/"
     | "/_saas/app/_org/$organizationSlug/ai-agents/"
@@ -2144,6 +2157,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/app/admin/dealers"
       preLoaderRoute: typeof SaasAppAccountAdminDealersIndexRouteImport
       parentRoute: typeof SaasAppAccountAdminRoute
+    }
+    "/_saas/app/_org/$organizationSlug/stock/suppliers": {
+      id: "/_saas/app/_org/$organizationSlug/stock/suppliers"
+      path: "/stock/suppliers"
+      fullPath: "/app/$organizationSlug/stock/suppliers"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugStockSuppliersRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/stock/log": {
       id: "/_saas/app/_org/$organizationSlug/stock/log"
@@ -2735,6 +2755,7 @@ interface SaasAppOrgOrganizationSlugRouteChildren {
   SaasAppOrgOrganizationSlugMarketingNewRoute: typeof SaasAppOrgOrganizationSlugMarketingNewRoute
   SaasAppOrgOrganizationSlugMarketingOptOutsRoute: typeof SaasAppOrgOrganizationSlugMarketingOptOutsRoute
   SaasAppOrgOrganizationSlugStockLogRoute: typeof SaasAppOrgOrganizationSlugStockLogRoute
+  SaasAppOrgOrganizationSlugStockSuppliersRoute: typeof SaasAppOrgOrganizationSlugStockSuppliersRoute
   SaasAppOrgOrganizationSlugAiAgentsIndexRoute: typeof SaasAppOrgOrganizationSlugAiAgentsIndexRoute
   SaasAppOrgOrganizationSlugBillingIndexRoute: typeof SaasAppOrgOrganizationSlugBillingIndexRoute
   SaasAppOrgOrganizationSlugConversationsIndexRoute: typeof SaasAppOrgOrganizationSlugConversationsIndexRoute
@@ -2812,6 +2833,8 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
       SaasAppOrgOrganizationSlugMarketingOptOutsRoute,
     SaasAppOrgOrganizationSlugStockLogRoute:
       SaasAppOrgOrganizationSlugStockLogRoute,
+    SaasAppOrgOrganizationSlugStockSuppliersRoute:
+      SaasAppOrgOrganizationSlugStockSuppliersRoute,
     SaasAppOrgOrganizationSlugAiAgentsIndexRoute:
       SaasAppOrgOrganizationSlugAiAgentsIndexRoute,
     SaasAppOrgOrganizationSlugBillingIndexRoute:

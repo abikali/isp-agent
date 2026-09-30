@@ -8,6 +8,7 @@ export { StockItemDialog } from "./components/StockItemDialog";
 export { StockList } from "./components/StockList";
 export { StockListSkeleton } from "./components/StockListSkeleton";
 export { StockLogList } from "./components/StockLogList";
+export { SuppliersList } from "./components/SuppliersList";
 export { WorkerAllocationsDialog } from "./components/WorkerAllocationsDialog";
 // Hooks
 export {

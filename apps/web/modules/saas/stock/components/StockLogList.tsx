@@ -22,7 +22,11 @@ import {
 } from "@ui/components/select";
 import { HistoryIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useStockItemsQuery, useStockLogs } from "../hooks/use-stock";
+import {
+	useStockItemsQuery,
+	useStockLogs,
+	useSuppliersQuery,
+} from "../hooks/use-stock";
 
 type StockLogRow = ReturnType<typeof useStockLogs>["logs"][number];
 
@@ -46,7 +50,14 @@ type StockAction =
 	| "ADJUST"
 	| "DELIVER";
 
-export function StockLogList() {
+export function StockLogList({
+	supplierId,
+	onSupplierChange,
+}: {
+	/** Lives in the URL (`?supplierId=`) so the Suppliers page can link here. */
+	supplierId?: string | undefined;
+	onSupplierChange: (supplierId: string | undefined) => void;
+}) {
 	const [page, setPage] = useState(1);
 	const [stockItemId, setStockItemId] = useState<string | undefined>();
 	const [employeeId, setEmployeeId] = useState<string | undefined>();
@@ -54,6 +65,14 @@ export function StockLogList() {
 
 	const { items } = useStockItemsQuery();
 	const { employees } = useEmployeesQuery({ role: "worker" });
+	const { suppliers } = useSuppliersQuery({ includeArchived: true });
+	const supplierOptions = useMemo(
+		() => [
+			{ value: "all", label: "All suppliers" },
+			...suppliers.map((s) => ({ value: s.id, label: s.name })),
+		],
+		[suppliers],
+	);
 	const itemOptions = useMemo(
 		() => [
 			{ value: "all", label: "All items" },
@@ -71,6 +90,7 @@ export function StockLogList() {
 	const { logs, total, totalPages } = useStockLogs({
 		stockItemId,
 		employeeId,
+		supplierId,
 		action,
 		page,
 	});
@@ -174,7 +194,7 @@ export function StockLogList() {
 			{
 				id: "supplier",
 				header: "Supplier",
-				meta: { className: "hidden lg:table-cell" },
+				meta: { className: "hidden md:table-cell" },
 				cell: ({ row }) => (
 					<span className="text-sm text-muted-foreground">
 						{row.original.supplier?.name ?? "—"}
@@ -234,6 +254,17 @@ export function StockLogList() {
 							}}
 							searchPlaceholder="Search workers…"
 							emptyText="No workers found"
+							className="w-44"
+						/>
+						<Combobox
+							options={supplierOptions}
+							value={supplierId ?? "all"}
+							onChange={(v) => {
+								onSupplierChange(v === "all" ? undefined : v);
+								setPage(1);
+							}}
+							searchPlaceholder="Search suppliers…"
+							emptyText="No suppliers found"
 							className="w-44"
 						/>
 						<Select

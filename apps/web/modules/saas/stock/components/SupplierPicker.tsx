@@ -1,16 +1,19 @@
 "use client";
 
-import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import { Checkbox } from "@ui/components/checkbox";
-import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { PlusIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useCreateSupplier, useSuppliersQuery } from "../hooks/use-stock";
+import {
+	EMPTY_SUPPLIER_FORM,
+	SupplierFormFields,
+	supplierFormPayload,
+} from "./SupplierFormFields";
 
 /**
  * Multi-select of the org's suppliers with an inline "new supplier" form, so
@@ -27,8 +30,7 @@ export function SupplierPicker({
 	const { suppliers } = useSuppliersQuery();
 	const createSupplier = useCreateSupplier();
 	const [adding, setAdding] = useState(false);
-	const [name, setName] = useState("");
-	const [phones, setPhones] = useState<PhoneRow[]>([]);
+	const [form, setForm] = useState(EMPTY_SUPPLIER_FORM);
 
 	function toggle(id: string) {
 		onChange(
@@ -37,23 +39,18 @@ export function SupplierPicker({
 	}
 
 	async function handleCreate() {
-		if (!organizationId || !name.trim()) {
+		if (!organizationId || !form.name.trim()) {
 			return;
 		}
+		const payload = supplierFormPayload(form);
 		try {
 			const { supplier } = await createSupplier.mutateAsync({
 				organizationId,
-				name: name.trim(),
-				phones: phones
-					.filter((p) => p.number.trim())
-					.map((p, i) => ({
-						number: p.number.trim(),
-						primary: i === 0,
-					})),
+				...payload,
+				notes: payload.notes || undefined,
 			});
 			onChange([...value, supplier.id]);
-			setName("");
-			setPhones([]);
+			setForm(EMPTY_SUPPLIER_FORM);
 			setAdding(false);
 			toast.success(`Supplier "${supplier.name}" added`);
 		} catch (error) {
@@ -100,7 +97,9 @@ export function SupplierPicker({
 			{adding ? (
 				<div className="space-y-2 rounded-md border border-dashed p-3">
 					<div className="flex items-center justify-between">
-						<Label htmlFor="new-supplier-name">New supplier</Label>
+						<span className="font-medium text-sm">
+							New supplier
+						</span>
 						<Button
 							type="button"
 							variant="ghost"
@@ -111,18 +110,16 @@ export function SupplierPicker({
 							<XIcon className="size-4" />
 						</Button>
 					</div>
-					<Input
-						id="new-supplier-name"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="e.g. Ali Electronics"
+					<SupplierFormFields
+						value={form}
+						onChange={setForm}
+						idPrefix="new-supplier"
 					/>
-					<PhoneRows phones={phones} onChange={setPhones} />
 					<Button
 						type="button"
 						size="sm"
 						onClick={handleCreate}
-						disabled={!name.trim() || createSupplier.isPending}
+						disabled={!form.name.trim() || createSupplier.isPending}
 					>
 						{createSupplier.isPending ? "Saving…" : "Save supplier"}
 					</Button>

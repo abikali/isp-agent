@@ -19,7 +19,8 @@ export const addStockQuantity = protectedProcedure
 				.number()
 				.int()
 				.refine((v) => v !== 0, "Quantity cannot be zero"),
-			notes: z.string().max(500).optional(),
+			// Invoice #, price paid, remarks
+			notes: z.string().max(1000).optional(),
 			/** Who delivered it (ADD only). */
 			supplierId: z.string().optional(),
 		}),
@@ -82,6 +83,18 @@ export const addStockQuantity = protectedProcedure
 						input.quantity > 0 ? (input.supplierId ?? null) : null,
 				},
 			});
+			// The item's supplier list grows from real deliveries.
+			if (input.quantity > 0 && input.supplierId) {
+				await tx.stockItemSupplier.createMany({
+					data: [
+						{
+							stockItemId: updated.id,
+							supplierId: input.supplierId,
+						},
+					],
+					skipDuplicates: true,
+				});
+			}
 			return updated;
 		});
 
