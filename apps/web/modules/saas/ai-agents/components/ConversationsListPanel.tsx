@@ -33,6 +33,7 @@ import { useAgentsQuery } from "../hooks/use-agents";
 import {
 	formatChatDate,
 	formatListTimestamp,
+	formatMinutes,
 	getAvatarColor,
 	getContactInitials,
 } from "../lib/chat-utils";
@@ -47,6 +48,7 @@ export interface ConversationItem {
 	status: string;
 	pinned: boolean;
 	followUpDueAt: Date | string | null;
+	awaitingHumanSince?: Date | string | null;
 	followUpAttempts: number;
 	followUpMuted: boolean;
 	messageCount: number;
@@ -283,7 +285,19 @@ function renderCard(conv: ConversationItem, isSelected: boolean) {
 							<span className="italic">No messages yet</span>
 						)}
 					</p>
-					{isFlagged ? (
+					{conv.awaitingHumanSince ? (
+						<Badge
+							variant="outline"
+							className="h-4 shrink-0 border-destructive/40 bg-destructive/10 px-1.5 text-[10px] font-medium tabular-nums text-destructive"
+							title="The customer wrote to a teammate and nobody has answered yet"
+						>
+							Waiting for team ·{" "}
+							{formatMinutes(
+								Date.now() -
+									new Date(conv.awaitingHumanSince).getTime(),
+							)}
+						</Badge>
+					) : isFlagged ? (
 						<Badge
 							variant="outline"
 							className="h-4 border-warning/40 bg-warning/10 px-1.5 text-[9px] font-semibold uppercase tracking-wider text-warning"

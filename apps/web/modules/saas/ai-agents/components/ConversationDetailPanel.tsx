@@ -14,13 +14,11 @@ import { cn } from "@ui/lib";
 import type { UIMessage } from "ai";
 import {
 	ArrowLeftIcon,
-	HandIcon,
 	LoaderIcon,
 	LockIcon,
 	MoreVerticalIcon,
 	PinIcon,
 	PinOffIcon,
-	PlayIcon,
 	SearchIcon,
 	XIcon,
 } from "lucide-react";
@@ -32,7 +30,6 @@ import {
 import {
 	useConversationMessages,
 	useLoadOlderMessagesOnScroll,
-	useResumeConversation,
 } from "../hooks/use-conversations";
 import {
 	useDeleteMessage,
@@ -45,6 +42,7 @@ import {
 	groupMessagesByDate,
 } from "../lib/chat-utils";
 import { AdminChatInput } from "./AdminChatInput";
+import { BotPausedBanner } from "./BotPausedBanner";
 import { ContactPhone } from "./ContactPhone";
 import { ContactUsername } from "./ContactUsername";
 import { DateSeparator } from "./DateSeparator";
@@ -55,25 +53,6 @@ interface ReplyTarget {
 	id: string;
 	role: string;
 	content: string;
-}
-
-/** Format the human-takeover countdown label from a deadline and the current clock. */
-function formatTakeoverRemaining(expiresAtMs: number, now: number): string {
-	if (!expiresAtMs) {
-		return "";
-	}
-	const remaining = expiresAtMs - now;
-	if (remaining <= 0) {
-		return "";
-	}
-	const mins = Math.floor(remaining / 60000);
-	const secs = Math.floor((remaining % 60000) / 1000);
-	if (mins >= 60) {
-		const hrs = Math.floor(mins / 60);
-		const m = mins % 60;
-		return `${hrs}h ${m}m remaining`;
-	}
-	return `${mins}m ${secs}s remaining`;
 }
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive conversation thread view; splitting further would scatter tightly-coupled message/scroll/takeover state
@@ -114,7 +93,6 @@ export function ConversationDetailPanel({
 		content: string;
 	} | null>(null);
 	const togglePin = useTogglePinConversation();
-	const resumeConversation = useResumeConversation();
 	const reactMutation = useReactToMessage();
 	const deleteMutation = useDeleteMessage();
 	const editMutation = useEditMessage();
@@ -142,28 +120,12 @@ export function ConversationDetailPanel({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
-	const takeoverExpiresAt = conversation?.humanTakeoverExpiresAt
-		? new Date(conversation.humanTakeoverExpiresAt)
-		: null;
-	const [now, setNow] = useState(() => Date.now());
-	const isHumanTakeover = !!takeoverExpiresAt;
+	// The bot is holding back (takeover, teammate wait, or a deferral): no
+	// typing bubble — the banner explains why and offers "Let AI answer".
 	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
-
-	// Countdown timer for human takeover — tick a clock, derive the label in render
-	const expiresAtMs = takeoverExpiresAt?.getTime() ?? 0;
-	useEffect(() => {
-		if (!expiresAtMs) {
-			return;
-		}
-		const interval = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(interval);
-	}, [expiresAtMs]);
-	const takeoverRemaining = formatTakeoverRemaining(expiresAtMs, now);
-
-	function handleResumeAi() {
-		resumeConversation.mutate({ conversationId, organizationId });
-	}
+		lastMessage?.role === "user" &&
+		!lastMessage.error &&
+		!conversation?.botPaused;
 
 	function handleTogglePin() {
 		togglePin.mutate({
@@ -315,30 +277,11 @@ export function ConversationDetailPanel({
 				</div>
 			)}
 
-			{/* Human takeover banner */}
-			{isHumanTakeover && (
-				<div className="flex items-center gap-2 border-b bg-amber-50 px-4 py-2 dark:bg-amber-950/30">
-					<HandIcon className="size-4 text-amber-600 dark:text-amber-400" />
-					<span className="flex-1 text-xs text-amber-800 dark:text-amber-300">
-						AI paused — human takeover active
-						{takeoverRemaining && (
-							<span className="ml-1 font-medium">
-								({takeoverRemaining})
-							</span>
-						)}
-					</span>
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-6 text-xs"
-						onClick={handleResumeAi}
-						disabled={resumeConversation.isPending}
-					>
-						<PlayIcon className="mr-1 size-3" />
-						Resume AI
-					</Button>
-				</div>
-			)}
+			<BotPausedBanner
+				conversationId={conversationId}
+				organizationId={organizationId}
+				botPaused={conversation?.botPaused}
+			/>
 
 			{/* Messages area with subtle wallpaper pattern */}
 			<div

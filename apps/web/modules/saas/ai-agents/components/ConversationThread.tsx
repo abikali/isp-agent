@@ -11,6 +11,7 @@ import {
 	useConversationMessages,
 	useLoadOlderMessagesOnScroll,
 } from "../hooks/use-conversations";
+import { BotPausedBanner } from "./BotPausedBanner";
 import { ChatMarkdown } from "./ChatMarkdown";
 
 export function ConversationThread({
@@ -53,9 +54,10 @@ export function ConversationThread({
 	}, [lastMessageId]);
 
 	const lastMessage = messages[messages.length - 1];
-	const isHumanTakeover = !!conversation?.humanTakeoverExpiresAt;
 	const isAwaitingResponse =
-		lastMessage?.role === "user" && !lastMessage.error && !isHumanTakeover;
+		lastMessage?.role === "user" &&
+		!lastMessage.error &&
+		!conversation?.botPaused;
 
 	return (
 		<div className="flex h-full flex-col">
@@ -84,6 +86,12 @@ export function ConversationThread({
 					)}
 				</div>
 			</div>
+
+			<BotPausedBanner
+				conversationId={conversationId}
+				organizationId={organizationId}
+				botPaused={conversation?.botPaused}
+			/>
 
 			{/* Messages */}
 			<div

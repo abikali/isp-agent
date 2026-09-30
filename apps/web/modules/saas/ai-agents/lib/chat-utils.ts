@@ -172,3 +172,15 @@ export function parseCoordinates(
 	}
 	return { latitude, longitude };
 }
+
+/** "42m", "1h 5m"; "<1m" under a minute. */
+export function formatMinutes(ms: number): string {
+	const mins = Math.max(0, Math.floor(ms / 60_000));
+	if (mins < 1) {
+		return "<1m";
+	}
+	if (mins < 60) {
+		return `${mins}m`;
+	}
+	return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
