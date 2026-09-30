@@ -75,6 +75,7 @@ export const listStockItems = protectedProcedure
 			alertThreshold: item.alertThreshold,
 			alertEnabled: item.alertEnabled,
 			showInUninstall: item.showInUninstall,
+			isElectricity: item.isElectricity,
 			createdAt: item.createdAt,
 			suppliers: item.suppliers.map((s) => s.supplier),
 			lastDelivery: item.logs[0]

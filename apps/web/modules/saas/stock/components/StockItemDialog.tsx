@@ -47,6 +47,7 @@ export function StockItemDialog({
 			alertThreshold: item?.alertThreshold ?? null,
 			alertEnabled: item?.alertEnabled ?? false,
 			showInUninstall: item?.showInUninstall ?? false,
+			isElectricity: item?.isElectricity ?? false,
 			supplierIds: initialSupplierIds,
 		},
 		onSubmit: async ({ value }) => {
@@ -69,6 +70,7 @@ export function StockItemDialog({
 						alertThreshold: value.alertThreshold,
 						alertEnabled: value.alertEnabled,
 						showInUninstall: value.showInUninstall,
+						isElectricity: value.isElectricity,
 					});
 					if (suppliersChanged) {
 						await setItemSuppliers.mutateAsync({
@@ -90,6 +92,7 @@ export function StockItemDialog({
 						}),
 						alertEnabled: value.alertEnabled,
 						showInUninstall: value.showInUninstall,
+						isElectricity: value.isElectricity,
 					});
 					if (value.supplierIds.length > 0) {
 						await setItemSuppliers.mutateAsync({
@@ -295,6 +298,27 @@ export function StockItemDialog({
 								</div>
 								<Switch
 									id="stock-item-uninstall"
+									checked={field.state.value}
+									onCheckedChange={field.handleChange}
+								/>
+							</div>
+						)}
+					</form.Field>
+
+					<form.Field name="isElectricity">
+						{(field) => (
+							<div className="flex items-center justify-between rounded-md border p-3">
+								<div>
+									<Label htmlFor="stock-item-electricity">
+										Electricity item
+									</Label>
+									<p className="text-xs text-muted-foreground">
+										Installing it sets AP Electrical on the
+										customer in iRadius
+									</p>
+								</div>
+								<Switch
+									id="stock-item-electricity"
 									checked={field.state.value}
 									onCheckedChange={field.handleChange}
 								/>

@@ -23,6 +23,7 @@ import { generateCustomerPin } from "./procedures/generate-pin";
 import { getCustomer } from "./procedures/get";
 import {
 	resetCustomerMacAddress,
+	setCustomerApElectrical,
 	setCustomerExpiryDate,
 	setCustomerIptvPrice,
 	setCustomerRecurringDiscount,
@@ -131,6 +132,7 @@ export const customersRouter = {
 	setDiscount: setCustomerRecurringDiscount,
 	setIptvPrice: setCustomerIptvPrice,
 	setExpiryDate: setCustomerExpiryDate,
+	setApElectrical: setCustomerApElectrical,
 	createLocationRequest,
 	bulkRequestLocation,
 	updateCustomerLocation,

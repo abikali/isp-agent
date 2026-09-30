@@ -21,6 +21,7 @@ export const createStockItem = protectedProcedure
 			alertThreshold: z.number().int().min(0).optional(),
 			alertEnabled: z.boolean().default(false),
 			showInUninstall: z.boolean().default(false),
+			isElectricity: z.boolean().default(false),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -57,6 +58,7 @@ export const createStockItem = protectedProcedure
 					alertThreshold: input.alertThreshold ?? null,
 					alertEnabled: input.alertEnabled,
 					showInUninstall: input.showInUninstall,
+					isElectricity: input.isElectricity,
 				},
 			});
 			if (input.quantity > 0) {

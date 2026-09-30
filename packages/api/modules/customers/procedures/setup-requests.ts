@@ -30,6 +30,7 @@ import { collectorRoleWhere } from "../../employees/lib/cash-role";
 import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import { syncPendingAddonLinePrices } from "../../installations/lib/addon-price-sync";
 import { addonNoteFor } from "../../installations/lib/addons";
+import { pushApElectricalToIRadius } from "../../installations/lib/electricity-mirror";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
@@ -1014,13 +1015,18 @@ export const approveSetupRequest = protectedProcedure
 		}
 
 		// Approving the bundled add-on lines sets the customer's IPTV / Real IP
-		// price locally (approveInstallationInTx below); push the same prices
+		// price (and, for an electricity item, AP Electrical) locally
+		// (approveInstallationInTx below); push the same values
 		// to iRadius first, before the transaction opens. A failure throws
 		// before any local approval write, and the subscriber is already
 		// linked above, so a retry is clean.
 		if (!iradiusDisabled) {
 			await pushAddonPricesToIRadius(
 				{ ...request.customer, externalId },
+				pendingInstallations,
+			);
+			await pushApElectricalToIRadius(
+				{ externalId },
 				pendingInstallations,
 			);
 		}

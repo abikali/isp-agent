@@ -83,6 +83,7 @@ import {
 	CONNECTION_TYPE_OPTIONS,
 	CUSTOMER_STATUS_OPTIONS,
 } from "../lib/constants";
+import { ApElectricalToggle } from "./ApElectricalToggle";
 import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
 import { CustomerFollowups } from "./CustomerFollowups";
 import { CustomerInstallations } from "./CustomerInstallations";
@@ -1667,7 +1668,12 @@ function NetworkTab({ customer }: { customer: CustomerData }) {
 							},
 							{
 								label: "AP electrical",
-								value: customer.apElectrical,
+								value: (
+									<ApElectricalToggle
+										customerId={customer.id}
+										value={customer.apElectrical === true}
+									/>
+								),
 							},
 							{ label: "Temp user", value: customer.tempUser },
 							{ label: "Read only", value: customer.readOnly },
