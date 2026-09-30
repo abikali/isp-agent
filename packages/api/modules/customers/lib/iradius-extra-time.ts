@@ -208,6 +208,15 @@ export interface ExtraTimePlan {
 	atTarget: boolean;
 }
 
+/** Native's base: the stored expiry, or now when it is unset or already past. */
+export function extraTimeBase(
+	ctx: Pick<ExtraTimeContext, "expiryLiteral">,
+	now: Date,
+): Date {
+	const oldExpiry = fromIRadiusDateTime(ctx.expiryLiteral);
+	return oldExpiry && oldExpiry > now ? oldExpiry : now;
+}
+
 /** Pure planning step shared by the write and the read-only preview. */
 export function planExtraTime(
 	ctx: ExtraTimeContext,
@@ -216,7 +225,7 @@ export function planExtraTime(
 ): ExtraTimePlan {
 	const target = beirutEndOfDay(targetDate);
 	const oldExpiry = fromIRadiusDateTime(ctx.expiryLiteral);
-	const base = oldExpiry && oldExpiry > now ? oldExpiry : now;
+	const base = extraTimeBase(ctx, now);
 	const days = calendarDays(base, targetDate);
 	const periodHours = periodHoursFrom(
 		now,

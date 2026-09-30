@@ -1865,3 +1865,73 @@ export const cashAudit = {
 		);
 	},
 };
+
+/**
+ * Post-generation invoice rewrites (Align to 1st, one-time discount). The
+ * resource id is the invoice id.
+ */
+export const billingAudit = {
+	alignedToFirst: (
+		invoiceId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			customerId: string;
+			paymentId: string | null;
+			days: number;
+			billableDays: number;
+			dealerCharge: number;
+			oldTotal: number;
+			newTotal: number;
+			newExpiry: string;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.billing.paymentAlignedToFirst,
+					resourceType: RESOURCE_TYPES.invoice,
+				},
+				{
+					resourceId: invoiceId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+
+	oneTimeDiscount: (
+		invoiceId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			customerId: string;
+			paymentId: string | null;
+			amount: number;
+			reason: string;
+			oldTotal: number;
+			newTotal: number;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.billing.invoiceOneTimeDiscount,
+					resourceType: RESOURCE_TYPES.invoice,
+				},
+				{
+					resourceId: invoiceId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
+};
