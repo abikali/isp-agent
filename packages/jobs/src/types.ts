@@ -32,7 +32,9 @@ export type ScheduledJobType =
 	| "online-status-sync"
 	| "network-monitor-sync"
 	| "dealer-sync"
-	| "recurring-expenses";
+	| "recurring-expenses"
+	| "expiry-reminders"
+	| "expiry-reminders-report";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;
@@ -175,6 +177,16 @@ export type WhatsAppReceiptQueueJobData =
 
 export interface WhatsAppReceiptJobResult {
 	success: boolean;
+}
+
+// Customer payment notifications (expiry reminder, stop notice)
+export interface CustomerNotifyJobData {
+	/** `CustomerNotification.id` — one row per (message, channel). */
+	notificationId: string;
+}
+
+export interface CustomerNotifyJobResult {
+	status: "sent" | "failed" | "skipped";
 }
 
 // WhatsApp template retry job types (official WPBox number)

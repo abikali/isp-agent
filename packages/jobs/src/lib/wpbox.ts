@@ -416,3 +416,74 @@ export async function sendWhatsAppReferralReward(params: {
 		logTag: "[WhatsApp Referral Reward]",
 	});
 }
+
+// ── Customer payment notifications (expiry reminder, stop notice) ──────────
+
+/**
+ * Day-before-expiry reminder for an unpaid invoice — `payment_reminder_tomorrow`
+ * (ar, UTILITY). Body: "تذكير لعملائنا الكرام، نود تذكيركم بأن موعد تجديد
+ * اشتراك الإنترنت هو غدًا {{1}}. يرجى التواصل مع جابي الاشتراك على رقمه {{2}}
+ * لتسديد الاشتراك وتفادي انقطاع الخدمة. شكرًا لتعاونكم، Libancom".
+ * {{1}} the expiry date as "(1/10/2026)", {{2}} the collector/office number.
+ */
+export async function sendWhatsAppExpiryReminder(params: {
+	phone: string;
+	expiryLabel: string;
+	contactPhone: string;
+	notificationId: string;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "payment_reminder_tomorrow",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: [
+					{
+						type: "text",
+						text: sanitizeTemplateParam(params.expiryLabel, "غدًا"),
+					},
+					{
+						type: "text",
+						text: sanitizeTemplateParam(params.contactPhone, "-"),
+					},
+				],
+			},
+		],
+		logContext: { notificationId: params.notificationId },
+		logTag: "[WhatsApp Expiry Reminder]",
+	});
+}
+
+/**
+ * Pending stop request: the collector is trying to reach the customer —
+ * `stop_request_notice` (ar, UTILITY). Body: "عزيزنا المشترك، نذكّركم بلطف أن
+ * موعد تجديد الاشتراك قد حان، وموظف الجباية يحاول التواصل معكم. يرجى التواصل
+ * معه على رقمه {{1}} لتفادي انقطاع الخدمة. شكرًا لتعاونكم، Libancom".
+ * {{1}} the collector's number.
+ */
+export async function sendWhatsAppStopNotice(params: {
+	phone: string;
+	contactPhone: string;
+	notificationId: string;
+}): Promise<WPBoxSendResult> {
+	return sendWPBoxTemplate({
+		phone: params.phone,
+		templateName: "stop_request_notice",
+		templateLanguage: "ar",
+		components: [
+			{
+				type: "body",
+				parameters: [
+					{
+						type: "text",
+						text: sanitizeTemplateParam(params.contactPhone, "-"),
+					},
+				],
+			},
+		],
+		logContext: { notificationId: params.notificationId },
+		logTag: "[WhatsApp Stop Notice]",
+	});
+}

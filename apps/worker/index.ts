@@ -4,6 +4,7 @@ import {
 	createAiChatWorker,
 	createAiFollowUpWorker,
 	createBillingSyncWorker,
+	createCustomerNotifyWorker,
 	createEmailWorker,
 	createIntegrationSyncWorker,
 	createIRadiusPushWorker,
@@ -54,6 +55,7 @@ async function main() {
 	const marketingSendWorker = createMarketingSendWorker();
 	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
 	const whatsAppTemplateWorker = createWhatsAppTemplateWorker();
+	const customerNotifyWorker = createCustomerNotifyWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -87,6 +89,7 @@ async function main() {
 			"marketing-send",
 			"whatsapp-receipt",
 			"whatsapp-template",
+			"customer-notify",
 		],
 	});
 
@@ -112,6 +115,7 @@ async function main() {
 			marketingSendWorker.close(),
 			whatsAppReceiptWorker.close(),
 			whatsAppTemplateWorker.close(),
+			customerNotifyWorker.close(),
 		]);
 
 		healthServer.close();
