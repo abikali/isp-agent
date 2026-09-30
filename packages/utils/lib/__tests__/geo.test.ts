@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { directionsUrl, isUsablePin } from "../geo";
+import { directionsUrl, distanceMeters, isUsablePin, mapViewUrl } from "../geo";
 
 describe("isUsablePin", () => {
 	it("accepts a real Lebanese pin", () => {
@@ -38,5 +38,37 @@ describe("directionsUrl", () => {
 		expect(directionsUrl("Jbeil, main road")).toBe(
 			"https://www.google.com/maps/dir/?api=1&destination=Jbeil%2C%20main%20road",
 		);
+	});
+});
+
+describe("mapViewUrl", () => {
+	it("builds a plain pin link", () => {
+		expect(mapViewUrl(33.878, 35.5649)).toBe(
+			"https://www.google.com/maps?q=33.878,35.5649",
+		);
+	});
+});
+
+describe("distanceMeters", () => {
+	it("is zero for the same pin", () => {
+		const pin = { latitude: 33.878, longitude: 35.5649 };
+		expect(distanceMeters(pin, pin)).toBe(0);
+	});
+
+	it("measures ~28 m between two neighbours on one box", () => {
+		const d = distanceMeters(
+			{ latitude: 33.878, longitude: 35.5649 },
+			{ latitude: 33.878, longitude: 35.5652 },
+		);
+		expect(d).toBeGreaterThan(25);
+		expect(d).toBeLessThan(32);
+	});
+
+	it("measures ~111 km per degree of latitude", () => {
+		const d = distanceMeters(
+			{ latitude: 33, longitude: 35.5 },
+			{ latitude: 34, longitude: 35.5 },
+		);
+		expect(Math.round(d / 1000)).toBe(111);
 	});
 });

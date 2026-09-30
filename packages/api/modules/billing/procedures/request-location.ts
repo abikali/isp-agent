@@ -6,7 +6,7 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { isUsablePin, tgLink, tgMessage } from "@repo/utils";
+import { isUsablePin, mapViewUrl, tgLink, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -80,7 +80,10 @@ export const requestLocation = protectedProcedure
 			[customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
 			customer.username ||
 			"Unknown";
-		const mapsLink = `https://www.google.com/maps?q=${customer.latitude},${customer.longitude}`;
+		const mapsLink = mapViewUrl(
+			Number(customer.latitude),
+			Number(customer.longitude),
+		);
 
 		if (!employee?.telegramChatId) {
 			logger.warn("[Request Location] No Telegram chat ID for employee");

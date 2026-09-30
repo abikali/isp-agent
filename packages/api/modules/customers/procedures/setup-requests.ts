@@ -575,6 +575,20 @@ export const listSetupRequests = protectedProcedure
 						discount: true,
 						iptvPrice: true,
 						realIpPrice: true,
+						// Did the worker pin the location, or ask the customer
+						// for it on WhatsApp? Shown on each request.
+						latitude: true,
+						longitude: true,
+						locationRequestedAt: true,
+						locationRequests: {
+							select: {
+								createdAt: true,
+								completedAt: true,
+								expiresAt: true,
+							},
+							orderBy: { createdAt: "desc" },
+							take: 1,
+						},
 						plan: { select: { id: true, name: true } },
 						collector: { select: { id: true, name: true } },
 					},

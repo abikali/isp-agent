@@ -41,6 +41,7 @@ import {
 	useUpdateSetupItemPrice,
 } from "../hooks/use-setup-requests";
 import { EditSetupRequestDialog } from "./EditSetupRequestDialog";
+import { SetupRequestLocation } from "./SetupRequestLocation";
 
 type SetupRequest = ReturnType<typeof useSetupRequests>["requests"][number];
 type RequestStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -287,6 +288,13 @@ export function PendingCustomersList() {
 														{customer.address}
 													</p>
 												)}
+												<SetupRequestLocation
+													customer={customer}
+													pending={
+														request.status ===
+														"PENDING"
+													}
+												/>
 												<p>
 													Created by{" "}
 													<span className="font-medium text-foreground">
