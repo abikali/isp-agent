@@ -102,7 +102,11 @@ export async function taskIngestHandler(
 	// 3. Resolve customer + worker by username within the org
 	const [customer, worker] = await Promise.all([
 		db.customer.findFirst({
-			where: { organizationId, username: customerUsername },
+			where: {
+				organizationId,
+				username: customerUsername,
+				deletedAt: null,
+			},
 			select: { id: true, firstName: true, mobile: true, phones: true },
 		}),
 		db.employee.findFirst({
