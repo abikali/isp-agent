@@ -154,6 +154,16 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 			: disabledQuery(["customers", "get"]),
 	);
 	const cust = customerFull?.customer;
+	// A linked customer already expired on iRadius: the operator must choose
+	// whether to renew them there (charges the dealer) or only invoice.
+	const expiredOnIRadius =
+		!isEdit &&
+		!!cust?.externalId &&
+		!!cust.expiresAt &&
+		new Date(cust.expiresAt).getTime() < Date.now();
+	const [renewChoice, setRenewChoice] = useState<
+		"renew" | "invoice-only" | null
+	>(null);
 
 	const [draft, dispatch] = useReducer(draftReducer, INITIAL_DRAFT);
 
@@ -201,6 +211,7 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 	function handleOpenChange(next: boolean) {
 		if (!next) {
 			setCustomer(null);
+			setRenewChoice(null);
 			dispatch({ type: "reset" });
 		}
 		onOpenChange(next);
@@ -240,6 +251,10 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 		}
 		if (!year || !month) {
 			toast.error("Pick a billing month");
+			return;
+		}
+		if (expiredOnIRadius && !renewChoice) {
+			toast.error("Choose whether to renew the customer on iRadius");
 			return;
 		}
 
@@ -290,10 +305,20 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 						? { expiryDate: new Date(expiryDate).toISOString() }
 						: {}),
 					...(note.trim() ? { note: note.trim() } : {}),
+					...(expiredOnIRadius && renewChoice === "renew"
+						? {
+								renewInIRadius: true,
+								activate: cust?.status !== "ACTIVE",
+							}
+						: {}),
 				},
 				{
 					onSuccess: () => {
-						toast.success("Invoice created");
+						toast.success(
+							expiredOnIRadius && renewChoice === "renew"
+								? "Customer renewed on iRadius and invoice created"
+								: "Invoice created",
+						);
 						handleOpenChange(false);
 					},
 					onError: (err) => toast.error(err.message || "Failed"),
@@ -334,7 +359,10 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 							<Label>Customer</Label>
 							<CustomerCombobox
 								value={customer}
-								onChange={setCustomer}
+								onChange={(next) => {
+									setCustomer(next);
+									setRenewChoice(null);
+								}}
 								placeholder="Name, username, account or phone…"
 							/>
 						</div>
@@ -387,6 +415,52 @@ export function InvoiceFormDialog({ open, onOpenChange, mode }: Props) {
 										)}
 									</div>
 								</div>
+							</div>
+						</div>
+					)}
+
+					{expiredOnIRadius && cust?.expiresAt && (
+						<div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+							<p>
+								Customer is expired on iRadius (exp.{" "}
+								{formatDate(cust.expiresAt)}). Renew on iRadius
+								now?
+							</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								Renew charges the dealer 1 period, extends the
+								expiry from today
+								{cust.status !== "ACTIVE"
+									? " and re-enables the account"
+									: ""}
+								; the invoice due date becomes the new expiry.
+							</p>
+							<div className="mt-2 flex gap-2">
+								<Button
+									type="button"
+									size="sm"
+									variant={
+										renewChoice === "renew"
+											? "secondary"
+											: "outline"
+									}
+									onClick={() => setRenewChoice("renew")}
+								>
+									Renew
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									variant={
+										renewChoice === "invoice-only"
+											? "secondary"
+											: "outline"
+									}
+									onClick={() =>
+										setRenewChoice("invoice-only")
+									}
+								>
+									Invoice only
+								</Button>
 							</div>
 						</div>
 					)}

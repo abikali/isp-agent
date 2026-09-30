@@ -24,6 +24,7 @@ import {
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Skeleton } from "@ui/components/skeleton";
+import { Switch } from "@ui/components/switch";
 import { OctagonXIcon, PlayIcon, RotateCcwIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ interface StoppedPaymentRow {
 		plan: { name: string } | null;
 		groupName: string | null;
 		expiresAt: string | Date | null;
+		externalId: string | null;
 	};
 	collector: { name: string };
 	paidAt: string | Date;
@@ -79,6 +81,7 @@ export function StoppedAccountsList() {
 		id: string;
 		customerName: string;
 		currentExpiry: string | null;
+		linked: boolean;
 	} | null>(null);
 	const { monthFilter, setMonthFilter, options } = useMonthFilter();
 	const { activeOrganization } = useActiveOrganization();
@@ -228,6 +231,7 @@ export function StoppedAccountsList() {
 											row.original.customer.expiresAt,
 										)
 									: null,
+								linked: !!row.original.customer.externalId,
 							})
 						}
 					>
@@ -312,6 +316,7 @@ export function StoppedAccountsList() {
 					paymentId={reactivatePayment.id}
 					customerName={reactivatePayment.customerName}
 					currentExpiry={reactivatePayment.currentExpiry}
+					linked={reactivatePayment.linked}
 				/>
 			)}
 		</>
@@ -324,17 +329,20 @@ function ReactivateDialog({
 	paymentId,
 	customerName,
 	currentExpiry,
+	linked,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	paymentId: string;
 	customerName: string;
 	currentExpiry: string | null;
+	linked: boolean;
 }) {
 	const organizationId = useOrganizationId();
 	const reactivate = useReactivateAccount();
 	const [customExpiry, setCustomExpiry] = useState(currentExpiry ?? "");
 	const [useCustom, setUseCustom] = useState(false);
+	const [renew, setRenew] = useState(false);
 
 	function handleReactivate() {
 		if (!organizationId) {
@@ -345,10 +353,11 @@ function ReactivateDialog({
 			{
 				organizationId,
 				paymentId,
-				customExpiry:
-					useCustom && customExpiry
-						? new Date(customExpiry).toISOString()
-						: undefined,
+				renewInIRadius: renew,
+				// Raw YYYY-MM-DD: the server writes <day> 23:59:00 to iRadius
+				// and locally.
+				customExpiryDate:
+					useCustom && customExpiry ? customExpiry : undefined,
 			},
 			{
 				onSuccess: () => {
@@ -373,13 +382,33 @@ function ReactivateDialog({
 						Reactivate <strong>{customerName}</strong>?
 					</p>
 
+					{linked && (
+						<div className="flex items-start justify-between gap-3 rounded-md border p-3">
+							<div>
+								<Label htmlFor="renewInIRadius">
+									Renew on iRadius
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									Charges the dealer 1 period and extends the
+									expiry from today (or from the current
+									expiry if it is still in the future)
+								</p>
+							</div>
+							<Switch
+								id="renewInIRadius"
+								checked={renew}
+								onCheckedChange={setRenew}
+							/>
+						</div>
+					)}
+
 					<div className="flex gap-2">
 						<Button
 							variant={useCustom ? "outline" : "secondary"}
 							size="sm"
 							onClick={() => setUseCustom(false)}
 						>
-							Same Billing Expiry
+							{renew ? "Renewed Expiry" : "Same Billing Expiry"}
 						</Button>
 						<Button
 							variant={useCustom ? "secondary" : "outline"}
