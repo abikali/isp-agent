@@ -105,7 +105,7 @@ export type {
 	ToolMetadata,
 } from "./src/tools/types";
 export type { TriageInput, TriageResult } from "./src/triage";
-export { triageBufferedMessages } from "./src/triage";
+export { isNearDuplicateReply, triageBufferedMessages } from "./src/triage";
 export type {
 	ChannelProvider,
 	GenerateResponseInput,

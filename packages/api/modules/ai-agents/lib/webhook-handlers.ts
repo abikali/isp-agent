@@ -14,6 +14,7 @@ import {
 	fetchServicePlansSection,
 	generateAgentResponse,
 	initRateLimiter,
+	isNearDuplicateReply,
 	isWhishMoneyMessage,
 	loadHistoryRows,
 	markAsRead,
@@ -120,6 +121,39 @@ async function isTakeoverActiveFresh(
 		fresh?.humanTakeoverAt ?? null,
 		humanTakeoverHours,
 	);
+}
+
+const INBOUND_DEDUP_TTL_SECONDS = 48 * 60 * 60;
+
+/**
+ * Whether this customer message was already received. Redis catches quick
+ * redeliveries; the stored row catches ones past the TTL. Keyed per chat
+ * because Telegram message ids are only unique within a chat.
+ */
+async function isDuplicateInbound(
+	channelId: string,
+	chatId: string,
+	messageId: string,
+): Promise<boolean> {
+	const fresh = await getRedisConnection().set(
+		`ai:inbound:${channelId}:${chatId}:${messageId}`,
+		"1",
+		"EX",
+		INBOUND_DEDUP_TTL_SECONDS,
+		"NX",
+	);
+	if (!fresh) {
+		return true;
+	}
+	const stored = await db.aiMessage.findFirst({
+		where: {
+			externalMsgId: messageId,
+			role: "user",
+			conversation: { channelId, externalChatId: chatId },
+		},
+		select: { id: true },
+	});
+	return Boolean(stored);
 }
 
 async function handleMessages(
@@ -489,6 +523,20 @@ async function handleMessages(
 					clearText,
 				);
 				trackBotMessage(redis, clearText);
+				continue;
+			}
+
+			// Providers redeliver webhooks (seconds or hours later); each copy
+			// used to be stored and answered again. Check before transcription
+			// so a redelivery costs nothing.
+			if (
+				await isDuplicateInbound(channel.id, msg.chatId, msg.messageId)
+			) {
+				logger.info("ai-inbound-duplicate", {
+					channelId: channel.id,
+					chatId: msg.chatId,
+					messageId: msg.messageId,
+				});
 				continue;
 			}
 
@@ -1190,6 +1238,28 @@ async function handleMessages(
 								...(result.toolResults ?? []),
 								unknown.toolResult,
 							];
+						}
+
+						// A second pass over nearly the same history can produce
+						// the same answer again — never send it twice.
+						if (
+							!isFirstIteration &&
+							lastAssistantText &&
+							isNearDuplicateReply(result.text, lastAssistantText)
+						) {
+							logger.info("ai-duplicate-reply-suppressed", {
+								conversationId: conversation.id,
+							});
+							await db.aiConversation.update({
+								where: { id: conversation.id },
+								data: {
+									messageCount: {
+										increment: bufferedTexts.length,
+									},
+									lastMessageAt: new Date(),
+								},
+							});
+							continue;
 						}
 
 						// Send reply

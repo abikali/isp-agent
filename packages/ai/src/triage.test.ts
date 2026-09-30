@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TriageDecision } from "./triage";
-import { isNoiseMessage, triageBufferedMessages } from "./triage";
+import {
+	isNearDuplicateReply,
+	isNoiseMessage,
+	triageBufferedMessages,
+} from "./triage";
 
 // Mock classifyText — the unit under test is the triage logic,
 // not the LLM call itself.
@@ -279,6 +283,16 @@ describe("deterministic noise skip", () => {
 
 		expect(result.decision).toBe("respond");
 		expect(mockClassifyText).toHaveBeenCalledOnce();
+	});
+
+	it("isNearDuplicateReply catches a repeated answer only", () => {
+		const first =
+			"رح إعمل فحص فوري لخطك، الخط شغال والسرعة طبيعية. جرب طفي الراوتر وشغلو.";
+		expect(isNearDuplicateReply(`${first}!`, first)).toBe(true);
+		expect(
+			isNearDuplicateReply("Your invoice for September is $35.", first),
+		).toBe(false);
+		expect(isNearDuplicateReply("", first)).toBe(false);
 	});
 
 	it("isNoiseMessage leaves digits and words alone", () => {

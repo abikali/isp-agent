@@ -145,6 +145,7 @@ vi.mock("@repo/ai", () => ({
 	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 	parseWebhookPayload: vi.fn(),
 	initRateLimiter: vi.fn(),
+	isNearDuplicateReply: vi.fn().mockReturnValue(false),
 	sendTextMessage: mockSendTextMessage,
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),

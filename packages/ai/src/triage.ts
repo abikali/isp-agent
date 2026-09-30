@@ -64,6 +64,36 @@ export function isNoiseMessage(text: string): boolean {
 	return NOISE_PLACEHOLDER_RE.test(text) || EMOJI_ONLY_RE.test(text);
 }
 
+function replyTokens(text: string): Set<string> {
+	return new Set(
+		text
+			.toLowerCase()
+			.replace(/[^\p{L}\p{N}\s]/gu, " ")
+			.split(/\s+/)
+			.filter(Boolean),
+	);
+}
+
+/**
+ * Whether a follow-up reply in the same processing loop repeats the one just
+ * sent (token Jaccard similarity of 0.9 or more) — the symptom of a second
+ * generation over nearly the same history.
+ */
+export function isNearDuplicateReply(next: string, previous: string): boolean {
+	const a = replyTokens(next);
+	const b = replyTokens(previous);
+	if (a.size === 0 || b.size === 0) {
+		return false;
+	}
+	let shared = 0;
+	for (const token of a) {
+		if (b.has(token)) {
+			shared++;
+		}
+	}
+	return shared / (a.size + b.size - shared) >= 0.9;
+}
+
 export async function triageBufferedMessages(
 	input: TriageInput,
 ): Promise<TriageResult> {

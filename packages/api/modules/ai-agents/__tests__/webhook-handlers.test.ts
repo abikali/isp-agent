@@ -124,6 +124,7 @@ vi.mock("@repo/ai", () => ({
 	fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
 	parseWebhookPayload: vi.fn(),
 	initRateLimiter: vi.fn(),
+	isNearDuplicateReply: vi.fn().mockReturnValue(false),
 	sendTextMessage: mockSendTextMessage,
 	sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
 	markAsRead: vi.fn().mockResolvedValue(undefined),
@@ -589,8 +590,10 @@ describe("Webhook Handlers - Normal Flow", () => {
 	});
 
 	it("skips processing when lock is already held", async () => {
-		// Lock already held by another processor
-		mockRedis.set.mockResolvedValue(null);
+		// Lock already held by another processor (the message itself is new)
+		mockRedis.set.mockImplementation((key: string) =>
+			Promise.resolve(key.startsWith("ai:lock:") ? null : "OK"),
+		);
 
 		const request = makeRequest({ test: true });
 		whatsappWebhookHandler(request, "token-1");
@@ -683,5 +686,60 @@ describe("Webhook Handlers - Escalation safety net context", () => {
 		expect(userTexts.some((t) => t.includes("[Context Notice"))).toBe(
 			false,
 		);
+	});
+});
+
+describe("Webhook Handlers - Duplicate inbound deliveries", () => {
+	it("stores and answers a message delivered twice only once", async () => {
+		const seen = new Set<string>();
+		mockRedis.set.mockImplementation((key: string) => {
+			if (key.startsWith("ai:inbound:")) {
+				if (seen.has(key)) {
+					return Promise.resolve(null);
+				}
+				seen.add(key);
+			}
+			return Promise.resolve("OK");
+		});
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		const userRows = mockDb.aiMessage.create.mock.calls.filter(
+			(c: unknown[]) =>
+				(c[0] as { data: { role: string } }).data.role === "user",
+		);
+		expect(userRows).toHaveLength(1);
+		expect(mockGenerateAgentResponse).toHaveBeenCalledTimes(1);
+		expect(mockRedis.set).toHaveBeenCalledWith(
+			"ai:inbound:channel-1:chat-1:wa-msg-1",
+			"1",
+			"EX",
+			172800,
+			"NX",
+		);
+	});
+
+	it("drops a redelivery past the Redis TTL when the row is stored", async () => {
+		mockDb.aiMessage.findFirst.mockResolvedValueOnce({ id: "stored" });
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(mockDb.aiMessage.findFirst).toHaveBeenCalledWith({
+			where: {
+				externalMsgId: "wa-msg-1",
+				role: "user",
+				conversation: {
+					channelId: "channel-1",
+					externalChatId: "chat-1",
+				},
+			},
+			select: { id: true },
+		});
+		expect(mockDb.aiMessage.create).not.toHaveBeenCalled();
+		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
 	});
 });
