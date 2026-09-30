@@ -346,6 +346,7 @@ model Organization {
   marketingBroadcasts    MarketingBroadcast[]
   marketingSuppressions  MarketingSuppression[]
   savedViews             SavedView[]
+  botFollowUps           BotFollowUp[]
 
   // Dealer scope for queries through `getDealerScopeFilter` and friends.
   // When null, scoped queries match only orphan rows (`dealerId IS NULL`).
@@ -694,53 +695,69 @@ model ContactSyncOperation {
 // ============================================================================
 
 model AiAgent {
-  id                         String   @id @default(cuid())
-  organizationId             String
-  name                       String
-  description                String?
-  systemPrompt               String   @db.Text
-  greetingMessage            String?
-  model                      String   @default("gpt-4o-mini")
-  knowledgeBase              String?  @db.Text
-  enabled                    Boolean  @default(true)
-  maintenanceMode            Boolean  @default(false)
-  maintenanceMessage         String?  @db.Text
-  maxHistoryLength           Int      @default(20)
-  temperature                Float    @default(0)
-  enabledTools               String[] @default([])
-  promptSections             Json     @default("[]")
-  servicePlansEnabled        Boolean  @default(false)
-  servicePlanIds             String[] @default([])
-  contextGapThresholdMinutes Int      @default(240)
-  humanTakeoverHours         Float?   @map("human_takeover_hours")
+  id                             String   @id @default(cuid())
+  organizationId                 String
+  name                           String
+  description                    String?
+  systemPrompt                   String   @db.Text
+  greetingMessage                String?
+  model                          String   @default("gpt-4o-mini")
+  knowledgeBase                  String?  @db.Text
+  enabled                        Boolean  @default(true)
+  maintenanceMode                Boolean  @default(false)
+  maintenanceMessage             String?  @db.Text
+  maxHistoryLength               Int      @default(20)
+  temperature                    Float    @default(0)
+  enabledTools                   String[] @default([])
+  promptSections                 Json     @default("[]")
+  servicePlansEnabled            Boolean  @default(false)
+  servicePlanIds                 String[] @default([])
+  contextGapThresholdMinutes     Int      @default(240)
+  humanTakeoverHours             Float?   @map("human_takeover_hours")
   // Working hours (Beirut wall clock). Outside them the bot still answers
   // but never promises a same-day visit — see packages/ai/src/working-hours.ts.
-  workingHoursEnabled        Boolean  @default(false)
-  workingDays                Int[]    @default([1, 2, 3, 4, 5, 6])
-  workingHoursStart          String   @default("09:00")
-  workingHoursEnd            String   @default("18:00")
-  offDutyMessage             String?  @db.Text
+  workingHoursEnabled            Boolean  @default(false)
+  workingDays                    Int[]    @default([1, 2, 3, 4, 5, 6])
+  workingHoursStart              String   @default("09:00")
+  workingHoursEnd                String   @default("18:00")
+  offDutyMessage                 String?  @db.Text
   // LLM provider + its API key (AES-256-GCM, see packages/ai/src/encryption.ts).
   // No server-wide fallback: an agent without a key cannot reply.
-  provider                   String   @default("openrouter") // "openrouter" | "openai" | "anthropic" | "google"
-  encryptedApiKey            String?  @db.Text
+  provider                       String   @default("openrouter") // "openrouter" | "openai" | "anthropic" | "google"
+  encryptedApiKey                String?  @db.Text
   // Follow up when the customer goes quiet after a bot question.
   // null = off. See packages/jobs/src/lib/follow-up.ts.
-  followUpMinutes            Int?
-  followUpMessage            String?  @db.Text
+  followUpMinutes                Int?
+  followUpMessage                String?  @db.Text
   // Nudges per silence (1 = a single nudge), and the gap before each later one.
-  followUpMaxAttempts        Int      @default(1)
-  followUpRepeatMinutes      Int      @default(1440)
+  followUpMaxAttempts            Int      @default(1)
+  followUpRepeatMinutes          Int      @default(1440)
   // Beirut wall-clock window nudges may go out in.
-  followUpWindowStart        String   @default("09:00")
-  followUpWindowEnd          String   @default("20:30")
+  followUpWindowStart            String   @default("09:00")
+  followUpWindowEnd              String   @default("20:30")
   // Hard ceiling on nudges one chat receives in any rolling 7 days.
-  followUpWeeklyCap          Int      @default(3)
-  webChatEnabled             Boolean  @default(false)
-  webChatToken               String?  @unique
-  createdById                String
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  followUpWeeklyCap              Int      @default(3)
+  // Ask the customer whether the team reached them this long after an
+  // escalation (in-chat, bot number). null = off. See bot-follow-ups.ts.
+  postEscalationCheckMinutes     Int?     @map("post_escalation_check_minutes")
+  // Episode summaries of each conversation ("what the bot did and what was
+  // concluded") sent to the escalation Telegram chats: off | each | digest.
+  conversationSummaryMode        String   @default("off")
+  conversationSummaryIdleMinutes Int      @default(30)
+  // Business-initiated outreach on the official (Salti) number. Every type
+  // ships off; official sends wait for an admin's approval by default.
+  outreachRequireApproval        Boolean  @default(true)
+  postInstallFollowUpDays        Int?
+  postStopFollowUpEnabled        Boolean  @default(false)
+  postStopFollowUpTime           String   @default("09:00")
+  // Spoken reply to a customer's voice note (OpenAI-direct TTS only).
+  voiceReplies                   Boolean  @default(false)
+  voiceReplyModel                String?
+  webChatEnabled                 Boolean  @default(false)
+  webChatToken                   String?  @unique
+  createdById                    String
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
 
   organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy          User                  @relation("aiAgentCreator", fields: [createdById], references: [id], onDelete: Cascade)
@@ -776,40 +793,45 @@ model AiAgentChannel {
 }
 
 model AiConversation {
-  id                 String    @id @default(cuid())
-  agentId            String
-  channelId          String?
-  externalChatId     String
-  contactName        String?
-  contactId          String?
-  status             String    @default("active")
-  pinned             Boolean   @default(false)
-  messageCount       Int       @default(0)
-  lastMessageAt      DateTime?
-  verifiedCustomerId String?
-  pinAttempts        Int       @default(0)
-  pinLockedUntil     DateTime?
-  humanTakeoverAt    DateTime? @map("human_takeover_at")
-  unknownEscalatedAt DateTime? @map("unknown_escalated_at")
+  id                  String    @id @default(cuid())
+  agentId             String
+  channelId           String?
+  externalChatId      String
+  contactName         String?
+  contactId           String?
+  status              String    @default("active")
+  pinned              Boolean   @default(false)
+  messageCount        Int       @default(0)
+  lastMessageAt       DateTime?
+  verifiedCustomerId  String?
+  pinAttempts         Int       @default(0)
+  pinLockedUntil      DateTime?
+  humanTakeoverAt     DateTime? @map("human_takeover_at")
+  unknownEscalatedAt  DateTime? @map("unknown_escalated_at")
   // Follow-up state for the current silence. All reset on the customer's
   // next message. followUpDueAt mirrors the pending BullMQ job so the UI can
   // list queued nudges without scanning Redis.
-  followUpSentAt     DateTime? @map("follow_up_sent_at")
-  followUpDueAt      DateTime? @map("follow_up_due_at")
-  followUpAttempts   Int       @default(0) @map("follow_up_attempts")
-  followUpMuted      Boolean   @default(false) @map("follow_up_muted")
+  followUpSentAt      DateTime? @map("follow_up_sent_at")
+  followUpDueAt       DateTime? @map("follow_up_due_at")
+  followUpAttempts    Int       @default(0) @map("follow_up_attempts")
+  followUpMuted       Boolean   @default(false) @map("follow_up_muted")
   // Last worker outcome ("sent", or the skip reason), for the admin panel.
-  followUpOutcome    String?   @map("follow_up_outcome")
-  followUpOutcomeAt  DateTime? @map("follow_up_outcome_at")
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  followUpOutcome     String?   @map("follow_up_outcome")
+  followUpOutcomeAt   DateTime? @map("follow_up_outcome_at")
+  // Watermark of the conversation-summary sweep: messages up to here are
+  // covered by a summary (or were not substantive).
+  summarizedThroughAt DateTime? @map("summarized_through_at")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  agent            AiAgent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  channel          AiAgentChannel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  verifiedCustomer Customer?        @relation(fields: [verifiedCustomerId], references: [id], onDelete: SetNull)
+  agent            AiAgent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  channel          AiAgentChannel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  verifiedCustomer Customer?               @relation(fields: [verifiedCustomerId], references: [id], onDelete: SetNull)
   messages         AiMessage[]
   capturedLeads    AiCapturedLead[]
   tasks            Task[]
+  summaries        AiConversationSummary[]
+  botFollowUps     BotFollowUp[]
 
   @@index([channelId, externalChatId, status])
   @@index([agentId])
@@ -1379,17 +1401,19 @@ model Customer {
 
   locationRequestedAt DateTime?
 
-  tasks             Task[]
-  conversations     AiConversation[]
-  invoices          CustomerInvoice[]
-  payments          Payment[]
-  referredPayments  Payment[]                     @relation("PaymentReferrer")
-  installations     Installation[]
-  followups         Followup[]
-  setupRequest      CustomerSetupRequest?
-  syncConflicts     SyncConflict[]
-  locationRequests  LocationRequest[]
-  marketingMessages MarketingBroadcastRecipient[]
+  tasks                 Task[]
+  conversations         AiConversation[]
+  invoices              CustomerInvoice[]
+  payments              Payment[]
+  referredPayments      Payment[]                     @relation("PaymentReferrer")
+  installations         Installation[]
+  followups             Followup[]
+  setupRequest          CustomerSetupRequest?
+  syncConflicts         SyncConflict[]
+  locationRequests      LocationRequest[]
+  marketingMessages     MarketingBroadcastRecipient[]
+  botFollowUps          BotFollowUp[]
+  conversationSummaries AiConversationSummary[]
 
   @@unique([organizationId, accountNumber])
   @@unique([organizationId, externalId])
@@ -1941,6 +1965,7 @@ model Task {
   assignments         TaskAssignment[]
   uninstalledItems    UninstalledItem[]
   installations       Installation[]
+  botFollowUps        BotFollowUp[]
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId])
@@ -2764,4 +2789,82 @@ model MarketingSuppression {
   @@unique([organizationId, phone])
   @@index([organizationId, createdAt])
   @@map("marketing_suppression")
+}
+
+/// One idle-bounded episode of a bot conversation, summarised for the team
+/// ("what the bot said and what was concluded"). See
+/// packages/jobs/src/lib/conversation-summaries.ts.
+model AiConversationSummary {
+  id             String    @id @default(cuid())
+  organizationId String
+  agentId        String
+  conversationId String
+  customerId     String? // conversation.verifiedCustomerId at the time
+  fromAt         DateTime // first message of the episode
+  toAt           DateTime // last message included
+  userMessages   Int
+  botMessages    Int
+  adminMessages  Int
+  outcome        String // resolved | escalated | waiting_customer | waiting_team | sales_lead | info_only | unresolved | abandoned
+  customerMood   String // satisfied | neutral | upset
+  summary        String    @db.Text
+  botActions     String?   @db.Text
+  openItems      String?   @db.Text
+  taskId         String? // AI_ESCALATION task created in the episode, if any
+  telegramSentAt DateTime?
+  model          String?
+  createdAt      DateTime  @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customer     Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([conversationId, toAt])
+  @@index([customerId, createdAt])
+  @@map("ai_conversation_summary")
+}
+
+/// Every bot follow-up and outreach message, with its result. The table is
+/// also the send queue (see packages/jobs/src/lib/bot-follow-ups.ts). Not the
+/// legacy billing `Followup` call-back list.
+model BotFollowUp {
+  id                String    @id @default(cuid())
+  organizationId    String
+  agentId           String?
+  type              String // silence | post_escalation | post_install | post_stop
+  channel           String // bot (WaSender, in-chat) | official (Salti template)
+  status            String // pending_approval | scheduled | sending | sent | replied | resolved | no_reply | skipped | failed | cancelled
+  outcome           String? // resolved | unresolved | good | ok | bad | travel | moved | switched_provider | resume | other | no_reply
+  reason            String?   @db.Text
+  skipReason        String?
+  customerId        String?
+  conversationId    String?
+  taskId            String?
+  setupRequestId    String?
+  paymentId         String?
+  phone             String?
+  dueAt             DateTime?
+  sentAt            DateTime?
+  templateName      String?
+  messageText       String?   @db.Text
+  externalMessageId String?
+  aiMessageId       String?
+  reply             String?   @db.Text
+  replyAt           DateTime?
+  approvedById      String?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversation AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  task         Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, type, createdAt])
+  @@index([customerId, createdAt])
+  @@index([conversationId, status])
+  @@index([phone, status])
+  @@map("bot_follow_up")
 }
