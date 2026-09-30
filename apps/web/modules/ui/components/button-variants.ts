@@ -15,6 +15,14 @@ export const buttonVariants = cva(
 				link: "border-transparent text-foreground underline-offset-4 hover:underline",
 				destructive:
 					"border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90",
+				// Soft tinted outlines for colour-coded field actions (call /
+				// WhatsApp / directions on the worker & collector cards).
+				"destructive-soft":
+					"border border-destructive/40 bg-destructive/10 font-semibold text-destructive hover:bg-destructive/15",
+				"success-soft":
+					"border border-success/40 bg-success/10 font-semibold text-success hover:bg-success/15",
+				"info-soft":
+					"border border-info/40 bg-info/10 font-semibold text-info hover:bg-info/15",
 			},
 			size: {
 				sm: "h-8 rounded-md px-3 text-xs",

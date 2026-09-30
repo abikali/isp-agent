@@ -124,6 +124,19 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Task due reminders are delayed jobs; this re-queues any whose window
+	// opened without a send (lost Redis job, deploy gap).
+	await queue.upsertJobScheduler(
+		"task-reminder-sweep",
+		{
+			pattern: "*/5 * * * *",
+		},
+		{
+			name: "task-reminder-sweep",
+			data: { type: "task-reminder-sweep" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

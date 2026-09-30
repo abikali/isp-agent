@@ -152,6 +152,7 @@ export const listTasks = protectedProcedure
 					category: true,
 					source: true,
 					dueDate: true,
+					dueHasTime: true,
 					completedAt: true,
 					createdAt: true,
 					updatedAt: true,

@@ -40,6 +40,7 @@ import {
 	submitLocationByToken,
 	updateCustomerLocation,
 } from "./procedures/location-request";
+import { nearbyBoxes } from "./procedures/nearby-boxes";
 import { getCustomerNetworkStatus } from "./procedures/network-status";
 import { onuStatus } from "./procedures/onu-status";
 import { pullCustomerLocationFromIRadius } from "./procedures/pull-location-from-iradius";
@@ -85,6 +86,7 @@ export const customersRouter = {
 	list: listCustomers,
 	listIRadiusGroups,
 	searchForPicker: searchCustomersForPicker,
+	nearbyBoxes,
 	get: getCustomer,
 	create: createCustomer,
 	update: updateCustomer,

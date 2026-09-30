@@ -1,10 +1,11 @@
 import { db, getPrimaryPhone } from "@repo/database";
-import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
+import { scheduleTaskReminder, sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import {
 	authenticateOrgRequest,
 	jsonResponse as json,
 } from "../../api-keys/lib/authenticate-org-request";
+import { parseIngestDue } from "./ingest-due";
 import { notifyTaskWorkers } from "./notify-task-workers";
 import { bustTaskStats } from "./stats-cache";
 
@@ -25,6 +26,9 @@ import { bustTaskStats } from "./stats-cache";
  *   customer_username  iRadius username -> Customer.username
  *   wid                worker username  -> Employee.username
  *   whatsapp           "yes" | "no" (notify the customer of a maintenance visit)
+ *   due_at             optional exact due time: ISO-8601 with offset, or
+ *                      "YYYY-MM-DD HH:mm" (Beirut) — the worker is reminded
+ *   due_date           optional whole-day due date "YYYY-MM-DD" (Beirut)
  */
 
 interface IngestPayload {
@@ -33,6 +37,8 @@ interface IngestPayload {
 	customer_username: string;
 	wid: string;
 	whatsapp: string;
+	due_at: string;
+	due_date: string;
 }
 
 async function parseBody(request: Request): Promise<Partial<IngestPayload>> {
@@ -48,6 +54,8 @@ async function parseBody(request: Request): Promise<Partial<IngestPayload>> {
 		"customer_username",
 		"wid",
 		"whatsapp",
+		"due_at",
+		"due_date",
 	];
 	for (const key of keys) {
 		const value = form.get(key);
@@ -98,6 +106,10 @@ export async function taskIngestHandler(
 	if (!wid) {
 		return json({ success: false, error: "wid (worker) is required" }, 400);
 	}
+	const due = parseIngestDue(body);
+	if (!due.ok) {
+		return json({ success: false, error: due.error }, 400);
+	}
 
 	// 3. Resolve customer + worker by username within the org
 	const [customer, worker] = await Promise.all([
@@ -143,6 +155,8 @@ export async function taskIngestHandler(
 			priority: "MEDIUM",
 			status: "OPEN",
 			category,
+			dueDate: due.dueDate,
+			dueHasTime: due.dueHasTime,
 			createdById: apiKey.createdById,
 			customerId: customer.id,
 			assignments: {
@@ -171,6 +185,14 @@ export async function taskIngestHandler(
 		employeeIds: [worker.id],
 		event: "assigned",
 	});
+
+	if (due.dueHasTime) {
+		scheduleTaskReminder(task.id).catch((err: unknown) =>
+			logger.warn("[Task Ingest] reminder schedule failed", {
+				error: String(err),
+			}),
+		);
+	}
 
 	// 5. Fire-and-forget: tell the customer a maintenance visit is coming
 	const customerPhone = getPrimaryPhone(customer.phones) ?? customer.mobile;

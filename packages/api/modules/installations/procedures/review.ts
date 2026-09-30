@@ -285,16 +285,31 @@ export async function approveInstallationInTx(
 }
 
 /**
- * Inverse of `approveInstallationInTx`, used when an admin deletes the
- * installation's cash-ledger entry: return the consumed stock to the worker
- * and move the installation back to PENDING so it can be edited, re-approved,
- * or denied. Add-on approvals keep the customer's recurring price (there is
- * no reliable "previous" value to restore); re-approving re-applies it.
+ * Inverse of `approveInstallationInTx`: return the consumed stock to the
+ * worker and move the installation out of APPROVED. Add-on approvals keep the
+ * customer's recurring price (there is no reliable "previous" value to
+ * restore); re-approving re-applies it.
+ *
+ * - Deleting the installation's cash-ledger entry (the default) puts the line
+ *   back to PENDING so it can be edited, re-approved or denied; the caller
+ *   deletes the cash row itself.
+ * - Rejecting a task completion passes `deleteCashEntry: true` and
+ *   `finalStatus: "DENIED"`: the worker resubmits fresh lines, so this one is
+ *   closed and its INSTALLATION_COST row removed here.
  */
 export async function revertApprovedInstallation(
 	tx: Prisma.TransactionClient,
 	installationId: string,
 	userId: string,
+	options: {
+		deleteCashEntry: boolean;
+		finalStatus: "PENDING" | "DENIED";
+		reason: string;
+	} = {
+		deleteCashEntry: false,
+		finalStatus: "PENDING",
+		reason: "cash entry deleted",
+	},
 ): Promise<void> {
 	const installation = await tx.installation.findUnique({
 		where: { id: installationId },
@@ -343,18 +358,34 @@ export async function revertApprovedInstallation(
 				quantity: installation.quantity,
 				workerQtyBefore: allocation.quantity - installation.quantity,
 				workerQtyAfter: allocation.quantity,
-				notes: `Returned — approved installation ${installation.id} reverted (cash entry deleted)`,
+				notes:
+					options.finalStatus === "DENIED"
+						? `Returned — ${options.reason} (installation ${installation.id})`
+						: `Returned — approved installation ${installation.id} reverted (${options.reason})`,
 			},
+		});
+	}
+
+	if (options.deleteCashEntry) {
+		await tx.cashCollection.deleteMany({
+			where: { installationId: installation.id },
 		});
 	}
 
 	await tx.installation.update({
 		where: { id: installation.id },
-		data: {
-			status: "PENDING",
-			approvedById: null,
-			approvedAt: null,
-		},
+		data:
+			options.finalStatus === "DENIED"
+				? {
+						status: "DENIED",
+						approvedById: userId,
+						approvedAt: new Date(),
+					}
+				: {
+						status: "PENDING",
+						approvedById: null,
+						approvedAt: null,
+					},
 	});
 }
 

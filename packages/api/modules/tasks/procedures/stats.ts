@@ -1,6 +1,7 @@
 import { requirePermission } from "@repo/api/lib/permission";
 import { cachedStat, statCacheKey } from "@repo/api/lib/stat-cache";
 import { db } from "@repo/database";
+import { beirutDayStartUtc } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { TASK_STATS_CACHE } from "../lib/stats-cache";
@@ -75,8 +76,28 @@ export const getTaskStats = protectedProcedure
 					db.task.count({
 						where: {
 							...base,
-							dueDate: { lt: new Date() },
 							status: "OPEN",
+							// Timed tasks are late from their instant; date-only
+							// ones only once their Beirut day is over. AND, not a
+							// top-level OR: `base` may carry its own OR.
+							AND: [
+								{
+									OR: [
+										{
+											dueHasTime: true,
+											dueDate: { lt: new Date() },
+										},
+										{
+											dueHasTime: false,
+											dueDate: {
+												lt: beirutDayStartUtc(
+													new Date(),
+												),
+											},
+										},
+									],
+								},
+							],
 						},
 					}),
 					db.task.count({

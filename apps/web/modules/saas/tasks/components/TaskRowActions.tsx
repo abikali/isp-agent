@@ -29,17 +29,13 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
-import {
-	useDeleteTask,
-	useReviewTaskCompletion,
-	useUpdateTask,
-} from "../hooks/use-tasks";
+import { useDeleteTask, useUpdateTask } from "../hooks/use-tasks";
 import {
 	TASK_STATUS_COLORS,
 	TASK_STATUS_SETTABLE_OPTIONS,
 } from "../lib/constants";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
+import { ReviewCompletionDialog } from "./ReviewCompletionDialog";
 
 interface TaskRowActionsProps {
 	organizationSlug: string;
@@ -57,7 +53,6 @@ export function TaskRowActions({
 	const organizationId = useOrganizationId();
 	const updateTask = useUpdateTask();
 	const deleteTask = useDeleteTask();
-	const reviewCompletion = useReviewTaskCompletion();
 	// Synchronous, pre-fetched permission check (same as PermissionGate). The
 	// async useHasPermission fired one better-auth request per row and latched
 	// to false on any failure, making Approve completion vanish intermittently.
@@ -65,44 +60,12 @@ export function TaskRowActions({
 	const canAccess = useCanAccess();
 	const canApprove = isOrganizationAdmin || canAccess("tasks", "approve");
 	const [showAssign, setShowAssign] = useState(false);
+	const [reviewAction, setReviewAction] = useState<
+		"approve" | "reject" | null
+	>(null);
 
 	const cancellable = status !== "CANCELLED" && status !== "COMPLETED";
 	const awaitingApproval = status === "PENDING_APPROVAL";
-
-	async function reviewTask(action: "approve" | "reject") {
-		if (!organizationId) {
-			return;
-		}
-		let note: string | undefined;
-		if (action === "reject") {
-			const answer = prompt(
-				"Reject this completion? The task returns to the worker's queue.\nReason (optional):",
-			);
-			if (answer === null) {
-				return;
-			}
-			note = answer.trim() || undefined;
-		}
-		try {
-			await reviewCompletion.mutateAsync({
-				organizationId,
-				taskId,
-				action,
-				...(note ? { note } : {}),
-			});
-			toast.success(
-				action === "approve"
-					? "Task completion approved"
-					: "Completion rejected — task returned to the worker",
-			);
-		} catch (error) {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to review completion",
-			);
-		}
-	}
 
 	function changeStatus(next: string) {
 		if (!organizationId || next === status) {
@@ -172,15 +135,13 @@ export function TaskRowActions({
 						<>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
-								onSelect={() => reviewTask("approve")}
-								disabled={reviewCompletion.isPending}
+								onSelect={() => setReviewAction("approve")}
 							>
 								<CheckIcon className="mr-2 size-3.5 text-emerald-600" />
 								Approve completion
 							</DropdownMenuItem>
 							<DropdownMenuItem
-								onSelect={() => reviewTask("reject")}
-								disabled={reviewCompletion.isPending}
+								onSelect={() => setReviewAction("reject")}
 							>
 								<UndoIcon className="mr-2 size-3.5" />
 								Reject completion
@@ -232,6 +193,12 @@ export function TaskRowActions({
 					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
+
+			<ReviewCompletionDialog
+				taskId={taskId}
+				action={reviewAction}
+				onClose={() => setReviewAction(null)}
+			/>
 
 			<AssignEmployeeDialog
 				open={showAssign}

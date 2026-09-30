@@ -1,15 +1,17 @@
 "use client";
 
-import { formatDate, MEDIUM_DATE_FORMAT } from "@shared/lib/format";
+import { formatDue } from "@shared/lib/format";
 import { AlertTriangleIcon } from "lucide-react";
 
 interface TaskOverdueWarningProps {
 	dueDate: Date | string | null;
+	dueHasTime?: boolean;
 	label?: "task" | "escalation";
 }
 
 export function TaskOverdueWarning({
 	dueDate,
+	dueHasTime,
 	label = "task",
 }: TaskOverdueWarningProps) {
 	return (
@@ -17,7 +19,7 @@ export function TaskOverdueWarning({
 			<AlertTriangleIcon className="size-4 shrink-0" />
 			<span>
 				This {label} is overdue — was due{" "}
-				{dueDate ? formatDate(dueDate, MEDIUM_DATE_FORMAT) : ""}
+				{formatDue({ dueDate, dueHasTime })}
 			</span>
 		</div>
 	);

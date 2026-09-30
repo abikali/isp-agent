@@ -12,6 +12,7 @@ import {
 	createMarketingSendWorker,
 	createOrgSetupWorker,
 	createScheduledWorker,
+	createTaskReminderWorker,
 	createTelegramLocationWorker,
 	createTelegramNotifyWorker,
 	createWatcherCheckWorker,
@@ -23,7 +24,11 @@ import {
 	setupScheduledJobs,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
-import { sendOrganizationNotification } from "@repo/notifications";
+import {
+	notifyBadgeForOrganization,
+	sendNotification,
+	sendOrganizationNotification,
+} from "@repo/notifications";
 import { startHealthServer } from "./health-server";
 
 async function main() {
@@ -44,7 +49,10 @@ async function main() {
 	const emailWorker = createEmailWorker();
 	const webhookWorker = createWebhookWorker();
 	const scheduledWorker = createScheduledWorker();
-	const iRadiusSyncWorker = createIRadiusSyncWorker();
+	const iRadiusSyncWorker = createIRadiusSyncWorker({
+		notifyOrganization: (organizationId, payload) =>
+			sendOrganizationNotification(organizationId, payload),
+	});
 	const iRadiusPushWorker = createIRadiusPushWorker();
 	const integrationSyncWorker = createIntegrationSyncWorker();
 	const orgSetupWorker = createOrgSetupWorker();
@@ -54,6 +62,16 @@ async function main() {
 	const marketingSendWorker = createMarketingSendWorker();
 	const whatsAppReceiptWorker = createWhatsAppReceiptWorker();
 	const whatsAppTemplateWorker = createWhatsAppTemplateWorker();
+	const taskReminderWorker = createTaskReminderWorker({
+		notifyUser: async ({ organizationId, ...notification }) => {
+			await sendNotification({
+				...notification,
+				category: "monitoring",
+				type: "warning",
+			});
+			notifyBadgeForOrganization(organizationId);
+		},
+	});
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -78,6 +96,7 @@ async function main() {
 			"iradius-push",
 			"webhook",
 			"scheduled",
+			"task-reminder",
 			"integration-sync",
 			"org-setup",
 			"watcher-check",
@@ -103,6 +122,7 @@ async function main() {
 			iRadiusPushWorker.close(),
 			webhookWorker.close(),
 			scheduledWorker.close(),
+			taskReminderWorker.close(),
 			integrationSyncWorker.close(),
 			orgSetupWorker.close(),
 			watcherCheckWorker.close(),

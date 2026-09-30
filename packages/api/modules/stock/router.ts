@@ -14,6 +14,7 @@ import {
 } from "./procedures/review-refund";
 import { getStockStats } from "./procedures/stats";
 import {
+	archiveSupplier,
 	createSupplier,
 	listSuppliers,
 	setStockItemSuppliers,
@@ -46,6 +47,7 @@ export const stockRouter = {
 		list: listSuppliers,
 		create: createSupplier,
 		update: updateSupplier,
+		archive: archiveSupplier,
 	},
 	setItemSuppliers: setStockItemSuppliers,
 };

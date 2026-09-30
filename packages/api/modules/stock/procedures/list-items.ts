@@ -59,7 +59,7 @@ export const listStockItems = protectedProcedure
 					select: {
 						createdAt: true,
 						quantity: true,
-						supplier: { select: { name: true } },
+						supplier: { select: { id: true, name: true } },
 					},
 				},
 			},
@@ -81,6 +81,7 @@ export const listStockItems = protectedProcedure
 				? {
 						at: item.logs[0].createdAt,
 						quantity: item.logs[0].quantity,
+						supplierId: item.logs[0].supplier?.id ?? null,
 						supplierName: item.logs[0].supplier?.name ?? null,
 					}
 				: null,

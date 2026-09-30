@@ -235,7 +235,11 @@ function useEscalationColumns(organizationSlug: string) {
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
-					const overdue = isOverdue(task.dueDate, task.status);
+					const overdue = isOverdue(
+						task.dueDate,
+						task.status,
+						task.dueHasTime,
+					);
 					return (
 						<Tooltip>
 							<TooltipTrigger asChild>

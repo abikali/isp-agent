@@ -6,9 +6,9 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db, getPrimaryPhone } from "@repo/database";
-import { sendWhatsAppMaintenanceVisit } from "@repo/jobs";
+import { scheduleTaskReminder, sendWhatsAppMaintenanceVisit } from "@repo/jobs";
 import { logger } from "@repo/logs";
-import { bilingual } from "@repo/utils";
+import { bilingual, formatBeirutDue } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { notifyTaskWorkers } from "../lib/notify-task-workers";
@@ -47,6 +47,9 @@ export const createTask = protectedProcedure
 				])
 				.default("GENERAL"),
 			dueDate: z.coerce.date().optional(),
+			// true: dueDate is an exact Beirut time (reminded before it);
+			// false/omitted: a whole Beirut day.
+			dueHasTime: z.boolean().optional(),
 			notes: z.string().max(5000).optional(),
 			customerId: z.string().optional(),
 			stationId: z.string().optional(),
@@ -169,6 +172,7 @@ export const createTask = protectedProcedure
 				status: input.status,
 				category: input.category,
 				dueDate: input.dueDate ?? null,
+				dueHasTime: Boolean(input.dueDate && input.dueHasTime),
 				notes: input.notes ?? null,
 				createdById: user.id,
 				customerId: input.customerId ?? null,
@@ -209,11 +213,11 @@ export const createTask = protectedProcedure
 
 		// Fire-and-forget: tell the assigned workers they have a new task
 		if (input.employeeIds?.length) {
-			const dueDetail = input.dueDate
-				? bilingual(
-						`Due ${input.dueDate.toISOString().slice(0, 10)}`,
-						`الموعد ${input.dueDate.toISOString().slice(0, 10)}`,
-					)
+			const due = input.dueDate
+				? formatBeirutDue(input.dueDate, Boolean(input.dueHasTime))
+				: null;
+			const dueDetail = due
+				? bilingual(`Due ${due}`, `الموعد ${due}`)
 				: undefined;
 			notifyTaskWorkers({
 				organizationId: input.organizationId,
@@ -223,6 +227,14 @@ export const createTask = protectedProcedure
 				event: "assigned",
 				...(dueDetail ? { detail: dueDetail } : {}),
 			});
+		}
+
+		if (input.dueHasTime && input.employeeIds?.length) {
+			scheduleTaskReminder(task.id).catch((err: unknown) =>
+				logger.warn("[Task Create] reminder schedule failed", {
+					error: String(err),
+				}),
+			);
 		}
 
 		// Fire-and-forget: tell the customer a maintenance visit is coming

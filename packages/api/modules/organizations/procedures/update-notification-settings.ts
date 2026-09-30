@@ -27,6 +27,13 @@ export const updateNotificationSettings = protectedProcedure
 			notifyWorkerOnTaskAssigned: z.boolean().optional(),
 			notifyWorkerOnTaskUpdated: z.boolean().optional(),
 			notifyWorkerOnTaskCancelled: z.boolean().optional(),
+			notifyWorkerOnTaskReminder: z.boolean().optional(),
+			taskReminderLeadMinutes: z
+				.number()
+				.int()
+				.min(5)
+				.max(240)
+				.optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -37,7 +44,7 @@ export const updateNotificationSettings = protectedProcedure
 			"update",
 		);
 
-		const data: Record<string, boolean | string | null> = {};
+		const data: Record<string, boolean | number | string | null> = {};
 		if (input.stoppedPaymentTaskEnabled !== undefined) {
 			data["stoppedPaymentTaskEnabled"] = input.stoppedPaymentTaskEnabled;
 		}
@@ -69,6 +76,13 @@ export const updateNotificationSettings = protectedProcedure
 			data["notifyWorkerOnTaskCancelled"] =
 				input.notifyWorkerOnTaskCancelled;
 		}
+		if (input.notifyWorkerOnTaskReminder !== undefined) {
+			data["notifyWorkerOnTaskReminder"] =
+				input.notifyWorkerOnTaskReminder;
+		}
+		if (input.taskReminderLeadMinutes !== undefined) {
+			data["taskReminderLeadMinutes"] = input.taskReminderLeadMinutes;
+		}
 
 		const updated = await db.organization.update({
 			where: { id: input.organizationId },
@@ -83,6 +97,8 @@ export const updateNotificationSettings = protectedProcedure
 				notifyWorkerOnTaskAssigned: true,
 				notifyWorkerOnTaskUpdated: true,
 				notifyWorkerOnTaskCancelled: true,
+				notifyWorkerOnTaskReminder: true,
+				taskReminderLeadMinutes: true,
 			},
 		});
 

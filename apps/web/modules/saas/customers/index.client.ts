@@ -20,6 +20,10 @@ export { CustomersListSkeleton } from "./components/CustomersListSkeleton";
 export { DiagnoseButton, DiagnoseSheet } from "./components/DiagnoseSheet";
 export { EditPlanDialog } from "./components/EditPlanDialog";
 export { LocationRequestPage } from "./components/LocationRequestPage";
+export {
+	CustomerNearbyBoxesNotice,
+	NearbyBoxesNotice,
+} from "./components/NearbyBoxesNotice";
 export { PendingCustomersList } from "./components/PendingCustomersList";
 export { PlansList } from "./components/PlansList";
 export { PlansListSkeleton } from "./components/PlansListSkeleton";

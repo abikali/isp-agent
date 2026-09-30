@@ -86,6 +86,7 @@ export const config = {
 			scheduled: { concurrency: 1 },
 			aiChat: { concurrency: 3 },
 			aiFollowup: { concurrency: 2 },
+			taskReminder: { concurrency: 2 },
 			watcherCheck: { concurrency: 2 },
 			iradiusSync: { concurrency: 1 },
 			billingSync: { concurrency: 1 },

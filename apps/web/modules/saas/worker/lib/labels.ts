@@ -32,6 +32,19 @@ const STRINGS = {
 	],
 	due: ["Due", "الموعد"],
 	overdue: ["overdue", "متأخرة"],
+	dueSoon: ["due soon", "قريباً"],
+	assigned: ["Assigned", "أُسندت"],
+	ago: ["ago", "مضت"],
+	more: ["More", "المزيد"],
+	less: ["Less", "أقل"],
+	boxHasCustomers: [
+		"This box already has {n} customers",
+		"هذه العلبة عليها {n} زبائن",
+	],
+	nearbyBoxHint: [
+		"Pick another box if possible — if it fails they all go down.",
+		"اختر علبة أخرى إن أمكن — إذا تعطّلت ينقطع الجميع.",
+	],
 	submit: ["Submit", "إرسال"],
 	showAllTasks: ["Show all my tasks", "عرض كل مهامي"],
 

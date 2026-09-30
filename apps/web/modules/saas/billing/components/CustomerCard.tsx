@@ -466,10 +466,11 @@ export function CustomerCard({ customer, onPay }: CustomerCardProps) {
 					<PhoneActions
 						numbers={phoneNumbers}
 						className={QUICK_ACTION_CLASS}
+						tone="colored"
 					/>
 					{pinUrl ? (
 						<Button
-							variant="outline"
+							variant="info-soft"
 							className={QUICK_ACTION_CLASS}
 							asChild
 						>

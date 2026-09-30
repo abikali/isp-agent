@@ -1,8 +1,14 @@
-import { formatDate } from "@shared/lib/format";
+import { dueDeadline } from "@repo/utils";
+import { beirutWallClockToUtc, formatDate } from "@shared/lib/format";
 
+/**
+ * Past due: a timed task from its instant, a date-only one once its Beirut
+ * day is over (a task due "today" isn't late at 03:00).
+ */
 export function isOverdue(
 	dueDate: string | Date | null,
 	status: string,
+	dueHasTime = false,
 ): boolean {
 	// PENDING_APPROVAL: field work is done, only the review is outstanding
 	if (
@@ -13,7 +19,24 @@ export function isOverdue(
 	) {
 		return false;
 	}
-	return new Date(dueDate) < new Date();
+	return dueDeadline(dueDate, dueHasTime) < new Date();
+}
+
+/**
+ * Form values → API due fields. A time makes it an exact Beirut instant; a
+ * date alone is a whole Beirut day, stored at Beirut noon so no timezone
+ * shift can move it to a neighbouring day.
+ */
+export function toDuePayload(
+	date: string,
+	time: string,
+): { dueDate: Date | null; dueHasTime: boolean } {
+	if (!date) {
+		return { dueDate: null, dueHasTime: false };
+	}
+	return time
+		? { dueDate: beirutWallClockToUtc(`${date}T${time}`), dueHasTime: true }
+		: { dueDate: beirutWallClockToUtc(`${date}T12:00`), dueHasTime: false };
 }
 
 /**

@@ -50,6 +50,7 @@ export function useStockItemsQuery() {
 export function useStockLogs(filters: {
 	stockItemId?: string;
 	employeeId?: string;
+	supplierId?: string;
 	action?:
 		| "ADD"
 		| "REMOVE"
@@ -123,13 +124,18 @@ export function useStockRefundRequests(filters?: {
 	};
 }
 
-export function useSuppliersQuery() {
+export function useSuppliersQuery(options?: { includeArchived?: boolean }) {
 	const organizationId = useOrganizationId();
 
 	const query = useQuery(
 		organizationId
 			? orpc.stock.suppliers.list.queryOptions({
-					input: { organizationId },
+					input: {
+						organizationId,
+						...(options?.includeArchived
+							? { includeArchived: true }
+							: {}),
+					},
 				})
 			: disabledQuery(["stock", "suppliers"]),
 	);
@@ -147,6 +153,11 @@ export const useCreateSupplier = createInvalidatingMutation(
 
 export const useUpdateSupplier = createInvalidatingMutation(
 	() => orpc.stock.suppliers.update.mutationOptions(),
+	() => orpc.stock.key(),
+);
+
+export const useArchiveSupplier = createInvalidatingMutation(
+	() => orpc.stock.suppliers.archive.mutationOptions(),
 	() => orpc.stock.key(),
 );
 

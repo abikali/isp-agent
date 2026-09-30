@@ -211,7 +211,7 @@ function liveTooltip(
 	return lines.join(" · ");
 }
 
-function CustomerCardContainer({
+export function CustomerCardContainer({
 	customerId,
 	organizationId,
 	organizationSlug,

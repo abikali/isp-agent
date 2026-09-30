@@ -35,6 +35,7 @@ import {
 	PlusIcon,
 	SendIcon,
 	TrashIcon,
+	TruckIcon,
 	UndoIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -345,6 +346,18 @@ export function StockList({ organizationSlug }: { organizationSlug: string }) {
 							Stock log
 						</Link>
 					</Button>
+					<PermissionGate resource="inventory" action="update">
+						<Button variant="outline" asChild>
+							<Link
+								to="/app/$organizationSlug/stock/suppliers"
+								params={{ organizationSlug }}
+								preload="intent"
+							>
+								<TruckIcon className="mr-2 size-4" />
+								Suppliers
+							</Link>
+						</Button>
+					</PermissionGate>
 					<PermissionGate resource="inventory" action="create">
 						<Button onClick={() => setShowCreate(true)}>
 							<PlusIcon className="mr-2 size-4" />

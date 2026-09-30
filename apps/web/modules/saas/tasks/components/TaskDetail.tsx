@@ -2,7 +2,7 @@
 
 import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
 import { PageShell } from "@shared/components/PageShell";
-import { formatDateInput } from "@shared/lib/format";
+import { formatDateInput, formatTimeInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useForm, useStore } from "@tanstack/react-form";
@@ -28,6 +28,7 @@ import {
 	TASK_PRIORITY_OPTIONS,
 	TASK_STATUS_OPTIONS,
 } from "../lib/constants";
+import { toDuePayload } from "../lib/task-utils";
 import { TaskEvidenceCard } from "./TaskEvidenceCard";
 
 // react-doctor-disable-next-line react-doctor/no-giant-component -- cohesive single-purpose TanStack Form edit page; splitting would scatter shared form state
@@ -54,6 +55,9 @@ export function TaskDetail({
 	);
 
 	const task = data.task;
+	const initialDueDate = task.dueDate ? formatDateInput(task.dueDate) : "";
+	const initialDueTime =
+		task.dueDate && task.dueHasTime ? formatTimeInput(task.dueDate) : "";
 
 	const form = useForm({
 		defaultValues: {
@@ -62,7 +66,8 @@ export function TaskDetail({
 			status: task.status,
 			priority: task.priority,
 			category: task.category,
-			dueDate: task.dueDate ? formatDateInput(task.dueDate) : "",
+			dueDate: initialDueDate,
+			dueTime: initialDueTime,
 			baseId: task.baseId ?? "",
 			stationId: task.stationId ?? "",
 			notes: task.notes ?? "",
@@ -90,7 +95,12 @@ export function TaskDetail({
 						| "SUPPORT"
 						| "BILLING"
 						| "GENERAL",
-					dueDate: value.dueDate ? new Date(value.dueDate) : null,
+					// Only when edited: re-sending an untouched legacy
+					// (UTC-midnight) date would count as a reschedule.
+					...(value.dueDate !== initialDueDate ||
+					value.dueTime !== initialDueTime
+						? toDuePayload(value.dueDate, value.dueTime)
+						: {}),
 					baseId: value.baseId || null,
 					stationId: value.stationId || null,
 					notes: value.notes || null,
@@ -266,9 +276,31 @@ export function TaskDetail({
 								<form.Field name="dueDate">
 									{(field) => (
 										<div className="space-y-2">
-											<Label>Due Date</Label>
+											<Label htmlFor="task-due">
+												Due date
+											</Label>
 											<Input
+												id="task-due"
 												type="date"
+												value={field.state.value}
+												onChange={(e) =>
+													field.handleChange(
+														e.target.value,
+													)
+												}
+											/>
+										</div>
+									)}
+								</form.Field>
+								<form.Field name="dueTime">
+									{(field) => (
+										<div className="space-y-2">
+											<Label htmlFor="task-due-time">
+												Time (Beirut, optional)
+											</Label>
+											<Input
+												id="task-due-time"
+												type="time"
 												value={field.state.value}
 												onChange={(e) =>
 													field.handleChange(

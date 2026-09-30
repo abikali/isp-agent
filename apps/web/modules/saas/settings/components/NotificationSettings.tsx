@@ -42,7 +42,8 @@ export function NotificationSettings() {
 			| "alertOnInstallationDone"
 			| "notifyWorkerOnTaskAssigned"
 			| "notifyWorkerOnTaskUpdated"
-			| "notifyWorkerOnTaskCancelled",
+			| "notifyWorkerOnTaskCancelled"
+			| "notifyWorkerOnTaskReminder",
 		checked: boolean,
 	) => {
 		if (!organizationId) {
@@ -245,6 +246,11 @@ export function NotificationSettings() {
 							label: "Task cancelled",
 							desc: "Notify assigned workers when a task they're on is cancelled.",
 						},
+						{
+							field: "notifyWorkerOnTaskReminder" as const,
+							label: "Due-time reminder",
+							desc: "Remind assigned workers on Telegram before a task with a due time (set a time on the task).",
+						},
 					].map((row) => (
 						<div
 							key={row.field}
@@ -271,6 +277,55 @@ export function NotificationSettings() {
 							/>
 						</div>
 					))}
+					<div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+						<div className="flex-1">
+							<Label
+								htmlFor="task-reminder-lead"
+								className="font-medium"
+							>
+								Remind this many minutes before
+							</Label>
+							<p className="text-muted-foreground text-sm">
+								Between 5 and 240 minutes. Default 30.
+							</p>
+						</div>
+						<Input
+							id="task-reminder-lead"
+							type="number"
+							min={5}
+							max={240}
+							className="w-24"
+							defaultValue={data.taskReminderLeadMinutes}
+							disabled={
+								update.isPending ||
+								!data.notifyWorkerOnTaskReminder
+							}
+							onBlur={(e) => {
+								const minutes = Number(e.target.value);
+								if (
+									!organizationId ||
+									!Number.isInteger(minutes) ||
+									minutes < 5 ||
+									minutes > 240 ||
+									minutes === data.taskReminderLeadMinutes
+								) {
+									return;
+								}
+								update.mutate(
+									{
+										organizationId,
+										taskReminderLeadMinutes: minutes,
+									},
+									{
+										onSuccess: () =>
+											toast.success(
+												"Reminder time saved",
+											),
+									},
+								);
+							}}
+						/>
+					</div>
 				</div>
 			</SettingsItem>
 		</div>

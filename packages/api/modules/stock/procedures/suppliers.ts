@@ -14,7 +14,14 @@ const supplierSelect = {
 	name: true,
 	phones: true,
 	notes: true,
+	archivedAt: true,
 	_count: { select: { items: true, logs: true } },
+	// Last delivery, for the Suppliers page.
+	logs: {
+		orderBy: { createdAt: "desc" },
+		take: 1,
+		select: { createdAt: true },
+	},
 } as const;
 
 export const listSuppliers = protectedProcedure
@@ -24,7 +31,14 @@ export const listSuppliers = protectedProcedure
 		tags: ["Stock"],
 		summary: "List suppliers",
 	})
-	.input(z.object({ organizationId: z.string() }))
+	.input(
+		z.object({
+			organizationId: z.string(),
+			// Archived suppliers are hidden from pickers; the Suppliers page
+			// can list them to restore one.
+			includeArchived: z.boolean().optional(),
+		}),
+	)
 	.handler(async ({ context: { user }, input }) => {
 		await requirePermission(
 			input.organizationId,
@@ -33,7 +47,10 @@ export const listSuppliers = protectedProcedure
 			"read",
 		);
 		const suppliers = await db.supplier.findMany({
-			where: { organizationId: input.organizationId },
+			where: {
+				organizationId: input.organizationId,
+				...(input.includeArchived ? {} : { archivedAt: null }),
+			},
 			select: supplierSelect,
 			orderBy: { name: "asc" },
 		});
@@ -64,12 +81,26 @@ export const createSupplier = protectedProcedure
 		);
 		const duplicate = await db.supplier.findFirst({
 			where: { organizationId: input.organizationId, name: input.name },
-			select: { id: true },
+			select: { id: true, archivedAt: true },
 		});
-		if (duplicate) {
+		if (duplicate && !duplicate.archivedAt) {
 			throw new ORPCError("CONFLICT", {
 				message: "A supplier with this name already exists",
 			});
+		}
+		// The name is unique per org: re-creating an archived supplier
+		// restores it (keeping its delivery history) instead of conflicting.
+		if (duplicate) {
+			const supplier = await db.supplier.update({
+				where: { id: duplicate.id },
+				data: {
+					archivedAt: null,
+					phones: input.phones,
+					notes: input.notes ?? null,
+				},
+				select: supplierSelect,
+			});
+			return { supplier };
 		}
 		const supplier = await db.supplier.create({
 			data: {
@@ -126,6 +157,47 @@ export const updateSupplier = protectedProcedure
 		const supplier = await db.supplier.update({
 			where: { id: input.id },
 			data,
+			select: supplierSelect,
+		});
+		return { supplier };
+	});
+
+/**
+ * Archive (or restore) a supplier. Archived suppliers leave the pickers but
+ * keep their links and delivery history — a hard delete would strip the
+ * supplier name from past stock logs.
+ */
+export const archiveSupplier = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/stock/suppliers/{id}/archive",
+		tags: ["Stock"],
+		summary: "Archive or restore a supplier",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			id: z.string(),
+			archived: z.boolean().default(true),
+		}),
+	)
+	.handler(async ({ context: { user }, input }) => {
+		await requirePermission(
+			input.organizationId,
+			user.id,
+			"inventory",
+			"delete",
+		);
+		const existing = await db.supplier.findFirst({
+			where: { id: input.id, organizationId: input.organizationId },
+			select: { id: true },
+		});
+		if (!existing) {
+			throw new ORPCError("NOT_FOUND", { message: "Supplier not found" });
+		}
+		const supplier = await db.supplier.update({
+			where: { id: input.id },
+			data: { archivedAt: input.archived ? new Date() : null },
 			select: supplierSelect,
 		});
 		return { supplier };

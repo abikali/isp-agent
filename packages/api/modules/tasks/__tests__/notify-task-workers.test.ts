@@ -1,4 +1,4 @@
-import { bilingual } from "@repo/utils";
+import { bilingual, taskLinkFor } from "@repo/utils";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database", () => ({ db: {}, parsePhones: () => [] }));
@@ -6,9 +6,7 @@ vi.mock("@repo/api/lib/notify-employee", () => ({
 	notifyFieldEmployee: vi.fn(),
 }));
 
-const { taskCategoryLabel, taskLinkFor } = await import(
-	"../lib/notify-task-workers"
-);
+const { taskCategoryLabel } = await import("../lib/notify-task-workers");
 
 describe("taskLinkFor", () => {
 	it("opens the task inside the field portal for workers", () => {

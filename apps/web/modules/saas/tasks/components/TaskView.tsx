@@ -9,6 +9,7 @@ import { PropertyList } from "@shared/components/PropertyList";
 import {
 	formatDate,
 	formatDateTime,
+	formatDue,
 	MEDIUM_DATE_FORMAT,
 	MEDIUM_DATE_TIME_FORMAT,
 } from "@shared/lib/format";
@@ -22,8 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@ui/components/card";
 import { cn } from "@ui/lib";
 import { CheckIcon, EditIcon, UndoIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
-import { useDeleteTask, useReviewTaskCompletion } from "../hooks/use-tasks";
+import { useDeleteTask } from "../hooks/use-tasks";
 import {
 	TASK_CATEGORY_LABELS,
 	TASK_PRIORITY_BG_COLORS,
@@ -34,6 +34,7 @@ import {
 } from "../lib/constants";
 import { isOverdue, isReturned } from "../lib/task-utils";
 import { AssignEmployeeDialog } from "./AssignEmployeeDialog";
+import { ReviewCompletionDialog } from "./ReviewCompletionDialog";
 import { TaskCustomerCard } from "./TaskCustomerCard";
 import { TaskEmployeeCard } from "./TaskEmployeeCard";
 import { TaskEvidenceCard } from "./TaskEvidenceCard";
@@ -47,7 +48,6 @@ export function TaskView({ taskId }: { taskId: string }) {
 	const organizationId = useOrganizationId();
 	const { organizationSlug } = useParams({ strict: false });
 	const deleteTask = useDeleteTask();
-	const reviewCompletion = useReviewTaskCompletion();
 	// Synchronous, pre-fetched permission check (same as PermissionGate) — the
 	// async useHasPermission latched to false on any failed request, hiding
 	// the Approve/Reject completion buttons intermittently.
@@ -55,41 +55,9 @@ export function TaskView({ taskId }: { taskId: string }) {
 	const canAccess = useCanAccess();
 	const canApprove = isOrganizationAdmin || canAccess("tasks", "approve");
 	const [showAssignEmployees, setShowAssignEmployees] = useState(false);
-
-	const reviewTask = async (action: "approve" | "reject") => {
-		if (!organizationId) {
-			return;
-		}
-		let note: string | undefined;
-		if (action === "reject") {
-			const answer = prompt(
-				"Reject this completion? The task returns to the worker's queue.\nReason (optional):",
-			);
-			if (answer === null) {
-				return;
-			}
-			note = answer.trim() || undefined;
-		}
-		try {
-			await reviewCompletion.mutateAsync({
-				organizationId,
-				taskId,
-				action,
-				...(note ? { note } : {}),
-			});
-			toast.success(
-				action === "approve"
-					? "Task completion approved"
-					: "Completion rejected — task returned to the worker",
-			);
-		} catch (error) {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to review completion",
-			);
-		}
-	};
+	const [reviewAction, setReviewAction] = useState<
+		"approve" | "reject" | null
+	>(null);
 
 	const { data } = useSuspenseQuery(
 		orpc.tasks.get.queryOptions({
@@ -101,7 +69,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 	);
 
 	const task = data.task;
-	const overdue = isOverdue(task.dueDate, task.status);
+	const overdue = isOverdue(task.dueDate, task.status, task.dueHasTime);
 	const cancellable =
 		task.status !== "CANCELLED" && task.status !== "COMPLETED";
 	const awaitingApproval = task.status === "PENDING_APPROVAL";
@@ -151,8 +119,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 						<>
 							<Button
 								size="sm"
-								onClick={() => reviewTask("approve")}
-								disabled={reviewCompletion.isPending}
+								onClick={() => setReviewAction("approve")}
 							>
 								<CheckIcon className="mr-1.5 size-3.5" />
 								Approve completion
@@ -160,8 +127,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 							<Button
 								variant="outline"
 								size="sm"
-								onClick={() => reviewTask("reject")}
-								disabled={reviewCompletion.isPending}
+								onClick={() => setReviewAction("reject")}
 							>
 								<UndoIcon className="mr-1.5 size-3.5" />
 								Reject
@@ -206,7 +172,11 @@ export function TaskView({ taskId }: { taskId: string }) {
 			}
 		>
 			{overdue && (
-				<TaskOverdueWarning dueDate={task.dueDate} label="task" />
+				<TaskOverdueWarning
+					dueDate={task.dueDate}
+					dueHasTime={task.dueHasTime}
+					label="task"
+				/>
 			)}
 
 			{awaitingApproval && (
@@ -263,10 +233,7 @@ export function TaskView({ taskId }: { taskId: string }) {
 														"font-medium text-red-600 dark:text-red-400",
 												)}
 											>
-												{formatDate(
-													task.dueDate,
-													MEDIUM_DATE_FORMAT,
-												)}
+												{formatDue(task)}
 											</span>
 										) : null,
 									},
@@ -350,6 +317,12 @@ export function TaskView({ taskId }: { taskId: string }) {
 					/>
 				</div>
 			</div>
+
+			<ReviewCompletionDialog
+				taskId={taskId}
+				action={reviewAction}
+				onClose={() => setReviewAction(null)}
+			/>
 
 			<AssignEmployeeDialog
 				open={showAssignEmployees}

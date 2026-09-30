@@ -3,6 +3,7 @@
 import {
 	formatDate,
 	formatDateTime,
+	formatDue,
 	MEDIUM_DATE_FORMAT,
 	MEDIUM_DATE_TIME_FORMAT,
 } from "@shared/lib/format";
@@ -66,7 +67,7 @@ export function EscalationView({ taskId }: { taskId: string }) {
 	);
 
 	const task = data.task;
-	const overdue = isOverdue(task.dueDate, task.status);
+	const overdue = isOverdue(task.dueDate, task.status, task.dueHasTime);
 	const conversationMessages = task.conversation?.messages ?? [];
 
 	function handleFollowUpChange(
@@ -180,7 +181,11 @@ export function EscalationView({ taskId }: { taskId: string }) {
 
 			{/* Overdue warning */}
 			{overdue && (
-				<TaskOverdueWarning dueDate={task.dueDate} label="escalation" />
+				<TaskOverdueWarning
+					dueDate={task.dueDate}
+					dueHasTime={task.dueHasTime}
+					label="escalation"
+				/>
 			)}
 
 			<div className="grid gap-6 lg:grid-cols-3">
@@ -253,10 +258,7 @@ export function EscalationView({ taskId }: { taskId: string }) {
 											)}
 										>
 											<CalendarIcon className="size-3.5" />
-											{formatDate(
-												task.dueDate,
-												MEDIUM_DATE_FORMAT,
-											)}
+											{formatDue(task)}
 										</dd>
 									</div>
 								)}

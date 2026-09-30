@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate } from "@shared/lib/format";
+import { formatDue } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -52,7 +52,7 @@ export function OpenTasksNotice({ customerId }: { customerId: string }) {
 									.filter(Boolean)
 									.join(", ")}`
 							: ""}
-						{t.dueDate ? ` · due ${formatDate(t.dueDate)}` : ""}
+						{t.dueDate ? ` · due ${formatDue(t)}` : ""}
 					</li>
 				))}
 			</ul>

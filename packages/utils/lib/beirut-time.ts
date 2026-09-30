@@ -95,3 +95,44 @@ export function beirutWallClockToUtc(local: string): Date {
 	}
 	return new Date(utcMs);
 }
+
+function pad2(n: number): string {
+	return String(n).padStart(2, "0");
+}
+
+/** UTC instant of 00:00 Beirut on the Beirut calendar day of `value`. */
+export function beirutDayStartUtc(value: BeirutDateInput): Date {
+	const { year, month, day } = beirutParts(value);
+	return beirutWallClockToUtc(`${year}-${pad2(month)}-${pad2(day)}T00:00`);
+}
+
+/** UTC instant of 23:59:59.999 Beirut on the Beirut calendar day of `value`. */
+export function beirutDayEndUtc(value: BeirutDateInput): Date {
+	const { year, month, day } = beirutParts(value);
+	const lastMinute = beirutWallClockToUtc(
+		`${year}-${pad2(month)}-${pad2(day)}T23:59`,
+	);
+	return new Date(lastMinute.getTime() + 59_999);
+}
+
+/**
+ * A task due value for the server side and Telegram: numeric `30/09/2026`
+ * (whole day) or `30/09/2026 14:30` (Beirut wall-clock). Numeric on purpose —
+ * it reads the same inside an Arabic `bilingual()` line.
+ */
+export function formatBeirutDue(
+	dueDate: BeirutDateInput,
+	hasTime: boolean,
+): string {
+	const { year, month, day, hour, minute } = beirutParts(dueDate);
+	const date = `${pad2(day)}/${pad2(month)}/${year}`;
+	return hasTime ? `${date} ${pad2(hour)}:${pad2(minute)}` : date;
+}
+
+/**
+ * When a due value stops being on time: the instant itself when it carries a
+ * time, otherwise the end of its Beirut day.
+ */
+export function dueDeadline(dueDate: BeirutDateInput, hasTime: boolean): Date {
+	return hasTime ? toDate(dueDate) : beirutDayEndUtc(dueDate);
+}

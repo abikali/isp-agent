@@ -7,6 +7,10 @@ import { logger } from "@repo/logs";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
 import { queueIRadiusSync } from "../jobs/iradius-sync.jobs";
+import {
+	REMINDER_ACTIVE_STATUSES,
+	scheduleTaskReminder,
+} from "../jobs/task-reminder.jobs";
 import { queueWatcherCheck } from "../jobs/watcher-check.jobs";
 import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
 import { SCHEDULED_QUEUE_NAME } from "../queues/scheduled.queue";
@@ -295,6 +299,46 @@ async function scheduleDealerSync(): Promise<number> {
 	return 1;
 }
 
+/**
+ * Safety net for task due reminders lost to a Redis flush or a deploy gap:
+ * every task whose reminder window is open but that was never reminded gets
+ * its job (re)queued now. Cheap — dueDate is indexed and the window is short.
+ */
+async function sweepTaskReminders(): Promise<number> {
+	const now = Date.now();
+	const candidates = await db.task.findMany({
+		where: {
+			dueHasTime: true,
+			reminderSentAt: null,
+			status: { in: [...REMINDER_ACTIVE_STATUSES] },
+			// Lead times are per org; 24h bounds the scan, the per-row check
+			// below applies the org's own lead.
+			dueDate: {
+				gte: new Date(now - 5 * 60_000),
+				lte: new Date(now + 24 * 60 * 60_000),
+			},
+			organization: { notifyWorkerOnTaskReminder: true },
+		},
+		select: {
+			id: true,
+			dueDate: true,
+			organization: { select: { taskReminderLeadMinutes: true } },
+		},
+	});
+	let queued = 0;
+	for (const task of candidates) {
+		const windowOpensAt =
+			(task.dueDate?.getTime() ?? 0) -
+			task.organization.taskReminderLeadMinutes * 60_000;
+		if (windowOpensAt > now) {
+			continue;
+		}
+		await scheduleTaskReminder(task.id);
+		queued++;
+	}
+	return queued;
+}
+
 export function createScheduledWorker(): Worker<
 	ScheduledJobData,
 	ScheduledJobResult
@@ -342,6 +386,10 @@ export function createScheduledWorker(): Worker<
 				case "recurring-expenses": {
 					const generated = await generateDueRecurringExpenses();
 					return { processedCount: generated };
+				}
+				case "task-reminder-sweep": {
+					const queued = await sweepTaskReminders();
+					return { processedCount: queued };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

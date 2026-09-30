@@ -8,16 +8,24 @@ import {
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
+import { cancelTaskReminder } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { bilingual } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
+import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
 import {
 	addonNoteFor,
 	classifyAddonNote,
 } from "../../installations/lib/addons";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
+import {
+	approvableTaskLines,
+	approveTaskLinesInTx,
+	TASK_LINES_SELECT,
+} from "../lib/review-task-lines";
 import { bustTaskStats } from "../lib/stats-cache";
 
 // Installed equipment recorded when closing an INSTALLATION / REPLACEMENT task
@@ -79,12 +87,13 @@ export const completeTaskWithEvidence = protectedProcedure
 			),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { permCtx, activeDealerId } = await requirePermission(
-			input.organizationId,
-			user.id,
-			"tasks",
-			"update",
-		);
+		const { permCtx, activeDealerId, iradiusDisabled } =
+			await requirePermission(
+				input.organizationId,
+				user.id,
+				"tasks",
+				"update",
+			);
 
 		const task = await db.task.findFirst({
 			where: {
@@ -95,7 +104,12 @@ export const completeTaskWithEvidence = protectedProcedure
 			include: {
 				assignments: { select: { employeeId: true } },
 				customer: {
-					select: { firstName: true, lastName: true, username: true },
+					select: {
+						firstName: true,
+						lastName: true,
+						username: true,
+						externalId: true,
+					},
 				},
 			},
 		});
@@ -321,66 +335,116 @@ export const completeTaskWithEvidence = protectedProcedure
 			});
 		}
 
-		const updated = await db.$transaction(async (tx) => {
-			if (installedItems.length > 0 && employeeId) {
-				await tx.installation.createMany({
-					data: installedItems.map((line) => ({
-						organizationId: input.organizationId,
-						taskId: task.id,
-						// Add-ons attach to the customer; clear station/base.
-						customerId: task.customerId,
-						stationId: line.addonType ? null : task.stationId,
-						baseId: line.addonType ? null : task.baseId,
-						employeeId,
-						stockItemId: line.stockItemId ?? null,
-						quantity: line.addonType ? 1 : line.quantity,
-						price:
-							line.stockItemId && !canSetInstallPrice
-								? (sellPriceByStockItem.get(line.stockItemId) ??
-									0)
-								: line.price,
-						isAddOn: Boolean(line.addonType),
-						notes: line.addonType
-							? addonNoteFor(line.addonType)
-							: (line.notes ?? null),
-					})),
-				});
-			}
+		// An approver's own completion closes the task at once — so its lines
+		// are approved in the same transaction ("COMPLETED ⟹ lines resolved"),
+		// exactly as reviewCompletion would. Without installations:approve the
+		// lines stay pending for the Installations / Recovered queues.
+		const autoApproveLines = isApprover && canSetInstallPrice;
+		const addonPushLines =
+			autoApproveLines && employeeId
+				? addonLines.map((line) => ({
+						isAddOn: true,
+						notes: addonNoteFor(line.addonType),
+						price: line.price,
+					}))
+				: [];
 
-			if (recoveredItems.length > 0) {
-				await tx.uninstalledItem.createMany({
-					data: recoveredItems.map((item) => ({
-						organizationId: input.organizationId,
-						taskId: task.id,
-						stockItemId: item.stockItemId,
-						itemName:
-							stockItemNames.get(item.stockItemId) ?? "Unknown",
-						quantity: item.quantity,
-						pictureUrl: item.pictureUrl,
-						employeeId,
-					})),
-				});
-			}
+		const runCompletion = () =>
+			db.$transaction(async (tx) => {
+				if (installedItems.length > 0 && employeeId) {
+					await tx.installation.createMany({
+						data: installedItems.map((line) => ({
+							organizationId: input.organizationId,
+							taskId: task.id,
+							// Add-ons attach to the customer; clear station/base.
+							customerId: task.customerId,
+							stationId: line.addonType ? null : task.stationId,
+							baseId: line.addonType ? null : task.baseId,
+							employeeId,
+							stockItemId: line.stockItemId ?? null,
+							quantity: line.addonType ? 1 : line.quantity,
+							price:
+								line.stockItemId && !canSetInstallPrice
+									? (sellPriceByStockItem.get(
+											line.stockItemId,
+										) ?? 0)
+									: line.price,
+							isAddOn: Boolean(line.addonType),
+							notes: line.addonType
+								? addonNoteFor(line.addonType)
+								: (line.notes ?? null),
+						})),
+					});
+				}
 
-			return tx.task.update({
-				where: { id: task.id },
-				data: {
-					status: isApprover ? "COMPLETED" : "PENDING_APPROVAL",
-					// Field-work timestamp; approval only flips the status.
-					completedAt: new Date(),
-					completedByEmployeeId: employeeId,
-					resolutionCode: input.resolutionCode ?? null,
-					resolutionNote: input.resolutionNote ?? null,
-					completionPhotoUrl: input.photoUrl ?? null,
-				},
-				select: {
-					id: true,
-					status: true,
-					completedAt: true,
-					resolutionCode: true,
-				},
+				if (recoveredItems.length > 0) {
+					await tx.uninstalledItem.createMany({
+						data: recoveredItems.map((item) => ({
+							organizationId: input.organizationId,
+							taskId: task.id,
+							stockItemId: item.stockItemId,
+							itemName:
+								stockItemNames.get(item.stockItemId) ??
+								"Unknown",
+							quantity: item.quantity,
+							pictureUrl: item.pictureUrl,
+							employeeId,
+						})),
+					});
+				}
+
+				if (autoApproveLines) {
+					const lines = await tx.task.findUniqueOrThrow({
+						where: { id: task.id },
+						select: TASK_LINES_SELECT,
+					});
+					await approveTaskLinesInTx(
+						tx,
+						approvableTaskLines(lines),
+						user.id,
+					);
+				}
+
+				return tx.task.update({
+					where: { id: task.id },
+					data: {
+						status: isApprover ? "COMPLETED" : "PENDING_APPROVAL",
+						// Field-work timestamp; approval only flips the status.
+						completedAt: new Date(),
+						completedByEmployeeId: employeeId,
+						resolutionCode: input.resolutionCode ?? null,
+						resolutionNote: input.resolutionNote ?? null,
+						completionPhotoUrl: input.photoUrl ?? null,
+					},
+					select: {
+						id: true,
+						status: true,
+						completedAt: true,
+						resolutionCode: true,
+					},
+				});
 			});
-		});
+		// Add-on prices are iRadius-mirrored: push remote-first, then write.
+		const updated =
+			addonPushLines.length > 0
+				? await mirrorToIRadius({
+						iradiusDisabled,
+						logTag: "[Task Complete] iRadius add-on price",
+						failureMessage:
+							"Failed to set the add-on price in iRadius — task not completed",
+						remote: () =>
+							pushAddonPricesToIRadius(
+								task.customer,
+								addonPushLines,
+							),
+						local: runCompletion,
+					})
+				: await runCompletion();
+		cancelTaskReminder(task.id).catch((err: unknown) =>
+			logger.warn("[Task Complete] reminder cancel failed", {
+				error: String(err),
+			}),
+		);
 
 		// The approver's sidebar badge counts this completion (task and any
 		// recovered items) — drop the cached numbers so it shows up now.
@@ -397,6 +461,10 @@ export const completeTaskWithEvidence = protectedProcedure
 		});
 		const hasInstalls = installedItems.length > 0;
 		const hasRecovery = recoveredItems.length > 0;
+		// Lines an approver closed without installations:approve still wait
+		// on their own queues.
+		const itemsAwaitReview =
+			!autoApproveLines && (hasInstalls || hasRecovery);
 		const evidenceParts = [
 			hasInstalls ? `${installedItems.length} installed item(s)` : null,
 			hasRecovery ? `${recoveredItems.length} recovered item(s)` : null,
@@ -405,20 +473,18 @@ export const completeTaskWithEvidence = protectedProcedure
 			organizationId: input.organizationId,
 			title: !isApprover
 				? "Task completion to approve"
-				: hasInstalls || hasRecovery
+				: itemsAwaitReview
 					? "Field work to approve"
 					: "Task completed",
 			message: `"${task.title}"${customerName ? ` for ${customerName}` : ""} was completed${evidenceParts.length > 0 ? ` with ${evidenceParts.join(" and ")}` : ""}${!isApprover ? " — awaiting your approval" : ""}`,
-			// The task page carries the approve/reject actions; installs are
-			// reviewed on their own queue once the task itself is approved.
-			link: !isApprover
-				? `/app/${org?.slug ?? ""}/tasks/${task.id}`
-				: hasInstalls
+			// The task page carries the approve/reject actions (which also
+			// approve / revert the task's items).
+			link:
+				isApprover && itemsAwaitReview && hasInstalls
 					? `/app/${org?.slug ?? ""}/installations`
 					: `/app/${org?.slug ?? ""}/tasks/${task.id}`,
 			excludeUserIds: [user.id],
-			type:
-				!isApprover || hasInstalls || hasRecovery ? "warning" : "info",
+			type: !isApprover || itemsAwaitReview ? "warning" : "info",
 		}).catch((err: unknown) =>
 			logger.warn("[Task Complete] notify failed", {
 				error: String(err),
