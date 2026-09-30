@@ -709,6 +709,15 @@ export const escalateTelegram: RegisteredTool = {
 				description:
 					"Supports group IDs (e.g. -1001234567890) and user IDs (e.g. 123456789). Each recipient must have started a conversation with the bot.",
 			},
+			{
+				key: "summaryTelegramChatIds",
+				label: "Conversation summary Chat IDs (optional)",
+				type: "repeater",
+				required: false,
+				placeholder: "e.g. 123456789",
+				description:
+					"Where conversation summaries go (Agent settings → Conversation summaries). Leave empty to use the escalation chats above.",
+			},
 		],
 	},
 	factory: createEscalateTelegramTool,
