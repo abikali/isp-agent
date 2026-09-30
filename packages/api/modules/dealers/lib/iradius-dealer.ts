@@ -5,6 +5,7 @@ import {
 	withIRadiusConnection,
 } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
+import { toIRadiusDateTime } from "../../../lib/beirut-time";
 import { round2 } from "./ledger";
 
 /**
@@ -57,28 +58,6 @@ function requireExternalId(dealer: { externalId?: string | null }): number {
 function formatLegacyCredit(value: number): string {
 	const rounded = round2(value);
 	return Number.isInteger(rounded) ? `${rounded}.0` : String(rounded);
-}
-
-/**
- * MySQL DATETIME literal in the iRadius server's wall clock (Beirut). The
- * server stamps its own rows with NOW() in local time, so a user-chosen date
- * must be written the same way or it lands three hours off.
- */
-export function toIRadiusDateTime(date: Date): string {
-	const parts = new Intl.DateTimeFormat("en-CA", {
-		timeZone: "Asia/Beirut",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-		hour12: false,
-	}).formatToParts(date);
-	const get = (type: string) =>
-		parts.find((p) => p.type === type)?.value ?? "00";
-	const hour = get("hour") === "24" ? "00" : get("hour");
-	return `${get("year")}-${get("month")}-${get("day")} ${hour}:${get("minute")}:${get("second")}`;
 }
 
 interface AccountEntry {

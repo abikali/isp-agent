@@ -95,3 +95,25 @@ export function beirutWallClockToUtc(local: string): Date {
 	}
 	return new Date(utcMs);
 }
+
+/** `YYYY-MM-DD` of the Beirut calendar day an instant falls on. */
+export function beirutDateString(value: BeirutDateInput): string {
+	const { year, month, day } = beirutParts(value);
+	return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * End of a Beirut calendar day (`YYYY-MM-DD`), the time iRadius billing
+ * expiries use: `literal` is the tz-naive MySQL DATETIME iRadius stores
+ * (`2026-10-01 23:59:00`), `utc` the same instant for Postgres
+ * (`2026-10-01T20:59:00Z` in summer, `21:59Z` in winter).
+ */
+export function beirutEndOfDay(dateStr: string): {
+	literal: string;
+	utc: Date;
+} {
+	return {
+		literal: `${dateStr} 23:59:00`,
+		utc: beirutWallClockToUtc(`${dateStr}T23:59`),
+	};
+}
