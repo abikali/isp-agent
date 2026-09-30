@@ -29,6 +29,7 @@ COPY packages/payments/package.json packages/payments/
 COPY packages/quotas/package.json packages/quotas/
 COPY packages/rate-limit/package.json packages/rate-limit/
 COPY packages/security/package.json packages/security/
+COPY packages/sms/package.json packages/sms/
 COPY packages/storage/package.json packages/storage/
 COPY packages/utils/package.json packages/utils/
 COPY packages/webhooks/package.json packages/webhooks/
