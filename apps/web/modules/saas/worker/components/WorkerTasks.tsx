@@ -1,7 +1,13 @@
 "use client";
 
 import { CUSTOM_RESOLUTION_VALUE } from "@repo/database/worker-options";
-import { bilingual, directionsUrl, isUsablePin } from "@repo/utils";
+import {
+	bilingual,
+	directionsUrl,
+	dueDeadline,
+	formatBeirutDue,
+	isUsablePin,
+} from "@repo/utils";
 import { useAddonDefaultsQuery } from "@saas/installations/client";
 import {
 	useCompleteTaskWithEvidence,
@@ -16,7 +22,7 @@ import { CHART_TOKENS } from "@shared/components/charts/chart-utils";
 import { PhoneActions } from "@shared/components/PhoneActions";
 import { customerPhoneNumbers } from "@shared/lib/customer-phones";
 import { displayName } from "@shared/lib/display-name";
-import { formatCurrency, formatDate } from "@shared/lib/format";
+import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Badge } from "@ui/components/badge";
@@ -622,11 +628,60 @@ function TaskAgeTimer({ task }: { task: WorkerTask }) {
 			)}
 		>
 			<ClockIcon className="size-3.5 shrink-0" />
-			<span>Assigned</span>
+			<span>{L.assigned}</span>
 			<span className="font-mono tabular-nums" suppressHydrationWarning>
 				{formatAge(elapsed)}
 			</span>
-			<span>ago</span>
+			<span>{L.ago}</span>
+		</div>
+	);
+}
+
+/**
+ * Text clamped to two lines with a More / Less toggle, shown only when the
+ * text actually overflows. Keeps the worker's own line breaks.
+ */
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- tiny helper colocated with the task card it serves
+function ClampedText({
+	text,
+	className,
+}: {
+	text: string;
+	className?: string;
+}) {
+	const ref = useRef<HTMLParagraphElement>(null);
+	const [expanded, setExpanded] = useState(false);
+	const [overflows, setOverflows] = useState(false);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: re-measure when the text changes
+	useEffect(() => {
+		const el = ref.current;
+		if (el && !expanded) {
+			setOverflows(el.scrollHeight > el.clientHeight + 1);
+		}
+	}, [text, expanded]);
+
+	return (
+		<div>
+			<p
+				ref={ref}
+				className={cn(
+					"whitespace-pre-wrap break-words",
+					!expanded && "line-clamp-2",
+					className,
+				)}
+			>
+				{text}
+			</p>
+			{overflows || expanded ? (
+				<button
+					type="button"
+					className="mt-0.5 font-medium text-primary text-xs"
+					onClick={() => setExpanded((v) => !v)}
+				>
+					{expanded ? L.less : L.more}
+				</button>
+			) : null}
 		</div>
 	);
 }
@@ -659,8 +714,18 @@ function TaskCard({
 	const isOpen = OPEN_STATUSES.has(task.status);
 	const isCompleted = task.status === "COMPLETED";
 	const priorityBadge = PRIORITY_BADGE[task.priority];
-	const isOverdue =
-		isOpen && task.dueDate !== null && new Date(task.dueDate) < new Date();
+	// Timed tasks are late from their instant, date-only ones after their
+	// Beirut day; "due soon" = a timed task within the hour.
+	const msToDue = task.dueDate
+		? dueDeadline(task.dueDate, task.dueHasTime).getTime() - Date.now()
+		: null;
+	const isOverdue = isOpen && msToDue !== null && msToDue < 0;
+	const isDueSoon =
+		isOpen &&
+		task.dueHasTime &&
+		msToDue !== null &&
+		msToDue >= 0 &&
+		msToDue < 60 * 60_000;
 
 	// A colored left edge gives the list a scannable urgency hierarchy:
 	// red = needs attention now (overdue/urgent), amber = high priority.
@@ -681,9 +746,10 @@ function TaskCard({
 							{task.title}
 						</p>
 						{task.description ? (
-							<p className="line-clamp-2 text-muted-foreground text-xs">
-								{task.description}
-							</p>
+							<ClampedText
+								text={task.description}
+								className="text-muted-foreground text-xs"
+							/>
 						) : null}
 					</div>
 					<div className="flex shrink-0 flex-col items-end gap-1">
@@ -754,10 +820,13 @@ function TaskCard({
 						</div>
 						{phoneNumbers.length > 0 || directionsLink ? (
 							<div className="flex flex-wrap gap-2">
-								<PhoneActions numbers={phoneNumbers} />
+								<PhoneActions
+									numbers={phoneNumbers}
+									tone="colored"
+								/>
 								{directionsLink ? (
 									<Button
-										variant="outline"
+										variant="info-soft"
 										size="sm"
 										className="h-auto min-h-8 flex-1 basis-24 whitespace-normal text-xs"
 										asChild
@@ -806,18 +875,23 @@ function TaskCard({
 						) : null}
 						{task.dueDate ? (
 							<span
-								className={
-									isOverdue
-										? "flex items-center gap-1 font-medium text-destructive"
-										: "flex items-center gap-1"
-								}
+								className={cn(
+									"flex items-center gap-1",
+									isOverdue &&
+										"rounded-md px-1.5 py-0.5 font-semibold bg-destructive/10 text-destructive dark:text-red-300",
+									isDueSoon &&
+										"rounded-md px-1.5 py-0.5 font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300",
+								)}
+								suppressHydrationWarning
 							>
 								<CalendarClockIcon className="size-3 shrink-0" />
 								{L.due}{" "}
-								{formatDate(task.dueDate, {
-									dateStyle: "medium",
-								})}
-								{isOverdue ? ` — ${L.overdue}` : ""}
+								{formatBeirutDue(task.dueDate, task.dueHasTime)}
+								{isOverdue
+									? ` — ${L.overdue}`
+									: isDueSoon
+										? ` — ${L.dueSoon}`
+										: ""}
 							</span>
 						) : null}
 					</div>
@@ -827,7 +901,10 @@ function TaskCard({
 				{task.notes ? (
 					<p className="flex items-start gap-1.5 rounded-md bg-muted/40 px-2.5 py-1.5 text-muted-foreground text-xs">
 						<StickyNoteIcon className="mt-0.5 size-3 shrink-0" />
-						<span className="line-clamp-3">{task.notes}</span>
+						{/* In full: notes are the job instructions. */}
+						<span className="min-w-0 whitespace-pre-wrap break-words">
+							{task.notes}
+						</span>
 					</p>
 				) : null}
 

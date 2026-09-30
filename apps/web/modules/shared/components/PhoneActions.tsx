@@ -23,13 +23,18 @@ import { MessageCircleIcon, PhoneIcon } from "lucide-react";
  *
  * Rendered as two sibling buttons (no wrapper) so the caller controls the
  * action row — worker cards put a Directions button alongside them.
+ *
+ * `tone="colored"` tints Call red and WhatsApp green (the field cards, at
+ * Jhonny's request); admin screens keep the neutral outline.
  */
 export function PhoneActions({
 	numbers,
 	className,
+	tone = "neutral",
 }: {
 	numbers: string[];
 	className?: string | undefined;
+	tone?: "neutral" | "colored";
 }) {
 	if (numbers.length === 0) {
 		return null;
@@ -43,12 +48,14 @@ export function PhoneActions({
 	const whatsAppNumbers = numbers.filter((n) => formatWhatsAppLink(n));
 	const [firstNumber] = numbers;
 	const [firstWhatsApp] = whatsAppNumbers;
+	const callVariant = tone === "colored" ? "destructive-soft" : "outline";
+	const whatsAppVariant = tone === "colored" ? "success-soft" : "outline";
 
 	return (
 		<>
 			{numbers.length === 1 && firstNumber ? (
 				<Button
-					variant="outline"
+					variant={callVariant}
 					size="sm"
 					className={buttonClass}
 					asChild
@@ -63,6 +70,7 @@ export function PhoneActions({
 					label={L.whichNumberToCall}
 					numbers={numbers}
 					href={(number) => `tel:${number}`}
+					variant={callVariant}
 					className={buttonClass}
 					icon={<PhoneIcon />}
 					text={L.call}
@@ -71,7 +79,7 @@ export function PhoneActions({
 
 			{whatsAppNumbers.length === 1 && firstWhatsApp ? (
 				<Button
-					variant="outline"
+					variant={whatsAppVariant}
 					size="sm"
 					className={buttonClass}
 					asChild
@@ -91,6 +99,7 @@ export function PhoneActions({
 					numbers={whatsAppNumbers}
 					href={(number) => formatWhatsAppLink(number) ?? "#"}
 					external
+					variant={whatsAppVariant}
 					className={buttonClass}
 					icon={<MessageCircleIcon />}
 					text={L.whatsApp}
@@ -106,6 +115,7 @@ function NumberPicker({
 	numbers,
 	href,
 	external,
+	variant,
 	className,
 	icon,
 	text,
@@ -114,6 +124,7 @@ function NumberPicker({
 	numbers: string[];
 	href: (number: string) => string;
 	external?: boolean | undefined;
+	variant: "outline" | "destructive-soft" | "success-soft";
 	className?: string | undefined;
 	icon: React.ReactNode;
 	text: string;
@@ -121,7 +132,7 @@ function NumberPicker({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="sm" className={className}>
+				<Button variant={variant} size="sm" className={className}>
 					{icon}
 					{text}
 				</Button>

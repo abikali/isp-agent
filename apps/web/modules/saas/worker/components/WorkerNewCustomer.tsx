@@ -1,5 +1,6 @@
 "use client";
 
+import { NearbyBoxesNotice } from "@saas/customers/client";
 import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatCurrency, formatDate } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -350,6 +351,11 @@ export function WorkerNewCustomer() {
 						}}
 						requestWhatsapp={requestWhatsapp}
 						onRequestWhatsapp={setRequestWhatsapp}
+					/>
+					<NearbyBoxesNotice
+						latitude={Number.parseFloat(latitude)}
+						longitude={Number.parseFloat(longitude)}
+						bilingual
 					/>
 				</div>
 			</div>
