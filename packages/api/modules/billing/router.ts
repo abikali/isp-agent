@@ -1,3 +1,5 @@
+import { alignToFirst, alignToFirstPreview } from "./procedures/align-to-first";
+import { applyOneTimeDiscountProcedure } from "./procedures/apply-one-time-discount";
 import { getCollectorBalance } from "./procedures/collector-balance";
 import { getCollectorLedger } from "./procedures/collector-ledger";
 import { getCollectorStats } from "./procedures/collector-stats";
@@ -83,6 +85,8 @@ export const billingRouter = {
 		review: reviewPayment,
 		reviewMany: reviewPayments,
 		repriceAndReview: repriceAndReviewPayment,
+		alignToFirst,
+		alignToFirstPreview,
 		resendReceipt: resendReceipt,
 		resendReceipts: resendReceipts,
 		resendReferralReward: resendReferralReward,
@@ -95,6 +99,7 @@ export const billingRouter = {
 		get: getInvoiceDetail,
 		create: createInvoice,
 		update: updateInvoice,
+		applyOneTimeDiscount: applyOneTimeDiscountProcedure,
 		delete: deleteInvoice,
 		void: voidInvoiceProcedure,
 		voidMany: voidManyInvoicesProcedure,

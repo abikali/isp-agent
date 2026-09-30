@@ -1,7 +1,12 @@
 "use client";
 
 import {
+	AlignToFirstDialog,
+	type AlignToFirstTarget,
 	InvoiceFormDialog,
+	OneTimeDiscountDialog,
+	type OneTimeDiscountTarget,
+	oneTimeDiscountFromNote,
 	useDeleteInvoice,
 	useUnvoidInvoice,
 	useVoidInvoice,
@@ -26,9 +31,11 @@ import {
 } from "@ui/components/dropdown-menu";
 import {
 	BanIcon,
+	CalendarClockIcon,
 	FileTextIcon,
 	MoreHorizontalIcon,
 	PencilIcon,
+	PercentIcon,
 	PlusIcon,
 	RotateCcwIcon,
 	TrashIcon,
@@ -54,6 +61,7 @@ interface InvoiceRow {
 	total: number;
 	tax: number;
 	totalWithTax: number;
+	note: string | null;
 	paid: boolean;
 	/** Σ(cash + doorstep discount) already collected against the month. */
 	paidTotal: number;
@@ -78,6 +86,11 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 	);
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editInvoiceId, setEditInvoiceId] = useState<string | null>(null);
+	const [alignInvoice, setAlignInvoice] = useState<AlignToFirstTarget | null>(
+		null,
+	);
+	const [discountInvoice, setDiscountInvoice] =
+		useState<OneTimeDiscountTarget | null>(null);
 
 	const { data, isLoading } = useQuery(
 		organizationId
@@ -202,7 +215,19 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 			accessorFn: (row) => row.total,
 			enableSorting: true,
 			meta: { className: "text-right text-xs" },
-			cell: ({ row }) => formatCurrency(row.original.total),
+			cell: ({ row }) => {
+				const oneTime = oneTimeDiscountFromNote(row.original.note);
+				return (
+					<div>
+						{formatCurrency(row.original.total)}
+						{oneTime > 0 && (
+							<div className="text-[11px] text-muted-foreground">
+								−{formatCurrency(oneTime)} one-time
+							</div>
+						)}
+					</div>
+				);
+			},
 		},
 		{
 			id: "totalTTC",
@@ -296,6 +321,36 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 									Void
 								</DropdownMenuItem>
 							)}
+							{!isVoided && (
+								<>
+									<DropdownMenuItem
+										onClick={() =>
+											setAlignInvoice({
+												invoiceId: row.original.id,
+												customerName: cycleLabel(
+													row.original,
+												),
+											})
+										}
+									>
+										<CalendarClockIcon className="mr-2 size-4" />
+										Prorate to 1st…
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onClick={() =>
+											setDiscountInvoice({
+												invoiceId: row.original.id,
+												label: cycleLabel(row.original),
+												total: row.original.total,
+												note: row.original.note,
+											})
+										}
+									>
+										<PercentIcon className="mr-2 size-4" />
+										One-time discount…
+									</DropdownMenuItem>
+								</>
+							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								className="text-destructive focus:text-destructive"
@@ -356,6 +411,25 @@ export function CustomerInvoices({ customerId }: { customerId: string }) {
 				onOpenChange={(o) => !o && setEditInvoiceId(null)}
 				mode={{ mode: "edit", invoiceId: editInvoiceId ?? "" }}
 			/>
+
+			{organizationId && alignInvoice && (
+				<AlignToFirstDialog
+					key={alignInvoice.invoiceId}
+					open={!!alignInvoice}
+					onOpenChange={(o) => !o && setAlignInvoice(null)}
+					organizationId={organizationId}
+					target={alignInvoice}
+				/>
+			)}
+			{organizationId && discountInvoice && (
+				<OneTimeDiscountDialog
+					key={discountInvoice.invoiceId}
+					open={!!discountInvoice}
+					onOpenChange={(o) => !o && setDiscountInvoice(null)}
+					organizationId={organizationId}
+					invoice={discountInvoice}
+				/>
+			)}
 		</Card>
 	);
 }

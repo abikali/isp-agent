@@ -124,6 +124,20 @@ const CASH_TYPE_LABELS: Record<string, string> = {
 	RETURN: "Return",
 };
 
+function overrideToForm(value: boolean | null | undefined): string {
+	if (value == null) {
+		return "inherit";
+	}
+	return value ? "count" : "skip";
+}
+
+function formToOverride(value: string): boolean | null {
+	if (value === "inherit") {
+		return null;
+	}
+	return value === "count";
+}
+
 function getEmployeeFormDefaults(employee: EmployeeData) {
 	return {
 		name: employee.name,
@@ -133,6 +147,9 @@ function getEmployeeFormDefaults(employee: EmployeeData) {
 		department: employee.department ?? "",
 		// "auto" = no explicit field role (Select items can't carry "").
 		cashRole: (employee.cashRole ?? "auto") as string,
+		// Collected-bills count overrides: "inherit" = org default.
+		countsFree: overrideToForm(employee.countsFreeOverride),
+		countsStop: overrideToForm(employee.countsStopOverride),
 		hireDate: employee.hireDate ? formatDateInput(employee.hireDate) : "",
 		status: employee.status,
 		preferredLayout: employee.preferredLayout ?? "standard",
@@ -216,6 +233,8 @@ export function EmployeeDetail({
 						value.cashRole === "auto"
 							? null
 							: (value.cashRole as (typeof CASH_ROLES)[number]),
+					countsFreeOverride: formToOverride(value.countsFree),
+					countsStopOverride: formToOverride(value.countsStop),
 					hireDate: value.hireDate ? new Date(value.hireDate) : null,
 					status: value.status as "ACTIVE" | "INACTIVE" | "ON_LEAVE",
 					preferredLayout: value.preferredLayout as
@@ -878,6 +897,49 @@ function OverviewTab({
 								</Field>
 							)}
 						</form.Field>
+						{usesCollectorWallet(resolveCashRole(employee)) &&
+							(
+								[
+									["countsFree", "Free bills"],
+									["countsStop", "Stopped bills"],
+								] as const
+							).map(([name, label]) => (
+								<form.Field key={name} name={name}>
+									{(field) => (
+										<Field>
+											<FieldLabel>
+												{label} in collected bills
+											</FieldLabel>
+											<Select
+												value={field.state.value}
+												onValueChange={
+													field.handleChange
+												}
+											>
+												<SelectTrigger>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="inherit">
+														Use org default
+													</SelectItem>
+													<SelectItem value="count">
+														Count
+													</SelectItem>
+													<SelectItem value="skip">
+														Don't count
+													</SelectItem>
+												</SelectContent>
+											</Select>
+											<FieldDescription>
+												Whether this collector's{" "}
+												{label.toLowerCase()} count
+												toward their collected bills.
+											</FieldDescription>
+										</Field>
+									)}
+								</form.Field>
+							))}
 						<form.Field name="hireDate">
 							{(field) => (
 								<Field>

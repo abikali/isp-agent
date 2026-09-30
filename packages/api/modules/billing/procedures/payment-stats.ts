@@ -9,6 +9,10 @@ import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
+import {
+	countsAsCollected,
+	loadCountPolicies,
+} from "../lib/collector-count-policy";
 import { EXCLUDE_STOPPED, PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	countDistinctCustomersWithPayments,
@@ -126,9 +130,27 @@ export const getPaymentStats = protectedProcedure
 							}),
 						)
 					: [];
-				const paidCustomers = settlementRows.filter(
-					(r) => r.activeSettled,
-				).length;
+				// Free / stopped bills count per each customer's collector
+				// policy (org default for unassigned customers).
+				const policyFor = await loadCountPolicies(input.organizationId);
+				let paidCustomers = 0;
+				let freeNotCounted = 0;
+				// Stops counted as collected are already in `paidCustomers`.
+				let stoppedCountedAsPaid = 0;
+				for (const r of settlementRows) {
+					const policy = policyFor(r.collectorId);
+					if (countsAsCollected(r, policy)) {
+						paidCustomers++;
+						if (
+							!r.activeCashSettled &&
+							!(r.activeFree && policy.free)
+						) {
+							stoppedCountedAsPaid++;
+						}
+					} else if (r.activeFree && !policy.free) {
+						freeNotCounted++;
+					}
+				}
 				const unpaidCustomers = settlementRows.filter(
 					(r) => r.billable && r.hasRemaining,
 				).length;
@@ -194,7 +216,10 @@ export const getPaymentStats = protectedProcedure
 				// excludes pending-stopped (they're in admin-review limbo), but we
 				// add pending-stopped explicitly so the total includes them.
 				const totalCustomers =
-					paidCustomers + stoppedCustomers + unpaidCustomers;
+					paidCustomers +
+					Math.max(0, stoppedCustomers - stoppedCountedAsPaid) +
+					unpaidCustomers +
+					freeNotCounted;
 
 				// Resolve collector names
 				const collectorIds = byCollector.map((c) => c.collectorId);
@@ -215,6 +240,8 @@ export const getPaymentStats = protectedProcedure
 					totalCollected: sumOrZero(totalCollected),
 					collectorBreakdown,
 					paidCustomers,
+					/** Free bills the count policy leaves out of "collected". */
+					freeNotCounted,
 					unpaidCustomers,
 					stoppedCustomers,
 					pendingStoppedCustomers,

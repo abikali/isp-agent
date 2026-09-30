@@ -25,12 +25,18 @@ export function SpendingTotals({
 	onFilter,
 }: SpendingTotalsProps) {
 	const delta = totals.spent - totals.spentLastMonth;
+	// Same basis as the Money page: costs only. Owner draws are real cash out
+	// but not a cost, so they get their own sub-line.
+	const drawnLine =
+		totals.drawn > 0
+			? ` + ${formatCurrency(totals.drawn)} taken out by owners (not a cost).`
+			: "";
 	const spentLine =
-		totals.spentLastMonth > 0
+		(totals.spentLastMonth > 0
 			? `${delta >= 0 ? "Up" : "Down"} ${formatCurrency(Math.abs(delta))} on last month.${totals.direct > 0 ? ` ${formatCurrency(totals.direct)} entered directly.` : ""}`
 			: totals.spent > 0
 				? `${totals.spentCount} approved lines this month.`
-				: "Nothing approved yet this month.";
+				: "Nothing approved yet this month.") + drawnLine;
 
 	const pendingLine =
 		totals.pendingCount === 0

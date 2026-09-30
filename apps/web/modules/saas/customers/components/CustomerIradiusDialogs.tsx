@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCurrency } from "@shared/lib/format";
 import { Button } from "@ui/components/button";
 import {
 	Dialog,
@@ -11,12 +12,14 @@ import {
 } from "@ui/components/dialog";
 import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
-import { useRef } from "react";
+import { Switch } from "@ui/components/switch";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	useResetMacAddress,
 	useSetCustomerExpiryDate,
 	useSetDiscount,
+	useSetExpiryDatePreview,
 	useSetIptvPrice,
 	useUpdateNameInIRadius,
 } from "../hooks/use-customers";
@@ -362,14 +365,31 @@ export function SetExpiryDialog({
 	customer,
 }: DialogProps) {
 	const setExpiryDate = useSetCustomerExpiryDate();
-	// Uncontrolled: re-seeds from `defaultValue` on each reopen (Radix
-	// unmounts the dialog body on close).
-	const valueRef = useRef<HTMLInputElement>(null);
+	// Radix unmounts the body on close, but this component stays mounted, so
+	// the draft resets explicitly on close.
+	const [date, setDate] = useState<string | null>(null);
+	const [chargeDealer, setChargeDealer] = useState(true);
+	const value = date ?? toDateInputValue(customer.expiresAt);
+	const validDate = /^\d{4}-\d{2}-\d{2}$/.test(value);
+	const preview = useSetExpiryDatePreview(
+		open && validDate && customer.externalId
+			? { organizationId, customerId: customer.id, expiryDate: value }
+			: null,
+	);
+	const info = preview.data;
+
+	function handleOpenChange(next: boolean) {
+		if (!next) {
+			setDate(null);
+			setChargeDealer(true);
+		}
+		onOpenChange(next);
+	}
 
 	function handleSave() {
 		// Pass null when cleared so iRadius removes the expiry date.
-		const expiryDate = valueRef.current?.value || null;
-		if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
+		const expiryDate = value || null;
+		if (expiryDate && !validDate) {
 			toast.error("Expected YYYY-MM-DD");
 			return;
 		}
@@ -378,25 +398,33 @@ export function SetExpiryDialog({
 				organizationId,
 				customerId: customer.id,
 				expiryDate,
+				chargeDealer,
 			},
 			{
-				onSuccess: () => {
-					toast.success("Expiry date updated");
-					onOpenChange(false);
+				onSuccess: (result) => {
+					toast.success(
+						result.daysAdded > 0
+							? `Expiry updated · ${result.daysAdded} days added, dealer charged ${formatCurrency(result.dealerCharge)}`
+							: "Expiry date updated",
+					);
+					handleOpenChange(false);
 				},
 				onError: (err) => toast.error(err.message),
 			},
 		);
 	}
 
+	const charging = chargeDealer || !info?.canToggleCharge;
+
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Set billing expiry date</DialogTitle>
 					<DialogDescription>
 						Sets the next billing cycle expiry in iRadius (stored
-						end-of-day, 23:59). Clear the field to remove.
+						end-of-day, 23:59). Days added are charged to the dealer
+						like iRadius "Add Day". Clear the field to remove.
 					</DialogDescription>
 				</DialogHeader>
 				<div>
@@ -404,14 +432,52 @@ export function SetExpiryDialog({
 					<Input
 						id="iradius-expiry"
 						type="date"
-						ref={valueRef}
-						defaultValue={toDateInputValue(customer.expiresAt)}
+						value={value}
+						onChange={(e) => setDate(e.target.value)}
 					/>
 				</div>
+				{info?.forward && info.days > 0 && (
+					<div className="space-y-2 rounded-lg border p-3 text-sm">
+						{info.noCharge ? (
+							<p>
+								Adds {info.days} days · dealer {info.dealerName}{" "}
+								is set to no charge in iRadius.
+							</p>
+						) : charging ? (
+							<p>
+								Adds {info.days} days · dealer {info.dealerName}{" "}
+								charged{" "}
+								<span className="font-medium">
+									{formatCurrency(info.charge)}
+								</span>{" "}
+								<span className="text-muted-foreground">
+									(Rate {formatCurrency(info.rate)} prorated
+									over {info.periodHours}h)
+								</span>
+							</p>
+						) : (
+							<p className="text-amber-700 dark:text-amber-400">
+								{info.days} free days: dealer not charged.
+							</p>
+						)}
+						{info.canToggleCharge && !info.noCharge && (
+							<div className="flex items-center justify-between gap-3">
+								<Label htmlFor="expiry-charge">
+									Charge dealer for added days
+								</Label>
+								<Switch
+									id="expiry-charge"
+									checked={chargeDealer}
+									onCheckedChange={setChargeDealer}
+								/>
+							</div>
+						)}
+					</div>
+				)}
 				<DialogFooter>
 					<Button
 						variant="outline"
-						onClick={() => onOpenChange(false)}
+						onClick={() => handleOpenChange(false)}
 					>
 						Cancel
 					</Button>

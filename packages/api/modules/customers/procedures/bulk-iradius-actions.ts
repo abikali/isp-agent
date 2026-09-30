@@ -10,6 +10,7 @@ import {
 import { buildIRadiusMobile, db, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import z from "zod";
+import { beirutEndOfDay } from "../../../lib/beirut-time";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 import {
@@ -269,14 +270,11 @@ export const bulkSetExpiryDate = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
-		// Match the single-customer set-expiry semantics: end-of-day,
-		// tz-naive literal that iRadius accepts directly.
-		const mysqlDateTime = input.expiryDate
-			? `${input.expiryDate} 23:59:00`
-			: null;
-		const localDate = input.expiryDate
-			? new Date(`${input.expiryDate}T23:59:00.000Z`)
-			: null;
+		// Match the single-customer set-expiry semantics: 23:59 Beirut. iRadius
+		// takes the naive literal; Postgres gets the same instant in UTC.
+		const end = input.expiryDate ? beirutEndOfDay(input.expiryDate) : null;
+		const mysqlDateTime = end?.literal ?? null;
+		const localDate = end?.utc ?? null;
 
 		const { customers } = await loadBulkTargets({
 			organizationId: input.organizationId,

@@ -389,6 +389,12 @@ export interface CustomerSettlementRow {
 	billable: boolean;
 	/** The active billing month is fully covered (or free-waived). */
 	activeSettled: boolean;
+	/** Active month covered by cash + discount (or grandfathered), ignoring free waivers. */
+	activeCashSettled: boolean;
+	/** A free waiver sits on the active month. */
+	activeFree: boolean;
+	/** A stopped payment (approved or pending) sits on the active month. */
+	activeStopped: boolean;
 	/** Some relevant month still has money owed on its invoice. */
 	hasRemaining: boolean;
 }
@@ -467,6 +473,9 @@ export async function fetchMonthSettlementStats(opts: {
 				collectorId: inv.customer.collectorId,
 				billable: billableStatuses.has(inv.customer.status),
 				activeSettled: false,
+				activeCashSettled: false,
+				activeFree: false,
+				activeStopped: false,
 				hasRemaining: false,
 			};
 			byCustomer.set(inv.customerId, row);
@@ -476,8 +485,13 @@ export async function fetchMonthSettlementStats(opts: {
 		if (monthRemaining(amount, cov) > 0) {
 			row.hasRemaining = true;
 		}
-		if (billingMonthId === activeMonthId && monthSettled(amount, cov)) {
-			row.activeSettled = true;
+		if (billingMonthId === activeMonthId) {
+			row.activeSettled = monthSettled(amount, cov);
+			row.activeFree = cov?.free ?? false;
+			row.activeCashSettled = monthSettled(
+				amount,
+				cov ? { ...cov, free: false } : undefined,
+			);
 		}
 	}
 
@@ -495,6 +509,8 @@ export async function fetchMonthSettlementStats(opts: {
 		},
 		select: {
 			customerId: true,
+			paidAmount: true,
+			freeAccount: true,
 			customer: { select: { collectorId: true, status: true } },
 		},
 	});
@@ -511,18 +527,62 @@ export async function fetchMonthSettlementStats(opts: {
 		if (billedActiveCustomers.has(p.customerId)) {
 			continue;
 		}
-		const existing = byCustomer.get(p.customerId);
-		if (existing) {
-			existing.activeSettled = true;
-		} else {
-			byCustomer.set(p.customerId, {
+		let row = byCustomer.get(p.customerId);
+		if (!row) {
+			row = {
 				customerId: p.customerId,
 				collectorId: p.customer.collectorId,
 				billable: billableStatuses.has(p.customer.status),
-				activeSettled: true,
+				activeSettled: false,
+				activeCashSettled: false,
+				activeFree: false,
+				activeStopped: false,
 				hasRemaining: false,
-			});
+			};
+			byCustomer.set(p.customerId, row);
 		}
+		row.activeSettled = true;
+		if (p.freeAccount) {
+			row.activeFree = true;
+		}
+		if (p.paidAmount > 0) {
+			row.activeCashSettled = true;
+		}
+	}
+
+	// Stops on the active month, for the collector count policy. Approved
+	// stops make the customer INACTIVE and pending ones are excluded by the
+	// caller's `NOT` (admin limbo), so query them without that clause.
+	const { NOT: _pendingStopExclusion, ...stopCustomerWhere } = customerWhere;
+	const stopped = await db.payment.findMany({
+		where: {
+			organizationId,
+			billingMonthId: activeMonthId,
+			stoppedAccount: true,
+			customer: stopCustomerWhere,
+		},
+		select: {
+			customerId: true,
+			customer: { select: { collectorId: true, status: true } },
+		},
+		distinct: ["customerId"],
+	});
+	for (const p of stopped) {
+		let row = byCustomer.get(p.customerId);
+		if (!row) {
+			row = {
+				customerId: p.customerId,
+				collectorId: p.customer.collectorId,
+				billable: billableStatuses.has(p.customer.status),
+				activeSettled: false,
+				activeCashSettled: false,
+				activeFree: false,
+				activeStopped: false,
+				hasRemaining: false,
+			};
+			byCustomer.set(p.customerId, row);
+		}
+		row.activeStopped = true;
 	}
 
 	return [...byCustomer.values()];

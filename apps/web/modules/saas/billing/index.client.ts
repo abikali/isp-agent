@@ -1,5 +1,9 @@
 "use client";
 
+export {
+	AlignToFirstDialog,
+	type AlignToFirstTarget,
+} from "./components/AlignToFirstDialog";
 export { BillingCycleManager } from "./components/BillingCycleManager";
 export { BillingCycleSelect } from "./components/BillingCycleSelect";
 export {
@@ -36,6 +40,10 @@ export { CustomerCard, type UnpaidCustomer } from "./components/CustomerCard";
 export { FollowupsList } from "./components/FollowupsList";
 export { InvoiceFormDialog } from "./components/InvoiceFormDialog";
 export { InvoicesList } from "./components/InvoicesList";
+export {
+	OneTimeDiscountDialog,
+	type OneTimeDiscountTarget,
+} from "./components/OneTimeDiscountDialog";
 export { PaymentDialog } from "./components/PaymentDialog";
 export { PaymentSheet } from "./components/PaymentSheet";
 export { PaymentsList } from "./components/PaymentsList";
@@ -105,6 +113,7 @@ export {
 	formatCycleShort,
 	getPaymentStatusLabel,
 	getPaymentStatusVariant,
+	oneTimeDiscountFromNote,
 	type PriceComponents,
 	parseAmount,
 } from "./lib/billing-utils";

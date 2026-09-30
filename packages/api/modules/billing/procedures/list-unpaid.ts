@@ -15,6 +15,7 @@ import {
 	NOT_VOIDED,
 	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
+import { oneTimeDiscountFromNote } from "../lib/one-time-discount";
 import {
 	applyCollectorScope,
 	fetchRelevantBillingMonths,
@@ -165,6 +166,7 @@ export const listUnpaidCustomers = protectedProcedure
 				total: true,
 				totalWithTax: true,
 				expiryDate: true,
+				note: true,
 				customer: {
 					select: {
 						id: true,
@@ -296,6 +298,8 @@ export const listUnpaidCustomers = protectedProcedure
 			pastDueMonths: number;
 			pastDueAmount: number;
 			oldestUnpaidExpiry: Date | null;
+			/** One-time ("this month only") discounts on still-owed months. */
+			oneTimeDiscount: number;
 			months: MonthBreakdown[];
 		}
 		const byCustomer = new Map<string, UnpaidRow>();
@@ -322,6 +326,7 @@ export const listUnpaidCustomers = protectedProcedure
 					pastDueMonths: 0,
 					pastDueAmount: 0,
 					oldestUnpaidExpiry: null,
+					oneTimeDiscount: 0,
 					months: [],
 				};
 				byCustomer.set(inv.customerId, row);
@@ -337,6 +342,7 @@ export const listUnpaidCustomers = protectedProcedure
 				continue;
 			}
 			row.unpaidMonths++;
+			row.oneTimeDiscount += oneTimeDiscountFromNote(inv.note);
 			// Dues carry only what is still owed — a $50 month with $10
 			// already collected contributes $40, not $50.
 			row.accumulatedDue += remaining;
@@ -453,6 +459,7 @@ export const listUnpaidCustomers = protectedProcedure
 				pastDueMonths: r.pastDueMonths,
 				pastDueAmount: r.pastDueAmount,
 				oldestUnpaidExpiry: r.oldestUnpaidExpiry,
+				oneTimeDiscount: r.oneTimeDiscount,
 				debtCount: debt?.debtCount ?? 0,
 				lastDebtNote: debt?.lastDebtNote ?? null,
 				lastDebtAt: debt?.lastDebtAt ?? null,

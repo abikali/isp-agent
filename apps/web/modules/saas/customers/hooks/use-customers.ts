@@ -179,6 +179,29 @@ export const useSetCustomerExpiryDate = createInvalidatingMutation(
 	invalidateCustomers,
 );
 
+/**
+ * What "Set billing expiry" would add in iRadius and charge the dealer.
+ * Read-only; pass null to disable (dialog closed / no date picked).
+ */
+export function useSetExpiryDatePreview(
+	input: {
+		organizationId: string;
+		customerId: string;
+		expiryDate: string;
+	} | null,
+) {
+	return useQuery(
+		input
+			? {
+					...orpc.customers.setExpiryDatePreview.queryOptions({
+						input,
+					}),
+					staleTime: 0,
+				}
+			: disabledQuery(["customers", "setExpiryDatePreview"]),
+	);
+}
+
 export const useCreateLocationRequest = createInvalidatingMutation(
 	() => orpc.customers.createLocationRequest.mutationOptions(),
 	invalidateCustomers,

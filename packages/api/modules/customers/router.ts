@@ -22,6 +22,7 @@ import { diagnoseCustomer } from "./procedures/diagnose";
 import { generateCustomerPin } from "./procedures/generate-pin";
 import { getCustomer } from "./procedures/get";
 import {
+	previewCustomerExpiryDate,
 	resetCustomerMacAddress,
 	setCustomerApElectrical,
 	setCustomerExpiryDate,
@@ -137,6 +138,7 @@ export const customersRouter = {
 	setIptvPrice: setCustomerIptvPrice,
 	setExpiryDate: setCustomerExpiryDate,
 	setApElectrical: setCustomerApElectrical,
+	setExpiryDatePreview: previewCustomerExpiryDate,
 	createLocationRequest,
 	bulkRequestLocation,
 	updateCustomerLocation,

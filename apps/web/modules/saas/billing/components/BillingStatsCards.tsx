@@ -8,6 +8,8 @@ interface BillingStatsCardsProps {
 	stats: {
 		paidCustomers: number;
 		totalCustomers: number;
+		freeCustomers?: number;
+		freeCounted?: boolean;
 		netBalance: number;
 		dailyCollected: number;
 		dailyCount: number;
@@ -36,6 +38,12 @@ export function BillingStatsCards({
 				value={`${stats.paidCustomers}/${stats.totalCustomers}`}
 				icon={UsersIcon}
 				color="blue"
+				description={
+					stats.freeCounted === false &&
+					(stats.freeCustomers ?? 0) > 0
+						? `Free: ${stats.freeCustomers} (not counted)`
+						: undefined
+				}
 			/>
 			<StatCard
 				title="In Hand"

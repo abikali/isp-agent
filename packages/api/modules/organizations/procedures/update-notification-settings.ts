@@ -40,6 +40,8 @@ export const updateNotificationSettings = protectedProcedure
 			expiryReminderSms: z.boolean().optional(),
 			expiryReminderWhatsapp: z.boolean().optional(),
 			reminderFallbackPhone: z.string().max(30).nullable().optional(),
+			collectorCountsFree: z.boolean().optional(),
+			collectorCountsStop: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -114,6 +116,13 @@ export const updateNotificationSettings = protectedProcedure
 			}
 		}
 
+		if (input.collectorCountsFree !== undefined) {
+			data["collectorCountsFree"] = input.collectorCountsFree;
+		}
+		if (input.collectorCountsStop !== undefined) {
+			data["collectorCountsStop"] = input.collectorCountsStop;
+		}
+
 		const updated = await db.organization.update({
 			where: { id: input.organizationId },
 			data,
@@ -133,6 +142,8 @@ export const updateNotificationSettings = protectedProcedure
 				expiryReminderSms: true,
 				expiryReminderWhatsapp: true,
 				reminderFallbackPhone: true,
+				collectorCountsFree: true,
+				collectorCountsStop: true,
 			},
 		});
 

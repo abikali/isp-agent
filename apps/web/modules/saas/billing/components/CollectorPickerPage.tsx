@@ -116,6 +116,8 @@ export function CollectorPickerPage({ basePath }: { basePath: string }) {
 									/>
 									<p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
 										{c.monthCollected} / {c.monthTotal}
+										{c.monthFreeNotCounted > 0 &&
+											` · Free: ${c.monthFreeNotCounted} (not counted)`}
 									</p>
 								</div>
 

@@ -10,12 +10,7 @@ import {
 	PENDING_STOPPED_PAYMENT,
 } from "@repo/database";
 import { logger } from "@repo/logs";
-import {
-	beirutParts,
-	beirutWallClockToUtc,
-	parsePhone,
-	tgEscape,
-} from "@repo/utils";
+import { beirutDayAt, parsePhone, tgEscape } from "@repo/utils";
 import { queueCustomerNotifications } from "../jobs/customer-notify.jobs";
 import { queueTelegramNotify } from "../jobs/telegram-notify.jobs";
 import {
@@ -41,21 +36,14 @@ import {
 
 type DbClient = typeof db;
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 /**
  * The UTC instants bounding tomorrow's Beirut calendar day. DST-safe (Beirut
  * falls back on the last Sunday of October), so never a hardcoded +3.
  */
 export function beirutTomorrowWindow(now: Date): { gte: Date; lt: Date } {
-	const { year, month, day } = beirutParts(now);
-	const tomorrow = new Date(Date.UTC(year, month - 1, day + 1));
-	const dayAfter = new Date(Date.UTC(year, month - 1, day + 2));
-	const toWall = (d: Date) =>
-		`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T00:00`;
 	return {
-		gte: beirutWallClockToUtc(toWall(tomorrow)),
-		lt: beirutWallClockToUtc(toWall(dayAfter)),
+		gte: beirutDayAt(now, 1, "00:00"),
+		lt: beirutDayAt(now, 2, "00:00"),
 	};
 }
 

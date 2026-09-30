@@ -162,6 +162,12 @@ export const AUDIT_ACTIONS = {
 		reminderGrantChanged: "dealer.reminder_grant_changed",
 	},
 
+	// Billing adjustments that rewrite a frozen invoice
+	billing: {
+		paymentAlignedToFirst: "billing.payment.aligned_to_first",
+		invoiceOneTimeDiscount: "billing.invoice.one_time_discount",
+	},
+
 	// Staff cash moves (paired ADMIN_TRANSFER ledger rows)
 	cash: {
 		transferred: "cash.transferred",
@@ -200,6 +206,7 @@ export const RESOURCE_TYPES = {
 	task: "task",
 	dealer: "dealer",
 	cashTransfer: "cash_transfer",
+	invoice: "customer_invoice",
 } as const;
 
 // Type helper to extract all values from a nested const object

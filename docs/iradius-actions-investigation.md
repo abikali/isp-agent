@@ -23,6 +23,7 @@ All findings below are derived by:
 | 7 | Set AP Electrical | NO | Generic `UserDialog.saveUser` on `UserNas` (same save as IPTVPRICE) | `UserNas.APElectrical` (bit(1)). Informational only; no UserLog. | None. | Low — direct UPDATE (`iradiusSetApElectrical`). |
 | 8 | Renew user | NO (bridge servlet) | `RenewUser.renewUser(RENEW)` | Dealer.Credit, DealerBillingLog RENEW, UserNas.ExpiryAccount, UserLog op 2, Invoice + InvoiceItems + UserBalance | RADIUS quota-reset socket. | High — native code via the LibanCom bridge (`iradiusRenewUser`). |
 | 9 | Delete user | NO (bridge servlet) | `DeleteUserMgmt.deleteUser` | UserLog op 3, UserDeleted, `DELETE FROM User` (cascades UserNas…), Dealer.Credit + DealerBillingLog REFUND | Best-effort `MikrotikApiDao.disconnectUser`. | High — native code via the LibanCom bridge (`iradiusDeleteUser`). |
+| 10 | Add days to expiry + charge dealer ("Align to 1st", charged "Set billing expiry") | NO | `AddTimeQuotaMgmt.addDayHourForExpiryAccount` (GWT "Add Day / Hour For Expiry Account", "Manage Dealer Credit") | `Dealer.Credit`, `DealerBillingLog` (Type `ADD EXTRA TIME`), `UserNas.ExpiryAccount`, `UserLog` | Native: RADIUS dictionary refresh + MikroTik disconnect when lapsed. Ours: disconnect only (see §9). | Medium — one MySQL transaction, `iradiusAddExtraTime`. |
 
 **Key finding:** the RadiusServerApp HTTP API (port 88) exposes only 8 endpoints (see
 Raw Notes). None of the six actions above are available via HTTP. All six are performed
@@ -276,6 +277,33 @@ A vendor ROOT.war redeploy wipes the servlet (2026-09-16). The worker's hourly
 `iradius-bridge-probe` job GETs the URL: 405 = present, 404 = wiped → error log +
 in-app notification to org owners/admins. Reinstall with
 `/var/local/libancom-bridge/install.sh`.
+
+## 9. Add days to the expiry and charge the dealer (`iradiusAddExtraTime`)
+
+Added 2026-09-30 (Jhonny 26 Sep, "Align billing to the 1st"). Sanctioned helper:
+`packages/api/modules/customers/lib/iradius-extra-time.ts`. Replicates
+`AddTimeQuotaMgmt.addDayHourForExpiryAccount(manageDealerAccount=true,
+adjustTime=false, addMode=true)` (bytecode read 2026-09-26) in ONE InnoDB transaction:
+
+1. `SELECT u.Id,u.UserName,u.ParentId,n.ExpiryAccount,a.ValidityPeriod,a.ValidityPeriodTypeId,a.Rate
+   FROM UserNas n JOIN User u … LEFT JOIN AccountType a … WHERE n.UserId=? FOR UPDATE`
+2. `base = max(ExpiryAccount, NOW())`; `days` = Beirut calendar days base → target.
+   `periodHours = floor((now + ValidityPeriod) − now)/1h`; `dollars = round2(days·24·Rate/periodHours)`
+   (wholesale Rate — 10 days × 24 × $12 / 720h = $4.00, DBL 448381).
+3. Unless `Dealer.NoCharge` (or charging is off): `SELECT Credit, NoCharge FROM Dealer WHERE UserId=ParentId FOR UPDATE`,
+   refuse when `dollars > Credit`, `UPDATE Dealer SET Credit = IFNULL(Credit,0) + (−dollars)`,
+   `SELECT Credit`, `INSERT DealerBillingLog (… Type='ADD EXTRA TIME', Debit=dollars,
+   Description='Add  [ N Day(s)  ]  For ExpiryAccount For User : <name> - [Final Credit = <Float> ]',
+   ModifiedUserId=ParentId)`. No commission cascade, no customer Invoice — same as native.
+4. `UPDATE UserNas SET ExpiryAccount='YYYY-MM-DD 23:59:00'` (target literal; `AddedHours` untouched).
+5. `INSERT UserLog … OperationTypeId 2, 'LibanCom App  <reason>: +N day(s), dealer charged $X  [Expiry Date = …]'`.
+6. Commit; then best-effort `iradiusForceDisconnect` when the old expiry had lapsed.
+
+Idempotent: when the stored expiry already equals the target literal the helper returns a
+no-op, so a retry never charges twice. Not replicated: the RADIUS dictionary refresh
+(`"5:"+userName`) — verify on the first prod run that a lapsed test user authenticates
+after the write. Callers: `billing.payments.alignToFirst`, `customers.setExpiryDate`
+(forward moves only; backwards stays a bare `UPDATE UserNas`, no refund in v1).
 
 ---
 

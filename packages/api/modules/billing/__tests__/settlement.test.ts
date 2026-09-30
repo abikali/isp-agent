@@ -188,6 +188,26 @@ describe("legacy grandfather (LEGACY_SETTLEMENT_CUTOFF)", () => {
 	});
 });
 
+describe("rewritten invoices", () => {
+	it("a prorated-to-1st invoice of $8 is settled by the $8 collected (elsyaon)", () => {
+		const coverage = cover([{ paidAmount: 8 }]);
+		expect(
+			monthSettled(
+				invoiceAmount({ total: 8, totalWithTax: 8 }),
+				coverage,
+			),
+		).toBe(true);
+		expect(monthRemaining(8, coverage)).toBe(0);
+	});
+
+	it("a $30 invoice with a one-time $10 discount is settled by $20", () => {
+		// applyOneTimeDiscount lowers the invoice total, never Payment.discount.
+		const coverage = cover([{ paidAmount: 20 }]);
+		expect(monthSettled(30 - 10, coverage)).toBe(true);
+		expect(monthRemaining(30 - 10, coverage)).toBe(0);
+	});
+});
+
 describe("invoiceAmount", () => {
 	it("prefers the tax-inclusive total when present", () => {
 		expect(invoiceAmount({ total: 50, totalWithTax: 55 })).toBe(55);

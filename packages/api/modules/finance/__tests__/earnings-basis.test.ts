@@ -90,3 +90,23 @@ describe("the earnings statement", () => {
 		expect(folded.byStream.WHOLESALE).toBe(7000);
 	});
 });
+
+describe("the cash position", () => {
+	it("is not earned − handed in: dealer charges are never cash in staff hands", () => {
+		// September 2026, abiroot: earned = 58,588 retail + 42,597 dealer
+		// charges + 1,183 field, with 52,600 handed in. "Still out with the
+		// team" showed earned − handed in = $49,768 while staff really held
+		// $41,459. The dealer charges settle on the dealers' own ledger, so
+		// the page now shows the held balance and "Dealers still owe" apart.
+		const earned = 58_588 + 42_597 + 1_183;
+		const handedIn = 52_600;
+		const heldByTeam = 41_459;
+		const oldStillOut = earned - handedIn;
+
+		expect(oldStillOut).toBe(49_768);
+		expect(oldStillOut).not.toBe(heldByTeam);
+		// Without the dealer charges the old subtraction cannot even reach
+		// what staff hold — it was never measuring staff cash.
+		expect(oldStillOut - 42_597).toBeLessThan(heldByTeam);
+	});
+});

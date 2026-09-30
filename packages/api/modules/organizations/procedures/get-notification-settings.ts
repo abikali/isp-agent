@@ -46,6 +46,8 @@ export const getNotificationSettings = protectedProcedure
 				expiryReminderSms: true,
 				expiryReminderWhatsapp: true,
 				reminderFallbackPhone: true,
+				collectorCountsFree: true,
+				collectorCountsStop: true,
 			},
 		});
 

@@ -10,6 +10,10 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { sumOrZero } from "../lib/calculations";
 import {
+	countsAsCollected,
+	loadCountPolicies,
+} from "../lib/collector-count-policy";
+import {
 	APPROVED_STOPPED_PAYMENT,
 	PENDING_STOPPED_PAYMENT,
 } from "../lib/filters";
@@ -103,9 +107,20 @@ export const getCollectorStats = protectedProcedure
 		const unpaidCustomers = settlementRows.filter(
 			(r) => r.billable && r.hasRemaining,
 		).length;
-		const paidCustomers = settlementRows.filter(
-			(r) => r.activeSettled,
+		// "Paid" follows the org / collector count policy for free and
+		// stopped bills (see collector-count-policy.ts).
+		const policy = (await loadCountPolicies(input.organizationId))(
+			collectorId,
+		);
+		const paidCustomers = settlementRows.filter((r) =>
+			countsAsCollected(r, policy),
 		).length;
+		// Free-waived customers not counted as collected still belong in the
+		// x/y denominator, or they would silently vanish from it.
+		const freeCustomers = settlementRows.filter(
+			(r) => r.activeFree && !r.activeCashSettled,
+		).length;
+		const uncountedFree = policy.free ? 0 : freeCustomers;
 
 		const [
 			pendingStoppedCustomers,
@@ -153,12 +168,15 @@ export const getCollectorStats = protectedProcedure
 		// hides them). They're surfaced separately via pendingStoppedCustomers.
 		const stoppedCustomers =
 			pendingStoppedCustomers + approvedStoppedCustomers;
-		const totalCustomers = paidCustomers + unpaidCustomers;
+		const totalCustomers = paidCustomers + unpaidCustomers + uncountedFree;
 
 		return {
 			collectorId,
 			totalCustomers,
 			paidCustomers,
+			freeCustomers,
+			freeCounted: policy.free,
+			stopCounted: policy.stop,
 			stoppedCustomers,
 			pendingStoppedCustomers,
 			approvedStoppedCustomers,

@@ -8,7 +8,7 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { reactivateInIRadius } from "../../customers/lib/reactivate-in-iradius";
-import { getMonthDateRange } from "../lib/resolve-month";
+import { frozenInvoiceExpiry, getMonthDateRange } from "../lib/resolve-month";
 
 /**
  * Manually create a customer_invoice row. Normally invoices are generated
@@ -105,15 +105,19 @@ export const createInvoice = protectedProcedure
 			input.discount;
 		const total = input.total ?? Math.max(0, lineItemTotal);
 		const totalWithTax = input.totalWithTax ?? total + input.tax;
+		// The expiry is clamped like the generator: a date (explicit, live or
+		// renewed) earlier than the month start is lifted to it; a later one
+		// is kept as-is.
 		const invoiceData = (fallbackExpiry: Date | null) => ({
 			organizationId: input.organizationId,
 			customerId: input.customerId,
 			year: input.year,
 			month: input.month,
 			invoiceDate: range.gte,
-			expiryDate: input.expiryDate
-				? new Date(input.expiryDate)
-				: (fallbackExpiry ?? range.lte),
+			expiryDate: frozenInvoiceExpiry(
+				input.expiryDate ? new Date(input.expiryDate) : fallbackExpiry,
+				range,
+			),
 			accountPrice: input.accountPrice ?? null,
 			iptvPrice: input.iptvPrice ?? null,
 			realIpPrice: input.realIpPrice ?? null,

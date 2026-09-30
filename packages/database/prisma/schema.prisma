@@ -381,6 +381,13 @@ model Organization {
   stoppedPaymentTaskEnabled   Boolean @default(true)
   stoppedPaymentNotifyEnabled Boolean @default(true)
 
+  // Collector "Collected Bills" tally policy: does a free waiver / an
+  // approved-or-pending stop on the active month count as a collected bill
+  // for the collector? Counts only — cash figures never change. Each
+  // collector can override either via Employee.counts*Override.
+  collectorCountsFree Boolean @default(true) @map("collector_counts_free")
+  collectorCountsStop Boolean @default(false) @map("collector_counts_stop")
+
   // Admin Telegram alerts. When `adminTelegramChatId` is set, each enabled
   // event below sends a Telegram message to that chat via the collector bot
   // (see notifyAdminTelegram in packages/api/lib/notify-employee.ts). All
@@ -1872,38 +1879,42 @@ enum TaskSource {
 }
 
 model Employee {
-  id                String              @id @default(cuid())
-  organizationId    String
-  employeeNumber    String
-  name              String
-  email             String?
-  phone             String?
-  position          String?
-  department        EmployeeDepartment?
+  id                 String              @id @default(cuid())
+  organizationId     String
+  employeeNumber     String
+  name               String
+  email              String?
+  phone              String?
+  position           String?
+  department         EmployeeDepartment?
   // Explicit field role. iRadius sync only seeds it on create (profile 6 →
   // COLLECTOR) and never overwrites it, unlike `department`.
-  cashRole          EmployeeCashRole?   @map("cash_role")
-  hireDate          DateTime?
-  status            EmployeeStatus      @default(ACTIVE)
-  notes             String?             @db.Text
-  externalId        String?
-  iRadiusProfile    String?
-  username          String?
-  preferredLayout   String              @default("standard") @map("preferred_layout")
-  telegramChatId    String?             @map("telegram_chat_id")
+  cashRole           EmployeeCashRole?   @map("cash_role")
+  // Per-collector override of Organization.collectorCountsFree / Stop.
+  // null = inherit the org default.
+  countsFreeOverride Boolean?            @map("counts_free_override")
+  countsStopOverride Boolean?            @map("counts_stop_override")
+  hireDate           DateTime?
+  status             EmployeeStatus      @default(ACTIVE)
+  notes              String?             @db.Text
+  externalId         String?
+  iRadiusProfile     String?
+  username           String?
+  preferredLayout    String              @default("standard") @map("preferred_layout")
+  telegramChatId     String?             @map("telegram_chat_id")
   // One-time token minted by the "Connect Telegram" flow. The collector bot's
   // /start handler resolves it to this employee and writes telegramChatId.
-  telegramLinkToken String?             @unique @map("telegram_link_token")
-  userId            String?             @unique
-  dealerId          String?
-  lastSyncedAt      DateTime?
+  telegramLinkToken  String?             @unique @map("telegram_link_token")
+  userId             String?             @unique
+  dealerId           String?
+  lastSyncedAt       DateTime?
   // Soft-delete marker set by iRadius sync cleanup when the corresponding
   // User row (ProfileId IN 1,3,6,7,8) is no longer present in iRadius.
   // Hard-delete is avoided because Payment.collectorId / workerId references
   // may exist and the related User account often outlives the iRadius row.
-  deletedAt         DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  deletedAt          DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   organization              Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user                      User?                  @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)

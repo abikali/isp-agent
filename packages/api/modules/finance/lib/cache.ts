@@ -6,6 +6,7 @@
  * else's.
  */
 export const FINANCE_STAT_CACHE = {
-	summary: "finance/summary",
+	// v2: cash position gained dealersOwe; receivables drop deleted customers.
+	summary: "finance/summary-v2",
 	trend: "finance/trend",
 } as const;
