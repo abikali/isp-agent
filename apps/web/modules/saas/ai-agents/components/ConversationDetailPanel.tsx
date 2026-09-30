@@ -1,5 +1,7 @@
 "use client";
 
+import { useCustomersConnectivity } from "@saas/customers/client";
+import { StatusIndicator } from "@shared/components/StatusIndicator";
 import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@ui/components/button";
@@ -10,11 +12,18 @@ import {
 	DropdownMenuTrigger,
 } from "@ui/components/dropdown-menu";
 import { Input } from "@ui/components/input";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+} from "@ui/components/sheet";
 import { cn } from "@ui/lib";
 import type { UIMessage } from "ai";
 import {
 	ArrowLeftIcon,
 	HandIcon,
+	InfoIcon,
 	LoaderIcon,
 	LockIcon,
 	MoreVerticalIcon,
@@ -47,6 +56,7 @@ import {
 import { AdminChatInput } from "./AdminChatInput";
 import { ContactPhone } from "./ContactPhone";
 import { ContactUsername } from "./ContactUsername";
+import { CustomerCardContainer } from "./ConversationContextPanel";
 import { DateSeparator } from "./DateSeparator";
 import { MessageBubble } from "./MessageBubble";
 import { TypingBubble } from "./TypingBubble";
@@ -107,6 +117,7 @@ export function ConversationDetailPanel({
 		fetchOlderMessages,
 	});
 	const [showSearch, setShowSearch] = useState(false);
+	const [showCustomerSheet, setShowCustomerSheet] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [editingMessage, setEditingMessage] = useState<{
@@ -211,6 +222,17 @@ export function ConversationDetailPanel({
 		: channelLabel;
 
 	const contactName = conversation?.contactName || "Unknown Contact";
+	// Mobile has no context panel: show the linked customer's live status in
+	// the header (same badge as the desktop panel, polled every 15s) and put
+	// the panel's customer card behind an Info button.
+	const linkedCustomers = conversation?.customers ?? [];
+	const firstCustomerId = fullPage ? linkedCustomers[0]?.id : undefined;
+	const connectivity = useCustomersConnectivity(
+		firstCustomerId ? [firstCustomerId] : [],
+	);
+	const live = firstCustomerId
+		? connectivity.get(firstCustomerId)
+		: undefined;
 	const initials = getContactInitials(contactName);
 	const avatarColor = getAvatarColor(contactName);
 
@@ -252,11 +274,29 @@ export function ConversationDetailPanel({
 							username={conversation?.customers[0]?.username}
 							className="shrink-0"
 						/>
+						{live ? (
+							<StatusIndicator
+								status={live.online ? "online" : "offline"}
+								variant="badge"
+								size="sm"
+							/>
+						) : null}
 					</div>
 					<p className="truncate text-xs text-muted-foreground">
 						{subtitle}
 					</p>
 				</div>
+				{firstCustomerId ? (
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-8"
+						aria-label="Customer details"
+						onClick={() => setShowCustomerSheet(true)}
+					>
+						<InfoIcon className="size-4" />
+					</Button>
+				) : null}
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button variant="ghost" size="icon" className="size-8">
@@ -505,6 +545,35 @@ export function ConversationDetailPanel({
 				onCancelEdit={() => setEditingMessage(null)}
 				onSaveEdit={handleEditSave}
 			/>
+			{firstCustomerId ? (
+				<Sheet
+					open={showCustomerSheet}
+					onOpenChange={setShowCustomerSheet}
+				>
+					<SheetContent
+						side="right"
+						className="flex w-full flex-col overflow-y-auto p-0 sm:max-w-sm"
+					>
+						<SheetHeader className="border-b px-4 py-3">
+							<SheetTitle className="text-sm">
+								{linkedCustomers.length > 1
+									? `Linked customers · ${linkedCustomers.length}`
+									: "Linked customer"}
+							</SheetTitle>
+						</SheetHeader>
+						<div className="space-y-3 p-4">
+							{linkedCustomers.map((c) => (
+								<CustomerCardContainer
+									key={c.id}
+									customerId={c.id}
+									organizationId={organizationId}
+									organizationSlug={organizationSlug}
+								/>
+							))}
+						</div>
+					</SheetContent>
+				</Sheet>
+			) : null}
 		</div>
 	);
 }

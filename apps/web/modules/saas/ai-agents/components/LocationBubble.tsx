@@ -1,5 +1,6 @@
 "use client";
 
+import { mapViewUrl } from "@repo/utils";
 import { MapPinIcon } from "lucide-react";
 
 interface LocationBubbleProps {
@@ -21,7 +22,7 @@ export function LocationBubble({ meta }: LocationBubbleProps) {
 		);
 	}
 
-	const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+	const mapsUrl = mapViewUrl(lat, lng);
 
 	return (
 		<a
