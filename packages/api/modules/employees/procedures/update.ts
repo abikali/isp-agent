@@ -40,6 +40,9 @@ export const updateEmployee = protectedProcedure
 				.optional(),
 			// Field role; null clears it back to the department-based fallback.
 			cashRole: z.enum(CASH_ROLES).nullable().optional(),
+			// Collected-bills count policy overrides; null = org default.
+			countsFreeOverride: z.boolean().nullable().optional(),
+			countsStopOverride: z.boolean().nullable().optional(),
 			hireDate: z.coerce.date().nullable().optional(),
 			status: z.enum(["ACTIVE", "INACTIVE", "ON_LEAVE"]).optional(),
 			notes: z.string().max(5000).nullable().optional(),
@@ -125,6 +128,12 @@ export const updateEmployee = protectedProcedure
 		}
 		if (input.cashRole !== undefined) {
 			updateData["cashRole"] = input.cashRole ?? null;
+		}
+		if (input.countsFreeOverride !== undefined) {
+			updateData["countsFreeOverride"] = input.countsFreeOverride;
+		}
+		if (input.countsStopOverride !== undefined) {
+			updateData["countsStopOverride"] = input.countsStopOverride;
 		}
 		if (input.hireDate !== undefined) {
 			updateData["hireDate"] = input.hireDate ?? null;

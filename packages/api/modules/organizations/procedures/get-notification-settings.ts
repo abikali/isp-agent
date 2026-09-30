@@ -37,6 +37,8 @@ export const getNotificationSettings = protectedProcedure
 				notifyWorkerOnTaskAssigned: true,
 				notifyWorkerOnTaskUpdated: true,
 				notifyWorkerOnTaskCancelled: true,
+				collectorCountsFree: true,
+				collectorCountsStop: true,
 			},
 		});
 

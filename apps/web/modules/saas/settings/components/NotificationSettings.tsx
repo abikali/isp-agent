@@ -42,7 +42,9 @@ export function NotificationSettings() {
 			| "alertOnInstallationDone"
 			| "notifyWorkerOnTaskAssigned"
 			| "notifyWorkerOnTaskUpdated"
-			| "notifyWorkerOnTaskCancelled",
+			| "notifyWorkerOnTaskCancelled"
+			| "collectorCountsFree"
+			| "collectorCountsStop",
 		checked: boolean,
 	) => {
 		if (!organizationId) {
@@ -132,6 +134,59 @@ export function NotificationSettings() {
 							disabled={update.isPending}
 							onCheckedChange={(checked) =>
 								onToggle("stoppedPaymentNotifyEnabled", checked)
+							}
+						/>
+					</div>
+				</div>
+			</SettingsItem>
+
+			<SettingsItem
+				title="Collected bills"
+				description="What counts toward each collector's collected bills (the month-end tally). Counts only, never cash. Each collector can override this on their employee page."
+			>
+				<div className="space-y-6">
+					<div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+						<div className="flex-1">
+							<Label
+								htmlFor="collector-counts-free"
+								className="font-medium"
+							>
+								Free bills count as collected
+							</Label>
+							<p className="text-muted-foreground text-sm">
+								A bill the collector marks free counts on the
+								collector like a paid one.
+							</p>
+						</div>
+						<Switch
+							id="collector-counts-free"
+							checked={data.collectorCountsFree}
+							disabled={update.isPending}
+							onCheckedChange={(checked) =>
+								onToggle("collectorCountsFree", checked)
+							}
+						/>
+					</div>
+
+					<div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+						<div className="flex-1">
+							<Label
+								htmlFor="collector-counts-stop"
+								className="font-medium"
+							>
+								Stopped bills count as collected
+							</Label>
+							<p className="text-muted-foreground text-sm">
+								A bill the collector flags as stopped counts on
+								the collector like a paid one.
+							</p>
+						</div>
+						<Switch
+							id="collector-counts-stop"
+							checked={data.collectorCountsStop}
+							disabled={update.isPending}
+							onCheckedChange={(checked) =>
+								onToggle("collectorCountsStop", checked)
 							}
 						/>
 					</div>

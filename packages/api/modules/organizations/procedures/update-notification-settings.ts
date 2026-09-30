@@ -27,6 +27,8 @@ export const updateNotificationSettings = protectedProcedure
 			notifyWorkerOnTaskAssigned: z.boolean().optional(),
 			notifyWorkerOnTaskUpdated: z.boolean().optional(),
 			notifyWorkerOnTaskCancelled: z.boolean().optional(),
+			collectorCountsFree: z.boolean().optional(),
+			collectorCountsStop: z.boolean().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -70,6 +72,13 @@ export const updateNotificationSettings = protectedProcedure
 				input.notifyWorkerOnTaskCancelled;
 		}
 
+		if (input.collectorCountsFree !== undefined) {
+			data["collectorCountsFree"] = input.collectorCountsFree;
+		}
+		if (input.collectorCountsStop !== undefined) {
+			data["collectorCountsStop"] = input.collectorCountsStop;
+		}
+
 		const updated = await db.organization.update({
 			where: { id: input.organizationId },
 			data,
@@ -83,6 +92,8 @@ export const updateNotificationSettings = protectedProcedure
 				notifyWorkerOnTaskAssigned: true,
 				notifyWorkerOnTaskUpdated: true,
 				notifyWorkerOnTaskCancelled: true,
+				collectorCountsFree: true,
+				collectorCountsStop: true,
 			},
 		});
 

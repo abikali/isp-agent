@@ -12,6 +12,10 @@ import {
 } from "../../employees/lib/cash-role";
 import { collectorBalance } from "../lib/calculations";
 import { BILLING_STAT_CACHE } from "../lib/cash-cache";
+import {
+	countsAsCollected,
+	loadCountPolicies,
+} from "../lib/collector-count-policy";
 import { PENDING_STOPPED_PAYMENT } from "../lib/filters";
 import {
 	customersDueThisMonthWhere,
@@ -140,17 +144,33 @@ export const listCollectors = protectedProcedure
 								}),
 							}),
 						)
-						.then((rows) => {
-							const map = new Map<string, number>();
+						.then(async (rows) => {
+							// Free / stopped bills count per the collector's
+							// policy (org default unless overridden).
+							const policyFor = await loadCountPolicies(
+								input.organizationId,
+							);
+							const collected = new Map<string, number>();
+							const uncountedFree = new Map<string, number>();
 							for (const r of rows) {
-								if (r.activeSettled && r.collectorId) {
-									map.set(
+								if (!r.collectorId) {
+									continue;
+								}
+								const policy = policyFor(r.collectorId);
+								if (countsAsCollected(r, policy)) {
+									collected.set(
 										r.collectorId,
-										(map.get(r.collectorId) ?? 0) + 1,
+										(collected.get(r.collectorId) ?? 0) + 1,
+									);
+								} else if (r.activeFree && !policy.free) {
+									uncountedFree.set(
+										r.collectorId,
+										(uncountedFree.get(r.collectorId) ??
+											0) + 1,
 									);
 								}
 							}
-							return map;
+							return { collected, uncountedFree };
 						}),
 					// Customers due this month per collector (includes stopped-with-pay)
 					fetchRelevantBillingMonths(
@@ -220,7 +240,8 @@ export const listCollectors = protectedProcedure
 					return map;
 				};
 
-				const monthPaymentsMap = monthPaidByCollector;
+				const monthPaymentsMap = monthPaidByCollector.collected;
+				const uncountedFreeMap = monthPaidByCollector.uncountedFree;
 				const monthDueMap = toMap(monthDueByCollector);
 				const stoppedMap = toMap(stoppedByCollector);
 				const pendingStoppedMap = toMap(pendingStoppedByCollector);
@@ -242,6 +263,9 @@ export const listCollectors = protectedProcedure
 								totalHandedOff,
 							),
 							monthCollected: monthPaymentsMap.get(c.id) ?? 0,
+							/** Free bills this month the policy does not count as collected. */
+							monthFreeNotCounted:
+								uncountedFreeMap.get(c.id) ?? 0,
 							monthTotal: monthDueMap.get(c.id) ?? 0,
 							stoppedCount: stoppedMap.get(c.id) ?? 0,
 							pendingStoppedCount:
