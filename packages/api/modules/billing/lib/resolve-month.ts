@@ -112,6 +112,25 @@ export function getMonthDateRange(year: number, month: number) {
 }
 
 /**
+ * The due date a month's invoice freezes (`CustomerInvoice.expiryDate`):
+ * the customer's live expiry, clamped so it never predates the month itself.
+ * A month-M invoice cannot be "due" before M starts — without the clamp a
+ * customer reactivated mid-month (invoice created seconds before the legacy
+ * renew moved the expiry) froze a year-old date and read "318d overdue".
+ * Earlier unpaid months keep their own invoices with their own earlier dates,
+ * so the real arrears history is not lost.
+ */
+export function frozenInvoiceExpiry(
+	expiresAt: Date | null,
+	range: { gte: Date; lte: Date },
+): Date {
+	if (expiresAt == null) {
+		return range.lte;
+	}
+	return expiresAt < range.gte ? range.gte : expiresAt;
+}
+
+/**
  * Encode (year, month) as a single integer for cheap ordinal comparison.
  */
 export function yearMonthToNum(year: number, month: number): number {

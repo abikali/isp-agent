@@ -6,7 +6,7 @@ import {
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { getMonthDateRange } from "../lib/resolve-month";
+import { frozenInvoiceExpiry, getMonthDateRange } from "../lib/resolve-month";
 
 /**
  * Manually create a customer_invoice row. Normally invoices are generated
@@ -91,9 +91,12 @@ export const createInvoice = protectedProcedure
 			input.discount;
 		const total = input.total ?? Math.max(0, lineItemTotal);
 		const totalWithTax = input.totalWithTax ?? total + input.tax;
-		const expiryDate = input.expiryDate
-			? new Date(input.expiryDate)
-			: (customer.expiresAt ?? range.lte);
+		// Clamped like the generator: an explicit date earlier than the month
+		// start is lifted to it too (a later pick is kept as-is).
+		const expiryDate = frozenInvoiceExpiry(
+			input.expiryDate ? new Date(input.expiryDate) : customer.expiresAt,
+			range,
+		);
 
 		const invoice = await db.customerInvoice.create({
 			data: {

@@ -9,7 +9,7 @@
 import type { Prisma } from "@repo/database";
 import { customerMonthlyDue } from "./calculations";
 import { BILLABLE_CUSTOMER_STATUSES } from "./filters";
-import { getMonthDateRange } from "./resolve-month";
+import { frozenInvoiceExpiry, getMonthDateRange } from "./resolve-month";
 
 type Client = Prisma.TransactionClient;
 
@@ -36,6 +36,9 @@ export async function generateInvoicesForMonth(
 	const customers = await tx.customer.findMany({
 		where: {
 			organizationId,
+			// Soft-deleted customers are gone from every collector view;
+			// billing them only inflated counts and receivables.
+			deletedAt: null,
 			status: { in: [...BILLABLE_CUSTOMER_STATUSES] },
 			OR: [
 				{ groupName: null },
@@ -90,7 +93,7 @@ export async function generateInvoicesForMonth(
 			year,
 			month,
 			invoiceDate,
-			expiryDate: customer.expiresAt ?? range.lte,
+			expiryDate: frozenInvoiceExpiry(customer.expiresAt, range),
 			total,
 			discount: customer.discount ?? 0,
 			tax: 0,
