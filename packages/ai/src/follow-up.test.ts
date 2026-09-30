@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stripInternalMarkers } from "./chat-formatting";
 import {
 	buildFollowUpInstruction,
+	buildPostEscalationInstruction,
 	isNoFollowUpReply,
 	isWithinFollowUpHours,
 	resolveFollowUpFireAt,
@@ -142,6 +143,37 @@ describe("buildFollowUpInstruction for repeat attempts", () => {
 	it("says nothing about repeats on the first attempt", () => {
 		expect(buildFollowUpInstruction(30, null, 1, 3)).not.toContain(
 			"follow-up 1 of",
+		);
+	});
+});
+
+describe("buildPostEscalationInstruction", () => {
+	it("asks whether the team reached them and the problem is solved", () => {
+		const text = buildPostEscalationInstruction(
+			24,
+			"AI Escalation: Customer offline since morning",
+			false,
+		);
+		expect(text).toMatch(/^\[Check-back: 24 hours ago/);
+		expect(text).toContain('("Customer offline since morning")');
+		expect(text).toContain("Nothing has been written in this chat since.");
+		expect(text).toContain("whether the team reached them");
+		expect(text).toContain("No troubleshooting, no promises");
+		expect(text).toContain(
+			"Reply NO_FOLLOW_UP only if the chat already shows the problem is solved or the customer asked not to be messaged.]",
+		);
+	});
+
+	it("says when a teammate already wrote in the chat", () => {
+		expect(buildPostEscalationInstruction(5, "x", true)).toContain(
+			"A teammate has written in this chat since.",
+		);
+	});
+
+	it("is stripped if the model echoes it", () => {
+		const text = buildPostEscalationInstruction(24, "No internet", false);
+		expect(stripInternalMarkers(`${text}\nDid the team call you?`)).toBe(
+			"Did the team call you?",
 		);
 	});
 });

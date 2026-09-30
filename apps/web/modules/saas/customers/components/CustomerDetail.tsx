@@ -56,6 +56,7 @@ import {
 	ActivityIcon,
 	AlertCircleIcon,
 	CheckCircle2Icon,
+	MessageSquareIcon,
 	MoreVerticalIcon,
 	NetworkIcon,
 	PlusIcon,
@@ -85,6 +86,7 @@ import {
 } from "../lib/constants";
 import { ApElectricalToggle } from "./ApElectricalToggle";
 import { CustomerActivityTimeline } from "./CustomerActivityTimeline";
+import { CustomerBotTab } from "./CustomerBotTab";
 import { CustomerFollowups } from "./CustomerFollowups";
 import { CustomerInstallations } from "./CustomerInstallations";
 import { CustomerInvoices } from "./CustomerInvoices";
@@ -617,6 +619,17 @@ export function CustomerDetail({
 							icon: WrenchIcon,
 							content: (
 								<FieldTab
+									customerId={customerId}
+									organizationSlug={organizationSlug}
+								/>
+							),
+						},
+						{
+							id: "bot",
+							label: "Bot",
+							icon: MessageSquareIcon,
+							content: (
+								<CustomerBotTab
 									customerId={customerId}
 									organizationSlug={organizationSlug}
 								/>

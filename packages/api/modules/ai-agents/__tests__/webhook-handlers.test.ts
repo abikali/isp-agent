@@ -108,6 +108,10 @@ vi.mock("@repo/jobs", () => ({
 	cancelFollowUp: vi.fn().mockResolvedValue(undefined),
 	markAwaitingHuman: vi.fn().mockResolvedValue(undefined),
 	clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+	captureFollowUpReply: vi.fn().mockResolvedValue(null),
+	loadOutreachContext: vi.fn().mockResolvedValue(undefined),
+	sendVoiceReply: vi.fn().mockResolvedValue(false),
+	settleCheckBackReplies: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@repo/database", () => ({
@@ -192,7 +196,11 @@ import {
 	modelMessagesToRoleContent,
 	parseWebhookPayload,
 } from "@repo/ai";
-import { queueAiChatRetry } from "@repo/jobs";
+import {
+	captureFollowUpReply,
+	queueAiChatRetry,
+	settleCheckBackReplies,
+} from "@repo/jobs";
 import { whatsappWebhookHandler } from "../lib/webhook-handlers";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -744,5 +752,41 @@ describe("Webhook Handlers - Duplicate inbound deliveries", () => {
 		});
 		expect(mockDb.aiMessage.create).not.toHaveBeenCalled();
 		expect(mockGenerateAgentResponse).not.toHaveBeenCalled();
+	});
+});
+
+describe("Webhook Handlers - bot follow-up answers", () => {
+	it("records the message as the answer to a follow-up in an existing chat", async () => {
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(vi.mocked(captureFollowUpReply)).toHaveBeenCalledWith(
+			"conv-1",
+			"Hello",
+		);
+	});
+
+	it("settles check-back answers after the bot replied", async () => {
+		mockDb.aiConversation.findFirst.mockResolvedValue(CONVERSATION_FIXTURE);
+		mockGenerateAgentResponse.mockResolvedValue({
+			text: "Sorry, I escalated it again",
+			tokenCount: 10,
+			latencyMs: 5,
+			toolResults: [
+				{ toolName: "escalate-telegram", args: {}, result: {} },
+			],
+		});
+
+		whatsappWebhookHandler(makeRequest({ test: true }), "token-1");
+		await flushBackground(5000);
+
+		expect(vi.mocked(settleCheckBackReplies)).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			credentials: { provider: "openrouter", apiKey: "k" },
+			botReply: "Sorry, I escalated it again",
+			escalatedThisTurn: true,
+		});
 	});
 });

@@ -34,7 +34,10 @@ import {
 	markAwaitingHuman,
 	TEAMMATE_BOT_TAKEOVER_AFTER_MS,
 } from "../jobs/ai-teammate-wait.jobs";
+import { settleCheckBackReplies } from "../lib/bot-follow-ups";
+import { loadOutreachContext } from "../lib/outreach";
 import { handleTeammateWait } from "../lib/teammate-wait";
+import { sendVoiceReply } from "../lib/voice-reply";
 import { AI_CHAT_QUEUE_NAME } from "../queues/ai-chat.queue";
 import type { AiChatJobData, AiChatJobResult } from "../types";
 
@@ -225,6 +228,14 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						.promptSections as unknown as PromptSection[],
 					toolPromptOverrides:
 						extractToolPromptOverrides(agentToolConfigs),
+					outreachContext: await loadOutreachContext({
+						organizationId: conversation.agent.organizationId,
+						customerId: conversation.verifiedCustomerId,
+						phone: conversation.contactId,
+						messageText:
+							historyRows[historyRows.length - 1]?.content ??
+							null,
+					}),
 				},
 				history: historyRows,
 				lastMessageAt: conversation.lastMessageAt,
@@ -380,7 +391,7 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 					result.text,
 					result.toolResults,
 				);
-				await db.aiMessage.create({
+				const assistantRow = await db.aiMessage.create({
 					data: {
 						conversationId,
 						role: "assistant",
@@ -422,6 +433,34 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						}),
 					);
 				}
+				if (sendResult.success) {
+					const lastUser = [...historyRows]
+						.reverse()
+						.find((r) => r.role === "user");
+					void sendVoiceReply({
+						agent: conversation.agent,
+						credentials,
+						provider,
+						apiToken,
+						chatId,
+						conversationId,
+						assistantMessageId: assistantRow.id,
+						triggeredByVoice:
+							lastUser?.attachmentType === "voice" ||
+							lastUser?.attachmentType === "audio",
+						text: result.text,
+					});
+				}
+				// The user message (and its capture as a follow-up answer)
+				// was stored by the webhook; settle it now that the bot spoke.
+				await settleCheckBackReplies({
+					conversationId,
+					credentials,
+					botReply: result.text,
+					escalatedThisTurn: (result.toolResults ?? []).some(
+						(t) => t.toolName === "escalate-telegram",
+					),
+				});
 
 				return { success: true };
 			} catch (error) {

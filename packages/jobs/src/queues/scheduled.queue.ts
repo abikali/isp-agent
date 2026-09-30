@@ -151,6 +151,44 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Conversation summaries: summarise every conversation that went idle
+	// (agents with conversationSummaryMode != "off").
+	await queue.upsertJobScheduler(
+		"conversation-summaries",
+		{ pattern: "*/10 * * * *" },
+		{
+			name: "conversation-summaries",
+			data: { type: "conversation-summaries" },
+		},
+	);
+
+	// Daily digest of the day's summaries for agents in "digest" mode,
+	// 18:00 UTC = 21:00 Beirut (summer).
+	await queue.upsertJobScheduler(
+		"conversation-summary-digest",
+		{ pattern: "0 18 * * *" },
+		{
+			name: "conversation-summary-digest",
+			data: { type: "conversation-summary-digest" },
+		},
+	);
+
+	// Bot follow-ups: send due check-backs and outreach, expire stale ones.
+	// The bot_follow_up table is the queue.
+	await queue.upsertJobScheduler(
+		"bot-follow-ups",
+		{ pattern: "*/5 * * * *" },
+		{ name: "bot-follow-ups", data: { type: "bot-follow-ups" } },
+	);
+
+	// Recover official-number answers the Salti webhook missed (it never
+	// retries): 01:30 UTC nightly.
+	await queue.upsertJobScheduler(
+		"outreach-reconcile",
+		{ pattern: "30 1 * * *" },
+		{ name: "outreach-reconcile", data: { type: "outreach-reconcile" } },
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

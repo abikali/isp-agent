@@ -4,7 +4,9 @@ import { tool } from "ai";
 import { z } from "zod";
 import { resolveContactCustomer } from "../contact-customer";
 import { summarizeForEscalation } from "../escalation-summary";
+import { type FollowUpWindow, resolveFollowUpFireAt } from "../follow-up";
 import { type DbMessageRow, selectHistoryWindow } from "../history";
+import { parseChatIds, sendTelegramMessages } from "../telegram-send";
 import {
 	buildEscalationMessage,
 	type CustomerDetails,
@@ -13,70 +15,6 @@ import {
 } from "./lib/escalation-message";
 import { lookupCustomerByContactPhone } from "./lib/isp-api-client";
 import type { RegisteredTool, ToolContext } from "./types";
-
-function parseChatIds(raw: string | string[]): string[] {
-	if (Array.isArray(raw)) {
-		return raw.map((id) => String(id).trim()).filter((id) => id.length > 0);
-	}
-	return raw
-		.split(/[\n,]+/)
-		.map((id) => id.trim())
-		.filter((id) => id.length > 0);
-}
-
-// ---------------------------------------------------------------------------
-// Telegram send helper
-// ---------------------------------------------------------------------------
-
-async function sendTelegramMessages(
-	botToken: string,
-	chatIds: string[],
-	message: string,
-	conversationId: string,
-): Promise<{ succeeded: number; failed: string[] }> {
-	const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-	const failedIds: string[] = [];
-	let succeeded = 0;
-
-	await Promise.allSettled(
-		chatIds.map(async (chatId) => {
-			try {
-				const response = await fetch(url, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						chat_id: Number(chatId),
-						text: message,
-						parse_mode: "HTML",
-					}),
-				});
-
-				const data = (await response.json()) as {
-					ok: boolean;
-					description?: string;
-				};
-
-				if (data.ok) {
-					succeeded++;
-				} else {
-					logger.error(
-						`Telegram escalation failed for chat ${chatId}: ${data.description ?? response.status}`,
-						{ chatId, conversationId },
-					);
-					failedIds.push(chatId);
-				}
-			} catch (error) {
-				logger.error(`Telegram escalation failed for chat ${chatId}`, {
-					error,
-					conversationId,
-				});
-				failedIds.push(chatId);
-			}
-		}),
-	);
-
-	return { succeeded, failed: failedIds };
-}
 
 // ---------------------------------------------------------------------------
 // ISP API customer lookup (enrichment for escalations)
@@ -235,7 +173,12 @@ async function createOrUpdateEscalationTask(
 
 	const agent = await db.aiAgent.findUnique({
 		where: { id: context.agentId },
-		select: { organizationId: true },
+		select: {
+			organizationId: true,
+			postEscalationCheckMinutes: true,
+			followUpWindowStart: true,
+			followUpWindowEnd: true,
+		},
 	});
 	if (!agent) {
 		return;
@@ -250,16 +193,21 @@ async function createOrUpdateEscalationTask(
 	const priority = TASK_PRIORITY_MAP[data.priority] ?? "MEDIUM";
 	const category = TASK_CATEGORY_MAP[data.category] ?? "SUPPORT";
 
-	// Dedup: update existing open task for this conversation (1-hour window)
+	// Dedup: the customer just answered a check-back ("still not solved"),
+	// so this is the same issue — update the task the check-back was about.
+	// Otherwise update an open task for this conversation (1-hour window).
+	const checkBackTask = await findCheckBackLinkedTask(context.conversationId);
 	const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-	const existingTask = await db.task.findFirst({
-		where: {
-			conversationId: context.conversationId,
-			status: "OPEN",
-			createdAt: { gte: oneHourAgo },
-		},
-		select: { id: true },
-	});
+	const existingTask =
+		checkBackTask ??
+		(await db.task.findFirst({
+			where: {
+				conversationId: context.conversationId,
+				status: "OPEN",
+				createdAt: { gte: oneHourAgo },
+			},
+			select: { id: true },
+		}));
 
 	if (existingTask) {
 		await db.task.update({
@@ -272,7 +220,7 @@ async function createOrUpdateEscalationTask(
 			},
 		});
 	} else {
-		await db.task.create({
+		const task = await db.task.create({
 			data: {
 				organizationId: agent.organizationId,
 				title,
@@ -285,8 +233,94 @@ async function createOrUpdateEscalationTask(
 				customerId: verifiedCustomerId,
 				conversationId: context.conversationId,
 			},
+			select: { id: true },
 		});
+		if (agent.postEscalationCheckMinutes != null) {
+			await schedulePostEscalationCheck({
+				organizationId: agent.organizationId,
+				agentId: context.agentId,
+				conversationId: context.conversationId,
+				customerId: verifiedCustomerId,
+				taskId: task.id,
+				minutes: agent.postEscalationCheckMinutes,
+				window: {
+					start: agent.followUpWindowStart,
+					end: agent.followUpWindowEnd,
+				},
+			});
+		}
 	}
+}
+
+/**
+ * The open escalation task a check-back asked about, when the customer
+ * answered that check-back in the last 72 hours.
+ */
+async function findCheckBackLinkedTask(
+	conversationId: string,
+): Promise<{ id: string } | null> {
+	const { db } = await import("@repo/database");
+	const row = await db.botFollowUp.findFirst({
+		where: {
+			conversationId,
+			type: "post_escalation",
+			taskId: { not: null },
+			replyAt: { gte: new Date(Date.now() - 72 * 60 * 60 * 1000) },
+			task: { status: "OPEN" },
+		},
+		orderBy: { replyAt: "desc" },
+		select: { taskId: true },
+	});
+	return row?.taskId ? { id: row.taskId } : null;
+}
+
+/**
+ * One scheduled check-back per conversation: a newer escalation moves the
+ * pending one (new task, new due time) instead of stacking a second.
+ */
+async function schedulePostEscalationCheck(input: {
+	organizationId: string;
+	agentId: string;
+	conversationId: string;
+	customerId: string | null;
+	taskId: string;
+	minutes: number;
+	window: FollowUpWindow;
+}): Promise<void> {
+	const { db } = await import("@repo/database");
+	const now = new Date();
+	// Attempt 2: moved into the window, never dropped.
+	const dueAt =
+		resolveFollowUpFireAt(now, input.minutes, input.window, 2) ??
+		new Date(now.getTime() + input.minutes * 60_000);
+	const pending = await db.botFollowUp.findFirst({
+		where: {
+			conversationId: input.conversationId,
+			type: "post_escalation",
+			status: "scheduled",
+		},
+		select: { id: true },
+	});
+	if (pending) {
+		await db.botFollowUp.update({
+			where: { id: pending.id },
+			data: { taskId: input.taskId, dueAt },
+		});
+		return;
+	}
+	await db.botFollowUp.create({
+		data: {
+			organizationId: input.organizationId,
+			agentId: input.agentId,
+			type: "post_escalation",
+			channel: "bot",
+			status: "scheduled",
+			conversationId: input.conversationId,
+			customerId: input.customerId,
+			taskId: input.taskId,
+			dueAt,
+		},
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -674,6 +708,15 @@ export const escalateTelegram: RegisteredTool = {
 				placeholder: "e.g. 123456789 or -1001234567890",
 				description:
 					"Supports group IDs (e.g. -1001234567890) and user IDs (e.g. 123456789). Each recipient must have started a conversation with the bot.",
+			},
+			{
+				key: "summaryTelegramChatIds",
+				label: "Conversation summary Chat IDs (optional)",
+				type: "repeater",
+				required: false,
+				placeholder: "e.g. 123456789",
+				description:
+					"Where conversation summaries go (Agent settings → Conversation summaries). Leave empty to use the escalation chats above.",
 			},
 		],
 	},

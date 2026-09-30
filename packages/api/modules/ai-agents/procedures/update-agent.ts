@@ -85,6 +85,37 @@ export const updateAgent = protectedProcedure
 				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
 				.optional(),
 			followUpWeeklyCap: z.number().int().min(1).max(14).optional(),
+			postEscalationCheckMinutes: z
+				.number()
+				.int()
+				.min(60)
+				.max(4320)
+				.nullable()
+				.optional(),
+			conversationSummaryMode: z
+				.enum(["off", "each", "digest"])
+				.optional(),
+			conversationSummaryIdleMinutes: z
+				.number()
+				.int()
+				.min(10)
+				.max(720)
+				.optional(),
+			outreachRequireApproval: z.boolean().optional(),
+			postInstallFollowUpDays: z
+				.number()
+				.int()
+				.min(1)
+				.max(30)
+				.nullable()
+				.optional(),
+			postStopFollowUpEnabled: z.boolean().optional(),
+			postStopFollowUpTime: z
+				.string()
+				.regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+				.optional(),
+			voiceReplies: z.boolean().optional(),
+			voiceReplyModel: z.string().max(100).nullable().optional(),
 			promptSections: z
 				.array(
 					z.object({
@@ -282,6 +313,15 @@ export const updateAgent = protectedProcedure
 			"followUpWindowStart",
 			"followUpWindowEnd",
 			"followUpWeeklyCap",
+			"postEscalationCheckMinutes",
+			"conversationSummaryMode",
+			"conversationSummaryIdleMinutes",
+			"outreachRequireApproval",
+			"postInstallFollowUpDays",
+			"postStopFollowUpEnabled",
+			"postStopFollowUpTime",
+			"voiceReplies",
+			"voiceReplyModel",
 		] as const) {
 			if (rest[key] !== undefined) {
 				updateData[key] = rest[key];
@@ -330,6 +370,15 @@ export const updateAgent = protectedProcedure
 				followUpWindowStart: true,
 				followUpWindowEnd: true,
 				followUpWeeklyCap: true,
+				postEscalationCheckMinutes: true,
+				conversationSummaryMode: true,
+				conversationSummaryIdleMinutes: true,
+				outreachRequireApproval: true,
+				postInstallFollowUpDays: true,
+				postStopFollowUpEnabled: true,
+				postStopFollowUpTime: true,
+				voiceReplies: true,
+				voiceReplyModel: true,
 				provider: true,
 				promptSections: true,
 				updatedAt: true,

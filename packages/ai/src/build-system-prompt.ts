@@ -51,6 +51,11 @@ export interface BuildSystemPromptOptions {
 	workingHours?: WorkingHoursFields | undefined;
 	/** Clock for the working-hours check (tests / replays). */
 	now?: Date | undefined;
+	/**
+	 * What we recently sent this customer from the official number and what
+	 * they answered (see `renderOutreachContext`). Dynamic, never cached.
+	 */
+	outreachContext?: string | undefined;
 }
 
 /**
@@ -162,6 +167,10 @@ export function buildSystemPromptParts(
 		if (duty.offDuty) {
 			dynamicSections.push(offDutySection(duty, now));
 		}
+	}
+
+	if (opts.outreachContext) {
+		dynamicSections.push(opts.outreachContext);
 	}
 
 	if (opts.verifiedCustomer) {

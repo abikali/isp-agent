@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { type AuditContext, customerAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
-import { queueWhatsAppReferralReward } from "@repo/jobs";
+import { queueWhatsAppReferralReward, scheduleOutreach } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import {
 	IRadiusUserNotFoundError,
@@ -188,7 +188,30 @@ export async function reviewOnePayment(args: {
 			args.auditContext ?? {},
 		);
 	}
+	// "Why did you stop?" on the official number the next morning — only
+	// after the remote deactivation succeeded, never failing the review.
+	await scheduleStopFollowUp(organizationId, payment.id, payment.customerId);
 	return { referralRewardQueued: false };
+}
+
+async function scheduleStopFollowUp(
+	organizationId: string,
+	paymentId: string,
+	customerId: string,
+): Promise<void> {
+	try {
+		await scheduleOutreach({
+			type: "post_stop",
+			organizationId,
+			customerId,
+			paymentId,
+		});
+	} catch (error) {
+		logger.warn("[review-payment] stop follow-up not scheduled", {
+			paymentId,
+			error: String(error),
+		});
+	}
 }
 
 /**

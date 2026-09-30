@@ -136,3 +136,26 @@ export function formatBeirutDue(
 export function dueDeadline(dueDate: BeirutDateInput, hasTime: boolean): Date {
 	return hasTime ? toDate(dueDate) : beirutDayEndUtc(dueDate);
 }
+
+/**
+ * `hhmm` Beirut wall-clock on the Beirut calendar day `daysAhead` after the
+ * day of `from` — "3 days after the install, at 11:00". DST-safe.
+ */
+export function beirutDayAt(
+	from: BeirutDateInput,
+	daysAhead: number,
+	hhmm: string,
+): Date {
+	const { year, month, day } = beirutParts(from);
+	const target = new Date(Date.UTC(year, month - 1, day + daysAhead));
+	const [h = "0", m = "0"] = hhmm.split(":");
+	return beirutWallClockToUtc(
+		`${target.getUTCFullYear()}-${pad2(target.getUTCMonth() + 1)}-${pad2(target.getUTCDate())}T${pad2(Number(h))}:${pad2(Number(m))}`,
+	);
+}
+
+/** "2026-09-30 14:05" in Beirut time, for notes and messages. */
+export function formatBeirutStamp(value: BeirutDateInput): string {
+	const { year, month, day, hour, minute } = beirutParts(value);
+	return `${year}-${pad2(month)}-${pad2(day)} ${pad2(hour)}:${pad2(minute)}`;
+}

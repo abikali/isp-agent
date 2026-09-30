@@ -24,6 +24,17 @@ export {
 } from "./src/build-system-prompt";
 export { stripInternalMarkers } from "./src/chat-formatting";
 export { classifyText } from "./src/classify";
+export type {
+	ConversationOutcome,
+	ConversationSummary,
+	EpisodeRow,
+} from "./src/conversation-summary";
+export {
+	buildEpisodeTranscript,
+	CONVERSATION_OUTCOMES,
+	isSubstantiveEpisode,
+	summarizeConversationEpisode,
+} from "./src/conversation-summary";
 export type { PromptSection } from "./src/default-prompt-sections";
 export { DEFAULT_PROMPT_SECTIONS } from "./src/default-prompt-sections";
 export { decryptToken, encryptToken } from "./src/encryption";
@@ -33,12 +44,24 @@ export { summarizeForEscalation } from "./src/escalation-summary";
 export type { FollowUpWindow } from "./src/follow-up";
 export {
 	buildFollowUpInstruction,
+	buildPostEscalationInstruction,
 	DEFAULT_FOLLOW_UP_WINDOW,
 	isNoFollowUpReply,
 	isWithinFollowUpHours,
 	NO_FOLLOW_UP,
 	resolveFollowUpFireAt,
 } from "./src/follow-up";
+export type {
+	CheckBackReply,
+	OutreachOutcome,
+	OutreachReply,
+} from "./src/follow-up-classify";
+export {
+	classifyCheckBackReply,
+	classifyOutreachReply,
+	isOptOutReply,
+	OUTREACH_OUTCOMES,
+} from "./src/follow-up-classify";
 export type { AgentStreamResult } from "./src/generate";
 export { createAgentStream, generateAgentResponse } from "./src/generate";
 export type { GenerateSystemPromptInput } from "./src/generate-system-prompt";
@@ -67,6 +90,8 @@ export {
 	isValidModel,
 	listAvailableModels,
 } from "./src/model-registry";
+export type { OutreachContextInput } from "./src/outreach-context";
+export { renderOutreachContext } from "./src/outreach-context";
 export { hashPin } from "./src/pin";
 export {
 	markAsRead,
@@ -98,6 +123,13 @@ export {
 	TEAMMATE_REPLY_WINDOW_MS,
 	teammateActionNeeded,
 } from "./src/teammate-reply";
+export type { TeamTelegramTarget } from "./src/telegram-send";
+export {
+	escapeTelegramHtml,
+	notifyTeamTelegram,
+	resolveTeamTelegramTarget,
+	sendTelegramMessages,
+} from "./src/telegram-send";
 export {
 	getAvailableTools,
 	getToolRegistry,
@@ -112,6 +144,13 @@ export type {
 } from "./src/tools/types";
 export type { TriageInput, TriageResult } from "./src/triage";
 export { isNearDuplicateReply, triageBufferedMessages } from "./src/triage";
+export type { SynthesizedSpeech } from "./src/tts";
+export {
+	DEFAULT_TTS_MODEL,
+	isSpeakableReply,
+	supportsVoiceReplies,
+	synthesizeSpeech,
+} from "./src/tts";
 export type {
 	ChannelProvider,
 	GenerateResponseInput,

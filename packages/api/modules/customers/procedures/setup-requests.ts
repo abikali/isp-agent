@@ -14,6 +14,7 @@ import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import {
 	createAccountNumberGenerator,
 	runCreateLocationRequest,
+	scheduleOutreach,
 } from "@repo/jobs";
 import { logger } from "@repo/logs";
 import { getBaseUrl, tgLink, tgMessage } from "@repo/utils";
@@ -1193,6 +1194,19 @@ export const approveSetupRequest = protectedProcedure
 			}),
 		}).catch((err: unknown) =>
 			logger.warn("[Setup Approve] notify failed", {
+				error: String(err),
+			}),
+		);
+
+		// "How is the service?" on the official number a few days later,
+		// when the org switched it on. Never fails the approval.
+		void scheduleOutreach({
+			type: "post_install",
+			organizationId: input.organizationId,
+			customerId: request.customer.id,
+			setupRequestId: request.id,
+		}).catch((err: unknown) =>
+			logger.warn("[Setup Approve] follow-up not scheduled", {
 				error: String(err),
 			}),
 		);

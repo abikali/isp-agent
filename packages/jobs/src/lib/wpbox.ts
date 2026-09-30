@@ -2,12 +2,18 @@ import type { SaltiSendResult } from "@repo/integrations";
 import { logger } from "@repo/logs";
 import { parsePhone } from "@repo/utils";
 
+type TemplateParameter =
+	| { type: "text"; text: string }
+	| { type: "payload"; payload: string };
+
 interface TemplateComponent {
 	type: string;
 	sub_type?: string;
 	index?: string;
-	parameters: Array<{ type: string; text: string }>;
+	parameters: TemplateParameter[];
 }
+
+const WPBOX_API = "https://saltimarketing.com/api/wpbox";
 
 const DEFAULT_WPBOX_TIMEOUT_MS = 15_000;
 
@@ -41,7 +47,14 @@ function isRetriableStatus(status: number): boolean {
  * the payment's activity log.
  */
 export type WPBoxSendResult =
-	| { ok: true; phone: string; status: number; messageId: string | null }
+	| {
+			ok: true;
+			phone: string;
+			status: number;
+			messageId: string | null;
+			/** Meta's `wamid.…`, which delivery-status webhooks refer to. */
+			wamid?: string | null;
+	  }
 	| {
 			ok: false;
 			phone: string;
@@ -141,21 +154,18 @@ export async function sendWPBoxTemplate(params: {
 	}
 
 	try {
-		const response = await fetch(
-			"https://saltimarketing.com/api/wpbox/sendtemplatemessage",
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					token,
-					phone,
-					template_name: params.templateName,
-					template_language: params.templateLanguage ?? "en_US",
-					components: params.components,
-				}),
-				signal: AbortSignal.timeout(getWpboxTimeoutMs()),
-			},
-		);
+		const response = await fetch(`${WPBOX_API}/sendtemplatemessage`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				token,
+				phone,
+				template_name: params.templateName,
+				template_language: params.templateLanguage ?? "en_US",
+				components: params.components,
+			}),
+			signal: AbortSignal.timeout(getWpboxTimeoutMs()),
+		});
 		const { json: body, text: rawText } = await readBody(response);
 
 		if (response.ok && body?.status === "success") {
@@ -168,7 +178,13 @@ export async function sendWPBoxTemplate(params: {
 				messageId,
 				...params.logContext,
 			});
-			return { ok: true, phone, status: response.status, messageId };
+			return {
+				ok: true,
+				phone,
+				status: response.status,
+				messageId,
+				...(body.message_wamid ? { wamid: body.message_wamid } : {}),
+			};
 		}
 
 		const error = describeWPBoxFailure(body, rawText, response.status);
@@ -349,6 +365,12 @@ const MONTH_NAMES_AR = [
 	"كانون الأول",
 ];
 
+/** "29 أيلول" for a day of a month (1-based month). */
+export function arabicDayMonthLabel(day: number, month: number): string {
+	const name = MONTH_NAMES_AR[month - 1];
+	return name ? `${day} ${name}` : `${day}/${month}`;
+}
+
 /** "أيلول 2026" for a billing month (1-based month). */
 export function arabicMonthLabel(year: number, month: number): string {
 	const name = MONTH_NAMES_AR[month - 1];
@@ -415,4 +437,175 @@ export async function sendWhatsAppReferralReward(params: {
 		logContext: { paymentId: params.paymentId },
 		logTag: "[WhatsApp Referral Reward]",
 	});
+}
+
+// ── Bot follow-up outreach (#14/#15) ───────────────────────────────────────
+
+/**
+ * Quick-reply buttons for a template: button N returns the payload
+ * `fu_<followUpId>_<choice N>` on the inbound webhook, so a tap maps straight
+ * back to its follow-up row and answer.
+ */
+export function quickReplyButtons(
+	followUpId: string,
+	choices: readonly string[],
+): TemplateComponent[] {
+	return choices.map((choice, index) => ({
+		type: "button",
+		sub_type: "quick_reply",
+		index: String(index),
+		parameters: [
+			{ type: "payload", payload: `fu_${followUpId}_${choice}` },
+		],
+	}));
+}
+
+/**
+ * Free-form message on the official number (`api/wpbox/sendmessage`). Only
+ * valid inside the 24-hour window a customer's reply or tap opens. Field
+ * names follow WPBox `APIController@sendMessageToPhoneNumber`: `message`,
+ * optional `buttons` [{id,title}] (max 3), `header`, `footer`.
+ */
+export async function sendWPBoxMessage(params: {
+	phone: string;
+	message: string;
+	buttons?: Array<{ id: string; title: string }> | undefined;
+	footer?: string | undefined;
+	logContext: Record<string, unknown>;
+	logTag: string;
+}): Promise<WPBoxSendResult> {
+	const token = process.env["WPBOX_TOKEN"];
+	if (!token) {
+		logger.warn(`${params.logTag} WPBOX_TOKEN not set, skipping send`);
+		return {
+			ok: false,
+			phone: params.phone,
+			error: "WPBOX_TOKEN not set",
+			retriable: false,
+		};
+	}
+	const phone = parsePhone(params.phone)?.digits;
+	if (!phone) {
+		return {
+			ok: false,
+			phone: params.phone,
+			error: "Invalid phone number",
+			retriable: false,
+		};
+	}
+	try {
+		const response = await fetch(`${WPBOX_API}/sendmessage`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				token,
+				phone,
+				message: params.message,
+				...(params.buttons?.length
+					? { buttons: params.buttons.slice(0, 3) }
+					: {}),
+				...(params.footer ? { footer: params.footer } : {}),
+			}),
+			signal: AbortSignal.timeout(getWpboxTimeoutMs()),
+		});
+		const { json: body, text: rawText } = await readBody(response);
+		if (response.ok && body?.status === "success") {
+			return {
+				ok: true,
+				phone,
+				status: response.status,
+				messageId:
+					body.message_id !== undefined && body.message_id !== null
+						? String(body.message_id)
+						: null,
+				...(body.message_wamid ? { wamid: body.message_wamid } : {}),
+			};
+		}
+		const error = describeWPBoxFailure(body, rawText, response.status);
+		logger.warn(`${params.logTag} free-form send failed`, {
+			status: response.status,
+			error,
+			phone,
+			...params.logContext,
+		});
+		return {
+			ok: false,
+			phone,
+			status: response.status,
+			error,
+			retriable: isRetriableStatus(response.status),
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		logger.warn(`${params.logTag} free-form send failed`, {
+			error: message,
+			phone,
+			...params.logContext,
+		});
+		return { ok: false, phone, error: message, retriable: true };
+	}
+}
+
+/** A WPBox contact (chat) from `getConversations`. */
+export interface WPBoxContact {
+	id: number | string;
+	phone: string;
+}
+
+/** A WPBox message from `getMessages`. */
+export interface WPBoxMessage {
+	id: number | string;
+	value: string | null;
+	is_message_by_contact: number | boolean;
+	created_at: string;
+	fb_message_id?: string | null;
+}
+
+async function wpboxRead(
+	path: string,
+	body: Record<string, unknown>,
+): Promise<unknown[] | null> {
+	const token = process.env["WPBOX_TOKEN"];
+	if (!token) {
+		return null;
+	}
+	try {
+		const response = await fetch(`${WPBOX_API}/${path}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ token, ...body }),
+			signal: AbortSignal.timeout(getWpboxTimeoutMs()),
+		});
+		if (!response.ok) {
+			logger.warn("[WPBox read] request failed", {
+				path,
+				status: response.status,
+			});
+			return null;
+		}
+		const json = (await response.json()) as { data?: unknown };
+		return Array.isArray(json.data) ? json.data : null;
+	} catch (error) {
+		logger.warn("[WPBox read] request failed", {
+			path,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return null;
+	}
+}
+
+/** The 150 most recent Salti chats (WPBox ignores the time argument). */
+export async function fetchWPBoxConversations(): Promise<
+	WPBoxContact[] | null
+> {
+	const rows = await wpboxRead("getConversations/none", {});
+	return rows as WPBoxContact[] | null;
+}
+
+/** The last 100 messages of one Salti chat, newest first. */
+export async function fetchWPBoxMessages(
+	contactId: number | string,
+): Promise<WPBoxMessage[] | null> {
+	const rows = await wpboxRead("getMessages", { contact_id: contactId });
+	return rows as WPBoxMessage[] | null;
 }

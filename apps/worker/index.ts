@@ -11,6 +11,7 @@ import {
 	createLocationRequestWorker,
 	createMarketingSendWorker,
 	createOrgSetupWorker,
+	createSaltiInboundWorker,
 	createScheduledWorker,
 	createTaskReminderWorker,
 	createTelegramLocationWorker,
@@ -72,6 +73,7 @@ async function main() {
 			notifyBadgeForOrganization(organizationId);
 		},
 	});
+	const saltiInboundWorker = createSaltiInboundWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -106,6 +108,7 @@ async function main() {
 			"marketing-send",
 			"whatsapp-receipt",
 			"whatsapp-template",
+			"salti-inbound",
 		],
 	});
 
@@ -132,6 +135,7 @@ async function main() {
 			marketingSendWorker.close(),
 			whatsAppReceiptWorker.close(),
 			whatsAppTemplateWorker.close(),
+			saltiInboundWorker.close(),
 		]);
 
 		healthServer.close();

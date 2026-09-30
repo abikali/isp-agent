@@ -29,6 +29,8 @@ export const listAllConversations = protectedProcedure
 			pinned: z.boolean().optional(),
 			/** Only conversations with a nudge queued. */
 			followUpQueued: z.boolean().optional(),
+			/** Only conversations linked to this customer. */
+			customerId: z.string().optional(),
 			sortBy: z
 				.enum([
 					"lastMessageAt",
@@ -120,6 +122,10 @@ export const listAllConversations = protectedProcedure
 
 		if (input.followUpQueued) {
 			where["followUpDueAt"] = { not: null };
+		}
+
+		if (input.customerId) {
+			where["verifiedCustomerId"] = input.customerId;
 		}
 
 		const conversations = await db.aiConversation.findMany({

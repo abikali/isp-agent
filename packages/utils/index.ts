@@ -6,4 +6,5 @@ export * from "./lib/geo";
 export * from "./lib/phone";
 export * from "./lib/security";
 export * from "./lib/task-message";
+export * from "./lib/task-notes";
 export * from "./lib/telegram-format";

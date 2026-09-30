@@ -1,63 +1,69 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockDb, mockRedis, mockAi, mockTeammateWait } = vi.hoisted(() => ({
-	mockTeammateWait: {
-		clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
-		markAwaitingHuman: vi.fn().mockResolvedValue(undefined),
-		handleTeammateWait: vi.fn().mockResolvedValue({ success: true }),
-	},
-	mockDb: {
-		aiConversation: {
-			findUnique: vi.fn(),
-			update: vi.fn().mockResolvedValue({}),
+const { mockDb, mockRedis, mockAi, mockTeammateWait, mockFollowUps } =
+	vi.hoisted(() => ({
+		mockTeammateWait: {
+			clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+			markAwaitingHuman: vi.fn().mockResolvedValue(undefined),
+			handleTeammateWait: vi.fn().mockResolvedValue({ success: true }),
 		},
-		aiMessage: { create: vi.fn().mockResolvedValue({}) },
-	},
-	mockRedis: {
-		set: vi.fn().mockResolvedValue("OK"),
-		get: vi.fn(),
-		expire: vi.fn(),
-		eval: vi.fn().mockResolvedValue(1),
-	},
-	mockAi: {
-		assistantMessageToParts: vi.fn().mockReturnValue([]),
-		buildAgentMessages: vi.fn().mockReturnValue([]),
-		buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: false }),
-		computeBotFingerprint: vi.fn().mockReturnValue("fp"),
-		decryptToken: vi.fn().mockReturnValue("token"),
-		resolveAgentCredentials: vi
-			.fn()
-			.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
-		executeEscalationGuard: vi.fn().mockResolvedValue(null),
-		extractToolPromptOverrides: vi.fn().mockReturnValue({}),
-		fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
-		formatAwaitingTeammateNote: vi
-			.fn()
-			.mockImplementation(
-				(m: number) => `[Context Notice: waiting ${m}]`,
-			),
-		generateAgentResponse: vi.fn().mockResolvedValue({
-			text: "AI response",
-			toolResults: null,
-		}),
-		isHumanTakeoverActive: vi.fn().mockReturnValue(false),
-		loadHistoryRows: vi.fn().mockResolvedValue([]),
-		loadVerifiedCustomerSummary: vi.fn().mockResolvedValue(undefined),
-		maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
-		modelMessagesToRoleContent: vi.fn().mockReturnValue([]),
-		resolveAgentTools: vi
-			.fn()
-			.mockResolvedValue({ tools: {}, agentToolConfigs: [] }),
-		resolveMaintenanceState: vi
-			.fn()
-			.mockReturnValue({ active: false, message: null }),
-		sendTextMessage: vi
-			.fn()
-			.mockResolvedValue({ success: true, messageId: "wa-1" }),
-		sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
-		shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
-	},
-}));
+		mockFollowUps: {
+			settleCheckBackReplies: vi.fn().mockResolvedValue(undefined),
+			loadOutreachContext: vi.fn().mockResolvedValue(undefined),
+			sendVoiceReply: vi.fn().mockResolvedValue(false),
+		},
+		mockDb: {
+			aiConversation: {
+				findUnique: vi.fn(),
+				update: vi.fn().mockResolvedValue({}),
+			},
+			aiMessage: { create: vi.fn().mockResolvedValue({ id: "msg-1" }) },
+		},
+		mockRedis: {
+			set: vi.fn().mockResolvedValue("OK"),
+			get: vi.fn(),
+			expire: vi.fn(),
+			eval: vi.fn().mockResolvedValue(1),
+		},
+		mockAi: {
+			assistantMessageToParts: vi.fn().mockReturnValue([]),
+			buildAgentMessages: vi.fn().mockReturnValue([]),
+			buildAgentTelemetry: vi.fn().mockReturnValue({ isEnabled: false }),
+			computeBotFingerprint: vi.fn().mockReturnValue("fp"),
+			decryptToken: vi.fn().mockReturnValue("token"),
+			resolveAgentCredentials: vi
+				.fn()
+				.mockReturnValue({ provider: "openrouter", apiKey: "k" }),
+			executeEscalationGuard: vi.fn().mockResolvedValue(null),
+			extractToolPromptOverrides: vi.fn().mockReturnValue({}),
+			fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
+			formatAwaitingTeammateNote: vi
+				.fn()
+				.mockImplementation(
+					(m: number) => `[Context Notice: waiting ${m}]`,
+				),
+			generateAgentResponse: vi.fn().mockResolvedValue({
+				text: "AI response",
+				toolResults: null,
+			}),
+			isHumanTakeoverActive: vi.fn().mockReturnValue(false),
+			loadHistoryRows: vi.fn().mockResolvedValue([]),
+			loadVerifiedCustomerSummary: vi.fn().mockResolvedValue(undefined),
+			maybeEscalateUnknownContact: vi.fn().mockResolvedValue(null),
+			modelMessagesToRoleContent: vi.fn().mockReturnValue([]),
+			resolveAgentTools: vi
+				.fn()
+				.mockResolvedValue({ tools: {}, agentToolConfigs: [] }),
+			resolveMaintenanceState: vi
+				.fn()
+				.mockReturnValue({ active: false, message: null }),
+			sendTextMessage: vi
+				.fn()
+				.mockResolvedValue({ success: true, messageId: "wa-1" }),
+			sendTypingIndicator: vi.fn().mockResolvedValue(undefined),
+			shouldDeferToTeammate: vi.fn().mockResolvedValue(false),
+		},
+	}));
 
 let capturedProcessor:
 	| ((job: Record<string, unknown>) => Promise<unknown>)
@@ -86,6 +92,15 @@ vi.mock("../../connection", () => ({
 }));
 vi.mock("../../jobs/ai-followup.jobs", () => ({
 	scheduleFollowUp: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../lib/bot-follow-ups", () => ({
+	settleCheckBackReplies: mockFollowUps.settleCheckBackReplies,
+}));
+vi.mock("../../lib/outreach", () => ({
+	loadOutreachContext: mockFollowUps.loadOutreachContext,
+}));
+vi.mock("../../lib/voice-reply", () => ({
+	sendVoiceReply: mockFollowUps.sendVoiceReply,
 }));
 vi.mock("../../queues/ai-chat.queue", () => ({
 	AI_CHAT_QUEUE_NAME: "ai-chat",
@@ -194,6 +209,23 @@ describe("AI chat retry worker - teammate reply gate", () => {
 			error: "Human takeover active",
 		});
 		expect(mockAi.shouldDeferToTeammate).not.toHaveBeenCalled();
+	});
+
+	it("settles check-back answers after the reply", async () => {
+		await processor(job);
+
+		expect(mockFollowUps.settleCheckBackReplies).toHaveBeenCalledWith({
+			conversationId: "conv-1",
+			credentials: { provider: "openrouter", apiKey: "k" },
+			botReply: "AI response",
+			escalatedThisTurn: false,
+		});
+		expect(mockFollowUps.sendVoiceReply).toHaveBeenCalledWith(
+			expect.objectContaining({
+				assistantMessageId: "msg-1",
+				triggeredByVoice: false,
+			}),
+		);
 	});
 });
 

@@ -37,6 +37,28 @@ export function buildFollowUpInstruction(
 }
 
 /**
+ * The instruction turn for the check-back after an escalation (#13): a
+ * separate, later question than the silence nudge — "did the team reach you,
+ * is it solved?" — which the silence nudge deliberately never asks.
+ */
+export function buildPostEscalationInstruction(
+	hours: number,
+	taskTitle: string,
+	teamRepliedInChat: boolean,
+): string {
+	const title = taskTitle.replace(/^AI Escalation:\s*/, "").slice(0, 200);
+	return (
+		`[Check-back: ${hours} hours ago you forwarded this customer's issue to the team ("${title}"). ` +
+		(teamRepliedInChat
+			? "A teammate has written in this chat since. "
+			: "Nothing has been written in this chat since. ") +
+		"Write ONE short message in the customer's language asking whether the team reached them and whether the problem is solved now. " +
+		"No troubleshooting, no promises, no greeting, no apology. " +
+		`Reply ${NO_FOLLOW_UP} only if the chat already shows the problem is solved or the customer asked not to be messaged.]`
+	);
+}
+
+/**
  * The model declined. Models wrap the token ("NO_FOLLOW_UP.", "`NO_FOLLOW_UP`",
  * "*NO_FOLLOW_UP*") or add a sentence around it; any of those must stay
  * silent instead of reaching the customer.
