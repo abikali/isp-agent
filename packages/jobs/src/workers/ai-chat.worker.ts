@@ -423,7 +423,9 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 						chatId,
 						conversationId,
 						assistantMessageId: assistantRow.id,
-						triggeredByVoice: lastUser?.attachmentType === "audio",
+						triggeredByVoice:
+							lastUser?.attachmentType === "voice" ||
+							lastUser?.attachmentType === "audio",
 						text: result.text,
 					});
 				}

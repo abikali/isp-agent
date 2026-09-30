@@ -70,7 +70,7 @@ export async function sendVoiceReply(input: {
 			await db.aiMessage.update({
 				where: { id: input.assistantMessageId },
 				data: {
-					attachmentType: "audio",
+					attachmentType: "voice",
 					attachmentUrl: path,
 					attachmentMimeType: speech.mime,
 					attachmentSize: speech.bytes.length,

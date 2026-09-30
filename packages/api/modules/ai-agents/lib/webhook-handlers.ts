@@ -1311,7 +1311,8 @@ async function handleMessages(
 									assistantMessageId: assistantRow.id,
 									triggeredByVoice:
 										isFirstIteration &&
-										msg.mediaType === "audio",
+										(msg.mediaType === "voice" ||
+											msg.mediaType === "audio"),
 									text: result.text,
 								});
 							}
