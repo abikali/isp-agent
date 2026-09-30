@@ -1,9 +1,11 @@
 "use client";
 
+import { useActiveOrganization } from "@saas/organizations/client";
 import { formatDateTime } from "@shared/lib/format";
 import { disabledQuery } from "@shared/lib/organization";
-import { orpc } from "@shared/lib/orpc";
+import { orpc, type orpcClient } from "@shared/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
 import {
@@ -78,8 +80,13 @@ const SECTIONS: Array<{ title: string; keys: string[] }> = [
 	},
 ];
 
+type OnuStatusResult = Awaited<
+	ReturnType<typeof orpcClient.customers.onuStatus>
+>;
+
 const ONLINE_KEYS = new Set([
 	"online",
+	"onuOnline",
 	"active",
 	"stationOnline",
 	"accessPointOnline",
@@ -161,6 +168,74 @@ function Section({
 	);
 }
 
+function OnuSection({
+	isLoading,
+	data,
+	failed,
+}: {
+	isLoading: boolean;
+	data: OnuStatusResult | undefined;
+	failed: boolean;
+}) {
+	if (isLoading) {
+		return <Skeleton className="h-28 w-full" />;
+	}
+	if (data && !data.applicable) {
+		return null;
+	}
+	if (failed || !data || data.result === "error") {
+		return (
+			<Section
+				title="ONU"
+				rows={[["status", data?.error ?? "ONU status unavailable"]]}
+			/>
+		);
+	}
+	const where = data.olt
+		? `${data.olt}${data.port ? ` PON${data.port.split("/")[1] ?? ""}` : ""}`
+		: null;
+	if (data.result === "not_found" || !data.onu) {
+		const hidden = data.offlineUnidentified ?? 0;
+		return (
+			<Section
+				title="ONU"
+				rows={[
+					[
+						"status",
+						`Not found${where ? ` on ${where}` : ""}${
+							hidden > 0
+								? ` (${hidden} offline ONU${hidden === 1 ? "" : "s"} can't be identified)`
+								: ""
+						}`,
+					],
+				]}
+			/>
+		);
+	}
+	const { onu } = data;
+	const optical = onu.opticalInfo ?? {};
+	const port = onu.portInfo ?? {};
+	return (
+		<Section
+			title="ONU"
+			rows={[
+				["onuOnline", /online/i.test(onu.status)],
+				["oltPon", where],
+				["lastOffline", onu.lastDeregTime],
+				["offlineReason", onu.lastDeregReason],
+				[
+					"distance",
+					onu.distanceMeters != null
+						? `${onu.distanceMeters} m`
+						: null,
+				],
+				["rxPower", optical["receivePower"] ?? null],
+				["linkStatus", port["linkStatus"] ?? null],
+			]}
+		/>
+	);
+}
+
 export function DiagnoseSheet({
 	organizationId,
 	customerId,
@@ -185,13 +260,23 @@ export function DiagnoseSheet({
 				}
 			: disabledQuery(["customers", "diagnose", customerId]),
 	);
+	const isFiber = query.data?.connectionType === "fiber";
+	const onuQuery = useQuery(
+		open && isFiber
+			? {
+					...orpc.customers.onuStatus.queryOptions({
+						input: { organizationId, customerId },
+					}),
+					staleTime: 60_000,
+					retry: false,
+				}
+			: disabledQuery(["customers", "onuStatus", customerId]),
+	);
+	const { activeOrganization } = useActiveOrganization();
 	const report = (query.data?.report ?? {}) as Record<string, unknown>;
-	const peers = Array.isArray(report["accessPointUsers"])
-		? (report["accessPointUsers"] as Array<{
-				userName?: string;
-				online?: unknown;
-			}>)
-		: [];
+	const peers = query.data?.peers ?? [];
+	const onlineCount = peers.filter((p) => p.online).length;
+	const expiredCount = peers.filter((p) => !p.online && p.expired).length;
 	const sessions = Array.isArray(report["userSessions"])
 		? (report["userSessions"] as Array<Record<string, unknown>>)
 		: [];
@@ -254,27 +339,77 @@ export function DiagnoseSheet({
 										.map((k) => [k, report[k]])}
 								/>
 							))}
+							{isFiber && (
+								<OnuSection
+									isLoading={onuQuery.isLoading}
+									data={onuQuery.data}
+									failed={onuQuery.isError}
+								/>
+							)}
 							{peers.length > 0 && (
 								<div>
 									<h4 className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-										Peers on this access point
+										{query.data.peerSource === "interface"
+											? "Users on the same box / interface"
+											: "Peers on this access point"}
+										<span className="ml-2 normal-case tracking-normal">
+											🟢 {onlineCount} · ⏳ {expiredCount}{" "}
+											· 🔴{" "}
+											{peers.length -
+												onlineCount -
+												expiredCount}
+										</span>
 									</h4>
 									<div className="flex flex-wrap gap-1.5">
-										{peers.map((peer) => (
-											<Badge
-												key={peer.userName}
-												variant={
-													peer.online === true ||
-													peer.online === "true"
-														? "success"
-														: "outline"
-												}
-											>
-												{peer.userName}
-											</Badge>
-										))}
+										{peers.map((peer) => {
+											const badge = (
+												<Badge
+													key={peer.userName}
+													variant={
+														peer.online
+															? "success"
+															: peer.expired
+																? "warning"
+																: "outline"
+													}
+													title={
+														peer.name ?? undefined
+													}
+												>
+													{peer.userName}
+													{!peer.online &&
+													peer.expired
+														? " · expired"
+														: ""}
+												</Badge>
+											);
+											return peer.customerId &&
+												activeOrganization ? (
+												<Link
+													key={peer.userName}
+													to="/app/$organizationSlug/customers/$customerId"
+													params={{
+														organizationSlug:
+															activeOrganization.slug,
+														customerId:
+															peer.customerId,
+													}}
+												>
+													{badge}
+												</Link>
+											) : (
+												<span key={peer.userName}>
+													{badge}
+												</span>
+											);
+										})}
 									</div>
 								</div>
+							)}
+							{query.data.peersError && (
+								<p className="text-xs text-muted-foreground">
+									Could not load the users on this connection.
+								</p>
 							)}
 							{sessions.length > 0 && (
 								<Section

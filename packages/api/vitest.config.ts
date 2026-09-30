@@ -94,6 +94,27 @@ export default defineConfig({
 				replacement: resolve(__dirname, "../audit/index.ts"),
 			},
 			{
+				find: "@repo/ai/isp-search-customer",
+				replacement: resolve(
+					__dirname,
+					"../ai/src/tools/isp-search-customer.ts",
+				),
+			},
+			{
+				find: "@repo/ai/isp-api-client",
+				replacement: resolve(
+					__dirname,
+					"../ai/src/tools/lib/isp-api-client.ts",
+				),
+			},
+			{
+				find: "@repo/ai/onu-client",
+				replacement: resolve(
+					__dirname,
+					"../ai/src/tools/lib/onu-client.ts",
+				),
+			},
+			{
 				find: "@repo/ai",
 				replacement: resolve(__dirname, "../ai/index.ts"),
 			},

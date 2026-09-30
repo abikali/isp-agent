@@ -115,6 +115,7 @@ export const AUDIT_ACTIONS = {
 		pinUpdated: "customer.pin_updated",
 		pinReset: "customer.pin_reset",
 		pinGenerated: "customer.pin_generated",
+		macReset: "customer.mac_reset",
 	},
 
 	servicePlan: {

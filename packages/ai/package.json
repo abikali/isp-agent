@@ -14,6 +14,10 @@
 		"./isp-api-client": {
 			"types": "./src/tools/lib/isp-api-client.ts",
 			"default": "./src/tools/lib/isp-api-client.ts"
+		},
+		"./onu-client": {
+			"types": "./src/tools/lib/onu-client.ts",
+			"default": "./src/tools/lib/onu-client.ts"
 		}
 	},
 	"scripts": {

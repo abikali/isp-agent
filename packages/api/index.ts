@@ -11,9 +11,11 @@ import {
 	telegramWebhookHandler,
 	whatsappWebhookHandler,
 } from "./modules/ai-agents/lib/webhook-handlers";
+import { customerResetMacHandler } from "./modules/customers/lib/reset-mac-handler";
 import { customerSearchHandler } from "./modules/customers/lib/search-handler";
 import { collectorBotWebhookHandler } from "./modules/employees/lib/collector-bot-handler";
 import { taskIngestHandler } from "./modules/tasks/lib/ingest-handler";
+import { openTasksHandler } from "./modules/tasks/lib/open-tasks-handler";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export const app = new Hono()
@@ -53,9 +55,18 @@ export const app = new Hono()
 	.post("/task-ingest/:organizationSlug", (c) =>
 		taskIngestHandler(c.req.raw, c.req.param("organizationSlug")),
 	)
+	// Open field tasks for a customer and its box, the bot's pre-flight
+	// before it creates a task (API-key authenticated)
+	.get("/task-ingest/:organizationSlug/open-tasks", (c) =>
+		openTasksHandler(c.req.raw, c.req.param("organizationSlug")),
+	)
 	// Customer directory search for the Telegram ISP bot (API-key authenticated)
 	.get("/customer-search/:organizationSlug", (c) =>
 		customerSearchHandler(c.req.raw, c.req.param("organizationSlug")),
+	)
+	// Admin "Reset MAC" from the Telegram ISP bot (API-key authenticated)
+	.post("/customer-reset-mac/:organizationSlug", (c) =>
+		customerResetMacHandler(c.req.raw, c.req.param("organizationSlug")),
 	)
 	// Collector/worker bot inbound webhook (powers the "Connect Telegram" flow)
 	.post("/webhooks/collector-bot", (c) =>

@@ -33,6 +33,7 @@ const permissionOptions: { value: ApiKeyPermission; label: string }[] = [
 	{ value: "write:organization", label: "Write Organization" },
 	{ value: "read:customers", label: "Read Customers" },
 	{ value: "write:tasks", label: "Write Tasks" },
+	{ value: "write:customer-mac", label: "Reset Customer MAC" },
 ];
 
 export function CreateApiKeyForm() {
