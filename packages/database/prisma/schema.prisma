@@ -396,6 +396,10 @@ model Organization {
   notifyWorkerOnTaskAssigned  Boolean @default(true) @map("notify_worker_on_task_assigned")
   notifyWorkerOnTaskUpdated   Boolean @default(true) @map("notify_worker_on_task_updated")
   notifyWorkerOnTaskCancelled Boolean @default(true) @map("notify_worker_on_task_cancelled")
+  // Telegram reminder to the assignees `taskReminderLeadMinutes` before a task
+  // with a due time (see packages/jobs task-reminder).
+  notifyWorkerOnTaskReminder  Boolean @default(true) @map("notify_worker_on_task_reminder")
+  taskReminderLeadMinutes     Int     @default(30) @map("task_reminder_lead_minutes")
 
   @@map("organization")
 }
@@ -1415,6 +1419,8 @@ model Customer {
   // `SELECT DISTINCT groupName`). Without it Postgres seq-scans the whole
   // customer table per dropdown load (~107ms); index-only scan drops it to ~1ms.
   @@index([organizationId, groupName])
+  // Backs the "nearby fiber boxes" lookup (full membership of a PON interface).
+  @@index([organizationId, mikrotikInterface])
   @@map("customer")
 }
 
@@ -1911,6 +1917,12 @@ model Task {
   category              TaskCategory @default(GENERAL)
   source                TaskSource   @default(MANUAL)
   dueDate               DateTime?
+  // false: dueDate is a whole Beirut day (stored at Beirut noon; legacy rows at
+  // UTC midnight) — no reminder, overdue after Beirut end-of-day. true: an
+  // exact instant, reminded before it.
+  dueHasTime            Boolean      @default(false) @map("due_has_time")
+  // Set when the due reminder went out; reset whenever dueDate changes.
+  reminderSentAt        DateTime?    @map("reminder_sent_at")
   completedAt           DateTime?
   notes                 String?      @db.Text
   createdById           String?
@@ -2426,14 +2438,16 @@ model StockItem {
 /// delivery (ADD log) records which one, so "when did we last get cable
 /// from X" is answerable.
 model Supplier {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   name           String
   /// Same shape as Customer.phones: [{ number, primary }]
-  phones         Json     @default("[]")
-  notes          String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  phones         Json      @default("[]")
+  notes          String?   @db.Text
+  // Archived suppliers are hidden from pickers; history keeps the link.
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   items        StockItemSupplier[]
