@@ -235,6 +235,15 @@ export const getDealerFinanceLedger = protectedProcedure
 				isLinked: dealer.externalId !== null,
 				customersCount: dealer._count.customers,
 				lastSyncedAt: dealer.lastSyncedAt,
+				/** Customer payment reminders granted by the operator; null = the dealer has no LibanCom org. */
+				reminders: dealer.activeForOrganization
+					? {
+							organizationName: dealer.activeForOrganization.name,
+							allowed:
+								dealer.activeForOrganization
+									.expiryReminderAllowed,
+						}
+					: null,
 				contact: {
 					/** iRadius Mobile, else Phone — as typed there. */
 					phone: dealer.phone,

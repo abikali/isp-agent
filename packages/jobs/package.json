@@ -35,6 +35,7 @@
 		"@repo/storage": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@repo/mail": "workspace:*",
+		"@repo/sms": "workspace:*",
 		"bullmq": "^5.65.1",
 		"ioredis": "^5.8.2"
 	},

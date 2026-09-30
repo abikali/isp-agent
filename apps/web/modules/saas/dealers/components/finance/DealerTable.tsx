@@ -15,6 +15,7 @@ import { cn } from "@ui/lib";
 import {
 	ArrowRightIcon,
 	BatteryLowIcon,
+	BellRingIcon,
 	HandshakeIcon,
 	PhoneOffIcon,
 	PlusIcon,
@@ -202,6 +203,22 @@ export function DealerTable({
 														Inactive
 													</Badge>
 												)}
+												{isOperator &&
+													dealer.reminders
+														?.allowed && (
+														<span
+															className="shrink-0 text-info"
+															title="Customer payment reminders enabled"
+														>
+															<BellRingIcon
+																className="size-3.5"
+																aria-hidden
+															/>
+															<span className="sr-only">
+																Reminders on
+															</span>
+														</span>
+													)}
 												{isOperator &&
 													!dealer.whatsappPhone && (
 														<span

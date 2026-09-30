@@ -193,6 +193,15 @@ export const getDealerFinanceOverview = protectedProcedure
 				isDeleted: dealer.deletedAt !== null,
 				isLinked: dealer.externalId !== null,
 				customersCount: dealer._count.customers,
+				/** Customer payment reminders granted by the operator; null = the dealer has no LibanCom org. */
+				reminders: dealer.activeForOrganization
+					? {
+							organizationName: dealer.activeForOrganization.name,
+							allowed:
+								dealer.activeForOrganization
+									.expiryReminderAllowed,
+						}
+					: null,
 				/** Where money confirmations go (E.164); null = they cannot be sent. */
 				whatsappPhone:
 					whatsapp.status === "ok" ? `+${whatsapp.phone}` : null,

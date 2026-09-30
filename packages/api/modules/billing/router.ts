@@ -14,6 +14,7 @@ import { getInvoiceDetail } from "./procedures/get-invoice-detail";
 import { listAllInvoices } from "./procedures/list-all-invoices";
 import { listCollections } from "./procedures/list-collections";
 import { listCollectors } from "./procedures/list-collectors";
+import { listCustomerNotifications } from "./procedures/list-customer-notifications";
 import { listCustomerGroups } from "./procedures/list-groups";
 import { listMonths } from "./procedures/list-months";
 import { listPayments } from "./procedures/list-payments";
@@ -39,6 +40,7 @@ import { resetMonth } from "./procedures/reset-month";
 import { reviewPayment } from "./procedures/review-payment";
 import { reviewPayments } from "./procedures/review-payments";
 import { saveLocation } from "./procedures/save-location";
+import { sendStopNotice } from "./procedures/send-stop-notice";
 import {
 	declineStoppedPayment,
 	getIRadiusBridgeStatus,
@@ -110,6 +112,10 @@ export const billingRouter = {
 		pending: listPendingStoppedPayments,
 		decline: declineStoppedPayment,
 		bridgeStatus: getIRadiusBridgeStatus,
+		notify: sendStopNotice,
+	},
+	notifications: {
+		list: listCustomerNotifications,
 	},
 	collectors: {
 		list: listCollectors,

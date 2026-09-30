@@ -149,6 +149,7 @@ export function usePaymentsQuery(filters: {
 		pageSize: query.data?.pageSize ?? 25,
 		totalPages: query.data?.totalPages ?? 0,
 		referralRewardMessaging: query.data?.referralRewardMessaging ?? false,
+		customerNotifications: query.data?.customerNotifications ?? false,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		error: query.error,

@@ -1,5 +1,7 @@
+import { ORPCError } from "@orpc/server";
 import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { parsePhone } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
@@ -34,6 +36,10 @@ export const updateNotificationSettings = protectedProcedure
 				.min(5)
 				.max(240)
 				.optional(),
+			expiryReminderEnabled: z.boolean().optional(),
+			expiryReminderSms: z.boolean().optional(),
+			expiryReminderWhatsapp: z.boolean().optional(),
+			reminderFallbackPhone: z.string().max(30).nullable().optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -84,6 +90,30 @@ export const updateNotificationSettings = protectedProcedure
 			data["taskReminderLeadMinutes"] = input.taskReminderLeadMinutes;
 		}
 
+		for (const key of [
+			"expiryReminderEnabled",
+			"expiryReminderSms",
+			"expiryReminderWhatsapp",
+		] as const) {
+			if (input[key] !== undefined) {
+				data[key] = input[key];
+			}
+		}
+		if (input.reminderFallbackPhone !== undefined) {
+			const raw = input.reminderFallbackPhone?.trim();
+			if (raw) {
+				const parsed = parsePhone(raw);
+				if (!parsed) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `"${raw}" is not a valid phone number.`,
+					});
+				}
+				data["reminderFallbackPhone"] = parsed.e164;
+			} else {
+				data["reminderFallbackPhone"] = null;
+			}
+		}
+
 		const updated = await db.organization.update({
 			where: { id: input.organizationId },
 			data,
@@ -99,6 +129,10 @@ export const updateNotificationSettings = protectedProcedure
 				notifyWorkerOnTaskCancelled: true,
 				notifyWorkerOnTaskReminder: true,
 				taskReminderLeadMinutes: true,
+				expiryReminderEnabled: true,
+				expiryReminderSms: true,
+				expiryReminderWhatsapp: true,
+				reminderFallbackPhone: true,
 			},
 		});
 

@@ -15,6 +15,7 @@ export {
 	TEAMMATE_BOT_TAKEOVER_AFTER_MS,
 } from "./src/jobs/ai-teammate-wait.jobs";
 export { queueBillingSync } from "./src/jobs/billing-sync.jobs";
+export { queueCustomerNotifications } from "./src/jobs/customer-notify.jobs";
 export {
 	queueEmail,
 	queueSimpleEmail,
@@ -62,6 +63,16 @@ export {
 } from "./src/lib/bot-follow-ups";
 export { summarizeConversation } from "./src/lib/conversation-summaries";
 export {
+	buildNotificationRows,
+	type CustomerNotificationChannel,
+	type CustomerNotificationKind,
+	customerNotificationsAllowed,
+	formatLocalPhone,
+	orgContactCandidates,
+	pickContactPhone,
+	WHATSAPP_TEMPLATES,
+} from "./src/lib/customer-notifications";
+export {
 	type BridgeProbeStatus,
 	probeIRadiusBridge,
 } from "./src/lib/iradius-bridge-probe";
@@ -105,6 +116,11 @@ export {
 	closeBillingSyncQueue,
 	getBillingSyncQueue,
 } from "./src/queues/billing-sync.queue";
+export {
+	CUSTOMER_NOTIFY_QUEUE_NAME,
+	closeCustomerNotifyQueue,
+	getCustomerNotifyQueue,
+} from "./src/queues/customer-notify.queue";
 export {
 	closeEmailQueue,
 	EMAIL_QUEUE_NAME,
@@ -194,6 +210,8 @@ export type {
 	AiFollowUpJobResult,
 	BillingSyncJobData,
 	BillingSyncJobResult,
+	CustomerNotifyJobData,
+	CustomerNotifyJobResult,
 	DealerNoticeStatus,
 	DealerWhatsAppNotice,
 	EmailJobData,
@@ -235,6 +253,7 @@ export type {
 export { createAiChatWorker } from "./src/workers/ai-chat.worker";
 export { createAiFollowUpWorker } from "./src/workers/ai-followup.worker";
 export { createBillingSyncWorker } from "./src/workers/billing-sync.worker";
+export { createCustomerNotifyWorker } from "./src/workers/customer-notify.worker";
 export { createEmailWorker } from "./src/workers/email.worker";
 export { createIntegrationSyncWorker } from "./src/workers/integration-sync.worker";
 export { createIRadiusPushWorker } from "./src/workers/iradius-push.worker";
@@ -283,6 +302,7 @@ import { closeConnection } from "./src/connection";
 import { closeAiChatQueue } from "./src/queues/ai-chat.queue";
 import { closeAiFollowUpQueue } from "./src/queues/ai-followup.queue";
 import { closeBillingSyncQueue } from "./src/queues/billing-sync.queue";
+import { closeCustomerNotifyQueue } from "./src/queues/customer-notify.queue";
 import { closeEmailQueue } from "./src/queues/email.queue";
 import { closeIntegrationSyncQueue } from "./src/queues/integration-sync.queue";
 import { closeIRadiusPushQueue } from "./src/queues/iradius-push.queue";
@@ -308,6 +328,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeAiChatQueue(),
 		closeAiFollowUpQueue(),
 		closeBillingSyncQueue(),
+		closeCustomerNotifyQueue(),
 		closeEmailQueue(),
 		closeIRadiusPushQueue(),
 		closeIRadiusSyncQueue(),

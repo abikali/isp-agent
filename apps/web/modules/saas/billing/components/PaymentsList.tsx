@@ -160,6 +160,10 @@ import {
 	type RepricePaymentTarget,
 } from "./RepricePaymentDialog";
 import { StopApprovalDialog } from "./StopApprovalDialog";
+import {
+	StopNoticeButton,
+	type StopNoticeChannelStatus,
+} from "./StopNoticeButton";
 
 const PAGE_SIZE = 25;
 
@@ -290,6 +294,9 @@ interface PaymentRow {
 	activityLog: unknown;
 	externalBillingId: number | null;
 	reviewedAt: string | Date | null;
+	/** Last "Notify customer" on a pending stop, and its latest per-channel rows. */
+	stopNoticeSentAt: string | Date | null;
+	notifications: StopNoticeChannelStatus[];
 	/**
 	 * The new customer the payer brought in — the payer is the referrer and
 	 * the free month is their reward.
@@ -834,19 +841,25 @@ export function PaymentsList() {
 	const { data: parentStats } = usePaymentStatsQuery(activeMonthId);
 	const unreviewedCount = parentStats?.unreviewedCount ?? 0;
 
-	const { payments, total, isLoading, isFetching, referralRewardMessaging } =
-		usePaymentsQuery({
-			search: debouncedSearch || undefined,
-			...queryTypeFilters,
-			noteCategory: noteCategoryFilter,
-			collectorId: collectorFilter,
-			groupName: groupFilter,
-			billingMonthId: activeMonthId,
-			page,
-			pageSize: PAGE_SIZE,
-			sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
-			sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
-		});
+	const {
+		payments,
+		total,
+		isLoading,
+		isFetching,
+		referralRewardMessaging,
+		customerNotifications,
+	} = usePaymentsQuery({
+		search: debouncedSearch || undefined,
+		...queryTypeFilters,
+		noteCategory: noteCategoryFilter,
+		collectorId: collectorFilter,
+		groupName: groupFilter,
+		billingMonthId: activeMonthId,
+		page,
+		pageSize: PAGE_SIZE,
+		sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
+		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
+	});
 
 	// Live online/offline for the page's customers and the new customers
 	// their referral free months point at — the row data is a snapshot.
@@ -1493,6 +1506,19 @@ export function PaymentsList() {
 								</Button>
 							)}
 
+							{organizationId &&
+								isPendingStopped &&
+								customerNotifications && (
+									<StopNoticeButton
+										organizationId={organizationId}
+										paymentId={payment.id}
+										stopNoticeSentAt={
+											payment.stopNoticeSentAt
+										}
+										notifications={payment.notifications}
+									/>
+								)}
+
 							{/* Diagnose — check the line before approving */}
 							{organizationId &&
 								needsReview &&
@@ -2084,6 +2110,7 @@ export function PaymentsList() {
 			resendReferralReward,
 			referralRewardMessaging,
 			pushToIRadius,
+			customerNotifications,
 		],
 	);
 
@@ -2596,6 +2623,11 @@ export function PaymentsList() {
 						expiresAt: stopApproval.customer.expiresAt,
 						linked: !!stopApproval.customer.externalId,
 					}}
+					notNotified={
+						!!customerNotifications &&
+						stopApproval.reviewedAt === null &&
+						!stopApproval.stopNoticeSentAt
+					}
 					onOpenChange={(o) => !o && setStopApproval(null)}
 					onIradiusUserMissing={() => {
 						setIradiusMissingPayment(stopApproval);

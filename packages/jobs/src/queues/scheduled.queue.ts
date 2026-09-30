@@ -189,6 +189,26 @@ export async function setupScheduledJobs(): Promise<void> {
 		{ name: "outreach-reconcile", data: { type: "outreach-reconcile" } },
 	);
 
+	// Customer payment reminders: invoices expiring tomorrow and still unpaid
+	// get a WhatsApp + SMS at 10:00 Beirut (legacy iRadius sent at 09:05).
+	// Only orgs with reminders allowed + enabled send anything.
+	await queue.upsertJobScheduler(
+		"expiry-reminders",
+		{ pattern: "0 10 * * *", tz: "Asia/Beirut" },
+		{ name: "expiry-reminders", data: { type: "expiry-reminders" } },
+	);
+
+	// An hour later (retries are done): alert the org's admin Telegram chat
+	// when most of today's reminders failed (SMS credit out, template rejected).
+	await queue.upsertJobScheduler(
+		"expiry-reminders-report",
+		{ pattern: "0 11 * * *", tz: "Asia/Beirut" },
+		{
+			name: "expiry-reminders-report",
+			data: { type: "expiry-reminders-report" },
+		},
+	);
+
 	// Watcher cleanup - delete old execution records daily at 2:30 AM
 	await queue.upsertJobScheduler(
 		"watcher-cleanup",

@@ -15,6 +15,7 @@ import { Loader2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useIRadiusBridgeStatus, useReviewPayment } from "../hooks/use-billing";
+import { useSendStopNotice } from "../hooks/use-customer-notifications";
 
 type StopAction = "inactive" | "delete";
 
@@ -30,11 +31,14 @@ function errorCode(error: unknown): unknown {
  * Approving a stopped payment: "Inactive only" (the default) or "Inactive +
  * delete from iRadius and CP". Delete is permanent in iRadius, so it is
  * disabled while the iRadius bridge is missing, and a "still owes months"
- * refusal can be overridden explicitly.
+ * refusal can be overridden explicitly. When the customer was never sent the
+ * stop notice, it reminds the admin first (Notify / Approve anyway) — a
+ * reminder, not a block.
  */
 export function StopApprovalDialog({
 	organizationId,
 	payment,
+	notNotified = false,
 	onOpenChange,
 	onIradiusUserMissing,
 }: {
@@ -45,6 +49,8 @@ export function StopApprovalDialog({
 		expiresAt: string | Date | null;
 		linked: boolean;
 	};
+	/** Pending stop whose customer has not been sent the stop notice yet. */
+	notNotified?: boolean;
 	onOpenChange: (open: boolean) => void;
 	/** "Inactive only" hit a customer already deleted in iRadius. */
 	onIradiusUserMissing: () => void;
@@ -52,6 +58,7 @@ export function StopApprovalDialog({
 	const [action, setAction] = useState<StopAction>("inactive");
 	const [owedWarning, setOwedWarning] = useState<string | null>(null);
 	const reviewPayment = useReviewPayment();
+	const notify = useSendStopNotice();
 	const bridge = useIRadiusBridgeStatus(payment.linked);
 	const bridgeMissing = payment.linked && bridge.data?.status === "missing";
 
@@ -60,6 +67,19 @@ export function StopApprovalDialog({
 		expiry && expiry.getTime() > Date.now()
 			? Math.floor((expiry.getTime() - Date.now()) / DAY_MS)
 			: 0;
+
+	function sendNotice() {
+		notify.mutate(
+			{ organizationId, paymentId: payment.id },
+			{
+				onSuccess: () => {
+					toast.success("Notification queued");
+					onOpenChange(false);
+				},
+				onError: (error) => toast.error(error.message),
+			},
+		);
+	}
 
 	function submit(ignoreOwedMonths: boolean) {
 		reviewPayment.mutate(
@@ -108,6 +128,32 @@ export function StopApprovalDialog({
 						should it be closed?
 					</DialogDescription>
 				</DialogHeader>
+
+				{notNotified && (
+					<div className="flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+						<p>
+							Not notified yet:{" "}
+							{payment.customerName || "this customer"} has not
+							been sent the stop notice (WhatsApp + SMS with the
+							collector's number). Notify them first and give them
+							a chance to answer?
+						</p>
+						<Button
+							size="sm"
+							variant="outline"
+							className="self-start"
+							disabled={
+								notify.isPending || reviewPayment.isPending
+							}
+							onClick={sendNotice}
+						>
+							{notify.isPending && (
+								<Loader2Icon className="mr-1.5 size-3.5 animate-spin" />
+							)}
+							Notify
+						</Button>
+					</div>
+				)}
 
 				<RadioGroup
 					value={action}
@@ -195,6 +241,7 @@ export function StopApprovalDialog({
 						}
 						disabled={
 							reviewPayment.isPending ||
+							notify.isPending ||
 							(action === "delete" && bridgeMissing)
 						}
 						onClick={() => submit(owedWarning !== null)}
@@ -205,8 +252,12 @@ export function StopApprovalDialog({
 						{action === "delete"
 							? owedWarning
 								? "Delete anyway"
-								: "Deactivate & delete"
-							: "Approve & deactivate"}
+								: notNotified
+									? "Deactivate & delete anyway"
+									: "Deactivate & delete"
+							: notNotified
+								? "Approve anyway"
+								: "Approve & deactivate"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

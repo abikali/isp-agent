@@ -402,6 +402,20 @@ model Organization {
   notifyWorkerOnTaskReminder  Boolean @default(true) @map("notify_worker_on_task_reminder")
   taskReminderLeadMinutes     Int     @default(30) @map("task_reminder_lead_minutes")
 
+  // Customer payment reminders (WhatsApp + SMS) the day before an unpaid
+  // invoice expires, and the manual "notify customer" on pending stops.
+  // Sending costs the operator money (Salti + GlobeSMS), so a dealer org only
+  // gets them when the wholesale operator grants it (`expiryReminderAllowed`,
+  // set from the operator's dealer page). The operator org itself is
+  // implicitly allowed. `expiryReminderEnabled` is the org's own switch.
+  expiryReminderAllowed  Boolean                @default(false) @map("expiry_reminder_allowed")
+  expiryReminderEnabled  Boolean                @default(false) @map("expiry_reminder_enabled")
+  expiryReminderSms      Boolean                @default(true) @map("expiry_reminder_sms")
+  expiryReminderWhatsapp Boolean                @default(true) @map("expiry_reminder_whatsapp")
+  // Office number put in the text when the customer's collector has no phone.
+  reminderFallbackPhone  String?                @map("reminder_fallback_phone")
+  customerNotifications  CustomerNotification[]
+
   @@map("organization")
 }
 
@@ -1422,6 +1436,7 @@ model Customer {
   marketingMessages     MarketingBroadcastRecipient[]
   botFollowUps          BotFollowUp[]
   conversationSummaries AiConversationSummary[]
+  notifications         CustomerNotification[]
 
   @@unique([organizationId, accountNumber])
   @@unique([organizationId, externalId])
@@ -1480,13 +1495,14 @@ model CustomerInvoice {
   voidReason     String?
   createdAt      DateTime  @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  organization  Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer      Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
   // To-many since 2026-09-01: a partial collection leaves the invoice open,
   // and the remainder arrives later as another Payment row on the same
   // invoice. Settlement is derived per (customer, billing month) by summing
   // rows — see packages/api/modules/billing/lib/settlement.ts.
-  payments     Payment[]
+  payments      Payment[]
+  notifications CustomerNotification[]
 
   @@unique([organizationId, customerId, year, month])
   @@index([customerId])
@@ -2163,16 +2179,21 @@ model Payment {
   // Claimed when a referral free month is approved and the referrer's
   // "free month" WhatsApp is queued — at most one message per payment.
   referralRewardNotifiedAt DateTime?
+  // Last "notify customer" on a pending stop (Needs review). Per-channel
+  // outcomes live in CustomerNotification rows (kind "stop_notice").
+  stopNoticeSentAt         DateTime?
+  stopNoticeSentById       String?
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  billingMonth     BillingMonth     @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
-  invoice          CustomerInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  collector        Employee         @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
-  worker           Employee?        @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
-  referredCustomer Customer?        @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer         Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  billingMonth     BillingMonth           @relation(fields: [billingMonthId], references: [id], onDelete: Cascade)
+  invoice          CustomerInvoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  collector        Employee               @relation("PaymentCollector", fields: [collectorId], references: [id], onDelete: Restrict)
+  worker           Employee?              @relation("PaymentWorker", fields: [workerId], references: [id], onDelete: SetNull)
+  referredCustomer Customer?              @relation("PaymentReferrer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
+  notifications    CustomerNotification[]
 
   @@unique([organizationId, externalBillingId])
   @@index([organizationId, billingMonthId])
@@ -2795,6 +2816,54 @@ model MarketingBroadcastRecipient {
 /// Opt-out list: phones that never receive marketing broadcasts. `phone` uses
 /// the same digits-with-country-code shape as recipient rows so audience
 /// materialisation and the send worker can exclude by equality.
+/// One row per (message, channel) sent to a customer: the day-before-expiry
+/// payment reminder and the pending-stop notice. Doubles as the idempotency
+/// claim (unique per invoice + kind + channel) and the delivery log.
+model CustomerNotification {
+  id                String    @id @default(cuid())
+  organizationId    String
+  customerId        String
+  /// Expiry reminders.
+  invoiceId         String?
+  /// Stop notices.
+  paymentId         String?
+  /// "expiry_reminder" | "stop_notice"
+  kind              String
+  /// "whatsapp" | "sms"
+  channel           String
+  /// Digits as sent (961…).
+  phone             String
+  /// Collector / fallback number put in the text.
+  contactPhone      String?
+  /// WhatsApp template name or SMS template key.
+  templateName      String?
+  /// Rendered SMS text, or the WhatsApp params JSON-stringified.
+  body              String?   @db.Text
+  /// queued | sent | failed | skipped
+  status            String    @default("queued")
+  providerMessageId String?
+  error             String?   @db.Text
+  attempts          Int       @default(0)
+  /// Null when sent by the daily cron.
+  sentById          String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice      CustomerInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  payment      Payment?         @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  // One reminder per invoice per channel. NULL invoiceId (stop notices)
+  // never conflicts in Postgres.
+  @@unique([invoiceId, kind, channel])
+  @@index([organizationId, createdAt])
+  @@index([customerId])
+  @@index([paymentId])
+  @@map("customer_notification")
+}
+
 model MarketingSuppression {
   id             String   @id @default(cuid())
   organizationId String

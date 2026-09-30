@@ -7,7 +7,9 @@ vi.mock("@repo/logs", () => ({
 import {
 	quickReplyButtons,
 	sendWhatsAppDealerAccountUpdate,
+	sendWhatsAppExpiryReminder,
 	sendWhatsAppMaintenanceVisit,
+	sendWhatsAppStopNotice,
 	sendWPBoxMessage,
 	sendWPBoxTemplate,
 } from "../wpbox";
@@ -398,5 +400,62 @@ describe("sendWPBoxMessage", () => {
 			logTag: "[Test]",
 		});
 		expect(result).toMatchObject({ ok: false, error: "Outside window" });
+	});
+});
+
+describe("customer payment notifications", () => {
+	beforeEach(() => {
+		vi.stubEnv("WPBOX_TOKEN", "test-token");
+		vi.stubGlobal("fetch", mockFetch);
+		mockFetch.mockReset();
+		mockFetch.mockResolvedValue(jsonResponse({ status: "success" }));
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		vi.unstubAllGlobals();
+	});
+
+	it("sends payment_reminder_tomorrow with the date and contact number", async () => {
+		await sendWhatsAppExpiryReminder({
+			phone: "70111222",
+			expiryLabel: "(1/10/2026)",
+			contactPhone: "76 878 870",
+			notificationId: "n1",
+		});
+
+		expect(sentPayload()).toMatchObject({
+			phone: "96170111222",
+			template_name: "payment_reminder_tomorrow",
+			template_language: "ar",
+			components: [
+				{
+					type: "body",
+					parameters: [
+						{ type: "text", text: "(1/10/2026)" },
+						{ type: "text", text: "76 878 870" },
+					],
+				},
+			],
+		});
+	});
+
+	it("sends stop_request_notice with the collector number", async () => {
+		await sendWhatsAppStopNotice({
+			phone: "70111222",
+			contactPhone: "03 775 126",
+			notificationId: "n2",
+		});
+
+		expect(sentPayload()).toMatchObject({
+			template_name: "stop_request_notice",
+			template_language: "ar",
+			components: [
+				{
+					type: "body",
+					parameters: [{ type: "text", text: "03 775 126" }],
+				},
+			],
+		});
 	});
 });

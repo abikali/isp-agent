@@ -15,6 +15,10 @@
 			"types": "./lib/settlement.ts",
 			"default": "./lib/settlement.ts"
 		},
+		"./billing-filters": {
+			"types": "./lib/billing-filters.ts",
+			"default": "./lib/billing-filters.ts"
+		},
 		"./phones": {
 			"types": "./lib/phones.ts",
 			"default": "./lib/phones.ts"

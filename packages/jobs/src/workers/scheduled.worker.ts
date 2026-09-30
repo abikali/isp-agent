@@ -17,6 +17,10 @@ import {
 	runConversationSummarySweep,
 	sendConversationSummaryDigests,
 } from "../lib/conversation-summaries";
+import {
+	reportExpiryReminderFailures,
+	runExpiryReminders,
+} from "../lib/expiry-reminders";
 import { checkIRadiusBridge } from "../lib/iradius-bridge-probe";
 import { reconcileOutreachReplies } from "../lib/outreach";
 import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
@@ -420,6 +424,14 @@ export function createScheduledWorker(): Worker<
 				case "outreach-reconcile": {
 					const recovered = await reconcileOutreachReplies();
 					return { processedCount: recovered };
+				}
+				case "expiry-reminders": {
+					const queued = await runExpiryReminders();
+					return { processedCount: queued };
+				}
+				case "expiry-reminders-report": {
+					const alerted = await reportExpiryReminderFailures();
+					return { processedCount: alerted };
 				}
 				default:
 					throw new Error(`Unknown scheduled job type: ${type}`);

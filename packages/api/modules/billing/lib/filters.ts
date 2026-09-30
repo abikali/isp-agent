@@ -5,25 +5,11 @@
  * where the field is NULL. These helpers encode the correct OR pattern.
  */
 
-/**
- * Exclude customers whose groupName matches a value (case-insensitive),
- * while keeping customers with NULL groupName.
- */
-export function excludeGroupFilter(groupName: string) {
-	return {
-		OR: [
-			{ groupName: null },
-			{
-				NOT: {
-					groupName: {
-						equals: groupName,
-						mode: "insensitive" as const,
-					},
-				},
-			},
-		],
-	};
-}
+export {
+	BILLABLE_CUSTOMER_STATUSES,
+	excludeGroupFilter,
+	PENDING_STOPPED_PAYMENT,
+} from "@repo/database/billing-filters";
 
 /** Exclude stopped payment records from billing aggregations. */
 export const EXCLUDE_STOPPED = { stoppedAccount: false } as const;
@@ -59,16 +45,6 @@ export const SETTLED_PAYMENT = {
 };
 
 /**
- * A "pending stopped" payment: collector flagged the customer as stopped,
- * admin has not yet approved or declined. While in this state, the customer
- * should be hidden from collector lists and shown in the admin review queue.
- */
-export const PENDING_STOPPED_PAYMENT = {
-	stoppedAccount: true,
-	reviewedAt: null,
-} as const;
-
-/**
  * A stopped payment that admin has approved — the customer is now INACTIVE.
  */
 export const APPROVED_STOPPED_PAYMENT = {
@@ -82,14 +58,6 @@ export const APPROVED_STOPPED_PAYMENT = {
  * "customer due" in any billing view.
  */
 export const NOT_VOIDED = { voidedAt: null } as const;
-
-/**
- * Customer statuses that should be collectible. Only ACTIVE customers are
- * billed, appear in collector lists, and count toward billing stats.
- * PENDING customers are excluded until their iRadius `Active` flag flips
- * back to 1 and their status is promoted to ACTIVE.
- */
-export const BILLABLE_CUSTOMER_STATUSES = ["ACTIVE"] as const;
 
 /**
  * Build a Prisma date range filter from optional dateFrom/dateTo strings.

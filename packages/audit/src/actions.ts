@@ -159,6 +159,7 @@ export const AUDIT_ACTIONS = {
 		creditAdjusted: "dealer.credit_adjusted",
 		paymentRecorded: "dealer.payment_recorded",
 		contactUpdated: "dealer.contact_updated",
+		reminderGrantChanged: "dealer.reminder_grant_changed",
 	},
 
 	// Staff cash moves (paired ADMIN_TRANSFER ledger rows)

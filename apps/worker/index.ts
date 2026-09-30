@@ -4,6 +4,7 @@ import {
 	createAiChatWorker,
 	createAiFollowUpWorker,
 	createBillingSyncWorker,
+	createCustomerNotifyWorker,
 	createEmailWorker,
 	createIntegrationSyncWorker,
 	createIRadiusPushWorker,
@@ -74,6 +75,7 @@ async function main() {
 		},
 	});
 	const saltiInboundWorker = createSaltiInboundWorker();
+	const customerNotifyWorker = createCustomerNotifyWorker();
 	const watcherCheckWorker = createWatcherCheckWorker({
 		sendOrganizationNotification: (organizationId, payload) =>
 			sendOrganizationNotification(organizationId, payload),
@@ -109,6 +111,7 @@ async function main() {
 			"whatsapp-receipt",
 			"whatsapp-template",
 			"salti-inbound",
+			"customer-notify",
 		],
 	});
 
@@ -136,6 +139,7 @@ async function main() {
 			whatsAppReceiptWorker.close(),
 			whatsAppTemplateWorker.close(),
 			saltiInboundWorker.close(),
+			customerNotifyWorker.close(),
 		]);
 
 		healthServer.close();
