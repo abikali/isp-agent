@@ -10,6 +10,7 @@ import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { bustTaskStats } from "../lib/stats-cache";
+import { approveUninstalledItemInTx } from "../lib/uninstalled-review";
 
 /**
  * Recovered items anchor to a task (→ customer) for dealer scope. Items with
@@ -148,9 +149,6 @@ export const reviewUninstalledItem = protectedProcedure
 			});
 		}
 
-		const quantity = input.quantity ?? item.quantity;
-		const itemName = input.itemName?.trim() || item.itemName;
-
 		if (input.action === "deny") {
 			const updated = await db.uninstalledItem.update({
 				where: { id: item.id },
@@ -196,130 +194,18 @@ export const reviewUninstalledItem = protectedProcedure
 			return { item: updated };
 		}
 
-		// Approve: resolve the stock item. An explicit name correction takes
-		// precedence over the original stockItemId link.
-		let stockItem =
-			item.stockItemId && !input.itemName
-				? await db.stockItem.findFirst({
-						where: {
-							id: item.stockItemId,
-							organizationId: input.organizationId,
-						},
-						select: { id: true, name: true, sellPrice: true },
-					})
-				: null;
-		if (!stockItem) {
-			stockItem = await db.stockItem.findFirst({
-				where: {
-					organizationId: input.organizationId,
-					name: { equals: itemName, mode: "insensitive" },
-				},
-				select: { id: true, name: true, sellPrice: true },
-			});
-		}
-		if (!stockItem) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: `No stock item matches "${itemName}" — create it in Stock first, then approve`,
-			});
-		}
-		const matchedStockItem = stockItem;
-
-		// The recovering worker physically holds the gear, so approval credits
-		// THEIR stock. Legacy synced rows carry no employee — fall back to the
-		// central admin warehouse so those still resolve.
-		const recoveringEmployeeId = item.employeeId;
-
-		const unitPrice = input.unitPrice ?? matchedStockItem.sellPrice;
-
-		const updated = await db.$transaction(async (tx) => {
-			if (recoveringEmployeeId) {
-				const existing = await tx.workerStock.findUnique({
-					where: {
-						stockItemId_employeeId: {
-							stockItemId: matchedStockItem.id,
-							employeeId: recoveringEmployeeId,
-						},
-					},
-					select: { quantity: true, unitPrice: true },
-				});
-				const workerBefore = existing?.quantity ?? 0;
-				// WorkerStock carries one price per (item, worker), but the
-				// worker's accountable value is quantity × unitPrice — so blend
-				// the recovered units in at the reviewed price via a weighted
-				// average. Existing holdings keep their value; the total grows
-				// by exactly quantity × unitPrice (0 when the company covers
-				// the recovered gear).
-				const blendedUnitPrice =
-					Math.round(
-						((workerBefore * (existing?.unitPrice ?? 0) +
-							quantity * unitPrice) /
-							(workerBefore + quantity)) *
-							100,
-					) / 100;
-				await tx.workerStock.upsert({
-					where: {
-						stockItemId_employeeId: {
-							stockItemId: matchedStockItem.id,
-							employeeId: recoveringEmployeeId,
-						},
-					},
-					create: {
-						stockItemId: matchedStockItem.id,
-						employeeId: recoveringEmployeeId,
-						quantity,
-						unitPrice,
-					},
-					update: {
-						quantity: { increment: quantity },
-						unitPrice: blendedUnitPrice,
-					},
-				});
-				await tx.stockLog.create({
-					data: {
-						organizationId: input.organizationId,
-						stockItemId: matchedStockItem.id,
-						employeeId: recoveringEmployeeId,
-						performedById: user.id,
-						action: "TRANSFER_TO_WORKER",
-						itemName: matchedStockItem.name,
-						quantity,
-						workerQtyBefore: workerBefore,
-						workerQtyAfter: workerBefore + quantity,
-						notes: `Recovered equipment approved (item ${item.id}) at $${unitPrice}/unit`,
-					},
-				});
-			} else {
-				const stockUpdated = await tx.stockItem.update({
-					where: { id: matchedStockItem.id },
-					data: { quantity: { increment: quantity } },
-				});
-				await tx.stockLog.create({
-					data: {
-						organizationId: input.organizationId,
-						stockItemId: matchedStockItem.id,
-						employeeId: null,
-						performedById: user.id,
-						action: "TRANSFER_FROM_WORKER",
-						itemName: matchedStockItem.name,
-						quantity,
-						adminQtyBefore: stockUpdated.quantity - quantity,
-						adminQtyAfter: stockUpdated.quantity,
-						notes: `Recovered equipment approved (item ${item.id})`,
-					},
-				});
-			}
-			return tx.uninstalledItem.update({
-				where: { id: item.id },
-				data: {
-					status: "APPROVED",
-					quantity,
-					itemName: matchedStockItem.name,
-					stockItemId: matchedStockItem.id,
-					reviewedById: user.id,
-					reviewedAt: new Date(),
-				},
-			});
-		});
+		const {
+			item: updated,
+			stockItem: matchedStockItem,
+			quantity,
+		} = await db.$transaction((tx) =>
+			approveUninstalledItemInTx(tx, item, {
+				userId: user.id,
+				quantity: input.quantity,
+				itemName: input.itemName,
+				unitPrice: input.unitPrice,
+			}),
+		);
 		bustTaskStats(input.organizationId);
 
 		if (item.employeeId) {

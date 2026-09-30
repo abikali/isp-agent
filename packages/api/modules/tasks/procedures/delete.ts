@@ -5,6 +5,8 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { cancelTaskReminder } from "@repo/jobs";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
@@ -56,6 +58,11 @@ export const deleteTask = protectedProcedure
 			data: { status: "CANCELLED" },
 		});
 		bustTaskStats(input.organizationId);
+		cancelTaskReminder(input.id).catch((err: unknown) =>
+			logger.warn("[Task Delete] reminder cancel failed", {
+				error: String(err),
+			}),
+		);
 
 		const auditContext = getAuditContextFromHeaders(headers);
 		taskAudit.deleted(

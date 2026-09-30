@@ -7,7 +7,9 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
-import { bilingual } from "@repo/utils";
+import { scheduleTaskReminder } from "@repo/jobs";
+import { logger } from "@repo/logs";
+import { bilingual, formatBeirutDue } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
@@ -53,6 +55,9 @@ export const updateTask = protectedProcedure
 				])
 				.optional(),
 			dueDate: z.coerce.date().nullable().optional(),
+			// Defaults to false whenever dueDate is sent without it, so
+			// API-key clients that only know dates stay date-only.
+			dueHasTime: z.boolean().optional(),
 			notes: z.string().max(5000).nullable().optional(),
 			customerId: z.string().nullable().optional(),
 			stationId: z.string().nullable().optional(),
@@ -125,8 +130,21 @@ export const updateTask = protectedProcedure
 		if (input.category !== undefined) {
 			updateData["category"] = input.category;
 		}
-		if (input.dueDate !== undefined) {
-			updateData["dueDate"] = input.dueDate ?? null;
+		const nextDueDate =
+			input.dueDate !== undefined ? input.dueDate : existing.dueDate;
+		const nextDueHasTime = nextDueDate
+			? input.dueDate !== undefined || input.dueHasTime !== undefined
+				? Boolean(input.dueHasTime)
+				: existing.dueHasTime
+			: false;
+		const dueChanged =
+			Number(nextDueDate ?? 0) !== Number(existing.dueDate ?? 0) ||
+			nextDueHasTime !== existing.dueHasTime;
+		if (dueChanged) {
+			updateData["dueDate"] = nextDueDate;
+			updateData["dueHasTime"] = nextDueHasTime;
+			// A new due time earns a new reminder.
+			updateData["reminderSentAt"] = null;
 		}
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
@@ -213,10 +231,6 @@ export const updateTask = protectedProcedure
 					event: "cancelled",
 				});
 			} else {
-				const dueChanged =
-					input.dueDate !== undefined &&
-					Number(input.dueDate ?? 0) !==
-						Number(existing.dueDate ?? 0);
 				const priorityChanged =
 					input.priority !== undefined &&
 					input.priority !== existing.priority;
@@ -227,10 +241,10 @@ export const updateTask = protectedProcedure
 					const details: string[] = [];
 					if (dueChanged) {
 						details.push(
-							input.dueDate
+							nextDueDate
 								? bilingual(
-										`New due date: ${input.dueDate.toISOString().slice(0, 10)}`,
-										`موعد جديد: ${input.dueDate.toISOString().slice(0, 10)}`,
+										`New due date: ${formatBeirutDue(nextDueDate, nextDueHasTime)}`,
+										`موعد جديد: ${formatBeirutDue(nextDueDate, nextDueHasTime)}`,
 									)
 								: bilingual("Due date cleared", "أُزيل الموعد"),
 						);
@@ -255,6 +269,16 @@ export const updateTask = protectedProcedure
 					});
 				}
 			}
+		}
+
+		// The reminder job re-reads the task at fire time; reschedule only when
+		// the due time or status moved (schedule cancels when not applicable).
+		if (dueChanged || input.status !== undefined) {
+			scheduleTaskReminder(task.id).catch((err: unknown) =>
+				logger.warn("[Task Update] reminder schedule failed", {
+					error: String(err),
+				}),
+			);
 		}
 
 		return { task };

@@ -6,8 +6,14 @@ import {
 } from "@repo/database";
 import { queryIRadius, withIRadiusConnection } from "@repo/database/iradius";
 import { logger } from "@repo/logs";
+import { isBoxInterface } from "@repo/utils";
 import { type Job, Worker } from "bullmq";
 import { getRedisConnection } from "../connection";
+import {
+	alertCrowdedBoxes,
+	type BoxJoin,
+	type OrganizationNotifier,
+} from "../lib/box-alerts";
 import { IRADIUS_SYNC_QUEUE_NAME } from "../queues/iradius-sync.queue";
 import type { IRadiusSyncJobData, IRadiusSyncJobResult } from "../types";
 import { syncDealerCharges } from "./dealer-charges";
@@ -338,8 +344,17 @@ async function updateProgress(
 // Main sync processor
 // ---------------------------------------------------------------------------
 
+export interface IRadiusSyncWorkerDeps {
+	/**
+	 * Org-wide in-app notification (crowded fiber-box alert). Injected by the
+	 * worker process: @repo/notifications depends on this package.
+	 */
+	notifyOrganization?: OrganizationNotifier;
+}
+
 async function processIRadiusSync(
 	job: Job<IRadiusSyncJobData>,
+	deps: IRadiusSyncWorkerDeps = {},
 ): Promise<IRadiusSyncJobResult> {
 	const { operationId, mode } = job.data;
 
@@ -2063,6 +2078,9 @@ async function processIRadiusSync(
 					.filter((c) => c.externalId != null)
 					.map((c) => [c.externalId, c.id]),
 			);
+			// Customers newly put on a fiber box this run (interface changed
+			// to a PON/OLT one) — alerted on after the phase, see box-alerts.
+			const boxJoins: BoxJoin[] = [];
 			// Lightweight {id, externalId, deletedAt} projection used by the
 			// soft-delete cleanup helper at end-of-phase. Built once here so
 			// the helper doesn't re-query the table.
@@ -2524,6 +2542,18 @@ async function processIRadiusSync(
 							});
 						}
 
+						const nextInterface = customerData.mikrotikInterface;
+						if (
+							nextInterface &&
+							nextInterface !== existing.mikrotikInterface &&
+							isBoxInterface(nextInterface)
+						) {
+							boxJoins.push({
+								username: existing.username,
+								iface: nextInterface,
+							});
+						}
+
 						// Create conflict record if any tracked fields differ
 						if (Object.keys(conflictFields).length > 0) {
 							await db.syncConflict.upsert({
@@ -2766,6 +2796,26 @@ async function processIRadiusSync(
 				timestamp: syncTimestamp,
 			});
 
+			if (boxJoins.length > 0 && deps.notifyOrganization) {
+				try {
+					const org = await db.organization.findUnique({
+						where: { id: organizationId },
+						select: { slug: true },
+					});
+					await alertCrowdedBoxes({
+						organizationId,
+						organizationSlug: org?.slug ?? null,
+						joins: boxJoins,
+						notify: deps.notifyOrganization,
+					});
+				} catch (error) {
+					// Advisory only — never fail the sync over an alert.
+					logger.warn("[iRadius Sync] box alert failed", {
+						error: String(error),
+					});
+				}
+			}
+
 			// Update conflict count on the operation
 			const conflictCount = await db.syncConflict.count({
 				where: { syncOperationId: operationId, status: "pending" },
@@ -2879,13 +2929,12 @@ async function processIRadiusSync(
 // Worker factory
 // ---------------------------------------------------------------------------
 
-export function createIRadiusSyncWorker(): Worker<
-	IRadiusSyncJobData,
-	IRadiusSyncJobResult
-> {
+export function createIRadiusSyncWorker(
+	deps: IRadiusSyncWorkerDeps = {},
+): Worker<IRadiusSyncJobData, IRadiusSyncJobResult> {
 	return new Worker<IRadiusSyncJobData, IRadiusSyncJobResult>(
 		IRADIUS_SYNC_QUEUE_NAME,
-		async (job) => processIRadiusSync(job),
+		async (job) => processIRadiusSync(job, deps),
 		{
 			connection: getRedisConnection(),
 			concurrency: 1,

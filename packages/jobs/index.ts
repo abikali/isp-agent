@@ -25,6 +25,10 @@ export {
 	rescheduleMarketingSend,
 } from "./src/jobs/marketing-send.jobs";
 export { queueOrgSetup } from "./src/jobs/org-setup.jobs";
+export {
+	cancelTaskReminder,
+	scheduleTaskReminder,
+} from "./src/jobs/task-reminder.jobs";
 export { queueTelegramLocationNotify } from "./src/jobs/telegram-location.jobs";
 export { queueTelegramNotify } from "./src/jobs/telegram-notify.jobs";
 export { queueWatcherCheck } from "./src/jobs/watcher-check.jobs";
@@ -114,6 +118,11 @@ export {
 	setupScheduledJobs,
 } from "./src/queues/scheduled.queue";
 export {
+	closeTaskReminderQueue,
+	getTaskReminderQueue,
+	TASK_REMINDER_QUEUE_NAME,
+} from "./src/queues/task-reminder.queue";
+export {
 	closeTelegramLocationQueue,
 	getTelegramLocationQueue,
 	TELEGRAM_LOCATION_QUEUE_NAME,
@@ -171,6 +180,8 @@ export type {
 	OrgSetupJobResult,
 	ScheduledJobData,
 	ScheduledJobResult,
+	TaskReminderJobData,
+	TaskReminderJobResult,
 	TelegramLocationJobData,
 	TelegramLocationJobResult,
 	TelegramNotifyJobData,
@@ -215,6 +226,10 @@ export { createLocationRequestWorker } from "./src/workers/location-request.work
 export { createMarketingSendWorker } from "./src/workers/marketing-send.worker";
 export { createOrgSetupWorker } from "./src/workers/org-setup.worker";
 export { createScheduledWorker } from "./src/workers/scheduled.worker";
+export {
+	createTaskReminderWorker,
+	type TaskReminderWorkerDeps,
+} from "./src/workers/task-reminder.worker";
 export { createTelegramLocationWorker } from "./src/workers/telegram-location.worker";
 export { createTelegramNotifyWorker } from "./src/workers/telegram-notify.worker";
 export {
@@ -239,6 +254,7 @@ import { closeLocationRequestQueue } from "./src/queues/location-request.queue";
 import { closeMarketingSendQueue } from "./src/queues/marketing-send.queue";
 import { closeOrgSetupQueue } from "./src/queues/org-setup.queue";
 import { closeScheduledQueue } from "./src/queues/scheduled.queue";
+import { closeTaskReminderQueue } from "./src/queues/task-reminder.queue";
 import { closeTelegramLocationQueue } from "./src/queues/telegram-location.queue";
 import { closeTelegramNotifyQueue } from "./src/queues/telegram-notify.queue";
 import { closeWatcherCheckQueue } from "./src/queues/watcher-check.queue";
@@ -263,6 +279,7 @@ export async function shutdownJobs(): Promise<void> {
 		closeMarketingSendQueue(),
 		closeOrgSetupQueue(),
 		closeScheduledQueue(),
+		closeTaskReminderQueue(),
 		closeWatcherCheckQueue(),
 		closeTelegramLocationQueue(),
 		closeTelegramNotifyQueue(),

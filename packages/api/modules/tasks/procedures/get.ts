@@ -131,6 +131,8 @@ export const getTask = protectedProcedure
 						pictureUrl: true,
 						status: true,
 						uninstalledAt: true,
+						stockItemId: true,
+						stockItem: { select: { name: true, sellPrice: true } },
 					},
 					orderBy: { uninstalledAt: "desc" },
 				},
@@ -142,6 +144,11 @@ export const getTask = protectedProcedure
 						status: true,
 						notes: true,
 						installedAt: true,
+						isAddOn: true,
+						stockItemId: true,
+						setupRequestId: true,
+						cashEntry: { select: { id: true, amount: true } },
+						employee: { select: { id: true, name: true } },
 						stockItem: {
 							select: {
 								name: true,

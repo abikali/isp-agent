@@ -23,6 +23,7 @@ import {
 	formatCurrency,
 	formatDate,
 	formatDateInput,
+	formatDue,
 } from "@shared/lib/format";
 import { disabledQuery, useOrganizationId } from "@shared/lib/organization";
 import { orpc, type orpcClient } from "@shared/lib/orpc";
@@ -1311,7 +1312,7 @@ function TasksSection({
 				cell: ({ row }) => (
 					<span className="text-sm">
 						{row.original.task.dueDate
-							? formatDate(row.original.task.dueDate)
+							? formatDue(row.original.task)
 							: "-"}
 					</span>
 				),

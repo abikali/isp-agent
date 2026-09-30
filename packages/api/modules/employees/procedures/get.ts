@@ -70,6 +70,7 @@ export const getEmployee = protectedProcedure
 								category: true,
 								source: true,
 								dueDate: true,
+								dueHasTime: true,
 							},
 						},
 					},

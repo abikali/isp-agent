@@ -1,7 +1,11 @@
 "use client";
 
 import { buildTaskTitle } from "@repo/api/modules/tasks/lib/task-title";
-import { useBasesQuery, useStationsQuery } from "@saas/customers/client";
+import {
+	CustomerNearbyBoxesNotice,
+	useBasesQuery,
+	useStationsQuery,
+} from "@saas/customers/client";
 import { useEmployeesQuery } from "@saas/employees/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
 import { useOrganizationId } from "@shared/lib/organization";
@@ -48,6 +52,7 @@ import {
 	TASK_PRIORITY_OPTIONS,
 	type TaskCategoryValue,
 } from "../lib/constants";
+import { toDuePayload } from "../lib/task-utils";
 import { OpenTasksNotice } from "./OpenTasksNotice";
 
 type AddonType = "IPTV" | "REAL_IP";
@@ -111,6 +116,7 @@ export function CreateTaskDialog({
 			priority: "MEDIUM",
 			category: defaultCategory as string,
 			dueDate: "",
+			dueTime: "",
 			baseId: "",
 			stationId: "",
 			notes: "",
@@ -151,9 +157,9 @@ export function CreateTaskDialog({
 						notifyCustomerWhatsApp && customer !== null
 							? true
 							: undefined,
-					dueDate: value.dueDate
-						? new Date(value.dueDate)
-						: undefined,
+					...(value.dueDate
+						? toDuePayload(value.dueDate, value.dueTime)
+						: {}),
 					baseId: value.baseId || undefined,
 					stationId: value.stationId || undefined,
 					requestedAddons:
@@ -183,6 +189,15 @@ export function CreateTaskDialog({
 		(s) => s.values.category,
 	) as TaskCategoryValue;
 	const baseId = useStore(form.store, (s) => s.values.baseId);
+	const dueDate = useStore(form.store, (s) => s.values.dueDate);
+	const dueTime = useStore(form.store, (s) => s.values.dueTime);
+	// Warn only — back-dating a visit that already happened is legitimate.
+	const dueInPast = Boolean(
+		dueDate &&
+			dueTime &&
+			(toDuePayload(dueDate, dueTime).dueDate?.getTime() ?? 0) <
+				Date.now(),
+	);
 	const categoryMeta = TASK_CATEGORY_META[category];
 	// Same builder the server uses, minus the id-derived code it can't know yet.
 	const titlePreview = buildTaskTitle({
@@ -273,6 +288,11 @@ export function CreateTaskDialog({
 							</div>
 							{customer && (
 								<OpenTasksNotice customerId={customer.id} />
+							)}
+							{customer && category === "INSTALLATION" && (
+								<CustomerNearbyBoxesNotice
+									customerId={customer.id}
+								/>
 							)}
 							<form.Field name="baseId">
 								{(field) => (
@@ -482,21 +502,51 @@ export function CreateTaskDialog({
 							</div>
 						) : null}
 
-						<form.Field name="dueDate">
-							{(field) => (
-								<div className="space-y-2">
-									<Label htmlFor="task-due">Due Date</Label>
-									<Input
-										id="task-due"
-										type="date"
-										value={field.state.value}
-										onChange={(e) =>
-											field.handleChange(e.target.value)
-										}
-									/>
-								</div>
-							)}
-						</form.Field>
+						<div className="grid grid-cols-2 gap-3">
+							<form.Field name="dueDate">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="task-due">
+											Due date
+										</Label>
+										<Input
+											id="task-due"
+											type="date"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="dueTime">
+								{(field) => (
+									<div className="space-y-2">
+										<Label htmlFor="task-due-time">
+											Time (Beirut, optional)
+										</Label>
+										<Input
+											id="task-due-time"
+											type="time"
+											value={field.state.value}
+											onChange={(e) =>
+												field.handleChange(
+													e.target.value,
+												)
+											}
+										/>
+									</div>
+								)}
+							</form.Field>
+						</div>
+						{dueInPast && (
+							<p className="-mt-2 text-warning text-xs">
+								This due time is already in the past.
+							</p>
+						)}
 
 						<div className="space-y-2">
 							<Label>

@@ -135,9 +135,16 @@ export function useReviewTaskCompletion() {
 	return useMutation({
 		...orpc.tasks.reviewCompletion.mutationOptions(),
 		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.tasks.key(),
-			});
+			// Approving / rejecting also approves or reverts the task's
+			// installations, recovered items (stock) and cash entries.
+			for (const queryKey of [
+				orpc.tasks.key(),
+				orpc.installations.key(),
+				orpc.stock.key(),
+				orpc.billing.key(),
+			]) {
+				queryClient.invalidateQueries({ queryKey });
+			}
 		},
 	});
 }

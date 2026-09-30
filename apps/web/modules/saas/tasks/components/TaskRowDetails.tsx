@@ -6,7 +6,7 @@ import { ImageViewerDialog } from "@shared/components/ImageViewerDialog";
 import { PhoneActions } from "@shared/components/PhoneActions";
 import { customerPhoneNumbers } from "@shared/lib/customer-phones";
 import { displayName } from "@shared/lib/display-name";
-import { formatDate, formatDateTime } from "@shared/lib/format";
+import { formatDate, formatDateTime, formatDue } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/badge";
@@ -235,7 +235,7 @@ export function TaskRowDetails({
 				<Section icon={CalendarClockIcon} title="Timeline">
 					<Field label="Created" value={formatDate(task.createdAt)} />
 					{task.dueDate && (
-						<Field label="Due" value={formatDate(task.dueDate)} />
+						<Field label="Due" value={formatDue(task)} />
 					)}
 					{task.completedAt && (
 						<Field

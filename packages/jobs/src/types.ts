@@ -32,7 +32,8 @@ export type ScheduledJobType =
 	| "online-status-sync"
 	| "network-monitor-sync"
 	| "dealer-sync"
-	| "recurring-expenses";
+	| "recurring-expenses"
+	| "task-reminder-sweep";
 
 export interface ScheduledJobData {
 	type: ScheduledJobType;
@@ -78,6 +79,18 @@ export interface AiFollowUpJobData {
 
 export interface AiFollowUpJobResult {
 	success: boolean;
+	skipped?: string;
+}
+
+// Task due reminder job types
+export interface TaskReminderJobData {
+	taskId: string;
+	/** The dueDate this job was scheduled for; a different one means stale. */
+	dueAt: string;
+}
+
+export interface TaskReminderJobResult {
+	sent: number;
 	skipped?: string;
 }
 

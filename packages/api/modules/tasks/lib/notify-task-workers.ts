@@ -1,7 +1,12 @@
 import { notifyFieldEmployee } from "@repo/api/lib/notify-employee";
 import { db, parsePhones, type TaskCategory } from "@repo/database";
 import { logger } from "@repo/logs";
-import { bilingual, getBaseUrl, tgLink, tgMessage } from "@repo/utils";
+import {
+	bilingual,
+	buildTaskTelegramText,
+	getBaseUrl,
+	taskLinkFor,
+} from "@repo/utils";
 import { CATEGORY_LABELS_AR, CATEGORY_TITLES } from "./task-title";
 
 /** Worker-facing task events an org can opt out of notifying about. */
@@ -54,21 +59,6 @@ export function taskCategoryLabel(category: TaskCategory): string {
 		(CATEGORY_TITLES as Partial<Record<TaskCategory, string>>)[category] ??
 		category;
 	return bilingual(en, CATEGORY_LABELS_AR[category]);
-}
-
-/**
- * Where a task notification should open for this employee. Field-portal
- * workers are redirected off /app to the portal home, so theirs opens the
- * task inside /work instead.
- */
-export function taskLinkFor(
-	preferredLayout: string | undefined,
-	orgSlug: string | null,
-	taskId: string,
-): string {
-	return preferredLayout === "worker"
-		? `/work/${orgSlug}/tasks?task=${encodeURIComponent(taskId)}`
-		: `/app/${orgSlug}/tasks/${taskId}`;
 }
 
 interface NotifyTaskWorkersInput {
@@ -134,6 +124,7 @@ export async function notifyTaskWorkers(
 			select: {
 				category: true,
 				dueDate: true,
+				dueHasTime: true,
 				notes: true,
 				customer: {
 					select: {
@@ -173,65 +164,13 @@ export async function notifyTaskWorkers(
 					? "✏️"
 					: "🛠️";
 		const telegramText = (link: string) =>
-			tgMessage({
+			buildTaskTelegramText({
 				icon,
 				title: `${copy.title}${categoryLabel ? ` — ${categoryLabel}` : ""}`,
-				fields: [
-					customer
-						? {
-								icon: "👤",
-								value:
-									[customer.firstName, customer.lastName]
-										.filter(Boolean)
-										.join(" ") ||
-									customer.username ||
-									bilingual("Customer", "زبون"),
-							}
-						: task?.base
-							? { icon: "🏢", value: task.base.name }
-							: task?.station
-								? { icon: "📡", value: task.station.name }
-								: null,
-					customer?.username
-						? {
-								icon: "🔑",
-								label: bilingual("Username", "اسم المستخدم"),
-								value: customer.username,
-								copyable: true,
-							}
-						: null,
-					customer?.accountNumber
-						? {
-								icon: "🔢",
-								label: bilingual("Account", "رقم الحساب"),
-								value: customer.accountNumber,
-								copyable: true,
-							}
-						: null,
-					...phones.map((number) => ({
-						icon: "📞",
-						value: number,
-						copyable: true,
-					})),
-					customer?.address
-						? { icon: "📍", value: customer.address }
-						: task?.base?.address
-							? { icon: "📍", value: task.base.address }
-							: null,
-					task?.dueDate
-						? {
-								icon: "📅",
-								label: bilingual("Due", "الموعد"),
-								value: task.dueDate.toISOString().slice(0, 10),
-							}
-						: null,
-					input.detail ? { icon: "ℹ️", value: input.detail } : null,
-					task?.notes ? { icon: "📝", value: task.notes } : null,
-				],
-				footer: tgLink(
-					bilingual("Open task", "فتح المهمة"),
-					`${getBaseUrl()}${link}`,
-				),
+				task,
+				phones,
+				detail: input.detail,
+				url: `${getBaseUrl()}${link}`,
 			});
 
 		await Promise.all(

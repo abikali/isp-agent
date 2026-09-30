@@ -105,6 +105,28 @@ export function formatDateTimeLocalInput(
 	return `${year}-${p2(month)}-${p2(day)}T${p2(hour)}:${p2(minute)}`;
 }
 
+/**
+ * A task's due value in Beirut: "30 Sep 2026" for a whole-day due date,
+ * "30 Sep 2026, 14:30" when it carries a time.
+ */
+export function formatDue(task: {
+	dueDate: DateInput | null;
+	dueHasTime?: boolean | null;
+}): string {
+	if (!task.dueDate) {
+		return "";
+	}
+	return task.dueHasTime
+		? formatDateTime(task.dueDate, MEDIUM_DATE_TIME_FORMAT)
+		: formatDate(task.dueDate, MEDIUM_DATE_FORMAT);
+}
+
+/** Beirut `HH:mm` of an instant — the value `<input type="time">` expects. */
+export function formatTimeInput(value: DateInput): string {
+	const { hour, minute } = beirutParts(value);
+	return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
 export function formatBytes(bytes: number | bigint): string {

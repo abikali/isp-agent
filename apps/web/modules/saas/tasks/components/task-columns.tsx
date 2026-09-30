@@ -1,9 +1,10 @@
 "use client";
 
+import { beirutDayStartUtc } from "@repo/utils";
 import { ConnectivityCell } from "@saas/customers/client";
 import { useIsClient } from "@shared/hooks/use-is-client";
 import { displayName } from "@shared/lib/display-name";
-import { formatDate, formatDateTime } from "@shared/lib/format";
+import { formatDate, formatDateTime, formatDue } from "@shared/lib/format";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@ui/components/badge";
@@ -87,11 +88,22 @@ function formatAgo(date: string | Date): string {
 	return `${formatDuration(new Date(date).getTime(), Date.now())} ago`;
 }
 
-function formatRelativeDate(date: string | Date): string {
+/** "Due in 2h", "Due tomorrow", "3 days overdue" — Beirut calendar days. */
+function formatRelativeDate(date: string | Date, hasTime: boolean): string {
 	const d = new Date(date);
 	const now = new Date();
-	const diffMs = d.getTime() - now.getTime();
-	const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+	const diffDays = Math.round(
+		(beirutDayStartUtc(d).getTime() - beirutDayStartUtc(now).getTime()) /
+			(1000 * 60 * 60 * 24),
+	);
+	if (hasTime && diffDays === 0) {
+		const diffMs = d.getTime() - now.getTime();
+		const span = formatDuration(
+			Math.min(d.getTime(), now.getTime()),
+			Math.max(d.getTime(), now.getTime()),
+		);
+		return diffMs >= 0 ? `Due in ${span}` : `${span} overdue`;
+	}
 
 	if (diffDays < -1) {
 		return `${Math.abs(diffDays)} days overdue`;
@@ -609,7 +621,11 @@ export function useTaskColumns(organizationSlug: string) {
 				meta: { className: "hidden lg:table-cell" },
 				cell: ({ row }) => {
 					const task = row.original;
-					const overdue = isOverdue(task.dueDate, task.status);
+					const overdue = isOverdue(
+						task.dueDate,
+						task.status,
+						task.dueHasTime,
+					);
 					return (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -628,7 +644,10 @@ export function useTaskColumns(organizationSlug: string) {
 											) : (
 												<ClockIcon className="size-3" />
 											)}
-											{formatRelativeDate(task.dueDate)}
+											{formatRelativeDate(
+												task.dueDate,
+												task.dueHasTime,
+											)}
 										</span>
 									) : (
 										<span className="text-xs text-muted-foreground">
@@ -643,9 +662,7 @@ export function useTaskColumns(organizationSlug: string) {
 										Created {formatDateTime(task.createdAt)}
 									</div>
 									{task.dueDate && (
-										<div>
-											Due {formatDate(task.dueDate)}
-										</div>
+										<div>Due {formatDue(task)}</div>
 									)}
 									{task.completedAt && (
 										<div>

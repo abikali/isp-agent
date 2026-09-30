@@ -23,6 +23,7 @@ export type JobsConfig = {
 		scheduled: { concurrency: number };
 		aiChat: { concurrency: number };
 		aiFollowup: { concurrency: number };
+		taskReminder: { concurrency: number };
 		watcherCheck: { concurrency: number };
 		iradiusSync: { concurrency: number };
 		billingSync: { concurrency: number };

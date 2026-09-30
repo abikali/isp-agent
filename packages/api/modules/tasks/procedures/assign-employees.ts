@@ -5,6 +5,8 @@ import {
 } from "@repo/api/lib/permission";
 import { getAuditContextFromHeaders, taskAudit } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { scheduleTaskReminder } from "@repo/jobs";
+import { logger } from "@repo/logs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { taskInDealerScope } from "../lib/dealer-scope";
@@ -110,6 +112,16 @@ export const assignEmployees = protectedProcedure
 			employeeIds: newlyAssigned,
 			event: "assigned",
 		});
+
+		// The reminder reads assignees at fire time; only a task that had
+		// none (so nothing was scheduled) needs scheduling now.
+		if (existing.assignments.length === 0 && input.employeeIds.length > 0) {
+			scheduleTaskReminder(input.taskId).catch((err: unknown) =>
+				logger.warn("[Task Assign] reminder schedule failed", {
+					error: String(err),
+				}),
+			);
+		}
 
 		return { success: true };
 	});
