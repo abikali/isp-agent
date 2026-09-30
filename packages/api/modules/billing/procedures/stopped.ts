@@ -286,6 +286,20 @@ export const listPendingStoppedPayments = protectedProcedure
 					noteCategory: true,
 					notes: true,
 					paidAt: true,
+					// "Notify customer" on a pending stop: when it was last sent
+					// and each channel's latest outcome (badge tooltip).
+					stopNoticeSentAt: true,
+					notifications: {
+						where: { kind: "stop_notice" },
+						orderBy: { createdAt: "desc" },
+						take: 4,
+						select: {
+							channel: true,
+							status: true,
+							error: true,
+							createdAt: true,
+						},
+					},
 					customer: {
 						select: {
 							id: true,

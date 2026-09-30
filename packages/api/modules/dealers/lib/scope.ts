@@ -110,6 +110,11 @@ export const scopedDealerSelect = {
 	parentDealerId: true,
 	parentDealer: { select: { id: true, name: true } },
 	_count: { select: { customers: true } },
+	// The dealer's own LibanCom org, if it has one — the operator grants it
+	// customer payment reminders from here.
+	activeForOrganization: {
+		select: { id: true, name: true, expiryReminderAllowed: true },
+	},
 } as const;
 
 /** Load one dealer, refusing anything outside the caller's scope. */

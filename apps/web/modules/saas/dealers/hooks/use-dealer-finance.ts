@@ -72,6 +72,16 @@ export function useUpdateDealerContact() {
 	});
 }
 
+/** Operator grants / revokes a dealer org's customer payment reminders. */
+export function useSetDealerReminderGrant() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		...orpc.dealers.setReminderGrant.mutationOptions(),
+		onSuccess: () =>
+			queryClient.invalidateQueries({ queryKey: orpc.dealers.key() }),
+	});
+}
+
 /** Resend (or send a skipped) WhatsApp confirmation for one ledger entry. */
 export function useResendDealerNotice() {
 	const queryClient = useQueryClient();

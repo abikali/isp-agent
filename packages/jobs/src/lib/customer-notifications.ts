@@ -1,4 +1,3 @@
-import type { Prisma } from "@repo/database";
 import { renderTemplate, SMS_TEMPLATES } from "@repo/sms";
 import { beirutParts, parsePhone } from "@repo/utils";
 
@@ -96,6 +95,23 @@ export function expiryLabel(expiryDate: Date): string {
 	return `(${day}/${month}/${year})`;
 }
 
+/** A `CustomerNotification` row to insert (plain types, usable in API responses). */
+export interface NotificationRowData {
+	organizationId: string;
+	customerId: string;
+	invoiceId: string | null;
+	paymentId: string | null;
+	kind: CustomerNotificationKind;
+	channel: CustomerNotificationChannel;
+	phone: string;
+	contactPhone: string | null;
+	templateName: string;
+	body: string;
+	status: "queued" | "skipped";
+	error: string | null;
+	sentById: string | null;
+}
+
 interface NotificationRowInput {
 	organizationId: string;
 	customerId: string;
@@ -122,7 +138,7 @@ interface NotificationRowInput {
  */
 export function buildNotificationRows(
 	input: NotificationRowInput,
-): Prisma.CustomerNotificationCreateManyInput[] {
+): NotificationRowData[] {
 	const parsed = parsePhone(input.customerPhone?.trim());
 	return input.channels.map((channel) => {
 		const templateName =

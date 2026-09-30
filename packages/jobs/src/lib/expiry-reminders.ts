@@ -8,7 +8,6 @@ import {
 	invoiceAmount,
 	monthRemaining,
 	PENDING_STOPPED_PAYMENT,
-	type Prisma,
 } from "@repo/database";
 import { logger } from "@repo/logs";
 import {
@@ -24,6 +23,7 @@ import {
 	type CustomerNotificationChannel,
 	customerNotificationsAllowed,
 	expiryLabel,
+	type NotificationRowData,
 	orgContactCandidates,
 	pickContactPhone,
 } from "./customer-notifications";
@@ -253,19 +253,18 @@ export async function claimOrgReminders(
 	if (due.length === 0) {
 		return { claimed: 0, queued: [] };
 	}
-	const rows: Prisma.CustomerNotificationCreateManyInput[] = due.flatMap(
-		(r) =>
-			buildNotificationRows({
-				organizationId: org.id,
-				customerId: r.customerId,
-				invoiceId: r.invoiceId,
-				kind: "expiry_reminder",
-				channels,
-				customerPhone: r.customerPhone,
-				contactPhone: r.contactPhone,
-				expiryLabel: r.expiryLabel,
-				skipReason: r.skipReason,
-			}),
+	const rows: NotificationRowData[] = due.flatMap((r) =>
+		buildNotificationRows({
+			organizationId: org.id,
+			customerId: r.customerId,
+			invoiceId: r.invoiceId,
+			kind: "expiry_reminder",
+			channels,
+			customerPhone: r.customerPhone,
+			contactPhone: r.contactPhone,
+			expiryLabel: r.expiryLabel,
+			skipReason: r.skipReason,
+		}),
 	);
 	const { count } = await client.customerNotification.createMany({
 		data: rows,

@@ -11,6 +11,7 @@ import { Switch } from "@ui/components/switch";
 import { LoaderIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PaymentRemindersSettings } from "./PaymentRemindersSettings";
 
 export function NotificationSettings() {
 	const organizationId = useOrganizationId();
@@ -137,6 +138,8 @@ export function NotificationSettings() {
 					</div>
 				</div>
 			</SettingsItem>
+
+			<PaymentRemindersSettings />
 
 			<SettingsItem
 				title="Admin Telegram Alerts"

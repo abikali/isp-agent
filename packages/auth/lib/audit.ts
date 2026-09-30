@@ -1805,6 +1805,35 @@ export const dealerAudit = {
 			),
 		);
 	},
+
+	/** Operator granted / revoked a dealer org's customer payment reminders. */
+	reminderGrantChanged: (
+		dealerId: string,
+		userId: string,
+		organizationId: string,
+		context: AuditContext,
+		metadata: {
+			dealerName: string;
+			dealerOrganizationId: string;
+			allowed: boolean;
+		},
+	) => {
+		logAuthEvent(
+			buildLogEventParams(
+				{
+					action: AUDIT_ACTIONS.dealer.reminderGrantChanged,
+					resourceType: RESOURCE_TYPES.dealer,
+				},
+				{
+					resourceId: dealerId,
+					userId,
+					organizationId,
+					metadata,
+					context,
+				},
+			),
+		);
+	},
 };
 
 /**

@@ -159,6 +159,14 @@ import {
 	RepricePaymentDialog,
 	type RepricePaymentTarget,
 } from "./RepricePaymentDialog";
+import {
+	StopNoticeButton,
+	type StopNoticeChannelStatus,
+} from "./StopNoticeButton";
+import {
+	StopNotNotifiedDialog,
+	type StopNotNotifiedTarget,
+} from "./StopNotNotifiedDialog";
 
 const PAGE_SIZE = 25;
 
@@ -289,6 +297,9 @@ interface PaymentRow {
 	activityLog: unknown;
 	externalBillingId: number | null;
 	reviewedAt: string | Date | null;
+	/** Last "Notify customer" on a pending stop, and its latest per-channel rows. */
+	stopNoticeSentAt: string | Date | null;
+	notifications: StopNoticeChannelStatus[];
 	/**
 	 * The new customer the payer brought in — the payer is the referrer and
 	 * the free month is their reward.
@@ -833,19 +844,25 @@ export function PaymentsList() {
 	const { data: parentStats } = usePaymentStatsQuery(activeMonthId);
 	const unreviewedCount = parentStats?.unreviewedCount ?? 0;
 
-	const { payments, total, isLoading, isFetching, referralRewardMessaging } =
-		usePaymentsQuery({
-			search: debouncedSearch || undefined,
-			...queryTypeFilters,
-			noteCategory: noteCategoryFilter,
-			collectorId: collectorFilter,
-			groupName: groupFilter,
-			billingMonthId: activeMonthId,
-			page,
-			pageSize: PAGE_SIZE,
-			sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
-			sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
-		});
+	const {
+		payments,
+		total,
+		isLoading,
+		isFetching,
+		referralRewardMessaging,
+		customerNotifications,
+	} = usePaymentsQuery({
+		search: debouncedSearch || undefined,
+		...queryTypeFilters,
+		noteCategory: noteCategoryFilter,
+		collectorId: collectorFilter,
+		groupName: groupFilter,
+		billingMonthId: activeMonthId,
+		page,
+		pageSize: PAGE_SIZE,
+		sortBy: typeFilter === "recently_reviewed" ? "reviewedAt" : sortBy,
+		sortOrder: typeFilter === "recently_reviewed" ? "desc" : sortOrder,
+	});
 
 	// Live online/offline for the page's customers and the new customers
 	// their referral free months point at — the row data is a snapshot.
@@ -936,6 +953,9 @@ export function PaymentsList() {
 		warning: string;
 		approve: () => void;
 	} | null>(null);
+	// Approving a pending stop whose customer was never notified (warn only).
+	const [stopNoticeConfirm, setStopNoticeConfirm] =
+		useState<StopNotNotifiedTarget | null>(null);
 	// Opened when "Approve & Deactivate" fails because the customer was
 	// already deleted in iRadius. Carries the row so we can name the customer
 	// and retry the review with `force` (local-only deactivation).
@@ -1485,6 +1505,19 @@ export function PaymentsList() {
 								</Button>
 							)}
 
+							{organizationId &&
+								isPendingStopped &&
+								customerNotifications && (
+									<StopNoticeButton
+										organizationId={organizationId}
+										paymentId={payment.id}
+										stopNoticeSentAt={
+											payment.stopNoticeSentAt
+										}
+										notifications={payment.notifications}
+									/>
+								)}
+
 							{/* Diagnose — check the line before approving */}
 							{organizationId &&
 								needsReview &&
@@ -1524,6 +1557,20 @@ export function PaymentsList() {
 												isReviewing || isDeclining
 											}
 											onClick={() => {
+												if (
+													isPendingStopped &&
+													customerNotifications &&
+													!payment.stopNoticeSentAt
+												) {
+													setStopNoticeConfirm({
+														organizationId,
+														paymentId: payment.id,
+														customerName:
+															referrerName,
+														approve,
+													});
+													return;
+												}
 												if (referralWarning) {
 													setReferralConfirm({
 														referrerName,
@@ -2076,6 +2123,7 @@ export function PaymentsList() {
 			resendReferralReward,
 			referralRewardMessaging,
 			pushToIRadius,
+			customerNotifications,
 		],
 	);
 
@@ -2655,6 +2703,10 @@ export function PaymentsList() {
 				</AlertDialog>
 			)}
 
+			<StopNotNotifiedDialog
+				target={stopNoticeConfirm}
+				onClose={() => setStopNoticeConfirm(null)}
+			/>
 			<AlertDialog
 				open={!!referralConfirm}
 				onOpenChange={(o) => !o && setReferralConfirm(null)}

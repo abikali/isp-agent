@@ -13,6 +13,7 @@ import { DealerActivity } from "./DealerActivity";
 import { DealerContactCard } from "./DealerContactCard";
 import { DealerHero } from "./DealerHero";
 import { DealerLedgerTimeline } from "./DealerLedgerTimeline";
+import { DealerRemindersCard } from "./DealerRemindersCard";
 import { EditDealerContactSheet } from "./EditDealerContactSheet";
 import { RecordPaymentSheet } from "./RecordPaymentSheet";
 
@@ -110,6 +111,9 @@ export function DealerDetailPage({ dealerId }: DealerDetailPageProps) {
 						canEdit={canManage}
 						onEdit={() => setContactOpen(true)}
 					/>
+					{canManage && !dealer.isDeleted && (
+						<DealerRemindersCard dealer={dealer} />
+					)}
 					<DealerActivity
 						activity={ledger.activity}
 						summary={summary}
