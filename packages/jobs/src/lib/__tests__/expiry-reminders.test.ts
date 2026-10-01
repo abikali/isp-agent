@@ -79,9 +79,9 @@ describe("expiryLabel", () => {
 
 describe("contact phone", () => {
 	it("formats Lebanese numbers the local way", () => {
-		expect(formatLocalPhone("+96176878870")).toBe("76 878 870");
-		expect(formatLocalPhone("03775126")).toBe("03 775 126");
-		expect(formatLocalPhone("9613775126")).toBe("03 775 126");
+		expect(formatLocalPhone("+96176878870")).toBe("76878870");
+		expect(formatLocalPhone("03775126")).toBe("03775126");
+		expect(formatLocalPhone("9613775126")).toBe("03775126");
 		expect(formatLocalPhone("+33612345678")).toBe("+33612345678");
 		expect(formatLocalPhone("collector")).toBeNull();
 		expect(formatLocalPhone(null)).toBeNull();
@@ -90,7 +90,7 @@ describe("contact phone", () => {
 	it("takes the first usable candidate in order", () => {
 		expect(
 			pickContactPhone([null, "not a phone", "76878870", "03775126"]),
-		).toBe("76 878 870");
+		).toBe("76878870");
 		expect(pickContactPhone([undefined, "", null])).toBeNull();
 	});
 });
@@ -303,7 +303,7 @@ describe("findDueReminders", () => {
 		]);
 		expect(due[0]).toMatchObject({
 			customerPhone: "+96170111222",
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 			expiryLabel: "(1/10/2026)",
 			skipReason: null,
 		});
@@ -333,9 +333,9 @@ describe("findDueReminders", () => {
 			client as unknown as Client,
 		);
 		expect(withOffice.map((d) => d.contactPhone)).toEqual([
-			"03 775 126",
-			"01 234 567",
-			"01 234 567",
+			"03775126",
+			"01234567",
+			"01234567",
 		]);
 
 		const withDealer = await findDueReminders(
@@ -343,13 +343,13 @@ describe("findDueReminders", () => {
 				...org,
 				activeDealer: {
 					whatsappPhone: null,
-					companyMobile: "71 999 888",
+					companyMobile: "71999888",
 				},
 			},
 			NOW,
 			client as unknown as Client,
 		);
-		expect(withDealer[1]?.contactPhone).toBe("71 999 888");
+		expect(withDealer[1]?.contactPhone).toBe("71999888");
 
 		const none = await findDueReminders(
 			org,
@@ -413,11 +413,11 @@ describe("claimOrgReminders", () => {
 			channel: "whatsapp",
 			phone: "96170111222",
 			templateName: "payment_reminder_tomorrow",
-			body: JSON.stringify(["(1/10/2026)", "76 878 870"]),
+			body: JSON.stringify(["(1/10/2026)", "76878870"]),
 			status: "queued",
 		});
 		expect(rows[1]).toMatchObject({ channel: "sms", status: "queued" });
-		expect(String(rows[1]?.["body"])).toContain("76 878 870");
+		expect(String(rows[1]?.["body"])).toContain("76878870");
 		// Foreign number: WhatsApp only.
 		expect(rows[3]).toMatchObject({
 			channel: "sms",

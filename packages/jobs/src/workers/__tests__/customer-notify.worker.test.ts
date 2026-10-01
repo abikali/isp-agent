@@ -51,8 +51,8 @@ function reminderRow(overrides: Record<string, unknown> = {}) {
 		kind: "expiry_reminder",
 		channel: "whatsapp",
 		phone: "96170111222",
-		body: JSON.stringify(["(1/10/2026)", "76 878 870"]),
-		contactPhone: "76 878 870",
+		body: JSON.stringify(["(1/10/2026)", "76878870"]),
+		contactPhone: "76878870",
 		status: "queued",
 		invoice: {
 			organizationId: "org-1",
@@ -96,7 +96,7 @@ describe("processCustomerNotification", () => {
 		expect(sendWhatsAppExpiryReminder).toHaveBeenCalledWith({
 			phone: "96170111222",
 			expiryLabel: "(1/10/2026)",
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 			notificationId: "n1",
 		});
 		expect(lastUpdate()).toMatchObject({
@@ -133,7 +133,7 @@ describe("processCustomerNotification", () => {
 		mocks.findUnique.mockResolvedValue(
 			reminderRow({
 				kind: "stop_notice",
-				body: JSON.stringify(["76 878 870"]),
+				body: JSON.stringify(["76878870"]),
 				invoice: null,
 				payment: { reviewedAt: new Date() },
 			}),
@@ -150,7 +150,7 @@ describe("processCustomerNotification", () => {
 		mocks.findUnique.mockResolvedValue(
 			reminderRow({
 				kind: "stop_notice",
-				body: JSON.stringify(["76 878 870"]),
+				body: JSON.stringify(["76878870"]),
 				invoice: null,
 				payment: { reviewedAt: null },
 			}),
@@ -167,7 +167,7 @@ describe("processCustomerNotification", () => {
 		).resolves.toEqual({ status: "sent" });
 		expect(sendWhatsAppStopNotice).toHaveBeenCalledWith({
 			phone: "96170111222",
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 			notificationId: "n1",
 		});
 	});

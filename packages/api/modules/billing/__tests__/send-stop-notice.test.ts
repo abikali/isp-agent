@@ -181,14 +181,14 @@ describe("sendStopNotice", () => {
 
 	it("uses the stop's collector first, then falls back down to the office phone", async () => {
 		await expect(call({ dryRun: true })).resolves.toMatchObject({
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 		});
 
 		mocks.paymentFind.mockResolvedValue(
 			pendingStop({ collector: { phone: null } }),
 		);
 		await expect(call({ dryRun: true })).resolves.toMatchObject({
-			contactPhone: "03 775 126",
+			contactPhone: "03775126",
 		});
 
 		mocks.paymentFind.mockResolvedValue(
@@ -205,7 +205,7 @@ describe("sendStopNotice", () => {
 			reminderFallbackPhone: "+9611234567",
 		});
 		await expect(call({ dryRun: true })).resolves.toMatchObject({
-			contactPhone: "01 234 567",
+			contactPhone: "01234567",
 		});
 
 		mocks.orgFind.mockResolvedValue(ORG);
@@ -217,10 +217,10 @@ describe("sendStopNotice", () => {
 		expect(result).toMatchObject({
 			dryRun: true,
 			customerPhone: "+96170111222",
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 			suppressed: false,
 		});
-		expect(String(result["smsText"])).toContain("76 878 870");
+		expect(String(result["smsText"])).toContain("76878870");
 		expect(mocks.paymentUpdate).not.toHaveBeenCalled();
 		expect(mocks.createManyAndReturn).not.toHaveBeenCalled();
 		expect(mocks.queue).not.toHaveBeenCalled();
@@ -246,7 +246,7 @@ describe("sendStopNotice", () => {
 				channel: "whatsapp",
 				paymentId: "pay-1",
 				phone: "96170111222",
-				contactPhone: "76 878 870",
+				contactPhone: "76878870",
 				templateName: "stop_request_notice",
 				status: "queued",
 				sentById: "admin-1",

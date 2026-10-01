@@ -1,7 +1,7 @@
 /**
  * Customer SMS texts (Arabic, sent as UCS-2: 70 chars per segment, 67 when
  * concatenated). `{{phone}}` is the collector / office number, already
- * formatted for display (e.g. `76 878 870`).
+ * formatted for display (e.g. `76878870`).
  */
 
 /** Day-before-expiry reminder for an unpaid invoice (~123 chars, 2 segments). */

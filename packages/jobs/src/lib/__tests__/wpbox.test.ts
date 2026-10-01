@@ -420,7 +420,7 @@ describe("customer payment notifications", () => {
 		await sendWhatsAppExpiryReminder({
 			phone: "70111222",
 			expiryLabel: "(1/10/2026)",
-			contactPhone: "76 878 870",
+			contactPhone: "76878870",
 			notificationId: "n1",
 		});
 
@@ -433,7 +433,7 @@ describe("customer payment notifications", () => {
 					type: "body",
 					parameters: [
 						{ type: "text", text: "(1/10/2026)" },
-						{ type: "text", text: "76 878 870" },
+						{ type: "text", text: "76878870" },
 					],
 				},
 			],
@@ -443,7 +443,7 @@ describe("customer payment notifications", () => {
 	it("sends stop_request_notice with the collector number", async () => {
 		await sendWhatsAppStopNotice({
 			phone: "70111222",
-			contactPhone: "03 775 126",
+			contactPhone: "03775126",
 			notificationId: "n2",
 		});
 
@@ -453,7 +453,7 @@ describe("customer payment notifications", () => {
 			components: [
 				{
 					type: "body",
-					parameters: [{ type: "text", text: "03 775 126" }],
+					parameters: [{ type: "text", text: "03775126" }],
 				},
 			],
 		});

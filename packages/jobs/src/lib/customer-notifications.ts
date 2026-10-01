@@ -29,9 +29,13 @@ export function customerNotificationsAllowed(org: {
 }
 
 /**
- * A phone as a Lebanese reader writes it: `76 878 870`, `03 775 126`,
- * `01 234 567`. Foreign numbers stay in E.164. Null for anything
- * libphonenumber can't validate, so junk never lands in a customer message.
+ * A phone as a Lebanese reader dials it: `76878870`, `03775126`, `01234567`.
+ * Foreign numbers stay in E.164. Null for anything libphonenumber can't
+ * validate, so junk never lands in a customer message.
+ *
+ * No spaces between the digit groups: the messages are Arabic, and in a
+ * right-to-left paragraph each space-separated group is laid out right to
+ * left, so `71 621 681` reaches the customer as `681 621 71`.
  */
 export function formatLocalPhone(
 	raw: string | null | undefined,
@@ -45,10 +49,7 @@ export function formatLocalPhone(
 	}
 	const n = parsed.national;
 	if (n.length === 8) {
-		return `${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`;
-	}
-	if (n.length === 7) {
-		return `0${n.slice(0, 1)} ${n.slice(1, 4)} ${n.slice(4)}`;
+		return n;
 	}
 	return parsed.domestic;
 }
