@@ -19,7 +19,10 @@ vi.mock("../lib/scope", () => ({
 	requireDealerInScope: mocks.requireDealer,
 }));
 
-import { setDealerReminderGrant } from "../procedures/set-reminder-grant";
+import {
+	setDealerNotificationLimits,
+	setDealerReminderGrant,
+} from "../procedures/set-reminder-grant";
 
 const operatorScope = {
 	organizationId: "abiroot",
@@ -108,5 +111,59 @@ describe("setDealerReminderGrant", () => {
 		});
 		expect(mocks.orgUpdate).not.toHaveBeenCalled();
 		expect(mocks.audit).not.toHaveBeenCalled();
+	});
+});
+
+describe("setDealerNotificationLimits", () => {
+	const limits = {
+		stopNoticeSmsLimit: 1,
+		stopNoticeWhatsappLimit: 2,
+		stopNoticeRate: 0,
+		expiryReminderRate: 0,
+	};
+	function callLimits(input: Record<string, unknown> = {}) {
+		const handler = (
+			setDealerNotificationLimits as unknown as {
+				"~orpc": { handler: (args: unknown) => Promise<unknown> };
+			}
+		)["~orpc"].handler;
+		return handler({
+			context: { user: { id: "user-1" }, headers: new Headers() },
+			input: {
+				organizationId: "abiroot",
+				dealerId: "dotnet",
+				...limits,
+				...input,
+			},
+		});
+	}
+
+	it("stores the limits and rates on the dealer's org", async () => {
+		await expect(callLimits()).resolves.toEqual(limits);
+		expect(mocks.orgUpdate).toHaveBeenCalledWith({
+			where: { id: "org-elie-mrad" },
+			data: limits,
+			select: { id: true },
+		});
+		expect(mocks.audit).toHaveBeenCalledOnce();
+	});
+
+	it("accepts no limit", async () => {
+		await callLimits({ stopNoticeSmsLimit: null });
+		expect(mocks.orgUpdate.mock.calls[0]?.[0].data).toMatchObject({
+			stopNoticeSmsLimit: null,
+		});
+	});
+
+	it("refuses anyone but the operator", async () => {
+		mocks.resolveScope.mockResolvedValue({
+			...operatorScope,
+			isOperator: false,
+			canManage: false,
+		});
+		await expect(callLimits()).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(mocks.orgUpdate).not.toHaveBeenCalled();
 	});
 });

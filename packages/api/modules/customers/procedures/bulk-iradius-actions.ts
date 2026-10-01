@@ -25,6 +25,10 @@ import {
 	iradiusUpdateUserName,
 	iradiusUpdateUserPhones,
 } from "../lib/iradius-api";
+import {
+	ExtraTimePastTargetError,
+	iradiusAddExtraTime,
+} from "../lib/iradius-extra-time";
 
 /**
  * Shared scaffolding for bulk iRadius admin actions:
@@ -281,14 +285,46 @@ export const bulkSetExpiryDate = protectedProcedure
 			userId: user.id,
 			customerIds: input.customerIds,
 		});
+		// Same rule as the single "Set billing expiry": days are never free
+		// for a dealer org. Moving an expiry forward charges the dealer the
+		// prorated wholesale price; only the wholesale operator writes the
+		// date bare, and only it may clear an expiry.
+		const org = await db.organization.findUnique({
+			where: { id: input.organizationId },
+			select: { isWholesaleOperator: true },
+		});
+		const isOperator = org?.isWholesaleOperator === true;
+		const targetExpiry = input.expiryDate;
+		if (!isOperator && !targetExpiry) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "Only LibanCom can clear a billing expiry.",
+			});
+		}
 		return {
 			...(await runBulkIradiusAction({
 				customers,
 				userId: user.id,
 				organizationId: input.organizationId,
 				headers,
-				mutate: (customer) =>
-					iradiusSetExpiryAccount(customer, mysqlDateTime),
+				mutate: async (customer) => {
+					if (!isOperator && targetExpiry) {
+						try {
+							await iradiusAddExtraTime({
+								externalId: customer.externalId,
+								targetExpiry,
+								chargeDealer: true,
+								reason: "Set billing expiry (bulk)",
+							});
+							return { affectedRows: 1 };
+						} catch (error) {
+							// Moving backwards adds no days: bare update.
+							if (!(error instanceof ExtraTimePastTargetError)) {
+								throw error;
+							}
+						}
+					}
+					return iradiusSetExpiryAccount(customer, mysqlDateTime);
+				},
 				localData: { expiresAt: localDate },
 			})),
 			requested: input.customerIds.length,

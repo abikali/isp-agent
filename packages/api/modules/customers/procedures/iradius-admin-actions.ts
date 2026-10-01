@@ -359,10 +359,16 @@ export const setCustomerExpiryDate = protectedProcedure
 		// End-of-day 23:59 Beirut, iRadius' usual billing-cycle expiry time:
 		// iRadius stores the naive literal, Postgres the same instant in UTC.
 		const end = input.expiryDate ? beirutEndOfDay(input.expiryDate) : null;
-		const { chargeDealer } = await resolveChargeDealer(
+		const { chargeDealer, canToggleCharge } = await resolveChargeDealer(
 			input.organizationId,
 			input.chargeDealer,
 		);
+		// Clearing removes the billing deadline — operator only.
+		if (!input.expiryDate && !canToggleCharge) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "Only LibanCom can clear a billing expiry.",
+			});
+		}
 		let added: { days: number; dealerCharge: number } | null = null;
 
 		const result = await runIRadiusAdminAction({

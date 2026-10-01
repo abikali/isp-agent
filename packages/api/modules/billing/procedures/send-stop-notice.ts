@@ -11,7 +11,7 @@ import {
 	pickContactPhone,
 	queueCustomerNotifications,
 } from "@repo/jobs";
-import { parsePhone } from "@repo/utils";
+import { beirutDayAt, beirutParts, parsePhone } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { receiptPhone } from "../lib/receipt-status";
@@ -31,6 +31,11 @@ const channelSchema = z.enum(["whatsapp", "sms"]);
  * `CustomerNotification` row per channel, delivered by the customer-notify
  * worker. `dryRun` returns what would be sent (numbers + SMS text) for the
  * confirm popover without sending.
+ *
+ * The operator can cap how many times a dealer org notifies one customer per
+ * calendar month, per channel (`stopNoticeSmsLimit` / `stopNoticeWhatsappLimit`,
+ * set from the dealer page). A channel at its cap is left out; when every
+ * channel is at its cap the send is refused.
  *
  * Same operator grant as the expiry reminders — every send costs the
  * operator money. The marketing opt-out list is not applied (a manual,
@@ -70,6 +75,8 @@ export const sendStopNotice = protectedProcedure
 					expiryReminderAllowed: true,
 					expiryReminderWhatsapp: true,
 					expiryReminderSms: true,
+					stopNoticeSmsLimit: true,
+					stopNoticeWhatsappLimit: true,
 					reminderFallbackPhone: true,
 					activeDealer: {
 						select: { whatsappPhone: true, companyMobile: true },
@@ -122,12 +129,12 @@ export const sendStopNotice = protectedProcedure
 			});
 		}
 
-		const channels = input.channels.filter((channel) =>
+		const enabled = input.channels.filter((channel) =>
 			channel === "whatsapp"
 				? org.expiryReminderWhatsapp
 				: org.expiryReminderSms,
 		);
-		if (channels.length === 0) {
+		if (enabled.length === 0) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"WhatsApp and SMS are both switched off in Settings → Notifications.",
@@ -135,6 +142,41 @@ export const sendStopNotice = protectedProcedure
 		}
 
 		const now = new Date();
+		// Counted per customer, not per stop: a stop that is deleted and filed
+		// again must not reset the count.
+		const used = await db.customerNotification.groupBy({
+			by: ["channel"],
+			where: {
+				organizationId: input.organizationId,
+				customerId: payment.customerId,
+				kind: "stop_notice",
+				status: { in: ["queued", "sent"] },
+				createdAt: {
+					gte: beirutDayAt(now, 1 - beirutParts(now).day, "00:00"),
+				},
+			},
+			_count: { _all: true },
+		});
+		const limited = enabled.flatMap((channel) => {
+			const limit =
+				channel === "whatsapp"
+					? org.stopNoticeWhatsappLimit
+					: org.stopNoticeSmsLimit;
+			const count =
+				used.find((row) => row.channel === channel)?._count._all ?? 0;
+			return limit !== null && count >= limit
+				? [{ channel, limit, used: count }]
+				: [];
+		});
+		const channels = enabled.filter(
+			(channel) => !limited.some((l) => l.channel === channel),
+		);
+		if (channels.length === 0) {
+			throw new ORPCError("TOO_MANY_REQUESTS", {
+				message:
+					"This customer already got the notices allowed this month. The count resets next month.",
+			});
+		}
 		if (
 			!input.dryRun &&
 			payment.stopNoticeSentAt &&
@@ -203,6 +245,7 @@ export const sendStopNotice = protectedProcedure
 					error: row.error,
 				})),
 				suppressed,
+				limited,
 			};
 		}
 
@@ -246,5 +289,6 @@ export const sendStopNotice = protectedProcedure
 				error: row.error,
 			})),
 			suppressed,
+			limited,
 		};
 	});

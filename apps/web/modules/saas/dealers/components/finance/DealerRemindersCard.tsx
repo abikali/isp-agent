@@ -12,6 +12,10 @@ import {
 	type DealerFinanceLedger,
 	useSetDealerReminderGrant,
 } from "../../hooks/use-dealer-finance";
+import {
+	DealerNotificationLimitsForm,
+	LIMIT_FIELDS,
+} from "./DealerNotificationLimitsForm";
 
 /**
  * Operator-only: grant this dealer's customers the WhatsApp + SMS payment
@@ -74,6 +78,15 @@ export function DealerRemindersCard({
 						}}
 					/>
 				</div>
+				{reminders && organizationId && (
+					<DealerNotificationLimitsForm
+						// Remount with the saved values after a save.
+						key={LIMIT_FIELDS.map((f) => reminders[f.name]).join()}
+						organizationId={organizationId}
+						dealerId={dealer.id}
+						reminders={reminders}
+					/>
+				)}
 			</ContentCardSection>
 		</ContentCard>
 	);

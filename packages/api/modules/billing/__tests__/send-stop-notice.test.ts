@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	notificationGroupBy: vi.fn(async () => [] as unknown[]),
 	requirePermission: vi.fn(),
 	orgFind: vi.fn(),
 	paymentFind: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@repo/database", async () => {
 			organization: { findUnique: mocks.orgFind },
 			payment: { findFirst: mocks.paymentFind },
 			marketingSuppression: { count: mocks.suppressionCount },
+			customerNotification: { groupBy: mocks.notificationGroupBy },
 			$transaction: (fn: (client: typeof tx) => Promise<unknown>) =>
 				fn(tx),
 		},
@@ -52,6 +54,8 @@ const ORG = {
 	expiryReminderAllowed: false,
 	expiryReminderWhatsapp: true,
 	expiryReminderSms: true,
+	stopNoticeSmsLimit: null,
+	stopNoticeWhatsappLimit: null,
 	reminderFallbackPhone: null,
 	activeDealer: { whatsappPhone: null, companyMobile: null },
 };
@@ -97,6 +101,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.requirePermission.mockResolvedValue({ activeDealerId: "dealer-1" });
 	mocks.orgFind.mockResolvedValue(ORG);
+	mocks.notificationGroupBy.mockResolvedValue([]);
 	mocks.paymentFind.mockResolvedValue(pendingStop());
 	mocks.suppressionCount.mockResolvedValue(0);
 	mocks.createManyAndReturn.mockImplementation(
@@ -272,6 +277,45 @@ describe("sendStopNotice", () => {
 		]);
 		expect(mocks.queue).toHaveBeenCalledWith(["n1"]);
 		expect(result).toMatchObject({ smsText: null });
+	});
+
+	it("leaves out a channel that reached its monthly limit for the customer", async () => {
+		mocks.orgFind.mockResolvedValue({
+			...ORG,
+			stopNoticeSmsLimit: 1,
+			stopNoticeWhatsappLimit: 2,
+		});
+		mocks.notificationGroupBy.mockResolvedValue([
+			{ channel: "sms", _count: { _all: 1 } },
+			{ channel: "whatsapp", _count: { _all: 1 } },
+		]);
+
+		const result = await call();
+
+		const rows = mocks.createManyAndReturn.mock.calls[0]?.[0].data;
+		expect(rows).toEqual([
+			expect.objectContaining({ channel: "whatsapp", status: "queued" }),
+		]);
+		expect(result).toMatchObject({
+			limited: [{ channel: "sms", limit: 1, used: 1 }],
+		});
+	});
+
+	it("refuses when every channel reached its monthly limit", async () => {
+		mocks.orgFind.mockResolvedValue({
+			...ORG,
+			stopNoticeSmsLimit: 1,
+			stopNoticeWhatsappLimit: 2,
+		});
+		mocks.notificationGroupBy.mockResolvedValue([
+			{ channel: "sms", _count: { _all: 1 } },
+			{ channel: "whatsapp", _count: { _all: 2 } },
+		]);
+
+		await expect(call()).rejects.toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+		});
+		expect(mocks.createManyAndReturn).not.toHaveBeenCalled();
 	});
 
 	it("refuses when both channels are switched off", async () => {

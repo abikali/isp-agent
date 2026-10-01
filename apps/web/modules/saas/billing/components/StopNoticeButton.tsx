@@ -186,6 +186,16 @@ export function StopNoticeButton({
 										will be skipped: {c.error}
 									</p>
 								))}
+							{preview.data.limited.map((l) => (
+								<p
+									key={l.channel}
+									className="text-amber-600 text-xs"
+								>
+									{l.channel === "sms" ? "SMS" : "WhatsApp"}{" "}
+									will not be sent: this customer already got{" "}
+									{l.used} of {l.limit} this month.
+								</p>
+							))}
 							{preview.data.suppressed && (
 								<p className="text-amber-600 text-xs">
 									This number is on the marketing opt-out

@@ -113,7 +113,15 @@ export const scopedDealerSelect = {
 	// The dealer's own LibanCom org, if it has one — the operator grants it
 	// customer payment reminders from here.
 	activeForOrganization: {
-		select: { id: true, name: true, expiryReminderAllowed: true },
+		select: {
+			id: true,
+			name: true,
+			expiryReminderAllowed: true,
+			stopNoticeSmsLimit: true,
+			stopNoticeWhatsappLimit: true,
+			stopNoticeRate: true,
+			expiryReminderRate: true,
+		},
 	},
 } as const;
 

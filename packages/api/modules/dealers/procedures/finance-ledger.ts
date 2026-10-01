@@ -242,6 +242,15 @@ export const getDealerFinanceLedger = protectedProcedure
 							allowed:
 								dealer.activeForOrganization
 									.expiryReminderAllowed,
+							stopNoticeSmsLimit:
+								dealer.activeForOrganization.stopNoticeSmsLimit,
+							stopNoticeWhatsappLimit:
+								dealer.activeForOrganization
+									.stopNoticeWhatsappLimit,
+							stopNoticeRate:
+								dealer.activeForOrganization.stopNoticeRate,
+							expiryReminderRate:
+								dealer.activeForOrganization.expiryReminderRate,
 						}
 					: null,
 				contact: {

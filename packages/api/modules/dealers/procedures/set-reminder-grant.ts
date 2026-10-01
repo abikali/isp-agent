@@ -72,3 +72,78 @@ export const setDealerReminderGrant = protectedProcedure
 
 		return { allowed: input.allowed, organizationName: dealerOrg.name };
 	});
+
+const limitSchema = z.number().int().min(0).max(100).nullable();
+const rateSchema = z.number().finite().min(0).max(1000);
+
+/**
+ * Operator-set limits and rates for a dealer org's customer messages:
+ * how many times "notify customer" may message one customer per calendar
+ * month on each channel (null = no limit; the daily expiry reminder is not
+ * limited), and what the operator charges per message. The rates are only
+ * recorded for now — nothing is billed from them yet.
+ */
+export const setDealerNotificationLimits = protectedProcedure
+	.route({
+		method: "POST",
+		path: "/dealers/finance/{dealerId}/notification-limits",
+		tags: ["Dealers"],
+		summary: "Set a dealer's stop-notice limits and per-message rates",
+	})
+	.input(
+		z.object({
+			organizationId: z.string(),
+			dealerId: z.string(),
+			stopNoticeSmsLimit: limitSchema,
+			stopNoticeWhatsappLimit: limitSchema,
+			stopNoticeRate: rateSchema,
+			expiryReminderRate: rateSchema,
+		}),
+	)
+	.handler(async ({ context: { user, headers }, input }) => {
+		const scope = await resolveDealerScope(
+			input.organizationId,
+			user.id,
+			"manage",
+		);
+		if (!scope.canManage) {
+			throw new ORPCError("FORBIDDEN", {
+				message:
+					"Only the network operator's organization can set a dealer's notification limits.",
+			});
+		}
+		const dealer = await requireDealerInScope(scope, input.dealerId);
+		const dealerOrg = dealer.activeForOrganization;
+		if (!dealerOrg) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "This dealer has no LibanCom account.",
+			});
+		}
+
+		const limits = {
+			stopNoticeSmsLimit: input.stopNoticeSmsLimit,
+			stopNoticeWhatsappLimit: input.stopNoticeWhatsappLimit,
+			stopNoticeRate: input.stopNoticeRate,
+			expiryReminderRate: input.expiryReminderRate,
+		};
+		await db.organization.update({
+			where: { id: dealerOrg.id },
+			data: limits,
+			select: { id: true },
+		});
+
+		dealerAudit.reminderGrantChanged(
+			dealer.id,
+			user.id,
+			scope.organizationId,
+			getAuditContextFromHeaders(headers),
+			{
+				dealerName: dealer.name,
+				dealerOrganizationId: dealerOrg.id,
+				allowed: dealerOrg.expiryReminderAllowed,
+				limits,
+			},
+		);
+
+		return limits;
+	});

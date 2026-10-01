@@ -14,7 +14,10 @@ import { recordDealerPayment } from "./procedures/record-payment";
 import { resendDealerNotice } from "./procedures/resend-notice";
 import { setActiveDealer } from "./procedures/set-active";
 import { setInternalDealerLine } from "./procedures/set-internal-line";
-import { setDealerReminderGrant } from "./procedures/set-reminder-grant";
+import {
+	setDealerNotificationLimits,
+	setDealerReminderGrant,
+} from "./procedures/set-reminder-grant";
 import { getDealerStats } from "./procedures/stats";
 import { updateDealer } from "./procedures/update";
 import { updateDealerContact } from "./procedures/update-contact";
@@ -44,6 +47,7 @@ export const dealerFinanceRouter = {
 	resendNotice: resendDealerNotice,
 	updateContact: updateDealerContact,
 	setReminderGrant: setDealerReminderGrant,
+	setNotificationLimits: setDealerNotificationLimits,
 	syncNow: syncDealerFinanceNow,
 	syncStatus: getDealerFinanceSyncStatus,
 };

@@ -421,6 +421,15 @@ model Organization {
   expiryReminderWhatsapp Boolean                @default(true) @map("expiry_reminder_whatsapp")
   // Office number put in the text when the customer's collector has no phone.
   reminderFallbackPhone  String?                @map("reminder_fallback_phone")
+  // Set by the wholesale operator per dealer org. How many times "notify
+  // customer" (stop notice) may message one customer per calendar month, per
+  // channel; null = no limit. The daily expiry reminder is not limited.
+  stopNoticeSmsLimit      Int?                  @map("stop_notice_sms_limit")
+  stopNoticeWhatsappLimit Int?                  @map("stop_notice_whatsapp_limit")
+  // What the operator charges the dealer per message. Recorded only — nothing
+  // is billed from it yet.
+  stopNoticeRate          Float                 @default(0) @map("stop_notice_rate")
+  expiryReminderRate      Float                 @default(0) @map("expiry_reminder_rate")
   customerNotifications  CustomerNotification[]
 
   @@map("organization")

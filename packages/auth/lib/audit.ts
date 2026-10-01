@@ -1847,6 +1847,12 @@ export const dealerAudit = {
 			dealerName: string;
 			dealerOrganizationId: string;
 			allowed: boolean;
+			limits?: {
+				stopNoticeSmsLimit: number | null;
+				stopNoticeWhatsappLimit: number | null;
+				stopNoticeRate: number;
+				expiryReminderRate: number;
+			};
 		},
 	) => {
 		logAuthEvent(
