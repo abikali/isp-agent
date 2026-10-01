@@ -203,7 +203,7 @@ export function AlignToFirstDialog({
 							<p className="mt-1 font-medium tabular-nums">
 								{data.billableDays} days ×{" "}
 								{formatCurrency(data.monthlyDue)} /{" "}
-								{data.periodDays} ={" "}
+								{Number(data.periodDays.toFixed(2))} ={" "}
 								{formatCurrency(data.formulaAmount)} →{" "}
 								{formatCurrency(data.suggestedAmount)}
 							</p>

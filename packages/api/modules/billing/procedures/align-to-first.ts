@@ -388,7 +388,7 @@ export const alignToFirst = protectedProcedure
 						data: { expiresAt: plan.newExpiry },
 					});
 
-					const formula = `${a.billableDays} day(s) × $${a.monthlyDue} / ${a.periodDays} = $${a.proration.formulaAmount}`;
+					const formula = `${a.billableDays} day(s) × $${a.monthlyDue} / ${Number(a.periodDays.toFixed(2))} = $${a.proration.formulaAmount}`;
 					const line = `Prorated to 1st: ${formula} → $${amount} (was $${invoice.total})${dealerCharge > 0 ? `; dealer charged $${dealerCharge.toFixed(2)}` : ""}`;
 					await tx.customerInvoice.update({
 						where: { id: invoice.id },
