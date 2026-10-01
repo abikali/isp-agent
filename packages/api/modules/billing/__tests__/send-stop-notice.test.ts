@@ -50,6 +50,8 @@ import { sendStopNotice } from "../procedures/send-stop-notice";
 const ORG = {
 	isWholesaleOperator: true,
 	expiryReminderAllowed: false,
+	expiryReminderWhatsapp: true,
+	expiryReminderSms: true,
 	reminderFallbackPhone: null,
 	activeDealer: { whatsappPhone: null, companyMobile: null },
 };
@@ -257,5 +259,29 @@ describe("sendStopNotice", () => {
 		expect(mocks.queue).toHaveBeenCalledWith(["n1", "n2"]);
 		// Opt-outs are not applied to a manual notice, only flagged.
 		expect(result).toMatchObject({ suppressed: true });
+	});
+
+	it("sends only on the channels switched on in the org's settings", async () => {
+		mocks.orgFind.mockResolvedValue({ ...ORG, expiryReminderSms: false });
+
+		const result = await call();
+
+		const rows = mocks.createManyAndReturn.mock.calls[0]?.[0].data;
+		expect(rows).toEqual([
+			expect.objectContaining({ channel: "whatsapp", status: "queued" }),
+		]);
+		expect(mocks.queue).toHaveBeenCalledWith(["n1"]);
+		expect(result).toMatchObject({ smsText: null });
+	});
+
+	it("refuses when both channels are switched off", async () => {
+		mocks.orgFind.mockResolvedValue({
+			...ORG,
+			expiryReminderWhatsapp: false,
+			expiryReminderSms: false,
+		});
+
+		await expect(call()).rejects.toThrow(/both switched off/);
+		expect(mocks.createManyAndReturn).not.toHaveBeenCalled();
 	});
 });

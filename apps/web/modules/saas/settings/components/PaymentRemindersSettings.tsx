@@ -104,12 +104,12 @@ export function PaymentRemindersSettings() {
 					{
 						field: "expiryReminderWhatsapp" as const,
 						label: "WhatsApp",
-						desc: "Template payment_reminder_tomorrow from the official LibanCom number.",
+						desc: "From the official LibanCom number. Used for the daily reminder and the Notify customer button on a pending stop.",
 					},
 					{
 						field: "expiryReminderSms" as const,
 						label: "SMS",
-						desc: "From sender Libancom. Lebanese numbers only.",
+						desc: "From sender Libancom. Lebanese numbers only. Used for the daily reminder and the Notify customer button on a pending stop.",
 					},
 				].map((row) => (
 					<div

@@ -23,9 +23,11 @@ const channelSchema = z.enum(["whatsapp", "sms"]);
 
 /**
  * "Notify customer" on a pending stop (Needs review): before approving a
- * collector's stop, WhatsApp + SMS the customer that their collector is
- * trying to reach them, with the collector's number — a last chance to
- * answer. Stamps `Payment.stopNoticeSentAt` for the list badge and writes one
+ * collector's stop, message the customer that their collector is trying to
+ * reach them, with the collector's number — a last chance to answer. Goes
+ * out on the channels the org switched on in Settings → Notifications (the
+ * same WhatsApp / SMS switches as the expiry reminder), never on one that is
+ * off. Stamps `Payment.stopNoticeSentAt` for the list badge and writes one
  * `CustomerNotification` row per channel, delivered by the customer-notify
  * worker. `dryRun` returns what would be sent (numbers + SMS text) for the
  * confirm popover without sending.
@@ -66,6 +68,8 @@ export const sendStopNotice = protectedProcedure
 				select: {
 					isWholesaleOperator: true,
 					expiryReminderAllowed: true,
+					expiryReminderWhatsapp: true,
+					expiryReminderSms: true,
 					reminderFallbackPhone: true,
 					activeDealer: {
 						select: { whatsappPhone: true, companyMobile: true },
@@ -118,6 +122,18 @@ export const sendStopNotice = protectedProcedure
 			});
 		}
 
+		const channels = input.channels.filter((channel) =>
+			channel === "whatsapp"
+				? org.expiryReminderWhatsapp
+				: org.expiryReminderSms,
+		);
+		if (channels.length === 0) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"WhatsApp and SMS are both switched off in Settings → Notifications.",
+			});
+		}
+
 		const now = new Date();
 		if (
 			!input.dryRun &&
@@ -167,7 +183,7 @@ export const sendStopNotice = protectedProcedure
 			customerId: payment.customerId,
 			paymentId: payment.id,
 			kind: "stop_notice",
-			channels: input.channels,
+			channels,
 			customerPhone,
 			contactPhone,
 			sentById: user.id,
@@ -201,7 +217,7 @@ export const sendStopNotice = protectedProcedure
 				{
 					action: "stop_notice",
 					status: "success",
-					detail: `queued ${input.channels.join("+")} → ${parsed.e164}, contact ${contactPhone}`,
+					detail: `queued ${channels.join("+")} → ${parsed.e164}, contact ${contactPhone}`,
 					timestamp: now.toISOString(),
 				},
 				{ client: tx },

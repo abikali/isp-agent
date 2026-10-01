@@ -67,7 +67,7 @@ export function StopNoticeButton({
 					toast.success(
 						skipped.length > 0
 							? `Notification queued (${skipped.map((c) => `${c.channel}: ${c.error}`).join(", ")})`
-							: "Notification queued (WhatsApp + SMS)",
+							: `Notification queued (${result.channels.map((c) => (c.channel === "sms" ? "SMS" : "WhatsApp")).join(" + ")})`,
 					);
 				},
 				onError: (error) => toast.error(error.message),
@@ -129,9 +129,7 @@ export function StopNoticeButton({
 							</Button>
 						</PopoverTrigger>
 					</TooltipTrigger>
-					<TooltipContent>
-						Notify customer (WhatsApp + SMS)
-					</TooltipContent>
+					<TooltipContent>Notify customer</TooltipContent>
 				</Tooltip>
 				<PopoverContent className="w-80 space-y-3" align="end">
 					<p className="font-medium text-sm">Notify the customer?</p>
@@ -165,8 +163,15 @@ export function StopNoticeButton({
 								</p>
 							)}
 							<p className="text-muted-foreground text-xs">
-								WhatsApp uses the approved stop_request_notice
-								template with the same number.
+								Sent by{" "}
+								{preview.data.channels
+									.map((c) =>
+										c.channel === "sms"
+											? "SMS"
+											: "WhatsApp",
+									)
+									.join(" + ")}
+								, as switched on in Settings → Notifications.
 							</p>
 							{preview.data.channels
 								.filter((c) => c.status === "skipped")
