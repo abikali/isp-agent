@@ -9,6 +9,7 @@ import { logger } from "@repo/logs";
 import { bilingual, tgMessage } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { clearApElectricalAfterUninstall } from "../../installations/lib/electricity-mirror";
 import { bustTaskStats } from "../lib/stats-cache";
 import { approveUninstalledItemInTx } from "../lib/uninstalled-review";
 
@@ -128,7 +129,7 @@ export const reviewUninstalledItem = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const { activeDealerId } = await requirePermission(
+		const { activeDealerId, iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"installations",
@@ -207,6 +208,11 @@ export const reviewUninstalledItem = protectedProcedure
 			}),
 		);
 		bustTaskStats(input.organizationId);
+		await clearApElectricalAfterUninstall({
+			organizationId: input.organizationId,
+			uninstalledItemIds: [item.id],
+			iradiusDisabled,
+		});
 
 		if (item.employeeId) {
 			notifyFieldEmployee({

@@ -320,6 +320,12 @@ const pushAddonPricesToIRadius = vi.fn(async () => {
 vi.mock("../../installations/lib/addon-price-mirror", () => ({
 	pushAddonPricesToIRadius,
 }));
+const pushApElectricalToIRadius = vi.fn(async () => {});
+const clearApElectricalAfterUninstall = vi.fn(async () => {});
+vi.mock("../../installations/lib/electricity-mirror", () => ({
+	pushApElectricalToIRadius,
+	clearApElectricalAfterUninstall,
+}));
 
 const { reviewTaskCompletion } = await import(
 	"../procedures/review-completion"
@@ -419,6 +425,14 @@ describe("reviewTaskCompletion — approve", () => {
 		expect(store.recovered[0]?.status).toBe("APPROVED");
 		expect(store.workerStock["item-router|emp-1"]?.quantity).toBe(1);
 		expect(store.taskStatus).toBe("COMPLETED");
+		// AP Electrical: pushed for the installed lines, re-checked for the
+		// recovered ones.
+		expect(pushApElectricalToIRadius).toHaveBeenCalledOnce();
+		expect(clearApElectricalAfterUninstall).toHaveBeenCalledWith(
+			expect.objectContaining({
+				uninstalledItemIds: [store.recovered[0]?.id],
+			}),
+		);
 	});
 
 	it("rolls everything back on a stock shortfall", async () => {

@@ -10,6 +10,10 @@ import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { mirrorToIRadius } from "../../customers/lib/iradius-mirror";
 import { pushAddonPricesToIRadius } from "../../installations/lib/addon-price-mirror";
+import {
+	clearApElectricalAfterUninstall,
+	pushApElectricalToIRadius,
+} from "../../installations/lib/electricity-mirror";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
 import {
 	approvableTaskLines,
@@ -100,16 +104,21 @@ export const reviewTaskCompletion = protectedProcedure
 
 		if (approved) {
 			const addonLines = lines.installations.filter((l) => l.isAddOn);
-			// Add-on lines set the customer's IPTV / Real IP price, which is
-			// iRadius-mirrored: push remote-first, approve locally only once
-			// iRadius accepted it.
+			// Add-on lines set the customer's IPTV / Real IP price and an
+			// electricity item sets AP Electrical — both iRadius-mirrored:
+			// push remote-first, approve locally only once iRadius accepted.
 			updated = await mirrorToIRadius({
 				iradiusDisabled,
-				logTag: "[Task Review] iRadius add-on price",
+				logTag: "[Task Review] iRadius add-on price / AP electrical",
 				failureMessage:
-					"Failed to set the add-on price in iRadius — task not approved",
-				remote: () =>
-					pushAddonPricesToIRadius(task.customer, addonLines),
+					"Failed to update the customer in iRadius (add-on price / AP electrical) — task not approved",
+				remote: async () => {
+					await pushAddonPricesToIRadius(task.customer, addonLines);
+					await pushApElectricalToIRadius(
+						task.customer,
+						lines.installations,
+					);
+				},
 				local: () =>
 					db.$transaction(async (tx) => {
 						approvedCounts = await approveTaskLinesInTx(
@@ -162,6 +171,13 @@ export const reviewTaskCompletion = protectedProcedure
 		}
 
 		bustTaskStats(input.organizationId);
+		if (approved) {
+			await clearApElectricalAfterUninstall({
+				organizationId: input.organizationId,
+				uninstalledItemIds: lines.recovered.map((item) => item.id),
+				iradiusDisabled,
+			});
+		}
 		(approved
 			? cancelTaskReminder(task.id)
 			: scheduleTaskReminder(task.id)

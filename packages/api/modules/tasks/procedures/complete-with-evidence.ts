@@ -19,6 +19,10 @@ import {
 	addonNoteFor,
 	classifyAddonNote,
 } from "../../installations/lib/addons";
+import {
+	clearApElectricalAfterUninstall,
+	pushApElectricalToIRadius,
+} from "../../installations/lib/electricity-mirror";
 import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { taskDealerScopeWhere } from "../lib/dealer-scope";
 import {
@@ -349,6 +353,17 @@ export const completeTaskWithEvidence = protectedProcedure
 					}))
 				: [];
 
+		// Auto-approved stock lines may include an electricity item, which
+		// sets AP Electrical — iRadius-mirrored like the add-on prices.
+		const electricityLines =
+			autoApproveLines && employeeId
+				? installedItems.map((line) => ({
+						stockItemId: line.stockItemId ?? null,
+						isAddOn: Boolean(line.addonType),
+					}))
+				: [];
+		let approvedRecoveredIds: string[] = [];
+
 		const runCompletion = () =>
 			db.$transaction(async (tx) => {
 				if (installedItems.length > 0 && employeeId) {
@@ -398,10 +413,10 @@ export const completeTaskWithEvidence = protectedProcedure
 						where: { id: task.id },
 						select: TASK_LINES_SELECT,
 					});
-					await approveTaskLinesInTx(
-						tx,
-						approvableTaskLines(lines),
-						user.id,
+					const approvable = approvableTaskLines(lines);
+					await approveTaskLinesInTx(tx, approvable, user.id);
+					approvedRecoveredIds = approvable.recovered.map(
+						(item) => item.id,
 					);
 				}
 
@@ -424,22 +439,33 @@ export const completeTaskWithEvidence = protectedProcedure
 					},
 				});
 			});
-		// Add-on prices are iRadius-mirrored: push remote-first, then write.
+		// Add-on prices and AP Electrical are iRadius-mirrored: push
+		// remote-first, then write.
 		const updated =
-			addonPushLines.length > 0
+			addonPushLines.length > 0 || electricityLines.length > 0
 				? await mirrorToIRadius({
 						iradiusDisabled,
-						logTag: "[Task Complete] iRadius add-on price",
+						logTag: "[Task Complete] iRadius add-on price / AP electrical",
 						failureMessage:
-							"Failed to set the add-on price in iRadius — task not completed",
-						remote: () =>
-							pushAddonPricesToIRadius(
+							"Failed to update the customer in iRadius (add-on price / AP electrical) — task not completed",
+						remote: async () => {
+							await pushAddonPricesToIRadius(
 								task.customer,
 								addonPushLines,
-							),
+							);
+							await pushApElectricalToIRadius(
+								task.customer,
+								electricityLines,
+							);
+						},
 						local: runCompletion,
 					})
 				: await runCompletion();
+		await clearApElectricalAfterUninstall({
+			organizationId: input.organizationId,
+			uninstalledItemIds: approvedRecoveredIds,
+			iradiusDisabled,
+		});
 		cancelTaskReminder(task.id).catch((err: unknown) =>
 			logger.warn("[Task Complete] reminder cancel failed", {
 				error: String(err),

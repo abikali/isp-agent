@@ -563,23 +563,19 @@ function tickInterval(ms: number): number {
 
 /**
  * Escalating urgency for an open task, keyed off how long it has been sitting
- * with the worker: today is calm, yesterday needs a look, a week is a problem.
+ * with the worker: the first hour is calm, past an hour is late (orange),
+ * past 12 hours is a problem (red).
  */
 const AGE_TIERS = [
 	{
-		after: 7 * 86_400_000,
+		after: 12 * 3_600_000,
 		className:
 			"bg-destructive/10 text-destructive font-semibold dark:text-red-300",
 	},
 	{
-		after: 3 * 86_400_000,
+		after: 3_600_000,
 		className:
 			"bg-orange-500/15 font-medium text-orange-700 dark:text-orange-300",
-	},
-	{
-		after: 86_400_000,
-		className:
-			"bg-amber-500/10 font-medium text-amber-700 dark:text-amber-300",
 	},
 	{ after: 0, className: "bg-muted text-muted-foreground" },
 ];

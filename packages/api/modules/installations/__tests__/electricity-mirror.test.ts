@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	iradiusSetApElectrical: vi.fn(async () => ({ affectedRows: 1 })),
 	findFirst: vi.fn(),
+	customers: vi.fn(),
+	installs: vi.fn(),
+	uninstalls: vi.fn(),
+	customerUpdate: vi.fn(async () => ({ id: "c1" })),
 }));
 
 vi.mock("../../customers/lib/iradius-api", () => ({
@@ -10,10 +14,19 @@ vi.mock("../../customers/lib/iradius-api", () => ({
 }));
 
 vi.mock("@repo/database", () => ({
-	db: { stockItem: { findFirst: mocks.findFirst } },
+	db: {
+		stockItem: { findFirst: mocks.findFirst },
+		customer: {
+			findMany: mocks.customers,
+			update: mocks.customerUpdate,
+		},
+		installation: { findMany: mocks.installs },
+		uninstalledItem: { findMany: mocks.uninstalls },
+	},
 }));
 
-const { pushApElectricalToIRadius } = await import("../lib/electricity-mirror");
+const { pushApElectricalToIRadius, clearApElectricalAfterUninstall } =
+	await import("../lib/electricity-mirror");
 
 const linked = { externalId: "84541" };
 const adapter = { stockItemId: "item-adapter", isAddOn: false };
@@ -65,5 +78,79 @@ describe("pushApElectricalToIRadius", () => {
 		await expect(
 			pushApElectricalToIRadius(linked, [adapter]),
 		).rejects.toThrow(/0 rows/);
+	});
+});
+
+describe("clearApElectricalAfterUninstall", () => {
+	const input = {
+		organizationId: "org",
+		uninstalledItemIds: ["u1"],
+		iradiusDisabled: false,
+	};
+	const day = (n: number) => new Date(Date.UTC(2026, 9, n));
+	const customer = { id: "c1", externalId: "84541" };
+
+	it("does nothing when no approved item is an electricity item on a flagged customer", async () => {
+		mocks.customers.mockResolvedValue([]);
+		await clearApElectricalAfterUninstall(input);
+		expect(mocks.iradiusSetApElectrical).not.toHaveBeenCalled();
+		expect(mocks.customerUpdate).not.toHaveBeenCalled();
+	});
+
+	it("clears iRadius first, then the customer, when the item is gone", async () => {
+		mocks.customers.mockResolvedValue([customer]);
+		mocks.installs.mockResolvedValue([
+			{ stockItemId: "adapter", installedAt: day(1), taskId: "t1" },
+		]);
+		mocks.uninstalls.mockResolvedValue([
+			{ stockItemId: "adapter", uninstalledAt: day(5), taskId: "t2" },
+		]);
+		await clearApElectricalAfterUninstall(input);
+		expect(mocks.iradiusSetApElectrical).toHaveBeenCalledWith(
+			customer,
+			false,
+		);
+		expect(mocks.customerUpdate).toHaveBeenCalledWith({
+			where: { id: "c1" },
+			data: { apElectrical: false },
+			select: { id: true },
+		});
+	});
+
+	it("keeps the flag while another electricity item is still installed", async () => {
+		mocks.customers.mockResolvedValue([customer]);
+		mocks.installs.mockResolvedValue([
+			{ stockItemId: "adapter", installedAt: day(1), taskId: "t1" },
+			{ stockItemId: "ups", installedAt: day(1), taskId: "t1" },
+		]);
+		mocks.uninstalls.mockResolvedValue([
+			{ stockItemId: "adapter", uninstalledAt: day(5), taskId: "t2" },
+		]);
+		await clearApElectricalAfterUninstall(input);
+		expect(mocks.iradiusSetApElectrical).not.toHaveBeenCalled();
+		expect(mocks.customerUpdate).not.toHaveBeenCalled();
+	});
+
+	it("keeps the flag when the same task replaced the item", async () => {
+		mocks.customers.mockResolvedValue([customer]);
+		mocks.installs.mockResolvedValue([
+			{ stockItemId: "adapter", installedAt: day(5), taskId: "t2" },
+		]);
+		mocks.uninstalls.mockResolvedValue([
+			{ stockItemId: "adapter", uninstalledAt: day(6), taskId: "t2" },
+		]);
+		await clearApElectricalAfterUninstall(input);
+		expect(mocks.iradiusSetApElectrical).not.toHaveBeenCalled();
+	});
+
+	it("leaves the customer untouched and does not throw when iRadius fails", async () => {
+		mocks.customers.mockResolvedValue([customer]);
+		mocks.installs.mockResolvedValue([]);
+		mocks.uninstalls.mockResolvedValue([]);
+		mocks.iradiusSetApElectrical.mockRejectedValueOnce(new Error("down"));
+		await expect(
+			clearApElectricalAfterUninstall(input),
+		).resolves.toBeUndefined();
+		expect(mocks.customerUpdate).not.toHaveBeenCalled();
 	});
 });
