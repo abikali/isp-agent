@@ -927,6 +927,41 @@ export async function iradiusSetApElectrical(
 }
 
 /**
+ * Turn "Access Point Electrical" on for many customers at once — the same
+ * UserNas.APElectrical write as `iradiusSetApElectrical`, in one statement.
+ * Returns the externalIds that have a UserNas row (the ones actually set), so
+ * the caller mirrors only those locally.
+ */
+export async function iradiusSetApElectricalOnMany(
+	externalIds: string[],
+): Promise<string[]> {
+	const userIds = externalIds.map((externalId) =>
+		requireExternalId({ externalId }),
+	);
+	if (userIds.length === 0) {
+		return [];
+	}
+	const placeholders = userIds.map(() => "?").join(", ");
+	return withIRadiusConnection(async (conn) => {
+		const rows = await queryIRadius(
+			conn,
+			`SELECT UserId FROM UserNas WHERE UserId IN (${placeholders})`,
+			userIds,
+		);
+		const found = [...new Set(rows.map((row) => Number(row["UserId"])))];
+		if (found.length === 0) {
+			return [];
+		}
+		await executeIRadius(
+			conn,
+			`UPDATE UserNas SET APElectrical = 1 WHERE UserId IN (${found.map(() => "?").join(", ")})`,
+			found,
+		);
+		return found.map(String);
+	});
+}
+
+/**
  * Set a customer's real-IP price in iRadius (UserNas.REALIPPRICE). Added on
  * top of the plan's price on the next invoice, like IPTVPRICE. Column is a
  * nullable float; pass 0 to clear.

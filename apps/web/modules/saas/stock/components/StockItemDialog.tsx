@@ -61,17 +61,19 @@ export function StockItemDialog({
 				);
 			try {
 				if (isEdit) {
-					await updateItem.mutateAsync({
-						organizationId,
-						id: item.id,
-						name: value.name,
-						costPrice: value.costPrice,
-						sellPrice: value.sellPrice,
-						alertThreshold: value.alertThreshold,
-						alertEnabled: value.alertEnabled,
-						showInUninstall: value.showInUninstall,
-						isElectricity: value.isElectricity,
-					});
+					const { electricityApplied } = await updateItem.mutateAsync(
+						{
+							organizationId,
+							id: item.id,
+							name: value.name,
+							costPrice: value.costPrice,
+							sellPrice: value.sellPrice,
+							alertThreshold: value.alertThreshold,
+							alertEnabled: value.alertEnabled,
+							showInUninstall: value.showInUninstall,
+							isElectricity: value.isElectricity,
+						},
+					);
 					if (suppliersChanged) {
 						await setItemSuppliers.mutateAsync({
 							organizationId,
@@ -79,7 +81,11 @@ export function StockItemDialog({
 							supplierIds: value.supplierIds,
 						});
 					}
-					toast.success("Item updated");
+					toast.success(
+						electricityApplied > 0
+							? `Item updated — AP Electrical set on ${electricityApplied} customer${electricityApplied === 1 ? "" : "s"} who already have it`
+							: "Item updated",
+					);
 				} else {
 					const created = await createItem.mutateAsync({
 						organizationId,
@@ -313,8 +319,9 @@ export function StockItemDialog({
 										Electricity item
 									</Label>
 									<p className="text-xs text-muted-foreground">
-										Installing it sets AP Electrical on the
-										customer in iRadius
+										Sets AP Electrical in iRadius on
+										customers who install it or already have
+										it
 									</p>
 								</div>
 								<Switch

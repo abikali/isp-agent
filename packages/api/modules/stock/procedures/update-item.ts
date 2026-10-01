@@ -3,6 +3,7 @@ import { requirePermission } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { applyElectricityToInstalledCustomers } from "../../installations/lib/electricity-installed";
 
 export const updateStockItem = protectedProcedure
 	.route({
@@ -25,7 +26,7 @@ export const updateStockItem = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		await requirePermission(
+		const { iradiusDisabled } = await requirePermission(
 			input.organizationId,
 			user.id,
 			"inventory",
@@ -34,7 +35,7 @@ export const updateStockItem = protectedProcedure
 
 		const item = await db.stockItem.findFirst({
 			where: { id: input.id, organizationId: input.organizationId },
-			select: { id: true },
+			select: { id: true, isElectricity: true },
 		});
 		if (!item) {
 			throw new ORPCError("NOT_FOUND", {
@@ -81,10 +82,22 @@ export const updateStockItem = protectedProcedure
 			updateData["isElectricity"] = input.isElectricity;
 		}
 
+		// Switching the flag on also covers customers who already have the
+		// item installed. Runs before the item update (iRadius first), so a
+		// failed push leaves the item unmarked and the save can be retried.
+		const electricityApplied =
+			input.isElectricity === true && !item.isElectricity
+				? await applyElectricityToInstalledCustomers({
+						organizationId: input.organizationId,
+						stockItemIds: [item.id],
+						iradiusDisabled,
+					})
+				: 0;
+
 		const updated = await db.stockItem.update({
 			where: { id: input.id },
 			data: updateData,
 		});
 
-		return { item: updated };
+		return { item: updated, electricityApplied };
 	});
