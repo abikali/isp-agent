@@ -2,6 +2,7 @@ import {
 	resolveAgentCredentials,
 	resolveAgentTools,
 	teammateActionNeeded,
+	teammateWaitAlertEnabled,
 } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
@@ -45,10 +46,10 @@ function formatBeirutTime(value: Date): string {
 /**
  * One step of the wait for a teammate's reply (see `markAwaitingHuman`).
  *
- * - `alert` (+10 min): if nobody answered, tell the team on Telegram and file
- *   the AI_ESCALATION task, then queue `reply`. Messages held during a
- *   takeover were never classified, so a pure acknowledgement ends the wait
- *   here without an alert.
+ * - `alert` (+20 min): if nobody answered, queue `reply` — and, when the
+ *   agent has the teammate-wait alert switched on, tell the team on Telegram
+ *   and file the AI_ESCALATION task. Messages held during a takeover were
+ *   never classified, so a pure acknowledgement ends the wait here.
  * - `reply` (+30 min, after any takeover): if still nobody answered, the bot
  *   answers what it can, told that the team was already alerted.
  */
@@ -58,10 +59,7 @@ export async function handleTeammateWait(
 	const { conversationId } = data;
 	const stage = data.stage ?? "alert";
 
-	const conversation = await db.aiConversation.findUnique({
-		where: { id: conversationId },
-		include: { agent: true },
-	});
+	const conversation = await loadConversation(conversationId);
 	const since = conversation?.awaitingHumanSince;
 	if (!conversation || !since || conversation.status !== "active") {
 		return { success: true, error: "Not waiting for a teammate" };
@@ -111,6 +109,47 @@ export async function handleTeammateWait(
 		return { success: true, error: "Nothing to act on" };
 	}
 
+	if (await teammateWaitAlertEnabled(agent.id)) {
+		await alertTeam({ conversation, credentials, since, minutesWaiting });
+	}
+
+	await scheduleTeammateWait({
+		conversationId,
+		channelId,
+		stage: "reply",
+		origin: data.origin ?? "deferral",
+		fireAt: teammateReplyFireAt(
+			since,
+			takeoverExpiry(
+				conversation.humanTakeoverAt,
+				agent.humanTakeoverHours,
+			),
+		),
+	});
+	return { success: true };
+}
+
+type WaitingConversation = NonNullable<
+	Awaited<ReturnType<typeof loadConversation>>
+>;
+
+function loadConversation(conversationId: string) {
+	return db.aiConversation.findUnique({
+		where: { id: conversationId },
+		include: { agent: true },
+	});
+}
+
+/** Tell the team on Telegram that a customer is waiting on a teammate. */
+async function alertTeam(input: {
+	conversation: WaitingConversation;
+	credentials: ReturnType<typeof resolveAgentCredentials>;
+	since: Date;
+	minutesWaiting: number;
+}): Promise<void> {
+	const { conversation, credentials, since, minutesWaiting } = input;
+	const conversationId = conversation.id;
+	const { agent } = conversation;
 	const [customerMessages, teammate] = await Promise.all([
 		db.aiMessage.findMany({
 			where: { conversationId, role: "user", createdAt: { gte: since } },
@@ -169,7 +208,6 @@ export async function handleTeammateWait(
 			logger.info("ai-awaiting-human-alerted", {
 				conversationId,
 				minutesWaiting,
-				origin: data.origin ?? null,
 			});
 		} catch (error) {
 			logger.error("ai-awaiting-human-alert-failed", {
@@ -183,19 +221,4 @@ export async function handleTeammateWait(
 			reason: "escalate-telegram not enabled",
 		});
 	}
-
-	await scheduleTeammateWait({
-		conversationId,
-		channelId,
-		stage: "reply",
-		origin: data.origin ?? "deferral",
-		fireAt: teammateReplyFireAt(
-			since,
-			takeoverExpiry(
-				conversation.humanTakeoverAt,
-				agent.humanTakeoverHours,
-			),
-		),
-	});
-	return { success: true };
 }

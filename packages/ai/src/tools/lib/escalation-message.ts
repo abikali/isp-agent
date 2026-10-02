@@ -15,12 +15,17 @@ const PRIORITY_LABEL: Record<string, string> = {
 
 const DAY_MS = 24 * 60 * 60_000;
 
-export type EscalationSource = "bot" | "safety-net" | "unknown-contact";
+export type EscalationSource =
+	| "bot"
+	| "safety-net"
+	| "unknown-contact"
+	| "teammate-wait";
 
 const SOURCE_LABEL: Record<EscalationSource, string> = {
 	bot: "raised by the bot",
 	"safety-net": "safety net (the bot did not escalate itself)",
 	"unknown-contact": "unknown-contact rule",
+	"teammate-wait": "teammate did not reply",
 };
 
 /** Who filed the escalation, from the tool call id its caller used. */
@@ -32,6 +37,9 @@ export function escalationSourceFromToolCallId(
 	}
 	if (toolCallId?.startsWith("guard-")) {
 		return "safety-net";
+	}
+	if (toolCallId?.startsWith("awaiting-")) {
+		return "teammate-wait";
 	}
 	return "bot";
 }
@@ -62,6 +70,8 @@ export interface IspCustomerInfo {
 export interface EscalationMessageInput {
 	priority: string;
 	category: string;
+	/** Shown in the header: one admin chat can serve several organizations. */
+	organizationName?: string | null | undefined;
 	reason: string;
 	source: EscalationSource;
 	displayName: string;
@@ -114,7 +124,7 @@ export function buildEscalationMessage(input: EscalationMessageInput): string {
 		input.category.charAt(0).toUpperCase() + input.category.slice(1);
 
 	const lines: string[] = [
-		`${emoji} <b>${priorityLabel}</b> — ${escapeHtml(categoryLabel)}`,
+		`${emoji} <b>${priorityLabel}</b> — ${escapeHtml(categoryLabel)}${input.organizationName ? ` · ${escapeHtml(input.organizationName)}` : ""}`,
 		`❓ <b>Why:</b> ${escapeHtml(input.reason)} · <i>${SOURCE_LABEL[input.source]}</i>`,
 		"",
 	];

@@ -88,7 +88,6 @@ describe("buildSummaryTelegramMessage", () => {
 			contactPhone: "96170123456",
 			conversationUrl:
 				"https://cp.example.com/app/libancom/conversations/c1",
-			escalationAt: new Date("2026-09-30T09:15:00Z"),
 			continuation: true,
 		});
 		expect(text).toContain("🔺 Escalated</b> — Joseph Helo (joehelo)");
@@ -96,7 +95,6 @@ describe("buildSummaryTelegramMessage", () => {
 		expect(text).toContain("Mood: 😠 upset");
 		expect(text).toContain("<b>Bot did:</b> Ran diagnose (offline)");
 		expect(text).toContain("<b>Pending:</b> Team to call back");
-		expect(text).toContain("escalation already sent at 12:15");
 		expect(text).toContain("/conversations/c1");
 	});
 
@@ -113,7 +111,6 @@ describe("buildSummaryTelegramMessage", () => {
 			customerUsername: null,
 			contactPhone: "96170123456",
 			conversationUrl: null,
-			escalationAt: null,
 			continuation: false,
 		});
 		expect(text).toContain("Unknown customer 96170123456");
@@ -240,6 +237,18 @@ describe("summarizeConversation", () => {
 			where: { id: "conv-1" },
 			data: { summarizedThroughAt: conversation.lastMessageAt },
 		});
+	});
+
+	it("stores but does not send an episode that was already escalated", async () => {
+		db.task.findFirst.mockResolvedValue({
+			id: "task-1",
+			createdAt: min(44),
+		});
+		expect(await summarizeConversation("conv-1", NOW)).toBe(true);
+		expect(
+			db.aiConversationSummary.create.mock.calls[0]?.[0]?.data.taskId,
+		).toBe("task-1");
+		expect(ai.sendTelegramMessages).not.toHaveBeenCalled();
 	});
 
 	it("does not send Telegram in digest mode", async () => {

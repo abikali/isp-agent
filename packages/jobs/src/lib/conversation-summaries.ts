@@ -10,7 +10,7 @@ import {
 } from "@repo/ai";
 import { db } from "@repo/database";
 import { logger } from "@repo/logs";
-import { formatBeirutStamp, getBaseUrl } from "@repo/utils";
+import { getBaseUrl } from "@repo/utils";
 import { getRedisConnection } from "../connection";
 
 /**
@@ -80,7 +80,6 @@ export interface SummaryMessageInput {
 	customerUsername: string | null;
 	contactPhone: string | null;
 	conversationUrl: string | null;
-	escalationAt: Date | null;
 	continuation: boolean;
 }
 
@@ -103,11 +102,6 @@ export function buildSummaryTelegramMessage(
 	}
 	if (s.openItems) {
 		lines.push(`<b>Pending:</b> ${escapeTelegramHtml(s.openItems)}`);
-	}
-	if (input.escalationAt) {
-		lines.push(
-			`<i>(escalation already sent at ${formatBeirutStamp(input.escalationAt).slice(11)})</i>`,
-		);
 	}
 	if (input.conversationUrl) {
 		lines.push(input.conversationUrl);
@@ -334,7 +328,9 @@ export async function summarizeConversation(
 		select: { id: true },
 	});
 
-	if (agent.conversationSummaryMode === "each") {
+	// An escalated episode already reached the team as an escalation; a second
+	// write-up of it half an hour later is noise. It is still stored.
+	if (agent.conversationSummaryMode === "each" && !task) {
 		const target = await resolveTeamTelegramTarget(agent.id, "summary");
 		if (target) {
 			const message = buildSummaryTelegramMessage({
@@ -345,7 +341,6 @@ export async function summarizeConversation(
 				conversationUrl: agent.organization.slug
 					? `${getBaseUrl()}/app/${agent.organization.slug}/conversations/${conversationId}`
 					: null,
-				escalationAt: task?.createdAt ?? null,
 				continuation: Boolean(previous),
 			});
 			const { succeeded } = await sendTelegramMessages(

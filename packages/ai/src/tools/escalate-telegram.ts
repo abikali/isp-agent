@@ -3,13 +3,13 @@ import { getBaseUrl } from "@repo/utils";
 import { tool } from "ai";
 import { z } from "zod";
 import { resolveContactCustomer } from "../contact-customer";
-import { summarizeForEscalation } from "../escalation-summary";
 import { type FollowUpWindow, resolveFollowUpFireAt } from "../follow-up";
 import { type DbMessageRow, selectHistoryWindow } from "../history";
 import { parseChatIds, sendTelegramMessages } from "../telegram-send";
 import {
 	buildEscalationMessage,
 	type CustomerDetails,
+	type EscalationSource,
 	escalationSourceFromToolCallId,
 	type IspCustomerInfo,
 } from "./lib/escalation-message";
@@ -159,14 +159,32 @@ type TaskCategory =
 	| "GENERAL";
 type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
+interface EscalationTaskData {
+	summary: string;
+	priority: string;
+	category: string;
+	actionRequired?: string | undefined;
+}
+
+function escalationTaskFields(data: EscalationTaskData) {
+	const title = `AI Escalation: ${data.summary.slice(0, 200)}`.slice(0, 500);
+	const descriptionParts = [data.summary];
+	if (data.actionRequired) {
+		descriptionParts.push(`\nAction Required: ${data.actionRequired}`);
+	}
+	return {
+		title,
+		description: descriptionParts.join("\n").slice(0, 5000),
+		priority: (TASK_PRIORITY_MAP[data.priority] ??
+			"MEDIUM") as TaskPriority,
+		category: (TASK_CATEGORY_MAP[data.category] ??
+			"SUPPORT") as TaskCategory,
+	};
+}
+
 async function createOrUpdateEscalationTask(
 	context: ToolContext,
-	data: {
-		summary: string;
-		priority: string;
-		category: string;
-		actionRequired?: string | undefined;
-	},
+	data: EscalationTaskData,
 	verifiedCustomerId: string | null,
 ) {
 	const { db } = await import("@repo/database");
@@ -184,14 +202,7 @@ async function createOrUpdateEscalationTask(
 		return;
 	}
 
-	const title = `AI Escalation: ${data.summary.slice(0, 200)}`.slice(0, 500);
-	const descriptionParts = [data.summary];
-	if (data.actionRequired) {
-		descriptionParts.push(`\nAction Required: ${data.actionRequired}`);
-	}
-	const description = descriptionParts.join("\n").slice(0, 5000);
-	const priority = TASK_PRIORITY_MAP[data.priority] ?? "MEDIUM";
-	const category = TASK_CATEGORY_MAP[data.category] ?? "SUPPORT";
+	const fields = escalationTaskFields(data);
 
 	// Dedup: the customer just answered a check-back ("still not solved"),
 	// so this is the same issue — update the task the check-back was about.
@@ -212,22 +223,14 @@ async function createOrUpdateEscalationTask(
 	if (existingTask) {
 		await db.task.update({
 			where: { id: existingTask.id },
-			data: {
-				title,
-				description,
-				priority: priority as TaskPriority,
-				category: category as TaskCategory,
-			},
+			data: fields,
 		});
 	} else {
 		const task = await db.task.create({
 			data: {
 				organizationId: agent.organizationId,
-				title,
-				description,
-				priority: priority as TaskPriority,
+				...fields,
 				status: "OPEN",
-				category: category as TaskCategory,
 				source: "AI_ESCALATION",
 				createdById: null,
 				customerId: verifiedCustomerId,
@@ -250,6 +253,52 @@ async function createOrUpdateEscalationTask(
 			});
 		}
 	}
+}
+
+/** Any caller: a second Telegram this soon is the same alert twice. */
+const RESEND_WINDOW_MS = 10 * 60_000;
+/**
+ * The bot's own calls: until the team closes the task it filed, a repeat call
+ * about the same chat updates that task instead of alerting the team again.
+ * One customer produced seven alerts in a day while the team was already
+ * talking to him. `high` (outage, safety) always gets through.
+ */
+const BOT_REPEAT_WINDOW_MS = 6 * 60 * 60_000;
+
+/**
+ * The escalation task that makes a new Telegram redundant, or null when
+ * this call should alert the team.
+ */
+async function findActiveEscalation(
+	conversationId: string,
+	source: EscalationSource,
+	priority: string,
+): Promise<{ id: string; status: string } | null> {
+	const { db } = await import("@repo/database");
+	const now = Date.now();
+	const recent = await db.task.findFirst({
+		where: {
+			conversationId,
+			source: "AI_ESCALATION",
+			createdAt: { gte: new Date(now - BOT_REPEAT_WINDOW_MS) },
+		},
+		orderBy: { createdAt: "desc" },
+		select: { id: true, status: true, createdAt: true },
+	});
+	if (!recent) {
+		return null;
+	}
+	if (now - recent.createdAt.getTime() <= RESEND_WINDOW_MS) {
+		return recent;
+	}
+	return source === "bot" && priority !== "high" && isTaskLive(recent.status)
+		? recent
+		: null;
+}
+
+/** The team has not closed it yet. */
+function isTaskLive(status: string): boolean {
+	return status !== "COMPLETED" && status !== "CANCELLED";
 }
 
 /**
@@ -419,33 +468,34 @@ function createEscalateTelegramTool(context: ToolContext) {
 
 				const { db } = await import("@repo/database");
 
-				// ---- Telegram dedup: skip send if escalated in last 10 min ----
-				const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-				const recentEscalation = await db.task.findFirst({
-					where: {
-						conversationId: context.conversationId,
-						source: "AI_ESCALATION",
-						createdAt: { gte: tenMinutesAgo },
-					},
-					select: { id: true },
-				});
+				const source = escalationSourceFromToolCallId(
+					options?.toolCallId,
+				);
 
-				if (recentEscalation) {
-					// Update the task with latest info, but don't spam Telegram
-					createOrUpdateEscalationTask(
-						context,
-						{
-							summary: args.summary,
-							priority: args.priority,
-							category: args.category,
-							actionRequired: args.actionRequired,
-						},
-						null,
-					).catch((err) =>
-						logger.error("Failed to update escalation task", {
-							error: err,
-						}),
-					);
+				// ---- Telegram dedup: the team already has this one ----
+				const activeEscalation = await findActiveEscalation(
+					context.conversationId,
+					source,
+					args.priority,
+				);
+
+				if (activeEscalation) {
+					// Keep the task current, but don't spam Telegram
+					if (isTaskLive(activeEscalation.status)) {
+						db.task
+							.update({
+								where: { id: activeEscalation.id },
+								data: escalationTaskFields(args),
+							})
+							.catch((err) =>
+								logger.error(
+									"Failed to update escalation task",
+									{
+										error: err,
+									},
+								),
+							);
+					}
 
 					return {
 						success: true,
@@ -454,9 +504,6 @@ function createEscalateTelegramTool(context: ToolContext) {
 					};
 				}
 
-				const source = escalationSourceFromToolCallId(
-					options?.toolCallId,
-				);
 				const now = new Date();
 
 				// ---- Load conversation, customer, and recent messages ----
@@ -466,6 +513,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 				let customerMatch: "verified" | "phone" | null = null;
 				let verifiedCustomerId: string | null = null;
 				let organizationSlug: string | null = null;
+				let organizationName: string | null = null;
 				let historyRows: DbMessageRow[] = [];
 
 				try {
@@ -483,7 +531,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 									select: {
 										organizationId: true,
 										organization: {
-											select: { slug: true },
+											select: { slug: true, name: true },
 										},
 									},
 								},
@@ -503,6 +551,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 						contactName = conversation.contactName;
 						verifiedCustomerId = conversation.verifiedCustomerId;
 						organizationSlug = conversation.agent.organization.slug;
+						organizationName = conversation.agent.organization.name;
 
 						if (conversation.verifiedCustomerId) {
 							customer = await loadCustomerDetails(
@@ -550,59 +599,11 @@ function createEscalateTelegramTool(context: ToolContext) {
 					context.contactName ??
 					"Unknown";
 
-				// ---- LLM summary ----
-				// The caller's priority and category are final: the
-				// summariser used to override them and turned most
-				// "medium" escalations into URGENT tasks. It only rewrites
-				// the summary and the action. The safety net already ran
-				// the summariser to build its args, so it is not run twice.
-				const llmSummary =
-					source === "safety-net"
-						? null
-						: await summarizeForEscalation({
-								credentials: context.credentials,
-								conversationMessages: historyRows.map(
-									(row) => ({
-										role: row.role,
-										content: row.content,
-									}),
-								),
-								customerName: displayName,
-								customerPhone: customer?.phone ?? undefined,
-								agentHints: {
-									reason: args.reason,
-									summary: args.summary,
-									priority: args.priority,
-									category: args.category,
-									actionRequired: args.actionRequired,
-								},
-							});
-
-				if (
-					llmSummary &&
-					(llmSummary.priority !== args.priority ||
-						llmSummary.category !== args.category)
-				) {
-					logger.info("escalation-priority-disagreement", {
-						conversationId: context.conversationId,
-						source,
-						callerPriority: args.priority,
-						summaryPriority: llmSummary.priority,
-						callerCategory: args.category,
-						summaryCategory: llmSummary.category,
-					});
-				}
-
-				const finalSummary = llmSummary?.summary ?? args.summary;
-				const finalPriority = args.priority;
-				const finalCategory = args.category;
-				const finalAction =
-					llmSummary?.actionRequired ?? args.actionRequired;
-
 				// ---- Build and send Telegram message ----
 				const message = buildEscalationMessage({
-					priority: finalPriority,
-					category: finalCategory,
+					priority: args.priority,
+					category: args.category,
+					organizationName,
 					reason: args.reason,
 					source,
 					displayName,
@@ -611,8 +612,10 @@ function createEscalateTelegramTool(context: ToolContext) {
 					ispCustomer,
 					customerUsername: args.customerUsername,
 					contactPhone: contactId,
-					summary: finalSummary,
-					actionRequired: finalAction,
+					// The caller's own words: a second model paraphrasing the
+					// chat dropped the username, numbers and what was agreed.
+					summary: args.summary,
+					actionRequired: args.actionRequired,
 					rows: historyRows,
 					conversationId: context.conversationId,
 					conversationUrl: organizationSlug
@@ -632,12 +635,7 @@ function createEscalateTelegramTool(context: ToolContext) {
 				if (succeeded > 0) {
 					createOrUpdateEscalationTask(
 						context,
-						{
-							summary: finalSummary,
-							priority: finalPriority,
-							category: finalCategory,
-							actionRequired: finalAction,
-						},
+						args,
 						verifiedCustomerId,
 					).catch((err) =>
 						logger.error(
@@ -658,13 +656,13 @@ function createEscalateTelegramTool(context: ToolContext) {
 				if (failed.length > 0) {
 					return {
 						success: true,
-						message: `Escalation sent to ${succeeded}/${chatIds.length} recipients (priority: ${finalPriority}). You can now confirm to the customer that their request has been forwarded.`,
+						message: `Escalation sent to ${succeeded}/${chatIds.length} recipients (priority: ${args.priority}). You can now confirm to the customer that their request has been forwarded.`,
 					};
 				}
 
 				return {
 					success: true,
-					message: `Escalation sent successfully to ${succeeded} recipient${succeeded > 1 ? "s" : ""} (priority: ${finalPriority}). You can now confirm to the customer that their request has been forwarded.`,
+					message: `Escalation sent successfully to ${succeeded} recipient${succeeded > 1 ? "s" : ""} (priority: ${args.priority}). You can now confirm to the customer that their request has been forwarded.`,
 				};
 			} catch (error) {
 				logger.error("Telegram escalation failed", {
@@ -718,6 +716,22 @@ export const escalateTelegram: RegisteredTool = {
 				description:
 					"Where conversation summaries go (Agent settings → Conversation summaries). Leave empty to use the escalation chats above.",
 			},
+			{
+				key: "teammateWaitAlert",
+				label: "Alert when a customer waits on a teammate",
+				type: "select",
+				required: false,
+				defaultValue: "off",
+				options: [
+					{ label: "Off", value: "off" },
+					{
+						label: "On — after 20 minutes without a reply",
+						value: "on",
+					},
+				],
+				description:
+					"When a teammate is handling a chat and the customer's message goes unanswered. Either way the bot answers after 30 minutes.",
+			},
 		],
 	},
 	factory: createEscalateTelegramTool,
@@ -742,8 +756,8 @@ Text like "I will forward" does nothing — you MUST call the tool.
 - New subscription or sales inquiry requiring human follow-up
 - Any request you cannot fulfill yourself (plan changes, billing, cancellations)
 
-### Re-escalation with updated info
-If you already escalated earlier in the conversation but the customer later provides important NEW information (e.g. location, phone number, specific plan preference), call escalate-telegram AGAIN with an updated summary that includes the new details. The team benefits from having the latest info. Do NOT skip re-escalation just because you escalated before — each call sends a separate message to the team.
+### One escalation per issue
+Escalate an issue ONCE. If you already escalated it in this conversation, do not call the tool again for follow-up pressure, thanks, or a repeat of the same complaint — tell the customer the team is already aware. Call it again only for a genuinely NEW issue, or when the customer gives something the team cannot act without (a callback number, an address, a username).
 
 IMPORTANT: Do NOT refuse to escalate because you lack account details. The team can look up and verify the customer themselves. Missing info is NEVER a reason to block escalation. Include whatever you have (name, phone number from the chat, the customer's own description) and let the team handle the rest.
 

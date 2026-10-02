@@ -129,6 +129,7 @@ export {
 	notifyTeamTelegram,
 	resolveTeamTelegramTarget,
 	sendTelegramMessages,
+	teammateWaitAlertEnabled,
 } from "./src/telegram-send";
 export {
 	getAvailableTools,

@@ -37,6 +37,7 @@ const { mockDb, mockRedis, mockAi, mockTeammateWait, mockFollowUps } =
 			executeEscalationGuard: vi.fn().mockResolvedValue(null),
 			extractToolPromptOverrides: vi.fn().mockReturnValue({}),
 			fetchServicePlansSection: vi.fn().mockResolvedValue(undefined),
+			teammateWaitAlertEnabled: vi.fn().mockResolvedValue(false),
 			formatAwaitingTeammateNote: vi
 				.fn()
 				.mockImplementation(
@@ -277,7 +278,10 @@ describe("AI chat retry worker - forced replies and the teammate wait", () => {
 			},
 		});
 
-		expect(mockAi.formatAwaitingTeammateNote).toHaveBeenCalledWith(31);
+		expect(mockAi.formatAwaitingTeammateNote).toHaveBeenCalledWith(
+			31,
+			false,
+		);
 		expect(mockAi.buildAgentMessages).toHaveBeenCalledWith(
 			expect.objectContaining({
 				extraNotice: "[Context Notice: waiting 31]",

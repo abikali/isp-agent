@@ -20,6 +20,7 @@ const { mockDb, mockAi, execute, mockJobs } = vi.hoisted(() => {
 				agentToolConfigs: [],
 			}),
 			teammateActionNeeded: vi.fn().mockResolvedValue(true),
+			teammateWaitAlertEnabled: vi.fn().mockResolvedValue(true),
 		},
 		mockJobs: {
 			clearAwaitingHuman: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +41,7 @@ vi.mock("../../jobs/ai-chat.jobs", () => ({
 vi.mock("../../jobs/ai-teammate-wait.jobs", () => ({
 	clearAwaitingHuman: mockJobs.clearAwaitingHuman,
 	scheduleTeammateWait: mockJobs.scheduleTeammateWait,
-	TEAMMATE_ALERT_AFTER_MS: 10 * 60_000,
+	TEAMMATE_ALERT_AFTER_MS: 20 * 60_000,
 	TEAMMATE_BOT_TAKEOVER_AFTER_MS: 30 * 60_000,
 }));
 
@@ -160,6 +161,18 @@ describe("handleTeammateWait — alert", () => {
 			origin: "deferral",
 			fireAt: new Date(SINCE.getTime() + 30 * 60_000),
 		});
+	});
+
+	it("schedules the bot reply without alerting when the alert is off", async () => {
+		mockAi.teammateWaitAlertEnabled.mockResolvedValueOnce(false);
+
+		const result = await handleTeammateWait(job);
+
+		expect(result).toEqual({ success: true });
+		expect(execute).not.toHaveBeenCalled();
+		expect(mockJobs.scheduleTeammateWait).toHaveBeenCalledWith(
+			expect.objectContaining({ stage: "reply" }),
+		);
 	});
 
 	it("ends the wait without alerting when takeover-held messages need nobody", async () => {

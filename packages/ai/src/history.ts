@@ -62,11 +62,17 @@ export function formatContextGapNote(
 
 /**
  * The note placed before the customer's unanswered messages when the bot is
- * forced to answer after a teammate stayed silent (teammate-wait). The team
- * was already alerted on Telegram, so saying so is true.
+ * forced to answer after a teammate stayed silent (teammate-wait). It only
+ * says the team was alerted when the Telegram alert is switched on.
  */
-export function formatAwaitingTeammateNote(minutesWaiting: number): string {
-	return `[Context Notice: The customer's messages below were written to a human teammate, who has not answered for ${minutesWaiting} minutes. The team was alerted on Telegram. Answer what you can now, apologise for the wait, and tell the customer the team has been notified — do not claim a teammate is replying right now.]`;
+export function formatAwaitingTeammateNote(
+	minutesWaiting: number,
+	teamAlerted = true,
+): string {
+	const intro = `The customer's messages below were written to a human teammate, who has not answered for ${minutesWaiting} minutes.`;
+	return teamAlerted
+		? `[Context Notice: ${intro} The team was alerted on Telegram. Answer what you can now, apologise for the wait, and tell the customer the team has been notified — do not claim a teammate is replying right now.]`
+		: `[Context Notice: ${intro} Nobody has been told yet. Answer what you can now and apologise for the wait. If it still needs a person, escalate it first and only then say the team has been notified — do not claim a teammate is replying right now.]`;
 }
 
 /**

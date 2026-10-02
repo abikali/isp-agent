@@ -613,8 +613,10 @@ describe("executeEscalationGuard", () => {
 			string,
 			unknown
 		>;
-		// When summarizer returns null, falls back to defaults
-		expect(callArgs["reason"]).toContain("human follow-up");
+		// The "Why" line names the trigger, not the action to take
+		expect(callArgs["reason"]).toBe(
+			"The bot told the customer the team was informed",
+		);
 		expect(callArgs["priority"]).toBe("medium");
 		expect(callArgs["summary"]).toContain("Ahmad");
 		expect(callArgs["summary"]).toContain("subscribe");

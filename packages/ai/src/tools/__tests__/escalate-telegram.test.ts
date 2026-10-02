@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, summarize } = vi.hoisted(() => ({
+const { db } = vi.hoisted(() => ({
 	db: {
 		task: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 		aiConversation: { findUnique: vi.fn() },
@@ -10,15 +10,11 @@ const { db, summarize } = vi.hoisted(() => ({
 		aiAgent: { findUnique: vi.fn() },
 		botFollowUp: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 	},
-	summarize: vi.fn(),
 }));
 
 vi.mock("@repo/database", () => ({ db }));
 vi.mock("@repo/logs", () => ({
 	logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-vi.mock("../../escalation-summary", () => ({
-	summarizeForEscalation: summarize,
 }));
 
 import { escalateTelegram } from "../escalate-telegram";
@@ -62,6 +58,7 @@ beforeEach(() => {
 	});
 	db.task.findFirst.mockResolvedValue(null);
 	db.task.create.mockResolvedValue({ id: "task-new" });
+	db.task.update.mockResolvedValue({ id: "task-1" });
 	db.aiAgent.findUnique.mockResolvedValue({
 		organizationId: "org-1",
 		postEscalationCheckMinutes: null,
@@ -75,7 +72,10 @@ beforeEach(() => {
 		contactId: "96170000000",
 		contactName: "Joseph",
 		verifiedCustomerId: null,
-		agent: { organizationId: "org-1", organization: { slug: "libancom" } },
+		agent: {
+			organizationId: "org-1",
+			organization: { slug: "libancom", name: "LibanCom" },
+		},
 	});
 	db.aiMessage.findMany.mockResolvedValue([
 		{
@@ -86,24 +86,17 @@ beforeEach(() => {
 	]);
 	db.customer.findMany.mockResolvedValue([]);
 	db.aiAgentToolConfig.findFirst.mockResolvedValue(null);
-	summarize.mockResolvedValue({
-		summary: "LLM summary",
-		priority: "high",
-		category: "repair",
-		actionRequired: "Dispatch a technician",
-	});
 });
 
 describe("escalate-telegram", () => {
-	it("keeps the caller's priority and category over the summariser's", async () => {
+	it("sends the caller's own summary, action, priority and category", async () => {
 		const out = await run("call_1");
 		expect(out.success).toBe(true);
 		expect(out.message).toContain("priority: medium");
 		const text = sentText();
-		expect(text).toContain("<b>MEDIUM</b> — Support");
-		expect(text).not.toContain("URGENT");
-		expect(text).toContain("LLM summary");
-		expect(text).toContain("Dispatch a technician");
+		expect(text).toContain("<b>MEDIUM</b> — Support · LibanCom");
+		expect(text).toContain("Customer reports no internet.");
+		expect(text).toContain("<b>Action:</b> Check the line");
 		expect(text).toContain("raised by the bot");
 		expect(text).toContain(
 			"https://cp.example.com/app/libancom/conversations/conv-1",
@@ -112,14 +105,62 @@ describe("escalate-telegram", () => {
 		const created = db.task.create.mock.calls[0]?.[0]?.data;
 		expect(created.priority).toBe("MEDIUM");
 		expect(created.category).toBe("SUPPORT");
+		expect(created.description).toContain("Customer reports no internet.");
 	});
 
-	it("does not run the summariser a second time for safety-net escalations", async () => {
+	it("labels safety-net and teammate-wait escalations", async () => {
 		await run("guard-conv-1");
-		expect(summarize).not.toHaveBeenCalled();
-		const text = sentText();
-		expect(text).toContain("Customer reports no internet.");
-		expect(text).toContain("safety net");
+		expect(sentText()).toContain("safety net");
+		fetchMock.mockClear();
+		await run("awaiting-conv-1");
+		expect(sentText()).toContain("teammate did not reply");
+	});
+
+	describe("repeat calls", () => {
+		const openTask = (minutesAgo: number, status = "OPEN") => ({
+			id: "task-1",
+			status,
+			createdAt: new Date(Date.now() - minutesAgo * 60_000),
+		});
+
+		it("updates the open task instead of alerting again within 6 hours", async () => {
+			db.task.findFirst.mockResolvedValueOnce(openTask(90));
+			const out = await run("call_2");
+			expect(out.success).toBe(true);
+			expect(out.message).toContain("already active");
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(db.task.update.mock.calls[0]?.[0]?.where).toEqual({
+				id: "task-1",
+			});
+		});
+
+		it("alerts again once the team closed the earlier task", async () => {
+			db.task.findFirst.mockResolvedValueOnce(openTask(90, "COMPLETED"));
+			await run("call_2");
+			expect(fetchMock).toHaveBeenCalled();
+		});
+
+		it("always lets a high-priority call through", async () => {
+			db.task.findFirst.mockResolvedValueOnce(openTask(90));
+			const t = escalateTelegram.factory(context);
+			await (t as any).execute(
+				{ ...args, priority: "high" },
+				{ toolCallId: "call_2", messages: [] },
+			);
+			expect(fetchMock).toHaveBeenCalled();
+		});
+
+		it("keeps the 6-hour rule to the bot: a teammate-wait alert still goes out", async () => {
+			db.task.findFirst.mockResolvedValueOnce(openTask(90));
+			await run("awaiting-conv-1");
+			expect(fetchMock).toHaveBeenCalled();
+		});
+
+		it("never sends the same alert twice within 10 minutes, whoever calls", async () => {
+			db.task.findFirst.mockResolvedValueOnce(openTask(3));
+			await run("awaiting-conv-1");
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
 	});
 
 	it("shows an unverified phone match without verifying it", async () => {

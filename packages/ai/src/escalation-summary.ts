@@ -53,16 +53,6 @@ interface SummarizeInput {
 	conversationMessages: Array<{ role: string; content: string }>;
 	customerName?: string | undefined;
 	customerPhone?: string | undefined;
-	/** If the AI agent already provided args (direct tool call), include as hints */
-	agentHints?:
-		| {
-				reason?: string | undefined;
-				summary?: string | undefined;
-				priority?: string | undefined;
-				category?: string | undefined;
-				actionRequired?: string | undefined;
-		  }
-		| undefined;
 }
 
 /**
@@ -92,13 +82,6 @@ export async function summarizeForEscalation(
 			userPrompt += ` (${input.customerPhone})`;
 		}
 		userPrompt += `\n\nConversation:\n${transcript}`;
-
-		if (input.agentHints?.reason) {
-			userPrompt += `\n\nAgent's stated reason: ${input.agentHints.reason}`;
-		}
-		if (input.agentHints?.summary) {
-			userPrompt += `\nAgent's summary: ${input.agentHints.summary.slice(0, 500)}`;
-		}
 
 		userPrompt += "\n\nRespond in JSON.";
 

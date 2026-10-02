@@ -286,6 +286,12 @@ export async function executeEscalationGuard(
 					))
 				? "model asserted an escalation it never made"
 				: null;
+	// What the team reads on the "Why" line.
+	const reason = diagnosedFault
+		? "Diagnostic found a fault on the line"
+		: narratedToolCall
+			? "The bot announced a check it never ran"
+			: "The bot told the customer the team was informed";
 
 	if (!trigger) {
 		return null;
@@ -309,9 +315,7 @@ export async function executeEscalationGuard(
 	});
 
 	const args = {
-		reason:
-			llmSummary?.actionRequired ??
-			"Customer request requiring human follow-up",
+		reason,
 		priority: (llmSummary?.priority ?? "medium") as
 			| "low"
 			| "medium"

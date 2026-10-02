@@ -114,6 +114,24 @@ export async function resolveTeamTelegramTarget(
 	return chatIds.length > 0 ? { botToken, chatIds } : null;
 }
 
+/**
+ * Whether the team wants a Telegram alert when a customer is left waiting on
+ * a teammate (`teammateWaitAlert` on the `escalate-telegram` config). Off
+ * unless switched on: teammates usually answer within the half hour, and the
+ * bot answers after that anyway.
+ */
+export async function teammateWaitAlertEnabled(
+	agentId: string,
+): Promise<boolean> {
+	const { db } = await import("@repo/database");
+	const row = await db.aiAgentToolConfig.findFirst({
+		where: { agentId, toolId: "escalate-telegram" },
+		select: { config: true },
+	});
+	const cfg = (row?.config ?? {}) as Record<string, unknown>;
+	return cfg["teammateWaitAlert"] === "on";
+}
+
 /** Escape free text for Telegram's HTML parse mode. */
 export function escapeTelegramHtml(text: string): string {
 	return text

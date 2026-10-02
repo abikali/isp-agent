@@ -26,6 +26,9 @@ describe("escalationSourceFromToolCallId", () => {
 			"unknown-contact",
 		);
 		expect(escalationSourceFromToolCallId("guard-c1")).toBe("safety-net");
+		expect(escalationSourceFromToolCallId("awaiting-c1")).toBe(
+			"teammate-wait",
+		);
 		expect(escalationSourceFromToolCallId("call_abc")).toBe("bot");
 		expect(escalationSourceFromToolCallId(undefined)).toBe("bot");
 	});

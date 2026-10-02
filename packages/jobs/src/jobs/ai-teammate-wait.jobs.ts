@@ -7,8 +7,12 @@ import type {
 	TeammateWaitStage,
 } from "../types";
 
-/** Alert the team on Telegram this long after the customer started waiting. */
-export const TEAMMATE_ALERT_AFTER_MS = 10 * 60_000;
+/**
+ * Check on the wait (and alert the team on Telegram, when that is switched
+ * on) this long after the customer started waiting. 10 min alerted teammates
+ * who were in the middle of answering.
+ */
+export const TEAMMATE_ALERT_AFTER_MS = 20 * 60_000;
 /** Let the bot answer this long after (and never during a takeover). */
 export const TEAMMATE_BOT_TAKEOVER_AFTER_MS = 30 * 60_000;
 

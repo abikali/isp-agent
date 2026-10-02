@@ -22,6 +22,7 @@ import {
 	sendTextMessage,
 	sendTypingIndicator,
 	shouldDeferToTeammate,
+	teammateWaitAlertEnabled,
 } from "@repo/ai";
 import { config } from "@repo/config";
 import { db, type Prisma } from "@repo/database";
@@ -251,6 +252,9 @@ export function createAiChatWorker(): Worker<AiChatJobData, AiChatJobResult> {
 												60_000,
 										)
 									: TEAMMATE_BOT_TAKEOVER_AFTER_MS / 60_000,
+								await teammateWaitAlertEnabled(
+									conversation.agent.id,
+								),
 							)
 						: undefined,
 			});
