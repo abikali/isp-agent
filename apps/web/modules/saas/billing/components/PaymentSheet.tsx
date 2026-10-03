@@ -1,6 +1,6 @@
 "use client";
 
-import { isUsablePin } from "@repo/utils";
+import { beirutDateString, isUsablePin } from "@repo/utils";
 import { useActiveOrganization } from "@saas/organizations/client";
 import { useConfirmationAlert } from "@saas/shared/client";
 import { CustomerCombobox } from "@shared/components/CustomerCombobox";
@@ -96,6 +96,9 @@ export function PaymentSheet({
 	const [debtAccount, setDebtAccount] = useState(false);
 	const [noteCategory, setNoteCategory] = useState("");
 	const [notes, setNotes] = useState("");
+	// "Paid until": the customer paid for the days up to this date. Only a
+	// request — an admin applies it from Billing → Payments.
+	const [paidUntil, setPaidUntil] = useState("");
 	const [phones, setPhones] = useState<
 		Array<{ id: number; number: string; primary: boolean }>
 	>(() => {
@@ -149,7 +152,30 @@ export function PaymentSheet({
 		Math.abs(amountNum - totalDue) >= 0.01 &&
 		!stoppedAccount &&
 		amountNum > 0;
-	const mismatchMissingNote = isAmountMismatch && missingNote;
+	const isCashCollection = !freeAccount && !stoppedAccount && !debtAccount;
+	const today = beirutDateString(new Date());
+	const requestedExpiry =
+		isCashCollection && paidUntil > today ? paidUntil : undefined;
+	// Rough figure for the collector; the admin's preview uses iRadius's own
+	// period length and the live expiry.
+	const paidUntilEstimate = (() => {
+		if (!requestedExpiry) {
+			return null;
+		}
+		const due = customer?.oldestUnpaidExpiry
+			? beirutDateString(customer.oldestUnpaidExpiry)
+			: today;
+		const from = due > today ? due : today;
+		const days = Math.round(
+			(Date.parse(requestedExpiry) - Date.parse(from)) / 86_400_000,
+		);
+		return days > 0
+			? { days, amount: Math.round((monthlyDue * days) / 30) }
+			: null;
+	})();
+	// A paid-until date already explains a prorated amount.
+	const mismatchMissingNote =
+		isAmountMismatch && missingNote && !requestedExpiry;
 	const zeroAmountWithoutFlag =
 		amountNum === 0 && !freeAccount && !stoppedAccount && !debtAccount;
 
@@ -224,6 +250,7 @@ export function PaymentSheet({
 				debtAccount,
 				noteCategory: noteCategory || undefined,
 				notes: notes || undefined,
+				requestedExpiry,
 				customerPhones:
 					customerPhones.length > 0 ? customerPhones : undefined,
 				customerLatitude: location?.latitude,
@@ -507,6 +534,50 @@ export function PaymentSheet({
 									className="mt-1 h-11 text-xl font-bold tabular-nums"
 								/>
 							</div>
+							{isCashCollection && (
+								<div>
+									<Label htmlFor="sheet-paidUntil">
+										Paid until (مدفوع لغاية) — optional
+									</Label>
+									<Input
+										id="sheet-paidUntil"
+										type="date"
+										min={today}
+										value={paidUntil}
+										onChange={(e) =>
+											setPaidUntil(e.target.value)
+										}
+										className="mt-1"
+									/>
+									{paidUntilEstimate && (
+										<div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+											<span>
+												≈ {paidUntilEstimate.days} days
+												={" "}
+												{formatCurrency(
+													paidUntilEstimate.amount,
+												)}
+												. The office confirms the new
+												expiry.
+											</span>
+											<Button
+												type="button"
+												size="sm"
+												variant="ghost"
+												onClick={() =>
+													setPaidAmount(
+														String(
+															paidUntilEstimate.amount,
+														),
+													)
+												}
+											>
+												Use
+											</Button>
+										</div>
+									)}
+								</div>
+							)}
 							<div className="flex items-center gap-4">
 								<label
 									htmlFor="sheet-freeAccount"

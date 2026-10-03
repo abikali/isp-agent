@@ -305,6 +305,8 @@ interface FlaggablePayment {
 	discount: number;
 	noteCategory: string | null;
 	notes: string | null;
+	/** The collector's "paid until" date — a prorate request for an admin. */
+	requestedExpiry?: string | Date | null;
 	reviewedAt: string | Date | null;
 	customer?: { iptvPrice?: number; realIpPrice?: number };
 	invoice?: PaymentInvoiceRef;
@@ -374,7 +376,7 @@ function getPaymentFlagType(payment: FlaggablePayment): PaymentFlagType | null {
 	}
 	// A collector-attached note on an otherwise-normal collection still needs
 	// an admin look. Lowest priority so the flags above keep their own color.
-	if (payment.notes || payment.noteCategory) {
+	if (payment.notes || payment.noteCategory || payment.requestedExpiry) {
 		return "noted";
 	}
 	return null;
@@ -409,10 +411,20 @@ export function isRepriceCandidate(payment: FlaggablePayment): boolean {
 const ALIGN_TO_FIRST_HINT = /awal|awel|1st|أول|اول|la ysir|فرق|fare2/i;
 
 /**
- * A reprice candidate whose note says the collector charged the days up to
- * the 1st ("8 la ysir awal chaher") — "Align to 1st" is the review then.
+ * An unreviewed cash collection the collector took for the days up to a
+ * date: they set "paid until", or (older rows) their note says the 1st
+ * ("8 la ysir awal chaher"). "Prorate to date" is the review then.
  */
 export function isAlignToFirstHint(payment: FlaggablePayment): boolean {
+	if (
+		payment.requestedExpiry &&
+		isUnreviewed(payment) &&
+		!payment.stoppedAccount &&
+		!payment.freeAccount &&
+		!payment.debtAccount
+	) {
+		return true;
+	}
 	return (
 		isRepriceCandidate(payment) &&
 		!!payment.notes &&

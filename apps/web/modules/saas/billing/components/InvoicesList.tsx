@@ -446,7 +446,7 @@ export function InvoicesList() {
 										}
 									>
 										<CalendarClockIcon className="mr-2 size-4" />
-										Prorate to 1st…
+										Prorate to date…
 									</DropdownMenuItem>
 									<DropdownMenuItem
 										onClick={() =>

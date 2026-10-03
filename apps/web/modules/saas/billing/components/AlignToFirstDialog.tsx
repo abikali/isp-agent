@@ -34,8 +34,9 @@ interface AlignToFirstDialogProps {
 }
 
 /**
- * "Align to 1st": the customer paid for the days up to the 1st so the bill
- * comes out on the 1st from now on. The expiry moves to the 1st 23:59 in
+ * "Prorate to date": the customer paid for the days up to a date — the next
+ * 1st by default, or the collector's "paid until" — so the bill comes out on
+ * that date from now on. The expiry moves to that date 23:59 in
  * iRadius with the dealer charged the prorated wholesale Rate (like the
  * native "Add Day … Manage Dealer Credit"), and the month's invoice is
  * prorated to what those days cost the customer.
@@ -48,6 +49,8 @@ export function AlignToFirstDialog({
 	target,
 }: AlignToFirstDialogProps) {
 	const [chargeDealer, setChargeDealer] = useState(true);
+	// null until the admin picks one: the server proposes the date.
+	const [targetDate, setTargetDate] = useState<string | null>(null);
 	const [billableDays, setBillableDays] = useState<string | null>(null);
 	const [amount, setAmount] = useState<string | null>(null);
 	const align = useAlignToFirst();
@@ -65,6 +68,7 @@ export function AlignToFirstDialog({
 			? { paymentId: target.paymentId }
 			: { invoiceId: target.invoiceId }),
 		chargeDealer,
+		...(targetDate ? { targetExpiry: targetDate } : {}),
 		...(daysOverride !== undefined ? { billableDays: daysOverride } : {}),
 	};
 	const preview = useAlignToFirstPreview(open && !result ? baseInput : null);
@@ -80,6 +84,7 @@ export function AlignToFirstDialog({
 	function handleOpenChange(next: boolean) {
 		if (!next) {
 			setChargeDealer(true);
+			setTargetDate(null);
 			setBillableDays(null);
 			setAmount(null);
 			setResult(null);
@@ -101,7 +106,7 @@ export function AlignToFirstDialog({
 			);
 		} catch (err) {
 			toast.error(
-				err instanceof Error ? err.message : "Failed to align to 1st",
+				err instanceof Error ? err.message : "Failed to prorate",
 			);
 		}
 	}
@@ -113,7 +118,7 @@ export function AlignToFirstDialog({
 					<DialogHeader>
 						<div className="flex items-center gap-2">
 							<CheckCircle2Icon className="size-5 text-green-600" />
-							<DialogTitle>Aligned to the 1st</DialogTitle>
+							<DialogTitle>Prorated</DialogTitle>
 						</div>
 						<DialogDescription>
 							{target.customerName} now expires on{" "}
@@ -165,13 +170,27 @@ export function AlignToFirstDialog({
 		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Align to the 1st</DialogTitle>
+					<DialogTitle>Prorate to a date</DialogTitle>
 					<DialogDescription>
-						{target.customerName}: move the expiry to the 1st at
-						23:59 and bill only the days up to it, so the next bill
-						comes out on the 1st.
+						{target.customerName}: move the expiry to the chosen
+						date at 23:59 and bill only the days up to it, so the
+						next bill comes out on that date.
 					</DialogDescription>
 				</DialogHeader>
+
+				<div className="space-y-2">
+					<Label htmlFor="align-target">Expire on</Label>
+					<Input
+						id="align-target"
+						type="date"
+						value={targetDate ?? data?.target ?? ""}
+						onChange={(e) => {
+							setTargetDate(e.target.value || null);
+							setBillableDays(null);
+							setAmount(null);
+						}}
+					/>
+				</div>
 
 				{preview.isPending && open ? (
 					<div className="space-y-2">
@@ -340,8 +359,8 @@ export function AlignToFirstDialog({
 						{align.isPending
 							? "Applying..."
 							: target.paymentId
-								? "Align & mark reviewed"
-								: "Align"}
+								? "Prorate & mark reviewed"
+								: "Prorate"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

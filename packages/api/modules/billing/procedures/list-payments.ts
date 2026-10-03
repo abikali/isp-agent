@@ -207,6 +207,7 @@ export const listPayments = protectedProcedure
 					debtAccount: true,
 					noteCategory: true,
 					notes: true,
+					requestedExpiry: true,
 					receiptSent: true,
 					activityLog: true,
 					externalBillingId: true,

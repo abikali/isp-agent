@@ -292,6 +292,8 @@ interface PaymentRow {
 	debtAccount: boolean;
 	noteCategory: string | null;
 	notes: string | null;
+	/** The collector's "paid until" — a prorate request. */
+	requestedExpiry: string | Date | null;
 	receiptSent: boolean;
 	activityLog: unknown;
 	externalBillingId: number | null;
@@ -910,7 +912,8 @@ export function PaymentsList() {
 	// price the customer agreed at the door.
 	const [repriceDialog, setRepriceDialog] =
 		useState<RepricePaymentTarget | null>(null);
-	// "Align to 1st": the collector took the days up to the 1st.
+	// "Prorate to date": the collector took the days up to a date (the 1st,
+	// or the "paid until" they set on the sheet).
 	const [alignDialog, setAlignDialog] = useState<{
 		paymentId: string;
 		customerName: string;
@@ -1518,7 +1521,9 @@ export function PaymentsList() {
 									onClick={openAlign}
 								>
 									<CalendarClockIcon className="mr-1.5 size-3.5" />
-									Align to 1st
+									{payment.requestedExpiry
+										? `Prorate to ${formatDate(payment.requestedExpiry)}`
+										: "Align to 1st"}
 								</Button>
 							)}
 							{organizationId && canReprice && (
@@ -1958,12 +1963,12 @@ export function PaymentsList() {
 												Adjust pricing & review
 											</DropdownMenuItem>
 										)}
-										{canReprice && (
+										{(canReprice || alignHint) && (
 											<DropdownMenuItem
 												onClick={openAlign}
 											>
 												<CalendarClockIcon className="mr-2 size-3.5" />
-												Align to 1st & review
+												Prorate to date & review
 											</DropdownMenuItem>
 										)}
 										{payment.customer.externalId && (

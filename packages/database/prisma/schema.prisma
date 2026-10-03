@@ -2189,6 +2189,10 @@ model Payment {
   workerId                 String?
   noteCategory             String?
   notes                    String?       @db.Text
+  // "Paid until": the expiry (Beirut 23:59) the collector says this payment
+  // covers. Only a request — an admin applies it with "Prorate to date"
+  // (billing.alignToFirst), which moves iRadius and charges the dealer.
+  requestedExpiry          DateTime?
   receiptSent              Boolean       @default(false)
   receiptSentAt            DateTime?
   activityLog              Json          @default("[]")

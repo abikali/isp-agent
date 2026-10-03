@@ -34,6 +34,8 @@ export const PAYMENT_INVOICE_JOIN_SQL = `LEFT JOIN "customer_invoice" inv ON inv
  *   4. paidAmount != the month's frozen invoice total (amount mismatch; see
  *      `PAYMENT_EXPECTED_TOTAL_SQL` for the no-invoice fallback)
  *   5. the collector attached a note (`notes` or `noteCategory` is set)
+ *   6. the collector set a "paid until" date (`requestedExpiry`) — a prorate
+ *      request only an admin can apply
  *
  * Debt is listed explicitly even though a debt row always carries a mandatory
  * note and would therefore be caught by (5) anyway — relying on that coupling
@@ -111,6 +113,7 @@ export async function findUnreviewedAmountMismatchPaymentIds(args: {
  * Prisma `where` fragment for "this payment needs admin review":
  *   reviewedAt IS NULL AND (freeAccount OR stoppedAccount OR debtAccount
  *                           OR notes set OR noteCategory set
+ *                           OR requestedExpiry set
  *                           OR id IN mismatchIds)
  *
  * Compose with caller-specific `baseWhere` (org/dealer/month/collector
@@ -127,6 +130,7 @@ export function unreviewedPaymentsWhereFragment(
 		| { debtAccount: true }
 		| { notes: { not: null } }
 		| { noteCategory: { not: null } }
+		| { requestedExpiry: { not: null } }
 		| { id: { in: string[] } }
 	>;
 } {
@@ -138,6 +142,7 @@ export function unreviewedPaymentsWhereFragment(
 			{ debtAccount: true },
 			{ notes: { not: null } },
 			{ noteCategory: { not: null } },
+			{ requestedExpiry: { not: null } },
 			...(mismatchIds.length > 0
 				? [{ id: { in: [...mismatchIds] } }]
 				: []),

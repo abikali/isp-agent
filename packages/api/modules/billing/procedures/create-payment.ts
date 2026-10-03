@@ -20,7 +20,12 @@ import {
 	notifyBadgeForOrganization,
 	sendOrganizationNotification,
 } from "@repo/notifications";
-import { isUsablePin, tgMessage } from "@repo/utils";
+import {
+	beirutDateString,
+	beirutEndOfDay,
+	isUsablePin,
+	tgMessage,
+} from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
@@ -57,6 +62,11 @@ export const createPayment = protectedProcedure
 			workerId: z.string().optional(),
 			noteCategory: z.string().optional(),
 			notes: z.string().optional(),
+			/** "Paid until" YYYY-MM-DD: a prorate request an admin applies later. */
+			requestedExpiry: z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+				.optional(),
 			customerPhones: z
 				.array(
 					z.object({
@@ -266,13 +276,41 @@ export const createPayment = protectedProcedure
 			});
 		}
 
-		// Require a note when paid amount differs from total due
+		if (input.requestedExpiry) {
+			if (
+				input.freeAccount ||
+				input.stoppedAccount ||
+				input.debtAccount
+			) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"A paid-until date only applies to a cash collection",
+				});
+			}
+			if (input.requestedExpiry <= beirutDateString(new Date())) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "The paid-until date must be after today",
+				});
+			}
+		}
+
+		const requestedExpiry = input.requestedExpiry
+			? beirutEndOfDay(input.requestedExpiry).utc
+			: null;
+
+		// Require a note when paid amount differs from total due — a
+		// paid-until date already explains a prorated amount.
 		const isAmountMismatch =
 			Math.abs(input.paidAmount - totalDue) >= 0.01 &&
 			!input.stoppedAccount &&
 			input.paidAmount > 0;
 
-		if (isAmountMismatch && !input.noteCategory && !input.notes?.trim()) {
+		if (
+			isAmountMismatch &&
+			!input.requestedExpiry &&
+			!input.noteCategory &&
+			!input.notes?.trim()
+		) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"A note category or note is required when the paid amount differs from the amount due",
@@ -484,6 +522,11 @@ export const createPayment = protectedProcedure
 									// stamping it on every split row would
 									// multiply it in the coverage sums.
 									discount: isLast ? input.discount : 0,
+									// The prorate request is reviewed once,
+									// on the newest month the lump reached.
+									requestedExpiry: isLast
+										? requestedExpiry
+										: null,
 									billingMonthId: a.billingMonthId,
 									invoiceId: a.invoiceId,
 									paidAmount: a.amount,
@@ -547,6 +590,7 @@ export const createPayment = protectedProcedure
 								billingMonthId: billingMonth.id,
 								invoiceId: invoice?.id ?? null,
 								paidAmount: input.paidAmount,
+								requestedExpiry,
 								referredCustomerId: referredId,
 							},
 						}),

@@ -12,6 +12,7 @@ import {
 } from "@repo/auth/lib/audit";
 import { appendPaymentActivityLog, db } from "@repo/database";
 import { notifyBadgeForOrganization } from "@repo/notifications";
+import { beirutDateString } from "@repo/utils";
 import z from "zod";
 import { toIRadiusDateTime } from "../../../lib/beirut-time";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -49,6 +50,9 @@ import {
  *      the month settles), refresh the next month's frozen due date, and
  *      stamp the payment reviewed.
  *
+ * The target defaults to the next 1st, or to the collector's "paid until"
+ * date (`Payment.requestedExpiry`); an admin can pick any later date.
+ *
  * This is the second sanctioned post-generation invoice rewrite, next to
  * `repriceAndReview`.
  */
@@ -58,7 +62,7 @@ const alignInput = z
 		organizationId: z.string(),
 		paymentId: z.string().optional(),
 		invoiceId: z.string().optional(),
-		/** YYYY-MM-DD; defaults to the next 1st after the current expiry. */
+		/** YYYY-MM-DD; defaults to the collector's paid-until date, else the next 1st after the current expiry. */
 		targetExpiry: z
 			.string()
 			.regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
@@ -122,6 +126,7 @@ async function loadAlignment(input: AlignInput, userId: string) {
 		paidAmount: number;
 		paidAt: Date;
 		billingMonthId: string;
+		requestedExpiry: Date | null;
 	} | null = null;
 	let invoice: {
 		id: string;
@@ -147,6 +152,7 @@ async function loadAlignment(input: AlignInput, userId: string) {
 				paidAmount: true,
 				paidAt: true,
 				billingMonthId: true,
+				requestedExpiry: true,
 				freeAccount: true,
 				stoppedAccount: true,
 				debtAccount: true,
@@ -221,12 +227,15 @@ async function loadAlignment(input: AlignInput, userId: string) {
 				dealerCredit: null,
 				noCharge: true,
 			};
-	const target = input.targetExpiry ?? alignTarget(extraTimeBase(ctx, now));
+	const target =
+		input.targetExpiry ??
+		(payment?.requestedExpiry
+			? beirutDateString(payment.requestedExpiry)
+			: alignTarget(extraTimeBase(ctx, now)));
 	const plan = planExtraTime(ctx, target, now);
 	if (!plan.atTarget && plan.oldExpiry && plan.oldExpiry > plan.newExpiry) {
 		throw new ORPCError("BAD_REQUEST", {
-			message:
-				"Expiry is already past the 1st; use Set billing expiry instead.",
+			message: `Expiry is already past ${target}; pick a later date or use Set billing expiry instead.`,
 		});
 	}
 
@@ -366,7 +375,7 @@ export const alignToFirst = protectedProcedure
 						externalId: customer.externalId,
 						targetExpiry: a.target,
 						chargeDealer: a.chargeDealer,
-						reason: "Aligned to 1st",
+						reason: `Prorated to ${a.target}`,
 					});
 					dealerCharge = remote.dealerCharge;
 				} catch (error) {
@@ -389,7 +398,7 @@ export const alignToFirst = protectedProcedure
 					});
 
 					const formula = `${a.billableDays} day(s) × $${a.monthlyDue} / ${Number(a.periodDays.toFixed(2))} = $${a.proration.formulaAmount}`;
-					const line = `Prorated to 1st: ${formula} → $${amount} (was $${invoice.total})${dealerCharge > 0 ? `; dealer charged $${dealerCharge.toFixed(2)}` : ""}`;
+					const line = `Prorated to ${a.target}: ${formula} → $${amount} (was $${invoice.total})${dealerCharge > 0 ? `; dealer charged $${dealerCharge.toFixed(2)}` : ""}`;
 					await tx.customerInvoice.update({
 						where: { id: invoice.id },
 						data: {
