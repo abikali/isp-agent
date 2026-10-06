@@ -1,5 +1,7 @@
 "use client";
 
+import { useUpdatePendingInstallation } from "@saas/installations/client";
+import { PermissionGate } from "@shared/components/PermissionGate";
 import { formatCurrency } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { orpc } from "@shared/lib/orpc";
@@ -15,13 +17,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@ui/components/dialog";
+import { Input } from "@ui/components/input";
 import { Label } from "@ui/components/label";
 import { Skeleton } from "@ui/components/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@ui/components/tabs";
 import { Textarea } from "@ui/components/textarea";
 import { cn } from "@ui/lib";
 import { AlertTriangleIcon, CheckIcon, UndoIcon } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { useReviewTaskCompletion } from "../hooks/use-tasks";
 
@@ -78,6 +81,11 @@ function ReviewCompletionBody({
 }) {
 	const organizationId = useOrganizationId();
 	const review = useReviewTaskCompletion();
+	const updatePending = useUpdatePendingInstallation();
+	// Price edits per pending install line, applied just before approving —
+	// the same correction the Installations page allows (e.g. the worker
+	// wrote "free").
+	const [prices, setPrices] = useState<Record<string, string>>({});
 	const [tab, setTab] = useState<ReviewAction>(initialAction);
 	const [note, setNote] = useState("");
 	const [keepRecovered, setKeepRecovered] = useState(false);
@@ -93,6 +101,23 @@ function ReviewCompletionBody({
 	async function submit() {
 		if (!organizationId) {
 			return;
+		}
+		if (tab === "approve") {
+			for (const line of installs) {
+				const edited = prices[line.id];
+				if (
+					edited === undefined ||
+					edited.trim() === "" ||
+					Number(edited) === line.price
+				) {
+					continue;
+				}
+				await updatePending.mutateAsync({
+					organizationId,
+					id: line.id,
+					price: Number(edited),
+				});
+			}
 		}
 		const result = await review.mutateAsync({
 			organizationId,
@@ -132,6 +157,8 @@ function ReviewCompletionBody({
 				<DialogDescription>{task?.title ?? "…"}</DialogDescription>
 			</DialogHeader>
 
+			{task && <WorkerEvidence task={task} worker={worker} />}
+
 			<Tabs value={tab} onValueChange={(v) => setTab(v as ReviewAction)}>
 				<TabsList className="grid w-full grid-cols-2">
 					<TabsTrigger value="approve">Approve</TabsTrigger>
@@ -154,7 +181,12 @@ function ReviewCompletionBody({
 								const pending =
 									line.status === "PENDING" &&
 									!line.setupRequestId;
-								const total = line.price * line.quantity;
+								const edited = prices[line.id];
+								const price =
+									edited !== undefined && edited.trim() !== ""
+										? Number(edited)
+										: line.price;
+								const total = price * line.quantity;
 								return (
 									<LineRow
 										key={line.id}
@@ -176,6 +208,41 @@ function ReviewCompletionBody({
 												: total > 0
 													? `Cash entry ${formatCurrency(total)} to ${line.employee?.name ?? worker}`
 													: "Stock only, no cash entry"
+										}
+										extra={
+											pending && !line.isAddOn ? (
+												<PermissionGate
+													resource="installations"
+													action="approve"
+												>
+													<Label className="flex items-center gap-1.5 font-normal text-xs">
+														Price
+														<Input
+															type="number"
+															min={0}
+															step="0.01"
+															className="h-7 w-24 font-mono"
+															value={
+																edited ??
+																String(
+																	line.price,
+																)
+															}
+															onChange={(e) =>
+																setPrices(
+																	(prev) => ({
+																		...prev,
+																		[line.id]:
+																			e
+																				.target
+																				.value,
+																	}),
+																)
+															}
+														/>
+													</Label>
+												</PermissionGate>
+											) : null
 										}
 									/>
 								);
@@ -306,12 +373,12 @@ function ReviewCompletionBody({
 				</TabsContent>
 			</Tabs>
 
-			{review.error && (
+			{(review.error || updatePending.error) && (
 				<div
 					role="alert"
 					className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm"
 				>
-					{review.error.message}
+					{(review.error ?? updatePending.error)?.message}
 				</div>
 			)}
 
@@ -326,7 +393,9 @@ function ReviewCompletionBody({
 							// Shown inline via review.error.
 						});
 					}}
-					disabled={review.isPending || !task}
+					disabled={
+						review.isPending || updatePending.isPending || !task
+					}
 				>
 					{tab === "approve" ? (
 						<CheckIcon className="size-4" />
@@ -340,16 +409,100 @@ function ReviewCompletionBody({
 	);
 }
 
+/**
+ * What the worker left: their note up front (it used to hide in a tooltip)
+ * and every photo — the completion photo and each recovered item's photo.
+ */
+function WorkerEvidence({
+	task,
+	worker,
+}: {
+	task: {
+		resolutionNote: string | null;
+		completionPhotoUrl: string | null;
+		uninstalledItems: {
+			id: string;
+			itemName: string;
+			pictureUrl: string | null;
+		}[];
+	};
+	worker: string;
+}) {
+	const photos = [
+		...(task.completionPhotoUrl
+			? [
+					{
+						id: "completion",
+						src: task.completionPhotoUrl,
+						label: "Completion",
+					},
+				]
+			: []),
+		...task.uninstalledItems
+			.filter((i) => !!i.pictureUrl)
+			.map((i) => ({
+				id: i.id,
+				src: i.pictureUrl as string,
+				label: i.itemName,
+			})),
+	];
+	if (!task.resolutionNote && photos.length === 0) {
+		return (
+			<p className="text-muted-foreground text-sm">
+				No note or photo from {worker}.
+			</p>
+		);
+	}
+	return (
+		<div className="space-y-2">
+			{task.resolutionNote && (
+				<div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+					<span className="block font-medium text-amber-700 text-xs dark:text-amber-300">
+						Note from {worker}
+					</span>
+					<span className="whitespace-pre-wrap" dir="auto">
+						{task.resolutionNote}
+					</span>
+				</div>
+			)}
+			{photos.length > 0 && (
+				<div className="flex flex-wrap gap-2">
+					{photos.map((photo) => (
+						<a
+							key={photo.id}
+							href={photo.src}
+							target="_blank"
+							rel="noreferrer"
+							className="block text-center text-muted-foreground text-xs"
+						>
+							<img
+								src={photo.src}
+								alt={photo.label}
+								className="h-20 w-20 rounded-md border object-cover"
+							/>
+							<span className="block max-w-20 truncate">
+								{photo.label}
+							</span>
+						</a>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
 function LineRow({
 	title,
 	detail,
 	status,
 	muted,
+	extra,
 }: {
 	title: string;
 	detail: string;
 	status: string;
 	muted: boolean;
+	extra?: ReactNode;
 }) {
 	return (
 		<li
@@ -363,6 +516,7 @@ function LineRow({
 				<span className="block text-muted-foreground text-xs">
 					{detail}
 				</span>
+				{extra && <span className="mt-1.5 block">{extra}</span>}
 			</span>
 			<Badge variant="outline" className="shrink-0">
 				{status.toLowerCase()}

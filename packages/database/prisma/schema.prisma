@@ -2301,6 +2301,9 @@ model Expense {
   category           String? // toolkit | electricity | roof | other (free text allowed)
   source             String? // for money-given entries: where the funds came from (Company cash | Bank | Other)
   receiptUrl         String?
+  /// Further receipts/documents (photos or PDFs) after the first one, which
+  /// stays in receiptUrl so the legacy sync and receipt filters keep working.
+  extraReceiptUrls   String[]      @default([])
   status             ExpenseStatus @default(PENDING)
   approvedById       String?
   approvedAt         DateTime?

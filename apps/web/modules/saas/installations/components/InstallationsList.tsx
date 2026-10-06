@@ -735,6 +735,16 @@ export function InstallationsList({
 										</Tooltip>
 									)}
 								</div>
+								{preview && (
+									<button
+										type="button"
+										onClick={() => setNotesFor(inst)}
+										dir="auto"
+										className="line-clamp-2 block max-w-xs whitespace-pre-wrap text-start text-amber-700 text-xs dark:text-amber-300"
+									>
+										{preview}
+									</button>
+								)}
 								<div className="flex items-center gap-1.5">
 									<Badge
 										variant="outline"

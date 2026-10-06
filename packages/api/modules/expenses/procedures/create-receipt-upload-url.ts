@@ -7,7 +7,12 @@ import { getBaseUrl } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 
-const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ALLOWED_MIME_TYPES = new Set([
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"application/pdf",
+]);
 
 function isAllowedMimeType(contentType: string): boolean {
 	const base = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -19,7 +24,8 @@ export const createReceiptUploadUrl = protectedProcedure
 		method: "POST",
 		path: "/expenses/receipt-upload-url",
 		tags: ["Expenses"],
-		summary: "Get a signed upload URL for an expense receipt photo",
+		summary:
+			"Get a signed upload URL for an expense receipt (photo or PDF)",
 	})
 	.input(
 		z.object({
@@ -38,7 +44,7 @@ export const createReceiptUploadUrl = protectedProcedure
 
 		if (!isAllowedMimeType(input.contentType)) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Receipts must be JPG, PNG, or WEBP images",
+				message: "Receipts must be JPG, PNG, WEBP or PDF",
 			});
 		}
 

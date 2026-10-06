@@ -28,6 +28,8 @@ export const recordExpense = protectedProcedure
 			/** When the money went out; defaults to now. */
 			date: z.coerce.date().optional(),
 			receiptUrl: z.string().max(1000).optional(),
+			/** Every receipt/document attached; the first lands in receiptUrl. */
+			receiptUrls: z.array(z.string().max(1000)).max(10).optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -57,6 +59,7 @@ export const recordExpense = protectedProcedure
 				input.organizationId,
 				input.description,
 			));
+		const [firstReceipt, ...extraReceiptUrls] = input.receiptUrls ?? [];
 		const now = new Date();
 		const expense = await db.expense.create({
 			data: {
@@ -66,7 +69,8 @@ export const recordExpense = protectedProcedure
 				amount: input.amount,
 				description: input.description,
 				financeCategoryId,
-				receiptUrl: input.receiptUrl ?? null,
+				receiptUrl: firstReceipt ?? input.receiptUrl ?? null,
+				extraReceiptUrls,
 				status: "APPROVED",
 				approvedById: user.id,
 				approvedAt: now,

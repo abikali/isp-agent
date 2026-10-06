@@ -90,6 +90,7 @@ export const getSpendingBucket = protectedProcedure
 					description: true,
 					createdAt: true,
 					receiptUrl: true,
+					extraReceiptUrls: true,
 					category: true,
 					submittedBy: { select: { id: true, name: true } },
 					createdBy: { select: { id: true, name: true } },

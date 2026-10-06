@@ -1,6 +1,5 @@
 "use client";
 
-import { PhotoCaptureInput } from "@saas/worker/client";
 import { formatCurrency, formatDateInput } from "@shared/lib/format";
 import { useOrganizationId } from "@shared/lib/organization";
 import { Button } from "@ui/components/button";
@@ -23,6 +22,7 @@ import {
 	useFinanceCategories,
 	useRecordExpense,
 } from "../../hooks/use-spending";
+import { ReceiptsInput } from "./ReceiptsInput";
 
 interface AddExpenseSheetProps {
 	open: boolean;
@@ -57,7 +57,7 @@ export function AddExpenseSheet({
 	const [description, setDescription] = useState("");
 	const [financeCategoryId, setFinanceCategoryId] = useState(bucketId ?? "");
 	const [date, setDate] = useState(formatDateInput());
-	const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+	const [receiptUrls, setReceiptUrls] = useState<string[]>([]);
 
 	const parsed = parseMoney(amount);
 	const bucket = categories.find((c) => c.id === financeCategoryId);
@@ -78,7 +78,7 @@ export function AddExpenseSheet({
 				description: description.trim(),
 				...(financeCategoryId ? { financeCategoryId } : {}),
 				...(date ? { date: new Date(`${date}T12:00:00Z`) } : {}),
-				...(receiptUrl ? { receiptUrl } : {}),
+				...(receiptUrls.length > 0 ? { receiptUrls } : {}),
 			});
 			toast.success(
 				`${formatCurrency(parsed)} recorded under ${result.expense.financeCategory?.label ?? "Needs a bucket"}.`,
@@ -181,11 +181,10 @@ export function AddExpenseSheet({
 					</div>
 
 					<div className="space-y-1.5">
-						<Label>Receipt (optional)</Label>
-						<PhotoCaptureInput
-							value={receiptUrl}
-							onChange={setReceiptUrl}
-							label="Attach a photo"
+						<Label>Receipts &amp; documents (optional)</Label>
+						<ReceiptsInput
+							value={receiptUrls}
+							onChange={setReceiptUrls}
 							getUploadUrl={async (file) => {
 								if (!organizationId) {
 									throw new Error("No organization");

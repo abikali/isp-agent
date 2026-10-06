@@ -84,6 +84,8 @@ export function TaskRowDetails({
 	const phoneNumbers = customerPhoneNumbers(customer);
 	const installs = task.installations ?? [];
 	const recovered = task.uninstalledItems ?? [];
+	// Uninstalls carry their photos per recovered item, not on the task.
+	const recoveredPhotos = recovered.filter((item) => !!item.pictureUrl);
 	const hasCompletion =
 		!!task.completedByEmployee ||
 		!!task.completedAt ||
@@ -356,6 +358,31 @@ export function TaskRowDetails({
 								View photo
 							</Button>
 						)}
+						{recoveredPhotos.map((item) => (
+							<Button
+								key={item.id}
+								variant="outline"
+								size="sm"
+								className="mr-1.5 h-7"
+								onClick={() =>
+									setPhoto({
+										src: item.pictureUrl as string,
+										title: `Uninstall photo — ${item.itemName}`,
+									})
+								}
+							>
+								<ImageIcon className="mr-1.5 size-3.5" />
+								Photo · {item.itemName}
+							</Button>
+						))}
+						{!task.resolutionCode &&
+							!task.resolutionNote &&
+							!task.completionPhotoUrl &&
+							recoveredPhotos.length === 0 && (
+								<p className="text-xs text-muted-foreground">
+									No photo or note from the worker.
+								</p>
+							)}
 					</Section>
 				)}
 			</div>

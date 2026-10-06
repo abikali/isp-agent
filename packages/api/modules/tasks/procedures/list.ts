@@ -251,6 +251,7 @@ export const listTasks = protectedProcedure
 							itemName: true,
 							quantity: true,
 							status: true,
+							pictureUrl: true,
 						},
 						orderBy: { uninstalledAt: "desc" },
 					},

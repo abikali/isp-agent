@@ -16,6 +16,7 @@ import { Button } from "@ui/components/button";
 import { Combobox } from "@ui/components/combobox";
 import { cn } from "@ui/lib";
 import {
+	FileTextIcon,
 	ImageIcon,
 	LayersIcon,
 	PlusIcon,
@@ -31,6 +32,7 @@ import {
 	useSpendingOverview,
 } from "../../hooks/use-spending";
 import { AddExpenseSheet } from "./AddExpenseSheet";
+import { isPdfUrl } from "./ReceiptsInput";
 import { RecurringExpenseSheet } from "./RecurringExpenseSheet";
 
 interface BucketDetailPageProps {
@@ -259,20 +261,41 @@ export function BucketDetailPage({ bucketId }: BucketDetailPageProps) {
 													` · ${row.category}`}
 											</div>
 										</div>
-										{row.receiptUrl && (
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-7 px-2"
-												onClick={() =>
-													setReceiptUrl(
-														row.receiptUrl as string,
-													)
-												}
-												aria-label="View receipt"
-											>
-												<ImageIcon className="size-3.5" />
-											</Button>
+										{[
+											row.receiptUrl,
+											...row.extraReceiptUrls,
+										].map((url) =>
+											!url ? null : isPdfUrl(url) ? (
+												<Button
+													key={url}
+													asChild
+													size="sm"
+													variant="ghost"
+													className="h-7 px-2"
+												>
+													<a
+														href={url}
+														target="_blank"
+														rel="noreferrer"
+														aria-label="Open PDF"
+													>
+														<FileTextIcon className="size-3.5" />
+													</a>
+												</Button>
+											) : (
+												<Button
+													key={url}
+													size="sm"
+													variant="ghost"
+													className="h-7 px-2"
+													onClick={() =>
+														setReceiptUrl(url)
+													}
+													aria-label="View receipt"
+												>
+													<ImageIcon className="size-3.5" />
+												</Button>
+											),
 										)}
 										<span className="shrink-0 font-mono tabular-nums">
 											{formatCurrency(row.amount)}
