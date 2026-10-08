@@ -41,6 +41,8 @@ export { decryptToken, encryptToken } from "./src/encryption";
 export { executeEscalationGuard } from "./src/escalation-guard";
 export type { EscalationSummary } from "./src/escalation-summary";
 export { summarizeForEscalation } from "./src/escalation-summary";
+export type { FiberInterest } from "./src/fiber-interest";
+export { classifyFiberInterest } from "./src/fiber-interest";
 export type { FollowUpWindow } from "./src/follow-up";
 export {
 	buildFollowUpInstruction,

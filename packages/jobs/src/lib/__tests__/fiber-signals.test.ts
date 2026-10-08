@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database", () => ({ db: {}, Prisma: {} }));
+vi.mock("@repo/ai", () => ({
+	classifyFiberInterest: vi.fn(),
+	resolveAgentCredentials: vi.fn(),
+}));
+vi.mock("../../connection", () => ({ getRedisConnection: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 
 import { FIBER_PATTERN, mentionsOgero, OGERO_PATTERN } from "../fiber-signals";

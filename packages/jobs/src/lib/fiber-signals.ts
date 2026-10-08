@@ -1,6 +1,12 @@
+import {
+	classifyFiberInterest,
+	type ModelCredentials,
+	resolveAgentCredentials,
+} from "@repo/ai";
 import { customerWhatsAppPhone, db, Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
 import { normalizeArea, normalizePhone, parsePhone } from "@repo/utils";
+import { getRedisConnection } from "../connection";
 
 /**
  * Fiber control room signal sweep. Turns things customers say and do into
@@ -47,6 +53,14 @@ export const OGERO_PATTERN = OGERO_TERMS.join("|");
 const ANY_PATTERN = `${FIBER_PATTERN}|${OGERO_PATTERN}`;
 
 const OGERO_RE = new RegExp(OGERO_PATTERN, "i");
+const FIBER_OR_OGERO_RE = new RegExp(ANY_PATTERN, "i");
+
+const MESSAGE_KIND = "Customer WhatsApp message to the ISP's support bot";
+const TICKET_KIND = "Support bot escalation ticket";
+/** Refs the classifier said are not fiber requests — never asked again. */
+const REJECTED_KEY = "fiber:signals:rejected";
+const REJECTED_TTL_SECONDS = 180 * 86_400;
+const CLASSIFY_CONCURRENCY = 6;
 
 export function mentionsOgero(text: string | null | undefined): boolean {
 	return !!text && OGERO_RE.test(text);
@@ -74,6 +88,12 @@ interface Signal {
 	ref: string;
 	body: string;
 	at: Date;
+	/**
+	 * Free text that only matched a keyword (a chat message, a bot ticket):
+	 * the classifier must agree it is a fiber request before it becomes a
+	 * lead. Collector stop notes are explicit and skip this.
+	 */
+	verify?: { kind: string; text: string };
 }
 
 const CLOSED = new Set(["WON", "LOST"]);
@@ -318,6 +338,94 @@ interface TaskRow {
 	createdAt: Date;
 }
 
+function ticketText(t: { title: string; description: string | null }): string {
+	return `${t.title}\n${t.description ?? ""}`;
+}
+
+/** The org's AI key (any agent that has one), cached per sweep. */
+function credentialsLoader() {
+	const cache = new Map<string, Promise<ModelCredentials | null>>();
+	return (organizationId: string) => {
+		let found = cache.get(organizationId);
+		if (!found) {
+			found = db.aiAgent
+				.findFirst({
+					where: { organizationId, encryptedApiKey: { not: null } },
+					orderBy: { createdAt: "asc" },
+					select: { provider: true, encryptedApiKey: true },
+				})
+				.then((agent) =>
+					agent ? resolveAgentCredentials(agent) : null,
+				)
+				.catch(() => null);
+			cache.set(organizationId, found);
+		}
+		return found;
+	};
+}
+
+/**
+ * true = a fiber request, false = not one (remembered), null = could not
+ * tell right now (no key, model error) — left for the next run.
+ */
+async function isFiberRequest(
+	organizationId: string,
+	ref: string,
+	verify: { kind: string; text: string },
+	credentialsFor: (
+		organizationId: string,
+	) => Promise<ModelCredentials | null>,
+	/** false = dry run: don't record a rejection. */
+	remember = true,
+): Promise<boolean | null> {
+	const redis = getRedisConnection();
+	if (await redis.sismember(REJECTED_KEY, ref)) {
+		return false;
+	}
+	const credentials = await credentialsFor(organizationId);
+	if (!credentials) {
+		return null;
+	}
+	const verdict = await classifyFiberInterest({ credentials, ...verify });
+	if (!verdict) {
+		return null;
+	}
+	if (!verdict.fiberRequest && remember) {
+		await redis.sadd(REJECTED_KEY, ref);
+		await redis.expire(REJECTED_KEY, REJECTED_TTL_SECONDS);
+	}
+	return verdict.fiberRequest;
+}
+
+/** Drop keyword matches the classifier says are not fiber requests. */
+async function keepFiberRequests(
+	items: Array<[LeadSeed, Signal]>,
+): Promise<Array<[LeadSeed, Signal]>> {
+	const credentialsFor = credentialsLoader();
+	const kept: Array<[LeadSeed, Signal]> = [];
+	for (let i = 0; i < items.length; i += CLASSIFY_CONCURRENCY) {
+		const chunk = items.slice(i, i + CLASSIFY_CONCURRENCY);
+		const verdicts = await Promise.all(
+			chunk.map(([seed, signal]) =>
+				signal.verify
+					? isFiberRequest(
+							seed.organizationId,
+							signal.ref,
+							signal.verify,
+							credentialsFor,
+						)
+					: true,
+			),
+		);
+		chunk.forEach((item, j) => {
+			if (verdicts[j] === true) {
+				kept.push(item);
+			}
+		});
+	}
+	return kept;
+}
+
 /**
  * Scan everything since `since` (optionally one org) and record signals.
  */
@@ -357,8 +465,9 @@ export async function runFiberSignalSweep(opts: {
 			},
 			{
 				ref: `msg:${m.id}`,
-				body: `${mentionsOgero(m.content) ? "Mentioned Ogero" : "Asked about fiber"}: “${quote(m.content)}”`,
+				body: `Asked about fiber: “${quote(m.content)}”`,
 				at: m.createdAt,
+				verify: { kind: MESSAGE_KIND, text: m.content },
 			},
 		]);
 	}
@@ -415,7 +524,9 @@ export async function runFiberSignalSweep(opts: {
 		},
 	});
 	for (const f of switched) {
-		if (!f.customerId) {
+		// "Switched provider" alone says nothing about fiber — only replies
+		// that name fiber or Ogero belong in this room.
+		if (!f.customerId || !f.reply || !FIBER_OR_OGERO_RE.test(f.reply)) {
 			continue;
 		}
 		const toOgero = mentionsOgero(f.reply);
@@ -465,6 +576,7 @@ export async function runFiberSignalSweep(opts: {
 				ref: `task:${t.id}`,
 				body: `Bot escalated: ${quote(t.title, 160)}`,
 				at: t.createdAt,
+				verify: { kind: TICKET_KIND, text: ticketText(t) },
 			},
 		]);
 	}
@@ -479,7 +591,9 @@ export async function runFiberSignalSweep(opts: {
 			})
 		).map((a) => a.ref),
 	);
-	const todo = pending.filter(([, sig]) => !known.has(sig.ref));
+	const todo = await keepFiberRequests(
+		pending.filter(([, sig]) => !known.has(sig.ref)),
+	);
 	todo.sort((x, y) => x[1].at.getTime() - y[1].at.getTime());
 	const result: FiberSweepResult = { leadsCreated: 0, signalsAdded: 0 };
 	for (const [seed, signal] of todo) {
@@ -497,8 +611,6 @@ export async function runFiberSignalSweep(opts: {
 	}
 	return result;
 }
-
-const FIBER_OR_OGERO_RE = new RegExp(ANY_PATTERN, "i");
 
 /** Short stable key for a message text (djb2). */
 function textKey(text: string): string {
@@ -558,6 +670,22 @@ export async function recordBroadcastReply(message: {
 	if (!fiberBroadcast && !FIBER_OR_OGERO_RE.test(message.text)) {
 		return false;
 	}
+	// "How much?" is a lead; "stop sending me this" is not. If the model
+	// can't be reached, an answer to a fiber ad still counts.
+	const verdict = await isFiberRequest(
+		recipient.broadcast.organizationId,
+		`bcast:${recipient.id}:${textKey(message.text)}`,
+		{
+			kind: fiberBroadcast
+				? "Customer's reply to LibanCom's fiber-offer WhatsApp broadcast"
+				: MESSAGE_KIND,
+			text: message.text,
+		},
+		credentialsLoader(),
+	);
+	if (verdict === false || (verdict === null && !fiberBroadcast)) {
+		return false;
+	}
 	const { added } = await recordSignal(
 		{
 			organizationId: recipient.broadcast.organizationId,
@@ -576,4 +704,94 @@ export async function recordBroadcastReply(message: {
 		},
 	);
 	return added;
+}
+
+/**
+ * Re-check leads that came in from chats / tickets and nobody has worked
+ * yet: signals the classifier rejects are removed, and a lead left with no
+ * signal is deleted. For cleaning up after the keyword-only sweep.
+ */
+export async function pruneNonFiberLeads(
+	opts: { organizationId?: string; dryRun?: boolean } = {},
+): Promise<{
+	leadsRemoved: number;
+	signalsRemoved: number;
+	/** What would be / was deleted, for review. */
+	removed: string[];
+}> {
+	const leads = await db.fiberLead.findMany({
+		where: {
+			stage: "NEW",
+			source: { in: ["BOT", "ESCALATION"] },
+			...(opts.organizationId
+				? { organizationId: opts.organizationId }
+				: {}),
+			// Untouched: nothing but automatic signals on the timeline.
+			activities: { every: { type: "SIGNAL" } },
+		},
+		select: {
+			id: true,
+			name: true,
+			organizationId: true,
+			activities: { select: { id: true, ref: true, body: true } },
+		},
+	});
+	const removed: string[] = [];
+	const credentialsFor = credentialsLoader();
+	let leadsRemoved = 0;
+	let signalsRemoved = 0;
+	for (const lead of leads) {
+		let remaining = lead.activities.length;
+		for (const activity of lead.activities) {
+			const [kind, id] = (activity.ref ?? "").split(":");
+			let verify: { kind: string; text: string } | null = null;
+			if (kind === "msg" && id) {
+				const message = await db.aiMessage.findUnique({
+					where: { id },
+					select: { content: true },
+				});
+				verify = message
+					? { kind: MESSAGE_KIND, text: message.content }
+					: null;
+			} else if (kind === "task" && id) {
+				const task = await db.task.findUnique({
+					where: { id },
+					select: { title: true, description: true },
+				});
+				verify = task
+					? { kind: TICKET_KIND, text: ticketText(task) }
+					: null;
+			}
+			if (!verify || !activity.ref) {
+				continue;
+			}
+			const verdict = await isFiberRequest(
+				lead.organizationId,
+				activity.ref,
+				verify,
+				credentialsFor,
+				!opts.dryRun,
+			);
+			if (verdict === false) {
+				removed.push(
+					`${lead.name ?? "?"} — ${quote(activity.body ?? "", 110)}`,
+				);
+				if (!opts.dryRun) {
+					await db.fiberLeadActivity.delete({
+						where: { id: activity.id },
+					});
+				}
+				signalsRemoved += 1;
+				remaining -= 1;
+			}
+		}
+		if (remaining === 0) {
+			if (!opts.dryRun) {
+				await db.fiberLead.delete({ where: { id: lead.id } });
+			}
+			leadsRemoved += 1;
+		}
+	}
+	logger.info("fiber-lead-prune", { ...opts, leadsRemoved, signalsRemoved });
+	return { leadsRemoved, signalsRemoved, removed };
 }
