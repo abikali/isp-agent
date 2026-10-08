@@ -1,6 +1,13 @@
 "use client";
 
 import { emailSchema } from "@repo/api/lib/validation";
+import {
+	type LandlineAnswer,
+	LandlineQuestion,
+	landlineError,
+	landlineSubmission,
+	UNANSWERED_LANDLINE,
+} from "@saas/billing/client";
 import { useOrganizationId } from "@shared/lib/organization";
 import { useForm, useStore } from "@tanstack/react-form";
 import { Button } from "@ui/components/button";
@@ -25,6 +32,7 @@ import {
 } from "@ui/components/sheet";
 import { Textarea } from "@ui/components/textarea";
 import { PlusIcon, XIcon } from "lucide-react";
+import { useState } from "react";
 import { useCreateCustomer } from "../hooks/use-customers";
 import { usePlansQuery } from "../hooks/use-plans";
 import { useStationsQuery } from "../hooks/use-stations";
@@ -128,6 +136,11 @@ export function CreateCustomerDialog({
 	const createCustomer = useCreateCustomer();
 	const { plans } = usePlansQuery();
 	const { stations } = useStationsQuery();
+	// Optional here (an admin may be entering paperwork without the customer
+	// in front of them) — left unanswered, the collector asks on first payment.
+	const [landline, setLandline] =
+		useState<LandlineAnswer>(UNANSWERED_LANDLINE);
+	const landlineProblem = landlineError(landline, false);
 
 	const form = useForm({
 		defaultValues: {
@@ -150,7 +163,7 @@ export function CreateCustomerDialog({
 			notes: "",
 		},
 		onSubmit: async ({ value }) => {
-			if (!organizationId) {
+			if (!organizationId || landlineProblem) {
 				return;
 			}
 			await createCustomer.mutateAsync({
@@ -180,9 +193,11 @@ export function CreateCustomerDialog({
 					: undefined,
 				groupName: value.groupName || undefined,
 				notes: value.notes || undefined,
+				landline: landlineSubmission(landline),
 			});
 			onOpenChange(false);
 			form.reset();
+			setLandline(UNANSWERED_LANDLINE);
 		},
 	});
 
@@ -290,6 +305,16 @@ export function CreateCustomerDialog({
 						</div>
 
 						<PhoneFieldsCreate form={form} />
+						<LandlineQuestion
+							value={landline}
+							onChange={setLandline}
+							required={false}
+						/>
+						{landlineProblem && (
+							<p className="text-xs font-medium text-destructive">
+								{landlineProblem}
+							</p>
+						)}
 
 						<form.Field name="address">
 							{(field) => (
@@ -482,7 +507,10 @@ export function CreateCustomerDialog({
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isSubmitting}>
+						<Button
+							type="submit"
+							disabled={isSubmitting || !!landlineProblem}
+						>
 							{isSubmitting ? "Creating..." : "Add Customer"}
 						</Button>
 					</SheetFooter>

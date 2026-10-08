@@ -1,5 +1,12 @@
 "use client";
 
+import {
+	type LandlineAnswer,
+	LandlineQuestion,
+	landlineError,
+	landlineSubmission,
+	UNANSWERED_LANDLINE,
+} from "@saas/billing/client";
 import { NearbyBoxesNotice } from "@saas/customers/client";
 import { type PhoneRow, PhoneRows } from "@shared/components/PhoneRows";
 import { formatCurrency, formatDate } from "@shared/lib/format";
@@ -153,6 +160,8 @@ export function WorkerNewCustomer() {
 	const [durationType, setDurationType] = useState<"month" | "days">("month");
 	const [durationDays, setDurationDays] = useState("15");
 	const [note, setNote] = useState("");
+	const [landline, setLandline] =
+		useState<LandlineAnswer>(UNANSWERED_LANDLINE);
 	const [lines, setLines] = useState<InstallLine[]>([]);
 
 	const plan = plans.find((p) => p.id === planId);
@@ -177,9 +186,13 @@ export function WorkerNewCustomer() {
 	const hasValidPhone = phones.some(
 		(p) => p.number.replace(/\D/g, "").length >= 7,
 	);
+	// Asked at sign-up, like the collector's payment sheet: every new
+	// customer starts with a landline answer.
+	const landlineProblem = landlineError(landline, true);
 	const valid =
 		firstName.trim() &&
 		hasValidPhone &&
+		!landlineProblem &&
 		address.trim() &&
 		planId &&
 		overStock.size === 0 &&
@@ -199,6 +212,7 @@ export function WorkerNewCustomer() {
 		setDurationType("month");
 		setDurationDays("15");
 		setNote("");
+		setLandline(UNANSWERED_LANDLINE);
 		setLines([]);
 	}
 
@@ -248,6 +262,7 @@ export function WorkerNewCustomer() {
 				durationDays:
 					durationType === "days" ? Number(durationDays) : undefined,
 				notes: note.trim() || undefined,
+				landline: landlineSubmission(landline),
 				items: linesToPayload(lines),
 			});
 			toast.success("Customer submitted for approval");
@@ -298,6 +313,11 @@ export function WorkerNewCustomer() {
 					<Label>Phone numbers *</Label>
 					<PhoneRows phones={phones} onChange={setPhones} />
 				</div>
+				<LandlineQuestion
+					value={landline}
+					onChange={setLandline}
+					required
+				/>
 				<div className="space-y-1.5">
 					<Label htmlFor="nc-address">Address *</Label>
 					<Input
@@ -465,6 +485,12 @@ export function WorkerNewCustomer() {
 						</div>
 					</CardContent>
 				</Card>
+			)}
+
+			{landlineProblem && (
+				<p className="text-xs font-medium text-destructive">
+					{landlineProblem}
+				</p>
 			)}
 
 			<Button

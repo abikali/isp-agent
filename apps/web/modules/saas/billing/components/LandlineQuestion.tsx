@@ -45,6 +45,13 @@ export function initialLandlineAnswer(
 	};
 }
 
+/** A customer nobody has asked yet — the starting point when creating one. */
+export const UNANSWERED_LANDLINE: LandlineAnswer = {
+	editing: true,
+	has: null,
+	number: "",
+};
+
 /** What to send with the payment; undefined leaves the saved answer alone. */
 export function landlineSubmission(
 	answer: LandlineAnswer,

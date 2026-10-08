@@ -36,6 +36,7 @@ import { assertStockAvailable } from "../../installations/lib/stock-guard";
 import { approveInstallationInTx } from "../../installations/procedures/review";
 import { createCustomerInIRadius } from "../lib/create-in-iradius";
 import { iradiusUserIdExists, iradiusUsernameExists } from "../lib/iradius-api";
+import { landlineAnswerSchema, landlineUpdate } from "../lib/landline";
 
 const setupItemSchema = z
 	.object({
@@ -211,6 +212,8 @@ export const workerCreateCustomer = protectedProcedure
 			durationType: z.enum(["month", "days"]),
 			durationDays: z.number().int().min(1).max(120).optional(),
 			notes: z.string().max(2000).optional(),
+			/** "Does the customer have a landline?" — asked at sign-up. */
+			landline: landlineAnswerSchema.optional(),
 			items: z.array(setupItemSchema).max(20).default([]),
 		}),
 	)
@@ -221,6 +224,8 @@ export const workerCreateCustomer = protectedProcedure
 			"customers",
 			"create",
 		);
+		// Validated up front, before stock is checked or anything is written.
+		const landline = input.landline ? landlineUpdate(input.landline) : {};
 
 		const employeeId = await getUserEmployeeId(
 			input.organizationId,
@@ -375,6 +380,7 @@ export const workerCreateCustomer = protectedProcedure
 					collectorId: input.collectorId ?? null,
 					workerId: employeeId,
 					expiresAt,
+					...landline,
 				},
 				select: {
 					id: true,

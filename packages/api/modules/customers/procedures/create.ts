@@ -7,6 +7,7 @@ import { db, getPrimaryPhone, MAX_PHONES } from "@repo/database";
 import { createAccountNumberGenerator } from "@repo/jobs";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { landlineAnswerSchema, landlineUpdate } from "../lib/landline";
 
 export const createCustomer = protectedProcedure
 	.route({
@@ -43,6 +44,8 @@ export const createCustomer = protectedProcedure
 			monthlyRate: z.number().min(0).optional(),
 			groupName: z.string().max(100).optional(),
 			notes: z.string().max(5000).optional(),
+			/** "Does the customer have a landline?" — same answer collectors give. */
+			landline: landlineAnswerSchema.optional(),
 		}),
 	)
 	.handler(async ({ context: { user, headers }, input }) => {
@@ -77,6 +80,7 @@ export const createCustomer = protectedProcedure
 				monthlyRate: input.monthlyRate ?? null,
 				groupName: input.groupName ?? null,
 				notes: input.notes ?? null,
+				...(input.landline ? landlineUpdate(input.landline) : {}),
 			},
 			select: {
 				id: true,
