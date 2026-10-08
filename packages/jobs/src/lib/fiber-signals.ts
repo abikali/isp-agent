@@ -94,6 +94,8 @@ interface Signal {
 	 * lead. Collector stop notes are explicit and skip this.
 	 */
 	verify?: { kind: string; text: string };
+	/** One sentence on why this puts the person in the pipeline. */
+	summary?: string;
 }
 
 const CLOSED = new Set(["WON", "LOST"]);
@@ -254,6 +256,13 @@ async function recordSignal(
 		return { created, added: false };
 	}
 
+	if (signal.summary) {
+		await db.fiberLead.update({
+			where: { id: lead.id },
+			data: { summary: signal.summary },
+		});
+	}
+
 	// Stage: someone we lost is talking about fiber again → back in play; a
 	// fresh LOST signal closes an open lead. Only signals newer than the
 	// lead's last change count, so a backfilled old signal never overrides
@@ -338,6 +347,19 @@ interface TaskRow {
 	createdAt: Date;
 }
 
+/** The whole text, not a snippet — admins read it to see why a lead exists. */
+function fullText(text: string): string {
+	return text.trim().slice(0, 6000);
+}
+
+/**
+ * What an admin reads for a bot ticket. The title is just the first words
+ * of the description, so showing both repeats the opening.
+ */
+function ticketBody(t: { title: string; description: string | null }): string {
+	return fullText(t.description?.trim() || t.title);
+}
+
 function ticketText(t: { title: string; description: string | null }): string {
 	return `${t.title}\n${t.description ?? ""}`;
 }
@@ -368,7 +390,7 @@ function credentialsLoader() {
  * true = a fiber request, false = not one (remembered), null = could not
  * tell right now (no key, model error) — left for the next run.
  */
-async function isFiberRequest(
+async function checkFiberRequest(
 	organizationId: string,
 	ref: string,
 	verify: { kind: string; text: string },
@@ -377,10 +399,10 @@ async function isFiberRequest(
 	) => Promise<ModelCredentials | null>,
 	/** false = dry run: don't record a rejection. */
 	remember = true,
-): Promise<boolean | null> {
+): Promise<{ fiberRequest: boolean; summary: string } | null> {
 	const redis = getRedisConnection();
 	if (await redis.sismember(REJECTED_KEY, ref)) {
-		return false;
+		return { fiberRequest: false, summary: "" };
 	}
 	const credentials = await credentialsFor(organizationId);
 	if (!credentials) {
@@ -394,10 +416,13 @@ async function isFiberRequest(
 		await redis.sadd(REJECTED_KEY, ref);
 		await redis.expire(REJECTED_KEY, REJECTED_TTL_SECONDS);
 	}
-	return verdict.fiberRequest;
+	return verdict;
 }
 
-/** Drop keyword matches the classifier says are not fiber requests. */
+/**
+ * Drop keyword matches the classifier says are not fiber requests, and
+ * attach its one-line reason to the ones that are.
+ */
 async function keepFiberRequests(
 	items: Array<[LeadSeed, Signal]>,
 ): Promise<Array<[LeadSeed, Signal]>> {
@@ -408,18 +433,21 @@ async function keepFiberRequests(
 		const verdicts = await Promise.all(
 			chunk.map(([seed, signal]) =>
 				signal.verify
-					? isFiberRequest(
+					? checkFiberRequest(
 							seed.organizationId,
 							signal.ref,
 							signal.verify,
 							credentialsFor,
 						)
-					: true,
+					: null,
 			),
 		);
-		chunk.forEach((item, j) => {
-			if (verdicts[j] === true) {
-				kept.push(item);
+		chunk.forEach(([seed, signal], j) => {
+			const verdict = verdicts[j];
+			if (!signal.verify) {
+				kept.push([seed, signal]);
+			} else if (verdict?.fiberRequest) {
+				kept.push([seed, { ...signal, summary: verdict.summary }]);
 			}
 		});
 	}
@@ -465,7 +493,7 @@ export async function runFiberSignalSweep(opts: {
 			},
 			{
 				ref: `msg:${m.id}`,
-				body: `Asked about fiber: “${quote(m.content)}”`,
+				body: fullText(m.content),
 				at: m.createdAt,
 				verify: { kind: MESSAGE_KIND, text: m.content },
 			},
@@ -499,7 +527,10 @@ export async function runFiberSignalSweep(opts: {
 			},
 			{
 				ref: `pay:${p.id}`,
-				body: `${toOgero ? "Stopped — took Ogero" : "Stopped — wants fiber"}: “${quote(text)}”`,
+				body: fullText(text),
+				summary: toOgero
+					? "Stopped the service — the collector noted they took Ogero."
+					: "Stopped the service — the collector noted they want fiber.",
 				at: p.createdAt,
 			},
 		]);
@@ -541,7 +572,10 @@ export async function runFiberSignalSweep(opts: {
 			},
 			{
 				ref: `followup:${f.id}`,
-				body: `Said they switched provider${f.reply ? `: “${quote(f.reply)}”` : ""}`,
+				body: fullText(f.reply),
+				summary: toOgero
+					? "After stopping, said they switched to Ogero."
+					: "After stopping, said they switched provider and mentioned fiber.",
 				at: f.replyAt ?? new Date(),
 			},
 		]);
@@ -574,7 +608,7 @@ export async function runFiberSignalSweep(opts: {
 			},
 			{
 				ref: `task:${t.id}`,
-				body: `Bot escalated: ${quote(t.title, 160)}`,
+				body: ticketBody(t),
 				at: t.createdAt,
 				verify: { kind: TICKET_KIND, text: ticketText(t) },
 			},
@@ -672,7 +706,7 @@ export async function recordBroadcastReply(message: {
 	}
 	// "How much?" is a lead; "stop sending me this" is not. If the model
 	// can't be reached, an answer to a fiber ad still counts.
-	const verdict = await isFiberRequest(
+	const verdict = await checkFiberRequest(
 		recipient.broadcast.organizationId,
 		`bcast:${recipient.id}:${textKey(message.text)}`,
 		{
@@ -683,7 +717,7 @@ export async function recordBroadcastReply(message: {
 		},
 		credentialsLoader(),
 	);
-	if (verdict === false || (verdict === null && !fiberBroadcast)) {
+	if (verdict ? !verdict.fiberRequest : !fiberBroadcast) {
 		return false;
 	}
 	const { added } = await recordSignal(
@@ -699,7 +733,10 @@ export async function recordBroadcastReply(message: {
 			// Webhook messages carry no id: key on the text so a redelivery is
 			// a no-op but every distinct reply lands on the timeline.
 			ref: `bcast:${recipient.id}:${textKey(message.text)}`,
-			body: `Replied to “${recipient.broadcast.name}”${message.text ? `: “${quote(message.text)}”` : ""}`,
+			body: fullText(message.text),
+			summary:
+				verdict?.summary ||
+				`Replied to our “${recipient.broadcast.name}” broadcast.`,
 			at: new Date(),
 		},
 	);
@@ -765,14 +802,14 @@ export async function pruneNonFiberLeads(
 			if (!verify || !activity.ref) {
 				continue;
 			}
-			const verdict = await isFiberRequest(
+			const verdict = await checkFiberRequest(
 				lead.organizationId,
 				activity.ref,
 				verify,
 				credentialsFor,
 				!opts.dryRun,
 			);
-			if (verdict === false) {
+			if (verdict && !verdict.fiberRequest) {
 				removed.push(
 					`${lead.name ?? "?"} — ${quote(activity.body ?? "", 110)}`,
 				);
@@ -794,4 +831,98 @@ export async function pruneNonFiberLeads(
 	}
 	logger.info("fiber-lead-prune", { ...opts, leadsRemoved, signalsRemoved });
 	return { leadsRemoved, signalsRemoved, removed };
+}
+
+/**
+ * Bring existing leads up to the "says why" standard: put the full original
+ * text on each chat / ticket signal (older rows hold a cropped quote) and
+ * write the lead's one-line summary from its most recent signal. One-off
+ * after deploy; safe to re-run.
+ */
+export async function refreshFiberLeadReasons(
+	opts: { organizationId?: string } = {},
+): Promise<{ leads: number; summarised: number }> {
+	const leads = await db.fiberLead.findMany({
+		where: opts.organizationId
+			? { organizationId: opts.organizationId }
+			: {},
+		select: {
+			id: true,
+			organizationId: true,
+			source: true,
+			summary: true,
+			notes: true,
+			activities: {
+				where: { type: "SIGNAL" },
+				orderBy: { createdAt: "desc" },
+				select: { id: true, ref: true, body: true },
+			},
+		},
+	});
+	const credentialsFor = credentialsLoader();
+	let summarised = 0;
+	for (const lead of leads) {
+		let summary: string | null = null;
+		for (const activity of lead.activities) {
+			const [kind, id] = (activity.ref ?? "").split(":");
+			let source: { kind: string; text: string } | null = null;
+			let body: string | null = null;
+			if (kind === "msg" && id) {
+				const message = await db.aiMessage.findUnique({
+					where: { id },
+					select: { content: true },
+				});
+				if (message) {
+					source = { kind: MESSAGE_KIND, text: message.content };
+					body = fullText(message.content);
+				}
+			} else if (kind === "task" && id) {
+				const task = await db.task.findUnique({
+					where: { id },
+					select: { title: true, description: true },
+				});
+				if (task) {
+					source = { kind: TICKET_KIND, text: ticketText(task) };
+					body = ticketBody(task);
+				}
+			}
+			if (!source || !body) {
+				continue;
+			}
+			await db.fiberLeadActivity.update({
+				where: { id: activity.id },
+				data: { body },
+			});
+			// Newest signal first: the first one that yields a summary wins.
+			if (!summary) {
+				const credentials = await credentialsFor(lead.organizationId);
+				const verdict = credentials
+					? await classifyFiberInterest({ credentials, ...source })
+					: null;
+				summary = verdict?.fiberRequest ? verdict.summary : null;
+			}
+		}
+		summary ??=
+			lead.summary ??
+			(lead.source === "CHURN"
+				? "Stopped the service — fiber or Ogero was mentioned."
+				: lead.source === "CUSTOMER_BASE"
+					? "Added from the at-risk list — worth a call before Ogero reaches them."
+					: lead.source === "MANUAL"
+						? lead.notes || "Added by staff."
+						: null);
+		if (summary && summary !== lead.summary) {
+			await db.fiberLead.update({
+				where: { id: lead.id },
+				data: { summary },
+			});
+			summarised += 1;
+		}
+	}
+	logger.info("fiber-lead-reasons", {
+		...opts,
+		leads: leads.length,
+		summarised,
+	});
+	return { leads: leads.length, summarised };
 }

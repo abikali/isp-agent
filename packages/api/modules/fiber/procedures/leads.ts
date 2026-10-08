@@ -28,6 +28,7 @@ const LEAD_SELECT = {
 	name: true,
 	phone: true,
 	area: true,
+	summary: true,
 	stage: true,
 	source: true,
 	lostReason: true,
@@ -59,7 +60,7 @@ const LEAD_SELECT = {
 			status: true,
 			groupName: true,
 			monthlyRate: true,
-			plan: { select: { name: true } },
+			plan: { select: { name: true, isFiber: true } },
 		},
 	},
 } as const;
@@ -170,10 +171,12 @@ export const listFiberLeads = protectedProcedure
 				where: where as never,
 				select: {
 					...LEAD_SELECT,
+					// What they last said / what was last reported — the row's quote.
 					activities: {
+						where: { type: "SIGNAL" },
 						orderBy: { createdAt: "desc" },
 						take: 1,
-						select: { type: true, body: true, createdAt: true },
+						select: { ref: true, body: true, createdAt: true },
 					},
 				},
 				// Due follow-ups first, then whatever moved most recently.
@@ -199,7 +202,7 @@ export const listFiberLeads = protectedProcedure
 		return {
 			leads: leads.map(({ activities, ...l }) => ({
 				...l,
-				lastActivity: activities[0] ?? null,
+				signal: activities[0] ?? null,
 			})),
 			total: shown.reduce(
 				(sum, st) => sum + (stageCounts[st as FiberStage] ?? 0),
@@ -302,6 +305,7 @@ export const createFiberLead = protectedProcedure
 					? normalizeArea(input.area)
 					: (fields?.area ?? null),
 				source: "MANUAL",
+				summary: input.notes || "Added by staff.",
 				notes: input.notes || null,
 				createdById: user.id,
 				activities: {
@@ -590,6 +594,8 @@ export const addCustomersToFiberPipeline = protectedProcedure
 					customerId: c.id,
 					...leadFieldsFromCustomer(c),
 					source: "CUSTOMER_BASE",
+					summary:
+						"Added from the at-risk list — worth a call before Ogero reaches them.",
 					assigneeId: input.assigneeId ?? null,
 					createdById: user.id,
 				})),
@@ -635,14 +641,10 @@ export const getFiberLeadForCustomer = protectedProcedure
 			select: {
 				id: true,
 				stage: true,
+				summary: true,
 				lostReason: true,
 				nextActionAt: true,
 				assignee: { select: { name: true } },
-				activities: {
-					orderBy: { createdAt: "desc" },
-					take: 1,
-					select: { body: true, createdAt: true },
-				},
 			},
 		});
 		return { lead };

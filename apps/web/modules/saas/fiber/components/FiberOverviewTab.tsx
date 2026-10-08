@@ -144,11 +144,11 @@ export function FiberOverviewTab({
 					}
 				/>
 				<MetricCard
-					label="Won on fiber"
+					label="Won from the pipeline"
 					value={kpis.won}
 					icon={TrophyIcon}
 					tone="success"
-					hint={`+${kpis.won30} last 30 days`}
+					hint={`${kpis.onFiber} customers on a fiber plan`}
 					onClick={() => onOpenPipeline({ stage: "WON" })}
 				/>
 				<MetricCard

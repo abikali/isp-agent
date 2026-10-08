@@ -27,6 +27,8 @@ export const updateServicePlan = protectedProcedure
 			downloadSpeed: z.number().int().min(1).optional(),
 			uploadSpeed: z.number().int().min(1).optional(),
 			monthlyPrice: z.number().min(0).optional(),
+			/** Customers on this plan already have fiber. */
+			isFiber: z.boolean().optional(),
 			// Worker custom-portal visibility. Empty array ⇒ visible to no one;
 			// omitted ⇒ leave the current assignment unchanged.
 			visibleWorkerIds: z.array(z.string()).optional(),
@@ -68,6 +70,9 @@ export const updateServicePlan = protectedProcedure
 		}
 		if (input.monthlyPrice !== undefined) {
 			updateData["monthlyPrice"] = input.monthlyPrice;
+		}
+		if (input.isFiber !== undefined) {
+			updateData["isFiber"] = input.isFiber;
 		}
 
 		const plan = await db.servicePlan.update({

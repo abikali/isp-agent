@@ -63,7 +63,14 @@ export function PlansList() {
 				header: "Plan",
 				cell: ({ row }) => (
 					<div>
-						<p className="font-medium">{row.original.name}</p>
+						<p className="flex items-center gap-2 font-medium">
+							{row.original.name}
+							{row.original.isFiber && (
+								<span className="rounded bg-info/15 px-1.5 py-0.5 text-[11px] font-medium text-info">
+									Fiber
+								</span>
+							)}
+						</p>
 						{row.original.description && (
 							<p className="text-xs text-muted-foreground line-clamp-1">
 								{row.original.description}

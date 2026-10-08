@@ -58,6 +58,7 @@ export const fiberOverview = protectedProcedure
 			activeCustomers,
 			landlineAsked,
 			landlineYes,
+			onFiber,
 			leads,
 			areaStatuses,
 		] = await Promise.all([
@@ -71,6 +72,9 @@ export const fiberOverview = protectedProcedure
 			}),
 			db.customer.count({
 				where: { ...customerWhere, hasLandline: true } as never,
+			}),
+			db.customer.count({
+				where: { ...customerWhere, plan: { isFiber: true } } as never,
 			}),
 			db.fiberLead.findMany({
 				where: leadWhere as never,
@@ -230,6 +234,8 @@ export const fiberOverview = protectedProcedure
 				activeCustomers,
 				landlineAsked,
 				landlineYes,
+				/** Active customers on a plan flagged as fiber. */
+				onFiber,
 			},
 			byStage,
 			lostReasons,

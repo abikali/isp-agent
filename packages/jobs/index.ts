@@ -76,6 +76,7 @@ export {
 	LEAD_CUSTOMER_SELECT,
 	leadFieldsFromCustomer,
 	pruneNonFiberLeads,
+	refreshFiberLeadReasons,
 	runFiberSignalSweep,
 } from "./src/lib/fiber-signals";
 export {

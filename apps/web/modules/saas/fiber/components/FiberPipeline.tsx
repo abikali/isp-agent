@@ -30,6 +30,7 @@ import { cn } from "@ui/lib";
 import { AlarmClockIcon, CableIcon, ChevronRightIcon } from "lucide-react";
 import { useState } from "react";
 import { type FiberLeadRow, useFiberLeads } from "../hooks/use-fiber";
+import { signalKind, signalText } from "../lib/signals";
 import { FiberLeadSheet } from "./FiberLeadSheet";
 import { StageBadge } from "./StageBadge";
 
@@ -87,6 +88,11 @@ export function FiberPipeline({
 
 	return (
 		<div className="space-y-4">
+			<p className="text-sm text-muted-foreground">
+				People who asked about fiber, or that the team added. Each row
+				says why they are here — open one to read their message and
+				record what happened.
+			</p>
 			{/* Stage tabs — counts ignore the stage itself so they always add up. */}
 			<div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
 				<StagePill
@@ -267,6 +273,11 @@ function StagePill({
 	);
 }
 
+/**
+ * One lead in the list. Reads top to bottom as: who, why they're here (one
+ * sentence), their own words, and what's due — so nobody has to open a lead
+ * to learn why it exists.
+ */
 function LeadRow({ lead, onOpen }: { lead: FiberLeadRow; onOpen: () => void }) {
 	const name =
 		lead.name ||
@@ -275,71 +286,77 @@ function LeadRow({ lead, onOpen }: { lead: FiberLeadRow; onOpen: () => void }) {
 		});
 	const overdue =
 		lead.nextActionAt && new Date(lead.nextActionAt) < new Date();
+	const kind = signalKind(lead.signal?.ref);
+	const quote = lead.signal ? signalText(kind, lead.signal.body) : "";
 	return (
 		<li>
 			<button
 				type="button"
 				onClick={onOpen}
-				className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50"
+				className="flex w-full items-start gap-3 px-4 py-3.5 text-left hover:bg-muted/50"
 			>
-				<div className="min-w-0 flex-1 space-y-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="truncate font-medium">{name}</span>
+				<div className="min-w-0 flex-1 space-y-1.5">
+					<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+						<span className="truncate font-semibold">{name}</span>
 						<StageBadge stage={lead.stage as FiberStage} />
 						{lead.ogeroApproached && (
 							<span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[11px] font-medium text-destructive">
 								Ogero approached
 							</span>
 						)}
-						{!lead.customer && (
-							<span
-								title="No customer account is linked to this lead yet"
-								className="rounded bg-info/10 px-1.5 py-0.5 text-[11px] font-medium text-info"
-							>
-								Not linked
-							</span>
-						)}
+						<span className="text-xs text-muted-foreground">
+							{lead.customer
+								? (lead.customer.username ?? "Customer")
+								: "Not a customer yet"}
+							{lead.area ? (
+								<span className="capitalize">
+									{" "}
+									· {lead.area}
+								</span>
+							) : null}
+						</span>
 					</div>
-					<p className="truncate text-xs text-muted-foreground">
-						{[
-							lead.customer?.username,
-							lead.area,
-							FIBER_SOURCE_LABELS[lead.source as FiberSource] ??
-								lead.source,
-						]
-							.filter(Boolean)
-							.join(" · ")}
+					{/* Why they're here */}
+					<p className="text-sm font-medium leading-snug">
+						{lead.summary ||
+							FIBER_SOURCE_LABELS[lead.source as FiberSource] ||
+							lead.source}
 					</p>
-					{lead.lastActivity?.body && (
-						<p className="line-clamp-1 text-xs text-muted-foreground">
-							{lead.lastActivity.body}
+					{/* Their words (or the ticket / note) */}
+					{quote && (
+						<p
+							dir="auto"
+							className="line-clamp-2 border-l-2 pl-2 text-sm text-muted-foreground"
+						>
+							{quote}
 						</p>
 					)}
+					<p className="text-xs text-muted-foreground">
+						{FIBER_SOURCE_LABELS[lead.source as FiberSource] ??
+							lead.source}
+						{lead.signal
+							? ` · ${formatDateTime(lead.signal.createdAt)}`
+							: ` · added ${formatDate(lead.createdAt)}`}
+						{" · "}
+						{lead.assignee?.name ?? "nobody assigned"}
+					</p>
 				</div>
-				<div className="hidden shrink-0 text-right text-xs sm:block">
+				<div className="flex shrink-0 flex-col items-end gap-1 pt-0.5 text-xs">
 					{lead.nextActionAt ? (
-						<p
+						<span
 							className={cn(
-								"font-medium",
+								"rounded px-1.5 py-0.5 font-medium",
 								overdue
-									? "text-destructive"
-									: "text-foreground",
+									? "bg-destructive/10 text-destructive"
+									: "bg-muted text-foreground",
 							)}
 						>
-							{overdue ? "Overdue · " : "Next · "}
+							{overdue ? "Overdue · " : "Follow up "}
 							{formatDate(lead.nextActionAt)}
-						</p>
-					) : (
-						<p className="text-muted-foreground">
-							No follow-up set
-						</p>
-					)}
-					<p className="text-muted-foreground">
-						{lead.assignee?.name ?? "Unassigned"} ·{" "}
-						{formatDateTime(lead.updatedAt)}
-					</p>
+						</span>
+					) : null}
+					<ChevronRightIcon className="size-4 text-muted-foreground" />
 				</div>
-				<ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
 			</button>
 		</li>
 	);

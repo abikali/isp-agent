@@ -16,6 +16,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@ui/components/sheet";
+import { Switch } from "@ui/components/switch";
 import { Textarea } from "@ui/components/textarea";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ interface Plan {
 	downloadSpeed: number;
 	uploadSpeed: number;
 	monthlyPrice: number;
+	isFiber?: boolean;
 }
 
 export function EditPlanDialog({
@@ -65,6 +67,7 @@ export function EditPlanDialog({
 			downloadSpeed: plan.downloadSpeed,
 			uploadSpeed: plan.uploadSpeed,
 			monthlyPrice: plan.monthlyPrice,
+			isFiber: plan.isFiber ?? false,
 		},
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
@@ -79,6 +82,7 @@ export function EditPlanDialog({
 					downloadSpeed: value.downloadSpeed,
 					uploadSpeed: value.uploadSpeed,
 					monthlyPrice: value.monthlyPrice,
+					isFiber: value.isFiber,
 					visibleWorkerIds,
 				});
 				toast.success("Plan updated");
@@ -210,6 +214,29 @@ export function EditPlanDialog({
 										}
 									/>
 								</div>
+							)}
+						</form.Field>
+
+						<form.Field name="isFiber">
+							{(field) => (
+								<label
+									htmlFor="edit-plan-fiber"
+									className="flex items-center justify-between gap-3 rounded-lg border p-3"
+								>
+									<span className="text-sm font-medium">
+										Fiber plan
+										<span className="block text-xs font-normal text-muted-foreground">
+											Customers on this plan already have
+											fiber — the Fiber page stops listing
+											them as at risk.
+										</span>
+									</span>
+									<Switch
+										id="edit-plan-fiber"
+										checked={field.state.value}
+										onCheckedChange={field.handleChange}
+									/>
+								</label>
 							)}
 						</form.Field>
 

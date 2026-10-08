@@ -80,6 +80,7 @@ export const listServicePlans = protectedProcedure
 								monthlyPrice: true,
 								archived: true,
 								visible: true,
+								isFiber: true,
 								commission: true,
 								parentCommission: true,
 								createdAt: true,

@@ -1093,6 +1093,9 @@ model ServicePlan {
   ipPoolName                 String? // RADIUS IP pool name
   maxUsers                   Int? // Simultaneous connections allowed
   visible                    Boolean   @default(true) // Shown on customer-facing UI
+  // A fiber plan: customers on it already have fiber (fiber control room).
+  // Seeded from the name on first sync; staff own it afterwards.
+  isFiber                    Boolean   @default(false)
   commission                 Float     @default(0)
   parentCommission           Float     @default(0)
   dealerExternalId           String? // iRadius DealerId (legacy, use dealerId)
@@ -3014,6 +3017,10 @@ model FiberLead {
   name            String?
   /// Digits with country code (961…), same shape as marketing recipients.
   phone           String?
+  /// One plain sentence: why this person is in the pipeline ("Asks if fiber
+  /// reached Sin el Fil and what it costs"). Written by the signal classifier
+  /// or by the code path that opened the lead; shown on every row.
+  summary         String?   @db.Text
   /// Area key — Customer.groupName for customers, typed for outside leads.
   area            String?
   stage           String    @default("NEW")

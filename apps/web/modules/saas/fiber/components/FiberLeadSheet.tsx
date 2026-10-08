@@ -5,11 +5,10 @@ import {
 	FIBER_BOX_STATUSES,
 	FIBER_LOST_REASON_LABELS,
 	FIBER_LOST_REASONS,
+	FIBER_NEXT_STEP,
 	FIBER_SOURCE_LABELS,
 	FIBER_STAGE_HINTS,
 	FIBER_STAGE_LABELS,
-	FIBER_STAGES,
-	type FiberBoxStatus,
 	type FiberLostReason,
 	type FiberSource,
 	type FiberStage,
@@ -51,13 +50,14 @@ import { Textarea } from "@ui/components/textarea";
 import { cn } from "@ui/lib";
 import {
 	ArrowRightIcon,
+	BotIcon,
 	CheckIcon,
-	ExternalLinkIcon,
 	MessageCircleIcon,
-	PhoneIcon,
+	PhoneMissedIcon,
+	UserIcon,
 	XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import {
 	type FiberLeadDetail,
@@ -65,6 +65,7 @@ import {
 	useLogFiberContact,
 	useUpdateFiberLead,
 } from "../hooks/use-fiber";
+import { LeadReason } from "./LeadReason";
 import { StageBadge } from "./StageBadge";
 
 interface FiberLeadSheetProps {
@@ -85,12 +86,12 @@ export function FiberLeadSheet({
 		<Sheet open={!!leadId} onOpenChange={(open) => !open && onClose()}>
 			<SheetContent
 				side="right"
-				className="w-full overflow-y-auto sm:max-w-lg"
+				className="w-full overflow-y-auto sm:max-w-xl"
 			>
 				{isLoading || !data ? (
 					<div className="space-y-3 p-4">
 						<Skeleton className="h-8 w-2/3" />
-						<Skeleton className="h-24 w-full" />
+						<Skeleton className="h-32 w-full" />
 						<Skeleton className="h-40 w-full" />
 					</div>
 				) : (
@@ -112,7 +113,18 @@ type LeadPatch = Omit<
 	"organizationId" | "id"
 >;
 
-// react-doctor-disable-next-line react-doctor/no-giant-component -- one lead's working surface: contact, next step, follow-up, box check and timeline share the same lead + mutations
+const FOLLOW_UP_CHIPS: Array<[string, number]> = [
+	["Tomorrow", 1],
+	["In 3 days", 3],
+	["In a week", 7],
+];
+
+/**
+ * One lead, laid out in the order an admin needs it: who this is, WHY they
+ * are in the pipeline (their own words), how to reach them, what to do next,
+ * then the details and the history.
+ */
+// react-doctor-disable-next-line react-doctor/no-giant-component -- one lead's working surface: reason, contact, next step, details and history share the same lead + mutations
 function LeadBody({
 	data,
 	organizationSlug,
@@ -129,13 +141,14 @@ function LeadBody({
 	const { employees } = useEmployeesQuery();
 	const [note, setNote] = useState("");
 	const [losing, setLosing] = useState(false);
-	const [lostReason, setLostReason] = useState<FiberLostReason>("OGERO");
+	const busy = update.isPending || log.isPending;
 
 	const stage = lead.stage as FiberStage;
 	const closed = stage === "WON" || stage === "LOST";
-	const nextStage = closed
+	const next = closed
 		? null
-		: (OPEN_FIBER_STAGES[OPEN_FIBER_STAGES.indexOf(stage) + 1] ?? "WON");
+		: FIBER_NEXT_STEP[stage as keyof typeof FIBER_NEXT_STEP];
+	const step = OPEN_FIBER_STAGES.indexOf(stage as never) + 1;
 	const name =
 		lead.name ||
 		displayName(lead.customer?.firstName, lead.customer?.lastName, {
@@ -148,6 +161,8 @@ function LeadBody({
 		: lead.phone
 			? [toE164(lead.phone)]
 			: [];
+	const signals = activities.filter((a) => a.type === "SIGNAL");
+	const history = activities.filter((a) => a.type !== "SIGNAL");
 
 	function save(patch: LeadPatch, success?: string) {
 		update.mutate(
@@ -159,7 +174,11 @@ function LeadBody({
 		);
 	}
 
-	function logContact(type: "CALL" | "WHATSAPP" | "NOTE", body?: string) {
+	function logContact(
+		type: "CALL" | "WHATSAPP" | "NOTE",
+		body?: string,
+		then?: () => void,
+	) {
 		log.mutate(
 			{ organizationId, id: lead.id, type, ...(body ? { body } : {}) },
 			{
@@ -167,7 +186,13 @@ function LeadBody({
 					if (type === "NOTE") {
 						setNote("");
 					}
-					toast.success(type === "NOTE" ? "Note saved" : "Logged");
+					if (then) {
+						then();
+					} else {
+						toast.success(
+							type === "NOTE" ? "Note saved" : "Logged",
+						);
+					}
 				},
 				onError: (e) => toast.error(e.message),
 			},
@@ -176,186 +201,238 @@ function LeadBody({
 
 	return (
 		<div className="space-y-5 p-4">
-			<SheetHeader className="p-0">
-				<SheetTitle className="flex flex-wrap items-center gap-2 text-left">
+			{/* Who */}
+			<SheetHeader className="space-y-1 p-0 text-left">
+				<SheetTitle className="flex flex-wrap items-center gap-2">
 					{name}
 					<StageBadge stage={stage} />
 				</SheetTitle>
-				<p className="text-left text-xs text-muted-foreground">
-					{[
-						lead.customer?.username,
-						lead.area,
-						FIBER_SOURCE_LABELS[lead.source as FiberSource],
-						`since ${formatDate(lead.createdAt)}`,
-					]
-						.filter(Boolean)
-						.join(" · ")}
+				<p className="text-sm text-muted-foreground">
+					{lead.customer ? (
+						<>
+							Existing customer
+							{lead.customer.plan?.name
+								? ` · ${lead.customer.plan.name}`
+								: ""}
+							{lead.customer.monthlyRate != null
+								? ` · pays ${formatCurrency(lead.customer.monthlyRate)}/mo`
+								: ""}
+						</>
+					) : (
+						"Not linked to a customer account yet"
+					)}
+					{lead.area ? (
+						<span className="capitalize"> · {lead.area}</span>
+					) : null}
 				</p>
-				<div className="flex flex-wrap gap-2 pt-1">
-					{lead.customer && (
-						<Button variant="outline" size="sm" asChild>
-							<Link
-								to="/app/$organizationSlug/customers/$customerId"
-								params={{
-									organizationSlug,
-									customerId: lead.customer.id,
-								}}
-							>
-								Customer <ExternalLinkIcon />
-							</Link>
-						</Button>
-					)}
-					{lead.conversationId && (
-						<Button variant="outline" size="sm" asChild>
-							<Link
-								to="/app/$organizationSlug/conversations/$conversationId"
-								params={{
-									organizationSlug,
-									conversationId: lead.conversationId,
-								}}
-							>
-								Chat <MessageCircleIcon />
-							</Link>
-						</Button>
-					)}
-					{lead.taskId && (
-						<Button variant="outline" size="sm" asChild>
-							<Link
-								to="/app/$organizationSlug/escalations/$taskId"
-								params={{
-									organizationSlug,
-									taskId: lead.taskId,
-								}}
-							>
-								Escalation <ExternalLinkIcon />
-							</Link>
-						</Button>
-					)}
-				</div>
+				{lead.customer?.plan?.isFiber && (
+					<p className="text-sm font-medium text-success">
+						Already on a fiber plan.
+					</p>
+				)}
+				<p className="text-xs text-muted-foreground">
+					{FIBER_SOURCE_LABELS[lead.source as FiberSource] ??
+						lead.source}{" "}
+					· in the pipeline since {formatDate(lead.createdAt)}
+					{lead.ogeroApproached
+						? " · Ogero already approached them"
+						: ""}
+				</p>
 			</SheetHeader>
 
-			{/* Contact */}
-			{phones.length > 0 && (
-				<section className="space-y-2">
+			{/* Why — the reason and the words behind it */}
+			<LeadReason
+				summary={lead.summary}
+				signals={signals}
+				fallback={
+					lead.notes ||
+					"Added by staff — no message from the customer is attached."
+				}
+			/>
+			<div className="flex flex-wrap gap-2">
+				{lead.conversationId && (
+					<Button variant="outline" size="sm" asChild>
+						<Link
+							to="/app/$organizationSlug/conversations/$conversationId"
+							params={{
+								organizationSlug,
+								conversationId: lead.conversationId,
+							}}
+						>
+							<MessageCircleIcon /> Read the whole chat
+						</Link>
+					</Button>
+				)}
+				{lead.taskId && (
+					<Button variant="outline" size="sm" asChild>
+						<Link
+							to="/app/$organizationSlug/escalations/$taskId"
+							params={{ organizationSlug, taskId: lead.taskId }}
+						>
+							<BotIcon /> Open the bot's ticket
+						</Link>
+					</Button>
+				)}
+				{lead.customer && (
+					<Button variant="outline" size="sm" asChild>
+						<Link
+							to="/app/$organizationSlug/customers/$customerId"
+							params={{
+								organizationSlug,
+								customerId: lead.customer.id,
+							}}
+						>
+							<UserIcon /> Customer page
+						</Link>
+					</Button>
+				)}
+			</div>
+
+			{/* Reach them */}
+			<Section title="Reach them">
+				{phones.length > 0 ? (
 					<div className="flex gap-2">
 						<PhoneActions numbers={phones} tone="colored" />
 					</div>
-					{canManage && (
-						<div className="flex gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								className="flex-1"
-								disabled={log.isPending}
-								onClick={() => logContact("CALL")}
-							>
-								<PhoneIcon /> I called them
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								className="flex-1"
-								disabled={log.isPending}
-								onClick={() => logContact("WHATSAPP")}
-							>
-								<MessageCircleIcon /> I messaged them
-							</Button>
+				) : (
+					<p className="text-sm text-muted-foreground">
+						No phone number on this lead
+						{lead.conversationId
+							? " — reply in the chat instead."
+							: "."}
+					</p>
+				)}
+				{lead.customer && (
+					<p className="text-xs text-muted-foreground">
+						Landline:{" "}
+						{lead.customer.landline
+							? formatLebaneseLandline(lead.customer.landline)
+							: lead.customer.hasLandline === false
+								? "none"
+								: "not asked yet"}
+					</p>
+				)}
+			</Section>
+
+			{/* What to do next */}
+			{canManage && (
+				<Section
+					title={
+						closed
+							? "Outcome"
+							: `What to do now — step ${step} of 6`
+					}
+				>
+					{!closed && (
+						<div className="flex gap-1" aria-hidden>
+							{OPEN_FIBER_STAGES.map((s, i) => (
+								<span
+									key={s}
+									title={FIBER_STAGE_LABELS[s]}
+									className={cn(
+										"h-1.5 flex-1 rounded-full",
+										i < step ? "bg-primary" : "bg-muted",
+									)}
+								/>
+							))}
 						</div>
 					)}
-				</section>
-			)}
+					<p className="text-sm">{FIBER_STAGE_HINTS[stage]}</p>
 
-			{/* Next step */}
-			{canManage && (
-				<section className="space-y-2 rounded-lg border p-3">
-					<p className="text-sm font-medium">Next step</p>
-					<p className="text-xs text-muted-foreground">
-						{FIBER_STAGE_HINTS[stage]}
-					</p>
-					{!closed && nextStage && !losing && (
-						<div className="grid grid-cols-2 gap-2">
+					{next && !losing && (
+						<div className="grid gap-2 sm:grid-cols-2">
 							<Button
-								className="col-span-2 h-11"
-								disabled={update.isPending}
+								className="h-11 sm:col-span-2"
+								disabled={busy}
 								onClick={() =>
 									save(
-										{ stage: nextStage },
-										`Moved to ${FIBER_STAGE_LABELS[nextStage]}`,
+										{ stage: next.to },
+										`Moved to ${FIBER_STAGE_LABELS[next.to]}`,
 									)
 								}
 							>
-								{FIBER_STAGE_LABELS[nextStage]}{" "}
-								<ArrowRightIcon />
+								<CheckIcon /> {next.label} <ArrowRightIcon />
 							</Button>
 							<Button
-								variant="success-soft"
-								disabled={update.isPending}
-								onClick={() => save({ stage: "WON" }, "Won 🎉")}
+								variant="outline"
+								disabled={busy}
+								onClick={() =>
+									logContact(
+										"CALL",
+										"Called — no answer",
+										() =>
+											save(
+												{
+													nextActionAt: beirutDayAt(
+														new Date(),
+														1,
+														"10:00",
+													),
+												},
+												"Logged — reminder set for tomorrow",
+											),
+									)
+								}
 							>
-								<CheckIcon /> Won
+								<PhoneMissedIcon /> No answer — try tomorrow
 							</Button>
 							<Button
 								variant="destructive-soft"
 								onClick={() => setLosing(true)}
 							>
-								<XIcon /> Lost
+								<XIcon /> Not going ahead…
 							</Button>
 						</div>
 					)}
+
 					{losing && (
 						<div className="space-y-2">
-							<Label className="text-xs">Why?</Label>
-							<div className="flex flex-wrap gap-1.5">
-								{FIBER_LOST_REASONS.map((r) => (
+							<p className="text-sm font-medium">
+								What happened?
+							</p>
+							<div className="grid grid-cols-2 gap-1.5">
+								{FIBER_LOST_REASONS.map((reason) => (
 									<Button
-										key={r}
+										key={reason}
 										size="sm"
-										variant={
-											lostReason === r
-												? "primary"
-												: "outline"
-										}
-										onClick={() => setLostReason(r)}
+										variant="outline"
+										disabled={busy}
+										onClick={() => {
+											setLosing(false);
+											save(
+												{
+													stage: "LOST",
+													lostReason: reason,
+												},
+												"Closed",
+											);
+										}}
 									>
-										{FIBER_LOST_REASON_LABELS[r]}
+										{FIBER_LOST_REASON_LABELS[reason]}
 									</Button>
 								))}
 							</div>
-							<div className="flex gap-2">
-								<Button
-									variant="ghost"
-									className="flex-1"
-									onClick={() => setLosing(false)}
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									className="flex-1"
-									disabled={update.isPending}
-									onClick={() => {
-										setLosing(false);
-										save(
-											{ stage: "LOST", lostReason },
-											"Marked lost",
-										);
-									}}
-								>
-									Mark lost
-								</Button>
-							</div>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={() => setLosing(false)}
+							>
+								Cancel
+							</Button>
 						</div>
 					)}
+
 					{closed && (
 						<div className="flex items-center justify-between gap-2 text-sm">
 							<span>
 								{stage === "WON"
-									? `Won ${lead.wonAt ? formatDate(lead.wonAt) : ""}`
-									: `Lost — ${FIBER_LOST_REASON_LABELS[lead.lostReason as FiberLostReason] ?? "no reason"}`}
+									? `Won${lead.wonAt ? ` on ${formatDate(lead.wonAt)}` : ""}`
+									: `Closed: ${FIBER_LOST_REASON_LABELS[lead.lostReason as FiberLostReason] ?? "no reason given"}`}
 							</span>
 							<Button
 								variant="outline"
 								size="sm"
+								disabled={busy}
 								onClick={() =>
 									save({ stage: "CONTACTED" }, "Reopened")
 								}
@@ -364,74 +441,45 @@ function LeadBody({
 							</Button>
 						</div>
 					)}
-					<Select
-						value={stage}
-						onValueChange={(v) => {
-							if (v === "LOST") {
-								setLosing(true);
-							} else {
-								save({ stage: v as FiberStage });
-							}
-						}}
-					>
-						<SelectTrigger className="h-8 text-xs">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{FIBER_STAGES.map((s) => (
-								<SelectItem key={s} value={s}>
-									Jump to: {FIBER_STAGE_LABELS[s]}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</section>
-			)}
 
-			{/* Follow-up + owner */}
-			{canManage && !closed && (
-				<section className="grid gap-3 sm:grid-cols-2">
-					<div className="space-y-1.5">
-						<Label className="text-xs">Follow up on</Label>
-						<Input
-							type="date"
-							value={
-								lead.nextActionAt
-									? formatDateInput(lead.nextActionAt)
-									: ""
-							}
-							onChange={(e) =>
-								save({
-									// 10:00 Beirut, whatever the device's timezone.
-									nextActionAt: e.target.value
-										? beirutWallClockToUtc(
-												`${e.target.value}T10:00`,
-											)
-										: null,
-								})
-							}
-						/>
-						<div className="flex gap-1">
-							{[
-								["Tomorrow", 1],
-								["3 days", 3],
-								["1 week", 7],
-							].map(([label, days]) => (
+					{!closed && (
+						<div className="flex flex-wrap items-center gap-2 border-t pt-3">
+							<Label className="text-xs">Remind me on</Label>
+							<Input
+								type="date"
+								className="h-8 w-40"
+								value={
+									lead.nextActionAt
+										? formatDateInput(lead.nextActionAt)
+										: ""
+								}
+								onChange={(e) =>
+									save({
+										// 10:00 Beirut, whatever the device's timezone.
+										nextActionAt: e.target.value
+											? beirutWallClockToUtc(
+													`${e.target.value}T10:00`,
+												)
+											: null,
+									})
+								}
+							/>
+							{FOLLOW_UP_CHIPS.map(([label, days]) => (
 								<Button
 									key={label}
 									size="sm"
 									variant="ghost"
-									className="h-7 px-2 text-xs"
+									className="h-8 px-2 text-xs"
 									onClick={() =>
 										save(
 											{
 												nextActionAt: beirutDayAt(
 													new Date(),
-													days as number,
+													days,
 													"10:00",
 												),
 											},
-											"Follow-up set",
+											"Reminder set",
 										)
 									}
 								>
@@ -439,11 +487,17 @@ function LeadBody({
 								</Button>
 							))}
 						</div>
-					</div>
-					<div className="space-y-1.5">
-						<Label className="text-xs">Who handles it</Label>
+					)}
+				</Section>
+			)}
+
+			{/* Details */}
+			<Section title="Details">
+				<div className="grid gap-3 sm:grid-cols-2">
+					<Field label="Who handles it">
 						<Select
 							value={lead.assignee?.id ?? "none"}
+							disabled={!canManage}
 							onValueChange={(v) =>
 								save({ assigneeId: v === "none" ? null : v })
 							}
@@ -460,52 +514,48 @@ function LeadBody({
 								))}
 							</SelectContent>
 						</Select>
-					</div>
-				</section>
-			)}
-
-			{/* Ogero box + threat */}
-			<section className="space-y-3 rounded-lg border p-3">
-				<p className="text-sm font-medium">Fiber box</p>
-				<div className="grid grid-cols-3 gap-1.5">
-					{FIBER_BOX_STATUSES.map((s) => (
-						<Button
-							key={s}
-							size="sm"
-							variant={
-								lead.boxStatus === s ? "primary" : "outline"
-							}
+					</Field>
+					<Field label="Fiber box in the building">
+						<Select
+							value={lead.boxStatus}
 							disabled={!canManage}
-							onClick={() =>
-								save({ boxStatus: s as FiberBoxStatus })
+							onValueChange={(v) =>
+								save({
+									boxStatus:
+										v as (typeof FIBER_BOX_STATUSES)[number],
+								})
 							}
-							className="h-auto min-h-8 whitespace-normal text-xs"
 						>
-							{FIBER_BOX_LABELS[s]}
-						</Button>
-					))}
-				</div>
-				<div className="grid gap-2 sm:grid-cols-2">
-					<div className="space-y-1">
-						<Label className="text-xs">Code on the box</Label>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{FIBER_BOX_STATUSES.map((s) => (
+									<SelectItem key={s} value={s}>
+										{FIBER_BOX_LABELS[s]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+					<Field label="Code written on the box">
 						<Input
 							key={lead.boxCode ?? ""}
 							defaultValue={lead.boxCode ?? ""}
 							disabled={!canManage}
-							placeholder="e.g. RNB F20 079"
+							placeholder="e.g. DKW F15 078"
 							onBlur={(e) =>
 								e.target.value !== (lead.boxCode ?? "") &&
 								save({ boxCode: e.target.value || null })
 							}
 						/>
-					</div>
-					<div className="space-y-1">
-						<Label className="text-xs">Ogero request no.</Label>
+					</Field>
+					<Field label="Ogero request number">
 						<Input
 							key={lead.ogeroRequestRef ?? ""}
 							defaultValue={lead.ogeroRequestRef ?? ""}
 							disabled={!canManage}
-							placeholder="From the providers portal"
+							placeholder="From the Ogero portal"
 							onBlur={(e) =>
 								e.target.value !==
 									(lead.ogeroRequestRef ?? "") &&
@@ -514,7 +564,7 @@ function LeadBody({
 								})
 							}
 						/>
-					</div>
+					</Field>
 				</div>
 				<label
 					htmlFor="fiber-ogero-approached"
@@ -523,7 +573,7 @@ function LeadBody({
 					<span>
 						Ogero already approached them
 						<span className="block text-xs text-muted-foreground">
-							Pre-contract, visit or call from Ogero / its
+							A visit, a call or a pre-contract from Ogero or its
 							contractor
 						</span>
 					</span>
@@ -534,41 +584,16 @@ function LeadBody({
 						onCheckedChange={(v) => save({ ogeroApproached: v })}
 					/>
 				</label>
-			</section>
+			</Section>
 
-			{lead.customer && (
-				<section className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3 text-xs">
-					<Fact label="Plan" value={lead.customer.plan?.name} />
-					<Fact
-						label="Pays"
-						value={
-							lead.customer.monthlyRate != null
-								? `${formatCurrency(lead.customer.monthlyRate)}/mo`
-								: null
-						}
-					/>
-					<Fact
-						label="Landline"
-						value={
-							lead.customer.landline
-								? formatLebaneseLandline(lead.customer.landline)
-								: lead.customer.hasLandline === false
-									? "None"
-									: "Not asked"
-						}
-					/>
-					<Fact label="Status" value={lead.customer.status} />
-				</section>
-			)}
-
-			{/* Notes + timeline */}
-			<section className="space-y-2">
+			{/* Notes + what the team did */}
+			<Section title="Notes and history">
 				{canManage && (
 					<div className="space-y-2">
 						<Textarea
 							value={note}
 							onChange={(e) => setNote(e.target.value)}
-							placeholder="What did they say? Price they pay elsewhere, best time to call…"
+							placeholder="What did they say? What they pay elsewhere, best time to call…"
 							rows={2}
 							className="resize-none"
 						/>
@@ -582,47 +607,55 @@ function LeadBody({
 						</Button>
 					</div>
 				)}
-				<ol className="space-y-3 border-l pl-4">
-					{activities.map((a) => (
-						<li key={a.id} className="relative">
-							<span
-								className={cn(
-									"absolute top-1.5 -left-[21px] size-2.5 rounded-full border-2 border-background",
-									a.type === "SIGNAL"
-										? "bg-warning"
-										: a.type === "STAGE"
+				{history.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						Nobody on the team has touched this lead yet.
+					</p>
+				) : (
+					<ol className="space-y-3 border-l pl-4">
+						{history.map((a) => (
+							<li key={a.id} className="relative">
+								<span
+									className={cn(
+										"absolute top-1.5 -left-[21px] size-2.5 rounded-full border-2 border-background",
+										a.type === "STAGE"
 											? "bg-primary"
 											: "bg-muted-foreground/50",
-								)}
-							/>
-							<p className="text-sm whitespace-pre-wrap">
-								{a.body}
-							</p>
-							<p className="text-[11px] text-muted-foreground">
-								{a.type === "SIGNAL"
-									? "Detected automatically"
-									: (a.actorName ?? "System")}{" "}
-								· {formatDateTime(a.createdAt)}
-							</p>
-						</li>
-					))}
-				</ol>
-			</section>
+									)}
+								/>
+								<p
+									className="whitespace-pre-wrap text-sm"
+									dir="auto"
+								>
+									{a.body}
+								</p>
+								<p className="text-[11px] text-muted-foreground">
+									{a.actorName ?? "Automatic"} ·{" "}
+									{formatDateTime(a.createdAt)}
+								</p>
+							</li>
+						))}
+					</ol>
+				)}
+			</Section>
 		</div>
 	);
 }
 
-function Fact({
-	label,
-	value,
-}: {
-	label: string;
-	value: string | null | undefined;
-}) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
 	return (
-		<div>
-			<p className="text-muted-foreground">{label}</p>
-			<p className="font-medium">{value || "—"}</p>
+		<section className="space-y-3 rounded-lg border p-4">
+			<h3 className="text-sm font-semibold">{title}</h3>
+			{children}
+		</section>
+	);
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className="space-y-1.5">
+			<Label className="text-xs">{label}</Label>
+			{children}
 		</div>
 	);
 }

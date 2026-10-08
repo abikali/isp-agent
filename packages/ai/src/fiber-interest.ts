@@ -11,9 +11,11 @@ import { helperModelId, type ModelCredentials } from "./model-registry";
 // Both fields required: some providers reject schemas with optional keys.
 export const fiberInterestSchema = z.object({
 	fiberRequest: z.boolean(),
-	reason: z
+	summary: z
 		.string()
-		.describe("One short English sentence explaining the verdict."),
+		.describe(
+			"One short plain-English sentence a salesperson reads before calling: what this person wants or said about fiber. Empty when fiberRequest is false.",
+		),
 });
 
 export type FiberInterest = z.infer<typeof fiberInterestSchema>;
@@ -32,7 +34,9 @@ fiberRequest = false when it is:
 - a plan / speed / billing question that is not about fiber;
 - interest in NON-fiber internet.
 
-Texts are Lebanese Arabic, Arabizi, English or French; "[Image: …]" is a description of a photo the customer sent. Write "reason" in English.`;
+Texts are Lebanese Arabic, Arabizi, English or French; "[Image: …]" is a description of a photo the customer sent.
+
+"summary": one short, plain English sentence for the salesperson who will call this person — what they want or said about fiber, with the concrete details that matter (area, box code, price or speed they asked about, who else is offering them fiber). Start with a verb, no names, no "the customer". Examples: "Asks if fiber has reached Sin el Fil and what it costs." / "Sent a photo of the Ministry fiber box in the building (DKW F15 078) and wants it installed." / "Saw our fiber ad and asks if the router and installation are really free." Empty string when fiberRequest is false.`;
 
 export async function classifyFiberInterest(input: {
 	credentials: ModelCredentials;

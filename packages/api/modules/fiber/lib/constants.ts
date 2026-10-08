@@ -31,16 +31,33 @@ export const FIBER_STAGE_LABELS: Record<FiberStage, string> = {
 	LOST: "Lost",
 };
 
-/** One line under each stage so staff know what "done" means there. */
+/** What to do while a lead sits in each stage. */
 export const FIBER_STAGE_HINTS: Record<FiberStage, string> = {
-	NEW: "Nobody has talked to them yet",
-	CONTACTED: "We reached them, no answer yet",
-	INTERESTED: "Wants fiber — check the box next",
-	BOX_CHECK: "Waiting for a photo of the box / a visit",
-	SUBMITTED: "Request filed on the Ogero portal",
-	INSTALLING: "Approved, installation scheduled",
-	WON: "Live on LibanCom fiber",
-	LOST: "Gone or not interested",
+	NEW: "Nobody has talked to them yet. Call or WhatsApp them about the fiber offer.",
+	CONTACTED:
+		"We reached out. Wait for their answer — follow up if they go quiet.",
+	INTERESTED:
+		"They want fiber. Ask for a photo of the fiber box in their building, or send someone to check.",
+	BOX_CHECK:
+		"Confirm the box and write its code below, then file the request on the Ogero portal.",
+	SUBMITTED:
+		"The request is with Ogero. Write the request number below and wait for approval.",
+	INSTALLING: "Approved. Schedule the installation and get them online.",
+	WON: "Live on LibanCom fiber.",
+	LOST: "Closed — they left or aren't interested.",
+};
+
+/** The button that moves a lead forward, worded as what just happened. */
+export const FIBER_NEXT_STEP: Record<
+	Exclude<FiberStage, "WON" | "LOST">,
+	{ label: string; to: FiberStage }
+> = {
+	NEW: { label: "I reached them", to: "CONTACTED" },
+	CONTACTED: { label: "They're interested", to: "INTERESTED" },
+	INTERESTED: { label: "Asked for the box photo", to: "BOX_CHECK" },
+	BOX_CHECK: { label: "Box confirmed — sent to Ogero", to: "SUBMITTED" },
+	SUBMITTED: { label: "Approved — installation booked", to: "INSTALLING" },
+	INSTALLING: { label: "Installed — they're online", to: "WON" },
 };
 
 export const FIBER_LOST_REASONS = [
@@ -75,14 +92,15 @@ export const FIBER_SOURCES = [
 ] as const;
 export type FiberSource = (typeof FIBER_SOURCES)[number];
 
+/** How the lead reached us, in words an admin would use. */
 export const FIBER_SOURCE_LABELS: Record<FiberSource, string> = {
-	BOT: "Bot chat",
-	CHURN: "Stop / churn",
-	ESCALATION: "Bot escalation",
-	BROADCAST: "Broadcast reply",
-	COLLECTOR: "Collector",
-	CUSTOMER_BASE: "Customer list",
-	MANUAL: "Added by hand",
+	BOT: "Asked the bot",
+	CHURN: "Stopped service",
+	ESCALATION: "Bot ticket",
+	BROADCAST: "Replied to broadcast",
+	COLLECTOR: "From a collector",
+	CUSTOMER_BASE: "At-risk list",
+	MANUAL: "Added by staff",
 };
 
 export const FIBER_BOX_STATUSES = [

@@ -85,7 +85,7 @@ export async function scoreActiveCustomers(
 				landline: true,
 				hasLandline: true,
 				monthlyRate: true,
-				plan: { select: { name: true } },
+				plan: { select: { name: true, isFiber: true } },
 			},
 		}),
 		loadAreaStatuses(organizationId),
@@ -105,7 +105,8 @@ export async function scoreActiveCustomers(
 	const scored: AtRiskCustomer[] = [];
 	for (const c of customers) {
 		const lead = leadByCustomer.get(c.id);
-		if (lead?.stage === "WON") {
+		// Already won, or already on a fiber plan: nothing left to defend.
+		if (lead?.stage === "WON" || c.plan?.isFiber) {
 			continue;
 		}
 		const area = normalizeArea(c.groupName);

@@ -39,7 +39,6 @@ export function CustomerFiberCard({
 		return null;
 	}
 	const lead = data.lead;
-	const last = lead?.activities[0];
 
 	return (
 		<DetailSection
@@ -69,9 +68,9 @@ export function CustomerFiberCard({
 								· {lead.assignee?.name ?? "Unassigned"}
 							</span>
 						</p>
-						{last?.body && (
-							<p className="line-clamp-2 text-xs text-muted-foreground">
-								{last.body}
+						{lead.summary && (
+							<p className="text-sm text-muted-foreground">
+								{lead.summary}
 							</p>
 						)}
 					</div>

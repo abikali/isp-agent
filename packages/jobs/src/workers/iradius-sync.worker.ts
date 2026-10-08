@@ -723,6 +723,9 @@ async function processIRadiusSync(
 								data: {
 									organizationId,
 									lastSyncedAt: new Date(),
+									// New plans only: staff can untick it later
+									// and the sync won't put it back.
+									isFiber: /fib(er|re)/i.test(name),
 									...planData,
 								},
 							});
