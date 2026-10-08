@@ -72,6 +72,7 @@ import { Route as SaasAppOrgOrganizationSlugSettingsIndexRouteImport } from "./r
 import { Route as SaasAppOrgOrganizationSlugMarketingIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/marketing/index"
 import { Route as SaasAppOrgOrganizationSlugInstallationsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/installations/index"
 import { Route as SaasAppOrgOrganizationSlugInsightsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/insights/index"
+import { Route as SaasAppOrgOrganizationSlugFiberIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/fiber/index"
 import { Route as SaasAppOrgOrganizationSlugExpensesIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/expenses/index"
 import { Route as SaasAppOrgOrganizationSlugEscalationsIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/escalations/index"
 import { Route as SaasAppOrgOrganizationSlugEmployeesIndexRouteImport } from "./routes/_saas/app/_org/$organizationSlug/employees/index"
@@ -487,6 +488,12 @@ const SaasAppOrgOrganizationSlugInsightsIndexRoute =
   SaasAppOrgOrganizationSlugInsightsIndexRouteImport.update({
     id: "/insights/",
     path: "/insights/",
+    getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
+  } as any)
+const SaasAppOrgOrganizationSlugFiberIndexRoute =
+  SaasAppOrgOrganizationSlugFiberIndexRouteImport.update({
+    id: "/fiber/",
+    path: "/fiber/",
     getParentRoute: () => SaasAppOrgOrganizationSlugRoute,
   } as any)
 const SaasAppOrgOrganizationSlugExpensesIndexRoute =
@@ -978,6 +985,7 @@ export interface FileRoutesByFullPath {
   "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/escalations": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/app/$organizationSlug/expenses": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
+  "/app/$organizationSlug/fiber": typeof SaasAppOrgOrganizationSlugFiberIndexRoute
   "/app/$organizationSlug/insights": typeof SaasAppOrgOrganizationSlugInsightsIndexRoute
   "/app/$organizationSlug/installations": typeof SaasAppOrgOrganizationSlugInstallationsIndexRoute
   "/app/$organizationSlug/marketing": typeof SaasAppOrgOrganizationSlugMarketingIndexRoute
@@ -1095,6 +1103,7 @@ export interface FileRoutesByTo {
   "/app/$organizationSlug/employees": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/app/$organizationSlug/escalations": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/app/$organizationSlug/expenses": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
+  "/app/$organizationSlug/fiber": typeof SaasAppOrgOrganizationSlugFiberIndexRoute
   "/app/$organizationSlug/insights": typeof SaasAppOrgOrganizationSlugInsightsIndexRoute
   "/app/$organizationSlug/installations": typeof SaasAppOrgOrganizationSlugInstallationsIndexRoute
   "/app/$organizationSlug/marketing": typeof SaasAppOrgOrganizationSlugMarketingIndexRoute
@@ -1227,6 +1236,7 @@ export interface FileRoutesById {
   "/_saas/app/_org/$organizationSlug/employees/": typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   "/_saas/app/_org/$organizationSlug/escalations/": typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   "/_saas/app/_org/$organizationSlug/expenses/": typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
+  "/_saas/app/_org/$organizationSlug/fiber/": typeof SaasAppOrgOrganizationSlugFiberIndexRoute
   "/_saas/app/_org/$organizationSlug/insights/": typeof SaasAppOrgOrganizationSlugInsightsIndexRoute
   "/_saas/app/_org/$organizationSlug/installations/": typeof SaasAppOrgOrganizationSlugInstallationsIndexRoute
   "/_saas/app/_org/$organizationSlug/marketing/": typeof SaasAppOrgOrganizationSlugMarketingIndexRoute
@@ -1353,6 +1363,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/escalations"
     | "/app/$organizationSlug/expenses"
+    | "/app/$organizationSlug/fiber"
     | "/app/$organizationSlug/insights"
     | "/app/$organizationSlug/installations"
     | "/app/$organizationSlug/marketing"
@@ -1470,6 +1481,7 @@ export interface FileRouteTypes {
     | "/app/$organizationSlug/employees"
     | "/app/$organizationSlug/escalations"
     | "/app/$organizationSlug/expenses"
+    | "/app/$organizationSlug/fiber"
     | "/app/$organizationSlug/insights"
     | "/app/$organizationSlug/installations"
     | "/app/$organizationSlug/marketing"
@@ -1601,6 +1613,7 @@ export interface FileRouteTypes {
     | "/_saas/app/_org/$organizationSlug/employees/"
     | "/_saas/app/_org/$organizationSlug/escalations/"
     | "/_saas/app/_org/$organizationSlug/expenses/"
+    | "/_saas/app/_org/$organizationSlug/fiber/"
     | "/_saas/app/_org/$organizationSlug/insights/"
     | "/_saas/app/_org/$organizationSlug/installations/"
     | "/_saas/app/_org/$organizationSlug/marketing/"
@@ -2099,6 +2112,13 @@ declare module "@tanstack/react-router" {
       path: "/insights"
       fullPath: "/app/$organizationSlug/insights"
       preLoaderRoute: typeof SaasAppOrgOrganizationSlugInsightsIndexRouteImport
+      parentRoute: typeof SaasAppOrgOrganizationSlugRoute
+    }
+    "/_saas/app/_org/$organizationSlug/fiber/": {
+      id: "/_saas/app/_org/$organizationSlug/fiber/"
+      path: "/fiber"
+      fullPath: "/app/$organizationSlug/fiber"
+      preLoaderRoute: typeof SaasAppOrgOrganizationSlugFiberIndexRouteImport
       parentRoute: typeof SaasAppOrgOrganizationSlugRoute
     }
     "/_saas/app/_org/$organizationSlug/expenses/": {
@@ -2785,6 +2805,7 @@ interface SaasAppOrgOrganizationSlugRouteChildren {
   SaasAppOrgOrganizationSlugEmployeesIndexRoute: typeof SaasAppOrgOrganizationSlugEmployeesIndexRoute
   SaasAppOrgOrganizationSlugEscalationsIndexRoute: typeof SaasAppOrgOrganizationSlugEscalationsIndexRoute
   SaasAppOrgOrganizationSlugExpensesIndexRoute: typeof SaasAppOrgOrganizationSlugExpensesIndexRoute
+  SaasAppOrgOrganizationSlugFiberIndexRoute: typeof SaasAppOrgOrganizationSlugFiberIndexRoute
   SaasAppOrgOrganizationSlugInsightsIndexRoute: typeof SaasAppOrgOrganizationSlugInsightsIndexRoute
   SaasAppOrgOrganizationSlugInstallationsIndexRoute: typeof SaasAppOrgOrganizationSlugInstallationsIndexRoute
   SaasAppOrgOrganizationSlugMarketingIndexRoute: typeof SaasAppOrgOrganizationSlugMarketingIndexRoute
@@ -2874,6 +2895,8 @@ const SaasAppOrgOrganizationSlugRouteChildren: SaasAppOrgOrganizationSlugRouteCh
       SaasAppOrgOrganizationSlugEscalationsIndexRoute,
     SaasAppOrgOrganizationSlugExpensesIndexRoute:
       SaasAppOrgOrganizationSlugExpensesIndexRoute,
+    SaasAppOrgOrganizationSlugFiberIndexRoute:
+      SaasAppOrgOrganizationSlugFiberIndexRoute,
     SaasAppOrgOrganizationSlugInsightsIndexRoute:
       SaasAppOrgOrganizationSlugInsightsIndexRoute,
     SaasAppOrgOrganizationSlugInstallationsIndexRoute:

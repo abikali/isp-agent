@@ -39,6 +39,14 @@
 			"types": "./modules/api-keys/types.ts",
 			"default": "./modules/api-keys/types.ts"
 		},
+		"./modules/customers/lib/landline-filter": {
+			"types": "./modules/customers/lib/landline-filter.ts",
+			"default": "./modules/customers/lib/landline-filter.ts"
+		},
+		"./modules/fiber/lib/constants": {
+			"types": "./modules/fiber/lib/constants.ts",
+			"default": "./modules/fiber/lib/constants.ts"
+		},
 		"./modules/billing/lib/receipt-status": {
 			"types": "./modules/billing/lib/receipt-status.ts",
 			"default": "./modules/billing/lib/receipt-status.ts"

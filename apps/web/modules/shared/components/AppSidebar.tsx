@@ -33,6 +33,7 @@ import {
 	BanknoteIcon,
 	BotIcon,
 	BoxesIcon,
+	CableIcon,
 	EyeIcon,
 	HandshakeIcon,
 	HardHatIcon,
@@ -309,6 +310,11 @@ export function AppSidebar() {
 		if (canReadMarketing || canReadWatchers) {
 			const items: NavItem[] = [];
 			if (canReadMarketing) {
+				items.push({
+					label: "Fiber",
+					to: `${basePath}/fiber`,
+					icon: CableIcon,
+				});
 				items.push({
 					label: "Broadcasts",
 					to: `${basePath}/marketing`,

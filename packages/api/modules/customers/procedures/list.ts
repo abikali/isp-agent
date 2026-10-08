@@ -8,6 +8,7 @@ import { db, type Prisma } from "@repo/database";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { customerSearchWhere } from "../lib/customer-search";
+import { LANDLINE_FILTERS, landlineWhere } from "../lib/landline-filter";
 import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../lib/needs-review";
 import { CUSTOMER_LIST_STATUSES } from "../lib/statuses";
 
@@ -34,6 +35,8 @@ export const listCustomers = protectedProcedure
 			hasLocation: z.enum(["yes", "no"]).optional(),
 			/** "missing" = neither a first nor a last name on file. */
 			hasName: z.enum(["missing"]).optional(),
+			/** Answer to the payment-sheet question; "unknown" = never asked. */
+			landline: z.enum(LANDLINE_FILTERS).optional(),
 			page: z.number().int().min(1).default(1),
 			pageSize: z.number().int().min(10).max(100).default(25),
 			sortBy: z
@@ -119,6 +122,9 @@ export const listCustomers = protectedProcedure
 		}
 		if (input.workerId) {
 			where["workerId"] = input.workerId;
+		}
+		if (input.landline) {
+			Object.assign(where, landlineWhere(input.landline));
 		}
 		if (input.hasName === "missing") {
 			// Both columns are nullable AND may be "" (legacy imports), so a

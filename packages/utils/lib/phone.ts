@@ -159,3 +159,38 @@ export function phoneSearchVariants(raw: string): string[] {
 export function normalizePhone(phone: string): string {
 	return toDigits(phone);
 }
+
+/**
+ * Lebanese landline in E.164 (`+9614123456`), or null for anything else —
+ * mobiles, foreign numbers, typos. Landlines are area code + 6 digits
+ * (01 Beirut, 04 Metn, 05 Baabda/Chouf, 06 North, 07 South, 08 Bekaa, 09
+ * Jbeil/Keserwan); `03` is the old mobile prefix, not a landline.
+ */
+export function toLebaneseLandline(
+	raw: string | null | undefined,
+): string | null {
+	const parsed = parsePhone(raw);
+	if (parsed?.country !== "LB" || !/^[14-9]\d{6}$/.test(parsed.national)) {
+		return null;
+	}
+	return parsed.e164;
+}
+
+/** `+9614123456` → `04 123456`, the way a Lebanese landline is written. */
+export function formatLebaneseLandline(e164: string): string {
+	const domestic = parsePhone(e164)?.domestic;
+	return domestic ? `${domestic.slice(0, 2)} ${domestic.slice(2)}` : e164;
+}
+
+/**
+ * First candidate that can take a call or a WhatsApp — skips empties and
+ * Lebanese landlines (a customer's "primary" phone is sometimes the home
+ * line). Returns the raw value; callers normalize it.
+ */
+export function firstMobileCandidate(
+	candidates: ReadonlyArray<string | null | undefined>,
+): string | null {
+	return (
+		candidates.find((c) => !!c?.trim() && !toLebaneseLandline(c)) ?? null
+	);
+}

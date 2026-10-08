@@ -21,6 +21,7 @@ import {
 	reportExpiryReminderFailures,
 	runExpiryReminders,
 } from "../lib/expiry-reminders";
+import { runFiberSignalSweep } from "../lib/fiber-signals";
 import { checkIRadiusBridge } from "../lib/iradius-bridge-probe";
 import { reconcileOutreachReplies } from "../lib/outreach";
 import { generateDueRecurringExpenses } from "../lib/recurring-expenses";
@@ -405,6 +406,13 @@ export function createScheduledWorker(): Worker<
 				case "iradius-bridge-probe": {
 					const alerted = await checkIRadiusBridge();
 					return { processedCount: alerted };
+				}
+				case "fiber-signals": {
+					const { leadsCreated, signalsAdded } =
+						await runFiberSignalSweep({
+							since: new Date(Date.now() - 30 * 60_000),
+						});
+					return { processedCount: leadsCreated + signalsAdded };
 				}
 				case "conversation-summaries": {
 					const stored = await runConversationSummarySweep();

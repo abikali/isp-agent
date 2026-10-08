@@ -8,6 +8,7 @@ import {
 	getAuditContextFromHeaders,
 } from "@repo/auth/lib/audit";
 import { db } from "@repo/database";
+import { formatLebaneseLandline } from "@repo/utils";
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { CUSTOMER_EXPORT_STATUSES } from "../lib/statuses";
@@ -91,6 +92,7 @@ export const bulkExportCustomers = protectedProcedure
 			"Email",
 			"Mobile",
 			"Phone",
+			"Landline",
 			"Address",
 			"Username",
 			"Plan",
@@ -111,6 +113,7 @@ export const bulkExportCustomers = protectedProcedure
 			c.email ?? "",
 			c.mobile ?? "",
 			c.phone ?? "",
+			landlineCell(c),
 			c.address ?? "",
 			c.username ?? "",
 			c.plan?.name ?? "",
@@ -150,3 +153,15 @@ export const bulkExportCustomers = protectedProcedure
 			count: customers.length,
 		};
 	});
+
+/** Landline column: the number, "None" when the customer has none, blank
+ *  when nobody has asked yet. */
+function landlineCell(c: {
+	landline: string | null;
+	hasLandline: boolean | null;
+}): string {
+	if (c.hasLandline === false) {
+		return "None";
+	}
+	return c.landline ? formatLebaneseLandline(c.landline) : "";
+}

@@ -13,6 +13,7 @@ import { dealerFinanceRouter } from "../modules/dealers/router";
 import { employeesRouter } from "../modules/employees/router";
 import { expensesRouter } from "../modules/expenses/router";
 import { featureFlagsRouter } from "../modules/feature-flags/router";
+import { fiberRouter } from "../modules/fiber/router";
 import { financeRouter } from "../modules/finance/router";
 import { followupsRouter } from "../modules/followups/router";
 import { installationsRouter } from "../modules/installations/router";
@@ -57,6 +58,7 @@ export const router = publicProcedure.router({
 	integrations: integrationsRouter,
 	iradius: iradiusRouter,
 	marketing: marketingRouter,
+	fiber: fiberRouter,
 	organizations: organizationsRouter,
 	users: usersRouter,
 	payments: paymentsRouter,

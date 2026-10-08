@@ -1,3 +1,4 @@
+export * from "./lib/area";
 export * from "./lib/base-url";
 export * from "./lib/beirut-time";
 export * from "./lib/bilingual";

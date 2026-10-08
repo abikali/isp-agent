@@ -48,6 +48,13 @@ import {
 } from "../lib/billing-utils";
 import { LENIENCY_NOTICE, leniencyReason } from "../lib/leniency-warning";
 import type { UnpaidCustomer } from "./CustomerCard";
+import {
+	initialLandlineAnswer,
+	type LandlineAnswer,
+	LandlineQuestion,
+	landlineError,
+	landlineSubmission,
+} from "./LandlineQuestion";
 import { LocationPromptDialog } from "./LocationPromptDialog";
 
 interface PaymentSheetProps {
@@ -124,6 +131,12 @@ export function PaymentSheet({
 			: [{ id: 0, number: "", primary: true }];
 	});
 
+	const [landline, setLandline] = useState<LandlineAnswer>(() =>
+		customer
+			? initialLandlineAnswer(customer)
+			: { editing: false, has: null, number: "" },
+	);
+
 	const monthlyDue = customer ? customerMonthlyDue(customer) : 0;
 	const pastDueMonths = customer?.pastDueMonths ?? 0;
 	// Frozen invoice amounts from the unpaid list — the current monthlyRate can
@@ -180,6 +193,9 @@ export function PaymentSheet({
 		amountNum === 0 && !freeAccount && !stoppedAccount && !debtAccount;
 
 	const hasValidPhone = phones.some((p) => isValidPhone(p.number));
+	// Asked on every visit until answered — except when stopping the
+	// account, where the collector may not even have met the customer.
+	const landlineProblem = landlineError(landline, !stoppedAccount);
 
 	function updatePhone(index: number, value: string) {
 		setPhones((prev) =>
@@ -255,6 +271,7 @@ export function PaymentSheet({
 					customerPhones.length > 0 ? customerPhones : undefined,
 				customerLatitude: location?.latitude,
 				customerLongitude: location?.longitude,
+				landline: landlineSubmission(landline),
 				referredCustomerId:
 					freeAccount && referredCustomer
 						? referredCustomer.id
@@ -774,6 +791,12 @@ export function PaymentSheet({
 							)}
 						</div>
 
+						<LandlineQuestion
+							value={landline}
+							onChange={setLandline}
+							required={!stoppedAccount}
+						/>
+
 						{/* Category */}
 						<div>
 							<Label>Category</Label>
@@ -836,6 +859,12 @@ export function PaymentSheet({
 							</p>
 						)}
 
+						{landlineProblem && (
+							<p className="text-xs font-medium text-destructive">
+								{landlineProblem}
+							</p>
+						)}
+
 						{zeroAmountWithoutFlag && (
 							<p className="text-xs font-medium text-destructive">
 								Mark the payment as Free, Stopped, or Debt if no
@@ -854,7 +883,8 @@ export function PaymentSheet({
 								debtMissingNote ||
 								mismatchMissingNote ||
 								zeroAmountWithoutFlag ||
-								!hasValidPhone
+								!hasValidPhone ||
+								landlineProblem !== null
 							}
 						>
 							{createPayment.isPending

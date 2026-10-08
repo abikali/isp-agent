@@ -1,10 +1,10 @@
 import {
 	BILLABLE_CUSTOMER_STATUSES,
 	coverageKey,
+	customerWhatsAppPhone,
 	db,
 	excludeGroupFilter,
 	fetchCoverageMap,
-	getPrimaryPhone,
 	invoiceAmount,
 	monthRemaining,
 	PENDING_STOPPED_PAYMENT,
@@ -177,10 +177,7 @@ export async function findDueReminders(
 			continue;
 		}
 		const { customer } = inv;
-		const customerPhone =
-			getPrimaryPhone(customer.phones) ??
-			(customer.mobile?.trim() || null) ??
-			(customer.phone?.trim() || null);
+		const customerPhone = customerWhatsAppPhone(customer);
 		const contactPhone = pickContactPhone([
 			customer.collector?.phone,
 			customer.collectorPhone,

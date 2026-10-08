@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	LANDLINE_FILTER_LABELS,
+	LANDLINE_FILTERS,
+	type LandlineFilter,
+} from "@repo/api/modules/customers/lib/landline-filter";
 import { CUSTOMER_LIST_STATUSES } from "@repo/api/modules/customers/lib/statuses";
 import type { AudienceInput } from "@repo/api/modules/marketing/lib/audience";
 import type { SaltiTemplate } from "@repo/integrations";
@@ -90,6 +95,7 @@ interface CustomerFilters {
 	connectionTypes: ConnectionType[];
 	expiresWithinDays?: number;
 	minBalance?: number;
+	landline?: LandlineFilter;
 }
 
 // Hoisted locale-default date formatter — same output as the zero-arg
@@ -279,6 +285,9 @@ export function BroadcastWizard({
 				}),
 				...(customerFilters.minBalance !== undefined && {
 					minBalance: customerFilters.minBalance,
+				}),
+				...(customerFilters.landline && {
+					landline: customerFilters.landline,
 				}),
 			};
 		}
@@ -937,6 +946,42 @@ function AudienceStep(props: AudienceStepProps) {
 									});
 								}}
 							/>
+						</Field>
+						<Field>
+							<FieldLabel>Landline</FieldLabel>
+							<Select
+								value={props.customerFilters.landline ?? "any"}
+								onValueChange={(v) => {
+									const { landline: _, ...rest } =
+										props.customerFilters;
+									props.setCustomerFilters(
+										v === "any"
+											? rest
+											: {
+													...rest,
+													landline:
+														v as LandlineFilter,
+												},
+									);
+								}}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="any">Any</SelectItem>
+									{Object.entries(LANDLINE_FILTER_LABELS).map(
+										([value, label]) => (
+											<SelectItem
+												key={value}
+												value={value}
+											>
+												{label}
+											</SelectItem>
+										),
+									)}
+								</SelectContent>
+							</Select>
 						</Field>
 					</div>
 					<AudiencePreviewPanel preview={props.preview} />
@@ -1857,6 +1902,12 @@ function summarizeAudience(
 		if (a.minBalance !== undefined) {
 			rows.push({ label: "Min balance", value: String(a.minBalance) });
 		}
+		if (a.landline) {
+			rows.push({
+				label: "Landline",
+				value: LANDLINE_FILTER_LABELS[a.landline],
+			});
+		}
 		return rows;
 	}
 	if (a.type === "salti_group") {
@@ -1919,6 +1970,9 @@ function coerceCustomerFilters(audience: unknown): CustomerFilters {
 				: {}),
 			...(typeof a["minBalance"] === "number"
 				? { minBalance: a["minBalance"] as number }
+				: {}),
+			...(LANDLINE_FILTERS.includes(a["landline"] as LandlineFilter)
+				? { landline: a["landline"] as LandlineFilter }
 				: {}),
 		};
 	}

@@ -344,6 +344,8 @@ model Organization {
   syncConflicts          SyncConflict[]
   saltiIntegration       SaltiIntegration?
   marketingBroadcasts    MarketingBroadcast[]
+  fiberLeads             FiberLead[]
+  fiberAreas             FiberArea[]
   marketingSuppressions  MarketingSuppression[]
   savedViews             SavedView[]
   botFollowUps           BotFollowUp[]
@@ -915,6 +917,8 @@ model AiMessage {
 
   @@index([conversationId, createdAt])
   @@index([externalMsgId])
+  // Fiber signal sweep scans the last 30 minutes every 10.
+  @@index([createdAt])
   @@map("ai_message")
 }
 
@@ -1304,6 +1308,12 @@ model Customer {
   phone                           String? // iRadius User.Phone (legacy, kept for sync)
   mobile                          String? // Cached primary phone (auto-set from phones array)
   phones                          Json            @default("[]") // [{ number: string, primary: boolean }]
+  // Home landline (E.164), asked on the collector payment sheet — the Ogero
+  // fiber lead list. Local-only: iRadius neither writes nor receives it.
+  // hasLandline: null = never asked, false = customer has none.
+  landline                        String?
+  hasLandline                     Boolean?
+  landlineCheckedAt               DateTime?
   address                         String?
   username                        String?
   planId                          String?
@@ -1450,6 +1460,7 @@ model Customer {
   syncConflicts         SyncConflict[]
   locationRequests      LocationRequest[]
   marketingMessages     MarketingBroadcastRecipient[]
+  fiberLeads            FiberLead[]
   botFollowUps          BotFollowUp[]
   conversationSummaries AiConversationSummary[]
   notifications         CustomerNotification[]
@@ -1944,6 +1955,7 @@ model Employee {
   setupRequests             CustomerSetupRequest[] @relation("SetupRequester")
   stockRefundRequests       StockRefundRequest[]   @relation("StockRefundRequester")
   visiblePlans              ServicePlanWorker[]
+  fiberLeads                FiberLead[]            @relation("FiberLeadAssignee")
 
   @@unique([organizationId, employeeNumber])
   @@unique([organizationId, externalId])
@@ -2029,6 +2041,8 @@ model Task {
   @@index([baseId])
   @@index([conversationId])
   @@index([dueDate])
+  // Fiber signal sweep reads recent AI escalations.
+  @@index([source, createdAt])
   @@map("task")
 }
 
@@ -2837,6 +2851,8 @@ model MarketingBroadcastRecipient {
 
   @@index([broadcastId, status])
   @@index([customerId])
+  // Inbound Salti replies are matched to their broadcast by phone.
+  @@index([phone, sentAt])
   @@map("marketing_broadcast_recipient")
 }
 
@@ -2984,4 +3000,97 @@ model BotFollowUp {
   @@index([conversationId, status])
   @@index([phone, status])
   @@map("bot_follow_up")
+}
+
+/// Fiber control room: one household LibanCom could win (or keep) on fiber —
+/// an existing customer or an outside contact. Created by hand or by the
+/// signal sweep (chats / stops / escalations mentioning fiber or Ogero).
+/// stage: NEW → CONTACTED → INTERESTED → BOX_CHECK → SUBMITTED → INSTALLING
+/// → WON | LOST. Strings, not enums, like the rest of the growth models.
+model FiberLead {
+  id              String    @id @default(cuid())
+  organizationId  String
+  customerId      String?
+  name            String?
+  /// Digits with country code (961…), same shape as marketing recipients.
+  phone           String?
+  /// Area key — Customer.groupName for customers, typed for outside leads.
+  area            String?
+  stage           String    @default("NEW")
+  /// BOT | CHURN | ESCALATION | COLLECTOR | CUSTOMER_BASE | MANUAL
+  source          String    @default("MANUAL")
+  /// OGERO | OTHER_ISP | NO_BOX | PRICE | NOT_INTERESTED | UNREACHABLE | OTHER
+  lostReason      String?
+  /// UNKNOWN | NO_BOX | BOX_IN_BUILDING
+  boxStatus       String    @default("UNKNOWN")
+  /// Code written on the Ogero/Ministry box (e.g. "RNB F20 079").
+  boxCode         String?
+  /// The customer says Ogero (or its contractor) already approached them.
+  ogeroApproached Boolean   @default(false)
+  /// Ogero providers-portal request number once filed.
+  ogeroRequestRef String?
+  assigneeId      String?
+  nextActionAt    DateTime?
+  lastContactAt   DateTime?
+  conversationId  String?
+  taskId          String?
+  notes           String?   @db.Text
+  wonAt           DateTime?
+  lostAt          DateTime?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignee     Employee?             @relation("FiberLeadAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  activities   FiberLeadActivity[]
+
+  // One open file per customer / per chat: the sweep upserts on these.
+  @@unique([organizationId, customerId])
+  @@unique([organizationId, conversationId])
+  @@index([organizationId, stage])
+  @@index([organizationId, nextActionAt])
+  @@map("fiber_lead")
+}
+
+/// Timeline of a fiber lead. `ref` makes sweep-created rows idempotent
+/// ("msg:<aiMessageId>", "pay:<paymentId>", "task:<taskId>").
+model FiberLeadActivity {
+  id          String   @id @default(cuid())
+  leadId      String
+  /// NOTE | CALL | WHATSAPP | STAGE | SIGNAL | ASSIGN
+  type        String
+  body        String?  @db.Text
+  fromStage   String?
+  toStage     String?
+  ref         String?
+  actorUserId String?
+  actorName   String?
+  createdAt   DateTime @default(now())
+
+  lead FiberLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, ref])
+  @@index([leadId, createdAt])
+  @@map("fiber_lead_activity")
+}
+
+/// Where the fiber fight is: Jhonny marks an area (Customer.groupName,
+/// lower-cased) as ROLLOUT when Ogero/Ministry boxes are going in, LIVE
+/// when fiber is sellable there. Drives the at-risk score.
+model FiberArea {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// Lower-cased, trimmed groupName.
+  area           String
+  /// NONE | ROLLOUT | LIVE
+  status         String   @default("NONE")
+  notes          String?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, area])
+  @@map("fiber_area")
 }

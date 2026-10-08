@@ -178,6 +178,8 @@ export const listUnpaidCustomers = protectedProcedure
 						mobile: true,
 						phone: true,
 						phones: true,
+						landline: true,
+						hasLandline: true,
 						address: true,
 						groupName: true,
 						monthlyRate: true,

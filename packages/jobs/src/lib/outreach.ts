@@ -18,6 +18,7 @@ import {
 	parsePhone,
 	toNationalDigits,
 } from "@repo/utils";
+import { recordBroadcastReply } from "./fiber-signals";
 import {
 	arabicDayMonthLabel,
 	fetchWPBoxConversations,
@@ -1025,6 +1026,9 @@ export async function processSaltiInbound(
 			continue;
 		}
 		if (await handleOutreachInbound(message)) {
+			matched++;
+		} else if (await recordBroadcastReply(message)) {
+			// A reply to a (fiber) broadcast → fiber control room lead.
 			matched++;
 		} else {
 			ignored++;

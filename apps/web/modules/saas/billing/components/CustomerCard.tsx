@@ -37,6 +37,9 @@ export interface UnpaidCustomer {
 	mobile?: string | null;
 	phone?: string | null;
 	phones?: unknown;
+	landline?: string | null;
+	/** null = the collector has not asked yet. */
+	hasLandline?: boolean | null;
 	address?: string | null;
 	groupName?: string | null;
 	oldestUnpaidExpiry?: string | Date | null;

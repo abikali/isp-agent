@@ -22,6 +22,7 @@ interface CustomerListInput {
 	collectorId?: string | undefined;
 	hasLocation?: "yes" | "no" | undefined;
 	hasName?: "missing" | undefined;
+	landline?: "yes" | "no" | "unknown" | undefined;
 	page?: number | undefined;
 	pageSize?: number | undefined;
 	sortBy?:
@@ -69,6 +70,9 @@ export function useCustomers(filters: CustomerListInput = {}) {
 	}
 	if (filters.hasName) {
 		input["hasName"] = filters.hasName;
+	}
+	if (filters.landline) {
+		input["landline"] = filters.landline;
 	}
 	if (filters.page) {
 		input["page"] = filters.page;

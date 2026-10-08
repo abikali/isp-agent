@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	LANDLINE_FILTER_LABELS,
+	LANDLINE_FILTERS,
+	type LandlineFilter,
+} from "@repo/api/modules/customers/lib/landline-filter";
 import { useCollectors, useCustomerGroups } from "@saas/billing/client";
 import { Badge } from "@ui/components/badge";
 import { Button } from "@ui/components/button";
@@ -36,6 +41,7 @@ export interface CustomerFiltersValue {
 	collectorId: string;
 	hasLocation: "all" | "yes" | "no";
 	hasName: "all" | "missing";
+	landline: "all" | LandlineFilter;
 }
 
 interface CustomerFiltersProps {
@@ -262,6 +268,32 @@ export function CustomerFilters({
 								<SelectItem value="no">
 									Missing location
 								</SelectItem>
+							</SelectContent>
+						</Select>
+					</FilterField>
+
+					<FilterField label="Landline">
+						<Select
+							value={value.landline}
+							onValueChange={(v) =>
+								onChange({
+									landline:
+										v as CustomerFiltersValue["landline"],
+								})
+							}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Landline" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">
+									Any landline
+								</SelectItem>
+								{LANDLINE_FILTERS.map((f) => (
+									<SelectItem key={f} value={f}>
+										{LANDLINE_FILTER_LABELS[f]}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					</FilterField>

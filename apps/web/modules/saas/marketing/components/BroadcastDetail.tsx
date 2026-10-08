@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	LANDLINE_FILTER_LABELS,
+	LANDLINE_FILTERS,
+	type LandlineFilter,
+} from "@repo/api/modules/customers/lib/landline-filter";
 import type { SaltiTemplate } from "@repo/integrations";
 import { ContentCard } from "@shared/components/ContentCard";
 import { MetricCard, MetricStrip } from "@shared/components/MetricCard";
@@ -749,6 +754,13 @@ function AudienceSummary({
 			rows.push({
 				label: "Min balance",
 				value: String(config["minBalance"]),
+			});
+		}
+		const landline = config["landline"] as LandlineFilter;
+		if (LANDLINE_FILTERS.includes(landline)) {
+			rows.push({
+				label: "Landline",
+				value: LANDLINE_FILTER_LABELS[landline],
 			});
 		}
 	} else if (audienceType === "salti_group") {

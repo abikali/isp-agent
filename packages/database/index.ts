@@ -4,6 +4,7 @@ export {
 	buildIRadiusMobile,
 	buildPhonesFromSync,
 	type CustomerPhone,
+	customerWhatsAppPhone,
 	extractPhoneNumbers,
 	getPrimaryPhone,
 	MAX_PHONES,

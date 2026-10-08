@@ -73,6 +73,11 @@ export {
 	WHATSAPP_TEMPLATES,
 } from "./src/lib/customer-notifications";
 export {
+	LEAD_CUSTOMER_SELECT,
+	leadFieldsFromCustomer,
+	runFiberSignalSweep,
+} from "./src/lib/fiber-signals";
+export {
 	type BridgeProbeStatus,
 	probeIRadiusBridge,
 } from "./src/lib/iradius-bridge-probe";

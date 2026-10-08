@@ -1,4 +1,4 @@
-import { parsePhone, toE164 } from "@repo/utils";
+import { firstMobileCandidate, parsePhone, toE164 } from "@repo/utils";
 
 /**
  * Structured phone number entry stored in Customer.phones JSON field.
@@ -30,6 +30,36 @@ export function getPrimaryPhone(phones: unknown): string | null {
 	const parsed = parsePhones(phones);
 	const primary = parsed.find((p) => p.primary);
 	return primary?.number ?? parsed[0]?.number ?? null;
+}
+
+/**
+ * The number to WhatsApp or call: primary first, then the other `phones`,
+ * then the legacy columns — never a Lebanese landline (collectors sometimes
+ * mark the home line as primary). Receipts, reminders, broadcasts and fiber
+ * leads all pick through here so they agree.
+ */
+export function customerWhatsAppPhone(customer: {
+	phones: unknown;
+	mobile?: string | null | undefined;
+	phone?: string | null | undefined;
+}): string | null {
+	// Lenient on purpose: older rows carry `{ number }` without `primary`.
+	const phones = Array.isArray(customer.phones)
+		? (customer.phones as unknown[]).filter(
+				(p): p is { number: string; primary?: unknown } =>
+					typeof p === "object" &&
+					p !== null &&
+					typeof (p as { number?: unknown }).number === "string",
+			)
+		: [];
+	return (
+		firstMobileCandidate([
+			...phones.filter((p) => p.primary === true).map((p) => p.number),
+			...phones.map((p) => p.number),
+			customer.mobile,
+			customer.phone,
+		])?.trim() ?? null
+	);
 }
 
 /**

@@ -48,6 +48,10 @@ vi.mock("@repo/database", () => ({ db }));
 vi.mock("@repo/logs", () => ({
 	logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+// Broadcast replies → fiber leads is covered by the fiber-signals tests.
+vi.mock("../fiber-signals", () => ({
+	recordBroadcastReply: vi.fn(async () => false),
+}));
 vi.mock("../wpbox", async (importActual) => ({
 	...(await importActual<typeof import("../wpbox")>()),
 	...wpbox,

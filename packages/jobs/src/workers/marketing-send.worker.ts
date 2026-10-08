@@ -145,11 +145,55 @@ async function sleep(ms: number): Promise<void> {
 	});
 }
 
+/**
+ * A job that BullMQ gave up on (stalled past the limit, or out of retries)
+ * must not leave its broadcast "running" forever with recipients queued —
+ * that is how the 2026-10-01 promo silently stopped at 580/2,316. Close it
+ * and mark the unsent recipients failed, so "Resend failed recipients"
+ * finishes the job instead of nobody noticing.
+ */
+export async function closeAbandonedBroadcast(
+	broadcastId: string,
+	reason: string,
+): Promise<void> {
+	const broadcast = await db.marketingBroadcast.findUnique({
+		where: { id: broadcastId },
+		select: { status: true },
+	});
+	if (broadcast?.status !== "running" && broadcast?.status !== "pending") {
+		return;
+	}
+	const { count } = await db.marketingBroadcastRecipient.updateMany({
+		where: { broadcastId, status: "queued" },
+		data: { status: "failed", errorMessage: `Not sent: ${reason}` },
+	});
+	const [sentCount, failedCount] = await Promise.all([
+		db.marketingBroadcastRecipient.count({
+			where: { broadcastId, status: "sent" },
+		}),
+		db.marketingBroadcastRecipient.count({
+			where: { broadcastId, status: "failed" },
+		}),
+	]);
+	await db.marketingBroadcast.update({
+		where: { id: broadcastId },
+		data: {
+			status: sentCount === 0 ? "failed" : "completed",
+			sentCount,
+			failedCount,
+			completedAt: new Date(),
+		},
+	});
+	logger.error(
+		`[Marketing] broadcast ${broadcastId} abandoned (${reason}); ${count} unsent recipients marked failed`,
+	);
+}
+
 export function createMarketingSendWorker(): Worker<
 	MarketingSendJobData,
 	MarketingSendJobResult
 > {
-	return new Worker<MarketingSendJobData, MarketingSendJobResult>(
+	const worker = new Worker<MarketingSendJobData, MarketingSendJobResult>(
 		MARKETING_SEND_QUEUE_NAME,
 		async (job) => {
 			const { broadcastId } = job.data;
@@ -402,6 +446,35 @@ export function createMarketingSendWorker(): Worker<
 				"MARKETING_SEND_WORKER_CONCURRENCY",
 				1,
 			),
+			// One job sends the whole broadcast (~1.5 s per message, an hour
+			// for 2k+). A deploy restarts the worker mid-run; the default limit
+			// (1 stall) then kills the job. Re-running is safe — it resumes
+			// from the recipients still "queued" — so tolerate restarts.
+			maxStalledCount: 10,
 		},
 	);
+	worker.on("failed", (job, error) => {
+		if (!job) {
+			return;
+		}
+		// A stall-limit failure ends the job without using up its attempts.
+		const finalAttempt =
+			error.name === "UnrecoverableError" ||
+			/stalled more than allowable limit/i.test(error.message) ||
+			job.attemptsMade >= (job.opts.attempts ?? 1);
+		if (!finalAttempt) {
+			return;
+		}
+		closeAbandonedBroadcast(job.data.broadcastId, error.message).catch(
+			(closeError) =>
+				logger.error(
+					"[Marketing] failed to close abandoned broadcast",
+					{
+						broadcastId: job.data.broadcastId,
+						error: String(closeError),
+					},
+				),
+		);
+	});
+	return worker;
 }

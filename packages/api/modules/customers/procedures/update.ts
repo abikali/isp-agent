@@ -16,6 +16,7 @@ import { cancelOpenUninstallTasks } from "../../billing/lib/review-tasks";
 import { assertCustomerStaysOnLine } from "../../dealers/lib/internal-lines";
 import { iradiusSetActive } from "../lib/iradius-api";
 import { mirrorToIRadius } from "../lib/iradius-mirror";
+import { landlineAnswerSchema, landlineUpdate } from "../lib/landline";
 import {
 	diffMirrorFields,
 	pushMirrorDiffToIRadius,
@@ -62,6 +63,7 @@ export const updateCustomer = protectedProcedure
 			groupName: z.string().max(100).nullable().optional(),
 			groupExternalId: z.number().int().nullable().optional(),
 			notes: z.string().max(5000).optional(),
+			landline: landlineAnswerSchema.optional(),
 			collectorId: z.string().nullable().optional(),
 			// Collector is the one mirror exception: the admin decides per-edit
 			// whether a collector change is also pushed to iRadius. Omitted or
@@ -202,6 +204,9 @@ export const updateCustomer = protectedProcedure
 		}
 		if (input.notes !== undefined) {
 			updateData["notes"] = input.notes ?? null;
+		}
+		if (input.landline) {
+			Object.assign(updateData, landlineUpdate(input.landline));
 		}
 		if (input.discount !== undefined) {
 			updateData["discount"] = input.discount;

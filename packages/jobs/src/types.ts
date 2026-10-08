@@ -36,6 +36,7 @@ export type ScheduledJobType =
 	| "task-reminder-sweep"
 	| "iradius-bridge-probe"
 	| "conversation-summaries"
+	| "fiber-signals"
 	| "conversation-summary-digest"
 	| "bot-follow-ups"
 	| "outreach-reconcile"

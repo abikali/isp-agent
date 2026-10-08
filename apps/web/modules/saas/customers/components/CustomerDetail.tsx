@@ -1,5 +1,11 @@
 "use client";
 
+import {
+	LANDLINE_FILTER_LABELS,
+	type LandlineFilter,
+} from "@repo/api/modules/customers/lib/landline-filter";
+import { formatLebaneseLandline, toLebaneseLandline } from "@repo/utils";
+import { CustomerFiberCard } from "@saas/fiber/client";
 import { AsyncBoundary } from "@shared/components/AsyncBoundary";
 import { DetailPanel, DetailSection } from "@shared/components/DetailPanel";
 import { FieldGroup, ReadOnlyField } from "@shared/components/FieldGroup";
@@ -131,6 +137,10 @@ function getCustomerFormDefaults(customer: CustomerData) {
 			phones.length > 0
 				? phones
 				: [{ id: "phone-0", number: "", primary: true }],
+		landlineStatus: landlineStatusOf(customer.hasLandline),
+		landline: customer.landline
+			? formatLebaneseLandline(customer.landline)
+			: "",
 		address: customer.address ?? "",
 		planId: customer.planId ?? "",
 		status: customer.status,
@@ -147,6 +157,33 @@ function getCustomerFormDefaults(customer: CustomerData) {
 		deductMoney:
 			customer.deductMoney != null ? String(customer.deductMoney) : "",
 	};
+}
+
+type LandlineStatus = LandlineFilter;
+
+function landlineStatusOf(hasLandline: boolean | null): LandlineStatus {
+	if (hasLandline === null) {
+		return "unknown";
+	}
+	return hasLandline ? "yes" : "no";
+}
+
+/** The landline answer to save, or undefined when the form left it alone —
+ *  so an unrelated edit doesn't restamp landlineCheckedAt. */
+function landlinePayload(customer: CustomerData, values: CustomerFormValues) {
+	if (values.landlineStatus === "yes") {
+		return values.landlineStatus ===
+			landlineStatusOf(customer.hasLandline) &&
+			toLebaneseLandline(values.landline) === customer.landline
+			? undefined
+			: { has: true as const, number: values.landline };
+	}
+	if (values.landlineStatus === landlineStatusOf(customer.hasLandline)) {
+		return undefined;
+	}
+	return values.landlineStatus === "no"
+		? { has: false as const }
+		: { has: null };
 }
 
 type CustomerFormValues = ReturnType<typeof getCustomerFormDefaults>;
@@ -259,6 +296,7 @@ export function CustomerDetail({
 			groupName: resolvedGroupName,
 			groupExternalId: parsedGroupId,
 			notes: values.notes || undefined,
+			landline: landlinePayload(customer, values),
 			collectorId: values.collectorId || null,
 			discount: values.discount === "" ? 0 : Number(values.discount),
 			iptvPrice: values.iptvPrice === "" ? 0 : Number(values.iptvPrice),
@@ -280,6 +318,15 @@ export function CustomerDetail({
 		syncCollector?: boolean,
 	) {
 		if (!organizationId) {
+			return;
+		}
+		if (
+			value.landlineStatus === "yes" &&
+			!toLebaneseLandline(value.landline)
+		) {
+			toast.error(
+				"Enter the landline with its area code (e.g. 04 123456), or pick another landline option",
+			);
 			return;
 		}
 
@@ -592,6 +639,10 @@ export function CustomerDetail({
 									<LocationPinSection
 										customer={customer}
 										customerId={customerId}
+									/>
+									<CustomerFiberCard
+										customerId={customerId}
+										organizationSlug={organizationSlug}
 									/>
 								</>
 							),
@@ -1146,6 +1197,66 @@ function PhoneFieldGroup({ form }: { form: CustomerForm }) {
 	);
 }
 
+// "Not asked yet" first: it is the state collectors fill in.
+const LANDLINE_OPTIONS = (["unknown", "yes", "no"] as const).map((value) => ({
+	value,
+	label: LANDLINE_FILTER_LABELS[value],
+}));
+
+/** Same answer the collector gives on the payment sheet. "Not asked yet"
+ *  puts the question back on the collector's next payment. */
+function LandlineField({ form }: { form: CustomerForm }) {
+	const status = useStore(form.store, (s) => s.values.landlineStatus);
+	const number = useStore(form.store, (s) => s.values.landline);
+	const invalid =
+		status === "yes" && number.trim() !== "" && !toLebaneseLandline(number);
+	return (
+		<div className="space-y-2">
+			<FieldLabel>Landline (خط أرضي)</FieldLabel>
+			<div className="flex flex-wrap gap-1.5">
+				{LANDLINE_OPTIONS.map((option) => (
+					<Button
+						key={option.value}
+						type="button"
+						size="sm"
+						variant={
+							status === option.value ? "primary" : "outline"
+						}
+						aria-pressed={status === option.value}
+						onClick={() =>
+							form.setFieldValue("landlineStatus", option.value)
+						}
+					>
+						{option.label}
+					</Button>
+				))}
+			</div>
+			{status === "yes" && (
+				<div className="space-y-1">
+					<Input
+						type="tel"
+						inputMode="tel"
+						dir="ltr"
+						placeholder="04 123456"
+						value={number}
+						onChange={(e) =>
+							form.setFieldValue("landline", e.target.value)
+						}
+						aria-invalid={invalid || undefined}
+						className="max-w-56"
+					/>
+					{invalid && (
+						<p className="text-xs text-destructive">
+							Not a Lebanese landline — area code + 6 digits, e.g.
+							01 234567
+						</p>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 // ─── Tabs ──────────────────────────────────────────────────────────────
 
 function ProfileTab({ form }: { form: CustomerForm }) {
@@ -1225,6 +1336,8 @@ function ProfileTab({ form }: { form: CustomerForm }) {
 			<Separator />
 
 			<PhoneFieldGroup form={form} />
+
+			<LandlineField form={form} />
 		</DetailSection>
 	);
 }

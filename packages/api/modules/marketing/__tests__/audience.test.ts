@@ -140,6 +140,40 @@ describe("materializeAudience", () => {
 		);
 	});
 
+	it("never picks a landline as the WhatsApp number and filters on the landline answer", async () => {
+		mocks.customerFindMany.mockResolvedValue([
+			customer("landline-first", {
+				mobile: "+9611680979",
+				phones: [{ number: "+9611680979" }, { number: "+96176321501" }],
+			}),
+			customer("landline-only", { phones: [{ number: "04 123456" }] }),
+		]);
+		mocks.suppressionFindMany.mockResolvedValue([]);
+
+		const result = await materializeAudience({
+			organizationId: "org",
+			permCtx,
+			activeDealerId: null,
+			audience: {
+				type: "isp_customers",
+				statuses: [],
+				planIds: [],
+				excludePlanIds: [],
+				stationIds: [],
+				collectorIds: [],
+				groupNames: [],
+				connectionTypes: [],
+				landline: "yes",
+			},
+		});
+
+		expect(result.recipients.map((r) => [r.customerId, r.phone])).toEqual([
+			["landline-first", "96176321501"],
+		]);
+		const where = mocks.customerFindMany.mock.calls[0]?.[0]?.where;
+		expect(where.hasLandline).toBe(true);
+	});
+
 	it("keeps plan-less customers when excluding plans", async () => {
 		mocks.customerFindMany.mockResolvedValue([]);
 

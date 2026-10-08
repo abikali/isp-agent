@@ -1,5 +1,6 @@
 "use client";
 
+import { LANDLINE_FILTER_LABELS } from "@repo/api/modules/customers/lib/landline-filter";
 import type { CustomerListStatus } from "@repo/api/modules/customers/lib/statuses";
 import { isUsablePin } from "@repo/utils";
 import { useCollectors, useCustomerGroups } from "@saas/billing/client";
@@ -174,6 +175,7 @@ const DEFAULT_FILTERS: CustomerFiltersValue = {
 	collectorId: "all",
 	hasLocation: "all",
 	hasName: "all",
+	landline: "all",
 };
 
 interface CustomerRow {
@@ -399,6 +401,8 @@ export function CustomersList({
 				: undefined,
 		hasName:
 			filterValues.hasName !== "all" ? ("missing" as const) : undefined,
+		landline:
+			filterValues.landline !== "all" ? filterValues.landline : undefined,
 		page,
 		sortBy,
 		sortOrder,
@@ -500,6 +504,13 @@ export function CustomersList({
 						? "Has location"
 						: "Missing location",
 				onRemove: () => updateFilters({ hasLocation: "all" }),
+			});
+		}
+		if (filterValues.landline !== "all") {
+			out.push({
+				key: "landline",
+				label: `Landline: ${LANDLINE_FILTER_LABELS[filterValues.landline].toLowerCase()}`,
+				onRemove: () => updateFilters({ landline: "all" }),
 			});
 		}
 		// groups param is referenced for parity with filter source; not used

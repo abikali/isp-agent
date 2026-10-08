@@ -29,6 +29,10 @@ import {
 import z from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
+	landlineAnswerSchema,
+	landlineUpdate,
+} from "../../customers/lib/landline";
+import {
 	diffMirrorFields,
 	type MirrorNextFields,
 	pushMirrorDiffToIRadius,
@@ -78,6 +82,8 @@ export const createPayment = protectedProcedure
 				.optional(),
 			customerLatitude: z.number().finite().optional(),
 			customerLongitude: z.number().finite().optional(),
+			/** The collector's answer to "does the customer have a landline?". */
+			landline: landlineAnswerSchema.optional(),
 			referredCustomerId: z.string().optional(),
 		}),
 	)
@@ -106,6 +112,9 @@ export const createPayment = protectedProcedure
 				message: "Can only record payments for your own collections",
 			});
 		}
+
+		// Validated before anything is written, iRadius included.
+		const landline = input.landline ? landlineUpdate(input.landline) : null;
 
 		const activeDealerId = member.activeDealerId ?? null;
 		const dealerFilter = getDealerScopeFilter(activeDealerId);
@@ -409,6 +418,9 @@ export const createPayment = protectedProcedure
 		) {
 			customerUpdates["latitude"] = input.customerLatitude;
 			customerUpdates["longitude"] = input.customerLongitude;
+		}
+		if (landline) {
+			Object.assign(customerUpdates, landline);
 		}
 
 		// Create payment(s) in a transaction. A lump cash collection that covers

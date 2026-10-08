@@ -151,6 +151,15 @@ export async function setupScheduledJobs(): Promise<void> {
 		},
 	);
 
+	// Fiber control room: chats / stops / escalations about fiber or Ogero
+	// become fiber leads. Overlapping window so a slow run misses nothing;
+	// signals are idempotent.
+	await queue.upsertJobScheduler(
+		"fiber-signals",
+		{ pattern: "*/10 * * * *" },
+		{ name: "fiber-signals", data: { type: "fiber-signals" } },
+	);
+
 	// Conversation summaries: summarise every conversation that went idle
 	// (agents with conversationSummaryMode != "off").
 	await queue.upsertJobScheduler(

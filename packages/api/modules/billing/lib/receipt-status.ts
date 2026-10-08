@@ -1,4 +1,4 @@
-import { getPrimaryPhone } from "@repo/database/phones";
+import { customerWhatsAppPhone } from "@repo/database/phones";
 
 /**
  * WhatsApp receipt state for a payment row, shared by the payments list
@@ -189,17 +189,13 @@ export function classifyReceiptResend(
 	return { action: "queue", phone };
 }
 
-/** Primary structured phone first, then the legacy single-number columns. */
+/** Where the receipt goes — see `customerWhatsAppPhone` (never a landline). */
 export function receiptPhone(customer: {
 	phones: unknown;
 	mobile: string | null;
 	phone: string | null;
 }): string | null {
-	return (
-		getPrimaryPhone(customer.phones) ??
-		(customer.mobile?.trim() || null) ??
-		(customer.phone?.trim() || null)
-	);
+	return customerWhatsAppPhone(customer);
 }
 
 export function isReceiptCoolingDown(activityLog: unknown, now: Date): boolean {

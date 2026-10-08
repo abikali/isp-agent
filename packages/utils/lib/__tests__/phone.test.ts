@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	firstMobileCandidate,
 	parsePhone,
 	phoneSearchVariants,
 	toDigits,
 	toE164,
+	toLebaneseLandline,
 	toNationalDigits,
 } from "../phone";
 
@@ -117,5 +119,34 @@ describe("phoneSearchVariants", () => {
 
 	it("returns empty array when input has no digits", () => {
 		expect(phoneSearchVariants("rolab")).toEqual([]);
+	});
+});
+
+describe("toLebaneseLandline", () => {
+	it("accepts every domestic shape of a landline", () => {
+		expect(toLebaneseLandline("04 123456")).toBe("+9614123456");
+		expect(toLebaneseLandline("4123456")).toBe("+9614123456");
+		expect(toLebaneseLandline("+961 1 680979")).toBe("+9611680979");
+		expect(toLebaneseLandline("00961 7 916626")).toBe("+9617916626");
+		expect(toLebaneseLandline("09-234567")).toBe("+9619234567");
+	});
+
+	it("rejects mobiles, foreign numbers and junk", () => {
+		expect(toLebaneseLandline("03 123456")).toBeNull();
+		expect(toLebaneseLandline("71 123456")).toBeNull();
+		expect(toLebaneseLandline("+96176321501")).toBeNull();
+		expect(toLebaneseLandline("+963998184707")).toBeNull();
+		expect(toLebaneseLandline("0412345")).toBeNull();
+		expect(toLebaneseLandline("")).toBeNull();
+		expect(toLebaneseLandline(null)).toBeNull();
+	});
+});
+
+describe("firstMobileCandidate", () => {
+	it("skips empties and landlines", () => {
+		expect(firstMobileCandidate([null, "", "04 123456", "71 123456"])).toBe(
+			"71 123456",
+		);
+		expect(firstMobileCandidate(["+9611680979"])).toBeNull();
 	});
 });

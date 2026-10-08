@@ -4,8 +4,13 @@ import {
 	type PermissionContext,
 } from "@repo/api/lib/permission";
 import { db } from "@repo/database";
+import { customerWhatsAppPhone } from "@repo/database/phones";
 import { normalizePhone as projectNormalizePhone } from "@repo/utils";
 import z from "zod";
+import {
+	LANDLINE_FILTERS,
+	landlineWhere,
+} from "../../customers/lib/landline-filter";
 import { CUSTOMER_NEEDS_REVIEW_WHERE } from "../../customers/lib/needs-review";
 import { CUSTOMER_LIST_STATUSES } from "../../customers/lib/statuses";
 
@@ -36,6 +41,9 @@ export const ispCustomersAudienceSchema = z.object({
 	// Inclusive lower bound on `customer.balance`. Sign convention is left to
 	// the operator (set to 0.01 for "owes any amount" if positive=debit, etc.).
 	minBalance: z.number().optional(),
+	// Collector's payment-sheet answer: "yes" = fiber-campaign leads (they
+	// have an Ogero line), "unknown" = never asked.
+	landline: z.enum(LANDLINE_FILTERS).optional(),
 });
 
 export const saltiGroupsAudienceSchema = z.object({
@@ -103,27 +111,8 @@ function pickCustomerPhone(c: {
 	phone: string | null;
 	phones: unknown;
 }): string | null {
-	if (c.mobile) {
-		return normalizeMarketingPhone(c.mobile);
-	}
-	if (Array.isArray(c.phones)) {
-		for (const entry of c.phones as Array<{ number?: string }>) {
-			if (
-				entry &&
-				typeof entry === "object" &&
-				typeof entry.number === "string"
-			) {
-				const n = normalizeMarketingPhone(entry.number);
-				if (n) {
-					return n;
-				}
-			}
-		}
-	}
-	if (c.phone) {
-		return normalizeMarketingPhone(c.phone);
-	}
-	return null;
+	const raw = customerWhatsAppPhone(c);
+	return raw ? normalizeMarketingPhone(raw) : null;
 }
 
 function customerVariables(c: {
@@ -262,6 +251,9 @@ async function buildIspCustomerWhere(opts: {
 	}
 	if (f.minBalance !== undefined) {
 		where["balance"] = { gte: f.minBalance };
+	}
+	if (f.landline) {
+		Object.assign(where, landlineWhere(f.landline));
 	}
 	return where;
 }
